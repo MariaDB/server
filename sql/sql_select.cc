@@ -1960,13 +1960,13 @@ JOIN::optimize_inner()
         DBUG_RETURN(1);
 
       /* Give storage engine access to temporary table */
-      if ((err= gbh->init(exec_tmp_table1,
-                                                   having, order)))
+      if ((err= gbh->ha_init(exec_tmp_table1, having, order)))
       {
         gbh->print_error(err, MYF(0));
         DBUG_RETURN(1);
       }
       pushdown_query->store_data_in_temp_table= need_tmp;
+      pushdown_query->having= having;
       /*
         If no ORDER BY clause was specified explicitly, we should sort things
         according to the group_by
@@ -2080,7 +2080,7 @@ int JOIN::init_execution()
     thd->lex->set_limit_rows_examined();
 
   /* Create a tmp table if distinct or if the sort is too complicated */
-  if (need_tmp && !pushdown_query)
+  if (need_tmp && !exec_tmp_table1)
   {
     DBUG_PRINT("info",("Creating tmp table"));
     THD_STAGE_INFO(thd, stage_copying_to_tmp_table);

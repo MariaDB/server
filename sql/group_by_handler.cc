@@ -70,7 +70,7 @@ int Pushdown_query::execute(JOIN *join)
     }
 
     /* Check if we can accept the row */
-    if (!handler->having || handler->having->val_bool())
+    if (!having || having->val_bool())
     {
       if (store_data_in_temp_table)
       {

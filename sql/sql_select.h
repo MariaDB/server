@@ -1971,10 +1971,11 @@ public:
   SELECT_LEX *select_lex;
   bool store_data_in_temp_table;
   group_by_handler *handler;
+  Item *having;
 
   Pushdown_query(SELECT_LEX *select_lex_arg, group_by_handler *handler_arg)
     : select_lex(select_lex_arg), store_data_in_temp_table(0),
-    handler(handler_arg) {}
+    handler(handler_arg), having(0) {}
 
   ~Pushdown_query() { delete handler; }
 

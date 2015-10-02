@@ -34,22 +34,13 @@ class group_by_handler
 {
 public:
   THD *thd;
-  List<Item> *fields;
-  TABLE_LIST *table_list;
-  ORDER *group_by, *order_by;
-  Item *where, *having;
   handlerton *ht;
 
   /* Temporary table where all results should be stored in record[0] */
   TABLE *table;
 
-  group_by_handler(THD *thd_arg, List<Item> *fields_arg,
-                   TABLE_LIST *table_list_arg, ORDER *group_by_arg,
-                   ORDER *order_by_arg, Item *where_arg, Item *having_arg,
-                   handlerton *ht_arg)
-    : thd(thd_arg), fields(fields_arg), table_list(table_list_arg),
-      group_by(group_by_arg), order_by(order_by_arg), where(where_arg),
-      having(having_arg), ht(ht_arg), table(0) {}
+  group_by_handler(THD *thd_arg, handlerton *ht_arg)
+    : thd(thd_arg), ht(ht_arg), table(0) {}
   virtual ~group_by_handler() {}
 
   /*
@@ -65,13 +56,15 @@ public:
     This is becasue we can't revert back the old having and order_by elements.
   */
 
-  virtual bool init(TABLE *temporary_table, Item *having_arg,
-                    ORDER *order_by_arg)
+  virtual bool init(Item *having_arg, ORDER *order_by_arg)
+  {
+    return 0;
+  }
+
+  bool ha_init(TABLE *temporary_table, Item *having_arg, ORDER *order_by_arg)
   {
     table= temporary_table;
-    having= having_arg;
-    order_by= order_by_arg;
-    return 0;
+    return init(having_arg, order_by_arg);
   }
 
   /*
