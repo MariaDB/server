@@ -6278,8 +6278,8 @@ longlong Item_equal::val_int()
   while ((item= it++))
   {
     Field *field= it.get_curr_field();
-    /* Skip fields of non-const tables. They haven't been read yet */
-    if (field->table->const_table)
+    /* Skip fields of tables that has not been read yet */
+    if (!field->table->status || (field->table->status & STATUS_NULL_ROW))
     {
       if (eval_item->cmp(item) || (null_value= item->null_value))
         return 0;

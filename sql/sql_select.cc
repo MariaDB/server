@@ -24183,6 +24183,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 
     explain->select_id= join->select_lex->select_number;
     explain->select_type= join->select_lex->type;
+    explain->using_temporary= need_tmp;
+    explain->using_filesort=  need_order;
     /* Setting explain->message means that all other members are invalid */
     explain->message= message;
 
