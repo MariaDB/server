@@ -759,12 +759,6 @@ JOIN::prepare(Item ***rref_pointer_array,
 
   TABLE_LIST *tbl;
   List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-  /*
-    If all tables comes from the same storage engine, one_storage_engine will
-    be set to point to the handlerton of this engine.
-  */
-  one_storage_engine= 0;
-  uint table_loop_count= 0;
   while ((tbl= li++))
   {
     /*
@@ -776,17 +770,8 @@ JOIN::prepare(Item ***rref_pointer_array,
       Note: this loop doesn't touch tables inside merged semi-joins, because
       subquery-to-semijoin conversion has not been done yet. This is intended.
     */
-    if (tbl->table)
-    {
-      if (mixed_implicit_grouping)
-        tbl->table->maybe_null= 1;
-      if (!table_loop_count++)
-        one_storage_engine= tbl->table->file->ht;
-      else if (one_storage_engine != tbl->table->file->ht)
-        one_storage_engine= 0;
-    }
-    else
-      one_storage_engine= 0;
+    if (mixed_implicit_grouping && tbl->table)
+      tbl->table->maybe_null= 1;
   }
 
   if ((wild_num && setup_wild(thd, tables_list, fields_list, &all_fields,
@@ -1914,92 +1899,106 @@ JOIN::optimize_inner()
     group by handler to evaluate the group by
   */
 
-  if ((tmp_table_param.sum_func_count || group_list) && !procedure &&
-      (one_storage_engine && one_storage_engine->create_group_by))
+  if ((tmp_table_param.sum_func_count || group_list) && !procedure)
   {
-    /* Check if the storage engine can intercept the query */
-    group_by_handler *gbh= one_storage_engine->create_group_by(thd, &all_fields,
-                                tables_list, group_list, order, conds, having);
-    if (gbh)
+    /*
+      At the moment we only support push down for queries where
+      all tables are in the same storage engine
+    */
+    TABLE_LIST *tbl= tables_list;
+    handlerton *ht= tbl && tbl->table ? tbl->table->file->ht : 0;
+    for (tbl= tbl->next_local; ht && tbl; tbl= tbl->next_local)
     {
-      pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
-      uint handler_flags= gbh->flags();
-      int err;
+      if (!tbl->table || tbl->table->file->ht != ht)
+        ht= 0;
+    }
 
-      /*
-        We must store rows in the tmp table if we need to do an ORDER BY
-        or DISTINCT and the storage handler can't handle it.
-      */
-      need_tmp= ((!(handler_flags & GROUP_BY_ORDER_BY) &&
-                  (order || group_list)) ||
-                 (!(handler_flags & GROUP_BY_DISTINCT) && select_distinct));
-      tmp_table_param.hidden_field_count= (all_fields.elements -
-                                           fields_list.elements);
-      if (!(exec_tmp_table1=
-            create_tmp_table(thd, &tmp_table_param, all_fields,
-                             0, handler_flags & GROUP_BY_DISTINCT ?
-                             0 : select_distinct, 1,
-                             select_options, HA_POS_ERROR, "",
-                             !need_tmp,
-                             (!order ||
-                              (handler_flags & GROUP_BY_ORDER_BY)))))
-        DBUG_RETURN(1);
-
-      /*
-        Setup reference fields, used by summary functions and group by fields,
-        to point to the temporary table.
-        The actual switching to the temporary tables fields for HAVING
-        and ORDER BY is done in do_select() by calling
-        set_items_ref_array(items1).
-      */
-      init_items_ref_array();
-      items1= items0 + all_fields.elements;
-      if (change_to_use_tmp_fields(thd, items1,
-                                   tmp_fields_list1, tmp_all_fields1,
-                                   fields_list.elements, all_fields))
-        DBUG_RETURN(1);
-
-      /* Give storage engine access to temporary table */
-      if ((err= gbh->ha_init(exec_tmp_table1, having, order)))
+    if (ht && ht->create_group_by)
+    {
+      /* Check if the storage engine can intercept the query */
+      group_by_handler *gbh= ht->create_group_by(thd, &all_fields,
+                               tables_list, group_list, order, conds, having);
+      if (gbh)
       {
-        gbh->print_error(err, MYF(0));
-        DBUG_RETURN(1);
+        pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
+        uint handler_flags= gbh->flags();
+        int err;
+
+        /*
+          We must store rows in the tmp table if we need to do an ORDER BY
+          or DISTINCT and the storage handler can't handle it.
+        */
+        need_tmp= ((!(handler_flags & GROUP_BY_ORDER_BY) &&
+                    (order || group_list)) ||
+                   (!(handler_flags & GROUP_BY_DISTINCT) && select_distinct));
+        tmp_table_param.hidden_field_count= (all_fields.elements -
+                                             fields_list.elements);
+        if (!(exec_tmp_table1=
+              create_tmp_table(thd, &tmp_table_param, all_fields, 0,
+                               handler_flags & GROUP_BY_DISTINCT ?
+                               0 : select_distinct, 1,
+                               select_options, HA_POS_ERROR, "",
+                               !need_tmp,
+                               (!order ||
+                                (handler_flags & GROUP_BY_ORDER_BY)))))
+          DBUG_RETURN(1);
+
+        /*
+          Setup reference fields, used by summary functions and group by fields,
+          to point to the temporary table.
+          The actual switching to the temporary tables fields for HAVING
+          and ORDER BY is done in do_select() by calling
+          set_items_ref_array(items1).
+        */
+        init_items_ref_array();
+        items1= items0 + all_fields.elements;
+        if (change_to_use_tmp_fields(thd, items1,
+                                     tmp_fields_list1, tmp_all_fields1,
+                                     fields_list.elements, all_fields))
+          DBUG_RETURN(1);
+
+        /* Give storage engine access to temporary table */
+        if ((err= gbh->ha_init(exec_tmp_table1, having, order)))
+        {
+          gbh->print_error(err, MYF(0));
+          DBUG_RETURN(1);
+        }
+        pushdown_query->store_data_in_temp_table= need_tmp;
+        pushdown_query->having= having;
+        /*
+          If no ORDER BY clause was specified explicitly, we should sort things
+          according to the group_by
+        */
+        if (!order)
+          order= group_list;
+        /*
+          Group by and having is calculated by the group_by handler.
+          Reset the group by and having
+        */
+        group= 0; group_list= 0;
+        having= tmp_having= 0;
+        /*
+          Select distinct is handled by handler or by creating an unique index
+          over all fields in the temporary table
+        */
+        select_distinct= 0;
+        if (handler_flags & GROUP_BY_ORDER_BY)
+          order= 0;
+        tmp_table_param.field_count+= tmp_table_param.sum_func_count;
+        tmp_table_param.sum_func_count= 0;
+
+        /* Remember information about the original join */
+        original_join_tab= join_tab;
+        original_table_count= table_count;
+
+        /* Set up one join tab to get sorting to work */
+        const_tables= 0;
+        table_count= 1;
+        join_tab= (JOIN_TAB*) thd->calloc(sizeof(JOIN_TAB));
+        join_tab[0].table= exec_tmp_table1;
+
+        DBUG_RETURN(thd->is_fatal_error);
       }
-      pushdown_query->store_data_in_temp_table= need_tmp;
-      pushdown_query->having= having;
-      /*
-        If no ORDER BY clause was specified explicitly, we should sort things
-        according to the group_by
-      */
-      if (!order)
-        order= group_list;
-      /*
-        Group by and having is calculated by the group_by handler.
-        Reset the group by and having
-      */
-      group= 0; group_list= 0;
-      having= tmp_having= 0;
-      /*
-        Select distinct is handled by handler or by creating an unique index
-        over all fields in the temporary table
-      */
-      select_distinct= 0;
-      if (handler_flags & GROUP_BY_ORDER_BY)
-        order= 0;
-      tmp_table_param.field_count+= tmp_table_param.sum_func_count;
-      tmp_table_param.sum_func_count= 0;
-
-      /* Remember information about the original join */
-      original_join_tab= join_tab;
-      original_table_count= table_count;
-
-      /* Set up one join tab to get sorting to work */
-      const_tables= 0;
-      table_count= 1;
-      join_tab= (JOIN_TAB*) thd->calloc(sizeof(JOIN_TAB));
-      join_tab[0].table= exec_tmp_table1;
-
-      DBUG_RETURN(thd->is_fatal_error);
     }
   }
 

@@ -1087,8 +1087,6 @@ public:
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
 
-  /* points to a storage engine if all tables comes from the storage engine */
-  handlerton *one_storage_engine;
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
   uint	   original_table_count;
@@ -1391,7 +1389,6 @@ public:
     group_optimized_away= 0;
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
-    one_storage_engine= 0;
     pushdown_query= 0;
     original_join_tab= 0;
     do_select_call_count= 0;
