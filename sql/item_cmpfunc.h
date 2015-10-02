@@ -139,12 +139,10 @@ protected:
     @param  param       PARAM from SQL_SELECT::test_quick_select
     @param  field       field in the predicate
     @param  value       constant in the predicate
-    @param  cmp_type    compare type for the field
     @return Pointer to the tree built tree
   */
   virtual SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                                     Field *field, Item *value,
-                                     Item_result cmp_type)
+                                     Field *field, Item *value)
   {
     DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
     DBUG_ASSERT(0);
@@ -153,11 +151,9 @@ protected:
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
                                   Item_field *field_item, Item *value);
   SEL_TREE *get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
-                         Item_func::Functype type,
-                         Item *value, Item_result cmp_type);
+                         Item_func::Functype type, Item *value);
   SEL_TREE *get_ne_mm_tree(RANGE_OPT_PARAM *param,
-                           Field *field, Item *lt_value, Item *gt_value,
-                           Item_result cmp_type);
+                           Field *field, Item *lt_value, Item *gt_value);
   virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                                KEY_PART *key_part,
                                Item_func::Functype type, Item *value);
@@ -334,7 +330,7 @@ protected:
                                   uint *and_level, table_map usable_tables,
                                   SARGABLE_PARAM **sargables, bool equal_func);
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type)
+                             Field *field, Item *value)
   {
     DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
     /*
@@ -346,7 +342,7 @@ protected:
     */
     Item_func::Functype func_type=
       (value != arguments()[0]) ? functype() : rev_functype();
-    DBUG_RETURN(get_mm_parts(param, field, func_type, value, cmp_type));
+    DBUG_RETURN(get_mm_parts(param, field, func_type, value));
   }
 public:
   Item_bool_func2(THD *thd, Item *a, Item *b):
@@ -664,10 +660,10 @@ class Item_func_ne :public Item_bool_rowready_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value,  Item_result cmp_type)
+                             Field *field, Item *value)
   {
     DBUG_ENTER("Item_func_ne::get_func_mm_tree");
-    DBUG_RETURN(get_ne_mm_tree(param, field, value, value, cmp_type));
+    DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
   }
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
@@ -731,7 +727,7 @@ class Item_func_between :public Item_func_opt_neg
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type);
+                             Field *field, Item *value);
 public:
   String value0,value1,value2;
   /* TRUE <=> arguments will be compared as dates. */
@@ -1384,7 +1380,7 @@ class Item_func_in :public Item_func_opt_neg
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type);
+                             Field *field, Item *value);
 public:
   /* 
     an array of values when the right hand arguments of IN
@@ -1487,10 +1483,10 @@ class Item_func_null_predicate :public Item_bool_func
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type)
+                             Field *field, Item *value)
   {
     DBUG_ENTER("Item_func_null_predicate::get_func_mm_tree");
-    DBUG_RETURN(get_mm_parts(param, field, functype(), value, cmp_type));
+    DBUG_RETURN(get_mm_parts(param, field, functype(), value));
   }
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
