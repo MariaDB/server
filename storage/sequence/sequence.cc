@@ -362,15 +362,12 @@ class ha_seq_group_by_handler: public group_by_handler
   bool first_row;
 
 public:
-  ha_seq_group_by_handler(THD *thd, SELECT_LEX *select_lex,
-                          List<Item> *fields,
-                          TABLE_LIST *table_list, ORDER *group_by,
-                          ORDER *order_by, Item *where,
-                          Item *having)
-    :group_by_handler(thd, select_lex, fields, table_list, group_by,
-                      order_by, where, having, sequence_hton)
-  {
-  }
+  ha_seq_group_by_handler(THD *thd_arg, List<Item> *fields_arg,
+                          TABLE_LIST *table_list_arg, ORDER *group_by_arg,
+                          ORDER *order_by_arg, Item *where_arg,
+                          Item *having_arg)
+    :group_by_handler(thd_arg, fields_arg, table_list_arg, group_by_arg,
+                      order_by_arg, where_arg, having_arg, sequence_hton) {}
   ~ha_seq_group_by_handler() {}
   bool init(TABLE *temporary_table, Item *having_arg,
             ORDER *order_by_arg);
@@ -380,10 +377,8 @@ public:
 };
 
 static group_by_handler *
-create_group_by_handler(THD *thd, SELECT_LEX *select_lex,
-                        List<Item> *fields,
-                        TABLE_LIST *table_list, ORDER *group_by,
-                        ORDER *order_by, Item *where,
+create_group_by_handler(THD *thd, List<Item> *fields, TABLE_LIST *table_list,
+                        ORDER *group_by, ORDER *order_by, Item *where,
                         Item *having)
 {
   ha_seq_group_by_handler *handler;
@@ -432,8 +427,7 @@ create_group_by_handler(THD *thd, SELECT_LEX *select_lex,
   }
 
   /* Create handler and return it */
-  handler= new ha_seq_group_by_handler(thd, select_lex, fields, table_list,
-                                       group_by,
+  handler= new ha_seq_group_by_handler(thd, fields, table_list, group_by,
                                        order_by, where, having);
   return handler;
 }

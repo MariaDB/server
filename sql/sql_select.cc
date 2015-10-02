@@ -1918,14 +1918,12 @@ JOIN::optimize_inner()
       (one_storage_engine && one_storage_engine->create_group_by))
   {
     /* Check if the storage engine can intercept the query */
-    if ((storage_handler_for_group_by=
-         (one_storage_engine->create_group_by)(thd, select_lex,
-                                               &all_fields,
-                                               tables_list,
-                                               group_list, order,
-                                               conds, having)))
+    group_by_handler *gbh= one_storage_engine->create_group_by(thd, &all_fields,
+                                tables_list, group_list, order, conds, having);
+    if (gbh)
     {
-      uint handler_flags= storage_handler_for_group_by->flags();
+      pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
+      uint handler_flags= gbh->flags();
       int err;
 
       /*
@@ -1962,13 +1960,13 @@ JOIN::optimize_inner()
         DBUG_RETURN(1);
 
       /* Give storage engine access to temporary table */
-      if ((err= storage_handler_for_group_by->init(exec_tmp_table1,
+      if ((err= gbh->init(exec_tmp_table1,
                                                    having, order)))
       {
-        storage_handler_for_group_by->print_error(err, MYF(0));
+        gbh->print_error(err, MYF(0));
         DBUG_RETURN(1);
       }
-      storage_handler_for_group_by->store_data_in_temp_table= need_tmp;
+      pushdown_query->store_data_in_temp_table= need_tmp;
       /*
         If no ORDER BY clause was specified explicitly, we should sort things
         according to the group_by
@@ -2082,7 +2080,7 @@ int JOIN::init_execution()
     thd->lex->set_limit_rows_examined();
 
   /* Create a tmp table if distinct or if the sort is too complicated */
-  if (need_tmp && ! storage_handler_for_group_by)
+  if (need_tmp && !pushdown_query)
   {
     DBUG_PRINT("info",("Creating tmp table"));
     THD_STAGE_INFO(thd, stage_copying_to_tmp_table);
@@ -12053,8 +12051,8 @@ void JOIN::cleanup(bool full)
     }
     tmp_table_param.cleanup();
 
-    delete storage_handler_for_group_by;
-    storage_handler_for_group_by= 0;
+    delete pushdown_query;
+    pushdown_query= 0;
 
     if (!join_tab)
     {
@@ -17854,15 +17852,14 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
   join->fields= fields;
   join->do_select_call_count++;
 
-  if (join->storage_handler_for_group_by &&
-      join->do_select_call_count == 1)
+  if (join->pushdown_query && join->do_select_call_count == 1)
   {
     /* Select fields are in the temporary table */
     join->fields= &join->tmp_fields_list1;
     /* Setup HAVING to work with fields in temporary table */
     join->set_items_ref_array(join->items1);
     /* The storage engine will take care of the group by query result */
-    int res= join->storage_handler_for_group_by->execute(join);
+    int res= join->pushdown_query->execute(join);
     DBUG_RETURN(res);
   }
 
@@ -24330,7 +24327,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       explain->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     output->add_node(explain);
   }
-  else if (storage_handler_for_group_by)
+  else if (pushdown_query)
   {
     explain= new (output->mem_root) Explain_select(output->mem_root,
                                                    thd->lex->analyze_stmt);

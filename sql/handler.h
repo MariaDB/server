@@ -1267,8 +1267,7 @@ struct handlerton
     The server guaranteeds that all tables in the list belong to this
     storage engine.
   */
-  group_by_handler *(*create_group_by)(THD *thd, SELECT_LEX *select_lex,
-                                       List<Item> *fields,
+  group_by_handler *(*create_group_by)(THD *thd, List<Item> *fields,
                                        TABLE_LIST *table_list, ORDER *group_by,
                                        ORDER *order_by, Item *where,
                                        Item *having);

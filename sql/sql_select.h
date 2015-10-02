@@ -884,6 +884,7 @@ public:
   JOIN_TAB *end;
 };
 
+class Pushdown_query;
 
 class JOIN :public Sql_alloc
 {
@@ -1088,7 +1089,7 @@ public:
 
   /* points to a storage engine if all tables comes from the storage engine */
   handlerton *one_storage_engine;
-  group_by_handler *storage_handler_for_group_by;
+  Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
   uint	   original_table_count;
 
@@ -1391,7 +1392,7 @@ public:
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
     one_storage_engine= 0;
-    storage_handler_for_group_by= 0;
+    pushdown_query= 0;
     original_join_tab= 0;
     do_select_call_count= 0;
 
@@ -1964,5 +1965,21 @@ ulong check_selectivity(THD *thd,
                         TABLE *table,
                         List<COND_STATISTIC> *conds);
 
+class Pushdown_query: public Sql_alloc
+{
+public:
+  SELECT_LEX *select_lex;
+  bool store_data_in_temp_table;
+  group_by_handler *handler;
+
+  Pushdown_query(SELECT_LEX *select_lex_arg, group_by_handler *handler_arg)
+    : select_lex(select_lex_arg), store_data_in_temp_table(0),
+    handler(handler_arg) {}
+
+  ~Pushdown_query() { delete handler; }
+
+  /* Function that calls the above scan functions */
+  int execute(JOIN *join);
+};
 
 #endif /* SQL_SELECT_INCLUDED */

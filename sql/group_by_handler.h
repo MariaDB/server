@@ -18,7 +18,7 @@
   This file implements the group_by_handler interface. This interface
   can be used by storage handlers that can intercept summary or GROUP
   BY queries from MariaDB and itself return the result to the user or
-  upper level.
+  upper level. It is part of the Storage Engine API
 
   Both main and sub queries are supported. Here are some examples of what the
   storage engine could intersept:
@@ -30,35 +30,26 @@
   SELECT a, (select sum(*) from t2 where t1.a=t2.a) from t2;
 */
 
-class JOIN;
-
 class group_by_handler
 {
 public:
-  /* Arguments for group_by_handler, for usage later */
   THD *thd;
-  SELECT_LEX *select_lex;
   List<Item> *fields;
   TABLE_LIST *table_list;
   ORDER *group_by, *order_by;
   Item *where, *having;
-  handlerton *ht;                 /* storage engine of this handler */
+  handlerton *ht;
 
   /* Temporary table where all results should be stored in record[0] */
   TABLE *table;
 
-  bool store_data_in_temp_table;  /* Set by mariadb */
-
-  group_by_handler(THD *thd_arg, SELECT_LEX *select_lex_arg,
-                   List<Item> *fields_arg,
+  group_by_handler(THD *thd_arg, List<Item> *fields_arg,
                    TABLE_LIST *table_list_arg, ORDER *group_by_arg,
-                   ORDER *order_by_arg, Item *where_arg,
-                   Item *having_arg, handlerton *ht_arg)
-    : thd(thd_arg), select_lex(select_lex_arg), fields(fields_arg),
-    table_list(table_list_arg), group_by(group_by_arg),
-    order_by(order_by_arg), where(where_arg), having(having_arg),
-    ht(ht_arg), table(0), store_data_in_temp_table(0)
-  {}
+                   ORDER *order_by_arg, Item *where_arg, Item *having_arg,
+                   handlerton *ht_arg)
+    : thd(thd_arg), fields(fields_arg), table_list(table_list_arg),
+      group_by(group_by_arg), order_by(order_by_arg), where(where_arg),
+      having(having_arg), ht(ht_arg), table(0) {}
   virtual ~group_by_handler() {}
 
   /*
@@ -118,9 +109,7 @@ public:
   /* End scanning */
   virtual int end_scan()=0;
 
-  /* Function that calls the above scan functions */
-  int execute(JOIN *join);
-
   /* Report errors */
   virtual void print_error(int error, myf errflag);
 };
+

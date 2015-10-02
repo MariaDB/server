@@ -35,15 +35,17 @@
     -1  if error should be sent
 */
 
-int group_by_handler::execute(JOIN *join)
+int Pushdown_query::execute(JOIN *join)
 {
   int err;
   ha_rows max_limit;
   ha_rows *reset_limit= 0;
   Item **reset_item= 0;
-  DBUG_ENTER("group_by_handler::execute");
+  THD *thd= handler->thd;
+  TABLE *table= handler->table;
+  DBUG_ENTER("Pushdown_query::execute");
 
-  if ((err= init_scan()))
+  if ((err= handler->init_scan()))
     goto error;
 
   if (store_data_in_temp_table)
@@ -58,17 +60,17 @@ int group_by_handler::execute(JOIN *join)
       reset_item= &join->unit->fake_select_lex->select_limit;
   }
 
-  while (!(err= next_row()))
+  while (!(err= handler->next_row()))
   {
     if (thd->check_killed())
     {
       thd->send_kill_message();
-      (void) end_scan();
+      handler->end_scan();
       DBUG_RETURN(-1);
     }
 
     /* Check if we can accept the row */
-    if (!having || having->val_bool())
+    if (!handler->having || handler->having->val_bool())
     {
       if (store_data_in_temp_table)
       {
@@ -97,7 +99,7 @@ int group_by_handler::execute(JOIN *join)
           /* result < 0 if row was not accepted and should not be counted */
           if ((error= join->result->send_data(*join->fields)))
           {
-            (void) end_scan();
+            handler->end_scan();
             DBUG_RETURN(error < 0 ? 0 : -1);
           }
         }
@@ -119,7 +121,7 @@ int group_by_handler::execute(JOIN *join)
   if (err != 0 && err != HA_ERR_END_OF_FILE)
     goto error;
 
-  if ((err= end_scan()))
+  if ((err= handler->end_scan()))
     goto error_2;
   if (!store_data_in_temp_table && join->result->send_eof())
     DBUG_RETURN(1);                              // Don't send error to client
@@ -127,9 +129,9 @@ int group_by_handler::execute(JOIN *join)
   DBUG_RETURN(0);
 
 error:
-  (void) end_scan();
+  handler->end_scan();
 error_2:
-  print_error(err, MYF(0));
+  handler->print_error(err, MYF(0));
   DBUG_RETURN(-1);                              // Error not sent to client
 }
 
