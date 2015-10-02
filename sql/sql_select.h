@@ -1011,6 +1011,7 @@ public:
   */
   uint     top_join_tab_count;
   uint	   send_group_parts;
+  uint     do_select_call_count;
   /*
     True if the query has GROUP BY.
     (that is, if group_by != NULL. when DISTINCT is converted into GROUP BY, it
@@ -1079,6 +1080,12 @@ public:
 
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
+
+  /* points to a storage engine if all tables comes from the storage engine */
+  handlerton *one_storage_engine;
+  group_by_handler *storage_handler_for_group_by;
+  JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
 
 /******* Join optimization state members start *******/
   /*
@@ -1378,6 +1385,10 @@ public:
     group_optimized_away= 0;
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
+    one_storage_engine= 0;
+    storage_handler_for_group_by= 0;
+    original_join_tab= 0;
+    do_select_call_count= 0;
 
     explain= NULL;
 

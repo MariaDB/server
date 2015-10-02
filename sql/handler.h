@@ -949,6 +949,10 @@ struct handler_iterator {
 };
 
 class handler;
+class group_by_handler;
+typedef class st_select_lex SELECT_LEX;
+typedef struct st_order ORDER;
+
 /*
   handlerton is a singleton structure - one instance per storage engine -
   to provide access to storage engine functionality that works on the
@@ -1250,6 +1254,24 @@ struct handlerton
      assumed by REPAIR TABLE ... USE_FRM implementation.
    */
    const char **tablefile_extensions; // by default - empty list
+
+  /**********************************************************************
+   Functions to intercept queries
+  **********************************************************************/
+
+  /*
+    Create and return a group_by_handler, if the storage engine can execute
+    the summary / group by query.
+    If the storage engine can't do that, return NULL.
+
+    This is only called for SELECT's where all tables are from the same
+    storage engine.
+  */
+  group_by_handler *(*create_group_by)(THD *thd, SELECT_LEX *select_lex,
+                                       List<Item> *fields,
+                                       TABLE_LIST *table_list, ORDER *group_by,
+                                       ORDER *order_by, Item *where,
+                                       Item *having);
 
    /*********************************************************************
      Table discovery API.
@@ -4080,6 +4102,7 @@ protected:
 };
 
 #include "multi_range_read.h"
+#include "group_by_handler.h"
 
 bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 
