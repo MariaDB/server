@@ -2774,9 +2774,6 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS:
   {
     execute_show_status(thd, all_tables);
-#ifdef WITH_WSREP
-    wsrep_free_status(thd);
-#endif /* WITH_WSREP */
     break;
   }
   case SQLCOM_SHOW_EXPLAIN:
