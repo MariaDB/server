@@ -3440,11 +3440,16 @@ mysql_execute_command(THD *thd)
       }
       else
       {
-        /* in STATEMENT format, we probably have to replicate also temporary
-           tables, like mysql replication does
+        /*
+          In STATEMENT format, we probably have to replicate also temporary
+          tables, like mysql replication does. Also check if the requested
+          engine is allowed/supported.
         */
-        if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
-            !create_info.tmp_table()))
+        if (WSREP(thd) &&
+            !check_engine(thd, create_table->db, create_table->table_name,
+                          &create_info) &&
+            (!thd->is_current_stmt_binlog_format_row() ||
+             !create_info.tmp_table()))
         {
 	  WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name, NULL)
         }
