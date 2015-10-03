@@ -75,30 +75,6 @@ public:
   virtual ~group_by_handler() {}
 
   /*
-    Store pointer to temporary table and objects modified to point to
-    the temporary table.  This will happen during the optimize phase.
-
-    We provide new 'having' and 'order_by' elements here. The differ from the
-    original ones in that these are modified to point to fields in the
-    temporary table 'table'.
-
-    Return 1 if the storage handler cannot handle the GROUP BY after all,
-    in which case we have to give an error to the end user for the query.
-    This is becasue we can't revert back the old having and order_by elements.
-  */
-
-  virtual bool init(Item *having_arg, ORDER *order_by_arg)
-  {
-    return 0;
-  }
-
-  bool ha_init(TABLE *temporary_table, Item *having_arg, ORDER *order_by_arg)
-  {
-    table= temporary_table;
-    return init(having_arg, order_by_arg);
-  }
-
-  /*
     Functions to scan data. All these returns 0 if ok, error code in case
     of error
   */

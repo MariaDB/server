@@ -1922,7 +1922,6 @@ JOIN::optimize_inner()
       if (gbh)
       {
         pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
-        int err;
 
         /*
           We must store rows in the tmp table if we need to do an ORDER BY
@@ -1953,11 +1952,8 @@ JOIN::optimize_inner()
           DBUG_RETURN(1);
 
         /* Give storage engine access to temporary table */
-        if ((err= gbh->ha_init(exec_tmp_table1, having, order)))
-        {
-          gbh->print_error(err, MYF(0));
-          DBUG_RETURN(1);
-        }
+        gbh->table= exec_tmp_table1;
+
         pushdown_query->store_data_in_temp_table= need_tmp;
         pushdown_query->having= having;
         /*
