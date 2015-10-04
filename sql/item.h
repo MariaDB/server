@@ -656,6 +656,8 @@ protected:
   */
   String str_value;
 
+  SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
+
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant

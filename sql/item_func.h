@@ -130,7 +130,11 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_func::get_mm_tree");
+    DBUG_RETURN(const_item() ? get_mm_tree_for_const(param) : NULL);
+  }
   bool eq(const Item *item, bool binary_cmp) const;
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }

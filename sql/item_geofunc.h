@@ -275,7 +275,7 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_bool_func2_with_rev
 {
 protected:
   enum Functype spatial_rel;
@@ -285,7 +285,7 @@ protected:
                        Item_func::Functype type, Item *value);
 public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
-    Item_bool_func2(thd, a, b), spatial_rel(sp_rel)
+    Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
     maybe_null= true;
   }

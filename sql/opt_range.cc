@@ -7423,10 +7423,10 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 }
 
 
-static SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param, Item *cond)
+SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
 {
   DBUG_ENTER("get_mm_tree_for_const");
-  if (cond->is_expensive())
+  if (is_expensive())
     DBUG_RETURN(0);
   /*
     During the cond->val_int() evaluation we can come across a subselect
@@ -7437,8 +7437,8 @@ static SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param, Item *cond)
   MEM_ROOT *tmp_root= param->mem_root;
   param->thd->mem_root= param->old_root;
   SEL_TREE *tree;
-  tree= cond->val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
-                          new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
+  tree= val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
+                    new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
   param->thd->mem_root= tmp_root;
   DBUG_RETURN(tree);
 }
@@ -7448,7 +7448,7 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item::get_mm_tree");
   if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
+    DBUG_RETURN(get_mm_tree_for_const(param));
 
   /*
     Here we have a not-constant non-function Item.
@@ -7474,7 +7474,7 @@ Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_func_between::get_mm_tree");
   if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
+    DBUG_RETURN(get_mm_tree_for_const(param));
 
   SEL_TREE *tree= 0;
   SEL_TREE *ftree= 0;
@@ -7521,7 +7521,7 @@ SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_func_in::get_mm_tree");
   if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
+    DBUG_RETURN(get_mm_tree_for_const(param));
 
   if (key_item()->real_item()->type() != Item::FIELD_ITEM)
     DBUG_RETURN(0);
@@ -7535,7 +7535,7 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_equal::get_mm_tree");
   if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
+    DBUG_RETURN(get_mm_tree_for_const(param));
 
   SEL_TREE *tree= 0;
   SEL_TREE *ftree= 0;
@@ -7556,77 +7556,6 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
       tree= get_mm_parts(param, field, Item_func::EQ_FUNC, value);
       ftree= !ftree ? tree : tree_and(param, ftree, tree);
     }
-  }
-
-  DBUG_RETURN(ftree);
-}
-
-
-SEL_TREE *Item_func::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
-{
-  DBUG_ENTER("Item_func::get_mm_tree");
-  DBUG_RETURN(const_item() ? get_mm_tree_for_const(param, this) : NULL);
-}
-
-
-SEL_TREE *Item_func_null_predicate::get_mm_tree(RANGE_OPT_PARAM *param,
-                                                Item **cond_ptr)
-{
-  DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
-  if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
-  if (args[0]->real_item()->type() == Item::FIELD_ITEM)
-  {
-    Item_field *field_item= (Item_field*) args[0]->real_item();
-    if (!field_item->const_item())
-      DBUG_RETURN(get_full_func_mm_tree(param, field_item, NULL));
-  }
-  DBUG_RETURN(NULL);
-}
-
-
-SEL_TREE *Item_bool_func2::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
-{
-  DBUG_ENTER("Item_bool_func2::get_mm_tree");
-  if (const_item())
-    DBUG_RETURN(get_mm_tree_for_const(param, this));
-
-  SEL_TREE *ftree= 0;
-  DBUG_ASSERT(arg_count == 2);
-  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
-  {
-    Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
-    Item *value= arguments()[1];
-    if (value && value->is_expensive())
-      DBUG_RETURN(0);
-    if (!arguments()[0]->real_item()->const_item())
-      ftree= get_full_func_mm_tree(param, field_item, value);
-  }
-  /*
-    Even if get_full_func_mm_tree() was executed above and did not
-    return a range predicate it may still be possible to create one
-    by reversing the order of the operands. Note that this only
-    applies to predicates where both operands are fields. Example: A
-    query of the form
-
-       WHERE t1.a OP t2.b
-
-    In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
-    When creating range predicates for t2, get_full_func_mm_tree()
-    above will return NULL because 'field' belongs to t1 and only
-    predicates that applies to t2 are of interest. In this case a
-    call to get_full_func_mm_tree() with reversed operands (see
-    below) may succeed.
-  */
-  if (!ftree && have_rev_func() &&
-      arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
-  {
-    Item_field *field_item= (Item_field*) (arguments()[1]->real_item());
-    Item *value= arguments()[0];
-    if (value && value->is_expensive())
-      DBUG_RETURN(0);
-    if (!arguments()[1]->real_item()->const_item())
-      ftree= get_full_func_mm_tree(param, field_item, value);
   }
 
   DBUG_RETURN(ftree);

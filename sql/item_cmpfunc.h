@@ -144,12 +144,42 @@ protected:
   virtual SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                                      Field *field, Item *value)
   {
-    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
+    DBUG_ENTER("Item_bool_func::get_func_mm_tree");
     DBUG_ASSERT(0);
     DBUG_RETURN(0);
   }
+  /*
+    Return the full select tree for "field_item" and "value":
+    - a single SEL_TREE if the field is not in a multiple equality, or
+    - a conjuction of all SEL_TREEs for all fields from
+      the same multiple equality with "field_item".
+  */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
                                   Item_field *field_item, Item *value);
+  /**
+    Test if "item" and "value" are suitable for the range optimization
+    and get their full select tree.
+
+    "Suitable" means:
+    - "item" is a field or a field reference
+    - "value" is NULL                (e.g. WHERE field IS NULL), or
+      "value" is an unexpensive item (e.g. WHERE field OP value)
+
+    @param item  - the argument that is checked to be a field
+    @param value - the other argument
+    @returns - NULL if the arguments are not suitable for the range optimizer.
+    @returns - the full select tree if the arguments are suitable.
+  */
+  SEL_TREE *get_full_func_mm_tree_for_args(RANGE_OPT_PARAM *param,
+                                           Item *item, Item *value)
+  {
+    DBUG_ENTER("Item_bool_func::get_full_func_mm_tree_for_args");
+    Item *field= item->real_item();
+    if (field->type() == Item::FIELD_ITEM && !field->const_item() &&
+        (!value || !value->is_expensive()))
+      DBUG_RETURN(get_full_func_mm_tree(param, (Item_field *) field, value));
+    DBUG_RETURN(NULL);
+  }
   SEL_TREE *get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
                          Item_func::Functype type, Item *value);
   SEL_TREE *get_ne_mm_tree(RANGE_OPT_PARAM *param,
@@ -324,33 +354,15 @@ public:
 */
 class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
-  bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
 protected:
   void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                                   uint *and_level, table_map usable_tables,
                                   SARGABLE_PARAM **sargables, bool equal_func);
-  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value)
-  {
-    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
-    /*
-       Here the function for the following predicates are processed:
-       <, <=, =, <=>, >=, >, LIKE, spatial relations
-       If the predicate is of the form (value op field) it is handled
-       as the equivalent predicate (field rev_op value), e.g.
-       2 <= a is handled as a >= 2.
-    */
-    Item_func::Functype func_type=
-      (value != arguments()[0]) ? functype() : rev_functype();
-    DBUG_RETURN(get_mm_parts(param, field, func_type, value));
-  }
 public:
   Item_bool_func2(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b) { }
-  virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   bool count_sargable_conds(uchar *arg);
@@ -368,15 +380,87 @@ public:
     */
     return STRING_RESULT;
   }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_bool_func2::get_mm_tree");
+    DBUG_ASSERT(arg_count == 2);
+    SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], args[1]);
+    if (!ftree)
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
 };
 
-class Item_bool_rowready_func2 :public Item_bool_func2
+
+/**
+  A class for functions and operators that can use the range optimizer and
+  have a reverse function/operator that can also use the range optimizer,
+  so this condition:
+    WHERE value OP field
+  can be optimized as equivalent to:
+    WHERE field REV_OP value
+
+  This class covers:
+  - scalar comparison predicates:  <, <=, =, <=>, >=, >
+  - MBR and precise spatial relation predicates (e.g. SP_TOUCHES(x,y))
+
+  For example:
+    WHERE 10 > field
+  can be optimized as:
+    WHERE field < 10
+*/
+class Item_bool_func2_with_rev :public Item_bool_func2
+{
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value)
+  {
+    DBUG_ENTER("Item_bool_func2_with_rev::get_func_mm_tree");
+    Item_func::Functype func_type=
+      (value != arguments()[0]) ? functype() : rev_functype();
+    DBUG_RETURN(get_mm_parts(param, field, func_type, value));
+  }
+public:
+  Item_bool_func2_with_rev(THD *thd, Item *a, Item *b):
+    Item_bool_func2(thd, a, b) { }
+  virtual enum Functype rev_functype() const= 0;
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_bool_func2_with_rev::get_mm_tree");
+    DBUG_ASSERT(arg_count == 2);
+    SEL_TREE *ftree;
+    /*
+      Even if get_full_func_mm_tree_for_args(param, args[0], args[1]) will not
+      return a range predicate it may still be possible to create one
+      by reversing the order of the operands. Note that this only
+      applies to predicates where both operands are fields. Example: A
+      query of the form
+
+         WHERE t1.a OP t2.b
+
+      In this case, args[0] == t1.a and args[1] == t2.b.
+      When creating range predicates for t2,
+      get_full_func_mm_tree_for_args(param, args[0], args[1])
+      will return NULL because 'field' belongs to t1 and only
+      predicates that applies to t2 are of interest. In this case a
+      call to get_full_func_mm_tree_for_args() with reversed operands
+      may succeed.
+    */
+    if (!(ftree= get_full_func_mm_tree_for_args(param, args[0], args[1])) &&
+        !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])))
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
+};
+
+
+class Item_bool_rowready_func2 :public Item_bool_func2_with_rev
 {
 protected:
   Arg_comparator cmp;
 public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
-    Item_bool_func2(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
+    Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
@@ -1495,7 +1579,14 @@ public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
+    SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], NULL);
+    if (!ftree)
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
@@ -1608,6 +1699,12 @@ class Item_func_like :public Item_bool_func2
   String cmp_value1, cmp_value2;
   bool with_sargable_pattern() const;
 protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value)
+  {
+    DBUG_ENTER("Item_func_like::get_func_mm_tree");
+    DBUG_RETURN(get_mm_parts(param, field, LIKE_FUNC, value));
+  }
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
                        Item_func::Functype type, Item *value);
