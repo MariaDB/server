@@ -2630,6 +2630,7 @@ public:
   ulong      query_plan_fsort_passes; 
   pthread_t  real_id;                           /* For debugging */
   my_thread_id  thread_id;
+	typedef ulong pid_t;
   pid_t      os_thread_id;
   uint	     tmp_table, global_disable_checkpoint;
   uint	     server_status,open_options;

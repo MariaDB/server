@@ -31,7 +31,9 @@ extern "C" {
 #ifndef MYSQL_ABI_CHECK
 #ifdef _WIN32
 #include <malloc.h>
+#ifndef __cplusplus
 #define inline __inline
+#endif
 #else
 #include <alloca.h>
 #endif

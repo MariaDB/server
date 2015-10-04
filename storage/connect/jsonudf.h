@@ -85,13 +85,13 @@ extern "C" {
 	DllExport void json_object_grp_clear(UDF_INIT *, char *, char *);
 	DllExport void json_object_grp_deinit(UDF_INIT*);
 
-	DllExport my_bool json_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *json_get_item(UDF_EXEC_ARGS);
-	DllExport void json_get_item_deinit(UDF_INIT*);
-
 	DllExport my_bool json_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_item_merge(UDF_EXEC_ARGS);
 	DllExport void json_item_merge_deinit(UDF_INIT*);
+
+	DllExport my_bool json_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_get_item(UDF_EXEC_ARGS);
+	DllExport void json_get_item_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonget_string_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jsonget_string(UDF_EXEC_ARGS);
