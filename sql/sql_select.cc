@@ -22410,7 +22410,7 @@ calc_group_buffer(JOIN *join,ORDER *group)
     }
     else
     { 
-      switch (group_item->result_type()) {
+      switch (group_item->cmp_type()) {
       case REAL_RESULT:
         key_length+= sizeof(double);
         break;
@@ -22422,22 +22422,20 @@ calc_group_buffer(JOIN *join,ORDER *group)
                                                 (group_item->decimals ? 1 : 0),
                                                 group_item->decimals);
         break;
-      case STRING_RESULT:
+      case TIME_RESULT:
       {
-        enum enum_field_types type= group_item->field_type();
         /*
           As items represented as DATE/TIME fields in the group buffer
           have STRING_RESULT result type, we increase the length 
           by 8 as maximum pack length of such fields.
         */
-        if (type == MYSQL_TYPE_TIME ||
-            type == MYSQL_TYPE_DATE ||
-            type == MYSQL_TYPE_DATETIME ||
-            type == MYSQL_TYPE_TIMESTAMP)
-        {
-          key_length+= 8;
-        }
-        else if (type == MYSQL_TYPE_BLOB)
+        key_length+= 8;
+        break;
+      }
+      case STRING_RESULT:
+      {
+        enum enum_field_types type= group_item->field_type();
+        if (type == MYSQL_TYPE_BLOB)
           key_length+= MAX_BLOB_WIDTH;		// Can't be used as a key
         else
         {

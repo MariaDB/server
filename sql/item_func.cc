@@ -871,7 +871,7 @@ void Item_func_num1::fix_length_and_dec()
 String *Item_func_hybrid_field_type::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::result_type()) {
+  switch (Item_func_hybrid_field_type::cmp_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -898,24 +898,23 @@ String *Item_func_hybrid_field_type::val_str(String *str)
     str->set_real(nr, decimals, collation.collation);
     break;
   }
-  case STRING_RESULT:
-    if (is_temporal_type(field_type()))
-    {
-      MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0) ||
-          str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      {
-        null_value= 1;
-        return (String *) 0;
-      }
-      ltime.time_type= mysql_type_to_time_type(field_type());
-      str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
-      str->set_charset(&my_charset_bin);
-      return str;
-    }
-    return str_op(&str_value);
   case TIME_RESULT:
+  {
+    MYSQL_TIME ltime;
+    if (date_op(&ltime,
+                field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0) ||
+        str->alloc(MAX_DATE_STRING_REP_LENGTH))
+    {
+      null_value= 1;
+      return (String *) 0;
+    }
+    ltime.time_type= mysql_type_to_time_type(field_type());
+    str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
+    str->set_charset(&my_charset_bin);
+    return str;
+  }
+  case STRING_RESULT:
+    return str_op(&str_value);
   case ROW_RESULT:
     DBUG_ASSERT(0);
   }
@@ -926,7 +925,7 @@ String *Item_func_hybrid_field_type::val_str(String *str)
 double Item_func_hybrid_field_type::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::result_type()) {
+  switch (Item_func_hybrid_field_type::cmp_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -943,24 +942,23 @@ double Item_func_hybrid_field_type::val_real()
   }
   case REAL_RESULT:
     return real_op();
+  case TIME_RESULT:
+  {
+    MYSQL_TIME ltime;
+    if (date_op(&ltime,
+                field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0 ))
+    {
+      null_value= 1;
+      return 0;
+    }
+    ltime.time_type= mysql_type_to_time_type(field_type());
+    return TIME_to_double(&ltime);
+  }
   case STRING_RESULT:
   {
-    if (is_temporal_type(field_type()))
-    {
-      MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0 ))
-      {
-        null_value= 1;
-        return 0;
-      }
-      ltime.time_type= mysql_type_to_time_type(field_type());
-      return TIME_to_double(&ltime);
-    }
     String *res= str_op(&str_value);
     return res ? double_from_string_with_check(res) : 0.0;
   }
-  case TIME_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);
   }
@@ -971,7 +969,7 @@ double Item_func_hybrid_field_type::val_real()
 longlong Item_func_hybrid_field_type::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::result_type()) {
+  switch (Item_func_hybrid_field_type::cmp_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -985,24 +983,23 @@ longlong Item_func_hybrid_field_type::val_int()
     return int_op();
   case REAL_RESULT:
     return (longlong) rint(real_op());
+  case TIME_RESULT:
+  {
+    MYSQL_TIME ltime;
+    if (date_op(&ltime,
+                field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
+    {
+      null_value= 1;
+      return 0;
+    }
+    ltime.time_type= mysql_type_to_time_type(field_type());
+    return TIME_to_ulonglong(&ltime);
+  }
   case STRING_RESULT:
   {
-    if (is_temporal_type(field_type()))
-    {
-      MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
-      {
-        null_value= 1;
-        return 0;
-      }
-      ltime.time_type= mysql_type_to_time_type(field_type());
-      return TIME_to_ulonglong(&ltime);
-    }
     String *res= str_op(&str_value);
     return res ? longlong_from_string_with_check(res) : 0;
   }
-  case TIME_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);
   }
@@ -1014,7 +1011,7 @@ my_decimal *Item_func_hybrid_field_type::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *val= decimal_value;
   DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::result_type()) {
+  switch (Item_func_hybrid_field_type::cmp_type()) {
   case DECIMAL_RESULT:
     val= decimal_op(decimal_value);
     break;
@@ -1030,26 +1027,25 @@ my_decimal *Item_func_hybrid_field_type::val_decimal(my_decimal *decimal_value)
     double2my_decimal(E_DEC_FATAL_ERROR, result, decimal_value);
     break;
   }
+  case TIME_RESULT:
+  {
+    MYSQL_TIME ltime;
+    if (date_op(&ltime,
+                field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
+    {
+      my_decimal_set_zero(decimal_value);
+      null_value= 1;
+      return 0;
+    }
+    ltime.time_type= mysql_type_to_time_type(field_type());
+    return date2my_decimal(&ltime, decimal_value);
+  }
   case STRING_RESULT:
   {
-    if (is_temporal_type(field_type()))
-    {
-      MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
-      {
-        my_decimal_set_zero(decimal_value);
-        null_value= 1;
-        return 0;
-      }
-      ltime.time_type= mysql_type_to_time_type(field_type());
-      return date2my_decimal(&ltime, decimal_value);
-    }
     String *res= str_op(&str_value);
     return res ? decimal_from_string_with_check(decimal_value, res) : 0;
   }  
   case ROW_RESULT:
-  case TIME_RESULT:
     DBUG_ASSERT(0);
   }
   return val;
@@ -1060,7 +1056,7 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
                                             ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::result_type()) {
+  switch (Item_func_hybrid_field_type::cmp_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal value, *res;
@@ -1088,12 +1084,12 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
       goto err;
     break;
   }
+  case TIME_RESULT:
+    return date_op(ltime,
+                   fuzzydate |
+                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
   case STRING_RESULT:
   {
-    if (is_temporal_type(field_type()))
-      return date_op(ltime,
-                     fuzzydate |
-                     (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
     char buff[40];
     String tmp(buff,sizeof(buff), &my_charset_bin),*res;
     if (!(res= str_op(&tmp)) ||
@@ -1101,10 +1097,8 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
                                   ltime, fuzzydate))
       goto err;
     break;
-     break;
   }
   case ROW_RESULT:
-  case TIME_RESULT:
     DBUG_ASSERT(0);
   }
 
