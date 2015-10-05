@@ -3,6 +3,8 @@
 # embedded does not support restart
 -- source include/not_embedded.inc
 
+call mtr.add_suppression("trying to do an operation on a dropped tablespace .*");
+
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
@@ -129,9 +131,6 @@ SELECT COUNT(1) FROM t3;
 SELECT COUNT(1) FROM t4;
 SELECT COUNT(1) FROM t5;
 
-drop table t1,t2,t3,t4, t5;
-set GLOBAL innodb_default_encryption_key_id=1;
-
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
@@ -139,3 +138,8 @@ EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables;
 EVAL SET GLOBAL innodb_encryption_threads = $threads;
 --enable_query_log
+
+drop table t1,t2,t3,t4, t5;
+
+set GLOBAL innodb_default_encryption_key_id=1;
+
