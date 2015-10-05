@@ -462,7 +462,7 @@ int ha_seq_group_by_handler::next_row()
   List_iterator_fast<Item> it(*fields);
   Item_sum *item_sum;
   Sequence_share *seqs= ((ha_seq*) table_list->table->file)->seqs;
-  DBUG_ENTER("ha_seq_group_by_handler");
+  DBUG_ENTER("ha_seq_group_by_handler::next_row");
 
   /*
     Check if this is the first call to the function. If not, we have already

@@ -1264,7 +1264,7 @@ struct handlerton
     the summary / group by query.
     If the storage engine can't do that, return NULL.
 
-    This is only called for SELECT's where all tables are from the same
+    The server guaranteeds that all tables in the list belong to this
     storage engine.
   */
   group_by_handler *(*create_group_by)(THD *thd, SELECT_LEX *select_lex,

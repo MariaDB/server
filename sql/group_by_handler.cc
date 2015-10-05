@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2014, SkySQL Ab & MariaDB Foundation
+   Copyright (c) 2014, 2015 SkySQL Ab & MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,10 +21,6 @@
   upper level.
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "sql_priv.h"
 #include "sql_select.h"
 
@@ -45,7 +41,7 @@ int group_by_handler::execute(JOIN *join)
   ha_rows max_limit;
   ha_rows *reset_limit= 0;
   Item **reset_item= 0;
-  DBUG_ENTER("group_by_handler");
+  DBUG_ENTER("group_by_handler::execute");
 
   if ((err= init_scan()))
     goto error;

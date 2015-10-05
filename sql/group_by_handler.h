@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2014, SkySQL Ab & MariaDB Foundation
+   Copyright (c) 2014, 2015 SkySQL Ab & MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,8 +28,6 @@
   SELECT a,count(*) as sum FROM t1 where b > 10 group by a, order by sum;
   SELECT a,count(*) FROM t1,t2;
   SELECT a, (select sum(*) from t2 where t1.a=t2.a) from t2;
-
-  See https://mariadb.atlassian.net/browse/MDEV-6080 for more information.
 */
 
 class JOIN;
@@ -46,10 +44,6 @@ public:
   Item *where, *having;
   handlerton *ht;                 /* storage engine of this handler */
 
-  /*
-    Bit's of things the storage engine can do for this query.
-    Should be initialized on object creation.
-  */
   /* Temporary table where all results should be stored in record[0] */
   TABLE *table;
 
@@ -90,6 +84,8 @@ public:
   }
 
   /*
+    Bits of things the storage engine can do for this query.
+    Should be initialized on object creation.
     Result data is sorted by the storage engine according to order_by (if it
     exists) else according to the group_by.  If this is not specified,
     MariaDB will store the result set into the temporary table and sort the

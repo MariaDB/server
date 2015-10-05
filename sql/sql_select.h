@@ -1011,6 +1011,11 @@ public:
   */
   uint     top_join_tab_count;
   uint	   send_group_parts;
+  /*
+    This counts how many times do_select() was invoked for this JOIN.
+    It's used to restrict Pushdown_query::execute() only to the first
+    do_select() invocation.
+  */
   uint     do_select_call_count;
   /*
     True if the query has GROUP BY.

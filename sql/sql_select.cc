@@ -760,7 +760,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   TABLE_LIST *tbl;
   List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
   /*
-    If all tables comes from the same storage engine, one_storge_engine will
+    If all tables comes from the same storage engine, one_storage_engine will
     be set to point to the handlerton of this engine.
   */
   one_storage_engine= 0;
@@ -1118,7 +1118,8 @@ JOIN::optimize_inner()
       conds && conds->walk(&Item::exists2in_processor, 0, (uchar *)thd))
     DBUG_RETURN(1);
   /*
-TODO: make view to decide if it is possible to write to WHERE directly or make Semi-Joins able to process ON condition if it is possible
+    TODO
+    make view to decide if it is possible to write to WHERE directly or make Semi-Joins able to process ON condition if it is possible
   for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
   {
     if (tbl->on_expr &&
@@ -1969,8 +1970,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       }
       storage_handler_for_group_by->store_data_in_temp_table= need_tmp;
       /*
-        If there is not specified ORDER BY, we should sort things according
-        to the group_by
+        If no ORDER BY clause was specified explicitly, we should sort things
+        according to the group_by
       */
       if (!order)
         order= group_list;
@@ -17861,7 +17862,8 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
     /* Setup HAVING to work with fields in temporary table */
     join->set_items_ref_array(join->items1);
     /* The storage engine will take care of the group by query result */
-    DBUG_RETURN(join->storage_handler_for_group_by->execute(join));
+    int res= join->storage_handler_for_group_by->execute(join);
+    DBUG_RETURN(res);
   }
 
   if (table)
