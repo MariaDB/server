@@ -8618,26 +8618,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
     if (item->null_value)
       return 0;
     String *field_result= field->val_str(&field_tmp);
-
-    enum_field_types field_type= field->type();
-
-    if (field_type == MYSQL_TYPE_DATE || field_type == MYSQL_TYPE_DATETIME ||
-        field_type == MYSQL_TYPE_TIMESTAMP)
-    {
-      enum_mysql_timestamp_type type= MYSQL_TIMESTAMP_ERROR;
-
-      if (field_type == MYSQL_TYPE_DATE)
-        type= MYSQL_TIMESTAMP_DATE;
-      else
-        type= MYSQL_TIMESTAMP_DATETIME;
-        
-      const char *field_name= field->field_name;
-      MYSQL_TIME field_time, item_time;
-      get_mysql_time_from_str(thd, field_result, type, field_name, &field_time);
-      get_mysql_time_from_str(thd, item_result, type, field_name,  &item_time);
-
-      return my_time_compare(&field_time, &item_time);
-    }
     return sortcmp(field_result, item_result, field->charset());
   }
   if (res_type == INT_RESULT)

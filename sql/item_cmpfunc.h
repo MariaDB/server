@@ -2393,10 +2393,6 @@ longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
                             enum_field_types f_type, bool *is_null);
 
 
-bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
-                             const char *warn_name, MYSQL_TIME *l_time);
-
-
 class Comp_creator
 {
 public:

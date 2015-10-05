@@ -596,64 +596,6 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
   return 0;
 }
 
-/**
-  Parse date provided in a string to a MYSQL_TIME.
-
-  @param[in]   thd        Thread handle
-  @param[in]   str        A string to convert
-  @param[in]   warn_type  Type of the timestamp for issuing the warning
-  @param[in]   warn_name  Field name for issuing the warning
-  @param[out]  l_time     The MYSQL_TIME objects is initialized.
-
-  Parses a date provided in the string str into a MYSQL_TIME object.
-  The date is used for comparison, that is fuzzy dates are allowed
-  independently of sql_mode.
-  If the string contains an incorrect date or doesn't correspond to a date at
-  all then a warning is issued. The warn_type and the warn_name arguments are
-  used as the name and the type of the field when issuing the warning. If any
-  input was discarded (trailing or non-timestamp-y characters), return value
-  will be TRUE.
-
-  @return Status flag
-  @retval FALSE Success.
-  @retval True Indicates failure.
-*/
-
-bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type, 
-                             const char *warn_name, MYSQL_TIME *l_time)
-{
-  bool value;
-  MYSQL_TIME_STATUS status;
-  int flags= TIME_FUZZY_DATES | MODE_INVALID_DATES;
-  ErrConvString err(str);
-
-  DBUG_ASSERT(warn_type != MYSQL_TIMESTAMP_TIME);
-
-  if (!str_to_datetime(str->charset(), str->ptr(), str->length(),
-                       l_time, flags, &status))
-  {
-     DBUG_ASSERT(l_time->time_type == MYSQL_TIMESTAMP_DATETIME || 
-                 l_time->time_type == MYSQL_TIMESTAMP_DATE);
-    /*
-      Do not return yet, we may still want to throw a "trailing garbage"
-      warning.
-    */
-    value= FALSE;
-  }
-  else
-  {
-    DBUG_ASSERT(l_time->time_type != MYSQL_TIMESTAMP_TIME);
-    DBUG_ASSERT(status.warnings != 0); // Must be set by set_to_datetime()
-    value= TRUE;
-  }
-
-  if (status.warnings > 0)
-    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err, warn_type, warn_name);
-
-  return value;
-}
-
 
 /**
   Prepare the comparator (set the comparison function) for comparing
