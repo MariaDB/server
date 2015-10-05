@@ -8484,6 +8484,10 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                 ER_THD(thd, ER_INSERT_INFO), 0L, 0L,
                 thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
+
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      DBUG_RETURN(true);
+
     DBUG_RETURN(false);
   }
 
