@@ -1166,6 +1166,9 @@ void Query_cache::end_of_result(THD *thd)
   Query_cache_block *query_block;
   Query_cache_tls *query_cache_tls= &thd->query_cache_tls;
   ulonglong limit_found_rows= thd->limit_found_rows;
+#ifdef HAVE_QUERY_CACHE_STATS
+  my_hrtime_t qc_info_now= my_hrtime();
+#endif
   DBUG_ENTER("Query_cache::end_of_result");
 
   /* See the comment on double-check locking usage above. */
@@ -1228,6 +1231,17 @@ void Query_cache::end_of_result(THD *thd)
     header->found_rows(limit_found_rows);
     header->result()->type= Query_cache_block::RESULT;
 
+#ifdef HAVE_QUERY_CACHE_STATS
+    /* qc_info plugin select values */
+    header->qc_info_set_values(
+      qc_info_now.val - (thd->start_time * HRTIME_RESOLUTION + thd->start_time_sec_part),
+      thd->utime_after_lock - thd->start_utime,
+      thd->get_sent_row_count(),
+      thd->get_examined_row_count()
+    );
+    /* end of qc_info plugin select values */
+#endif
+    
     /* Drop the writer. */
     header->writer(0);
     query_cache_tls->first_query_block= NULL;
@@ -1546,6 +1560,11 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
 	inserts++;
 	queries_in_cache++;
 	thd->query_cache_tls.first_query_block= query_block;
+	
+#ifdef HAVE_QUERY_CACHE_STATS
+	header->qc_info_start();	/* qc_info plugin start statistics */
+#endif
+	
 	header->writer(&thd->query_cache_tls);
 	header->tables_type(tables_type);
 
@@ -2091,6 +2110,11 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
       DBUG_PRINT("qcache", ("handler allow caching %s,%s",
 			    table_list.db, table_list.alias));
   }
+  
+#ifdef HAVE_QUERY_CACHE_STATS
+  query->qc_info_hit( (thd->start_time * HRTIME_RESOLUTION + thd->start_time_sec_part) );	/* qc_info plugin, hit */
+#endif
+  
   move_to_query_list_end(query_block);
   hits++;
   unlock();

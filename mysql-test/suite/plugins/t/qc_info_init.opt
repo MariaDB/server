@@ -1,2 +1,4 @@
---loose-query_cache_info
+--loose-query_cache_queries
+--loose-query_cache_queries_tables
+--loose-query_cache_tables
 --plugin-load-add=$QUERY_CACHE_INFO_SO
