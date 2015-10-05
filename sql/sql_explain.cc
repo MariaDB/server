@@ -950,7 +950,6 @@ void Explain_select::print_explain_json(Explain_query *query,
       }
       else
       {
-        fprintf(stderr, "Weird!\n");
         if (using_filesort)
           first_table_sort_used= true;
       }
