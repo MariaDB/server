@@ -1058,3 +1058,22 @@ CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_IN
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
 CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)
+
+IF(NOT MSVC)
+  CHECK_C_SOURCE_RUNS(
+  "
+  #define _GNU_SOURCE
+  #include <fcntl.h>
+  #include <linux/falloc.h>
+  int main()
+  {
+    /* Ignore the return value for now. Check if the flags exist.
+    The return value is checked  at runtime. */
+    fallocate(0, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, 0, 0);
+
+    return(0);
+  }"
+  HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+  )
+ENDIF()
+
