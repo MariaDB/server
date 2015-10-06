@@ -286,8 +286,6 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   {
     if (!(tmp_result= union_result= new select_union))
       goto err;
-    if (describe)
-      tmp_result= sel_result;
   }
   else
     tmp_result= sel_result;
