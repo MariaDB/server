@@ -2480,6 +2480,47 @@ public:
   friend class st_select_lex_unit;
 };
 
+
+/*
+  @brief 
+    Item_temptable_field is the same as Item_field, except that print() 
+    continues to work even if the table has been dropped.
+
+  @detail
+
+    We need this item for "ANALYZE statement" feature. Query execution has 
+    these steps:
+
+      1. Run the query.
+      2. Cleanup starts. Temporary tables are destroyed
+      3. print "ANALYZE statement" output, if needed
+      4. Call close_thread_table() for regular tables.
+
+    Step #4 is done after step #3, so "ANALYZE stmt" has no problem printing
+    Item_field objects that refer to regular tables.
+
+    However, Step #3 is done after Step #2. Attempt to print Item_field objects
+    that refer to temporary tables will cause access to freed memory. 
+    
+    To resolve this, we use Item_temptable_field to refer to items in temporary
+    (work) tables.
+*/
+
+class Item_temptable_field :public Item_field
+{
+public:
+  Item_temptable_field(THD *thd, Name_resolution_context *context_arg, Field *field)
+   : Item_field(thd, context_arg, field) {}
+
+  Item_temptable_field(THD *thd, Field *field)
+   : Item_field(thd, field) {}
+
+  Item_temptable_field(THD *thd, Item_field *item) : Item_field(thd, item) {};
+
+  virtual void print(String *str, enum_query_type query_type);
+};
+
+
 class Item_null :public Item_basic_constant
 {
 public:

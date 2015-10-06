@@ -490,7 +490,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 	if (arg->type() == Item::FIELD_ITEM)
 	  ((Item_field*) arg)->field= result_field_tmp++;
 	else
-	  sum_item->args[i]= new (thd->mem_root) Item_field(thd, result_field_tmp++);
+	  sum_item->args[i]= new (thd->mem_root) Item_temptable_field(thd, result_field_tmp++);
       }
     }
   }

@@ -2636,7 +2636,7 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 
 Item *Item_field::get_tmp_table_item(THD *thd)
 {
-  Item_field *new_item= new (thd->mem_root) Item_field(thd, this);
+  Item_field *new_item= new (thd->mem_root) Item_temptable_field(thd, this);
   if (new_item)
     new_item->field= new_item->result_field;
   return new_item;
@@ -6611,6 +6611,16 @@ void Item_field::print(String *str, enum_query_type query_type)
 }
 
 
+void Item_temptable_field::print(String *str, enum_query_type query_type)
+{
+  /*
+    Item_ident doesn't have references to the underlying Field/TABLE objects,
+    so it's ok to use the following:
+  */
+  Item_ident::print(str, query_type);
+}
+
+
 Item_ref::Item_ref(THD *thd, Name_resolution_context *context_arg,
                    Item **item, const char *table_name_arg,
                    const char *field_name_arg,
@@ -7800,7 +7810,7 @@ int Item_cache_wrapper::save_in_field(Field *to, bool no_conversions)
 Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 {
   if (!orig_item->with_sum_func && !orig_item->const_item())
-    return new (thd->mem_root) Item_field(thd, result_field);
+    return new (thd->mem_root) Item_temptable_field(thd, result_field);
   return copy_or_same(thd);
 }
 

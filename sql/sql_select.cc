@@ -16439,7 +16439,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
             string_total_length+= new_field->pack_length();
           }
           thd->mem_root= mem_root_save;
-          arg= sum_item->set_arg(i, thd, new (thd->mem_root) Item_field(thd, new_field));
+          arg= sum_item->set_arg(i, thd, new (thd->mem_root) Item_temptable_field(thd, new_field));
           thd->mem_root= &table->mem_root;
           if (param->force_not_null_cols)
 	  {
@@ -22917,7 +22917,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
          */
         Item_func_set_user_var* suv=
           new (thd->mem_root) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
-        Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
+        Item_field *new_field= new (thd->mem_root) Item_temptable_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
         /*
@@ -22941,7 +22941,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
       if (item->type() == Item::SUM_FUNC_ITEM && field->table->group)
         item_field= ((Item_sum*) item)->result_item(thd, field);
       else
-        item_field= (Item *) new (thd->mem_root) Item_field(thd, field);
+        item_field= (Item *) new (thd->mem_root) Item_temptable_field(thd, field);
       if (!item_field)
         DBUG_RETURN(true);                    // Fatal error
 

@@ -878,7 +878,7 @@ bool Item_subselect::const_item() const
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
   if (!with_sum_func && !const_item())
-    return new (thd->mem_root) Item_field(thd_arg, result_field);
+    return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
   return copy_or_same(thd_arg);
 }
 
@@ -4942,7 +4942,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     Item_field *right_col_item;
 
     if (!(right_col_item= new (thd->mem_root)
-          Item_field(thd, context, tmp_table->field[i])) ||
+          Item_temptable_field(thd, context, tmp_table->field[i])) ||
         !(eq_cond= new (thd->mem_root)
           Item_func_eq(thd, item_in->left_expr->element_index(i),
                        right_col_item)) ||
