@@ -3549,6 +3549,16 @@ end_with_restore_list:
           query_cache_invalidate3(thd, first_table, 1);
           first_table->next_local= save_table;
         }
+        if (explain)
+        {
+          /*
+            sel_result needs to be cleaned up properly.
+            INSERT... SELECT statement will call either send_eof() or
+            abort_result_set(). EXPLAIN doesn't call either, so we need
+            to cleanup manually.
+          */
+          sel_result->abort_result_set();
+        }
         delete sel_result;
       }
 
