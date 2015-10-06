@@ -3108,6 +3108,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.key_parts_end=key_parts;
     param.alloced_sel_args= 0;
 
+    max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
     if (!(param.min_key= (uchar*)alloc_root(&alloc,max_key_len)) ||
         !(param.max_key= (uchar*)alloc_root(&alloc,max_key_len)))
     {
@@ -3367,6 +3368,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     }
   }
 
+  max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
   if (!(param->min_key= (uchar*)alloc_root(param->mem_root, max_key_len)) ||
       !(param->max_key= (uchar*)alloc_root(param->mem_root, max_key_len)))
   {
@@ -4963,6 +4965,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
   if (cur_key_len > max_key_len)
     max_key_len= cur_key_len;
 
+  max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
   if (!(range_par->min_key= (uchar*)alloc_root(alloc,max_key_len)) ||
       !(range_par->max_key= (uchar*)alloc_root(alloc,max_key_len)))
   {
