@@ -5565,7 +5565,9 @@ Field *Item::make_string_field(TABLE *table)
     \#    Created field
 */
 
-Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
+Field *Item::tmp_table_field_from_field_type(TABLE *table,
+                                             bool fixed_length,
+                                             bool set_blob_packlength)
 {
   /*
     The field functions defines a field to be not null if null_ptr is not 0
@@ -5663,12 +5665,9 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_BLOB:
-    if (this->type() == Item::TYPE_HOLDER)
-      field= new (mem_root)
-        Field_blob(max_length, maybe_null, name, collation.collation, 1);
-    else
-      field= new (mem_root)
-        Field_blob(max_length, maybe_null, name, collation.collation);
+    field= new (mem_root)
+           Field_blob(max_length, maybe_null, name,
+                      collation.collation, set_blob_packlength);
     break;					// Blob handled outside of case
 #ifdef HAVE_SPATIAL
   case MYSQL_TYPE_GEOMETRY:
@@ -9551,7 +9550,7 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
   default:
     break;
   }
-  return tmp_table_field_from_field_type(table, 0);
+  return tmp_table_field_from_field_type(table, false, true);
 }
 
 

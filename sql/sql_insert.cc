@@ -3866,6 +3866,14 @@ void select_insert::abort_result_set() {
   CREATE TABLE (SELECT) ...
 ***************************************************************************/
 
+Field *Item::create_field_for_create_select(THD *thd, TABLE *table)
+{
+  Field *def_field, *tmp_field;
+  return create_tmp_field(thd, table, this, type(),
+                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0, 0);
+}
+
+
 /**
   Create table from lists of fields and items (or just return TABLE
   object for pre-opened existing table).
@@ -3920,7 +3928,6 @@ static TABLE *create_table_from_items(THD *thd,
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
-  Field *tmp_field;
   DBUG_ENTER("create_table_from_items");
 
   tmp_table.alias= 0;
@@ -3938,18 +3945,7 @@ static TABLE *create_table_from_items(THD *thd,
   while ((item=it++))
   {
     Create_field *cr_field;
-    Field *field, *def_field;
-    if (item->type() == Item::FUNC_ITEM)
-    {
-      if (item->result_type() != STRING_RESULT)
-        field= item->tmp_table_field(&tmp_table);
-      else
-        field= item->tmp_table_field_from_field_type(&tmp_table, 0);
-    }
-    else
-      field= create_tmp_field(thd, &tmp_table, item, item->type(),
-                              (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
-                              0);
+    Field *field= item->create_field_for_create_select(thd, &tmp_table);
     if (!field ||
         !(cr_field= (new (thd->mem_root)
                      Create_field(thd, field,

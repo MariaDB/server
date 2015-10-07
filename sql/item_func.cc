@@ -4729,15 +4729,15 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
 void Item_func_set_user_var::cleanup()
 {
   Item_func::cleanup();
-  entry= NULL;
+  m_var_entry= NULL;
 }
 
 
 bool Item_func_set_user_var::set_entry(THD *thd, bool create_if_not_exists)
 {
-  if (entry && thd->thread_id == entry_thread_id)
+  if (m_var_entry && thd->thread_id == entry_thread_id)
     goto end; // update entry->update_query_id for PS
-  if (!(entry= get_variable(&thd->user_vars, name, create_if_not_exists)))
+  if (!(m_var_entry= get_variable(&thd->user_vars, name, create_if_not_exists)))
   {
     entry_thread_id= 0;
     return TRUE;
@@ -4749,7 +4749,7 @@ bool Item_func_set_user_var::set_entry(THD *thd, bool create_if_not_exists)
      is different from query_id).
   */
 end:
-  entry->update_query_id= thd->query_id;
+  m_var_entry->update_query_id= thd->query_id;
   return FALSE;
 }
 
@@ -4781,11 +4781,12 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     and the variable has previously been initialized.
   */
   null_item= (args[0]->type() == NULL_ITEM);
-  if (!entry->charset() || !null_item)
-    entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                       default_charset() : args[0]->collation.collation);
-  collation.set(entry->charset(), DERIVATION_IMPLICIT);
-  cached_result_type= args[0]->result_type();
+  if (!m_var_entry->charset() || !null_item)
+    m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
+                             default_charset() : args[0]->collation.collation);
+  collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+  set_handler_by_result_type(args[0]->result_type(),
+                             max_length, collation.collation);
   if (thd->lex->current_select)
   {
     /*
@@ -4954,8 +4955,8 @@ Item_func_set_user_var::update_hash(void *ptr, uint length,
     result type of the variable
   */
   if ((null_value= args[0]->null_value) && null_item)
-    res_type= entry->type;                      // Don't change type of item
-  if (::update_hash(entry, (null_value= args[0]->null_value),
+    res_type= m_var_entry->type;                 // Don't change type of item
+  if (::update_hash(m_var_entry, (null_value= args[0]->null_value),
                     ptr, length, res_type, cs, unsigned_arg))
   {
     null_value= 1;
@@ -5108,7 +5109,7 @@ Item_func_set_user_var::check(bool use_result_field)
   if (use_result_field && !result_field)
     use_result_field= FALSE;
 
-  switch (cached_result_type) {
+  switch (Item_func_set_user_var::result_type()) {
   case REAL_RESULT:
   {
     save_result.vreal= use_result_field ? result_field->val_real() :
@@ -5201,7 +5202,7 @@ Item_func_set_user_var::update()
   bool res= 0;
   DBUG_ENTER("Item_func_set_user_var::update");
 
-  switch (cached_result_type) {
+  switch (Item_func_set_user_var::result_type()) {
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
@@ -5248,7 +5249,7 @@ double Item_func_set_user_var::val_real()
   DBUG_ASSERT(fixed == 1);
   check(0);
   update();					// Store expression
-  return entry->val_real(&null_value);
+  return m_var_entry->val_real(&null_value);
 }
 
 longlong Item_func_set_user_var::val_int()
@@ -5256,7 +5257,7 @@ longlong Item_func_set_user_var::val_int()
   DBUG_ASSERT(fixed == 1);
   check(0);
   update();					// Store expression
-  return entry->val_int(&null_value);
+  return m_var_entry->val_int(&null_value);
 }
 
 String *Item_func_set_user_var::val_str(String *str)
@@ -5264,7 +5265,7 @@ String *Item_func_set_user_var::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   check(0);
   update();					// Store expression
-  return entry->val_str(&null_value, str, decimals);
+  return m_var_entry->val_str(&null_value, str, decimals);
 }
 
 
@@ -5273,7 +5274,7 @@ my_decimal *Item_func_set_user_var::val_decimal(my_decimal *val)
   DBUG_ASSERT(fixed == 1);
   check(0);
   update();					// Store expression
-  return entry->val_decimal(&null_value, val);
+  return m_var_entry->val_decimal(&null_value, val);
 }
 
 
@@ -5282,7 +5283,7 @@ double Item_func_set_user_var::val_result()
   DBUG_ASSERT(fixed == 1);
   check(TRUE);
   update();					// Store expression
-  return entry->val_real(&null_value);
+  return m_var_entry->val_real(&null_value);
 }
 
 longlong Item_func_set_user_var::val_int_result()
@@ -5290,7 +5291,7 @@ longlong Item_func_set_user_var::val_int_result()
   DBUG_ASSERT(fixed == 1);
   check(TRUE);
   update();					// Store expression
-  return entry->val_int(&null_value);
+  return m_var_entry->val_int(&null_value);
 }
 
 bool Item_func_set_user_var::val_bool_result()
@@ -5298,7 +5299,7 @@ bool Item_func_set_user_var::val_bool_result()
   DBUG_ASSERT(fixed == 1);
   check(TRUE);
   update();					// Store expression
-  return entry->val_int(&null_value) != 0;
+  return m_var_entry->val_int(&null_value) != 0;
 }
 
 String *Item_func_set_user_var::str_result(String *str)
@@ -5306,7 +5307,7 @@ String *Item_func_set_user_var::str_result(String *str)
   DBUG_ASSERT(fixed == 1);
   check(TRUE);
   update();					// Store expression
-  return entry->val_str(&null_value, str, decimals);
+  return m_var_entry->val_str(&null_value, str, decimals);
 }
 
 
@@ -5315,7 +5316,7 @@ my_decimal *Item_func_set_user_var::val_decimal_result(my_decimal *val)
   DBUG_ASSERT(fixed == 1);
   check(TRUE);
   update();					// Store expression
-  return entry->val_decimal(&null_value, val);
+  return m_var_entry->val_decimal(&null_value, val);
 }
 
 
@@ -5430,7 +5431,7 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
     CHARSET_INFO *cs= collation.collation;
     char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
     str_value.set_quick(buff, sizeof(buff), cs);
-    result= entry->val_str(&null_value, &str_value, decimals);
+    result= m_var_entry->val_str(&null_value, &str_value, decimals);
 
     if (null_value)
     {
@@ -5446,7 +5447,7 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
   }
   else if (result_type() == REAL_RESULT)
   {
-    double nr= entry->val_real(&null_value);
+    double nr= m_var_entry->val_real(&null_value);
     if (null_value)
       return set_field_to_null(field);
     field->set_notnull();
@@ -5455,7 +5456,7 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
   else if (result_type() == DECIMAL_RESULT)
   {
     my_decimal decimal_value;
-    my_decimal *val= entry->val_decimal(&null_value, &decimal_value);
+    my_decimal *val= m_var_entry->val_decimal(&null_value, &decimal_value);
     if (null_value)
       return set_field_to_null(field);
     field->set_notnull();
@@ -5463,7 +5464,7 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
   }
   else
   {
-    longlong nr= entry->val_int(&null_value);
+    longlong nr= m_var_entry->val_int(&null_value);
     if (null_value)
       return set_field_to_null_with_conversions(field, no_conversions);
     field->set_notnull();
@@ -5478,36 +5479,36 @@ Item_func_get_user_var::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   DBUG_ENTER("Item_func_get_user_var::val_str");
-  if (!var_entry)
+  if (!m_var_entry)
     DBUG_RETURN((String*) 0);			// No such variable
-  DBUG_RETURN(var_entry->val_str(&null_value, str, decimals));
+  DBUG_RETURN(m_var_entry->val_str(&null_value, str, decimals));
 }
 
 
 double Item_func_get_user_var::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  if (!var_entry)
+  if (!m_var_entry)
     return 0.0;					// No such variable
-  return (var_entry->val_real(&null_value));
+  return (m_var_entry->val_real(&null_value));
 }
 
 
 my_decimal *Item_func_get_user_var::val_decimal(my_decimal *dec)
 {
   DBUG_ASSERT(fixed == 1);
-  if (!var_entry)
+  if (!m_var_entry)
     return 0;
-  return var_entry->val_decimal(&null_value, dec);
+  return m_var_entry->val_decimal(&null_value, dec);
 }
 
 
 longlong Item_func_get_user_var::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  if (!var_entry)
+  if (!m_var_entry)
     return 0;				// No such variable
-  return (var_entry->val_int(&null_value));
+  return (m_var_entry->val_int(&null_value));
 }
 
 
@@ -5660,21 +5661,20 @@ void Item_func_get_user_var::fix_length_and_dec()
   decimals=NOT_FIXED_DEC;
   max_length=MAX_BLOB_WIDTH;
 
-  error= get_var_with_binlog(thd, thd->lex->sql_command, name, &var_entry);
+  error= get_var_with_binlog(thd, thd->lex->sql_command, name, &m_var_entry);
 
   /*
     If the variable didn't exist it has been created as a STRING-type.
-    'var_entry' is NULL only if there occured an error during the call to
+    'm_var_entry' is NULL only if there occured an error during the call to
     get_var_with_binlog.
   */
-  if (!error && var_entry)
+  if (!error && m_var_entry)
   {
-    m_cached_result_type= var_entry->type;
-    unsigned_flag= var_entry->unsigned_flag;
-    max_length= var_entry->length;
-
-    collation.set(var_entry->charset(), DERIVATION_IMPLICIT);
-    switch (m_cached_result_type) {
+    unsigned_flag= m_var_entry->unsigned_flag;
+    max_length= m_var_entry->length;
+    collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+    set_handler_by_result_type(m_var_entry->type);
+    switch (Item_func_get_user_var::result_type()) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
       break;
@@ -5684,6 +5684,7 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
+      set_handler_by_field_type(MYSQL_TYPE_MEDIUM_BLOB);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
@@ -5699,7 +5700,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   {
     collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
     null_value= 1;
-    m_cached_result_type= STRING_RESULT;
+    set_handler_by_field_type(MYSQL_TYPE_LONG_BLOB);
     max_length= MAX_BLOB_WIDTH;
   }
 }
@@ -5707,13 +5708,8 @@ void Item_func_get_user_var::fix_length_and_dec()
 
 bool Item_func_get_user_var::const_item() const
 {
-  return (!var_entry || current_thd->query_id != var_entry->update_query_id);
-}
-
-
-enum Item_result Item_func_get_user_var::result_type() const
-{
-  return m_cached_result_type;
+  return (!m_var_entry ||
+          current_thd->query_id != m_var_entry->update_query_id);
 }
 
 

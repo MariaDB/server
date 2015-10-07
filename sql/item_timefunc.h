@@ -501,7 +501,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   Field *tmp_table_field(TABLE *table)
-  { return tmp_table_field_from_field_type(table, 0); }
+  { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
   void fix_length_and_dec();

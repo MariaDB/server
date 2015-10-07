@@ -15866,7 +15866,7 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
     */
     if (item->cmp_type() == TIME_RESULT ||
         item->field_type() == MYSQL_TYPE_GEOMETRY)
-      new_field= item->tmp_table_field_from_field_type(table, 1);
+      new_field= item->tmp_table_field_from_field_type(table, true, false);
     /* 
       Make sure that the blob fits into a Field_varstring which has 
       2-byte lenght. 
@@ -15918,23 +15918,21 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
     new_created field
 */
 
-Field *create_tmp_field_for_schema(THD *thd, Item *item, TABLE *table)
+Field *Item::create_field_for_schema(THD *thd, TABLE *table)
 {
-  if (item->field_type() == MYSQL_TYPE_VARCHAR)
+  if (field_type() == MYSQL_TYPE_VARCHAR)
   {
     Field *field;
-    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
-      field= new Field_blob(item->max_length, item->maybe_null,
-                            item->name, item->collation.collation);
+    if (max_length > MAX_FIELD_VARCHARLENGTH)
+      field= new Field_blob(max_length, maybe_null, name, collation.collation);
     else
-      field= new Field_varstring(item->max_length, item->maybe_null,
-                                 item->name,
-                                 table->s, item->collation.collation);
+      field= new Field_varstring(max_length, maybe_null, name,
+                                 table->s, collation.collation);
     if (field)
       field->init(table);
     return field;
   }
-  return item->tmp_table_field_from_field_type(table, 0);
+  return tmp_table_field_from_field_type(table, false, false);
 }
 
 
@@ -16475,7 +16473,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
         key over a bit field as heap tables can't handle that.
       */
       Field *new_field= (param->schema_table) ?
-        create_tmp_field_for_schema(thd, item, table) :
+        item->create_field_for_schema(thd, table) :
         create_tmp_field(thd, table, item, type, &copy_func,
                          tmp_from_field, &default_field[fieldnr],
                          group != 0,

@@ -44,10 +44,9 @@ static Type_handler_geometry    type_handler_geometry;
 
 /**
   This method is used by:
-  - Item_func_set_user_var
-  - Item_func_get_user_var
-  - Item_user_var_as_out_param
-  - Item_func_udf_str
+  - Item_user_var_as_out_param::field_type()
+  - Item_func_udf_str::field_type()
+  - Item_empty_string::make_field()
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between
@@ -69,7 +68,9 @@ Type_handler::string_type_handler(uint max_octet_length) const
 
 
 /**
-  This method is used by Item_sum_hybrid, e.g. MAX(item), MIN(item).
+  This method is used by:
+  - Item_sum_hybrid, e.g. MAX(item), MIN(item).
+  - Item_func_set_user_var
 */
 const Type_handler *
 Type_handler_string_result::type_handler_adjusted_to_max_octet_length(
@@ -94,7 +95,7 @@ Type_handler_hybrid_field_type::get_handler_by_result_type(Item_result type)
   case REAL_RESULT:       return &type_handler_double;
   case INT_RESULT:        return &type_handler_longlong;
   case DECIMAL_RESULT:    return &type_handler_newdecimal;
-  case STRING_RESULT:     return &type_handler_string;
+  case STRING_RESULT:     return &type_handler_long_blob;
   case TIME_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);

@@ -1023,6 +1023,8 @@ public:
   virtual Field *get_tmp_table_field() { return 0; }
   /* This is also used to create fields in CREATE ... SELECT: */
   virtual Field *tmp_table_field(TABLE *t_arg) { return 0; }
+  virtual Field *create_field_for_create_select(THD *thd, TABLE *table);
+  virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name ? name : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name : NULL; }
@@ -1626,7 +1628,9 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  Field *tmp_table_field_from_field_type(TABLE *table, bool fixed_length);
+  Field *tmp_table_field_from_field_type(TABLE *table,
+                                         bool fixed_length,
+                                         bool set_blob_packlength);
   virtual Item_field *field_for_view_update() { return 0; }
 
   virtual Item *neg_transformer(THD *thd) { return NULL; }
@@ -3190,6 +3194,8 @@ public:
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  Field *create_field_for_schema(THD *thd, TABLE *table)
+  { return tmp_table_field_from_field_type(table, false, true); }
 };
 
 
@@ -3384,7 +3390,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   Field *tmp_table_field(TABLE *table)
-  { return tmp_table_field_from_field_type(table, 0); }
+  { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
 };

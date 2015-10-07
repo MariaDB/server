@@ -3231,5 +3231,170 @@ NULL
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-8912 Wrong metadata or type for @c:=string_or_blob_field
+#
+CREATE TABLE t1 (c1 TINYBLOB, c2 BLOB, c3 MEDIUMBLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2,
+@c3:=c3 AS c3,
+@c4:=c4 AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varbinary(255) DEFAULT NULL,
+  `c2` blob,
+  `c3` mediumblob,
+  `c4` longblob
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2,
+@c3:=c3 AS c3,
+@c4:=c4 AS c4
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	255	0	Y	128	31	63
+def					c2	252	65535	0	Y	128	31	63
+def					c3	250	16777215	0	Y	128	31	63
+def					c4	251	4294967295	0	Y	128	31	63
+c1	c2	c3	c4
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	31	8
+def					c2	253	255	0	Y	0	31	8
+c1	c2
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	31	8
+def					c2	253	255	0	Y	0	31	8
+c1	c2
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL,
+  `c3` text
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	31	8
+def					c2	253	255	0	Y	0	31	8
+def					c3	252	20000	0	Y	0	31	8
+c1	c2	c3
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL,
+  `c3` text CHARACTER SET utf8
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	31	8
+def					c2	253	255	0	Y	0	31	8
+def					c3	252	60000	0	Y	0	31	8
+c1	c2	c3
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	0	8
+c1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	0	8
+c1
+DROP TABLE t2;
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
