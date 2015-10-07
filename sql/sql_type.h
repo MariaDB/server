@@ -25,11 +25,18 @@
 
 class Type_handler
 {
+protected:
+  const Type_handler *string_type_handler(uint max_octet_length) const;
 public:
   virtual enum_field_types field_type() const= 0;
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  virtual const Type_handler*
+  type_handler_adjusted_to_max_octet_length(uint max_octet_length,
+                                            CHARSET_INFO *cs) const
+  { return this; }
 };
+
 
 /*** Abstract classes for every XXX_RESULT */
 
@@ -70,6 +77,9 @@ class Type_handler_string_result: public Type_handler
 public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return STRING_RESULT; }
+  const Type_handler *
+  type_handler_adjusted_to_max_octet_length(uint max_octet_length,
+                                            CHARSET_INFO *cs) const;
 };
 
 
@@ -283,9 +293,26 @@ public:
   {
     return (m_type_handler= get_handler_by_result_type(type));
   }
+  const Type_handler *set_handler_by_result_type(Item_result type,
+                                                 uint max_octet_length,
+                                                 CHARSET_INFO *cs)
+  {
+    m_type_handler= get_handler_by_result_type(type);
+    return m_type_handler=
+      m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
+                                                                cs);
+  }
   const Type_handler *set_handler_by_field_type(enum_field_types type)
   {
     return (m_type_handler= get_handler_by_field_type(type));
+  }
+  const Type_handler *
+  type_handler_adjusted_to_max_octet_length(uint max_octet_length,
+                                            CHARSET_INFO *cs) const
+  {
+    return
+      m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
+                                                                cs);
   }
 };
 

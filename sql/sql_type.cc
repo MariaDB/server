@@ -15,6 +15,7 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "sql_type.h"
+#include "sql_const.h"
 
 static Type_handler_tiny        type_handler_tiny;
 static Type_handler_short       type_handler_short;
@@ -41,9 +42,47 @@ static Type_handler_blob        type_handler_blob;
 static Type_handler_geometry    type_handler_geometry;
 
 
-Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
-  :m_type_handler(&type_handler_double)
+/**
+  This method is used by:
+  - Item_func_set_user_var
+  - Item_func_get_user_var
+  - Item_user_var_as_out_param
+  - Item_func_udf_str
+
+  TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
+  provide very similar functionality, to properly choose between
+  VARCHAR/VARBINARY vs TEXT/BLOB variations taking into accoung maximum
+  possible octet length.
+
+  We should probably get rid of either of them and use the same method
+  all around the code.
+*/
+const Type_handler *
+Type_handler::string_type_handler(uint max_octet_length) const
 {
+  if (max_octet_length >= 16777216)
+    return &type_handler_long_blob;
+  else if (max_octet_length >= 65536)
+    return &type_handler_medium_blob;
+  return &type_handler_varchar;
+}
+
+
+/**
+  This method is used by Item_sum_hybrid, e.g. MAX(item), MIN(item).
+*/
+const Type_handler *
+Type_handler_string_result::type_handler_adjusted_to_max_octet_length(
+                                                        uint max_octet_length,
+                                                        CHARSET_INFO *cs) const
+{
+  if (max_octet_length / cs->mbmaxlen <= CONVERT_IF_BIGGER_TO_BLOB)
+    return &type_handler_varchar; // See also Item::too_big_for_varchar()
+  if (max_octet_length >= 16777216)
+    return &type_handler_long_blob;
+  else if (max_octet_length >= 65536)
+    return &type_handler_medium_blob;
+  return &type_handler_blob;
 }
 
 
@@ -61,6 +100,12 @@ Type_handler_hybrid_field_type::get_handler_by_result_type(Item_result type)
     DBUG_ASSERT(0);
   }
   return &type_handler_string;
+}
+
+
+Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
+  :m_type_handler(&type_handler_double)
+{
 }
 
 

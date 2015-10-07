@@ -166,5 +166,139 @@ DROP TABLE t1;
 SET timestamp=DEFAULT;
 
 --echo #
+--echo # MDEV-8910 Wrong metadata or field type for MAX(COALESCE(string_field))
+--echo #
+CREATE TABLE t1 (c1 TINYBLOB, c2 MEDIUMBLOB, c3 BLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

@@ -761,7 +761,10 @@ public:
   /* ... while cmp_type() specifies how it should be compared */
   Item_result cmp_type() const;
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
-  virtual enum_field_types string_field_type() const;
+  enum_field_types string_field_type() const
+  {
+    return Type_handler::string_type_handler(max_length)->field_type();
+  }
   enum_field_types field_type() const;
   virtual enum Type type() const =0;
   /*

@@ -1187,7 +1187,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   if ((!item->fixed && item->fix_fields(thd, args)) ||
       (item= args[0])->check_cols(1))
     return TRUE;
-  decimals=item->decimals;
+  Type_std_attributes::set(args[0]);
   with_subselect= args[0]->with_subselect;
 
   Item *item2= item->real_item();
@@ -1196,13 +1196,13 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   else if (item->cmp_type() == TIME_RESULT)
     set_handler_by_field_type(item2->field_type());
   else
-    set_handler_by_result_type(item2->result_type());
+    set_handler_by_result_type(item2->result_type(),
+                               max_length, collation.collation);
 
   switch (Item_sum_hybrid::result_type()) {
   case INT_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
-    max_length= item->max_length;
     break;
   case REAL_RESULT:
     max_length= float_length(decimals);
@@ -1214,7 +1214,6 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   setup_hybrid(thd, args[0], NULL);
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   maybe_null= 1;
-  unsigned_flag=item->unsigned_flag;
   result_field=0;
   null_value=1;
   fix_length_and_dec();
