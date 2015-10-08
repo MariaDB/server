@@ -826,11 +826,11 @@ class Item_sum_avg;
 
 class Item_avg_field :public Item_result_field
 {
-public:
   Field *field;
   Item_result hybrid_type;
   uint f_precision, f_scale, dec_bin_size;
   uint prec_increment;
+public:
   Item_avg_field(THD *thd, Item_result res_type, Item_sum_avg *item);
   enum Type type() const { return FIELD_AVG_ITEM; }
   double val_real();
@@ -898,14 +898,9 @@ class Item_sum_variance;
 
 class Item_variance_field :public Item_result_field
 {
-public:
   Field *field;
-  Item_result hybrid_type;
-  uint f_precision0, f_scale0;
-  uint f_precision1, f_scale1;
-  uint dec_bin_size0, dec_bin_size1;
   uint sample;
-  uint prec_increment;
+public:
   Item_variance_field(THD *thd, Item_sum_variance *item);
   enum Type type() const {return FIELD_VARIANCE_ITEM; }
   double val_real();
@@ -916,12 +911,8 @@ public:
   my_decimal *val_decimal(my_decimal *dec_buf)
   { return val_decimal_from_real(dec_buf); }
   bool is_null() { update_null_value(); return null_value; }
-  enum_field_types field_type() const
-  {
-    return hybrid_type == DECIMAL_RESULT ?
-      MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
-  }
-  enum Item_result result_type () const { return hybrid_type; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum Item_result result_type () const { return REAL_RESULT; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor("var_field");
@@ -954,18 +945,13 @@ class Item_sum_variance : public Item_sum_num
   void fix_length_and_dec();
 
 public:
-  Item_result hybrid_type;
-  int cur_dec;
   double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
   ulonglong count;
-  uint f_precision0, f_scale0;
-  uint f_precision1, f_scale1;
-  uint dec_bin_size0, dec_bin_size1;
   uint sample;
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par), hybrid_type(REAL_RESULT), count(0),
+    Item_sum_num(thd, item_par), count(0),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -983,6 +969,7 @@ public:
   Item *copy_or_same(THD* thd);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_blob_length);
   enum Item_result result_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
   void cleanup()
   {
     count= 0;
@@ -998,9 +985,6 @@ public:
   Item_std_field(THD *thd, Item_sum_std *item);
   enum Type type() const { return FIELD_STD_ITEM; }
   double val_real();
-  my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
 };
 
 /*
@@ -1020,8 +1004,6 @@ class Item_sum_std :public Item_sum_variance
   Item *result_item(THD *thd, Field *field);
   const char *func_name() const { return "std("; }
   Item *copy_or_same(THD* thd);
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
 };
 
 // This class is a string or number function depending on num_func

@@ -1829,7 +1829,7 @@ static double variance_fp_recurrence_result(double s, ulonglong count, bool is_s
 
 
 Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
-  Item_sum_num(thd, item), hybrid_type(item->hybrid_type),
+  Item_sum_num(thd, item),
     count(item->count), sample(item->sample),
     prec_increment(item->prec_increment)
 {
@@ -1850,7 +1850,6 @@ void Item_sum_variance::fix_length_and_dec()
     type of the result is an implementation-defined aproximate numeric
     type.
   */
-  hybrid_type= REAL_RESULT;
 
   switch (args[0]->result_type()) {
   case REAL_RESULT:
@@ -2712,29 +2711,6 @@ double Item_std_field::val_real()
 }
 
 
-my_decimal *Item_std_field::val_decimal(my_decimal *dec_buf)
-{
-  /*
-    We can't call val_decimal_from_real() for DECIMAL_RESULT as
-    Item_variance_field::val_real() would cause an infinite loop
-  */
-  my_decimal tmp_dec, *dec;
-  double nr;
-  if (hybrid_type == REAL_RESULT)
-    return val_decimal_from_real(dec_buf);
-
-  dec= Item_variance_field::val_decimal(dec_buf);
-  if (!dec)
-    return 0;
-  my_decimal2double(E_DEC_FATAL_ERROR, dec, &nr);
-  DBUG_ASSERT(nr >= 0.0);
-  nr= sqrt(nr);
-  double2my_decimal(E_DEC_FATAL_ERROR, nr, &tmp_dec);
-  my_decimal_round(E_DEC_FATAL_ERROR, &tmp_dec, decimals, FALSE, dec_buf);
-  return dec_buf;
-}
-
-
 Item_variance_field::Item_variance_field(THD *thd, Item_sum_variance *item):
   Item_result_field(thd)
 {
@@ -2745,25 +2721,12 @@ Item_variance_field::Item_variance_field(THD *thd, Item_sum_variance *item):
   field=item->result_field;
   maybe_null=1;
   sample= item->sample;
-  prec_increment= item->prec_increment;
-  if ((hybrid_type= item->hybrid_type) == DECIMAL_RESULT)
-  {
-    f_scale0= item->f_scale0;
-    f_precision0= item->f_precision0;
-    dec_bin_size0= item->dec_bin_size0;
-    f_scale1= item->f_scale1;
-    f_precision1= item->f_precision1;
-    dec_bin_size1= item->dec_bin_size1;
-  }
 }
 
 
 double Item_variance_field::val_real()
 {
   // fix_fields() never calls for this Item
-  if (hybrid_type == DECIMAL_RESULT)
-    return val_real_from_decimal();
-
   double recurrence_s;
   ulonglong count;
   float8get(recurrence_s, (field->ptr + sizeof(double)));
