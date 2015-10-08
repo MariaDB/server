@@ -820,37 +820,6 @@ class Item_sum_count :public Item_sum_int
 };
 
 
-/* Item to get the value of a stored sum function */
-
-class Item_sum_avg;
-
-class Item_avg_field :public Item_result_field
-{
-  Field *field;
-  Item_result hybrid_type;
-  uint f_precision, f_scale, dec_bin_size;
-  uint prec_increment;
-public:
-  Item_avg_field(THD *thd, Item_result res_type, Item_sum_avg *item);
-  enum Type type() const { return FIELD_AVG_ITEM; }
-  double val_real();
-  longlong val_int();
-  my_decimal *val_decimal(my_decimal *);
-  bool is_null() { update_null_value(); return null_value; }
-  String *val_str(String*);
-  enum_field_types field_type() const
-  {
-    return hybrid_type == DECIMAL_RESULT ?
-      MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
-  }
-  enum Item_result result_type () const { return hybrid_type; }
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor("avg_field");
-  }
-};
-
-
 class Item_sum_avg :public Item_sum_sum
 {
 public:
@@ -891,31 +860,6 @@ public:
   {
     count= 0;
     Item_sum_sum::cleanup();
-  }
-};
-
-class Item_sum_variance;
-
-class Item_variance_field :public Item_result_field
-{
-  Field *field;
-  uint sample;
-public:
-  Item_variance_field(THD *thd, Item_sum_variance *item);
-  enum Type type() const {return FIELD_VARIANCE_ITEM; }
-  double val_real();
-  longlong val_int()
-  { /* can't be fix_fields()ed */ return (longlong) rint(val_real()); }
-  String *val_str(String *str)
-  { return val_string_from_real(str); }
-  my_decimal *val_decimal(my_decimal *dec_buf)
-  { return val_decimal_from_real(dec_buf); }
-  bool is_null() { update_null_value(); return null_value; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
-  enum Item_result result_type () const { return REAL_RESULT; }
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor("var_field");
   }
 };
 
@@ -975,16 +919,6 @@ public:
     count= 0;
     Item_sum_num::cleanup();
   }
-};
-
-class Item_sum_std;
-
-class Item_std_field :public Item_variance_field
-{
-public:
-  Item_std_field(THD *thd, Item_sum_std *item);
-  enum Type type() const { return FIELD_STD_ITEM; }
-  double val_real();
 };
 
 /*
@@ -1141,6 +1075,117 @@ class Item_sum_xor :public Item_sum_bit
   bool add();
   const char *func_name() const { return "bit_xor("; }
   Item *copy_or_same(THD* thd);
+};
+
+
+/* Items to get the value of a stored sum function */
+
+class Item_sum_field :public Item
+{
+protected:
+  Field *field;
+public:
+  Item_sum_field(THD *thd, Item_sum *item)
+    :Item(thd), field(item->result_field)
+  {
+    name= item->name;
+    maybe_null= true;
+    decimals= item->decimals;
+    max_length= item->max_length;
+    unsigned_flag= item->unsigned_flag;
+  }
+  table_map used_tables() const { return (table_map) 1L; }
+  Field *get_tmp_table_field() { DBUG_ASSERT(0); return NULL; }
+  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
+  void set_result_field(Field *) { DBUG_ASSERT(0); }
+  void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
+};
+
+
+class Item_avg_field :public Item_sum_field
+{
+protected:
+  uint prec_increment;
+public:
+  Item_avg_field(THD *thd, Item_sum_avg *item)
+   :Item_sum_field(thd, item), prec_increment(item->prec_increment)
+  { }
+  enum Type type() const { return FIELD_AVG_ITEM; }
+  bool is_null() { update_null_value(); return null_value; }
+  bool check_vcol_func_processor(uchar *int_arg)
+  {
+    return trace_unsupported_by_check_vcol_func_processor("avg_field");
+  }
+};
+
+
+class Item_avg_field_double :public Item_avg_field
+{
+public:
+  Item_avg_field_double(THD *thd, Item_sum_avg *item)
+   :Item_avg_field(thd, item)
+  { }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum Item_result result_type () const { return REAL_RESULT; }
+  longlong val_int() { return (longlong) rint(val_real()); }
+  my_decimal *val_decimal(my_decimal *dec) { return val_decimal_from_real(dec); }
+  String *val_str(String *str) { return val_string_from_real(str); }
+  double val_real();
+};
+
+
+class Item_avg_field_decimal :public Item_avg_field
+{
+  uint f_precision, f_scale, dec_bin_size;
+public:
+  Item_avg_field_decimal(THD *thd, Item_sum_avg *item)
+   :Item_avg_field(thd, item),
+    f_precision(item->f_precision),
+    f_scale(item->f_scale),
+    dec_bin_size(item->dec_bin_size)
+  { }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  enum Item_result result_type () const { return DECIMAL_RESULT; }
+  double val_real() { return val_real_from_decimal(); }
+  longlong val_int() { return val_int_from_decimal(); }
+  String *val_str(String *str) { return val_string_from_decimal(str); }
+  my_decimal *val_decimal(my_decimal *);
+};
+
+
+class Item_variance_field :public Item_sum_field
+{
+  uint sample;
+public:
+  Item_variance_field(THD *thd, Item_sum_variance *item)
+   :Item_sum_field(thd, item), sample(item->sample)
+  { }
+  enum Type type() const {return FIELD_VARIANCE_ITEM; }
+  double val_real();
+  longlong val_int()
+  { /* can't be fix_fields()ed */ return (longlong) rint(val_real()); }
+  String *val_str(String *str)
+  { return val_string_from_real(str); }
+  my_decimal *val_decimal(my_decimal *dec_buf)
+  { return val_decimal_from_real(dec_buf); }
+  bool is_null() { update_null_value(); return null_value; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum Item_result result_type () const { return REAL_RESULT; }
+  bool check_vcol_func_processor(uchar *int_arg)
+  {
+    return trace_unsupported_by_check_vcol_func_processor("var_field");
+  }
+};
+
+
+class Item_std_field :public Item_variance_field
+{
+public:
+  Item_std_field(THD *thd, Item_sum_std *item)
+   :Item_variance_field(thd, item)
+  { }
+  enum Type type() const { return FIELD_STD_ITEM; }
+  double val_real();
 };
 
 

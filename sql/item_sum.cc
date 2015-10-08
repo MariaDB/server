@@ -2502,7 +2502,10 @@ void Item_sum_avg::update_field()
 
 Item *Item_sum_avg::result_item(THD *thd, Field *field)
 {
-  return new (thd->mem_root) Item_avg_field(thd, hybrid_type, this);
+  return
+    hybrid_type == DECIMAL_RESULT ?
+    (Item_avg_field*) new (thd->mem_root) Item_avg_field_decimal(thd, this) :
+    (Item_avg_field*) new (thd->mem_root) Item_avg_field_double(thd, this);
 }
 
 
@@ -2620,35 +2623,12 @@ Item_sum_hybrid::min_max_update_decimal_field()
 }
 
 
-Item_avg_field::Item_avg_field(THD *thd, Item_result res_type,
-                               Item_sum_avg *item):
-  Item_result_field(thd)
-{
-  name=item->name;
-  decimals=item->decimals;
-  max_length= item->max_length;
-  unsigned_flag= item->unsigned_flag;
-  field=item->result_field;
-  maybe_null=1;
-  hybrid_type= res_type;
-  prec_increment= item->prec_increment;
-  if (hybrid_type == DECIMAL_RESULT)
-  {
-    f_scale= item->f_scale;
-    f_precision= item->f_precision;
-    dec_bin_size= item->dec_bin_size;
-  }
-}
-
-double Item_avg_field::val_real()
+double Item_avg_field_double::val_real()
 {
   // fix_fields() never calls for this Item
   double nr;
   longlong count;
   uchar *res;
-
-  if (hybrid_type == DECIMAL_RESULT)
-    return val_real_from_decimal();
 
   float8get(nr,field->ptr);
   res= (field->ptr+sizeof(double));
@@ -2660,18 +2640,9 @@ double Item_avg_field::val_real()
 }
 
 
-longlong Item_avg_field::val_int()
-{
-  return (longlong) rint(val_real());
-}
-
-
-my_decimal *Item_avg_field::val_decimal(my_decimal *dec_buf)
+my_decimal *Item_avg_field_decimal::val_decimal(my_decimal *dec_buf)
 {
   // fix_fields() never calls for this Item
-  if (hybrid_type == REAL_RESULT)
-    return val_decimal_from_real(dec_buf);
-
   longlong count= sint8korr(field->ptr + dec_bin_size);
   if ((null_value= !count))
     return 0;
@@ -2686,21 +2657,6 @@ my_decimal *Item_avg_field::val_decimal(my_decimal *dec_buf)
 }
 
 
-String *Item_avg_field::val_str(String *str)
-{
-  // fix_fields() never calls for this Item
-  if (hybrid_type == DECIMAL_RESULT)
-    return val_string_from_decimal(str);
-  return val_string_from_real(str);
-}
-
-
-Item_std_field::Item_std_field(THD *thd, Item_sum_std *item):
-  Item_variance_field(thd, item)
-{
-}
-
-
 double Item_std_field::val_real()
 {
   double nr;
@@ -2708,19 +2664,6 @@ double Item_std_field::val_real()
   nr= Item_variance_field::val_real();
   DBUG_ASSERT(nr >= 0.0);
   return sqrt(nr);
-}
-
-
-Item_variance_field::Item_variance_field(THD *thd, Item_sum_variance *item):
-  Item_result_field(thd)
-{
-  name=item->name;
-  decimals=item->decimals;
-  max_length=item->max_length;
-  unsigned_flag= item->unsigned_flag;
-  field=item->result_field;
-  maybe_null=1;
-  sample= item->sample;
 }
 
 
