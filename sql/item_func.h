@@ -383,32 +383,64 @@ public:
 };
 
 
-class Item_func_hybrid_field_type: public Item_func,
-                                   public Type_handler_hybrid_field_type
+/**
+  Functions whose returned field type is determined at fix_fields() time.
+*/
+class Item_hybrid_func: public Item_func,
+                        public Type_handler_hybrid_field_type
 {
 public:
-  Item_func_hybrid_field_type(THD *thd):
-    Item_func(thd)
-  { collation.set_numeric(); }
-  Item_func_hybrid_field_type(THD *thd, Item *a):
-    Item_func(thd, a)
-  { collation.set_numeric(); }
-  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
-    Item_func(thd, a, b)
-  { collation.set_numeric(); }
-  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
-    Item_func(thd, a, b, c)
-  { collation.set_numeric(); }
-  Item_func_hybrid_field_type(THD *thd, List<Item> &list):
-    Item_func(thd, list)
-  { collation.set_numeric(); }
-
+  Item_hybrid_func(THD *thd): Item_func(thd) { }
+  Item_hybrid_func(THD *thd, Item *a):  Item_func(thd, a) { }
+  Item_hybrid_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b) { }
+  Item_hybrid_func(THD *thd, Item *a, Item *b, Item *c):
+    Item_func(thd, a, b, c) { }
+  Item_hybrid_func(THD *thd, List<Item> &list): Item_func(thd, list) { }
+  Item_hybrid_func(THD *thd, Item_hybrid_func *item)
+    :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+};
+
+
+/**
+  Functions that at fix_fields() time determine the returned field type,
+  trying to preserve the exact data type of the arguments.
+
+  The descendants have to implement "native" value methods,
+  i.e. str_op(), date_op(), int_op(), real_op(), decimal_op().
+  fix_fields() chooses which of the above value methods will be
+  used during execution time, according to the returned field type.
+
+  For example, if fix_fields() determines that the returned value type
+  is MYSQL_TYPE_LONG, then:
+  - int_op() is chosen as the execution time native method.
+  - val_int() returns the result of int_op() as is.
+  - all other methods, i.e. val_real(), val_decimal(), val_str(), get_date(),
+    call int_op() first, then convert the result to the requested data type.
+*/
+class Item_func_hybrid_field_type: public Item_hybrid_func
+{
+public:
+  Item_func_hybrid_field_type(THD *thd):
+    Item_hybrid_func(thd)
+  { collation.set_numeric(); }
+  Item_func_hybrid_field_type(THD *thd, Item *a):
+    Item_hybrid_func(thd, a)
+  { collation.set_numeric(); }
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
+    Item_hybrid_func(thd, a, b)
+  { collation.set_numeric(); }
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
+    Item_hybrid_func(thd, a, b, c)
+  { collation.set_numeric(); }
+  Item_func_hybrid_field_type(THD *thd, List<Item> &list):
+    Item_hybrid_func(thd, list)
+  { collation.set_numeric(); }
 
   double val_real();
   longlong val_int();
@@ -1007,15 +1039,14 @@ public:
   than strings.
   Perhaps this should be changed eventually (see MDEV-5893).
 */
-class Item_func_min_max :public Item_func,
-                         public Type_handler_hybrid_field_type
+class Item_func_min_max :public Item_hybrid_func
 {
   String tmp_value;
   int cmp_sign;
   THD *thd;
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
-    Item_func(thd, list), cmp_sign(cmp_sign_arg)
+    Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
   {}
   double val_real();
   longlong val_int();
@@ -1023,12 +1054,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   void fix_length_and_dec();
-  enum Item_result cmp_type() const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
-  enum Item_result result_type() const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
 };
 
 class Item_func_min :public Item_func_min_max
@@ -1628,29 +1653,19 @@ class user_var_entry;
 /**
   A class to set and get user variables
 */
-class Item_func_user_var :public Item_func,
-                          public Type_handler_hybrid_field_type
+class Item_func_user_var :public Item_hybrid_func
 {
 protected:
   user_var_entry *m_var_entry;
 public:
   LEX_STRING name; // keep it public
   Item_func_user_var(THD *thd, LEX_STRING a)
-    :Item_func(thd), m_var_entry(NULL), name(a) { }
+    :Item_hybrid_func(thd), m_var_entry(NULL), name(a) { }
   Item_func_user_var(THD *thd, LEX_STRING a, Item *b)
-    :Item_func(thd, b), m_var_entry(NULL), name(a) { }
+    :Item_hybrid_func(thd, b), m_var_entry(NULL), name(a) { }
   Item_func_user_var(THD *thd, Item_func_user_var *item)
-    :Item_func(thd, item),
-    m_var_entry(item->m_var_entry), name(item->name)
-  {
-    set_handler_by_result_type(item->result_type());
-  }
-  enum Item_result cmp_type() const
-  { return Type_handler_hybrid_field_type::cmp_type(); }
-  enum Item_result result_type() const
-  { return Type_handler_hybrid_field_type::result_type(); }
-  enum_field_types field_type() const
-  { return Type_handler_hybrid_field_type::field_type(); }
+    :Item_hybrid_func(thd, item),
+    m_var_entry(item->m_var_entry), name(item->name) { }
   bool check_vcol_func_processor(uchar *int_arg) { return true; }
 };
 
