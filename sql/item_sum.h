@@ -704,11 +704,7 @@ public:
   Item_sum_num(THD *thd, Item_sum_num *item):
     Item_sum(thd, item),is_evaluated(item->is_evaluated) {}
   bool fix_fields(THD *, Item **);
-  longlong val_int()
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(val_real());             /* Real as default */
-  }
+  longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
@@ -843,7 +839,7 @@ public:
   bool add();
   double val_real();
   // In SPs we might force the "wrong" type with select into a declare variable
-  longlong val_int() { return (longlong) rint(val_real()); }
+  longlong val_int() { return val_int_from_real(); }
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String *str);
   void reset_field();
@@ -1093,6 +1089,7 @@ public:
     decimals= item->decimals;
     max_length= item->max_length;
     unsigned_flag= item->unsigned_flag;
+    fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
   Field *get_tmp_table_field() { DBUG_ASSERT(0); return NULL; }
@@ -1127,7 +1124,7 @@ public:
   { }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   enum Item_result result_type () const { return REAL_RESULT; }
-  longlong val_int() { return (longlong) rint(val_real()); }
+  longlong val_int() { return val_int_from_real(); }
   my_decimal *val_decimal(my_decimal *dec) { return val_decimal_from_real(dec); }
   String *val_str(String *str) { return val_string_from_real(str); }
   double val_real();
@@ -1162,8 +1159,7 @@ public:
   { }
   enum Type type() const {return FIELD_VARIANCE_ITEM; }
   double val_real();
-  longlong val_int()
-  { /* can't be fix_fields()ed */ return (longlong) rint(val_real()); }
+  longlong val_int() { return val_int_from_real(); }
   String *val_str(String *str)
   { return val_string_from_real(str); }
   my_decimal *val_decimal(my_decimal *dec_buf)
@@ -1246,11 +1242,7 @@ class Item_sum_udf_float :public Item_udf_sum
     Item_udf_sum(thd, udf_arg, list) {}
   Item_sum_udf_float(THD *thd, Item_sum_udf_float *item)
     :Item_udf_sum(thd, item) {}
-  longlong val_int()
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_sum_udf_float::val_real());
-  }
+  longlong val_int() { return val_int_from_real(); }
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);

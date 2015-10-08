@@ -1008,6 +1008,7 @@ public:
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
   longlong val_int_from_date();
+  longlong val_int_from_real();
   double val_real_from_decimal();
   double val_real_from_date();
 

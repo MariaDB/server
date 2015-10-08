@@ -1430,7 +1430,7 @@ longlong Item_sum_sum::val_int()
                    &result);
     return result;
   }
-  return (longlong) rint(val_real());
+  return val_int_from_real();
 }
 
 
