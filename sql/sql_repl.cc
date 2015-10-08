@@ -2869,7 +2869,19 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
     if (init_master_info(mi,master_info_file_tmp,relay_log_info_file_tmp, 0,
 			 thread_mask))
       slave_errno=ER_MASTER_INFO;
-    else if (server_id_supplied && *mi->host)
+    else if (!server_id_supplied)
+    {
+      slave_errno= ER_BAD_SLAVE; net_report= 0;
+      my_message(slave_errno, "Misconfigured slave: server_id was not set; Fix in config file",
+                   MYF(0));
+    }
+    else if (!*mi->host)
+    {
+      slave_errno= ER_BAD_SLAVE; net_report= 0;
+      my_message(slave_errno, "Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO",
+                 MYF(0));
+    }
+    else
     {
       /*
         If we will start SQL thread we will care about UNTIL options If
@@ -2963,8 +2975,6 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                                           relay_log_info_file_tmp,
                                           thread_mask);
     }
-    else
-      slave_errno = ER_BAD_SLAVE;
   }
   else
   {
