@@ -202,10 +202,9 @@ Clears up tail of the LRU lists:
 * Put replaceable pages at the tail of LRU to the free list
 * Flush dirty pages at the tail of LRU to the disk
 The depth to which we scan each buffer pool is controlled by dynamic
-config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
+config parameter innodb_LRU_scan_depth. */
 UNIV_INTERN
-ulint
+void
 buf_flush_LRU_tail(void);
 /*====================*/
 /*********************************************************************//**

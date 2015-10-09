@@ -3225,6 +3225,7 @@ ulint
 log_archive_noarchivelog(void)
 /*==========================*/
 {
+	ut_ad(!srv_read_only_mode);
 loop:
 	mutex_enter(&(log_sys->mutex));
 
@@ -3257,6 +3258,8 @@ ulint
 log_archive_archivelog(void)
 /*========================*/
 {
+	ut_ad(!srv_read_only_mode);
+
 	mutex_enter(&(log_sys->mutex));
 
 	if (log_sys->archiving_state == LOG_ARCH_OFF) {
