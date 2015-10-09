@@ -611,6 +611,7 @@ Windows, so define a typedef for it and a macro to use at the end of such
 functions. */
 
 #ifdef __WIN__
+#define usleep(a) Sleep((a)/1000)
 typedef ulint os_thread_ret_t;
 #define OS_THREAD_DUMMY_RETURN return(0)
 #else
