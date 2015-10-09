@@ -58,7 +58,7 @@ int Url::parse_proxy_server(const char *proxy_server, size_t proxy_length,
   if (proxy_server == NULL)
     return 0;
 
-  for (; proxy_length > 0 && isspace(*proxy_server);
+  for (; proxy_length > 0 && my_isspace(system_charset_info, *proxy_server);
          proxy_server++, proxy_length--) /* no-op */;
 
   if (proxy_length == 0)
