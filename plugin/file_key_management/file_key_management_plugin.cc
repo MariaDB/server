@@ -16,6 +16,7 @@
 
 #include "parser.h"
 #include <mysql/plugin_encryption.h>
+#include <mysqld_error.h>
 #include <string.h>
 
 static char* filename;
@@ -165,6 +166,13 @@ struct st_mariadb_encryption file_key_management_plugin= {
 
 static int file_key_management_plugin_init(void *p)
 {
+  if (!filename || !filename[0])
+  {
+    my_printf_error(ER_CANT_INITIALIZE_UDF,
+                    "file_key_management-filename is not set", MYF(0));
+    return 1;
+  }
+  
   Parser parser(filename, filekey);
   return parser.parse(&keys);
 }
