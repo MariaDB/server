@@ -616,6 +616,7 @@ enum options_mysqld
   OPT_REPLICATE_WILD_IGNORE_TABLE,
   OPT_SAFE,
   OPT_SERVER_ID,
+  OPT_SILENT,
   OPT_SKIP_HOST_CACHE,
   OPT_SKIP_RESOLVE,
   OPT_SLAVE_PARALLEL_MODE,
@@ -783,7 +784,7 @@ extern ulong thread_created;
 extern scheduler_functions *thread_scheduler, *extra_thread_scheduler;
 extern char *opt_log_basename;
 extern my_bool opt_master_verify_checksum;
-extern my_bool opt_stack_trace;
+extern my_bool opt_stack_trace, disable_log_notes;
 extern my_bool opt_expect_abort;
 extern my_bool opt_slave_sql_verify_checksum;
 extern my_bool opt_mysql56_temporal_format, strict_password_validation;

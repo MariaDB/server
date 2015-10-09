@@ -909,6 +909,7 @@ The following options may be given as the first argument:
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
+ --silent            Don't print [Note] to log during startup.
  --skip-bdb          Deprecated option; Exist only for compatibility with old
  my.cnf files
  --skip-grant-tables Start without grant tables. This gives all users FULL
@@ -1386,6 +1387,7 @@ secure-auth TRUE
 secure-file-priv (No default value)
 server-id 0
 show-slave-auth-info FALSE
+silent FALSE
 skip-grant-tables TRUE
 skip-name-resolve FALSE
 skip-networking FALSE

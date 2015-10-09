@@ -8455,6 +8455,9 @@ void sql_print_information(const char *format, ...)
   va_list args;
   DBUG_ENTER("sql_print_information");
 
+  if (disable_log_notes)
+    DBUG_VOID_RETURN;                 // Skip notes during start/shutdown
+  
   va_start(args, format);
   error_log_print(INFORMATION_LEVEL, format, args);
   va_end(args);

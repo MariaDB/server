@@ -386,7 +386,8 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_silent= 0;
+my_bool disable_log_notes;
 static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -2012,6 +2013,8 @@ extern "C" void unireg_abort(int exit_code)
     usage();
   if (exit_code)
     sql_print_error("Aborting\n");
+  /* Don't write more notes to the log to not hide error message */
+  disable_log_notes= 1;
 
 #ifdef WITH_WSREP
   /* Check if wsrep class is used. If yes, then cleanup wsrep */
@@ -4396,7 +4399,7 @@ static int init_common_variables()
 	DBUG_PRINT("warning",
 		   ("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
 		    files, max_connections, tc_size));
-	if (global_system_variables.log_warnings)
+	if (global_system_variables.log_warnings > 1)
 	  sql_print_warning("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
 			files, max_connections, tc_size);
       }
@@ -5934,6 +5937,7 @@ int mysqld_main(int argc, char **argv)
       unireg_abort(1);
   }
 
+  disable_log_notes= 0; /* Startup done, now we can give notes again */
   sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
                         ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
                          (char*) "" : mysqld_unix_port),
@@ -7491,6 +7495,8 @@ struct my_option my_long_options[]=
    "Show user and password in SHOW SLAVE HOSTS on this master.",
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"silent", OPT_SILENT, "Don't print [Note] to log during startup.",
+   &opt_silent, &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-bdb", OPT_DEPRECATED_OPTION,
    "Deprecated option; Exist only for compatibility with old my.cnf files",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -8659,6 +8665,7 @@ static int mysql_init_variables(void)
   opt_tc_log_file= (char *)"tc.log";      // no hostname in tc_log file name !
   opt_secure_auth= 0;
   opt_bootstrap= opt_myisam_log= 0;
+  disable_log_notes= 0;
   mqh_used= 0;
   kill_in_progress= 0;
   cleanup_done= 0;
@@ -9164,7 +9171,9 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       }
     }
     break;
-
+  case OPT_SILENT:
+    disable_log_notes= opt_silent;
+    break;
   case OPT_PLUGIN_LOAD:
     free_list(opt_plugin_load_list_ptr);
     /* fall through */
@@ -9398,6 +9407,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                       global_system_variables.max_allowed_packet);
   }
 
+#if MYSQL_VERSION_ID > 101001
   /*
     TIMESTAMP columns get implicit DEFAULT values when
     --explicit_defaults_for_timestamp is not set.
@@ -9406,7 +9416,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     sql_print_warning("TIMESTAMP with implicit DEFAULT value is deprecated. "
                       "Please use --explicit_defaults_for_timestamp server "
                       "option (see documentation for more details).");
-
+#endif
 
   if (log_error_file_ptr != disabled_my_option)
     opt_error_log= 1;
