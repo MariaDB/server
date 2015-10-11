@@ -568,6 +568,16 @@ void lex_end(LEX *lex)
   DBUG_ENTER("lex_end");
   DBUG_PRINT("enter", ("lex: 0x%lx", (long) lex));
 
+  lex_end_stage1(lex);
+  lex_end_stage2(lex);
+
+  DBUG_VOID_RETURN;
+}
+
+void lex_end_stage1(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage1");
+
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
   {
@@ -579,6 +589,19 @@ void lex_end(LEX *lex)
   delete lex->sphead;
   lex->sphead= NULL;
 
+  DBUG_VOID_RETURN;
+}
+
+/*
+  MASTER INFO parameters (or state) is normally cleared towards the end
+  of a statement. But in case of PS, the state needs to be preserved during
+  its lifetime and should only be cleared on PS close or deallocation.
+*/
+void lex_end_stage2(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage2");
+
+  /* Reset LEX_MASTER_INFO */
   lex->mi.reset();
 
   DBUG_VOID_RETURN;
