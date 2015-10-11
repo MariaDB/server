@@ -360,7 +360,7 @@ static bool max_long_data_size_used= false;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static volatile bool ready_to_exit;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
-static my_bool opt_short_log_format= 0;
+static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 uint kill_cached_threads;
 static uint wake_thread;
 ulong max_used_connections;
@@ -386,7 +386,7 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_silent= 0;
+my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool disable_log_notes;
 static my_bool opt_abort;
 ulonglong log_output_options;
@@ -7495,8 +7495,8 @@ struct my_option my_long_options[]=
    "Show user and password in SHOW SLAVE HOSTS on this master.",
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"silent", OPT_SILENT, "Don't print [Note] to log during startup.",
-   &opt_silent, &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup.",
+   &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-bdb", OPT_DEPRECATED_OPTION,
    "Deprecated option; Exist only for compatibility with old my.cnf files",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -9171,9 +9171,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       }
     }
     break;
-  case OPT_SILENT:
-    disable_log_notes= opt_silent;
-    break;
   case OPT_PLUGIN_LOAD:
     free_list(opt_plugin_load_list_ptr);
     /* fall through */
@@ -9386,6 +9383,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* Add back the program name handle_options removes */
   (*argc_ptr)++;
   (*argv_ptr)--;
+
+  disable_log_notes= opt_silent_startup;
 
   /*
     Options have been parsed. Now some of them need additional special
