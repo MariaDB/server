@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3944,15 +3944,35 @@ static TABLE *create_table_from_items(THD *thd,
 
   while ((item=it++))
   {
-    Create_field *cr_field;
-    Field *field= item->create_field_for_create_select(thd, &tmp_table);
-    if (!field ||
-        !(cr_field= (new (thd->mem_root)
-                     Create_field(thd, field,
-                                  (item->type() == Item::FIELD_ITEM ?
-                                   ((Item_field *) item)->field :
-                                   (Field *) 0)))))
-      DBUG_RETURN(0);
+    Field *tmp_field= item->create_field_for_create_select(thd, &tmp_table);
+
+    if (!tmp_field)
+      DBUG_RETURN(NULL);
+
+    Field *table_field;
+
+    switch (item->type())
+    {
+    /*
+      We have to take into account both the real table's fields and
+      pseudo-fields used in trigger's body. These fields are used
+      to copy defaults values later inside constructor of
+      the class Create_field.
+    */
+    case Item::FIELD_ITEM:
+    case Item::TRIGGER_FIELD_ITEM:
+      table_field= ((Item_field *) item)->field;
+      break;
+    default:
+      table_field= NULL;
+    }
+
+    Create_field *cr_field= new (thd->mem_root)
+                                  Create_field(thd, tmp_field, table_field);
+
+    if (!cr_field)
+      DBUG_RETURN(NULL);
+
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
@@ -4042,7 +4062,7 @@ static TABLE *create_table_from_items(THD *thd,
   {
     if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
-    DBUG_RETURN(0);
+    DBUG_RETURN(NULL);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_lock");

@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +31,6 @@
 
 #include "client_priv.h"
 #include "mysql_version.h"
-#include <my_pthread.h>
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -482,7 +482,6 @@ static void db_disconnect(char *host, MYSQL *mysql)
     fprintf(stdout, "Disconnecting from %s\n", host ? host : "localhost");
   mysql_close(mysql);
 }
-
 
 
 static void safe_exit(int error, MYSQL *mysql)

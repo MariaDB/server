@@ -1040,6 +1040,7 @@ select sql_text from mysql.slow_log;
 set global log_output= @save_log_output;
 set @@slow_query_log= @save_slow_query_log;
 set @@long_query_time= @save_long_query_time;
+truncate table mysql.slow_log;
 
 
 #

@@ -690,7 +690,7 @@ extern void     my_osmaperr(unsigned long last_error);
 #endif
 
 extern void init_glob_errs(void);
-extern const char** get_global_errmsgs();
+extern const char** get_global_errmsgs(void);
 extern void wait_for_free_space(const char *filename, int errors);
 extern FILE *my_fopen(const char *FileName,int Flags,myf MyFlags);
 extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
@@ -715,7 +715,7 @@ extern void my_printf_error(uint my_err, const char *format,
                             ATTRIBUTE_FORMAT(printf, 2, 4);
 extern void my_printv_error(uint error, const char *format, myf MyFlags,
                             va_list ap);
-extern int my_error_register(const char** (*get_errmsgs) (),
+extern int my_error_register(const char** (*get_errmsgs) (void),
                              uint first, uint last);
 extern const char **my_error_unregister(uint first, uint last);
 extern void my_message(uint my_err, const char *str,myf MyFlags);
@@ -925,12 +925,12 @@ extern uint my_set_max_open_files(uint files);
 void my_free_open_file_info(void);
 
 extern my_bool my_gethwaddr(uchar *to);
-extern int my_getncpus();
+extern int my_getncpus(void);
 
 #define HRTIME_RESOLUTION               1000000ULL  /* microseconds */
 typedef struct {ulonglong val;} my_hrtime_t;
-void my_time_init();
-extern my_hrtime_t my_hrtime();
+void my_time_init(void);
+extern my_hrtime_t my_hrtime(void);
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
@@ -989,7 +989,7 @@ int my_msync(int, void *, size_t, int);
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
-void my_uuid_end();
+void my_uuid_end(void);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);

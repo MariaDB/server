@@ -2740,7 +2740,9 @@ ibuf_merge_space(
 			&pages[0], &spaces[0], &versions[0], n_pages,
 			&mtr);
 
-		++sum_sizes;
+		if (*n_pages > 0) {
+			++sum_sizes;
+		}
 	}
 
 	ibuf_mtr_commit(&mtr);

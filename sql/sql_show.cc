@@ -7988,20 +7988,13 @@ bool get_schema_tables_result(JOIN *join,
     if (table_list->schema_table && thd->fill_information_schema_tables())
     {
       /*
-        Note, currently I_S tables are filled once per query.
-        This needs to be changed if if make_cond_for_info_schema()
-        will preserve outer fields (and thus I_S content will depend on
-        the outer subquery) - in this new case I_S tables will need to
-        be re-populated here.
-
-        And in that case, get_all_tables() might be called O(N^2) times
-        (in self-join of TABLES, for example) and it will allocate
-        table names on THD::mem_root O(N^2) times. To fix it, get_all_tables
-        needs to be fixed to use a local memroot, that is reset or destroyed
-        between get_all_tables invocations. Or fixed not to allocate
-        table names on THD::memroot if these names don't satisfy lookup_field
+        I_S tables only need to be re-populated if make_cond_for_info_schema()
+        preserves outer fields
       */
-      const bool is_subselect= false;
+      bool is_subselect= &lex->unit != lex->current_select->master_unit() &&
+                         lex->current_select->master_unit()->item &&
+                         tab->select_cond &&
+                         tab->select_cond->used_tables() & OUTER_REF_TABLE_BIT;
 
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)

@@ -1118,6 +1118,7 @@ set statement long_query_time=0.01 for select sleep(0.1)
 set global log_output= @save_log_output;
 set @@slow_query_log= @save_slow_query_log;
 set @@long_query_time= @save_long_query_time;
+truncate table mysql.slow_log;
 set statement autocommit=default for select 1;
 ERROR 42000: The system variable autocommit cannot be set in SET STATEMENT.
 set statement tx_isolation=default for select 1;
