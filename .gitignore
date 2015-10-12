@@ -185,6 +185,7 @@ storage/tokudb/ft-index/toku_include/toku_config.h
 storage/tokudb/ft-index/tools/ba_replay
 storage/tokudb/ft-index/tools/ftverify
 storage/tokudb/ft-index/tools/tdb-recover
+storage/tokudb/ft-index/tools/tdb_logprint
 storage/tokudb/ft-index/tools/tokudb_dump
 storage/tokudb/ft-index/tools/tokudb_gen
 storage/tokudb/ft-index/tools/tokudb_load
