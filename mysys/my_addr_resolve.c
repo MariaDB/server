@@ -135,7 +135,7 @@ err:
 
 #if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
 #include <link.h>
-static ElfW(Addr) offset= 0;
+static ptrdiff_t offset= 0;
 #else
 #define offset 0
 #endif
