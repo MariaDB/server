@@ -300,6 +300,7 @@ ELSE()
     mysqld_multi
     mysqld_safe
     ${WSREP_BINARIES}
+    ${SYSTEMD_SCRIPTS}
   )
   FOREACH(file ${BIN_SCRIPTS})
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh)
