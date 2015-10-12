@@ -5692,6 +5692,11 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error_msg.append_ulonglong(hb.log_pos);
       goto err;
     }
+
+    /*
+      Heartbeat events doesn't count in the binlog size, so we don't have to
+      increment mi->master_log_pos
+    */
     goto skip_relay_logging;
   }
   break;
@@ -5972,6 +5977,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   else
   if ((s_id == global_system_variables.server_id &&
        !mi->rli.replicate_same_server_id) ||
+      event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
         If the master is on the ignore list, execution of

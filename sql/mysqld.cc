@@ -360,7 +360,7 @@ static bool max_long_data_size_used= false;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static volatile bool ready_to_exit;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
-static my_bool opt_short_log_format= 0;
+static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 uint kill_cached_threads;
 static uint wake_thread;
 ulong max_used_connections;
@@ -386,7 +386,7 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_silent= 0;
+my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool disable_log_notes;
 static my_bool opt_abort;
 ulonglong log_output_options;
@@ -4552,14 +4552,24 @@ static int init_common_variables()
   {
     if (lower_case_table_names_used)
     {
+#if MYSQL_VERSION_ID < 100100
       if (global_system_variables.log_warnings)
         sql_print_warning("You have forced lower_case_table_names to 0 through "
                           "a command-line option, even though your file system "
                           "'%s' is case insensitive.  This means that you can "
-                          "corrupt a MyISAM table by accessing it with "
-                          "different cases.  You should consider changing "
-                          "lower_case_table_names to 1 or 2",
-			mysql_real_data_home);
+                          "corrupt your tables if you access them using names "
+                          "with different letter case. You should consider "
+                          "changing lower_case_table_names to 1 or 2",
+                          mysql_real_data_home);
+#else
+      sql_print_error("The server option 'lower_case_table_names' is "
+                      "configured to use case sensitive table names but the "
+                      "data directory resides on a case-insensitive file system. "
+                      "Please use a case sensitive file system for your data "
+                      "directory or switch to a case-insensitive table name "
+                      "mode.");
+#endif
+      return 1;
     }
     else
     {
@@ -7495,8 +7505,8 @@ struct my_option my_long_options[]=
    "Show user and password in SHOW SLAVE HOSTS on this master.",
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"silent", OPT_SILENT, "Don't print [Note] to log during startup.",
-   &opt_silent, &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup.",
+   &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-bdb", OPT_DEPRECATED_OPTION,
    "Deprecated option; Exist only for compatibility with old my.cnf files",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -9171,9 +9181,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       }
     }
     break;
-  case OPT_SILENT:
-    disable_log_notes= opt_silent;
-    break;
   case OPT_PLUGIN_LOAD:
     free_list(opt_plugin_load_list_ptr);
     /* fall through */
@@ -9386,6 +9393,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* Add back the program name handle_options removes */
   (*argc_ptr)++;
   (*argv_ptr)--;
+
+  disable_log_notes= opt_silent_startup;
 
   /*
     Options have been parsed. Now some of them need additional special

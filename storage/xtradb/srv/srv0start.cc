@@ -2729,24 +2729,25 @@ files_checked:
 	}
 
 #ifdef UNIV_LOG_ARCHIVE
-	/* Archiving is always off under MySQL */
-	if (!srv_log_archive_on) {
-		ut_a(DB_SUCCESS == log_archive_noarchivelog());
-	} else {
-		bool	start_archive;
+	if (!srv_read_only_mode) {
+		if (!srv_log_archive_on) {
+			ut_a(DB_SUCCESS == log_archive_noarchivelog());
+		} else {
+			bool	start_archive;
 
-		mutex_enter(&(log_sys->mutex));
+			mutex_enter(&(log_sys->mutex));
 
-		start_archive = FALSE;
+			start_archive = false;
 
-		if (log_sys->archiving_state == LOG_ARCH_OFF) {
-			start_archive = TRUE;
-		}
+			if (log_sys->archiving_state == LOG_ARCH_OFF) {
+				start_archive = true;
+			}
 
-		mutex_exit(&(log_sys->mutex));
+			mutex_exit(&(log_sys->mutex));
 
-		if (start_archive) {
-			ut_a(DB_SUCCESS == log_archive_archivelog());
+			if (start_archive) {
+				ut_a(DB_SUCCESS == log_archive_archivelog());
+			}
 		}
 	}
 #endif /* UNIV_LOG_ARCHIVE */

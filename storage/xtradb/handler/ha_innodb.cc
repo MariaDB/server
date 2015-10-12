@@ -1393,6 +1393,17 @@ innobase_end(
 	handlerton*		hton,	/* in: Innodb handlerton */
 	ha_panic_function	type);
 
+#if NOT_USED
+/*****************************************************************//**
+Stores the current binlog coordinates in the trx system header. */
+static
+int
+innobase_store_binlog_info(
+/*=======================*/
+	handlerton*	hton,	/*!< in: InnoDB handlerton */
+	THD*		thd);	/*!< in: MySQL thread handle */
+#endif
+
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
 Starts a new InnoDB transaction if a transaction is not yet started. And
@@ -3496,6 +3507,9 @@ innobase_init(
 	innobase_hton->start_consistent_snapshot =
 		innobase_start_trx_and_assign_read_view;
 
+	/*innobase_hton->store_binlog_info =
+		innobase_store_binlog_info;*/
+
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS |
@@ -4304,6 +4318,38 @@ innobase_commit_low(
 	if (wsrep_on(thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */
 }
+
+#if NOT_USED
+/*****************************************************************//**
+Stores the current binlog coordinates in the trx system header. */
+static
+int
+innobase_store_binlog_info(
+/*=======================*/
+	handlerton*	hton,	/*!< in: InnoDB handlerton */
+	THD*		thd)	/*!< in: MySQL thread handle */
+
+{
+	const char*			file_name;
+	unsigned long long 	pos;
+	mtr_t			mtr;
+
+	DBUG_ENTER("innobase_store_binlog_info");
+
+	thd_binlog_pos(thd, &file_name, &pos);
+
+	mtr_start(&mtr);
+
+	trx_sys_update_mysql_binlog_offset(file_name, pos,
+					   TRX_SYS_MYSQL_LOG_INFO, &mtr);
+
+	mtr_commit(&mtr);
+
+	innobase_flush_logs(hton);
+
+	DBUG_RETURN(0);
+}
+#endif
 
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
@@ -10615,6 +10661,27 @@ wsrep_append_key(
 	DBUG_RETURN(0);
 }
 
+static bool
+referenced_by_foreign_key2(dict_table_t* table,
+                           dict_index_t* index) {
+        ut_ad(table != NULL);
+        ut_ad(index != NULL);
+
+        const dict_foreign_set* fks = &table->referenced_set;
+        for (dict_foreign_set::const_iterator it = fks->begin();
+             it != fks->end();
+             ++it)
+        {
+                dict_foreign_t* foreign = *it;
+                if (foreign->referenced_index != index) {
+                        continue;
+                }
+                ut_ad(table == foreign->referenced_table);
+                return true;
+        }
+        return false;
+}
+
 int
 ha_innobase::wsrep_append_keys(
 /*==================*/
@@ -10694,7 +10761,7 @@ ha_innobase::wsrep_append_keys(
 			/* !hasPK == table with no PK, must append all non-unique keys */
 			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
-			      dict_table_get_referenced_constraint(tab, idx)) ||
+			      referenced_by_foreign_key2(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {
 
 				len = wsrep_store_key_val_for_row(
@@ -10909,13 +10976,23 @@ create_table_def(
 
 	/* MySQL does the name length check. But we do additional check
 	on the name length here */
-	if (strlen(table_name) > MAX_FULL_NAME_LEN) {
+	const size_t	table_name_len = strlen(table_name);
+	if (table_name_len > MAX_FULL_NAME_LEN) {
 		push_warning_printf(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_TABLE_NAME,
 			"InnoDB: Table Name or Database Name is too long");
 
 		DBUG_RETURN(ER_TABLE_NAME);
+	}
+
+	if (table_name[table_name_len - 1] == '/') {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_TABLE_NAME,
+			"InnoDB: Table name is empty");
+
+		DBUG_RETURN(ER_WRONG_TABLE_NAME);
 	}
 
 	n_cols = form->s->fields;
@@ -12430,6 +12507,10 @@ ha_innobase::discard_or_import_tablespace(
 
 	if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
+	}
+
+	if (UNIV_UNLIKELY(prebuilt->trx->fake_changes)) {
+		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
 	dict_table = prebuilt->table;
@@ -14259,8 +14340,8 @@ ha_innobase::check(
 		my_error(ER_QUERY_INTERRUPTED, MYF(0));
 	}
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
-		return(HA_ADMIN_CORRUPT);
+	if (UNIV_UNLIKELY(prebuilt->table && prebuilt->table->corrupted)) {
+		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
@@ -16789,6 +16870,9 @@ innodb_log_archive_update(
 	void*				var_ptr,
 	const void*			save)
 {
+	if (srv_read_only_mode)
+		return;
+
 	my_bool	in_val = *static_cast<const my_bool*>(save);
 
 	if (in_val) {

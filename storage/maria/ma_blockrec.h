@@ -57,7 +57,7 @@
 /* Number of extents reserved MARIA_BITMAP_BLOCKS to store head part */
 #define ELEMENTS_RESERVED_FOR_MAIN_PART 4
 /* This is just used to prealloc a dynamic array */
-#define AVERAGE_BLOB_SIZE      1024L*1024L
+#define AVERAGE_BLOB_SIZE      (1024L*1024L)
 /* Number of pages to store continuous blob parts */
 #define BLOB_SEGMENT_MIN_SIZE 128
 

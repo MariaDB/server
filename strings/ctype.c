@@ -264,7 +264,7 @@ static const struct my_cs_file_section_st
 }
 
 #define MY_CS_CSDESCR_SIZE	64
-#define MY_CS_TAILORING_SIZE	32*1024
+#define MY_CS_TAILORING_SIZE	(32*1024)
 #define MY_CS_UCA_VERSION_SIZE  64
 #define MY_CS_CONTEXT_SIZE      64
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, Monty Program Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2511,6 +2511,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.key_parts_end=key_parts;
     param.alloced_sel_args= 0;
 
+    max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
     if (!(param.min_key= (uchar*)alloc_root(&alloc,max_key_len)) ||
         !(param.max_key= (uchar*)alloc_root(&alloc,max_key_len)))
     {
@@ -2770,6 +2771,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     }
   }
 
+  max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
   if (!(param->min_key= (uchar*)alloc_root(param->mem_root, max_key_len)) ||
       !(param->max_key= (uchar*)alloc_root(param->mem_root, max_key_len)))
   {
@@ -4039,10 +4041,19 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
                                          key_tree->min_flag |
                                            key_tree->max_flag,
                                          &subpart_iter);
-      DBUG_ASSERT(res); /* We can't get "no satisfying subpartitions" */
+      if (res == 0)
+      {
+        /*
+           The only case where we can get "no satisfying subpartitions"
+           returned from the above call is when an error has occurred.
+        */
+        DBUG_ASSERT(range_par->thd->is_error());
+        return 0;
+      }
+
       if (res == -1)
         goto pop_and_go_right; /* all subpartitions satisfy */
-        
+
       uint32 subpart_id;
       bitmap_clear_all(&ppar->subparts_bitmap);
       while ((subpart_id= subpart_iter.get_next(&subpart_iter)) !=
@@ -4370,6 +4381,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
   if (cur_key_len > max_key_len)
     max_key_len= cur_key_len;
 
+  max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
   if (!(range_par->min_key= (uchar*)alloc_root(alloc,max_key_len)) ||
       !(range_par->max_key= (uchar*)alloc_root(alloc,max_key_len)))
   {

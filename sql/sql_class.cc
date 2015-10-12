@@ -5514,16 +5514,13 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
      BINLOG_FORMAT = STATEMENT and at least one table uses a storage
      engine limited to row-logging.
 
-  6. Error: Cannot execute row injection: binlogging impossible since
-     BINLOG_FORMAT = STATEMENT.
-
-  7. Warning: Unsafe statement binlogged in statement format since
+  6. Warning: Unsafe statement binlogged in statement format since
      BINLOG_FORMAT = STATEMENT.
 
   In addition, we can produce the following error (not depending on
   the variables of the decision diagram):
 
-  8. Error: Cannot execute statement: binlogging impossible since more
+  7. Error: Cannot execute statement: binlogging impossible since more
      than one engine is involved and at least one engine is
      self-logging.
 
@@ -5802,10 +5799,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (lex->is_stmt_row_injection())
         {
           /*
-            6. Error: Cannot execute row injection since
-               BINLOG_FORMAT = STATEMENT
+            We have to log the statement as row or give an error.
+            Better to accept what master gives us than stopping replication.
           */
-          my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_MODE), MYF(0));
+          set_current_stmt_binlog_format_row();
         }
         else if ((flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0 &&
                  sqlcom_can_generate_row_events(this))
@@ -5833,7 +5830,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           DBUG_PRINT("info", ("binlog_unsafe_warning_flags: 0x%x",
                               binlog_unsafe_warning_flags));
         }
-        /* log in statement format! */
+        /* log in statement format (or row if row event)! */
       }
       /* No statement-only engines and binlog_format != STATEMENT.
          I.e., nothing prevents us from row logging if needed. */

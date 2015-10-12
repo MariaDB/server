@@ -1394,7 +1394,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= UINT_MAX;
@@ -1417,7 +1417,7 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
   Item_in_subselect(thd), func_creator(fc), all(all_arg)
 {
   DBUG_ENTER("Item_allany_subselect::Item_allany_subselect");
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= 1;
@@ -3083,15 +3083,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   arena= thd->activate_stmt_arena_if_needed(&backup);
   if (!optimizer)
   {
-    result= (!(optimizer= new (thd->mem_root) Item_in_optimizer(thd, left_expr, this)));
-    if (result)
+    optimizer= new (thd->mem_root) Item_in_optimizer(thd, left_expr_orig, this);
+    if ((result= !optimizer))
       goto out;
   }
 
   thd->lex->current_select= current->return_after_parsing();
   result= optimizer->fix_left(thd);
-  /* fix_fields can change reference to left_expr, we need reassign it */
-  left_expr= optimizer->arguments()[0];
   thd->lex->current_select= current;
 
   if (changed)
@@ -3158,11 +3156,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
+  char const *save_where= thd->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new (thd->mem_root) Item_int(thd, 1)) );
 
+  thd->where= "IN/ALL/ANY subquery";
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -3193,7 +3193,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     if (outer_cols_num != inner_cols->elements)
     {
       my_error(ER_OPERAND_COLUMNS, MYF(0), outer_cols_num);
-      DBUG_RETURN(TRUE);
+      goto err;
     }
     if (outer_cols_num > 1)
     {
@@ -3203,20 +3203,24 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
       {
         inner_col= inner_col_it++;
         if (inner_col->check_cols(left_expr->element_index(i)->cols()))
-          DBUG_RETURN(TRUE);
+          goto err;
       }
     }
   }
 
-  if (thd_arg->lex->is_view_context_analysis() &&
-      left_expr && !left_expr->fixed &&
+  if (left_expr && !left_expr->fixed &&
       left_expr->fix_fields(thd_arg, &left_expr))
-    DBUG_RETURN(TRUE);
+    goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
-    DBUG_RETURN(TRUE);
+    goto err;
   fixed= TRUE;
+  thd->where= save_where;
   DBUG_RETURN(FALSE);
+
+err:
+  thd->where= save_where;
+  DBUG_RETURN(TRUE);
 }
 
 

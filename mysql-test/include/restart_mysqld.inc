@@ -1,3 +1,9 @@
+# ==== Usage ====
+#
+# [--let $shutdown_timeout= 30]
+# [--let $allow_rpl_inited= 1]
+# --source include/restart_mysqld.inc
+
 --source include/not_embedded.inc
 
 if ($rpl_inited)
@@ -8,6 +14,16 @@ if ($rpl_inited)
   }
 }
 
+--let $server_shutdown_timeout= 60
+if ($shutdown_timeout) 
+{
+  --let $server_shutdown_timeout= $shutdown_timeout
+}
+if ($shutdown_timeout == 0)
+{
+  --let $server_shutdown_timeout= 0
+}
+
 # Write file to make mysql-test-run.pl expect the "crash", but don't start
 # it until it's told to
 --let $_server_id= `SELECT @@server_id`
@@ -15,8 +31,8 @@ if ($rpl_inited)
 --exec echo "wait" > $_expect_file_name
 
 # Send shutdown to the connected server and give
-# it 60 seconds to die before zapping it
-shutdown_server 60;
+# it 10 seconds to die before zapping it
+shutdown_server $server_shutdown_timeout;
 
 # Write file to make mysql-test-run.pl start up the server again
 if ($restart_parameters)
