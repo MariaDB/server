@@ -3663,7 +3663,9 @@ public:
   An abstract class representing common features of
   regular functions and aggregate functions.
 */
-class Item_func_or_sum: public Item_result_field, public Item_args
+class Item_func_or_sum: public Item_result_field,
+                        public Item_args,
+                        public Used_tables_and_const_cache
 {
   bool agg_item_collations(DTCollation &c, const char *name,
                            Item **items, uint nitems,
@@ -3794,7 +3796,8 @@ public:
   Item_func_or_sum(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e):
     Item_result_field(thd), Item_args(a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
-    Item_result_field(thd, item), Item_args(thd, item) { }
+    Item_result_field(thd, item), Item_args(thd, item),
+    Used_tables_and_const_cache(item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
@@ -3821,6 +3824,8 @@ public:
   */
   virtual const char *func_name() const= 0;
   virtual void fix_length_and_dec()= 0;
+  bool const_item() const { return const_item_cache; }
+  table_map used_tables() const { return used_tables_cache; }
 };
 
 

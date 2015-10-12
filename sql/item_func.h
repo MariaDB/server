@@ -31,7 +31,7 @@ extern "C"				/* Bug in BSDI include file */
 #endif
 
 
-class Item_func :public Item_func_or_sum, public Used_tables_and_const_cache
+class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
@@ -106,8 +106,8 @@ public:
     set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
-  Item_func(THD *thd, Item_func *item)
-   :Item_func_or_sum(thd, item), Used_tables_and_const_cache(item),
+  Item_func(THD *thd, Item_func *item):
+    Item_func_or_sum(thd, item),
     allowed_arg_cols(item->allowed_arg_cols),
     not_null_tables_cache(item->not_null_tables_cache)
   {
@@ -120,7 +120,6 @@ public:
   }
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void quick_fix_field();
-  table_map used_tables() const;
   table_map not_null_tables() const;
   void update_used_tables()
   {
@@ -137,7 +136,6 @@ public:
   }
   bool eq(const Item *item, bool binary_cmp) const;
   virtual Item *key_item() const { return args[0]; }
-  virtual bool const_item() const { return const_item_cache; }
   void set_arguments(THD *thd, List<Item> &list)
   {
     allowed_arg_cols= 1;

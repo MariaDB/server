@@ -302,7 +302,13 @@ class st_select_lex;
   We assume that the nesting level of subquries does not exceed 127.
   TODO: to catch queries where the limit is exceeded to make the
   code clean here.  
-    
+
+  @note
+  The implementation takes into account the used strategy:
+  - Items resolved at optimization phase return 0 from Item_sum::used_tables().
+  - Items that depend on the number of join output records, but not columns of
+  any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
+  but still return false from Item_sum::const_item().
 */
 
 class Item_sum :public Item_func_or_sum
@@ -368,32 +374,25 @@ protected:
     the current argument list can be altered by usage of temporary tables.
   */
   Item **orig_args, *tmp_orig_args[2];
-  table_map used_tables_cache;
   
-  /*
-    TRUE <=> We've managed to calculate the value of this Item in
-    opt_sum_query(), hence it can be considered constant at all subsequent
-    steps.
-  */
-  bool forced_const;
   static ulonglong ram_limitation(THD *thd);
 
 public:  
 
   void mark_as_sum_func();
-  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1), forced_const(FALSE)
+  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a): Item_func_or_sum(thd, a), quick_group(1),
-    orig_args(tmp_orig_args), forced_const(FALSE)
+    orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a, Item *b): Item_func_or_sum(thd, a, b),
-    quick_group(1), orig_args(tmp_orig_args), forced_const(FALSE)
+    quick_group(1), orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();
@@ -433,16 +432,6 @@ public:
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
   virtual Item *result_item(THD *thd, Field *field);
 
-  /*
-    Return bitmap of tables that are needed to evaluate the item.
-
-    The implementation takes into account the used strategy: items resolved
-    at optimization phase will report 0.
-    Items that depend on the number of join output records, but not columns
-    of any particular table (like COUNT(*)) will report 0 from used_tables(),
-    but will still return false from const_item().
-  */
-  table_map used_tables() const { return used_tables_cache; }
   void update_used_tables ();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -458,12 +447,17 @@ public:
                                    cond_equal_ref);
   }
   bool is_null() { return null_value; }
+  /**
+    make_const()
+    Called if we've managed to calculate the value of this Item in
+    opt_sum_query(), hence it can be considered constant at all subsequent
+    steps.
+  */
   void make_const () 
   { 
     used_tables_cache= 0; 
-    forced_const= TRUE; 
+    const_item_cache= true;
   }
-  virtual bool const_item() const { return forced_const; }
   virtual bool const_during_execution() const { return false; }
   virtual void print(String *str, enum_query_type query_type);
   void fix_num_length_and_dec();

@@ -441,12 +441,6 @@ void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
 }
 
 
-table_map Item_func::used_tables() const
-{
-  return used_tables_cache;
-}
-
-
 table_map Item_func::not_null_tables() const
 {
   return not_null_tables_cache;

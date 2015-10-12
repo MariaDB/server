@@ -401,8 +401,7 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 }
 
 
-Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list),
-  forced_const(FALSE)
+Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list)
 {
   if (!(orig_args= (Item **) thd->alloc(sizeof(Item *) * arg_count)))
   {
@@ -423,9 +422,7 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
   aggr_sel(item->aggr_sel),
   nest_level(item->nest_level), aggr_level(item->aggr_level),
   quick_group(item->quick_group),
-  orig_args(NULL),
-  used_tables_cache(item->used_tables_cache),
-  forced_const(item->forced_const) 
+  orig_args(NULL)
 {
   if (arg_count <= 2)
   {
@@ -449,6 +446,7 @@ void Item_sum::mark_as_sum_func()
   SELECT_LEX *cur_select= current_thd->lex->current_select;
   cur_select->n_sum_items++;
   cur_select->with_sum_func= 1;
+  const_item_cache= false;
   with_sum_func= 1;
   with_field= 0;
 }
@@ -538,7 +536,7 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table,
 
 void Item_sum::update_used_tables ()
 {
-  if (!forced_const)
+  if (!Item_sum::const_item())
   {
     used_tables_cache= 0;
     for (uint i=0 ; i < arg_count ; i++)
@@ -610,7 +608,7 @@ void Item_sum::cleanup()
     aggr= NULL;
   }
   Item_result_field::cleanup();
-  forced_const= FALSE; 
+  const_item_cache= false;
 }
 
 Item *Item_sum::result_item(THD *thd, Field *field)
@@ -2073,7 +2071,6 @@ void Item_sum_hybrid::cleanup()
 {
   DBUG_ENTER("Item_sum_hybrid::cleanup");
   Item_sum::cleanup();
-  forced_const= FALSE;
   if (cmp)
     delete cmp;
   cmp= 0;
