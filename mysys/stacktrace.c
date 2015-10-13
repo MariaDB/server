@@ -785,3 +785,15 @@ size_t my_safe_printf_stderr(const char* fmt, ...)
   my_write_stderr(to, result);
   return result;
 }
+
+
+#ifdef HAVE_MADV_DONTDUMP
+
+void exclude_from_coredump(void *ptr, size_t size, ulonglong flags)
+{
+  if (opt_core_nodump & (flags | CORE_NODUMP_MAX)) {
+    madvise(ptr, size, MADV_DONTDUMP);
+  }
+}
+
+#endif /* HAVE_MADV_DONTDUMP */

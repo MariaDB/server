@@ -132,6 +132,12 @@ size_t my_write_stderr(const void *buf, size_t count);
 #define CORE_NODUMP_INNODB_POOL_BUFFER  1 << 2
 #define CORE_NODUMP_MYISAM_KEY_BUFFER   1 << 3
 
+void exclude_from_coredump(void *ptr, size_t size, ulonglong flags);
+
+#else /* HAVE_MADV_DONTDUMP */
+
+#define exclude_from_coredump(ptr, size, flag)
+
 #endif /* HAVE_MADV_DONTDUMP */
 
 C_MODE_END
