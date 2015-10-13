@@ -620,6 +620,18 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         thd->stmt_arena->state != Query_arena::PREPARED)
       */
     {
+      SELECT_LEX *current= thd->lex->current_select;
+      thd->lex->current_select= current->return_after_parsing();
+      char const *save_where= thd->where;
+      thd->where= "IN/ALL/ANY subquery";
+
+      bool failure= !in_subs->left_expr->fixed &&
+                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
+      thd->lex->current_select= current;
+      thd->where= save_where;
+      if (failure)
+        DBUG_RETURN(-1); /* purecov: deadcode */
+
       /*
         Check if the left and right expressions have the same # of
         columns, i.e. we don't have a case like 
@@ -633,18 +645,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         my_error(ER_OPERAND_COLUMNS, MYF(0), in_subs->left_expr->cols());
         DBUG_RETURN(-1);
       }
-
-      SELECT_LEX *current= thd->lex->current_select;
-      thd->lex->current_select= current->return_after_parsing();
-      char const *save_where= thd->where;
-      thd->where= "IN/ALL/ANY subquery";
-        
-      bool failure= !in_subs->left_expr->fixed &&
-                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
-      thd->lex->current_select= current;
-      thd->where= save_where;
-      if (failure)
-        DBUG_RETURN(-1); /* purecov: deadcode */
     }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
@@ -703,6 +703,12 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       if (!optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) &&
           !optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
         my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+      /*
+        Transform each subquery predicate according to its overloaded
+        transformer.
+      */
+      if (subselect->select_transformer(join))
+        DBUG_RETURN(-1);
 
       /*
         If the subquery predicate is IN/=ANY, analyse and set all possible
@@ -754,12 +760,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         allany_subs->add_strategy(strategy);
       }
 
-      /*
-        Transform each subquery predicate according to its overloaded
-        transformer.
-      */
-      if (subselect->select_transformer(join))
-        DBUG_RETURN(-1);
     }
   }
   DBUG_RETURN(0);
@@ -1592,8 +1592,19 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   if (subq_pred->left_expr->cols() == 1)
   {
     nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr);
+    /*
+      Create Item_func_eq. Note that
+      1. this is done on the statement, not execution, arena
+      2. if it's a PS then this happens only once - on the first execution.
+         On following re-executions, the item will be fix_field-ed normally.
+      3. Thus it should be created as if it was fix_field'ed, in particular
+         all pointers to items in the execution arena should be protected
+         with thd->change_item_tree
+    */
     Item_func_eq *item_eq=
-      new Item_func_eq(subq_pred->left_expr, subq_lex->ref_pointer_array[0]);
+      new Item_func_eq(subq_pred->left_expr_orig, subq_lex->ref_pointer_array[0]);
+    if (subq_pred->left_expr_orig != subq_pred->left_expr)
+      thd->change_item_tree(item_eq->arguments(), subq_pred->left_expr);
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
   }

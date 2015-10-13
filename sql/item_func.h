@@ -377,17 +377,17 @@ public:
 
   void no_rows_in_result()
   {
-    bool_func_call_args info;
-    info.original_func_item= this;
-    info.bool_function= &Item::no_rows_in_result;
-    walk(&Item::call_bool_func_processor, FALSE, (uchar*) &info);
+    for (uint i= 0; i < arg_count; i++)
+    {
+      args[i]->no_rows_in_result();
+    }
   }
   void restore_to_before_no_rows_in_result()
   {
-    bool_func_call_args info;
-    info.original_func_item= this;
-    info.bool_function= &Item::restore_to_before_no_rows_in_result;
-    walk(&Item::call_bool_func_processor, FALSE, (uchar*) &info);
+    for (uint i= 0; i < arg_count; i++)
+    {
+      args[i]->no_rows_in_result();
+    }
   }
 };
 
@@ -411,6 +411,29 @@ public:
 
 class Item_func_hybrid_result_type: public Item_func
 {
+  /*
+    Helper methods to make sure that the result of
+    decimal_op(), str_op() and date_op() is properly synched with null_value.
+  */
+  bool date_op_with_null_check(MYSQL_TIME *ltime)
+  {
+     bool rc= date_op(ltime,
+                      field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0);
+     DBUG_ASSERT(!rc ^ null_value);
+     return rc;
+  }
+  String *str_op_with_null_check(String *str)
+  {
+    String *res= str_op(str);
+    DBUG_ASSERT((res != NULL) ^ null_value);
+    return res;
+  }
+  my_decimal *decimal_op_with_null_check(my_decimal *decimal_buffer)
+  {
+    my_decimal *res= decimal_op(decimal_buffer);
+    DBUG_ASSERT((res != NULL) ^ null_value);
+    return res;
+  }
 protected:
   Item_result cached_result_type;
 

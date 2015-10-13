@@ -53,7 +53,7 @@ SELECT 1 IN (SELECT 1);
 SELECT 1 FROM (SELECT 1 as a) b WHERE 1 IN (SELECT (SELECT a));
 -- error ER_WRONG_USAGE
 select (SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE(1));
--- error ER_WRONG_PARAMETERS_TO_PROCEDURE
+-- error ER_PARSE_ERROR
 SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE((SELECT 1));
 -- error ER_BAD_FIELD_ERROR
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NULL;
@@ -5890,3 +5890,77 @@ DROP TABLE t1,t2;
 create table t1 (c int);
 select exists(select 1 from t1 group by `c` in (select `c` from t1));
 drop table t1;
+
+--echo #
+--echo # MDEV-7565: Server crash with Signal 6 (part 2)
+--echo #
+Select 
+  (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
+    Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+  ) As `ControlRev`
+From 
+(Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
+Group By  TestCase.Revenue, TestCase.TemplateID;
+
+--echo #
+--echo # MDEV-7445:Server crash with Signal 6
+--echo #
+
+--delimiter |
+CREATE PROCEDURE procedure2()
+BEGIN
+  Select 
+    (Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
+      Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+     ) As `ControlRev`
+  From 
+  (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
+  Group By  TestCase.Revenue, TestCase.TemplateID;
+
+END |
+--delimiter ;
+call procedure2();
+call procedure2();
+
+drop procedure procedure2;
+
+
+SELECT
+  (SELECT user FROM mysql.user
+    WHERE h.host in (SELECT host FROM mysql.user)
+  ) AS sq
+FROM mysql.host h GROUP BY h.host;
+
+
+--echo #
+--echo # MDEV-7846:Server crashes in Item_subselect::fix
+--echo #_fields or fails with Thread stack overrun
+--echo #
+CREATE TABLE t1 (column1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(9);
+
+CREATE TABLE t2 (column2 INT) ENGINE=MyISAM;
+
+INSERT INTO t2 VALUES (1),(4);
+
+CREATE TABLE t3 (column3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (6),(8);
+
+CREATE TABLE t4 (column4 INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (2),(5);
+
+
+PREPARE stmt FROM "
+SELECT ( 
+  SELECT MAX( table1.column1 ) AS field1 
+  FROM t1 AS table1
+  WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4 GROUP BY sq
+";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;

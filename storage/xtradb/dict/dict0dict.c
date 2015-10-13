@@ -2668,8 +2668,9 @@ dict_foreign_remove_from_cache(
 			const ib_rbt_node_t*	node
 				= rbt_lookup(rbt, foreign->id);
 
-			if (node) {
-				dict_foreign_t*	val = *(dict_foreign_t**) node->value;
+			if (node != NULL) {
+				dict_foreign_t*	val
+					= *(dict_foreign_t**) node->value;
 
 				if (val == foreign) {
 					rbt_delete(rbt, foreign->id);
@@ -2690,8 +2691,9 @@ dict_foreign_remove_from_cache(
 			const ib_rbt_node_t*	node
 				= rbt_lookup(rbt, foreign->id);
 
-			if (node) {
-				dict_foreign_t*	val = *(dict_foreign_t**) node->value;
+			if (node != NULL) {
+				dict_foreign_t*	val
+					= *(dict_foreign_t**) node->value;
 
 				if (val == foreign) {
 					rbt_delete(rbt, foreign->id);
@@ -4377,7 +4379,6 @@ col_loop2:
 	ptr = dict_accept(cs, ptr, ")", &success);
 
 	if (!success || foreign->n_fields != i) {
-		dict_foreign_free(foreign);
 
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
@@ -4390,6 +4391,9 @@ col_loop2:
 			" failed. Foreign key constraint parse error in %s"
 			" close to %s. Too few referenced columns, you have %d when you should have %d.",
 			operation, create_name, start_of_latest_foreign, orig, i, foreign->n_fields);
+
+		dict_foreign_free(foreign);
+
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 
