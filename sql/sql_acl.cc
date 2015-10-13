@@ -11260,13 +11260,16 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   *end++= protocol_version;
 
   thd->client_capabilities= CLIENT_BASIC_FLAGS;
-
+ 
   if (opt_using_transactions)
     thd->client_capabilities|= CLIENT_TRANSACTIONS;
 
   thd->client_capabilities|= CAN_CLIENT_COMPRESS;
 
-  if (ssl_acceptor_fd)
+  /* Currently we support SSL with sockets only */
+  if (thd->active_vio->type != VIO_TYPE_NAMEDPIPE &&
+      thd->active_vio->type != VIO_TYPE_SHARED_MEMORY &&
+      ssl_acceptor_fd)
   {
     thd->client_capabilities |= CLIENT_SSL;
     thd->client_capabilities |= CLIENT_SSL_VERIFY_SERVER_CERT;
