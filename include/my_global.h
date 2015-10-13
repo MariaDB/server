@@ -1232,4 +1232,9 @@ static inline double rint(double x)
 #undef __GNUG__
 #endif
 
+/* Fine grained control of what shall be excluded from core dumps */
+#ifdef HAVE_MADV_DONTDUMP
+extern ulonglong opt_core_nodump;
+#endif /* HAVE_MADV_DONTDUMP */
+
 #endif /* my_global_h */
