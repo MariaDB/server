@@ -701,6 +701,7 @@ void *create_embedded_thd(int client_flag)
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;
+  thd->reset_globals();
   return thd;
 err:
   delete(thd);
