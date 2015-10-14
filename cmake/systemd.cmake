@@ -61,7 +61,7 @@ MACRO(CHECK_SYSTEMD)
                                ${INSTALL_SYSTEMD_UNITDIR}/mariadb@.service
                                ${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d/wsrep-new-cluster.conf")
         IF(DEB)
-          SET(SYSTEMD_EXECSTARTPRE "PermissionsStartOnly=true\nExecStartPre=/usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld")
+          SET(SYSTEMD_EXECSTARTPRE "ExecStartPre=/usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld")
           SET(SYSTEMD_EXECSTARTPOST "ExecStartPost=/etc/mysql/debian-start")
         ENDIF()
         MESSAGE(STATUS "Systemd features enabled")

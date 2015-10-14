@@ -50,10 +50,10 @@ User=mysql
 Group=mysql
 
 # Execute pre and post scripts as root, otherwise it does it as User=
-# PermissionsStartOnly=true
+PermissionsStartOnly=true
 
 # Needed to create system tables etc.
-# ExecStartPre=/usr/bin/mysql_install_db
+# ExecStartPre=/usr/bin/mysql_install_db -u mysql
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb@.service.d/MY_SPECIAL.conf
