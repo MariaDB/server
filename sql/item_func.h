@@ -1364,6 +1364,15 @@ public:
 
 class Item_udf_func :public Item_func
 {
+  /**
+    Mark "this" as non-deterministic if it uses no tables
+    and is not a constant at the same time.
+  */
+  void set_non_deterministic_if_needed()
+  {
+    if (!const_item_cache && !used_tables_cache)
+      used_tables_cache= RAND_TABLE_BIT;
+  }
 protected:
   udf_handler udf;
   bool is_expensive_processor(uchar *arg) { return TRUE; }
@@ -1379,7 +1388,7 @@ public:
   {
     DBUG_ASSERT(fixed == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
-    used_tables_and_const_cache_copy(&udf);
+    set_non_deterministic_if_needed();
     fixed= 1;
     return res;
   }
@@ -1430,8 +1439,7 @@ public:
         !(used_tables_cache & RAND_TABLE_BIT))
     {
       Item_func::update_used_tables();
-      if (!const_item_cache && !used_tables_cache)
-        used_tables_cache= RAND_TABLE_BIT;
+      set_non_deterministic_if_needed();
     }
   }
   void cleanup();

@@ -1209,9 +1209,27 @@ public:
       return TRUE;
 
     fixed= 1;
+    /*
+      We set const_item_cache to false in constructors.
+      It can be later changed to "true", in a Item_sum::make_const() call.
+      No make_const() calls should have happened so far.
+    */
+    DBUG_ASSERT(!const_item_cache);
     if (udf.fix_fields(thd, this, this->arg_count, this->args))
       return TRUE;
-
+    /**
+      The above call for udf.fix_fields() updates
+      the Used_tables_and_const_cache part of "this" as if it was a regular
+      non-aggregate UDF function and can change both const_item_cache and
+      used_tables_cache members.
+      - The used_tables_cache will be re-calculated in update_used_tables()
+        which is called from check_sum_func() below. So we don't care about
+        its current value.
+      - The const_item_cache must stay "false" until a Item_sum::make_const()
+        call happens, if ever. So we need to reset const_item_cache back to
+        "false" here.
+    */
+    const_item_cache= false;
     memcpy (orig_args, args, sizeof (Item *) * arg_count);
     return check_sum_func(thd, ref);
   }

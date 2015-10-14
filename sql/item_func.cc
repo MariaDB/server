@@ -3508,7 +3508,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   /* Fix all arguments */
   func->maybe_null=0;
-  used_tables_and_const_cache_init();
+  func->used_tables_and_const_cache_init();
 
   if ((f_args.arg_count=arg_count))
   {
@@ -3550,7 +3550,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
       func->with_subselect|= item->with_subselect;
-      used_tables_and_const_cache_join(item);
+      func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?
@@ -3572,7 +3572,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   func->fix_length_and_dec();
   initid.max_length=func->max_length;
   initid.maybe_null=func->maybe_null;
-  initid.const_item=const_item_cache;
+  initid.const_item=func->const_item_cache;
   initid.decimals=func->decimals;
   initid.ptr=0;
 
@@ -3637,13 +3637,12 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     }
     func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
     func->maybe_null=initid.maybe_null;
-    const_item_cache=initid.const_item;
-    /* 
-      Keep used_tables_cache in sync with const_item_cache.
-      See the comment in Item_udf_func::update_used tables.
-    */  
-    if (!const_item_cache && !used_tables_cache)
-      used_tables_cache= RAND_TABLE_BIT;
+    /*
+      The above call for init() can reset initid.const_item to "false",
+      e.g. when the UDF function wants to be non-deterministic.
+      See sequence_init() in udf_example.cc.
+    */
+    func->const_item_cache= initid.const_item;
     func->decimals=MY_MIN(initid.decimals,NOT_FIXED_DEC);
   }
   initialized=1;

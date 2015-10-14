@@ -52,7 +52,7 @@ typedef struct st_udf_func
 
 class Item_result_field;
 
-class udf_handler :public Sql_alloc, public Used_tables_and_const_cache
+class udf_handler :public Sql_alloc
 {
  protected:
   udf_func *u_d;

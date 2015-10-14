@@ -3617,10 +3617,6 @@ public:
     used_tables_cache= 0;
     const_item_cache= true;
   }
-  void used_tables_and_const_cache_copy(const Used_tables_and_const_cache *c)
-  {
-    *this= *c;
-  }
   void used_tables_and_const_cache_join(const Item *item)
   {
     used_tables_cache|= item->used_tables();
