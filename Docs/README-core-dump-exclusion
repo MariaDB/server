@@ -1,0 +1,108 @@
+Exclude things from core dumps (on Linux)
+=========================================
+
+Movitation
+----------
+
+There are two reasons for wanting to reduce core dump size by excluding
+certain memory areas from it:
+
+1. Reduce IO bandwidth and storage space requirements when dumping core
+
+   This reduces the time it takes to take a core dump and also makes
+   transfering core files easier.
+
+2. Exclude sensitive data from core dumps
+
+   At the same time backtrace information should remain complete and memory
+   regions that may be useful when doing post mortem debugging should be kept.
+
+Original motivation for implementation was that very large InnoDB instances
+on machines with >300GB RAM, and accordingly large innodb buffer pool, were
+crashing randomly every few days, and enabling core dumps on all of them was
+not an option. Also, even after we finally managed to get hold of a core
+dump the file size made it very hard to get it to an environment where it
+could be analyzed without causng resource issues.
+
+Implementation
+--------------
+
+Linux supports options to madvise(2) that control whether a certain region
+should be included in core dumps (MADV_DODUMP) or should be excluded
+(MADV_DONTDUMP) starting with kernel version. Such memory regions need to
+be page aligned so out of the box the feature is only useful when dealing
+with large enough malloc() allocations or when directly dealing with
+mmap()ed or shared memory regions directly.
+
+Certain memory allocations now call the new function
+
+  exclude_from_coredump(void *ptr, size_t size, ulonglong flagmask);
+
+after successfully aquiring memory. A global variable "core_nodump"
+may contain a set of memory regions to exclude. If the given flagmask
+matches any of these, or if "core_nodump" has the 'magic' value "MAX",
+the given memory region is marked to be excluded from core dumps using
+the MADV_DONTDUMP advice.
+
+So far there's only support for excluding static buffers that stay for
+the entire life time of the server process. Support for memory regions
+allocated on demand, like those for temporary tables or sort buffers,
+or that may be resized dynamically, like the query cache, is possible
+but tricky as on freeing memory regions the MADV_DONTDUMP advice has to
+be removed by an explicit MADV_DODUMP madvise() for the same region.
+Otherwise other later memory allocations that happen to reuse fall in
+the previously excluded memory range would accidentially be excluded
+from being dumped. So at the time memory is freed it is also necessary
+to remove the DONTDUMP advise, and for that not only the base address
+is needed but also the original allocation size. As this is not always
+explicitly preserved dynamic buffers have been excluded for this first
+implementation.
+
+
+Configuration
+-------------
+
+A new configuration variable "core_nodump" has been added that controls
+which buffer types should be excluded from core dump. The variable
+can't be changed dynamically at run time as exclusions happen right
+after allocating memory at startup.
+
+Possible values for "core_nodump" at this point are:
+
+ Value              | Description                                          
+--------------------|------------------------------------------------------
+ NONE               | Default: keep current behavior that dumps everything 
+ INNODB_POOL_BUFFER | Exclude InnoDB pool buffer instances from core dump  
+ MYISAM_KEY_BUFFER  | Exclude MyISAM key buffer(s) from core dump          
+ MAX                | Apply all possible exclusion                         
+
+
+Testing
+-------
+
+A mysqld with the following minimalistic configuration 
+
+    [mysqld]
+    innodb_buffer_pool_size=8G
+    core-file
+    core-nodump=NONE
+
+will create a core dump of about 9GB when killed with `kill -11 $mysqld_pid`.
+
+The same mysqld with INNODB_BUFFER_POOL excluded from dumps only takes
+about 900M, as was to be expected with the 8GB pool being excluded:
+
+    [mysqld]
+    innodb_buffer_pool_size=8G
+    core-file
+    core-nodump=INNODB_BUFFER_POOL
+
+Backtraces can be retrieved sucessfully from both core dumps with gdb
+and `thread apply all bt full`.
+
+As InnoDB buffer pool and Myisam key cache implementations can be considered
+stable lack of those buffer contents should not affect core dump post mortem
+analysis in any way. This may not be the case with new features like tablespace
+encryption yet though, so core dump exclusions should be used carefully in such
+contexts.
+
