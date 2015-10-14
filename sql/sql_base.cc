@@ -4706,17 +4706,6 @@ restart:
     if (!tbl)
       continue;
 
-    if (WSREP_ON                               &&
-        wsrep_replicate_myisam                 &&
-        tables                                 &&
-        tbl->file->ht == myisam_hton           &&
-        sqlcom_can_generate_row_events(thd)    &&
-        thd->get_command() != COM_STMT_PREPARE &&
-        tables->lock_type >= TL_WRITE_ALLOW_WRITE)
-    {
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
-    }
-
     /* Schema tables may not have a TABLE object here. */
     if (tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
     {
@@ -4741,6 +4730,17 @@ restart:
       else
         tbl->reginfo.lock_type= tables->lock_type;
     }
+  }
+
+  if (WSREP_ON                                 &&
+      wsrep_replicate_myisam                   &&
+      (*start)                                 &&
+      (*start)->table                          &&
+      (*start)->table->file->ht == myisam_hton &&
+      sqlcom_can_generate_row_events(thd)      &&
+      thd->get_command() != COM_STMT_PREPARE)
+  {
+    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
 
 error:

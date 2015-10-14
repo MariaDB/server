@@ -1091,7 +1091,6 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     if (db || table)
     {
         TABLE_LIST tmp_table;
-	MDL_request mdl_request;
 
         memset(&tmp_table, 0, sizeof(tmp_table));
         tmp_table.table_name= (char*)table;
@@ -1683,7 +1682,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH)
     {
-      WSREP_DEBUG("mdl granted over FLUSH BF");
+      WSREP_DEBUG("MDL granted over FLUSH BF");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       ret = TRUE;
@@ -1698,7 +1697,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     }
     else if (granted_thd->wsrep_query_state == QUERY_COMMITTING)
     {
-      WSREP_DEBUG("mdl granted, but commiting thd abort scheduled");
+      WSREP_DEBUG("MDL granted, but committing thd abort scheduled");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
