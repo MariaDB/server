@@ -68,6 +68,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "lzo/lzo1x.h"
 #endif
 
+/* for core dump specific stuff */
+#include "my_stacktrace.h"
+
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
 		=================================
@@ -1214,6 +1217,8 @@ buf_chunk_init(
 		}
 	}
 #endif // HAVE_LIBNUMA
+	// exclude from core dumps if configured to do so
+	exclude_from_coredump(chunk->mem, chunk->mem_size, CORE_NODUMP_INNODB_POOL_BUFFER);
 
 	/* Allocate the block descriptors from
 	the start of the memory block. */
