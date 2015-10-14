@@ -73,7 +73,7 @@ fi
 
 if [[ "${numa_interleave}" -gt 0 ]]; then
   echo
-  echo ExecStart=numactl --interleave=all ${cmd} '${OPTIONS}'
+  echo ExecStart=numactl --interleave=all ${cmd} '${MYSQLD_OPTS}'
   echo
 fi
 
