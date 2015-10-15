@@ -59,9 +59,10 @@ PermissionsStartOnly=true
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb@.service.d/MY_SPECIAL.conf
 # Use the [service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
+# _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 
 ExecStart=
-ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf
+ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
