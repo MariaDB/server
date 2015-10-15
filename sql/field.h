@@ -1448,10 +1448,6 @@ protected:
   const uchar *unpack_int64(uchar* to, const uchar *from,  const uchar *from_end)
   { return unpack_int(to, from, from_end, 8); }
 
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
   double pos_in_interval_val_real(Field *min, Field *max);
   double pos_in_interval_val_str(Field *min, Field *max, uint data_offset);
 };
@@ -3130,6 +3126,7 @@ public:
                                   const Item *item,
                                   bool is_eq_func) const;
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3502,11 +3499,6 @@ public:
                           uint pack_length = ~0U);
 
   bool check(THD *thd);
-
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
 
   ha_storage_media field_storage_type() const
   {
