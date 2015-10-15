@@ -34,6 +34,8 @@ push @::global_suppressions,
      qr(WSREP: SQL statement was ineffective),
      qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
      qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
+     qr|WSREP: no nodes coming from prim view, prim not possible|,
+     qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
    );
 
 
