@@ -79,10 +79,10 @@ IF(UNIX)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
-    IF(NOT RPM)
+    IF(CMAKE_VERSION VERSION_LESS 3.3.0)
       CONFIGURE_FILE(mariadb@.service.in
                      ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
-      INSTALL(FILES wsrep-new-cluster.conf
+      INSTALL(FILES use_galera_new_cluster.conf
               ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
               ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
               DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
@@ -90,8 +90,8 @@ IF(UNIX)
     IF(INSTALL_SYSTEMD_UNITDIR)
       # @ in directory name broken between CMake version 2.8.12.2 and 3.3
       # http://public.kitware.com/Bug/view.php?id=14782
-      IF(NOT RPM)
-        INSTALL(FILES wsrep-new-cluster.conf
+      IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
+        INSTALL(FILES use_galera_new_cluster.conf
                 DESTINATION
                 "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
                 COMPONENT Server)
