@@ -815,30 +815,26 @@ static Sys_var_ulong Sys_delayed_queue_size(
        VALID_RANGE(1, UINT_MAX), DEFAULT(DELAYED_QUEUE_SIZE), BLOCK_SIZE(1));
 
 #ifdef HAVE_EVENT_SCHEDULER
-static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED", NullS };
+static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED",
+                                              "ORIGINAL", NullS };
 static bool event_scheduler_check(sys_var *self, THD *thd, set_var *var)
 {
-  /* DISABLED is only accepted on the command line */
-  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
-    return true;
-  /*
-    If the scheduler was disabled because there are no/bad
-    system tables, produce a more meaningful error message
-    than ER_OPTION_PREVENTS_STATEMENT
-  */
-  if (Events::check_if_system_tables_error())
-    return true;
   if (Events::opt_event_scheduler == Events::EVENTS_DISABLED)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              "--event-scheduler=DISABLED or --skip-grant-tables");
     return true;
   }
+  /* DISABLED is only accepted on the command line */
+  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
+    return true;
   return false;
 }
+
 static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
 {
   int err_no= 0;
+  bool ret;
   uint opt_event_scheduler_value= Events::opt_event_scheduler;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   /*
@@ -857,9 +853,25 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     rare and it's difficult to avoid it without opening up possibilities
     for deadlocks. See bug#51160.
   */
-  bool ret= opt_event_scheduler_value == Events::EVENTS_ON
-            ? Events::start(&err_no)
-            : Events::stop();
+
+  /* EVENTS_ORIGINAL means we should revert back to the startup state */
+  if (opt_event_scheduler_value == Events::EVENTS_ORIGINAL)
+  {
+    opt_event_scheduler_value= Events::opt_event_scheduler=
+      Events::startup_state;
+  }
+ 
+  /*
+    If the scheduler was not properly inited (because of wrong system tables),
+    try to init it again. This is needed for mysql_upgrade to work properly if
+    the event tables where upgraded.
+  */
+  if (!Events::inited && (Events::init(thd, 0) || !Events::inited))
+    ret= 1;
+  else
+    ret= opt_event_scheduler_value == Events::EVENTS_ON ?
+      Events::start(&err_no) :
+      Events::stop();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
   {

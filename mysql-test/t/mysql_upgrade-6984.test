@@ -19,4 +19,5 @@ connect(con1,localhost,root,foo,,,);
 
 update mysql.user set password='' where user='root';
 flush privileges;
-
+# Load event table
+set global event_scheduler=OFF;

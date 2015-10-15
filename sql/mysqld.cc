@@ -5507,7 +5507,15 @@ int mysqld_main(int argc, char **argv)
 
   execute_ddl_log_recovery();
 
-  if (Events::init(opt_noacl || opt_bootstrap))
+  /*
+    Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
+    point in using ORIGINAL during startup
+  */
+  if (Events::opt_event_scheduler == Events::EVENTS_ORIGINAL)
+    Events::opt_event_scheduler= Events::EVENTS_OFF;
+
+  Events::set_original_state(Events::opt_event_scheduler);
+  if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
   if (opt_bootstrap)
