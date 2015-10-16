@@ -2361,10 +2361,6 @@ void THD::cleanup_after_query()
     rgi_slave->cleanup_after_query();
 #endif
 
-#ifdef WITH_WSREP
-  wsrep_free_status(this);
-#endif /* WITH_WSREP */
-
   DBUG_VOID_RETURN;
 }
 
