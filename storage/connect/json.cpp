@@ -33,10 +33,10 @@
 /* Parse a json string.                                                */
 /* Note: when pretty is not known, the caller set pretty to 3.         */
 /***********************************************************************/
-PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
+PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 {
-  int   i, rc;
-  bool  b = false;
+	int   i, rc, pretty = (ptyp) ? *ptyp : 3;
+	bool  b = false, pty[3] = {true, true, true};
   PJSON jsp = NULL;
   STRG  src;
 
@@ -48,6 +48,10 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
 
   src.str = s;
   src.len = len;
+
+	// Trying to guess the pretty format
+	if (s[0] == '[' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
+		pty[0] = false;
 
   // Save stack and allocation environment and prepare error return
   if (g->jump_level == MAX_JUMP) {
@@ -62,26 +66,16 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
 	for (i = 0; i < len; i++)
     switch (s[i]) {
       case '[':
-        if (jsp) {
-					if (pretty && pretty < 3) {
-						strcpy(g->Message, "More than one item in file");
-						goto err;
-					} else
-						goto tryit;
-
-        } else if (!(jsp = ParseArray(g, ++i, src)))
+        if (jsp)
+					goto tryit;
+        else if (!(jsp = ParseArray(g, ++i, src, pty)))
           goto err;
 
         break;
       case '{':
-        if (jsp) {
-					if (pretty && pretty < 3) {
-						strcpy(g->Message, "More than one item in file");
-						goto err;
-					} else
-						goto tryit;
-
-				} else if (!(jsp = ParseObject(g, ++i, src)))
+        if (jsp)
+					goto tryit;
+				else if (!(jsp = ParseObject(g, ++i, src, pty)))
           goto err;
 
         break;
@@ -91,10 +85,11 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
       case '\r':
         break;
       case ',':
-        if (jsp && pretty == 1) {
+        if (jsp && (pretty == 1 || pretty == 3)) {
           if (comma)
             *comma = true;
 
+					pty[0] = pty[2] = false;
           break;
           } // endif pretty
 
@@ -110,23 +105,39 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
           } // endif b
 
       default:
-				if (!(jsp = ParseValue(g, i, src)))
+				if (jsp)
+					goto tryit;
+				else if (!(jsp = ParseValue(g, i, src, pty)))
 					goto err;
 
 				break;
 	}; // endswitch s[i]
 
-  if (!jsp)
-    sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
+	if (!jsp)
+		sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
+	else if (ptyp && pretty == 3) {
+		*ptyp = 3;     // Not recognized pretty
+
+		for (i = 0; i < 3; i++)
+			if (pty[i]) {
+				*ptyp = i;
+				break;
+			} // endif pty
+
+	} // endif ptyp
 
   g->jump_level--;
   return jsp;
 
 tryit:
-	i = 0;
-	jsp = ParseArray(g, i, src);
-	g->jump_level--;
-	return jsp;
+	if (pty[0] && (!pretty || pretty > 2)) {
+		if ((jsp = ParseArray(g, (i = 0), src, pty)) && ptyp && pretty == 3)
+			*ptyp = (pty[0]) ? 0 : 3;
+
+		g->jump_level--;
+		return jsp;
+	} else
+		strcpy(g->Message, "More than one item in file");
 
 err:
   g->jump_level--;
@@ -136,12 +147,12 @@ err:
 /***********************************************************************/
 /* Parse a JSON Array.                                                 */
 /***********************************************************************/
-PJAR ParseArray(PGLOBAL g, int& i, STRG& src)
+PJAR ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty)
 {
   char  *s = src.str;
   int    len = src.len;
   int    level = 0;
-	bool   pty = (!i);
+	bool   b = (!i);
   PJAR   jarp = new(g) JARRAY;
   PJVAL  jvp = NULL;
 
@@ -163,29 +174,31 @@ PJAR ParseArray(PGLOBAL g, int& i, STRG& src)
 
         jarp->InitArray(g);
         return jarp;
-      case ' ':
+			case '\n':
+				if (!b)
+					pty[0] = pty[1] = false;
+			case '\r':
+			case ' ':
       case '\t':
-      case '\n':
-      case '\r':
         break;
       default:
         if (level == 2) {
           sprintf(g->Message, "Unexpected value near %.*s", ARGS);
           return NULL;
-        } else if ((jvp = ParseValue(g, i, src)))
+        } else if ((jvp = ParseValue(g, i, src, pty)))
           jarp->AddValue(g, jvp);
         else
           return NULL;
 
-        level = (pty) ? 1 : 2;
+        level = (b) ? 1 : 2;
         break;
     }; // endswitch s[i]
 
-	if (pty) {
+	if (b) {
 		// Case of Pretty == 0
 		jarp->InitArray(g);
 		return jarp;
-	} // endif pty
+	} // endif b
 
   strcpy(g->Message, "Unexpected EOF in array");
   return NULL;
@@ -194,7 +207,7 @@ PJAR ParseArray(PGLOBAL g, int& i, STRG& src)
 /***********************************************************************/
 /* Parse a JSON Object.                                                */
 /***********************************************************************/
-PJOB ParseObject(PGLOBAL g, int& i, STRG& src)
+PJOB ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty)
 {
   PSZ   key;
   char *s = src.str;
@@ -221,7 +234,7 @@ PJOB ParseObject(PGLOBAL g, int& i, STRG& src)
         break;
       case ':':
         if (level == 1) {
-          if (!(jpp->Val = ParseValue(g, ++i, src)))
+          if (!(jpp->Val = ParseValue(g, ++i, src, pty)))
             return NULL;
 
           level = 2;
@@ -246,10 +259,11 @@ PJOB ParseObject(PGLOBAL g, int& i, STRG& src)
           } // endif level
 
         return jobp;
-      case ' ':
+			case '\n':
+				pty[0] = pty[1] = false;
+			case '\r':
+			case ' ':
       case '\t':
-      case '\n':
-      case '\r':
         break;
       default:
         sprintf(g->Message, "Unexpected character '%c' near %.*s",
@@ -264,7 +278,7 @@ PJOB ParseObject(PGLOBAL g, int& i, STRG& src)
 /***********************************************************************/
 /* Parse a JSON Value.                                                 */
 /***********************************************************************/
-PJVAL ParseValue(PGLOBAL g, int& i, STRG& src)
+PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
 {
   char *strval, *s = src.str;
   int   n, len = src.len;
@@ -272,10 +286,11 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src)
 
   for (; i < len; i++)
     switch (s[i]) {
-      case ' ':
+		case '\n':
+			pty[0] = pty[1] = false;
+		case '\r':
+		case ' ':
       case '\t':
-      case '\n':
-      case '\r':
         break;
       default:
         goto suite;
@@ -284,12 +299,12 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src)
  suite:
   switch (s[i]) {
     case '[':
-      if (!(jvp->Jsp = ParseArray(g, ++i, src)))
+      if (!(jvp->Jsp = ParseArray(g, ++i, src, pty)))
         return NULL;
 
       break;
     case '{':
-      if (!(jvp->Jsp = ParseObject(g, ++i, src)))
+      if (!(jvp->Jsp = ParseObject(g, ++i, src, pty)))
         return NULL;
 
       break;
@@ -497,9 +512,9 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
 
       valp = AllocateValue(g, &dv, TYPE_DOUBLE, nd);
     } else {
-      int iv = strtol(buf, NULL, 10);
+      long long iv = strtoll(buf, NULL, 10);
 
-      valp = AllocateValue(g, &iv, TYPE_INT);
+      valp = AllocateValue(g, &iv, TYPE_BIGINT);
     } // endif has
 
     i--;  // Unstack  following character
@@ -543,18 +558,18 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 			jp = new(g)JOUTPRT(g, fs);
 		} else {
 			// Serialize to a flat file
-			jp = new(g)JOUTFILE(g, fs);
-			b = pretty == 1;
+			b = true;
+			jp = new(g)JOUTFILE(g, fs, pretty);
 		} // endif's
 
-	}
+	}	// endif's
 
   switch (jsp->GetType()) {
     case TYPE_JAR:
       err = SerializeArray(jp, (PJAR)jsp, b);
       break;
     case TYPE_JOB:
-      err = (b && jp->WriteChr('\t'));
+      err = ((b && jp->Prty()) && jp->WriteChr('\t'));
       err |= SerializeObject(jp, (PJOB)jsp);
       break;
     case TYPE_JVAL:
@@ -565,7 +580,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
     } // endswitch Type
 
   if (fs) {
-    fputc('\n', fs);
+		fputs(EL, fs);
     fclose(fs);
     return (err) ? g->Message : NULL;
   } else if (!err) {
@@ -590,29 +605,40 @@ bool SerializeArray(JOUT *js, PJAR jarp, bool b)
 {
   bool first = true;
 
+	if (b) {
+		if (js->Prty()) {
+			if (js->WriteChr('['))
+				return true;
+			else if (js->Prty() == 1 && (js->WriteStr(EL) || js->WriteChr('\t')))
+				return true;
 
-  if (js->WriteChr('['))
-    return true;
-  else if (b && (js->WriteStr(EL) || js->WriteChr('\t')))
-    return true;
+		} // endif Prty
+
+	} else if (js->WriteChr('['))
+		return true;
 
   for (int i = 0; i < jarp->size(); i++) {
     if (first)
       first = false;
-    else if (js->WriteChr(','))
+		else if ((!b || js->Prty()) && js->WriteChr(','))
       return true;
-    else if (b && (js->WriteStr(EL) || js->WriteChr('\t')))
-      return true;
+		else if (b) {
+			if (js->Prty() < 2 && js->WriteStr(EL))
+				return true;
+			else if (js->Prty() == 1 && js->WriteChr('\t'))
+				return true;
+
+		} // endif b
 
     if (SerializeValue(js, jarp->GetValue(i)))
       return true;
 
     } // endfor i
 
-  if (b && js->WriteStr(EL))
+	if (b && js->Prty() == 1 && js->WriteStr(EL))
     return true;
 
-  return js->WriteChr(']');
+	return ((!b || js->Prty()) && js->WriteChr(']'));
 } // end of SerializeArray
 
 /***********************************************************************/
@@ -672,8 +698,8 @@ bool SerializeValue(JOUT *js, PJVAL jvp)
 
     } // endswitch Type
 
-strcpy(js->g->Message, "Unrecognized value");
-return true;
+	strcpy(js->g->Message, "Unrecognized value");
+	return true;
 } // end of SerializeValue
 
 /* -------------------------- Class JOUTSTR -------------------------- */
@@ -1262,6 +1288,16 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
 void JVALUE::SetInteger(PGLOBAL g, int n)
 {
   Value = AllocateValue(g, &n, TYPE_INT);
+	Jsp = NULL;
+} // end of SetInteger
+
+/***********************************************************************/
+/* Set the Value's Boolean value as a tiny integer.                    */
+/***********************************************************************/
+void JVALUE::SetTiny(PGLOBAL g, char n)
+{
+	Value = AllocateValue(g, &n, TYPE_TINY);
+	Jsp = NULL;
 } // end of SetInteger
 
 /***********************************************************************/
@@ -1270,6 +1306,7 @@ void JVALUE::SetInteger(PGLOBAL g, int n)
 void JVALUE::SetBigint(PGLOBAL g, long long ll)
 {
 	Value = AllocateValue(g, &ll, TYPE_BIGINT);
+	Jsp = NULL;
 } // end of SetBigint
 
 /***********************************************************************/
@@ -1278,6 +1315,7 @@ void JVALUE::SetBigint(PGLOBAL g, long long ll)
 void JVALUE::SetFloat(PGLOBAL g, double f)
 {
   Value = AllocateValue(g, &f, TYPE_DOUBLE, 6);
+	Jsp = NULL;
 } // end of SetFloat
 
 /***********************************************************************/
@@ -1286,6 +1324,7 @@ void JVALUE::SetFloat(PGLOBAL g, double f)
 void JVALUE::SetString(PGLOBAL g, PSZ s, short c)
 {
   Value = AllocateValue(g, s, TYPE_STRING, c);
+	Jsp = NULL;
 } // end of SetString
 
 /***********************************************************************/

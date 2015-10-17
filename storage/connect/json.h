@@ -41,10 +41,10 @@ typedef struct {
   int   len;
   } STRG, *PSG;
 
-PJSON ParseJson(PGLOBAL g, char *s, int n, int prty = 2, bool *b = NULL);
-PJAR  ParseArray(PGLOBAL g, int& i, STRG& src);
-PJOB  ParseObject(PGLOBAL g, int& i, STRG& src);
-PJVAL ParseValue(PGLOBAL g, int& i, STRG& src);
+PJSON ParseJson(PGLOBAL g, char *s, int n, int *prty = NULL, bool *b = NULL);
+PJAR  ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty);
+PJOB  ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty);
+PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty);
 char *ParseString(PGLOBAL g, int& i, STRG& src);
 PVAL  ParseNumeric(PGLOBAL g, int& i, STRG& src);
 PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
@@ -57,14 +57,16 @@ bool  SerializeValue(JOUT *js, PJVAL jvp);
 /***********************************************************************/
 class JOUT : public BLOCK {
  public:
-  JOUT(PGLOBAL gp) : BLOCK() {g = gp;}
+	JOUT(PGLOBAL gp) : BLOCK() {g = gp; Pretty = 3;}
 
   virtual bool WriteStr(const char *s) = 0;
   virtual bool WriteChr(const char c) = 0;
   virtual bool Escape(const char *s) = 0;
+					int  Prty(void) {return Pretty;}
 
   // Member
   PGLOBAL g;
+	int     Pretty;
 }; // end of class JOUT
 
 /***********************************************************************/
@@ -89,7 +91,7 @@ class JOUTSTR : public JOUT {
 /***********************************************************************/
 class JOUTFILE : public JOUT {
  public:
-  JOUTFILE(PGLOBAL g, FILE *str) : JOUT(g) {Stream = str;}
+	JOUTFILE(PGLOBAL g, FILE *str, int pty) : JOUT(g) {Stream = str; Pretty = pty;}
 
   virtual bool WriteStr(const char *s);
   virtual bool WriteChr(const char c);
@@ -104,7 +106,7 @@ class JOUTFILE : public JOUT {
 /***********************************************************************/
 class JOUTPRT : public JOUTFILE {
  public:
-  JOUTPRT(PGLOBAL g, FILE *str) : JOUTFILE(g, str) {M = 0; B = false;}
+  JOUTPRT(PGLOBAL g, FILE *str) : JOUTFILE(g, str, 2) {M = 0; B = false;}
 
   virtual bool WriteStr(const char *s);
   virtual bool WriteChr(const char c);
@@ -120,7 +122,7 @@ class JOUTPRT : public JOUTFILE {
 class JPAIR : public BLOCK {
   friend class JOBJECT;
 	friend class JSNX;
-	friend PJOB ParseObject(PGLOBAL, int&, STRG&);
+	friend PJOB ParseObject(PGLOBAL, int&, STRG&, bool*);
   friend bool SerializeObject(JOUT *, PJOB);
  public:
   JPAIR(PSZ key) : BLOCK() {Key = key; Val = NULL; Next = NULL;}
@@ -182,7 +184,7 @@ class JSON : public BLOCK {
 /* Class JOBJECT: contains a list of value pairs.                      */
 /***********************************************************************/
 class JOBJECT : public JSON {
-  friend PJOB ParseObject(PGLOBAL, int&, STRG&);
+  friend PJOB ParseObject(PGLOBAL, int&, STRG&, bool*);
   friend bool SerializeObject(JOUT *, PJOB);
 	friend class JSNX;
  public:
@@ -212,7 +214,7 @@ class JOBJECT : public JSON {
 /* Class JARRAY.                                                       */
 /***********************************************************************/
 class JARRAY : public JSON {
-  friend PJAR ParseArray(PGLOBAL, int&, STRG&);
+  friend PJAR ParseArray(PGLOBAL, int&, STRG&, bool*);
  public:
   JARRAY(void) : JSON() {Alloc = 0; First = Last = NULL; Mvals = NULL;}
 
@@ -243,7 +245,7 @@ class JARRAY : public JSON {
 class JVALUE : public JSON {
   friend class JARRAY;
 	friend class JSNX;
-	friend PJVAL ParseValue(PGLOBAL, int&, STRG&);
+	friend PJVAL ParseValue(PGLOBAL, int&, STRG&, bool*);
   friend bool  SerializeValue(JOUT *, PJVAL);
  public:
   JVALUE(void) : JSON() 
@@ -269,13 +271,14 @@ class JVALUE : public JSON {
 	virtual double GetFloat(void);
   virtual PSZ    GetString(void);
   virtual PSZ    GetText(PGLOBAL g, PSZ text);
-  virtual void   SetValue(PVAL valp) {Value = valp;}
-  virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
+	virtual void   SetValue(PVAL valp) {Value = valp; Jsp = NULL;}
+	virtual void   SetValue(PJSON jsp) {Jsp = jsp; Value = NULL;}
   virtual void   SetString(PGLOBAL g, PSZ s, short c = 0);
   virtual void   SetInteger(PGLOBAL g, int n);
 	virtual void   SetBigint(PGLOBAL g, longlong ll);
 	virtual void   SetFloat(PGLOBAL g, double f);
-  virtual bool   IsNull(void);
+	virtual void   SetTiny(PGLOBAL g, char f);
+	virtual bool   IsNull(void);
 
  protected:
   PJSON Jsp;      // To the json value

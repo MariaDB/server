@@ -659,7 +659,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
       // Deferred reading failed
     } else if (!(Row = ParseJson(g, To_Line, 
-                             strlen(To_Line), Pretty, &Comma))) {
+                             strlen(To_Line), &Pretty, &Comma))) {
       rc = (Pretty == 1 && !strcmp(To_Line, "]")) ? RC_EF : RC_FX;
     } else {
       Row = FindRow(g);
@@ -1384,7 +1384,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
       if (Nodes[Nod-1].Op == OP_XX) {
         s = Value->GetCharValue();
 
-        if (!(jsp = ParseJson(g, s, (int)strlen(s), 0))) {
+        if (!(jsp = ParseJson(g, s, (int)strlen(s)))) {
           strcpy(g->Message, s);
           longjmp(g->jumper[g->jump_level], 666);
           } // endif jsp
@@ -1522,7 +1522,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   /*  Parse the json file and allocate its tree structure.             */
   /*********************************************************************/
   g->Message[0] = 0;
-  jsp = Top = ParseJson(g, memory, len, Pretty);
+  jsp = Top = ParseJson(g, memory, len, &Pretty);
   Txfp->CloseTableFile(g, false);
   Mode = mode;             // Restore saved Mode
 
