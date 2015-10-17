@@ -1622,3 +1622,68 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8703 Wrong result for SELECT..WHERE LENGTH(decimal_10_1_column)!=3 AND decimal_10_1_column=1.10
+--echo #
+
+# The constant scale is bigger than the field scale
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=3;
+SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10;
+--echo # Notice 1.1 instead of 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+DROP TABLE t1;
+
+# The constant scale is equal to the field scale
+CREATE TABLE t1 (a DECIMAL(10,2));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=4;
+SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10;
+--echo # Notice 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+DROP TABLE t1;
+
+# The constant scale is smaller than the field scale
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=5;
+SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10;
+--echo # Notice 1.100 rather than 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+--echo #
+CREATE TABLE t1 (a DECIMAL(10,1) ZEROFILL);
+INSERT INTO t1 VALUES (2010),(2020);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010.0 AND a>=2010.0;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8635 Redundant warnings on WHERE decimal_column='ax'
+--echo #
+CREATE TABLE t1 (a DECIMAL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+# Make sure this does not produce any warnings
+EXPLAIN SELECT * FROM t1 WHERE a='ax' ORDER BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

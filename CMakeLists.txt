@@ -151,6 +151,7 @@ INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
+INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 
 # Handle options
@@ -328,6 +329,8 @@ CHECK_JEMALLOC()
 
 CHECK_PCRE()
 
+CHECK_SYSTEMD()
+
 IF(CMAKE_CROSSCOMPILING)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
   INCLUDE(${IMPORT_EXECUTABLES})
@@ -401,7 +404,6 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/upgrade_wizard)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
-ADD_SUBDIRECTORY(packaging/solaris)
 
 
 INCLUDE(for_clients)

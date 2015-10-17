@@ -3289,7 +3289,7 @@ int spider_db_mysql_util::open_item_func(
       {
         if (
           !strncasecmp("rand", func_name, func_name_length) &&
-          !item_func->arg_count
+          !item_func->argument_count()
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);

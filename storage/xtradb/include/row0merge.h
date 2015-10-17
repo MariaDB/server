@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -351,7 +352,11 @@ row_merge_write(
 	int		fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
-	const void*	buf);	/*!< in: data */
+	const void*	buf,	/*!< in: data */
+	fil_space_crypt_t*	crypt_data,	/*!< in: table crypt data */
+	void*		crypt_buf,		/*!< in: crypt buf or NULL */
+	ulint		space);			/*!< in: space id */
+
 /********************************************************************//**
 Empty a sort buffer.
 @return sort buffer */
@@ -386,8 +391,11 @@ row_merge_sort(
 	int*			tmpfd,	/*!< in/out: temporary file handle */
 	const bool		update_progress, /*!< in: update progress status variable or not */
 	const float		pct_progress, /*!< in: total progress percent until now */
-	const float		pct_cost) /*!< in: current progress percent */
-	__attribute__((nonnull));
+	const float		pct_cost, /*!< in: current progress percent */
+	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
+	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
+	ulint			space)	   /*!< in: space id */
+	__attribute__((nonnull(1,2,3,4,5)));
 /*********************************************************************//**
 Allocate a sort buffer.
 @return own: sort buffer */
@@ -424,7 +432,11 @@ row_merge_read(
 	ulint			offset,	/*!< in: offset where to read
 					in number of row_merge_block_t
 					elements */
-	row_merge_block_t*	buf);	/*!< out: data */
+	row_merge_block_t*	buf,	/*!< out: data */
+	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
+	row_merge_block_t*	crypt_buf, /*!< in: crypt buf or NULL */
+	ulint			space);	   /*!< in: space id */
+
 /********************************************************************//**
 Read a merge record.
 @return pointer to next record, or NULL on I/O error or end of list */
@@ -441,6 +453,9 @@ row_merge_read_rec(
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list
 					(non-NULL on I/O error) */
-	ulint*			offsets)/*!< out: offsets of mrec */
-	__attribute__((nonnull, warn_unused_result));
+	ulint*			offsets,/*!< out: offsets of mrec */
+	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
+	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
+	ulint			space)	   /*!< in: space id */
+	__attribute__((nonnull(1,2,3,4,6,7,8), warn_unused_result));
 #endif /* row0merge.h */

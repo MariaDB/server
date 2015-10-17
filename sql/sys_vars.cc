@@ -325,6 +325,14 @@ static Sys_var_long Sys_pfs_digest_size(
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_pfs_max_digest_length(
+       "performance_schema_max_digest_length",
+       "Maximum length considered for digest text, when stored in performance_schema tables.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_max_digest_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024 * 1024),
+       DEFAULT(1024),
+       BLOCK_SIZE(1));
+
 static Sys_var_long Sys_pfs_connect_attrs_size(
        "performance_schema_session_connect_attrs_size",
        "Size of session attribute string buffer per thread."
@@ -362,10 +370,10 @@ static Sys_var_mybool Sys_automatic_sp_privileges(
 
 static Sys_var_ulong Sys_back_log(
        "back_log", "The number of outstanding connection requests "
-       "MySQL can have. This comes into play when the main MySQL thread "
+       "MariaDB can have. This comes into play when the main MySQL thread "
        "gets very many connection requests in a very short time",
-       READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(150), BLOCK_SIZE(1));
+       AUTO_SET READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_basedir(
        "basedir", "Path to installation directory. All paths are "
@@ -533,6 +541,17 @@ static Sys_var_mybool Sys_binlog_direct(
        SESSION_VAR(binlog_direct_non_trans_update),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
+
+
+static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
+       "explicit_defaults_for_timestamp",
+       "This option causes CREATE TABLE to create all TIMESTAMP columns "
+       "as NULL with DEFAULT NULL attribute, Without this option, "
+       "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses. "
+       "The old behavior is deprecated.",
+       READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "
@@ -1027,7 +1046,7 @@ static Sys_var_ulonglong Sys_join_buffer_size(
        "join_buffer_size",
        "The size of the buffer that is used for joins",
        SESSION_VAR(join_buff_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(128, SIZE_T_MAX), DEFAULT(128*1024), BLOCK_SIZE(128));
+       VALID_RANGE(128, SIZE_T_MAX), DEFAULT(256*1024), BLOCK_SIZE(128));
 
 static Sys_var_keycache Sys_key_buffer_size(
        "key_buffer_size", "The size of the buffer used for "
@@ -1123,7 +1142,6 @@ static Sys_var_mybool Sys_locked_in_memory(
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
-
 
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
@@ -1279,7 +1297,7 @@ static Sys_var_ulong Sys_max_allowed_packet(
        "max_allowed_packet",
        "Max packet length to send to or receive from the server",
        SESSION_VAR(max_allowed_packet), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 1024*1024*1024), DEFAULT(1024*1024),
+       VALID_RANGE(1024, 1024*1024*1024), DEFAULT(4*1024*1024),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_max_allowed_packet));
 
@@ -1349,7 +1367,7 @@ static Sys_var_ulong Sys_max_connect_errors(
 
 static Sys_var_uint Sys_max_digest_length(
        "max_digest_length", "Maximum length considered for digest text.",
-       PARSED_EARLY READ_ONLY GLOBAL_VAR(max_digest_length),
+       READ_ONLY GLOBAL_VAR(max_digest_length),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024 * 1024), DEFAULT(1024), BLOCK_SIZE(1));
 
@@ -2684,17 +2702,6 @@ static Sys_var_enum Sys_thread_handling(
  );
 
 #ifdef HAVE_QUERY_CACHE
-static bool check_query_cache_size(sys_var *self, THD *thd, set_var *var)
-{
-  if (global_system_variables.query_cache_type == 0 &&
-      var->value && var->value->val_int() != 0)
-  {
-    my_error(ER_QUERY_CACHE_DISABLED, MYF(0));
-    return true;
-  }
-
-  return false;
-}
 static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
 {
   ulong new_cache_size= query_cache.resize(query_cache_size);
@@ -2708,8 +2715,10 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
                         query_cache_size, new_cache_size);
 
   query_cache_size= new_cache_size;
+
   return false;
 }
+
 static bool fix_query_cache_limit(sys_var *self, THD *thd, enum_var_type type)
 {
   query_cache.result_size_limit(query_cache_limit);
@@ -2719,8 +2728,8 @@ static Sys_var_ulonglong Sys_query_cache_size(
        "query_cache_size",
        "The memory allocated to store results from old queries",
        GLOBAL_VAR(query_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1024),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_query_cache_size),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1024),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, NULL,
        ON_UPDATE(fix_query_cache_size));
 
 static Sys_var_ulong Sys_query_cache_limit(
@@ -2746,6 +2755,7 @@ static Sys_var_ulong Sys_query_cache_min_res_unit(
        ON_UPDATE(fix_qcache_min_res_unit));
 
 static const char *query_cache_type_names[]= { "OFF", "ON", "DEMAND", 0 };
+
 static bool check_query_cache_type(sys_var *self, THD *thd, set_var *var)
 {
   if (query_cache.is_disable_in_progress())
@@ -2753,16 +2763,22 @@ static bool check_query_cache_type(sys_var *self, THD *thd, set_var *var)
     my_error(ER_QUERY_CACHE_IS_DISABLED, MYF(0));
     return true;
   }
-  if (var->type != OPT_GLOBAL &&
-      global_system_variables.query_cache_type == 0 &&
-      var->value->val_int() != 0)
-  {
-    my_error(ER_QUERY_CACHE_IS_GLOBALY_DISABLED, MYF(0));
-    return true;
-  }
 
+  if (var->type != OPT_GLOBAL && global_system_variables.query_cache_type == 0)
+  {
+    if (var->value)
+    {
+      if (var->save_result.ulonglong_value != 0)
+      {
+        my_error(ER_QUERY_CACHE_IS_GLOBALY_DISABLED, MYF(0));
+        return true;
+      }
+    }
+  }
   return false;
 }
+
+
 static bool fix_query_cache_type(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type != OPT_GLOBAL)
@@ -2786,7 +2802,7 @@ static Sys_var_enum Sys_query_cache_type(
        "except SELECT SQL_NO_CACHE ... queries. DEMAND = Cache only "
        "SELECT SQL_CACHE ... queries",
        NO_SET_STMT SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
-       query_cache_type_names, DEFAULT(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       query_cache_type_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_query_cache_type),
        ON_UPDATE(fix_query_cache_type));
 
@@ -2802,7 +2818,7 @@ static Sys_var_mybool Sys_secure_auth(
        "Disallow authentication for accounts that have old (pre-4.1) "
        "passwords",
        GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE));
+       DEFAULT(TRUE));
 
 static Sys_var_charptr Sys_secure_file_priv(
        "secure_file_priv",
@@ -3055,7 +3071,10 @@ static Sys_var_set Sys_sql_mode(
        "sql_mode",
        "Sets the sql mode",
        SESSION_VAR(sql_mode), CMD_LINE(REQUIRED_ARG),
-       sql_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       sql_mode_names,
+       DEFAULT(MODE_NO_ENGINE_SUBSTITUTION |
+               MODE_NO_AUTO_CREATE_USER),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_sql_mode), ON_UPDATE(fix_sql_mode));
 
 static const char *old_mode_names[]=
@@ -4500,16 +4519,16 @@ static Sys_var_ulonglong Sys_relay_log_space_limit(
 
 static Sys_var_uint Sys_sync_relaylog_period(
        "sync_relay_log", "Synchronously flush relay log to disk after "
-       "every #th event. Use 0 (default) to disable synchronous flushing",
+       "every #th event. Use 0 to disable synchronous flushing",
        GLOBAL_VAR(sync_relaylog_period), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(10000), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_sync_relayloginfo_period(
        "sync_relay_log_info", "Synchronously flush relay log info "
-       "to disk after every #th transaction. Use 0 (default) to disable "
+       "to disk after every #th transaction. Use 0 to disable "
        "synchronous flushing",
        GLOBAL_VAR(sync_relayloginfo_period), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(10000), BLOCK_SIZE(1));
 #endif
 
 static Sys_var_uint Sys_sync_binlog_period(
@@ -4520,9 +4539,9 @@ static Sys_var_uint Sys_sync_binlog_period(
 
 static Sys_var_uint Sys_sync_masterinfo_period(
        "sync_master_info", "Synchronously flush master info to disk "
-       "after every #th event. Use 0 (default) to disable synchronous flushing",
+       "after every #th event. Use 0 to disable synchronous flushing",
        GLOBAL_VAR(sync_masterinfo_period), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(10000), BLOCK_SIZE(1));
 
 #ifdef HAVE_REPLICATION
 static Sys_var_ulong Sys_slave_trans_retries(
@@ -4922,7 +4941,7 @@ static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
 static Sys_var_ulong Sys_host_cache_size(
        "host_cache_size",
        "How many host names should be cached to avoid resolving.",
-       GLOBAL_VAR(host_cache_size),
+       AUTO_SET GLOBAL_VAR(host_cache_size),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
        DEFAULT(HOST_CACHE_SIZE),
        BLOCK_SIZE(1),
@@ -4977,14 +4996,6 @@ static Sys_var_ulong Sys_deadlock_timeout_depth_long(
        "Long timeout for the two-step deadlock detection (in microseconds)",
        SESSION_VAR(wt_timeout_long), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(50000000), BLOCK_SIZE(1));
-
-#ifndef DBUG_OFF
-static Sys_var_ulong Sys_debug_crc_break(
-       "debug_crc_break",
-       "Call my_debug_put_break_here() if crc matches this number (for debug)",
-       GLOBAL_VAR(my_crc_dbug_check), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
-#endif
 
 static Sys_var_uint Sys_extra_port(
        "extra_port",
@@ -5213,7 +5224,12 @@ static Sys_var_mybool Sys_encrypt_tmp_files(
        "encrypt_tmp_files",
        "Encrypt temporary files (created for filesort, binary log cache, etc)",
        READ_ONLY GLOBAL_VAR(encrypt_tmp_files),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_binlog_encryption(
+       "encrypt_binlog", "Encrypt binary logs (including relay logs)",
+       READ_ONLY GLOBAL_VAR(encrypt_binlog), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
 
 static const char *binlog_row_image_names[]= {"MINIMAL", "NOBLOB", "FULL", NullS};
 static Sys_var_enum Sys_binlog_row_image(

@@ -58,7 +58,7 @@ IF(UNIX)
   ENDFOREACH()
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
-    INSTALL(DIRECTORY RHEL4-SElinux/ DESTINATION ${inst_location}/SELinux/RHEL4 COMPONENT SupportFiles)
+    INSTALL(DIRECTORY policy DESTINATION ${inst_location} COMPONENT SupportFiles)
   ENDIF()
 
   CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)
@@ -76,6 +76,34 @@ IF(UNIX)
   INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
     DESTINATION ${inst_location} COMPONENT SupportFiles)
 
+  IF(HAVE_SYSTEMD)
+    CONFIGURE_FILE(mariadb.service.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
+    IF(NOT RPM)
+      CONFIGURE_FILE(mariadb@.service.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
+      INSTALL(FILES wsrep-new-cluster.conf
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+    ENDIF()
+    IF(INSTALL_SYSTEMD_UNITDIR)
+      # @ in directory name broken between CMake version 2.8.12.2 and 3.3
+      # http://public.kitware.com/Bug/view.php?id=14782
+      IF(NOT RPM)
+        INSTALL(FILES wsrep-new-cluster.conf
+                DESTINATION
+                "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
+                COMPONENT Server)
+        INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+                DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
+      ENDIF()
+
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+              DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
+    ENDIF()
+  ENDIF()
+
   IF (INSTALL_SYSCONFDIR)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
             RENAME mysql COMPONENT SupportFiles)
@@ -92,6 +120,8 @@ IF(UNIX)
       INSTALL(FILES rpm/mysql-clients.cnf DESTINATION ${INSTALL_SYSCONF2DIR}
               COMPONENT Client)
       INSTALL(FILES rpm/server.cnf DESTINATION ${INSTALL_SYSCONF2DIR}
+              COMPONENT IniFiles)
+      INSTALL(FILES rpm/enable_encryption.preset DESTINATION ${INSTALL_SYSCONF2DIR}
               COMPONENT IniFiles)
     ENDIF()
 

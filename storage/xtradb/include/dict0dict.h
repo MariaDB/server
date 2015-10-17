@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
@@ -449,18 +449,6 @@ dict_foreign_add_to_cache(
 				/*!< in: error to be ignored */
 	__attribute__((nonnull(1), warn_unused_result));
 /*********************************************************************//**
-Check if the index is referenced by a foreign key, if TRUE return the
-matching instance NULL otherwise.
-@return pointer to foreign key struct if index is defined for foreign
-key, otherwise NULL */
-UNIV_INTERN
-dict_foreign_t*
-dict_table_get_referenced_constraint(
-/*=================================*/
-	dict_table_t*	table,	/*!< in: InnoDB table */
-	dict_index_t*	index)	/*!< in: InnoDB index */
-	__attribute__((nonnull, warn_unused_result));
-/*********************************************************************//**
 Checks if a table is referenced by foreign keys.
 @return	TRUE if table is referenced by a foreign key */
 UNIV_INTERN
@@ -493,19 +481,6 @@ dict_str_starts_with_keyword(
 	THD*		thd,		/*!< in: MySQL thread handle */
 	const char*	str,		/*!< in: string to scan for keyword */
 	const char*	keyword)	/*!< in: keyword to look for */
-	__attribute__((nonnull, warn_unused_result));
-/*********************************************************************//**
-Checks if a index is defined for a foreign key constraint. Index is a part
-of a foreign key constraint if the index is referenced by foreign key
-or index is a foreign key index
-@return pointer to foreign key struct if index is defined for foreign
-key, otherwise NULL */
-UNIV_INTERN
-dict_foreign_t*
-dict_table_get_foreign_constraint(
-/*==============================*/
-	dict_table_t*	table,	/*!< in: InnoDB table */
-	dict_index_t*	index)	/*!< in: InnoDB index */
 	__attribute__((nonnull, warn_unused_result));
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary
@@ -596,10 +571,17 @@ dict_foreign_find_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+			        	/*!< out: index where error
+					happened */
 	__attribute__((nonnull(1,3), warn_unused_result));
 /**********************************************************************//**
 Returns a column's name.
@@ -691,10 +673,18 @@ dict_foreign_qualify_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+					/*!< out: index where error
+					happened */
+
 	__attribute__((nonnull(1,3), warn_unused_result));
 #ifdef UNIV_DEBUG
 /********************************************************************//**

@@ -35,10 +35,11 @@ class Item_row: public Item,
   table_map not_null_tables_cache;
   bool with_null;
 public:
-  Item_row(List<Item> &list)
-   :Item_args(list), not_null_tables_cache(0), with_null(0)
+  Item_row(THD *thd, List<Item> &list):
+  Item(thd), Item_args(thd, list), not_null_tables_cache(0), with_null(0)
   { }
-  Item_row(Item_row *item):
+  Item_row(THD *thd, Item_row *item):
+    Item(thd),
     Item_args(item),
     Used_tables_and_const_cache(item),
     not_null_tables_cache(0),
@@ -95,7 +96,7 @@ public:
       return true;
     return (this->*processor)(arg);
   }
-  Item *transform(Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   bool eval_not_null_tables(uchar *opt_arg);
 
   uint cols() { return arg_count; }

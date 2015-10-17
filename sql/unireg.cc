@@ -583,14 +583,14 @@ static bool pack_header(THD *thd, uchar *forminfo,
           The HEX representation is created from this copy.
         */
         field->save_interval= field->interval;
-        field->interval= (TYPELIB*) sql_alloc(sizeof(TYPELIB));
+        field->interval= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
         *field->interval= *field->save_interval; 
         field->interval->type_names= 
-          (const char **) sql_alloc(sizeof(char*) * 
-				    (field->interval->count+1));
+          (const char **) thd->alloc(sizeof(char*) * 
+                                     (field->interval->count+1));
         field->interval->type_names[field->interval->count]= 0;
         field->interval->type_lengths=
-          (uint *) sql_alloc(sizeof(uint) * field->interval->count);
+          (uint *) thd->alloc(sizeof(uint) * field->interval->count);
  
         for (uint pos= 0; pos < field->interval->count; pos++)
         {
@@ -600,8 +600,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
           field->interval->type_lengths[pos]= hex_length;
-          field->interval->type_names[pos]= dst= (char*) sql_alloc(hex_length +
-                                                                   1);
+          field->interval->type_names[pos]= dst=
+            (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
         }
       }
@@ -924,7 +924,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     /*
       regfield don't have to be deleted as it's allocated with sql_alloc()
     */
-    Field *regfield= make_field(&share,
+    Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
                                 field->length,
                                 null_pos + null_count / 8,

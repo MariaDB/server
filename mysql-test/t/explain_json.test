@@ -278,4 +278,121 @@ explain format=json select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') a
 
 drop table t1;
 
+--echo #
+--echo # MDEV-8786 Wrong result for SELECT FORMAT=JSON * FROM t1 WHERE a=_latin1 0xDF
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('b');
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a=_latin1 0xDF;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8785 Wrong results for EXPLAIN EXTENDED...WHERE NULLIF(latin1_col, _utf8'a' COLLATE utf8_bin) IS NOT NULL
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE NULLIF(a,_utf8'a' COLLATE utf8_bin);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+--echo # normal HAVING
+explain format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+--echo # HAVING is always TRUE (not printed)
+explain format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+--echo # HAVING is always FALSE (intercepted by message)
+explain format=json select a, max(b) as TOP from t2 group by a having 1=2;
+--echo # HAVING is absent
+explain format=json select a, max(b) as TOP from t2 group by a;
+drop table t0, t1, t2;
+
+--echo #
+--echo # MDEV-8829: Assertion `0' failed in Explain_table_access::tag_to_json
+--echo #
+
+--echo # Check ET_CONST_ROW_NOT_FOUND
+create table t1 (i int) engine=myisam;
+explain 
+select * from t1;
+explain format=json
+select * from t1;
+analyze format=json 
+select * from t1;
+drop table t1;
+
+--echo # Check ET_IMPOSSIBLE_ON_CONDITION
+create table t1 (a int);
+create table t2 (pk int primary key);
+
+insert into t1 values (1),(2);
+insert into t2 values (1),(2);
+
+explain 
+select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
+explain format=json
+select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
+
+--echo # Check ET_NOT_EXISTS:
+explain
+select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
+explain format=json
+select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
+
+--echo # Check ET_DISTINCT
+explain
+select distinct t1.a from t1 join t2 on t2.pk=t1.a;
+explain format=json
+select distinct t1.a from t1 join t2 on t2.pk=t1.a;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select distinct t1.a from t1 join t2 on t2.pk=t1.a;
+drop table t1,t2;
+
+--echo # Check ET_USING_INDEX_CONDITION_BKA
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+
+create table t3(a int, b int);
+insert into t3 select a,a from t1;
+
+create table t4(a int, b int, c int, filler char(100), key (a,b));
+insert into t4 select a,a,a, 'filler-data' from t2;
+
+set @tmp_optimizer_switch=@@optimizer_switch;
+set @tmp_join_cache_level=@@join_cache_level;
+set optimizer_switch='mrr=on';
+set join_cache_level=6;
+explain
+select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
+explain format=json
+select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
+set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@tmp_join_cache_level;
+
+drop table t1,t2,t3,t4;
+
+
 

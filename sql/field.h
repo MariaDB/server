@@ -1,6 +1,6 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -41,12 +41,326 @@ class Column_statistics;
 class Column_statistics_collected;
 class Item_func;
 class Item_bool_func;
+class Item_equal;
 
 enum enum_check_fields
 {
   CHECK_FIELD_IGNORE,
   CHECK_FIELD_WARN,
   CHECK_FIELD_ERROR_FOR_NULL
+};
+
+
+/*
+  Common declarations for Field and Item
+*/
+class Value_source
+{
+protected:
+
+  // Parameters for warning and note generation
+  class Warn_filter
+  {
+    bool m_want_warning_edom;
+    bool m_want_note_truncated_spaces;
+  public:
+    Warn_filter(bool want_warning_edom, bool want_note_truncated_spaces) :
+     m_want_warning_edom(want_warning_edom),
+     m_want_note_truncated_spaces(want_note_truncated_spaces)
+    { }
+    Warn_filter(const THD *thd);
+    bool want_warning_edom() const
+    { return m_want_warning_edom; }
+    bool want_note_truncated_spaces() const
+    { return m_want_note_truncated_spaces; }
+  };
+  class Warn_filter_all: public Warn_filter
+  {
+  public:
+    Warn_filter_all() :Warn_filter(true, true) { }
+  };
+
+
+  // String-to-number converters
+  class Converter_string_to_number
+  {
+  protected:
+    char *m_end_of_num; // Where the low-level conversion routine stopped
+    int m_error;        // The error code returned by the low-level routine
+    bool m_edom;        // If EDOM-alike error happened during conversion
+    /**
+      Check string-to-number conversion and produce a warning if
+      - could not convert any digits (EDOM-alike error)
+      - found garbage at the end of the string
+      - found extra spaces at the end (a note)
+      See also Field_num::check_edom_and_truncation() for a similar function.
+
+      @param thd         - the thread that will be used to generate warnings.
+                           Can be NULL (which means current_thd will be used
+                           if a warning is really necessary).
+      @param type        - name of the data type
+                           (e.g. "INTEGER", "DECIMAL", "DOUBLE")
+      @param cs          - character set of the original string
+      @param str         - the original string
+      @param end         - the end of the string
+      @param allow_notes - tells if trailing space notes should be displayed
+                           or suppressed.
+
+      Unlike Field_num::check_edom_and_truncation(), this function does not
+      distinguish between EDOM and truncation and reports the same warning for
+      both cases. Perhaps we should eventually print different warnings,
+      to make the explicit CAST work closer to the implicit cast in
+      Field_xxx::store().
+    */
+    void check_edom_and_truncation(THD *thd, Warn_filter filter,
+                                   const char *type,
+                                   CHARSET_INFO *cs,
+                                   const char *str,
+                                   size_t length) const;
+  public:
+    int error() const { return m_error; }
+  };
+
+  class Converter_strntod: public Converter_string_to_number
+  {
+    double m_result;
+  public:
+    Converter_strntod(CHARSET_INFO *cs, const char *str, size_t length)
+    {
+      m_result= my_strntod(cs, (char *) str, length, &m_end_of_num, &m_error);
+      // strntod() does not set an error if the input string was empty
+      m_edom= m_error !=0 || str == m_end_of_num;
+    }
+    double result() const { return m_result; }
+  };
+
+  class Converter_string_to_longlong: public Converter_string_to_number
+  {
+  protected:
+    longlong m_result;
+  public:
+    longlong result() const { return m_result; }
+  };
+
+  class Converter_strntoll: public Converter_string_to_longlong
+  {
+  public:
+    Converter_strntoll(CHARSET_INFO *cs, const char *str, size_t length)
+    {
+      m_result= my_strntoll(cs, str, length, 10, &m_end_of_num, &m_error);
+      /*
+         All non-zero errors means EDOM error.
+         strntoll() does not set an error if the input string was empty.
+         Check it here.
+         Notice the different with the same condition in Converter_strntoll10.
+      */
+      m_edom= m_error != 0 || str == m_end_of_num;
+    }
+  };
+
+  class Converter_strtoll10: public Converter_string_to_longlong
+  {
+  public:
+    Converter_strtoll10(CHARSET_INFO *cs, const char *str, size_t length)
+    {
+      m_end_of_num= (char *) str + length;
+      m_result= (*(cs->cset->strtoll10))(cs, str, &m_end_of_num, &m_error);
+      /*
+        Negative error means "good negative number".
+        Only a positive m_error value means a real error.
+        strtoll10() sets error to MY_ERRNO_EDOM in case of an empty string,
+        so we don't have to additionally catch empty strings here.
+      */
+      m_edom= m_error > 0;
+    }
+  };
+
+  class Converter_str2my_decimal: public Converter_string_to_number
+  {
+  public:
+    Converter_str2my_decimal(uint mask,
+                             CHARSET_INFO *cs, const char *str, size_t length,
+                             my_decimal *buf)
+    {
+      m_error= str2my_decimal(mask, str, length, cs,
+                              buf, (const char **) &m_end_of_num);
+      // E_DEC_TRUNCATED means a very minor truncation: '1e-100' -> 0
+      m_edom= m_error && m_error != E_DEC_TRUNCATED;
+    }
+  };
+
+
+  // String-to-number converters with automatic warning generation
+  class Converter_strntod_with_warn: public Converter_strntod
+  {
+  public:
+    Converter_strntod_with_warn(THD *thd, Warn_filter filter,
+                                CHARSET_INFO *cs,
+                                const char *str, size_t length)
+      :Converter_strntod(cs, str, length)
+    {
+      check_edom_and_truncation(thd, filter, "DOUBLE", cs, str, length);
+    }
+  };
+
+  class Converter_strntoll_with_warn: public Converter_strntoll
+  {
+  public:
+    Converter_strntoll_with_warn(THD *thd, Warn_filter filter,
+                                 CHARSET_INFO *cs,
+                                 const char *str, size_t length)
+      :Converter_strntoll(cs, str, length)
+    {
+      check_edom_and_truncation(thd, filter, "INTEGER", cs, str, length);
+    }
+  };
+
+  class Converter_strtoll10_with_warn: public Converter_strtoll10
+  {
+  public:
+    Converter_strtoll10_with_warn(THD *thd, Warn_filter filter,
+                                 CHARSET_INFO *cs,
+                                 const char *str, size_t length)
+      :Converter_strtoll10(cs, str, length)
+    {
+      check_edom_and_truncation(thd, filter, "INTEGER", cs, str, length);
+    }
+  };
+
+  class Converter_str2my_decimal_with_warn: public Converter_str2my_decimal
+  {
+  public:
+    Converter_str2my_decimal_with_warn(THD *thd, Warn_filter filter,
+                                       uint mask, CHARSET_INFO *cs,
+                                       const char *str, size_t length,
+                                       my_decimal *buf)
+     :Converter_str2my_decimal(mask, cs, str, length, buf)
+    {
+      check_edom_and_truncation(thd, filter, "DECIMAL", cs, str, length);
+    }
+  };
+
+
+  // String-to-number convertion methods for the old code compatibility
+  longlong longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
+                                           const char *end) const
+  {
+    /*
+      TODO: Give error if we wanted a signed integer and we got an unsigned
+      one
+
+      Notice, longlong_from_string_with_check() honors thd->no_error, because
+      it's used to handle queries like this:
+        SELECT COUNT(@@basedir);
+      and is called when Item_func_get_system_var::update_null_value()
+      suppresses warnings and then calls val_int().
+      The other methods {double|decimal}_from_string_with_check() ignore
+      thd->no_errors, because they are not used for update_null_value()
+      and they always allow all kind of warnings.
+    */
+    THD *thd= current_thd;
+    return Converter_strtoll10_with_warn(thd, Warn_filter(thd),
+                                         cs, cptr, end - cptr).result();
+  }
+
+  double double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
+                                       const char *end) const
+  {
+    return Converter_strntod_with_warn(NULL, Warn_filter_all(),
+                                       cs, cptr, end - cptr).result();
+  }
+  my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
+                                             CHARSET_INFO *cs,
+                                             const char *cptr,
+                                             const char *end)
+  {
+    Converter_str2my_decimal_with_warn(NULL, Warn_filter_all(),
+                                       E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
+                                       cs, cptr, end - cptr, decimal_value);
+    return decimal_value;
+  }
+
+  longlong longlong_from_string_with_check(const String *str) const
+  {
+    return longlong_from_string_with_check(str->charset(),
+                                           str->ptr(), str->end());
+  }
+  double double_from_string_with_check(const String *str) const
+  {
+    return double_from_string_with_check(str->charset(),
+                                         str->ptr(), str->end());
+  }
+  my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
+                                             const String *str)
+  {
+    return decimal_from_string_with_check(decimal_value, str->charset(),
+                                          str->ptr(), str->end());
+  }
+  // End of String-to-number conversion methods
+
+public:
+  /*
+    The enumeration Subst_constraint is currently used only in implementations
+    of the virtual function subst_argument_checker.
+  */
+  enum Subst_constraint
+  {
+    ANY_SUBST,           /* Any substitution for a field is allowed  */
+    IDENTITY_SUBST       /* Substitution for a field is allowed if any two
+                            different values of the field type are not equal */
+  };
+  /*
+    Item context attributes.
+    Comparison functions pass their attributes to propagate_equal_fields().
+    For exmple, for string comparison, the collation of the comparison
+    operation is important inside propagate_equal_fields().
+  */
+  class Context
+  {
+    /*
+      Which type of propagation is allowed:
+      - ANY_SUBST (loose equality, according to the collation), or
+      - IDENTITY_SUBST (strict binary equality).
+    */
+    Subst_constraint m_subst_constraint;
+    /*
+      Comparison type.
+      Impostant only when ANY_SUBSTS.
+    */
+    Item_result m_compare_type;
+    /*
+      Collation of the comparison operation.
+      Important only when ANY_SUBST.
+    */
+    CHARSET_INFO *m_compare_collation;
+  public:
+    Context(Subst_constraint subst, Item_result type, CHARSET_INFO *cs)
+      :m_subst_constraint(subst),
+       m_compare_type(type),
+       m_compare_collation(cs) { }
+    Subst_constraint subst_constraint() const { return m_subst_constraint; }
+    Item_result compare_type() const
+    {
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_type;
+    }
+    CHARSET_INFO *compare_collation() const
+    {
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_collation;
+    }
+  };
+  class Context_identity: public Context
+  { // Use this to request only exact value, no invariants.
+  public:
+     Context_identity()
+      :Context(IDENTITY_SUBST, STRING_RESULT, &my_charset_bin) { }
+  };
+  class Context_boolean: public Context
+  { // Use this when an item is [a part of] a boolean expression
+  public:
+    Context_boolean() :Context(ANY_SUBST, INT_RESULT, &my_charset_bin) { }
+  };
 };
 
 
@@ -60,6 +374,7 @@ enum Derivation
   DERIVATION_NONE= 1,
   DERIVATION_EXPLICIT= 0
 };
+
 
 #define STORAGE_TYPE_MASK 7
 #define COLUMN_FORMAT_MASK 7
@@ -287,7 +602,7 @@ public:
   }
 };
 
-class Field
+class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
@@ -423,6 +738,7 @@ public:
   { return store(ls->str, ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
   inline String *val_str(String *str) { return val_str(str, str); }
   /*
@@ -883,16 +1199,6 @@ public:
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
-  /*
-    match_collation_to_optimize_range() is to distinguish in
-    range optimizer (see opt_range.cc) between real string types:
-      CHAR, VARCHAR, TEXT
-    and the other string-alike types with result_type() == STRING_RESULT:
-      DATE, TIME, DATETIME, TIMESTAMP
-    We need it to decide whether to test if collation of the operation
-    matches collation of the field (needed only for real string types).
-  */
-  virtual bool match_collation_to_optimize_range() const { return false; }
   virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
@@ -1002,6 +1308,16 @@ public:
   /* Hash value */
   virtual void hash(ulong *nr, ulong *nr2);
 
+/**
+  Checks whether a string field is part of write_set.
+
+  @return
+    FALSE  - If field is not char/varchar/....
+           - If field is char/varchar/.. and is not part of write set.
+    TRUE   - If field is char/varchar/.. and is part of write set.
+*/
+  virtual bool is_updatable() const { return FALSE; }
+
   /* Check whether the field can be used as a join attribute in hash join */
   virtual bool hash_join_is_possible() { return TRUE; }
   virtual bool eq_cmp_as_binary() { return TRUE; }
@@ -1012,16 +1328,47 @@ public:
     return (double) 0.5; 
   }
 
-  virtual bool can_optimize_keypart_ref(const Item_func *cond,
+  /*
+    Check if comparison between the field and an item unambiguously
+    identifies a distinct field value.
+
+    Example1: SELECT * FROM t1 WHERE int_column=10;
+              This example returns distinct integer value of 10.
+
+    Example2: SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
+              This example returns non-distinct values.
+              Comparison as DATE will return '2001-01-01' and '2001-01-01x',
+              but these two values are not equal to each other as VARCHARs.
+    See also the function with the same name in sql_select.cc.
+  */
+  virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
+                                                      const;
+  virtual bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
+  virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
+                                     Item *const_item)
+  {
+    return const_item;
+  }
+  virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
-  virtual bool can_optimize_hash_join(const Item_func *cond,
+  virtual bool can_optimize_hash_join(const Item_bool_func *cond,
                                       const Item *item) const
   {
     return can_optimize_keypart_ref(cond, item);
   }
   virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
                                           const Item *const_item) const;
-  bool can_optimize_outer_join_table_elimination(const Item_func *cond,
+  /**
+    Test if Field can use range optimizer for a standard comparison operation:
+      <=, <, =, <=>, >, >=
+    Note, this method does not cover spatial operations.
+  */
+  virtual bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
+
+  bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
                                                  const Item *item) const
   {
     // Exactly the same rules with REF access
@@ -1101,16 +1448,30 @@ protected:
   const uchar *unpack_int64(uchar* to, const uchar *from,  const uchar *from_end)
   { return unpack_int(to, from, from_end, 8); }
 
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
   double pos_in_interval_val_real(Field *min, Field *max);
   double pos_in_interval_val_str(Field *min, Field *max, uint data_offset);
 };
 
 
 class Field_num :public Field {
+protected:
+  int check_edom_and_truncation(const char *type, bool edom,
+                                CHARSET_INFO *cs,
+                                const char *str, uint length,
+                                const char *end_of_num);
+  int check_int(CHARSET_INFO *cs, const char *str, uint length,
+                const char *int_end, int error)
+  {
+    return check_edom_and_truncation("integer",
+                                     error == MY_ERRNO_EDOM || str == int_end,
+                                     cs, str, length, int_end);
+  }
+  bool get_int(CHARSET_INFO *cs, const char *from, uint len,
+               longlong *rnd, ulonglong unsigned_max,
+               longlong signed_min, longlong signed_max);
+  void prepend_zeros(String *value) const;
+  Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
+                                      Item *const_item);
 public:
   const uint8 dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
@@ -1122,7 +1483,12 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  void prepend_zeros(String *value);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+  {
+    return (flags & ZEROFILL_FLAG) ?
+           get_equal_zerofill_const_item(thd, ctx, const_item) :
+           const_item;
+  }
   void add_zerofill_and_unsigned(String &res) const;
   friend class Create_field;
   void make_field(Send_field *);
@@ -1131,6 +1497,7 @@ public:
   bool eq_def(Field *field);
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_int() != 0; }
   uint is_equal(Create_field *new_field);
   uint row_pack_length() const { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) {
@@ -1140,15 +1507,11 @@ public:
     return length;
   }
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
-  int check_int(CHARSET_INFO *cs, const char *str, int length,
-                const char *int_end, int error);
-  bool get_int(CHARSET_INFO *cs, const char *from, uint len, 
-               longlong *rnd, ulonglong unsigned_max, 
-               longlong signed_min, longlong signed_max);
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_real(min, max);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
@@ -1157,6 +1520,8 @@ protected:
   CHARSET_INFO *field_charset;
   enum Derivation field_derivation;
 public:
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item_equal);
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const char *field_name_arg, CHARSET_INFO *charset);
@@ -1179,6 +1544,7 @@ public:
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
   uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
@@ -1187,6 +1553,7 @@ public:
   {
     return pos_in_interval_val_str(min, max, length_size());
   }
+  bool test_if_equality_guarantees_uniqueness(const Item *const_item) const;
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -1207,9 +1574,9 @@ protected:
     return report_if_important_data(copier->source_end_pos(),
                                     end, count_spaces);
   }
-  bool cmp_to_string_with_same_collation(const Item_func *cond,
+  bool cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                          const Item *item) const;
-  bool cmp_to_string_with_stricter_collation(const Item_func *cond,
+  bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -1221,15 +1588,29 @@ public:
 
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
+
+  bool is_updatable() const
+  {
+    DBUG_ASSERT(table && table->write_set);
+    return bitmap_is_set(table->write_set, field_index);
+  }
   bool match_collation_to_optimize_range() const { return true; }
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
-  bool can_optimize_hash_join(const Item_func *cond, const Item *item) const;
+
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
+  bool can_optimize_hash_join(const Item_bool_func *cond,
+                              const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const;
 };
 
 /* base class for float and double and decimal (old one) */
 class Field_real :public Field_num {
+protected:
+  double get_double(const char *str, uint length, CHARSET_INFO *cs, int *err);
 public:
   bool not_fixed;
 
@@ -1246,8 +1627,10 @@ public:
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_real() != 0e0; }
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -1319,6 +1702,13 @@ public:
   longlong val_int(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool val_bool()
+  {
+    my_decimal decimal_value;
+    my_decimal *val= val_decimal(&decimal_value);
+    return val ? !my_decimal_is_zero(val) : 0;
+  }
   int cmp(const uchar *, const uchar *);
   void sort_string(uchar *buff, uint length);
   bool zero_pack() const { return 0; }
@@ -1332,7 +1722,8 @@ public:
                              uint16 mflags, int *order_var);
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
-  static Field *create_from_item (Item *);
+  static Field *create_from_item(MEM_ROOT *root, Item *);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -1643,6 +2034,7 @@ public:
   int reset(void)	  { return 0; }
   double val_real(void)		{ return 0.0;}
   longlong val_int(void)	{ return 0;}
+  bool val_bool(void) { return false; }
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
@@ -1653,7 +2045,8 @@ public:
   uint size_of() const { return sizeof(*this); }
   uint32 max_display_length() { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) {}
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const
   {
     DBUG_ASSERT(0);
     return false;
@@ -1668,6 +2061,9 @@ public:
 
 
 class Field_temporal: public Field {
+protected:
+  Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
+                                      Item *const_item);
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -1684,6 +2080,7 @@ public:
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   enum Item_result cmp_type () const { return TIME_RESULT; }
+  bool val_bool() { return val_real() != 0e0; }
   uint is_equal(Create_field *new_field);
   bool eq_def(Field *field)
   {
@@ -1696,9 +2093,16 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
 };
 
 
@@ -1812,6 +2216,10 @@ public:
     return unpack_int32(to, from, from_end);
   }
   bool validate_value_in_record(THD *thd, const uchar *record) const;
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, const_item);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2000,6 +2408,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -2043,6 +2452,7 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -2201,6 +2611,10 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, const_item);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2309,48 +2723,58 @@ public:
 
 
 static inline Field_timestamp *
-new_Field_timestamp(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
                     enum Field::utype unireg_check, const char *field_name,
                     TABLE_SHARE *share, uint dec)
 {
   if (dec==0)
-    return new Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                                unireg_check, field_name, share);
+    return new (root)
+      Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr,
+                      null_bit, unireg_check, field_name, share);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
-                                   field_name, share, dec);
+  return new (root)
+    Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
+                          field_name, share, dec);
 }
 
 static inline Field_time *
-new_Field_time(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                enum Field::utype unireg_check, const char *field_name,
                uint dec)
 {
   if (dec == 0)
-    return new Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit,
-                          unireg_check, field_name);
+    return new (root)
+      Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
+                 field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_time_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec);
+  return new (root)
+    Field_time_hires(ptr, null_ptr, null_bit, unireg_check, field_name, dec);
 }
 
 static inline Field_datetime *
-new_Field_datetime(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                    enum Field::utype unireg_check,
                    const char *field_name, uint dec)
 {
   if (dec == 0)
-    return new Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                              unireg_check, field_name);
+    return new (root)
+      Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
+                     unireg_check, field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_datetime_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec);
+  return new (root)
+    Field_datetime_hires(ptr, null_ptr, null_bit,
+                         unireg_check, field_name, dec);
 }
 
 class Field_string :public Field_longstr {
+  class Warn_filter_string: public Warn_filter
+  {
+  public:
+    Warn_filter_string(const THD *thd, const Field_string *field);
+  };
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -2424,6 +2848,14 @@ private:
 
 
 class Field_varstring :public Field_longstr {
+  uchar *get_data() const
+  {
+    return ptr + length_bytes;
+  }
+  uint get_length() const
+  {
+    return length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
+  }
 public:
   /*
     The maximum space available in a Field_varstring, in bytes. See
@@ -2690,8 +3122,11 @@ public:
   { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
-  bool match_collation_to_optimize_range() const { return false; }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -2773,7 +3208,8 @@ public:
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
 
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
@@ -2867,6 +3303,7 @@ public:
   String *val_str(String*, String *);
   virtual bool str_needs_quotes() { return TRUE; }
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_int() != 0; }
   int cmp(const uchar *a, const uchar *b)
   {
     DBUG_ASSERT(ptr == a || ptr == b);
@@ -3050,7 +3487,7 @@ public:
     interval_list.empty();
   }
 
-  Create_field(Field *field, Field *orig_field);
+  Create_field(THD *thd, Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
   void create_length_to_internal_length(void);
@@ -3062,11 +3499,6 @@ public:
                           uint pack_length = ~0U);
 
   bool check(THD *thd);
-
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
 
   ha_storage_media field_storage_type() const
   {
@@ -3083,6 +3515,14 @@ public:
   uint virtual_col_expr_maxlen()
   {
     return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
+  }
+
+  bool has_default_function() const
+  {
+    return (unireg_check == Field::TIMESTAMP_DN_FIELD ||
+            unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
+            unireg_check == Field::TIMESTAMP_UN_FIELD ||
+            unireg_check == Field::NEXT_NUMBER);
   }
 };
 
@@ -3149,7 +3589,8 @@ public:
 };
 
 
-Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
+Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                  uchar *ptr, uint32 field_length,
 		  uchar *null_pos, uchar null_bit,
 		  uint pack_flag, enum_field_types field_type,
 		  CHARSET_INFO *cs,

@@ -1170,6 +1170,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     */
     mysql_derived_reinit(thd, NULL, table);
 
+    thd->select_number+= table->view->number_of_selects;
+
+    DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);
   }
 
@@ -1283,6 +1286,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   */
   table->open_type= OT_BASE_ONLY;
 
+  /*
+    Clear old variables in the TABLE_LIST that could be left from an old view
+  */
+  table->merged_for_insert= FALSE;
+
   /*TODO: md5 test here and warning if it is differ */
 
 
@@ -1351,6 +1359,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
+
+    lex->number_of_selects=
+      (thd->select_number - view_select->select_number) + 1;
 
     /* Restore environment. */
 
@@ -1981,7 +1992,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   {
     Item_field *fld;
     if ((fld= entry->item->field_for_view_update()))
-      list->push_back(fld);
+      list->push_back(fld, thd->mem_root);
     else
     {
       my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");

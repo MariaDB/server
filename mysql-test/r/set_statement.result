@@ -642,7 +642,7 @@ SELECT @@myisam_sort_buffer_size,
 '# Pre-STATEMENT variable value
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 ''
 ''
 SET STATEMENT sql_mode='ansi' FOR PREPARE stmt FROM 'SELECT "t1".* FROM t1';
@@ -659,7 +659,7 @@ deallocate prepare stmt;
 '# Post-STATEMENT
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 check the same behaviour in normal set
 SET sql_mode='ansi';
 PREPARE stmt FROM 'SELECT "t1".* FROM t1';
@@ -675,7 +675,7 @@ ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 SET sql_mode='ansi';
 SELECT @@sql_mode;
 @@sql_mode
@@ -704,7 +704,7 @@ ALTER TABLE t1 drop COLUMN v3;
 drop procedure p6;
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 # SET and the statement parsed as one unit before the SET takes effect
 SET STATEMENT sql_mode='ansi' FOR
 CREATE PROCEDURE p6() BEGIN
@@ -715,7 +715,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 END' at line 4
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 SET sql_mode='ansi';
 SELECT @@sql_mode;
 @@sql_mode
@@ -732,7 +732,7 @@ v1	v2
 SET sql_mode=default;
 SELECT @@sql_mode;
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 # SET and the statement parsed as one unit before the SET takes effect
 SET STATEMENT sql_mode='ansi' FOR
 BEGIN NOT ATOMIC
@@ -1118,6 +1118,7 @@ set statement long_query_time=0.01 for select sleep(0.1)
 set global log_output= @save_log_output;
 set @@slow_query_log= @save_slow_query_log;
 set @@long_query_time= @save_long_query_time;
+truncate table mysql.slow_log;
 set statement autocommit=default for select 1;
 ERROR 42000: The system variable autocommit cannot be set in SET STATEMENT.
 set statement tx_isolation=default for select 1;

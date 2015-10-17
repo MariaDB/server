@@ -1859,7 +1859,7 @@ int spider_param_auto_increment_mode(
 static MYSQL_THDVAR_BOOL(
   same_server_link, /* name */
   PLUGIN_VAR_OPCMDARG, /* opt */
-  "Permit to link same server's table", /* comment */
+  "Permit one to link same server's table", /* comment */
   NULL, /* check */
   NULL, /* update */
   FALSE /* def */

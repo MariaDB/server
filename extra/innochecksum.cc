@@ -62,6 +62,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "fsp0fsp.h"             /* fsp_flags_get_page_size() &
                                     fsp_flags_get_zip_size() */
 #include "ut0crc32.h"            /* ut_crc32_init() */
+#include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 
 #ifdef UNIV_NONINL
 # include "fsp0fsp.ic"
@@ -109,6 +110,8 @@ int n_fil_page_type_xdes;
 int n_fil_page_type_blob;
 int n_fil_page_type_zblob;
 int n_fil_page_type_other;
+int n_fil_page_type_page_compressed;
+int n_fil_page_type_page_compressed_encrypted;
 
 int n_fil_page_max_index_id;
 
@@ -151,6 +154,8 @@ struct per_index_stats {
 };
 
 std::map<unsigned long long, per_index_stats> index_ids;
+
+bool encrypted = false;
 
 /* Get the page size of the filespace from the filespace header. */
 static
@@ -197,6 +202,8 @@ get_page_size(
   {
     compressed= true;
   }
+
+
   return TRUE;
 }
 
@@ -515,6 +522,18 @@ parse_page(
                }
                n_fil_page_type_zblob++;
                break;
+       case FIL_PAGE_PAGE_COMPRESSED:
+	       if (per_page_details) {
+		       printf("FIL_PAGE_PAGE_COMPRESSED\n");
+	       }
+	       n_fil_page_type_page_compressed++;
+	       break;
+       case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+	       if (per_page_details) {
+		       printf("FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED\n");
+	       }
+	       n_fil_page_type_page_compressed_encrypted++;
+	       break;
        default:
                if (per_page_details) {
                        printf("FIL_PAGE_TYPE_OTHER\n");
@@ -604,6 +623,8 @@ print_stats()
        printf("%d\tFIL_PAGE_TYPE_XDES\n", n_fil_page_type_xdes);
        printf("%d\tFIL_PAGE_TYPE_BLOB\n", n_fil_page_type_blob);
        printf("%d\tFIL_PAGE_TYPE_ZBLOB\n", n_fil_page_type_zblob);
+       printf("%d\tFIL_PAGE_PAGE_COMPRESSED\n", n_fil_page_type_page_compressed);
+       printf("%d\tFIL_PAGE_PAGE_COMPRESSED_ENCRYPTED\n", n_fil_page_type_page_compressed_encrypted);
        printf("%d\tother\n", n_fil_page_type_other);
        printf("%d\tmax index_id\n", n_fil_page_max_index_id);
        printf("undo type: %d insert, %d update, %d other\n",
@@ -791,7 +812,9 @@ int main(int argc, char **argv)
   while (!feof(f))
   {
     int page_ok = 1;
+
     bytes= fread(buf, 1, physical_page_size, f);
+
     if (!bytes && feof(f))
     {
       print_stats();
@@ -809,58 +832,126 @@ int main(int argc, char **argv)
       return 1;
     }
 
-    if (compressed) {
-      /* compressed pages */
-      if (!page_zip_verify_checksum(buf, physical_page_size)) {
-        fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
-        if (!skip_corrupt)
-        {
-          free(big_buf);
-	  free(big_xdes);
-          return 1;
-        }
-        page_ok = 0;
-      }
+    ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+    ulint key_version = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+    if (key_version && page_type != FIL_PAGE_PAGE_COMPRESSED) {
+	    encrypted = true;
     } else {
+	    encrypted = false;
+    }
 
-      /* check the "stored log sequence numbers" */
-      logseq= mach_read_from_4(buf + FIL_PAGE_LSN + 4);
-      logseqfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
+    ulint comp_method = 0;
+
+    if (encrypted) {
+	    comp_method = mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE);
+    } else {
+	    comp_method = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+    }
+
+    ulint comp_size = mach_read_from_2(buf+FIL_PAGE_DATA);
+    ib_uint32_t encryption_checksum = mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
+
+
+    if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
+      /* Page compressed tables do not have any checksum */
       if (debug)
-        printf("page %lu: log sequence number: first = %lu; second = %lu\n", ct, logseq, logseqfield);
-      if (logseq != logseqfield)
-      {
-        fprintf(stderr, "Fail; page %lu invalid (fails log sequence number check)\n", ct);
-        if (!skip_corrupt)
-        {
-          free(big_buf);
-	  free(big_xdes);
-          return 1;
+	fprintf(stderr, "Page %lu page compressed with method %s real_size %lu\n", ct,
+	        fil_get_compression_alg_name(comp_method), comp_size);
+      page_ok = 1;
+    } else if (compressed) {
+        /* compressed pages */
+	ulint crccsum = page_zip_calc_checksum(buf, physical_page_size, SRV_CHECKSUM_ALGORITHM_CRC32);
+	ulint icsum = page_zip_calc_checksum(buf, physical_page_size,  SRV_CHECKSUM_ALGORITHM_INNODB);
+
+        if (debug) {
+	  if (key_version != 0) {
+	    fprintf(stderr,
+		    "Page %lu encrypted key_version %lu calculated = %lu; crc32 = %lu; recorded = %u\n",
+		    ct, key_version, icsum, crccsum, encryption_checksum);
+	  }
         }
-        page_ok = 0;
+
+	if (encrypted) {
+	  if (encryption_checksum != 0 && crccsum != encryption_checksum && icsum != encryption_checksum) {
+	    if (debug)
+	      fprintf(stderr, "page %lu: compressed: calculated = %lu; crc32 = %lu; recorded = %u\n",
+		      ct, icsum, crccsum, encryption_checksum);
+	    fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
+	  }
+	} else {
+          if (!page_zip_verify_checksum(buf, physical_page_size)) {
+            fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
+            if (!skip_corrupt)
+            {
+              free(big_buf);
+	      free(big_xdes);
+              return 1;
+            }
+            page_ok = 0;
+          }
+	}
+    } else {
+      if (key_version != 0) {
+      /* Encrypted page */
+        if (debug) {
+	  if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+	    fprintf(stderr,
+		    "Page %lu page compressed with method %s real_size %lu and encrypted key_version %lu checksum %u\n",
+		    ct, fil_get_compression_alg_name(comp_method), comp_size, key_version, encryption_checksum);
+	  } else {
+	    fprintf(stderr,
+		    "Page %lu encrypted key_version %lu checksum %u\n",
+		    ct, key_version, encryption_checksum);
+	  }
+        }
       }
 
-      /* check old method of checksumming */
-      oldcsum= buf_calc_page_old_checksum(buf);
-      oldcsumfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
-      if (debug)
-        printf("page %lu: old style: calculated = %lu; recorded = %lu\n", ct, oldcsum, oldcsumfield);
-      if (oldcsumfield != mach_read_from_4(buf + FIL_PAGE_LSN) && oldcsumfield != oldcsum)
-      {
-        fprintf(stderr, "Fail;  page %lu invalid (fails old style checksum)\n", ct);
-        if (!skip_corrupt)
+      /* Page compressed tables do not contain FIL tailer */
+      if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED && page_type != FIL_PAGE_PAGE_COMPRESSED) {
+        /* check the "stored log sequence numbers" */
+         logseq= mach_read_from_4(buf + FIL_PAGE_LSN + 4);
+        logseqfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
+        if (debug)
+          printf("page %lu: log sequence number: first = %lu; second = %lu\n", ct, logseq, logseqfield);
+        if (logseq != logseqfield)
         {
-          free(big_buf);
-	  free(big_xdes);
-          return 1;
+          fprintf(stderr, "Fail; page %lu invalid (fails log sequence number check)\n", ct);
+          if (!skip_corrupt)
+          {
+            free(big_buf);
+	    free(big_xdes);
+            return 1;
+          }
+          page_ok = 0;
         }
-        page_ok = 0;
+
+        /* check old method of checksumming */
+        oldcsum= buf_calc_page_old_checksum(buf);
+        oldcsumfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
+        if (debug)
+          printf("page %lu: old style: calculated = %lu; recorded = %lu\n", ct, oldcsum, oldcsumfield);
+        if (oldcsumfield != mach_read_from_4(buf + FIL_PAGE_LSN) && oldcsumfield != oldcsum)
+        {
+          fprintf(stderr, "Fail;  page %lu invalid (fails old style checksum)\n", ct);
+          if (!skip_corrupt)
+          {
+            free(big_buf);
+	    free(big_xdes);
+            return 1;
+          }
+          page_ok = 0;
+        }
       }
 
       /* now check the new method */
       csum= buf_calc_page_new_checksum(buf);
       crc32= buf_calc_page_crc32(buf);
       csumfield= mach_read_from_4(buf + FIL_PAGE_SPACE_OR_CHKSUM);
+
+      if (key_version)
+	      csumfield = encryption_checksum;
+
       if (debug)
         printf("page %lu: new style: calculated = %lu; crc32 = %lu; recorded = %lu\n",
                ct, csum, crc32, csumfield);
@@ -903,7 +994,10 @@ int main(int argc, char **argv)
       continue;
     }
 
-    parse_page(buf, xdes);
+    /* Can't parse compressed or/and encrypted pages */
+    if (page_type != FIL_PAGE_PAGE_COMPRESSED && !encrypted) {
+      parse_page(buf, xdes);
+    }
 
     if (verbose)
     {

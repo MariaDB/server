@@ -25,7 +25,7 @@ namespace feedback {
 char server_uid_buf[SERVER_UID_SIZE+1]; ///< server uid will be written here
 
 /* backing store for system variables */
-static char *server_uid= server_uid_buf, *url;
+static char *server_uid= server_uid_buf, *url, *http_proxy;
 char *user_info;
 ulong send_timeout, send_retry_wait;
 
@@ -99,25 +99,28 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
   nrc.init();
   nrc.resolve_in_table_list_only(tables);
 
-  res= new Item_cond_or();
+  res= new (thd->mem_root) Item_cond_or(thd);
   if (!res)
     return OOM;
 
   for (; filter->str; filter++)
   {
-    Item_field  *fld= new Item_field(thd, &nrc, db, table, field);
-    Item_string *pattern= new Item_string(filter->str, filter->length, cs);
-    Item_string *escape= new Item_string("\\", 1, cs);
+    Item_field  *fld= new (thd->mem_root) Item_field(thd, &nrc, db, table,
+                                                     field);
+    Item_string *pattern= new (thd->mem_root) Item_string(thd, filter->str,
+                                                          filter->length, cs);
+    Item_string *escape= new (thd->mem_root) Item_string(thd, "\\", 1, cs);
 
     if (!fld || !pattern || !escape)
       return OOM;
 
-    Item_func_like *like= new Item_func_like(fld, pattern, escape, 0);
+    Item_func_like *like= new (thd->mem_root) Item_func_like(thd, fld, pattern,
+                                                             escape, 0);
 
     if (!like)
       return OOM;
 
-    res->add(like);
+    res->add(like, thd->mem_root);
   }
 
   if (res->fix_fields(thd, (Item**)&res))
@@ -269,7 +272,13 @@ static int init(void *p)
       if (*e == 0 || *e == ' ')
       {
         if (e > s && (urls[slot]= Url::create(s, e - s)))
+        {
+          if (urls[slot]->set_proxy(http_proxy,
+                                    http_proxy ? strlen(http_proxy) : 0))
+            sql_print_error("feedback plugin: invalid proxy '%s'",
+                            http_proxy ? http_proxy : "");
           slot++;
+        }
         else
         {
           if (e > s)
@@ -347,6 +356,10 @@ static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
 static MYSQL_SYSVAR_ULONG(send_retry_wait, send_retry_wait, PLUGIN_VAR_RQCMDARG,
        "Wait this many seconds before retrying a failed send.",
        NULL, NULL, 60, 1, 60*60*24, 1);
+static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
+                        PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+       "Proxy server host:port.", NULL, NULL,0);
+
 
 static struct st_mysql_sys_var* settings[] = {
   MYSQL_SYSVAR(server_uid),
@@ -354,6 +367,7 @@ static struct st_mysql_sys_var* settings[] = {
   MYSQL_SYSVAR(url),
   MYSQL_SYSVAR(send_timeout),
   MYSQL_SYSVAR(send_retry_wait),
+  MYSQL_SYSVAR(http_proxy),
   NULL
 };
 

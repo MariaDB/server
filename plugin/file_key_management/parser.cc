@@ -298,8 +298,16 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 
 char* Parser::read_and_decrypt_file(const char *secret)
 {
-  int f= my_open(filename, O_RDONLY, MYF(MY_WME));
-  if (f < 0)
+  if (!filename || !filename[0])
+  {
+    my_printf_error(EE_CANT_OPEN_STREAM,
+                    "file-key-management-filename is not set",
+                    MYF(ME_NOREFRESH));
+    goto err0;
+  }
+
+  int f;
+  if ((f= my_open(filename, O_RDONLY, MYF(MY_WME))) < 0)
     goto err0;
 
   my_off_t file_size;
@@ -336,10 +344,11 @@ char* Parser::read_and_decrypt_file(const char *secret)
 
     bytes_to_key(buffer + OpenSSL_prefix_len, secret, key, iv);
     uint32 d_size;
-    if (my_aes_decrypt_cbc(buffer + OpenSSL_prefix_len + OpenSSL_salt_len,
-                           file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
-                           decrypted, &d_size, key, OpenSSL_key_len,
-                           iv, OpenSSL_iv_len, 0))
+    if (my_aes_crypt(MY_AES_CBC, ENCRYPTION_FLAG_DECRYPT,
+                     buffer + OpenSSL_prefix_len + OpenSSL_salt_len,
+                     file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
+                     decrypted, &d_size, key, OpenSSL_key_len,
+                     iv, OpenSSL_iv_len))
 
     {
       my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", MYF(ME_NOREFRESH), filename);

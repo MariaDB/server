@@ -2,6 +2,8 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 
+set sql_mode="";
+
 #
 # Basic test that we can run mysql_upgrde and that it finds the
 # expected binaries it uses.
@@ -15,7 +17,6 @@ file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
 --echo Run it again - should say already completed
 --replace_result $MYSQL_SERVER_VERSION VERSION
---error 1
 --exec $MYSQL_UPGRADE 2>&1
 
 # It should have created a file in the MySQL Servers datadir
@@ -158,5 +159,29 @@ SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
+
+set sql_mode=default;
+
+#
+# Enforce storage engine option should not effect mysql_upgrade
+#
+--echo # Droping the previously created mysql_upgrade_info file..
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+create table test.t1(a int) engine=MyISAM;
+--echo # Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Should return 2
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+SHOW CREATE TABLE test.t1;
+DROP TABLE test.t1;
+# mysql_upgrade must have created mysql_upgrade_info file,
+# so the following command should never fail.
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+SET GLOBAL enforce_storage_engine=NULL;
 
 --echo End of tests

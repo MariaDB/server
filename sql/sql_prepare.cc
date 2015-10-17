@@ -1542,7 +1542,7 @@ static int mysql_test_select(Prepared_statement *stmt,
     List<Item> fields(lex->select_lex.item_list);
 
     /* Change columns if a procedure like analyse() */
-    if (unit->last_procedure && unit->last_procedure->change_columns(fields))
+    if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
       goto error;
 
     /*
@@ -1897,14 +1897,17 @@ static bool mysql_test_multiupdate(Prepared_statement *stmt,
 static bool mysql_test_multidelete(Prepared_statement *stmt,
                                   TABLE_LIST *tables)
 {
-  stmt->thd->lex->current_select= &stmt->thd->lex->select_lex;
-  if (add_item_to_list(stmt->thd, new Item_null()))
+  THD *thd= stmt->thd;
+
+  thd->lex->current_select= &thd->lex->select_lex;
+  if (add_item_to_list(thd, new (thd->mem_root)
+                       Item_null(thd)))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 0);
     goto error;
   }
 
-  if (multi_delete_precheck(stmt->thd, tables) ||
+  if (multi_delete_precheck(thd, tables) ||
       select_like_stmt_test_with_open(stmt, tables,
                                       &mysql_multi_delete_prepare,
                                       OPTION_SETUP_TABLES_DONE))
@@ -3369,7 +3372,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(TRUE);
 
   /*
-    alloc_query() uses thd->memroot && thd->query, so we should call
+    alloc_query() uses thd->mem_root && thd->query, so we should call
     both of backup_statement() and backup_query_arena() here.
   */
   thd->set_n_backup_statement(this, &stmt_backup);

@@ -165,7 +165,7 @@ Variable_name	Value
 Rpl_semi_sync_master_no_tx	0
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	15
+Rpl_semi_sync_master_yes_tx	14
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	1
@@ -180,7 +180,7 @@ Variable_name	Value
 Rpl_semi_sync_master_no_tx	1
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	15
+Rpl_semi_sync_master_yes_tx	14
 delete from t1 where a=10;
 delete from t1 where a=9;
 delete from t1 where a=8;
@@ -201,7 +201,7 @@ Variable_name	Value
 Rpl_semi_sync_master_no_tx	12
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	15
+Rpl_semi_sync_master_yes_tx	14
 #
 # Test semi-sync status on master will be ON again when slave catches up
 #
@@ -234,7 +234,7 @@ Variable_name	Value
 Rpl_semi_sync_master_no_tx	12
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	15
+Rpl_semi_sync_master_yes_tx	14
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	1
@@ -253,7 +253,7 @@ Variable_name	Value
 Rpl_semi_sync_master_no_tx	12
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
-Rpl_semi_sync_master_yes_tx	16
+Rpl_semi_sync_master_yes_tx	15
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 [ Semi-sync master status variables after FLUSH STATUS ]
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';

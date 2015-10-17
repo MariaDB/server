@@ -129,7 +129,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
         break;
       case TIME_RESULT:
       case ROW_RESULT:
-      case IMPOSSIBLE_RESULT:
       default:
         // What should we do here ?
         break;
@@ -167,7 +166,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
         break;
       case TIME_RESULT:
       case ROW_RESULT:
-      case IMPOSSIBLE_RESULT:
       default:
         // What should we do here ?
         break;
@@ -261,7 +259,7 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
 
       break;
     case INT_RESULT:
-      jvp->SetInteger(g, *(int*)sap);
+      jvp->SetInteger(g, (int)*(long long*)sap);
       break;
     case REAL_RESULT:
       jvp->SetFloat(g, *(double*)sap);
@@ -271,7 +269,6 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
       break;
     case TIME_RESULT:
     case ROW_RESULT:
-    case IMPOSSIBLE_RESULT:
     default:
       break;
     } // endswitch arg_type

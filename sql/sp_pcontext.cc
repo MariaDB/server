@@ -205,7 +205,7 @@ sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip)
   if (!label)
     return NULL;
 
-  m_labels.push_front(label);
+  m_labels.push_front(label, thd->mem_root);
 
   return label;
 }

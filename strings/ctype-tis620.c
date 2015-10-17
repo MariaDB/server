@@ -889,6 +889,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_charlen_8bit,
     my_well_formed_char_length_8bit,
     my_copy_8bit,
+    my_wc_mb_bin, /* native_to_mb */
 };
 
 
@@ -896,7 +897,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
 struct charset_info_st my_charset_tis620_thai_ci=
 {
     18,0,0,		/* number    */
-    MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM,	/* state     */
+    MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
     "tis620",		/* cs name    */
     "tis620_thai_ci",	/* name      */
     "",			/* comment   */

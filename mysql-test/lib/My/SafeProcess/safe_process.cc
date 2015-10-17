@@ -148,6 +148,14 @@ extern "C" void handle_signal(int sig)
 }
 
 
+void setlimit(int what, uint soft, uint hard)
+{
+  struct rlimit lim = { soft, hard };
+  if (setrlimit (what, &lim) < 0)
+    message("setrlimit failed, errno=%d", errno);
+}
+
+
 int main(int argc, char* const argv[] )
 {
   char* const* child_argv= 0;
@@ -249,13 +257,13 @@ int main(int argc, char* const argv[] )
     signal(SIGCHLD, SIG_DFL);
 
     if (nocore)
-    {
-      struct rlimit corelim = { 0, 0 };
-      if (setrlimit (RLIMIT_CORE, &corelim) < 0)
-      {
-        message("setrlimit failed, errno=%d", errno);
-      }
-    }
+      setlimit(RLIMIT_CORE, 0, 0);
+
+    /*
+      mysqld defaults depend on that. make test results stable and independent
+      from the environment
+    */
+    setlimit(RLIMIT_NOFILE, 1024, 1024);
 
     // Signal that child is ready
     buf= 37;

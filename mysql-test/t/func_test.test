@@ -221,5 +221,23 @@ SELECT * FROM t1 IGNORE KEY(PRIMARY) WHERE id XOR 0;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8871 Wrong result for CREATE TABLE .. SELECT LEAST(unsigned_column,unsigned_column)
+--echo #
+CREATE TABLE t1 (a INT,b INT UNSIGNED);
+INSERT INTO t1 VALUES (-2147483648,4294967295);
+--vertical_results
+SELECT a, b, LEAST(a,a), LEAST(b,b), LEAST(a,b), LEAST(b,a), GREATEST(a,b), GREATEST(b,a) FROM t1;
+--horizontal_results
+CREATE TABLE t2 AS
+SELECT a, b, LEAST(a,a), LEAST(b,b), LEAST(a,b), LEAST(b,a), GREATEST(a,b), GREATEST(b,a) FROM t1;
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

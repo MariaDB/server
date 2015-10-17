@@ -54,6 +54,7 @@
 #define ON_CHECK(X) X
 #define ON_UPDATE(X) X
 #define READ_ONLY sys_var::READONLY+
+#define AUTO_SET sys_var::AUTO_SET+
 // this means that Sys_var_charptr initial value was malloc()ed
 #define PREALLOCATED sys_var::ALLOCATED+
 #define PARSED_EARLY sys_var::PARSE_EARLY+
@@ -137,7 +138,7 @@ public:
               getopt.arg_type, SHOWT, def_val, lock, binlog_status_arg,
               on_check_func, on_update_func, substitute)
   {
-    option.var_type= ARGT;
+    option.var_type|= ARGT;
     option.min_value= min_val;
     option.max_value= max_val;
     option.block_size= block_size;
@@ -342,7 +343,7 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type= GET_ENUM;
+    option.var_type|= GET_ENUM;
     global_var(ulong)= def_val;
     SYSVAR_ASSERT(def_val < typelib.count);
     SYSVAR_ASSERT(size == sizeof(ulong));
@@ -393,7 +394,7 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type= GET_BOOL;
+    option.var_type|= GET_BOOL;
     global_var(my_bool)= def_val;
     SYSVAR_ASSERT(def_val < 2);
     SYSVAR_ASSERT(getopt.arg_type == OPT_ARG || getopt.id < 0);
@@ -459,7 +460,7 @@ public:
      otherwise (GET_STR) you'll never know whether to free it or not.
      (think of an exit because of an error right after my_getopt)
     */
-    option.var_type= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
+    option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
     global_var(const char*)= def_val;
     SYSVAR_ASSERT(scope() == GLOBAL);
     SYSVAR_ASSERT(size == sizeof(char *));
@@ -546,7 +547,7 @@ public:
               NULL, NULL, NULL)
   {
     is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -602,7 +603,7 @@ public:
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL), opt_id(getopt_id)
   {
-    option.var_type= GET_STR | GET_ASK_ADDR;
+    option.var_type|= GET_STR | GET_ASK_ADDR;
   }
 
   bool do_check(THD *thd, set_var *var)
@@ -691,7 +692,7 @@ public:
               0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func,
               0),max_length(max_length_arg)
   {
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
     SYSVAR_ASSERT(scope() == ONLY_SESSION)
     *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
   }
@@ -778,7 +779,7 @@ public:
               getopt.arg_type, SHOW_CHAR, (intptr)def_val,
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
-  { option.var_type= GET_STR; }
+  { option.var_type|= GET_STR; }
   bool do_check(THD *thd, set_var *var)
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
@@ -1025,7 +1026,7 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
-    option.var_type= GET_DOUBLE;
+    option.var_type|= GET_DOUBLE;
     option.min_value= (longlong) getopt_double2ulonglong(min_val);
     option.max_value= (longlong) getopt_double2ulonglong(max_val);
     global_var(double)= (double)option.def_value;
@@ -1126,7 +1127,7 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type= GET_FLAGSET;
+    option.var_type|= GET_FLAGSET;
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 1);
     SYSVAR_ASSERT(typelib.count <= 65);
@@ -1235,7 +1236,7 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type= GET_SET;
+    option.var_type|= GET_SET;
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 0);
     SYSVAR_ASSERT(typelib.count <= 64);
@@ -1340,7 +1341,7 @@ public:
               substitute),
     plugin_type(plugin_type_arg)
   {
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
     SYSVAR_ASSERT(size == sizeof(plugin_ref));
     SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
   }
@@ -1456,7 +1457,7 @@ public:
               substitute)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -1548,7 +1549,7 @@ public:
                       binlog_status_arg, on_check_func, on_update_func,
                       substitute)
   {
-    option.var_type= GET_BOOL;
+    option.var_type|= GET_BOOL;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
     set(global_var_ptr(), def_val);
@@ -1756,7 +1757,7 @@ public:
     SYSVAR_ASSERT(is_readonly());
     SYSVAR_ASSERT(on_update == 0);
     SYSVAR_ASSERT(size == sizeof(enum SHOW_COMP_OPTION));
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var) {
     DBUG_ASSERT(FALSE);
@@ -1818,7 +1819,7 @@ public:
               substitute),
       name_offset(name_off)
   {
-    option.var_type= GET_ENUM; // because we accept INT and STRING here
+    option.var_type|= GET_ENUM; // because we accept INT and STRING here
     /*
       struct variables are special on the command line - often (e.g. for
       charsets) the name cannot be immediately resolved, but only after all
@@ -1887,7 +1888,7 @@ public:
   {
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(Time_zone *));
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -2106,7 +2107,7 @@ public:
   {
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(is_readonly());
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -2155,7 +2156,7 @@ public:
   {
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(is_readonly());
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -2202,7 +2203,7 @@ public:
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var);
   bool session_update(THD *thd, set_var *var)
@@ -2244,7 +2245,7 @@ public:
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var);
   bool session_update(THD *thd, set_var *var)
@@ -2287,7 +2288,7 @@ public:
   {
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(is_readonly());
-    option.var_type= GET_STR;
+    option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {

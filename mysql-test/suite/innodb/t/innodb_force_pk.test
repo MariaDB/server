@@ -33,6 +33,17 @@ create table t2(a integer) engine=innodb;
 show warnings;
 drop table t1;
 
+#
+# MDEV-8582: innodb_force_primary_key option does not
+# force PK or unique key
+#
+--error 1173
+create table t1 (i int not null, key(i)) engine=innodb;
+create table t1 (i int not null, unique key(i)) engine=innodb;
+show warnings;
+show create table t1;
+drop table t1;
+
 --disable_query_log
 eval set global innodb_force_primary_key=$force_pk;
 --enable_query_log

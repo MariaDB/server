@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+
+#
+# MMDEV-8386: MariaDB creates very big tmp file and hangs on xtradb
+#
+drop database if exists moodle19;
+create database moodle19;
+use moodle19;
+
+CREATE TABLE `mdl_course_modules` (
+  `id` bigint(10) NOT NULL AUTO_INCREMENT,
+  `course` bigint(10) NOT NULL DEFAULT '0',
+  `module` bigint(10) NOT NULL DEFAULT '0',
+  `instance` bigint(10) NOT NULL DEFAULT '0',
+  `section` bigint(10) NOT NULL DEFAULT '0',
+  `idnumber` varchar(100) DEFAULT NULL,
+  `added` bigint(10) NOT NULL DEFAULT '0',
+  `delay` varchar(10) NOT NULL DEFAULT '0',
+  `score` smallint(4) NOT NULL DEFAULT '0',
+  `indent` mediumint(5) NOT NULL DEFAULT '0',
+  `visible` tinyint(1) NOT NULL DEFAULT '1',
+  `checkboxesforprereqs` tinyint(1) NOT NULL DEFAULT '0',
+  `stylewhencomplete` varchar(200) DEFAULT '',
+  `checkboxforcomplete` tinyint(1) NOT NULL DEFAULT '0',
+  `stylewhenlocked` varchar(200) DEFAULT 'locked',
+  `visiblewhenlocked` tinyint(1) NOT NULL DEFAULT '1',
+  `visibleold` tinyint(1) NOT NULL DEFAULT '1',
+  `groupmode` smallint(4) NOT NULL DEFAULT '0',
+  `groupingid` bigint(10) NOT NULL DEFAULT '0',
+  `groupmembersonly` smallint(4) NOT NULL DEFAULT '0',
+  `completion` tinyint(1) NOT NULL DEFAULT '0',
+  `completiongradeitemnumber` bigint(10) DEFAULT NULL,
+  `completionview` tinyint(1) NOT NULL DEFAULT '0',
+  `completionexpected` bigint(10) NOT NULL DEFAULT '0',
+  `availablefrom` bigint(10) NOT NULL DEFAULT '0',
+  `availableuntil` bigint(10) NOT NULL DEFAULT '0',
+  `showavailability` tinyint(1) NOT NULL DEFAULT '0',
+  `showdescription` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `mdl_courmodu_vis_ix` (`visible`),
+  KEY `mdl_courmodu_cou_ix` (`course`),
+  KEY `mdl_courmodu_mod_ix` (`module`),
+  KEY `mdl_courmodu_ins_ix` (`instance`),
+  KEY `mdl_courmodu_idncou_ix` (`idnumber`,`course`),
+  KEY `mdl_courmodu_gro_ix` (`groupingid`)
+) ENGINE=InnoDB AUTO_INCREMENT=447023 DEFAULT CHARSET=utf8 COMMENT='course_modules table retrofitted from MySQL';
+
+let $num= 2701;
+--disable_query_log
+--echo # Inserting $num rows into the table...
+while ($num) 
+{
+  eval INSERT INTO mdl_course_modules VALUES ($num,4,5,5,24,NULL,1141569781,'',0,0,1,0,'',0,'locked',1,1,0,0,0,0,NULL,0,0,0,0,0,0);
+  dec $num;
+}
+--enable_query_log
+ALTER TABLE moodle19.mdl_course_modules ADD stefantest LONGTEXT CHARACTER SET utf8 COLLATE utf8_general_ci AFTER showdescription;
+
+drop database moodle19;

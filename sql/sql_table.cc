@@ -72,7 +72,6 @@ static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     Alter_table_ctx *alter_ctx);
 
 static bool prepare_blob_field(THD *thd, Create_field *sql_field);
-static bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -2315,9 +2314,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . "DROP" was executed but a temporary table was affected (.i.e
           !error).
       */
-#ifndef DONT_LOG_DROP_OF_TEMPORARY_TABLES
-      table_creation_was_logged= 1;
-#endif
       if (!dont_log_query && table_creation_was_logged)
       {
         /*
@@ -3061,6 +3057,9 @@ CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
    Modifies the first column definition whose SQL type is TIMESTAMP
    by adding the features DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP.
 
+   If the first TIMESTAMP column appears to be nullable, or to have an
+   explicit default, or to be a virtual column, then no promition is done.
+
    @param column_definitions The list of column definitions, in the physical
                              order in which they appear in the table.
  */
@@ -3076,7 +3075,8 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition->def == NULL &&            // no constant default,
-          column_definition->unireg_check == Field::NONE) // no function default
+          column_definition->unireg_check == Field::NONE && // no function default
+          column_definition->vcol_info == NULL)
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3264,7 +3264,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         pointer in the parsed tree of a prepared statement or a
         stored procedure statement.
       */
-      sql_field->def= sql_field->def->safe_charset_converter(save_cs);
+      sql_field->def= sql_field->def->safe_charset_converter(thd, save_cs);
 
       if (sql_field->def == NULL)
       {
@@ -3644,8 +3644,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  (*key_info_buffer)= key_info= (KEY*) sql_calloc(sizeof(KEY) * (*key_count));
-  key_part_info=(KEY_PART_INFO*) sql_calloc(sizeof(KEY_PART_INFO)*key_parts);
+  (*key_info_buffer)= key_info= (KEY*) thd->calloc(sizeof(KEY) * (*key_count));
+  key_part_info=(KEY_PART_INFO*) thd->calloc(sizeof(KEY_PART_INFO)*key_parts);
   if (!*key_info_buffer || ! key_part_info)
     DBUG_RETURN(TRUE);				// Out of memory
 
@@ -4042,7 +4042,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name);
       DBUG_RETURN(TRUE);
     }
-    if (!(key_info->flags & HA_NULL_PART_KEY))
+    if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
     key_info->key_length=(uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT)
@@ -4091,6 +4091,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   while ((sql_field=it++))
   {
     Field::utype type= (Field::utype) MTYP_TYPENR(sql_field->unireg_check);
+
+    /*
+      Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
+      it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
+      updated trough a NOW() function.
+    */
+    if (!sql_field->def &&
+        !sql_field->has_default_function() &&
+        (sql_field->flags & NOT_NULL_FLAG) &&
+        !is_timestamp_type(sql_field->sql_type))
+    {
+      sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
+    }
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->def &&
@@ -4662,12 +4676,12 @@ int create_table_impl(THD *thd,
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (options.or_replace())
       {
-        bool is_trans;
+        bool tmp;
         /*
           We are using CREATE OR REPLACE on an existing temporary table
           Remove the old table so that we can re-create it.
         */
-        if (drop_temporary_table(thd, tmp_table, &is_trans))
+        if (drop_temporary_table(thd, tmp_table, &tmp))
           goto err;
       }
       else if (options.if_not_exists())
@@ -4681,9 +4695,6 @@ int create_table_impl(THD *thd,
         We have to log this query, even if it failed later to ensure the
         drop is done.
       */
-#ifndef DONT_LOG_DROP_OF_TEMPORARY_TABLES
-      table_creation_was_logged= 1;
-#endif
       if (table_creation_was_logged)
       {
         thd->variables.option_bits|= OPTION_KEEP_LOG;
@@ -4977,7 +4988,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
 
-  promote_first_timestamp_column(&alter_info->create_list);
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
+
   if (mysql_create_table_no_lock(thd, db, table_name, create_info, alter_info,
                                  &is_trans, create_table_mode) > 0)
   {
@@ -5304,7 +5317,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone();
+    thd->work_part_info= src_table->table->part_info->get_clone(thd);
 #endif
 
   /*
@@ -5923,7 +5936,7 @@ remove_key:
         {
           // Adding the index into the drop list for replacing
           alter_info->flags |= Alter_info::ALTER_DROP_INDEX;
-          alter_info->drop_list.push_back(ad);
+          alter_info->drop_list.push_back(ad, thd->mem_root);
         }
       }
     }
@@ -7372,7 +7385,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         Note that columns with AFTER clauses are added to the end
         of the list for now. Their positions will be corrected later.
       */
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
       if (field->stored_in_db != def->stored_in_db)
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
@@ -7396,8 +7409,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         This field was not dropped and not changed, add it to the list
         for the new table.
       */
-      def= new Create_field(field, field);
-      new_create_list.push_back(def);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_list.push_back(def, thd->mem_root);
       alter_it.rewind();			// Change default if ALTER
       Alter_column *alter;
       while ((alter=alter_it++))
@@ -7448,7 +7461,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (!def->after)
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
     else
     {
       Create_field *find;
@@ -7476,7 +7489,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (def->after == first_keyword)
-        new_create_list.push_front(def);
+        new_create_list.push_front(def, thd->mem_root);
       else
       {
         find_it.rewind();
@@ -7615,7 +7628,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key_part_length /= key_part->field->charset()->mbmaxlen;
       key_parts.push_back(new Key_part_spec(cfield->field_name,
                                             strlen(cfield->field_name),
-					    key_part_length));
+					    key_part_length),
+                          thd->mem_root);
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
@@ -7665,7 +7679,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
     }
   }
   {
@@ -7675,7 +7689,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))
       {
@@ -8470,6 +8484,10 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                 ER_THD(thd, ER_INSERT_INFO), 0L, 0L,
                 thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
+
+    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      DBUG_RETURN(true);
+
     DBUG_RETURN(false);
   }
 
@@ -8515,7 +8533,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   set_table_default_charset(thd, create_info, alter_ctx.db);
-  promote_first_timestamp_column(&alter_info->create_list);
+
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (fast_alter_partition)
@@ -9374,7 +9394,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       tables.db= from->s->db.str;
 
       THD_STAGE_INFO(thd, stage_sorting);
-      Filesort_tracker dummy_tracker;
+      Filesort_tracker dummy_tracker(false);
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
@@ -9608,11 +9628,14 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item = new Item_empty_string("Table", NAME_LEN*2));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_empty_string(thd, "Table", NAME_LEN*2),
+                       thd->mem_root);
   item->maybe_null= 1;
-  field_list.push_back(item= new Item_int("Checksum",
-                                          (longlong) 1,
-                                          MY_INT64_NUM_DECIMAL_DIGITS));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_int(thd, "Checksum", (longlong) 1,
+                                MY_INT64_NUM_DECIMAL_DIGITS),
+                       thd->mem_root);
   item->maybe_null= 1;
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -9790,19 +9813,26 @@ err:
   @retval true  Engine not available/supported, error has been reported.
   @retval false Engine available/supported.
 */
-static bool check_engine(THD *thd, const char *db_name,
-                         const char *table_name, HA_CREATE_INFO *create_info)
+bool check_engine(THD *thd, const char *db_name,
+                  const char *table_name, HA_CREATE_INFO *create_info)
 {
   DBUG_ENTER("check_engine");
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
-  handlerton *enf_engine= thd->variables.enforced_table_plugin ?
-    plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  handlerton *enf_engine= NULL;
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
   if (!*new_engine)
     DBUG_RETURN(true);
+
+  /* Enforced storage engine should not be used in
+  ALTER TABLE that does not use explicit ENGINE = x to
+  avoid unwanted unrelated changes.*/
+  if (!(thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+        !(create_info->used_fields & HA_CREATE_USED_ENGINE)))
+    enf_engine= thd->variables.enforced_table_plugin ?
+       plugin_hton(thd->variables.enforced_table_plugin) : NULL;
 
   if (enf_engine && enf_engine != *new_engine)
   {

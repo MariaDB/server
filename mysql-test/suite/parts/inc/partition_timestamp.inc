@@ -1,4 +1,4 @@
-eval create table t1 (a timestamp not null, primary key(a)) engine=$engine 
+eval create table t1 (a timestamp not null DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, primary key(a)) engine=$engine 
 partition by key (a) (
 partition pa1 max_rows=20 min_rows=2,
 partition pa2 max_rows=30 min_rows=3,
@@ -12,7 +12,7 @@ delete from t1 where a=19801014030300;
 select * from t1;
 drop table t1;
 
-eval create table t2 (a timestamp not null, primary key(a)) engine=$engine 
+eval create table t2 (a timestamp not null DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, primary key(a)) engine=$engine 
 partition by key (a) partitions 12;
 show create table t2;
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');

@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 drop table if exists t1;
 create table t1(f1 int);
 insert into t1 values (5);
@@ -206,4 +208,5 @@ SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
 DROP USER bug42158@localhost;
+set global sql_mode=default;
 End of 5.1 tests

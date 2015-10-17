@@ -2354,8 +2354,7 @@ rescan_idle:
 		mutex_enter(&trx_sys->mutex);
 		trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 		while (trx) {
-			if (!trx_state_eq(trx, TRX_STATE_NOT_STARTED)
-			    && trx_state_eq(trx, TRX_STATE_ACTIVE)
+			if (trx->state == TRX_STATE_ACTIVE
 			    && trx->mysql_thd
 			    && innobase_thd_is_idle(trx->mysql_thd)) {
 				ib_int64_t	start_time = innobase_thd_get_start_time(trx->mysql_thd);
@@ -2881,6 +2880,7 @@ srv_master_do_active_tasks(void)
 {
 	ib_time_t	cur_time = ut_time();
 	ullint		counter_time = ut_time_us(NULL);
+	ulint		n_evicted = 0;
 
 	/* First do the tasks that we are suppose to do at each
 	invocation of this function. */
@@ -2941,7 +2941,9 @@ srv_master_do_active_tasks(void)
 
 	if (cur_time % SRV_MASTER_DICT_LRU_INTERVAL == 0) {
 		srv_main_thread_op_info = "enforcing dict cache limit";
-		srv_master_evict_from_table_cache(50);
+		n_evicted = srv_master_evict_from_table_cache(50);
+		MONITOR_INC_VALUE(
+			MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
@@ -2973,6 +2975,7 @@ srv_master_do_idle_tasks(void)
 /*==========================*/
 {
 	ullint	counter_time;
+	ulint	n_evicted = 0;
 
 	++srv_main_idle_loops;
 
@@ -3010,7 +3013,9 @@ srv_master_do_idle_tasks(void)
 	}
 
 	srv_main_thread_op_info = "enforcing dict cache limit";
-	srv_master_evict_from_table_cache(100);
+	n_evicted = srv_master_evict_from_table_cache(100);
+        MONITOR_INC_VALUE(
+                MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE, n_evicted);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 

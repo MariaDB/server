@@ -15,5 +15,6 @@ innodb_default_encryption_key_id
 max_digest_length
 strict_password_validation
 wsrep_patch_version
+pfs_max_digest_length
 drop table t1;
 drop table t2;

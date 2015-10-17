@@ -20,26 +20,26 @@ SQL SECURITY INVOKER
 RETURN 123;
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1		CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
+f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
     MODIFIES SQL DATA
     COMMENT 'f1_comment'
 RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1		CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
+f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
     MODIFIES SQL DATA
     COMMENT 'f1_comment'
 RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION f2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f2		CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
+f2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
     NO SQL
     DETERMINISTIC
     SQL SECURITY INVOKER
 RETURN 123	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION f2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f2		CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
+f2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
     NO SQL
     DETERMINISTIC
     SQL SECURITY INVOKER

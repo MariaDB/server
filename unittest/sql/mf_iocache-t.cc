@@ -21,7 +21,7 @@
 #define KEY_SIZE (128/8)
 
 my_bool encrypt_tmp_files;
-void init_io_cache_encryption();
+int init_io_cache_encryption();
 
 uint encryption_key_get_latest_version_func(uint)
 {
@@ -49,22 +49,41 @@ uint encryption_key_get_func(uint, uint, uchar* key, uint* size)
   return 0;
 }
 
+#ifdef HAVE_EncryptAes128Gcm
+enum my_aes_mode aes_mode= MY_AES_GCM;
+#else
+enum my_aes_mode aes_mode= MY_AES_CBC;
+#endif
+
+int encryption_ctx_init_func(void *ctx, const unsigned char* key, unsigned int klen,
+                                const unsigned char* iv, unsigned int ivlen,
+                                int flags, unsigned int key_id,
+                                unsigned int key_version)
+{
+  return my_aes_crypt_init(ctx, aes_mode, flags, key, klen, iv, ivlen);
+}
+
+uint encryption_encrypted_length_func(unsigned int slen, unsigned int key_id, unsigned int key_version)
+{
+  return my_aes_get_size(aes_mode, slen);
+}
+
 struct encryption_service_st encryption_handler=
 {
   encryption_key_get_latest_version_func,
-  encryption_key_id_exists_func,
-  encryption_key_version_exists_func,
   encryption_key_get_func,
-#ifdef HAVE_EncryptAes128Gcm
-  (encrypt_decrypt_func)my_aes_encrypt_gcm,
-  (encrypt_decrypt_func)my_aes_decrypt_gcm
-#else
-  (encrypt_decrypt_func)my_aes_encrypt_cbc,
-  (encrypt_decrypt_func)my_aes_decrypt_cbc
-#endif
+  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  encryption_ctx_init_func,
+  my_aes_crypt_update,
+  my_aes_crypt_finish,
+  encryption_encrypted_length_func
 };
 
-void sql_print_information(const char *format, ...) 
+void sql_print_information(const char *format, ...)
+{
+}
+
+void sql_print_error(const char *format, ...)
 {
 }
 

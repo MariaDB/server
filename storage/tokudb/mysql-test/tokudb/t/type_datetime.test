@@ -33,7 +33,7 @@ drop table t1;
 # Test insert of now() and curtime()
 #
 
-CREATE TABLE t1 (a timestamp, b date, c time, d datetime);
+CREATE TABLE t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, b date, c time, d datetime);
 insert into t1 (b,c,d) values(now(),curtime(),now());
 select date_format(a,"%Y-%m-%d")=b,right(a+0,6)=c+0,a=d+0 from t1;
 drop table t1;

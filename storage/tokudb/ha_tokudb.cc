@@ -172,6 +172,7 @@ static inline uint32_t get_len_of_offsets(KEY_AND_COL_INFO* kc_info, TABLE_SHARE
 }
 
 
+#ifdef NOT_USED
 static int get_thread_query_string(my_thread_id id, String &qs) {
   mysql_mutex_lock(&LOCK_thread_count);
   I_List_iterator<THD> it(threads);
@@ -196,6 +197,7 @@ static int get_thread_query_string(my_thread_id id, String &qs) {
   mysql_mutex_unlock(&LOCK_thread_count);
   return 0;
 }
+#endif
 
 static int allocate_key_and_col_info ( TABLE_SHARE* table_share, KEY_AND_COL_INFO* kc_info) {
     int error;

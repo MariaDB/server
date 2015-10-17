@@ -52,6 +52,7 @@ DROP TABLE t1;
 
 # MAX_STATEMENT_TIME account resource
 
+set statement sql_mode="" for
 GRANT USAGE ON *.* TO user1@localhost WITH MAX_STATEMENT_TIME 1.005;
 # con1
 SELECT @@max_statement_time;
@@ -114,7 +115,7 @@ UPDATE t1 SET a = 2;
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 SHOW WARNINGS;
 Level	Code	Message
-Error	1968	Query execution was interrupted (max_statement_time exceeded)
+Error	1969	Query execution was interrupted (max_statement_time exceeded)
 ROLLBACK;
 DROP TABLE t1;
 
@@ -159,17 +160,20 @@ begin
 select 1;
 select sql_no_cache * from t1 where i > 5;
 select sql_no_cache * from t1 where i > 5;
+select sleep(2);
 end |
 set max_statement_time = 0.001;
 call pr();
 1
 1
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+set max_statement_time = 0;
 drop procedure pr;
 create procedure pr()
 begin
 select sql_no_cache * from t1 where i > 5;
 select sql_no_cache * from t1 where i > 5;
+select sleep(2);
 end |
 set max_statement_time = 0.001;
 call pr();

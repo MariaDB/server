@@ -148,10 +148,12 @@ help 'impossible_category_1';
 source_category_name	name	is_it_category
 impossible_category_1	impossible_function_1	N
 impossible_category_1	impossible_function_2	N
+set sql_mode="";
 alter table mysql.help_relation engine=innodb;
 alter table mysql.help_keyword engine=innodb;
 alter table mysql.help_topic engine=innodb;
 alter table mysql.help_category engine=innodb;
+set sql_mode=default;
 help 'function_of_my_dream';
 name	is_it_category
 help '%possible_f%';

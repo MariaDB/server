@@ -18,9 +18,12 @@ SET @@GLOBAL.query_cache_size = 65536;
 SET @@query_cache_type = DEFAULT;
 SELECT @@query_cache_type;
 @@query_cache_type
-ON
-ON Expected
+OFF
+OFF Expected
+SET @@query_cache_type = ON;
+ERROR HY000: Query cache is globally disabled and you can't enable it only for this session
 '#--------------------FN_DYNVARS_135_02-------------------------#'
+SET GLOBAL query_cache_type= ON;
 SET @@query_cache_type = NULL;
 ERROR 42000: Variable 'query_cache_type' can't be set to the value of 'NULL'
 Expected error: Wrong value for variable

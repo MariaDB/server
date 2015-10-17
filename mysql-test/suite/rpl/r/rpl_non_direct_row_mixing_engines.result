@@ -13398,8 +13398,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_1` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13419,8 +13419,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_1` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13443,8 +13443,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_2` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13465,8 +13465,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_2` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13490,8 +13490,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_3` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13512,8 +13512,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_3` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13537,8 +13537,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_4` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13558,8 +13558,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_4` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13582,8 +13582,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_5` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13603,8 +13603,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_5` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13627,8 +13627,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_6` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13648,8 +13648,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_6` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -13670,8 +13670,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_7` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13684,8 +13684,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_7` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13914,8 +13914,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_8` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -13928,8 +13928,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `tt_xx_8` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=InnoDB
@@ -14150,8 +14150,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_9` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -14165,8 +14165,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_9` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -14416,8 +14416,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_10` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -14431,8 +14431,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `nt_xx_10` (
-  `trans_id` int(11) NOT NULL DEFAULT '0',
-  `stmt_id` int(11) NOT NULL DEFAULT '0',
+  `trans_id` int(11) NOT NULL,
+  `stmt_id` int(11) NOT NULL,
   `info` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`trans_id`,`stmt_id`)
 ) ENGINE=MyISAM
@@ -14721,15 +14721,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_11;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_11` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_11` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 rpl_mixing_engines.inc [commands=B T Sn T CT Rn R]
@@ -14789,15 +14783,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_12;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_12` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_12` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 rpl_mixing_engines.inc [commands=B T CT T R]
@@ -14843,15 +14831,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_13;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_13` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_13` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 rpl_mixing_engines.inc [commands=B tN CT T R]
@@ -14904,15 +14886,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_14;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_14` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_14` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 rpl_mixing_engines.inc [commands=B CT T R]
@@ -14950,15 +14926,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_15;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_15` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_15` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 rpl_mixing_engines.inc [commands=B N CT T R]
@@ -15011,15 +14981,9 @@ rpl_mixing_engines.inc [commands=drop-CT]
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 DROP TEMPORARY TABLE IF EXISTS tt_xx_16;
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_16` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> drop-CT << -b-b-b-b-b-b-b-b-b-b-b-
 include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	DROP TEMPORARY TABLE IF EXISTS `test`.`tt_xx_16` /* generated by server */
 -e-e-e-e-e-e-e-e-e-e-e- >> drop-CT << -e-e-e-e-e-e-e-e-e-e-e-
 
 ###################################################################################

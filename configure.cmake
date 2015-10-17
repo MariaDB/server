@@ -228,6 +228,7 @@ CHECK_INCLUDE_FILES ("sys/types.h;sys/shm.h" HAVE_SYS_SHM_H)
 CHECK_INCLUDE_FILES (sys/socket.h HAVE_SYS_SOCKET_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/stream.h HAVE_SYS_STREAM_H)
+CHECK_INCLUDE_FILES (sys/syscall.h HAVE_SYS_SYSCALL_H)
 CHECK_INCLUDE_FILES (sys/termcap.h HAVE_SYS_TERMCAP_H)
 CHECK_INCLUDE_FILES ("curses.h;term.h" HAVE_TERM_H)
 CHECK_INCLUDE_FILES (asm/termbits.h HAVE_ASM_TERMBITS_H)
@@ -274,8 +275,8 @@ ENDIF()
 FIND_PACKAGE (Threads)
 
 FUNCTION(MY_CHECK_PTHREAD_ONCE_INIT)
-  CHECK_C_COMPILER_FLAG("-Werror" HAVE_WERROR_FLAG)
-  IF(NOT HAVE_WERROR_FLAG)
+  MY_CHECK_C_COMPILER_FLAG("-Werror")
+  IF(NOT HAVE_C__Werror)
     RETURN()
   ENDIF()
   SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
@@ -1057,3 +1058,22 @@ CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_IN
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
 CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)
+
+IF(NOT MSVC)
+  CHECK_C_SOURCE_RUNS(
+  "
+  #define _GNU_SOURCE
+  #include <fcntl.h>
+  #include <linux/falloc.h>
+  int main()
+  {
+    /* Ignore the return value for now. Check if the flags exist.
+    The return value is checked  at runtime. */
+    fallocate(0, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, 0, 0);
+
+    return(0);
+  }"
+  HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+  )
+ENDIF()
+

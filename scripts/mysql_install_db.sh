@@ -202,8 +202,10 @@ cannot_find_file()
   fi
 
   echo
-  echo "If you compiled from source, you need to run 'make install' to"
+  echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
+  echo "If you don't want to do a full install, you can use the --srcddir"
+  echo "option to only install the mysql database and privilege tables"
   echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
@@ -417,7 +419,7 @@ mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap \
-  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 \
+  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }

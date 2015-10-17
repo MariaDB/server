@@ -175,6 +175,7 @@ extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 	/* defines when allocating data */
 extern void *my_malloc(size_t Size,myf MyFlags);
 extern void *my_multi_malloc(myf MyFlags, ...);
+extern void *my_multi_malloc_large(myf MyFlags, ...);
 extern void *my_realloc(void *oldpoint, size_t Size, myf MyFlags);
 extern void my_free(void *ptr);
 extern void *my_memdup(const void *from,size_t length,myf MyFlags);
@@ -204,16 +205,17 @@ extern void my_large_free(uchar *ptr);
 #endif /* GNUC */
 #define my_alloca(SZ) alloca((size_t) (SZ))
 #define my_afree(PTR) ((void)0)
-#define my_safe_alloca(size, max_alloca_sz) ((size <= max_alloca_sz) ? \
-                                             my_alloca(size) : \
-                                             my_malloc(size, MYF(0)))
-#define my_safe_afree(ptr, size, max_alloca_sz) if (size > max_alloca_sz) \
-                                               my_free(ptr)
+#define MAX_ALLOCA_SZ 4096
+#define my_safe_alloca(size) (((size) <= MAX_ALLOCA_SZ) ? \
+                               my_alloca(size) : \
+                               my_malloc((size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
+#define my_safe_afree(ptr, size) \
+                  do { if ((size) > MAX_ALLOCA_SZ) my_free(ptr); } while(0)
 #else
 #define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
-#define my_safe_alloca(size, max_alloca_sz) my_alloca(size)
-#define my_safe_afree(ptr, size, max_alloca_sz) my_afree(ptr)
+#define my_safe_alloca(size) my_alloca(size)
+#define my_safe_afree(ptr, size) my_afree(ptr)
 #endif /* HAVE_ALLOCA */
 
 #ifndef errno				/* did we already get it? */
@@ -613,7 +615,6 @@ my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
 
 typedef uint32 ha_checksum;
-extern ulong my_crc_dbug_check;
 
 #include <my_alloc.h>
 
@@ -689,7 +690,7 @@ extern void     my_osmaperr(unsigned long last_error);
 #endif
 
 extern void init_glob_errs(void);
-extern const char** get_global_errmsgs();
+extern const char** get_global_errmsgs(void);
 extern void wait_for_free_space(const char *filename, int errors);
 extern FILE *my_fopen(const char *FileName,int Flags,myf MyFlags);
 extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
@@ -714,7 +715,7 @@ extern void my_printf_error(uint my_err, const char *format,
                             ATTRIBUTE_FORMAT(printf, 2, 4);
 extern void my_printv_error(uint error, const char *format, myf MyFlags,
                             va_list ap);
-extern int my_error_register(const char** (*get_errmsgs) (),
+extern int my_error_register(const char** (*get_errmsgs) (void),
                              uint first, uint last);
 extern const char **my_error_unregister(uint first, uint last);
 extern void my_message(uint my_err, const char *str,myf MyFlags);
@@ -924,12 +925,12 @@ extern uint my_set_max_open_files(uint files);
 void my_free_open_file_info(void);
 
 extern my_bool my_gethwaddr(uchar *to);
-extern int my_getncpus();
+extern int my_getncpus(void);
 
 #define HRTIME_RESOLUTION               1000000ULL  /* microseconds */
 typedef struct {ulonglong val;} my_hrtime_t;
-void my_time_init();
-extern my_hrtime_t my_hrtime();
+void my_time_init(void);
+extern my_hrtime_t my_hrtime(void);
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
@@ -988,7 +989,7 @@ int my_msync(int, void *, size_t, int);
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
-void my_uuid_end();
+void my_uuid_end(void);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
@@ -1028,9 +1029,9 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
 
-extern void thd_increment_bytes_sent(ulong length);
-extern void thd_increment_bytes_received(ulong length);
-extern void thd_increment_net_big_packet_count(ulong length);
+extern void thd_increment_bytes_sent(void *thd, ulong length);
+extern void thd_increment_bytes_received(void *thd, ulong length);
+extern void thd_increment_net_big_packet_count(void *thd, ulong length);
 
 #ifdef __WIN__
 extern my_bool have_tcpip;		/* Is set if tcpip is used */

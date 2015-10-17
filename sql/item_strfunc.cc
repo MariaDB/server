@@ -116,40 +116,27 @@ bool Item_str_func::fix_fields(THD *thd, Item **ref)
 my_decimal *Item_str_func::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  if (!res)
-    return 0;
-  (void)str2my_decimal(E_DEC_FATAL_ERROR, (char*) res->ptr(),
-                       res->length(), res->charset(), decimal_value);
-  return decimal_value;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? decimal_from_string_with_check(decimal_value, res) : 0;
 }
 
 
 double Item_str_func::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  int err_not_used;
-  char *end_not_used, buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return res ? my_strntod(res->charset(), (char*) res->ptr(), res->length(),
-			  &end_not_used, &err_not_used) : 0.0;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? double_from_string_with_check(res) : 0.0;
 }
 
 
 longlong Item_str_func::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  int err;
-  char buff[22];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return (res ?
-	  my_strntoll(res->charset(), res->ptr(), res->length(), 10, NULL,
-		      &err) :
-	  (longlong) 0);
+  StringBuffer<22> tmp;
+  String *res= val_str(&tmp);
+  return res ? longlong_from_string_with_check(res) : 0;
 }
 
 
@@ -402,16 +389,16 @@ String *Item_aes_crypt::val_str(String *str)
   if (sptr && user_key) // we need both arguments to be not NULL
   {
     null_value=0;
-    aes_length=my_aes_get_size(sptr->length()); // Calculate result length
+    aes_length=my_aes_get_size(MY_AES_ECB, sptr->length());
 
     if (!str_value.alloc(aes_length))		// Ensure that memory is free
     {
       uchar rkey[AES_KEY_LENGTH / 8];
       create_key(user_key, rkey);
 
-      if (!crypt((uchar*)sptr->ptr(), sptr->length(),
+      if (!my_aes_crypt(MY_AES_ECB, what, (uchar*)sptr->ptr(), sptr->length(),
                  (uchar*)str_value.ptr(), &aes_length,
-                 rkey, AES_KEY_LENGTH / 8, 0, 0, 0))
+                 rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str_value.length((uint) aes_length);
         return &str_value;
@@ -424,16 +411,16 @@ String *Item_aes_crypt::val_str(String *str)
 
 void Item_func_aes_encrypt::fix_length_and_dec()
 {
-  max_length=my_aes_get_size(args[0]->max_length);
-  crypt= my_aes_encrypt_ecb;
+  max_length=my_aes_get_size(MY_AES_ECB, args[0]->max_length);
+  what= ENCRYPTION_FLAG_ENCRYPT;
 }
 
 
 void Item_func_aes_decrypt::fix_length_and_dec()
 {
-   max_length=args[0]->max_length;
-   maybe_null= 1;
-   crypt= my_aes_decrypt_ecb;
+  max_length=args[0]->max_length;
+  maybe_null= 1;
+  what= ENCRYPTION_FLAG_DECRYPT;
 }
 
 
@@ -1011,8 +998,10 @@ String *Item_func_concat_ws::val_str(String *str)
     if (!(res2= args[i]->val_str(use_as_buff)))
       continue;					// Skip NULL
 
+    if (!thd)
+      thd= current_thd;
     if (res->length() + sep_str->length() + res2->length() >
-	(thd ? thd : (thd= current_thd))->variables.max_allowed_packet)
+	thd->variables.max_allowed_packet)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -1273,8 +1262,12 @@ redo:
         while (j != search_end)
           if (*i++ != *j++) goto skip;
         offset= (int) (ptr-res->ptr());
+
+        if (!thd)
+          thd= current_thd;
+
         if (res->length()-from_length + to_length >
-            (thd ? thd : (thd= current_thd))->variables.max_allowed_packet)
+            thd->variables.max_allowed_packet)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -1301,7 +1294,7 @@ redo:
   else
 #endif /* USE_MB */
   {
-    THD *thd= current_thd;
+    thd= current_thd;
     do
     {
       if (res->length()-from_length + to_length >
@@ -3479,7 +3472,7 @@ bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
   if (item->type() != FUNC_ITEM)
     return 0;
   Item_func *item_func=(Item_func*) item;
-  if (arg_count != item_func->arg_count ||
+  if (arg_count != item_func->argument_count() ||
       functype() != item_func->functype())
     return 0;
   Item_func_set_collation *item_func_sc=(Item_func_set_collation*) item;
@@ -4273,9 +4266,9 @@ String *Item_func_uuid::val_str(String *str)
 }
 
 
-Item_func_dyncol_create::Item_func_dyncol_create(List<Item> &args,
-                                                 DYNCALL_CREATE_DEF *dfs)
-  : Item_str_func(args), defs(dfs), vals(0), keys_num(NULL), keys_str(NULL),
+Item_func_dyncol_create::Item_func_dyncol_create(THD *thd, List<Item> &args,
+                                                 DYNCALL_CREATE_DEF *dfs):
+  Item_str_func(thd, args), defs(dfs), vals(0), keys_num(NULL), keys_str(NULL),
   names(FALSE), force_names(FALSE)
 {
   DBUG_ASSERT((args.elements & 0x1) == 0); // even number of arguments
@@ -4577,8 +4570,7 @@ String *Item_func_dyncol_create::val_str(String *str)
       char *ptr;
       size_t length, alloc_length;
       dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-      str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                            &my_charset_bin);
+      str_value.reset(ptr, length, alloc_length, &my_charset_bin);
       res= &str_value;
       null_value= FALSE;
     }
@@ -4670,8 +4662,7 @@ String *Item_func_dyncol_json::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&json, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_utf8_general_ci);
+    str->reset(ptr, length, alloc_length, &my_charset_utf8_general_ci);
     null_value= FALSE;
   }
   return str;
@@ -4719,8 +4710,7 @@ String *Item_func_dyncol_add::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_bin);
+    str->reset(ptr, length, alloc_length, &my_charset_bin);
     null_value= FALSE;
   }
 
@@ -4960,13 +4950,12 @@ longlong Item_dyncol_get::val_int()
     if (end != org_end || error > 0)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff,
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
                           unsigned_flag ? "UNSIGNED INT" : "INT");
     }
     unsigned_flag= error >= 0;
@@ -5025,13 +5014,13 @@ double Item_dyncol_get::val_real()
         error)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DOUBLE");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DOUBLE");
     }
     return res;
   }
@@ -5078,19 +5067,21 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     break;
   case DYN_COL_STRING:
   {
+    const char *end;
     int rc;
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
-                       val.x.string.charset, decimal_value);
-    char buff[80];
-    strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                            val.x.string.value.length));
-    if (rc != E_DEC_OK)
+                       val.x.string.charset, decimal_value, &end);
+    if (rc != E_DEC_OK ||
+        end != val.x.string.value.str + val.x.string.value.length)
     {
       THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DECIMAL");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DECIMAL");
     }
     break;
   }

@@ -8,6 +8,8 @@
 
 CREATE DATABASE XY;
 USE XY;
+set @old_table_open_cache=@@table_open_cache;
+set global table_open_cache = 512;
 
 #
 # Logs are disabled, since the number of creates tables
@@ -52,6 +54,7 @@ eval SELECT * FROM XY.T_$tcs LIMIT 1;
 
 --enable_query_log
 --enable_result_log
+set global table_open_cache = @old_table_open_cache;
 DROP DATABASE XY;
 USE TEST;
 

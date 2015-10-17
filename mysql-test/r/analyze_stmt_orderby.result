@@ -40,6 +40,7 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
       "r_limit": 5,
       "r_used_priority_queue": true,
       "r_output_rows": 6,
@@ -140,6 +141,7 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 10000,
       "r_buffer_size": "REPLACED",
@@ -204,6 +206,7 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
       "r_limit": 4,
       "r_used_priority_queue": true,
       "r_output_rows": 4,
@@ -288,6 +291,7 @@ ANALYZE
       "r_rows": 10,
       "filesort": {
         "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
         "r_used_priority_queue": false,
         "r_output_rows": 10,
         "r_buffer_size": "REPLACED",
@@ -343,6 +347,7 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 10,
       "r_buffer_size": "REPLACED",
@@ -417,7 +422,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "128Kb",
+          "buffer_size": "256Kb",
           "join_type": "BNL",
           "attached_condition": "(t3.a = t0.a)",
           "r_filtered": 10
@@ -451,11 +456,13 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
       "r_limit": 1,
       "r_used_priority_queue": true,
       "r_output_rows": 2,
       "filesort": {
         "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
         "r_used_priority_queue": false,
         "r_output_rows": 6,
         "r_buffer_size": "REPLACED",
@@ -484,7 +491,7 @@ ANALYZE
                 "r_filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "128Kb",
+              "buffer_size": "256Kb",
               "join_type": "BNL",
               "attached_condition": "(t5.a = t6.a)",
               "r_filtered": 21.429
@@ -521,7 +528,7 @@ EXPLAIN
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "128Kb",
+          "buffer_size": "256Kb",
           "join_type": "BNL",
           "attached_condition": "(t5.a = t6.a)"
         }

@@ -1,4 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,14 +35,16 @@
 #include "ha_partition.h"
 
 
-partition_info *partition_info::get_clone()
+partition_info *partition_info::get_clone(THD *thd)
 {
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("partition_info::get_clone");
+
   if (!this)
     DBUG_RETURN(NULL);
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
-  partition_info *clone= new partition_info();
+  partition_info *clone= new (mem_root) partition_info();
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
@@ -57,7 +60,7 @@ partition_info *partition_info::get_clone()
   {
     List_iterator<partition_element> subpart_it(part->subpartitions);
     partition_element *subpart;
-    partition_element *part_clone= new partition_element();
+    partition_element *part_clone= new (mem_root) partition_element();
     if (!part_clone)
     {
       mem_alloc_error(sizeof(partition_element));
@@ -67,16 +70,51 @@ partition_info *partition_info::get_clone()
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
-      partition_element *subpart_clone= new partition_element();
+      partition_element *subpart_clone= new (mem_root) partition_element();
       if (!subpart_clone)
       {
         mem_alloc_error(sizeof(partition_element));
         DBUG_RETURN(NULL);
       }
       memcpy(subpart_clone, subpart, sizeof(partition_element));
-      part_clone->subpartitions.push_back(subpart_clone);
+      part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
-    clone->partitions.push_back(part_clone);
+    clone->partitions.push_back(part_clone, mem_root);
+    part_clone->list_val_list.empty();
+    List_iterator<part_elem_value> list_val_it(part->list_val_list);
+    part_elem_value *new_val_arr=
+      (part_elem_value *)alloc_root(mem_root, sizeof(part_elem_value) *
+                                    part->list_val_list.elements);
+    if (!new_val_arr)
+    {
+      mem_alloc_error(sizeof(part_elem_value) * part->list_val_list.elements);
+      DBUG_RETURN(NULL);
+    }
+    p_column_list_val *new_colval_arr=
+      (p_column_list_val*)alloc_root(mem_root, sizeof(p_column_list_val) *
+                                     num_columns *
+                                     part->list_val_list.elements);
+    if (!new_colval_arr)
+    {
+      mem_alloc_error(sizeof(p_column_list_val) * num_columns *
+                      part->list_val_list.elements);
+      DBUG_RETURN(NULL);
+    }
+    part_elem_value *val;
+    while ((val= list_val_it++))
+    {
+      part_elem_value *new_val= new_val_arr++;
+      memcpy(new_val, val, sizeof(part_elem_value));
+      if (!val->null_value)
+      {
+        p_column_list_val *new_colval= new_colval_arr;
+        new_colval_arr+= num_columns;
+        memcpy(new_colval, val->col_val_array,
+               sizeof(p_column_list_val) * num_columns);
+        new_val->col_val_array= new_colval;
+      }
+      part_clone->list_val_list.push_back(new_val, mem_root);
+    }
   }
   DBUG_RETURN(clone);
 }
@@ -1220,8 +1258,8 @@ bool partition_info::check_range_constants(THD *thd)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    range_col_array= (part_column_list_val*)sql_calloc(num_parts *
-                                                       size_entries);
+    range_col_array= (part_column_list_val*) thd->calloc(num_parts *
+                                                         size_entries);
     if (unlikely(range_col_array == NULL))
     {
       mem_alloc_error(num_parts * size_entries);
@@ -1258,7 +1296,7 @@ bool partition_info::check_range_constants(THD *thd)
     longlong part_range_value;
     bool signed_flag= !part_expr->unsigned_flag;
 
-    range_int_array= (longlong*)sql_alloc(num_parts * sizeof(longlong));
+    range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
     if (unlikely(range_int_array == NULL))
     {
       mem_alloc_error(num_parts * sizeof(longlong));
@@ -1472,7 +1510,7 @@ bool partition_info::check_list_constants(THD *thd)
   size_entries= column_list ?
         (num_column_values * sizeof(part_column_list_val)) :
         sizeof(LIST_PART_ENTRY);
-  ptr= sql_calloc((num_list_values+1) * size_entries);
+  ptr= thd->calloc((num_list_values+1) * size_entries);
   if (unlikely(ptr == NULL))
   {
     mem_alloc_error(num_list_values * size_entries);
@@ -1625,15 +1663,22 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   {
     int err= 0;
 
+    /* Check for partition expression. */
     if (!list_of_part_fields)
     {
       DBUG_ASSERT(part_expr);
       err= part_expr->walk(&Item::check_partition_func_processor, 0,
                            NULL);
-      if (!err && is_sub_partitioned() && !list_of_subpart_fields)
-        err= subpart_expr->walk(&Item::check_partition_func_processor, 0,
-                                NULL);
     }
+
+    /* Check for sub partition expression. */
+    if (!err && is_sub_partitioned() && !list_of_subpart_fields)
+    {
+      DBUG_ASSERT(subpart_expr);
+      err= subpart_expr->walk(&Item::check_partition_func_processor, 0,
+                              NULL);
+    }
+
     if (err)
     {
       my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
@@ -1970,7 +2015,7 @@ bool partition_info::check_partition_field_length()
     the binary collation.
 */
 
-bool partition_info::set_up_charset_field_preps()
+bool partition_info::set_up_charset_field_preps(THD *thd)
 {
   Field *field, **ptr;
   uchar **char_ptrs;
@@ -1996,14 +2041,14 @@ bool partition_info::set_up_charset_field_preps()
       }
     }
     size= tot_part_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**)sql_calloc(size)))
+    if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
     part_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**)sql_calloc(size)))
+    if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
     restore_part_field_ptrs= char_ptrs;
     size= (tot_part_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**)sql_alloc(size)))
+    if (!(char_ptrs= (uchar**)thd->alloc(size)))
       goto error;
     part_charset_field_array= (Field**)char_ptrs;
     ptr= part_field_array;
@@ -2014,7 +2059,7 @@ bool partition_info::set_up_charset_field_preps()
       {
         uchar *field_buf;
         size= field->pack_length();
-        if (!(field_buf= (uchar*) sql_calloc(size)))
+        if (!(field_buf= (uchar*) thd->calloc(size)))
           goto error;
         part_charset_field_array[i]= field;
         part_field_buffers[i++]= field_buf;
@@ -2036,14 +2081,14 @@ bool partition_info::set_up_charset_field_preps()
       }
     }
     size= tot_subpart_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**) sql_calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
     subpart_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**) sql_calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
     restore_subpart_field_ptrs= char_ptrs;
     size= (tot_subpart_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**) sql_alloc(size)))
+    if (!(char_ptrs= (uchar**) thd->alloc(size)))
       goto error;
     subpart_charset_field_array= (Field**)char_ptrs;
     ptr= subpart_field_array;
@@ -2055,7 +2100,7 @@ bool partition_info::set_up_charset_field_preps()
       if (!field_is_partition_charset(field))
         continue;
       size= field->pack_length();
-      if (!(field_buf= (uchar*) sql_calloc(size)))
+      if (!(field_buf= (uchar*) thd->calloc(size)))
         goto error;
       subpart_charset_field_array[i]= field;
       subpart_field_buffers[i++]= field_buf;
@@ -2236,12 +2281,12 @@ bool partition_info::is_full_part_expr_in_fields(List<Item> &fields)
     FALSE              Success
 */
 
-int partition_info::add_max_value()
+int partition_info::add_max_value(THD *thd)
 {
   DBUG_ENTER("partition_info::add_max_value");
 
   part_column_list_val *col_val;
-  if (!(col_val= add_column_value()))
+  if (!(col_val= add_column_value(thd)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -2261,7 +2306,7 @@ int partition_info::add_max_value()
     0                  Memory allocation failure
 */
 
-part_column_list_val *partition_info::add_column_value()
+part_column_list_val *partition_info::add_column_value(THD *thd)
 {
   uint max_val= num_columns ? num_columns : MAX_REF_PARTS;
   DBUG_ENTER("add_column_value");
@@ -2283,9 +2328,9 @@ part_column_list_val *partition_info::add_column_value()
       into the structure used for 1 column. After this we call
       ourselves recursively which should always succeed.
     */
-    if (!reorganize_into_single_field_col_val())
+    if (!reorganize_into_single_field_col_val(thd))
     {
-      DBUG_RETURN(add_column_value());
+      DBUG_RETURN(add_column_value(thd));
     }
     DBUG_RETURN(NULL);
   }
@@ -2366,7 +2411,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   if (part_type == LIST_PARTITION &&
       num_columns == 1U)
   {
-    if (init_column_part())
+    if (init_column_part(thd))
     {
       DBUG_RETURN(TRUE);
     }
@@ -2395,7 +2440,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   }
   thd->where= save_where;
 
-  if (!(col_val= add_column_value()))
+  if (!(col_val= add_column_value(thd)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -2416,7 +2461,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
     TRUE                     Failure
     FALSE                    Success
 */
-bool partition_info::init_column_part()
+bool partition_info::init_column_part(THD *thd)
 {
   partition_element *p_elem= curr_part_elem;
   part_column_list_val *col_val_array;
@@ -2425,8 +2470,8 @@ bool partition_info::init_column_part()
   DBUG_ENTER("partition_info::init_column_part");
 
   if (!(list_val=
-      (part_elem_value*)sql_calloc(sizeof(part_elem_value))) ||
-       p_elem->list_val_list.push_back(list_val))
+      (part_elem_value*) thd->calloc(sizeof(part_elem_value))) ||
+      p_elem->list_val_list.push_back(list_val, thd->mem_root))
   {
     mem_alloc_error(sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
@@ -2436,8 +2481,8 @@ bool partition_info::init_column_part()
   else
     loc_num_columns= MAX_REF_PARTS;
   if (!(col_val_array=
-        (part_column_list_val*)sql_calloc(loc_num_columns *
-         sizeof(part_column_list_val))))
+        (part_column_list_val*) thd->calloc(loc_num_columns *
+                                            sizeof(part_column_list_val))))
   {
     mem_alloc_error(loc_num_columns * sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
@@ -2470,7 +2515,8 @@ bool partition_info::init_column_part()
     TRUE                     Failure
     FALSE                    Success
 */
-int partition_info::reorganize_into_single_field_col_val()
+
+int partition_info::reorganize_into_single_field_col_val(THD *thd)
 {
   part_column_list_val *col_val, *new_col_val;
   part_elem_value *val= curr_list_val;
@@ -2486,11 +2532,11 @@ int partition_info::reorganize_into_single_field_col_val()
   {
     col_val= &val->col_val_array[i];
     DBUG_ASSERT(part_type == LIST_PARTITION);
-    if (init_column_part())
+    if (init_column_part(thd))
     {
       DBUG_RETURN(TRUE);
     }
-    if (!(new_col_val= add_column_value()))
+    if (!(new_col_val= add_column_value(thd)))
     {
       DBUG_RETURN(TRUE);
     }
@@ -2683,14 +2729,13 @@ bool partition_info::fix_column_value_functions(THD *thd,
         }
         thd->got_warning= save_got_warning;
         thd->variables.sql_mode= save_sql_mode;
-        if (!(val_ptr= (uchar*) sql_calloc(len)))
+        if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
           mem_alloc_error(len);
           result= TRUE;
           goto end;
         }
         col_val->column_value= val_ptr;
-        memcpy(val_ptr, field->ptr, len);
       }
     }
     col_val->fixed= 2;
@@ -3103,7 +3148,7 @@ void partition_info::print_debug(const char *str, uint *value)
    remove code parts using ifdef, but the code parts cannot be called
    so we simply need to add empty functions to make the linker happy.
  */
-part_column_list_val *partition_info::add_column_value()
+part_column_list_val *partition_info::add_column_value(THD *thd)
 {
   return NULL;
 }
@@ -3118,12 +3163,12 @@ bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
   return FALSE;
 }
 
-int partition_info::reorganize_into_single_field_col_val()
+int partition_info::reorganize_into_single_field_col_val(THD *thd)
 {
   return 0;
 }
 
-bool partition_info::init_column_part()
+bool partition_info::init_column_part(THD *thd)
 {
   return FALSE;
 }
@@ -3132,7 +3177,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
 {
   return FALSE;
 }
-int partition_info::add_max_value()
+int partition_info::add_max_value(THD *thd)
 {
   return 0;
 }

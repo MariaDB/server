@@ -95,12 +95,13 @@ public:
     bound_sj_equalities(0),
     quick_uses_applicable_index(FALSE)
   {
-    UNINIT_VAR(quick_max_loose_keypart); /* Protected by quick_uses_applicable_index */
+    /* Protected by quick_uses_applicable_index */
+    LINT_INIT(quick_max_loose_keypart);
     /* The following are protected by best_loose_scan_cost!= DBL_MAX */
-    UNINIT_VAR(best_loose_scan_key);
-    UNINIT_VAR(best_loose_scan_records);
-    UNINIT_VAR(best_max_loose_keypart);
-    UNINIT_VAR(best_loose_scan_start_key);
+    LINT_INIT(best_loose_scan_key);
+    LINT_INIT(best_loose_scan_records);
+    LINT_INIT(best_max_loose_keypart);
+    LINT_INIT(best_loose_scan_start_key);
   }
   
   void init(JOIN *join, JOIN_TAB *s, table_map remaining_tables)
@@ -122,7 +123,7 @@ public:
         s->emb_sj_nest->sj_in_exprs < 64 && 
         ((remaining_tables & s->emb_sj_nest->sj_inner_tables) ==        // (2)
          s->emb_sj_nest->sj_inner_tables) &&                            // (2)
-        join->cur_sj_inner_tables == 0 &&                                  // (3)
+        join->cur_sj_inner_tables == 0 &&                               // (3)
         !(remaining_tables & 
           s->emb_sj_nest->nested_join->sj_corr_tables) &&               // (4)
         remaining_tables & s->emb_sj_nest->nested_join->sj_depends_on &&// (5)
@@ -194,8 +195,6 @@ public:
         PREV_BITS(key_part_map, max_loose_keypart+1) &&        // (3)
         !key_uses_partial_cols(s->table->s, key))
     {
-      /* Ok, can use the strategy */
-      part1_conds_met= TRUE;
       if (s->quick && s->quick->index == key && 
           s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
@@ -204,6 +203,12 @@ public:
       }
       DBUG_PRINT("info", ("Can use LooseScan scan"));
 
+      if (found_part & 1)
+      {
+        /* Can use LooseScan on ref access if the first key part is bound */
+        part1_conds_met= TRUE;
+      }
+
       /* 
         Check if this is a special case where there are no usable bound
         IN-equalities, i.e. we have
@@ -211,11 +216,13 @@ public:
           outer_expr IN (SELECT innertbl.key FROM ...) 
         
         and outer_expr cannot be evaluated yet, so it's actually full
-        index scan and not a ref access
+        index scan and not a ref access.
+        We can do full index scan if it uses index-only.
       */
       if (!(found_part & 1 ) && /* no usable ref access for 1st key part */
           s->table->covering_keys.is_set(key))
       {
+        part1_conds_met= TRUE;
         DBUG_PRINT("info", ("Can use full index scan for LooseScan"));
         
         /* Calculate the cost of complete loose index scan.  */
@@ -383,6 +390,7 @@ public:
   bool create_sj_weedout_tmp_table(THD *thd);
 };
 
+int setup_semijoin_loosescan(JOIN *join);
 int setup_semijoin_dups_elimination(JOIN *join, ulonglong options, 
                                     uint no_jbuf_after);
 void destroy_sj_tmp_tables(JOIN *join);

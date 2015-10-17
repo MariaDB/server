@@ -10,7 +10,7 @@ drop table if exists t1,t2;
 # Set timezone to GMT-3, to make it possible to use "interval 3 hour"
 set time_zone="+03:00";
 
-CREATE TABLE t1 (a int, t timestamp);
+CREATE TABLE t1 (a int, t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE t2 (a int, t datetime);
 SET TIMESTAMP=1234;
 insert into t1 values(1,NULL);
@@ -116,7 +116,7 @@ drop table t1;
 # Let us test TIMESTAMP auto-update behaviour
 # Also we will test behaviour of TIMESTAMP field in SHOW CREATE TABLE and
 # behaviour of DEFAULT literal for such fields
-create table t1 (t1 timestamp default '2003-01-01 00:00:00', t2 datetime, t3 timestamp);
+create table t1 (t1 timestamp NOT NULL DEFAULT '2003-01-01 00:00:00', t2 datetime, t3 timestamp NOT NULL DEFAULT '0000-00-00 00:00:00');
 SET TIMESTAMP=1000000000;
 insert into t1 values ();
 SET TIMESTAMP=1000000001;
@@ -128,7 +128,7 @@ show create table t1;
 show columns from t1;
 drop table t1;
 
-create table t1 (t1 timestamp default now(), t2 datetime, t3 timestamp);
+create table t1 (t1 timestamp NOT NULL DEFAULT now(), t2 datetime, t3 timestamp NOT NULL DEFAULT '0000-00-00 00:00:00');
 SET TIMESTAMP=1000000002;
 insert into t1 values ();
 SET TIMESTAMP=1000000003;
@@ -140,7 +140,7 @@ show create table t1;
 show columns from t1;
 drop table t1;
 
-create table t1 (t1 timestamp default '2003-01-01 00:00:00' on update now(), t2 datetime);
+create table t1 (t1 timestamp NOT NULL DEFAULT '2003-01-01 00:00:00' on update now(), t2 datetime);
 SET TIMESTAMP=1000000004;
 insert into t1 values ();
 select * from t1;
@@ -153,7 +153,7 @@ show create table t1;
 show columns from t1;
 drop table t1;
 
-create table t1 (t1 timestamp default now() on update now(), t2 datetime);
+create table t1 (t1 timestamp NOT NULL DEFAULT now() on update now(), t2 datetime);
 SET TIMESTAMP=1000000006;
 insert into t1 values ();
 select * from t1;
@@ -166,7 +166,7 @@ show create table t1;
 show columns from t1;
 drop table t1;
 
-create table t1 (t1 timestamp, t2 datetime, t3 timestamp);
+create table t1 (t1 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, t2 datetime, t3 timestamp NOT NULL DEFAULT '0000-00-00 00:00:00');
 SET TIMESTAMP=1000000007;
 insert into t1 values ();
 select * from t1;
@@ -182,7 +182,7 @@ drop table t1;
 # Let us test if CURRENT_TIMESTAMP also works well as default value
 # (Of course NOW and CURRENT_TIMESTAMP are same for parser but still just
 # for demonstartion.)
-create table t1 (t1 timestamp default current_timestamp on update current_timestamp, t2 datetime);
+create table t1 (t1 timestamp NOT NULL DEFAULT current_timestamp on update current_timestamp, t2 datetime);
 SET TIMESTAMP=1000000009;
 insert into t1 values ();
 select * from t1;
@@ -282,7 +282,7 @@ drop table t1;
 create table t1 (a bigint, b bigint);
 insert into t1 values (NULL, NULL), (20030101000000, 20030102000000);
 set timestamp=1000000019;
-alter table t1 modify a timestamp, modify b timestamp;
+alter table t1 modify a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, modify b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
 select * from t1;
 drop table t1;
 
@@ -311,7 +311,7 @@ drop table t1;
 #
 # Bug#7806 - insert on duplicate key and auto-update of timestamp
 #
-create table t1 (a int auto_increment primary key, b int, c timestamp);
+create table t1 (a int auto_increment primary key, b int, c timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 (a, b, c) values (1, 0, '2001-01-01 01:01:01'),
   (2, 0, '2002-02-02 02:02:02'), (3, 0, '2003-03-03 03:03:03');
 select * from t1;

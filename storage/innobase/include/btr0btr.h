@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2014, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -259,10 +259,8 @@ btr_block_get_func(
 	ulint		mode,		/*!< in: latch mode */
 	const char*	file,		/*!< in: file name */
 	ulint		line,		/*!< in: line where called */
-# ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree, may be NULL
+	dict_index_t*	index,		/*!< in: index tree, may be NULL
 					if it is not an insert buffer tree */
-# endif /* UNIV_SYNC_DEBUG */
 	mtr_t*		mtr);		/*!< in/out: mini-transaction */
 # ifdef UNIV_SYNC_DEBUG
 /** Gets a buffer page and declares its latching order level.
@@ -286,7 +284,8 @@ btr_block_get_func(
 @param mtr	mini-transaction handle
 @return the block descriptor */
 #  define btr_block_get(space,zip_size,page_no,mode,idx,mtr)		\
-	btr_block_get_func(space,zip_size,page_no,mode,__FILE__,__LINE__,mtr)
+		btr_block_get_func(space,zip_size,page_no,mode, \
+			__FILE__,__LINE__,idx,mtr)
 # endif /* UNIV_SYNC_DEBUG */
 /** Gets a buffer page and declares its latching order level.
 @param space	tablespace identifier
@@ -297,7 +296,8 @@ btr_block_get_func(
 @param mtr	mini-transaction handle
 @return the uncompressed page frame */
 # define btr_page_get(space,zip_size,page_no,mode,idx,mtr)		\
-	buf_block_get_frame(btr_block_get(space,zip_size,page_no,mode,idx,mtr))
+	buf_block_get_frame(btr_block_get(space,zip_size,page_no, \
+			mode,idx,mtr))
 #endif /* !UNIV_HOTBACKUP */
 /**************************************************************//**
 Gets the index id field of a page.
@@ -797,9 +797,9 @@ btr_index_rec_validate(
 	__attribute__((nonnull, warn_unused_result));
 /**************************************************************//**
 Checks the consistency of an index tree.
-@return	TRUE if ok */
+@return	DB_SUCCESS if ok, error code if not */
 UNIV_INTERN
-bool
+dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,			/*!< in: index */
@@ -825,7 +825,7 @@ Removes a page from the level list of pages.
 @param index	in: index tree
 @param mtr	in/out: mini-transaction */
 # define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,mtr)
+	btr_level_list_remove_func(space,zip_size,page,index,mtr)
 #endif /* UNIV_SYNC_DEBUG */
 
 /*************************************************************//**
@@ -838,11 +838,8 @@ btr_level_list_remove_func(
 	ulint			zip_size,/*!< in: compressed page size in bytes
 					or 0 for uncompressed pages */
 	page_t*			page,	/*!< in/out: page to remove */
-#ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree */
-#endif /* UNIV_SYNC_DEBUG */
-	mtr_t*			mtr)	/*!< in/out: mini-transaction */
-	__attribute__((nonnull));
+	dict_index_t*		index,	/*!< in: index tree */
+	mtr_t*			mtr);	/*!< in/out: mini-transaction */
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

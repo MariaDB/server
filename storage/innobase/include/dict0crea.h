@@ -32,6 +32,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "que0types.h"
 #include "row0types.h"
 #include "mtr0mtr.h"
+#include "fil0crypt.h"
 
 /*********************************************************************//**
 Creates a table create graph.
@@ -43,8 +44,10 @@ tab_create_graph_create(
 	dict_table_t*	table,	/*!< in: table to create, built as a memory data
 				structure */
 	mem_heap_t*	heap,	/*!< in: heap where created */
-	bool		commit);/*!< in: true if the commit node should be
+	bool		commit, /*!< in: true if the commit node should be
 				added to the query graph */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id);/*!< in: encryption key_id */
 /*********************************************************************//**
 Creates an index create graph.
 @return	own: index create node */
@@ -110,6 +113,17 @@ UNIV_INTERN
 dberr_t
 dict_create_or_check_foreign_constraint_tables(void);
 /*================================================*/
+
+/********************************************************************//**
+Construct foreign key constraint defintion from data dictionary information.
+*/
+UNIV_INTERN
+char*
+dict_foreign_def_get(
+/*=================*/
+	dict_foreign_t*	foreign,/*!< in: foreign */
+	trx_t*		trx);	/*!< in: trx */
+
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
 A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,
@@ -174,10 +188,21 @@ UNIV_INTERN
 dberr_t
 dict_create_add_foreign_to_dictionary(
 /*==================================*/
+	dict_table_t*		table,	/*!< in: table */
 	const char*		name,	/*!< in: table name */
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
 	__attribute__((nonnull, warn_unused_result));
+
+/********************************************************************//**
+Construct foreign key constraint defintion from data dictionary information.
+*/
+UNIV_INTERN
+char*
+dict_foreign_def_get(
+/*=================*/
+	dict_foreign_t*	foreign,/*!< in: foreign */
+	trx_t*		trx);	/*!< in: trx */
 
 /* Table create node structure */
 struct tab_node_t{
@@ -197,6 +222,8 @@ struct tab_node_t{
 	/* Local storage for this graph node */
 	ulint		state;	/*!< node execution state */
 	ulint		col_no;	/*!< next column definition to insert */
+	ulint		key_id;	/*!< encryption key_id */
+	fil_encryption_t mode;	/*!< encryption mode */
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage */
 };
 

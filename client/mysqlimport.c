@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,13 +31,12 @@
 
 #include "client_priv.h"
 #include "mysql_version.h"
-#include <my_pthread.h>
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 
 /* Global Thread counter */
-uint counter;
+uint counter= 0;
 pthread_mutex_t counter_mutex;
 pthread_cond_t count_threshhold;
 
@@ -484,11 +484,15 @@ static void db_disconnect(char *host, MYSQL *mysql)
 }
 
 
-
 static void safe_exit(int error, MYSQL *mysql)
 {
   if (error && ignore_errors)
     return;
+
+  /* in multi-threaded mode protect from concurrent safe_exit's */
+  if (counter)
+    pthread_mutex_lock(&counter_mutex);
+
   if (mysql)
     mysql_close(mysql);
 

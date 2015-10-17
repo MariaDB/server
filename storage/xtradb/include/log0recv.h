@@ -312,7 +312,7 @@ recv_sys_var_init(void);
 Empties the hash table of stored log records, applying them to appropriate
 pages. */
 UNIV_INTERN
-void
+dberr_t
 recv_apply_hashed_log_recs(
 /*=======================*/
 	ibool	allow_ibuf);	/*!< in: if TRUE, also ibuf operations are

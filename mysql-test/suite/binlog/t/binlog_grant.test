@@ -58,6 +58,7 @@ drop user mysqltest_1@localhost;
 
 # Testing if REPLICATION CLIENT privilege is enough to execute
 # SHOW MASTER LOGS and SHOW BINARY.
+CREATE USER 'mysqltest_1'@'localhost';
 GRANT REPLICATION CLIENT ON *.* TO 'mysqltest_1'@'localhost';
 --connect(rpl,localhost,mysqltest_1,,)
 

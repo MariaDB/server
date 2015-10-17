@@ -2265,6 +2265,18 @@ a	b
 70	NULL
 DROP TABLE t1;
 #
+# MDEV-8613 Full table scan for WHERE indexed_varchar_column <=> 'bad-character'
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
+EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 1
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 set optimizer_switch=@mrr_icp_extra_tmp;

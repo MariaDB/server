@@ -778,7 +778,7 @@ ERROR 22003: Out of range value for column 'col1' at row 1
 INSERT INTO t1 VALUES ('-100E+1');
 ERROR 22003: Out of range value for column 'col1' at row 1
 INSERT INTO t1 VALUES ('-100E');
-ERROR 22007: Incorrect decimal value: '-100E' for column 'col1' at row 1
+ERROR 01000: Data truncated for column 'col1' at row 1
 UPDATE t1 SET col1 =col1 * 50000 WHERE col1 =11;
 ERROR 22003: Out of range value for column 'col1' at row 6
 UPDATE t1 SET col1 =col1 / 0 WHERE col1 > 0;
@@ -790,10 +790,10 @@ ERROR 22007: Incorrect decimal value: '' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('a59b');
 ERROR 22007: Incorrect decimal value: 'a59b' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('1a');
-ERROR 22007: Incorrect decimal value: '1a' for column 'col1' at row 1
+ERROR 01000: Data truncated for column 'col1' at row 1
 INSERT IGNORE INTO t1 (col1) VALUES ('2a');
 Warnings:
-Note	1265	Data truncated for column 'col1' at row 1
+Warning	1265	Data truncated for column 'col1' at row 1
 INSERT IGNORE INTO t1 values (1/0);
 Warnings:
 Warning	1365	Division by 0
@@ -853,9 +853,9 @@ ERROR 22012: Division by 0
 UPDATE t1 SET col2= MOD(col2,0) WHERE col2 > 0;
 ERROR 22012: Division by 0
 INSERT INTO t1 (col1) VALUES ('');
-ERROR 01000: Data truncated for column 'col1' at row 1
+ERROR 22007: Incorrect double value: '' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('a59b');
-ERROR 01000: Data truncated for column 'col1' at row 1
+ERROR 22007: Incorrect double value: 'a59b' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('1a');
 ERROR 01000: Data truncated for column 'col1' at row 1
 INSERT IGNORE INTO t1 (col1) VALUES ('2a');
@@ -903,9 +903,9 @@ ERROR 22012: Division by 0
 UPDATE t1 SET col2= MOD(col2,0) WHERE col2 > 0;
 ERROR 22012: Division by 0
 INSERT INTO t1 (col1) VALUES ('');
-ERROR 01000: Data truncated for column 'col1' at row 1
+ERROR 22007: Incorrect double value: '' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('a59b');
-ERROR 01000: Data truncated for column 'col1' at row 1
+ERROR 22007: Incorrect double value: 'a59b' for column 'col1' at row 1
 INSERT INTO t1 (col1) VALUES ('1a');
 ERROR 01000: Data truncated for column 'col1' at row 1
 INSERT IGNORE INTO t1 (col1) VALUES ('2a');
@@ -1125,6 +1125,8 @@ ERROR 22007: Truncated incorrect INTEGER value: '10a'
 insert into t1 (col2) values (cast('10' as unsigned integer));
 insert into t1 (col2) values (cast('10' as signed integer));
 insert into t1 (col2) values (10E+0 + '0 ');
+Warnings:
+Note	1292	Truncated incorrect DOUBLE value: '0 '
 select * from t1;
 col1	col2
 NULL	10
@@ -1265,22 +1267,22 @@ d
 2000-10-01
 drop table t1;
 set @@sql_mode='traditional';
-create table t1(a int, b timestamp);
+create table t1(a int, b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 alter table t1 add primary key(a);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
-create table t1(a int, b timestamp default 20050102030405);
+create table t1(a int, b timestamp not null default 20050102030405);
 alter table t1 add primary key(a);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` timestamp NOT NULL DEFAULT '2005-01-02 03:04:05',
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

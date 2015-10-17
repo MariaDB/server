@@ -21,6 +21,7 @@ mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
 wsrep_on=0
+dry_run=0
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -30,6 +31,7 @@ user='@MYSQLD_USER@'
 pid_file=
 err_log=
 err_log_base=
+skip_err_log=0
 
 syslog_tag_mysqld=mysqld
 syslog_tag_mysqld_safe=mysqld_safe
@@ -80,6 +82,7 @@ Usage: $0 [OPTIONS]
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
   --mysqld-version=VERSION   Use "mysqld-VERSION" as mysqld
+  --dry-run                  Simulate the start to detect errors but don't start
   --nice=NICE                Set the scheduling priority of mysqld
   --no-auto-restart          Exit after starting mysqld
   --nowatch                  Exit after starting mysqld
@@ -130,6 +133,7 @@ my_which ()
 }
 
 log_generic () {
+  [ $dry_run -eq 1 ] && return
   priority="$1"
   shift
 
@@ -292,7 +296,14 @@ parse_arguments() {
 
       # these might have been set in a [mysqld_safe] section of my.cnf
       # they are added to mysqld command line to override settings from my.cnf
-      --log[-_]error=*) err_log="$val" ;;
+      --skip[-_]log[-_]error)
+        err_log=;
+        skip_err_log=1;
+        ;;
+      --log[-_]error=*)
+        err_log="$val";
+        skip_err_log=0;
+        ;;
       --port=*) mysql_tcp_port="$val" ;;
       --socket=*) mysql_unix_port="$val" ;;
 
@@ -310,6 +321,7 @@ parse_arguments() {
           MYSQLD="mysqld"
         fi
         ;;
+      --dry[-_]run) dry_run=1 ;;
       --nice=*) niceness="$val" ;;
       --nowatch|--no[-_]watch|--no[-_]auto[-_]restart) nowatch=1 ;;
       --open[-_]files[-_]limit=*) open_files="$val" ;;
@@ -649,6 +661,11 @@ then
   fi
 fi
 
+if [ $skip_err_log -eq 1 ]
+then
+  append_arg_to_args "--skip-log-error"
+fi
+
 if [ -n "$err_log" -o $want_syslog -eq 0 ]
 then
   if [ -n "$err_log" ]
@@ -849,7 +866,7 @@ fi
 #
 # If there exists an old pid file, check if the daemon is already running
 # Note: The switches to 'ps' may depend on your operating system
-if test -f "$pid_file"
+if test -f "$pid_file" && [ $dry_run -eq 0 ]
 then
   PID=`cat "$pid_file"`
   if @CHECK_PID@
@@ -925,6 +942,7 @@ fi
 #fi
 
 cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
+[ $dry_run -eq 1 ] && cmd=''
 
 #
 # Set mysqld's memory interleave policy.
@@ -944,7 +962,7 @@ then
   fi
 
   # Launch mysqld with numactl.
-  cmd="$cmd numactl --interleave=all"
+  [ $dry_run -eq 0 ] && cmd="$cmd numactl --interleave=all"
 elif test $numa_interleave -eq 1
 then
   log_error "--numa-interleave is not supported on this platform"
@@ -957,6 +975,7 @@ do
   cmd="$cmd "`shell_quote_string "$i"`
 done
 cmd="$cmd $args"
+[ $dry_run -eq 1 ] && return
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
 

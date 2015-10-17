@@ -228,11 +228,11 @@ SET @@session.gtid_domain_id=1;
 BEGIN;
 INSERT INTO t2 VALUES(3);
 INSERT INTO t3 VALUES(3);
-save_master_pos;
+--source include/save_master_gtid.inc
 
 --echo # On slave
 connection slave;
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -270,11 +270,11 @@ SET @@session.gtid_domain_id=1;
 BEGIN;
 INSERT INTO t2 VALUES(5);
 INSERT INTO t3 VALUES(5);
-save_master_pos;
+--source include/save_master_gtid.inc
 
 --echo # On slave
 connection slave;
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);

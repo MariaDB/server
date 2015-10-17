@@ -85,7 +85,7 @@ SELECT 1 FROM (SELECT 1 as a) b WHERE 1 IN (SELECT (SELECT a));
 select (SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE(1));
 ERROR HY000: Incorrect usage of PROCEDURE and subquery
 SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE((SELECT 1));
-ERROR HY000: Incorrect parameters to procedure 'ANALYSE'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1))' at line 1
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NULL;
 ERROR 42S22: Unknown column 'a' in 'field list'
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NOT NULL;
@@ -134,12 +134,16 @@ Warning	1292	Truncated incorrect DOUBLE value: '1.5b'
 SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a');
 (SELECT 'b',2,'a') = ROW(1.5,2,'a')
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
 SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a');
 (SELECT 1.5,2,'a') = ROW(1.5,'2','a')
 1
 SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a');
 (SELECT 1.5,'c','a') = ROW(1.5,2,'a')
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'c'
 SELECT (SELECT * FROM (SELECT 'test' a,'test' b) a);
 ERROR 21000: Operand should contain 1 column(s)
 SELECT 1 as a,(SELECT a+a) b,(SELECT b);
@@ -406,13 +410,13 @@ EXPLAIN EXTENDED SELECT DISTINCT date FROM t1 WHERE date='2002-08-03';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	43	NULL	2	100.00	Using where; Using index
 Warnings:
-Note	1003	select distinct `test`.`t1`.`date` AS `date` from `test`.`t1` where (`test`.`t1`.`date` = '2002-08-03')
+Note	1003	select distinct `test`.`t1`.`date` AS `date` from `test`.`t1` where (`test`.`t1`.`date` = DATE'2002-08-03')
 EXPLAIN EXTENDED SELECT (SELECT DISTINCT date FROM t1 WHERE date='2002-08-03');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	SUBQUERY	t1	index	NULL	PRIMARY	43	NULL	2	100.00	Using where; Using index
 Warnings:
-Note	1003	select (select distinct `test`.`t1`.`date` from `test`.`t1` where (`test`.`t1`.`date` = '2002-08-03')) AS `(SELECT DISTINCT date FROM t1 WHERE date='2002-08-03')`
+Note	1003	select (select distinct `test`.`t1`.`date` from `test`.`t1` where (`test`.`t1`.`date` = DATE'2002-08-03')) AS `(SELECT DISTINCT date FROM t1 WHERE date='2002-08-03')`
 SELECT DISTINCT date FROM t1 WHERE date='2002-08-03';
 date
 2002-08-03
@@ -1259,7 +1263,7 @@ a
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` bigint(20) NOT NULL DEFAULT '0'
+  `a` bigint(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int);
@@ -3596,7 +3600,7 @@ delete from t1 where c <= 1140006215 and (select b from t2 where a = 2) = 1;
 drop table t1, t2;
 CREATE TABLE t1 (a INT);
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE no_such_column = ANY (SELECT 1);
-ERROR 42S22: Unknown column 'no_such_column' in 'where clause'
+ERROR 42S22: Unknown column 'no_such_column' in 'IN/ALL/ANY subquery'
 CREATE VIEW v2 AS SELECT * FROM t1 WHERE no_such_column = (SELECT 1);
 ERROR 42S22: Unknown column 'no_such_column' in 'where clause'
 SELECT * FROM t1 WHERE no_such_column = ANY (SELECT 1);
@@ -4667,6 +4671,8 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 1
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1
@@ -5134,8 +5140,9 @@ SELECT a FROM t1 WHERE a = 2
 a
 1
 2
-SELECT * FROM ((SELECT 1 a) UNION SELECT 1 a);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT * FROM ((SELECT 1 a) UNION SELECT 1 a) q;
+a
+1
 SELECT * FROM (SELECT 1 a UNION (SELECT 1 a)) alias;
 a
 1
@@ -5177,7 +5184,7 @@ a	1
 1	1
 2	1
 SELECT * FROM t1 JOIN ((SELECT 1 UNION SELECT 1)) ON 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')) ON 1' at line 1
+ERROR 42000: Every derived table must have its own alias
 SELECT * FROM t1 JOIN  (t1 t1a UNION SELECT 1)  ON 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')  ON 1' at line 1
 SELECT * FROM t1 JOIN ((t1 t1a UNION SELECT 1)) ON 1;
@@ -5296,7 +5303,10 @@ SELECT ((SELECT 1 UNION SELECT 1 UNION SELECT 1));
 SELECT * FROM ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 ) )' at line 1
 SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 );
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') UNION SELECT 1 )' at line 1
+ERROR 42000: Every derived table must have its own alias
+SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 ) a;
+1
+1
 SELECT * FROM ( SELECT 1 UNION SELECT 1 UNION SELECT 1 ) a;
 1
 1
@@ -5933,6 +5943,8 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 1
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1
@@ -6312,12 +6324,22 @@ SELECT 1 FROM t1 WHERE a =
 ORDER BY b
 );
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
 SELECT 1 FROM t1 WHERE a = 
 (SELECT 1 FROM t2 WHERE b = 
 (SELECT 1 FROM t1 t11 WHERE c = 1 OR t1.a = 1 AND 1 = 2)
 GROUP BY b
 );
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
 DROP TABLE t1, t2;
 #
 # BUG#12616253 - WRONG RESULT WITH EXISTS(SUBQUERY) (MISSING ROWS)
@@ -7021,6 +7043,72 @@ select exists(select 1 from t1 group by `c` in (select `c` from t1));
 exists(select 1 from t1 group by `c` in (select `c` from t1))
 0
 drop table t1;
+#
+# MDEV-7565: Server crash with Signal 6 (part 2)
+#
+Select 
+(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
+Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+) As `ControlRev`
+From 
+(Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
+Group By  TestCase.Revenue, TestCase.TemplateID;
+ControlRev
+NULL
+#
+# MDEV-7445:Server crash with Signal 6
+#
+CREATE PROCEDURE procedure2()
+BEGIN
+Select 
+(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
+Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+) As `ControlRev`
+  From 
+(Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
+Group By  TestCase.Revenue, TestCase.TemplateID;
+END |
+call procedure2();
+ControlRev
+NULL
+call procedure2();
+ControlRev
+NULL
+drop procedure procedure2;
+SELECT
+(SELECT user FROM mysql.user
+WHERE h.host in (SELECT host FROM mysql.user)
+) AS sq
+FROM mysql.host h GROUP BY h.host;
+sq
+#
+# MDEV-7846:Server crashes in Item_subselect::fix
+#_fields or fails with Thread stack overrun
+#
+CREATE TABLE t1 (column1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(9);
+CREATE TABLE t2 (column2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(4);
+CREATE TABLE t3 (column3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (6),(8);
+CREATE TABLE t4 (column4 INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (2),(5);
+PREPARE stmt FROM "
+SELECT ( 
+  SELECT MAX( table1.column1 ) AS field1 
+  FROM t1 AS table1
+  WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4 GROUP BY sq
+";
+EXECUTE stmt;
+sq
+NULL
+EXECUTE stmt;
+sq
+NULL
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
 set optimizer_switch=default;
 select @@optimizer_switch like '%exists_to_in=off%';
 @@optimizer_switch like '%exists_to_in=off%'

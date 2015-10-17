@@ -53,13 +53,13 @@ if(1, 1.1, 1.2)	if(0, 1.1, 1.2)	if(0.1, 1.1, 1.2)	if(0, 1, 1.1)	if(0, NULL, 1.2)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `if(1, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0.1, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0, 1, 1.1)` decimal(2,1) NOT NULL DEFAULT '0.0',
+  `if(1, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0.1, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0, 1, 1.1)` decimal(2,1) NOT NULL,
   `if(0, NULL, 1.2)` decimal(2,1) DEFAULT NULL,
-  `if(1, 0.22e1, 1.1)` double NOT NULL DEFAULT '0',
-  `if(1E0, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `if(1, 0.22e1, 1.1)` double NOT NULL,
+  `if(1E0, 1.1, 1.2)` decimal(2,1) NOT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 select nullif(1.1, 1.1), nullif(1.1, 1.2), nullif(1.1, 0.11e1), nullif(1.0, 1), nullif(1, 1.0), nullif(1, 1.1);
@@ -175,10 +175,10 @@ create table t1 select round(15.4,-1), truncate(-5678.123451,-3), abs(-1.1), -(-
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `round(15.4,-1)` decimal(3,0) NOT NULL DEFAULT '0',
-  `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL DEFAULT '0',
-  `abs(-1.1)` decimal(3,1) NOT NULL DEFAULT '0.0',
-  `-(-1.1)` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `round(15.4,-1)` decimal(3,0) NOT NULL,
+  `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL,
+  `abs(-1.1)` decimal(3,1) NOT NULL,
+  `-(-1.1)` decimal(2,1) NOT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 drop table t1;
 set session sql_mode='traditional';
@@ -772,7 +772,7 @@ create table t1 as select 0.5;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `0.5` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `0.5` decimal(2,1) NOT NULL
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 drop table t1;
 select round(1.5),round(2.5);
@@ -1510,7 +1510,7 @@ Warnings:
 Note	1265	Data truncated for column 'f1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-f1	decimal(31,30)	NO		0.000000000000000000000000000000	
+f1	decimal(31,30)	NO		NULL	
 SELECT f1 FROM t1;
 f1
 0.123456789012345678901234567890
@@ -1520,7 +1520,7 @@ Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-f1	decimal(65,30)	NO		0.000000000000000000000000000000	
+f1	decimal(65,30)	NO		NULL	
 SELECT f1 FROM t1;
 f1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1624,7 +1624,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(30,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(30,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 0.123456789123456789123456789123
@@ -1634,7 +1634,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(65,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(65,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 1.123456789123456789123456789123
@@ -1644,7 +1644,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(65,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(65,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 0.123456789123456789123456789123
@@ -1680,7 +1680,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1692,7 +1692,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1704,7 +1704,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1716,7 +1716,7 @@ Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1728,7 +1728,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1738,7 +1738,7 @@ CREATE TABLE t1 SELECT
 AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(31,30)	NO		0.000000000000000000000000000000	
+c1	decimal(31,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 1.100000000000000000000000000000
@@ -1748,7 +1748,7 @@ CREATE TABLE t1 SELECT
 AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(31,30)	NO		0.000000000000000000000000000000	
+c1	decimal(31,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 1.100000000000000000000000000000
@@ -1760,7 +1760,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(30,30)	NO		0.000000000000000000000000000000	
+c1	decimal(30,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 0.100000000000000000000000000000
@@ -1772,7 +1772,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1784,7 +1784,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,1)	NO		0.0	
+c1	decimal(65,1)	NO		NULL	
 SELECT * FROM t1;
 c1
 9999999999999999999999999999999999999999999999999999999999999999.9
@@ -1796,7 +1796,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,1)	NO		0.0	
+c1	decimal(65,1)	NO		NULL	
 SELECT * FROM t1;
 c1
 9999999999999999999999999999999999999999999999999999999999999999.9
@@ -1808,7 +1808,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(30,30)	NO		0.000000000000000000000000000000	
+c1	decimal(30,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 0.123456789012345678901234567890
@@ -1818,7 +1818,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(33,30)	NO		0.000000000000000000000000000000	
+c1	decimal(33,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 123.123456789012345678901234567890
@@ -1826,7 +1826,7 @@ DROP TABLE t1;
 CREATE TABLE t1 SELECT 1.1 + CAST(1 AS DECIMAL(65,30)) AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 2.100000000000000000000000000000

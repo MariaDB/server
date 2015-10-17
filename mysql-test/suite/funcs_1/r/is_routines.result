@@ -1,3 +1,4 @@
+set sql_mode="";
 SHOW TABLES FROM information_schema LIKE 'ROUTINES';
 Tables_in_information_schema (ROUTINES)
 ROUTINES

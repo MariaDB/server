@@ -1,0 +1,16 @@
+#
+# !include this file into your my.cnf (or any of *.cnf files in /etc/my.cnf.d)
+# and it will enable data at rest encryption. This is a simple way to
+# ensure that everything that can be encrypted will be and your
+# data will not leak unencrypted.
+#
+# If in the future more encryption related options will be implemented,
+# this file will enable them too.
+#
+[mariadb]
+aria-encrypt-tables
+encrypt-binlog
+encrypt-tmp-disk-tables
+encrypt-tmp-files
+loose-innodb-encrypt-log
+loose-innodb-encrypt-tables

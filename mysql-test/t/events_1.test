@@ -4,6 +4,8 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
 
+set sql_mode="";
+
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
 --disable_warnings
@@ -125,7 +127,8 @@ drop event existant;
 
 create table t_event3 (a int, b float);
 drop event if exists event3;
-create event event3 on schedule every 50 + 10 minute starts date_add("20100101", interval 5 minute) ends date_add("20151010", interval 5 day) comment "portokala_comment" DO insert into t_event3 values (unix_timestamp(), rand());
+create event event3 on schedule every 50 + 10 minute starts date_add("20100101", interval 5 minute) ends date_add("20251010", interval 5 day)
+  comment "portokala_comment" DO insert into t_event3 values (unix_timestamp(), rand());
 let $wait_condition=SELECT count(*)=0 from t_event3;
 --source include/wait_condition.inc
 select count(*) from t_event3;

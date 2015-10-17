@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 #
 # Tests for checking permission denied on CREATE OR REPLACE if DROP
 # access is revoked
@@ -48,3 +50,4 @@ Warnings:
 Note	1008	Can't drop database 'db2'; database doesn't exist
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
+set global sql_mode=default;

@@ -1,5 +1,8 @@
 --source include/have_udf.inc
 --source include/have_log_bin.inc
+--source include/binlog_start_pos.inc
+
+--let $pos=`select $binlog_start_pos + 65`
 
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
@@ -164,8 +167,30 @@ RESET MASTER;
 # Test RESET MASTER TO
 
 RESET MASTER;
+--replace_result $pos <pos>
 SHOW MASTER STATUS;
 RESET MASTER TO 100;
+--replace_result $pos <pos>
 SHOW MASTER STATUS;
 RESET MASTER;
+--replace_result $pos <pos>
 SHOW MASTER STATUS;
+
+#
+# mdev-7817 ALTER TABLE {ADD|DROP} INDEX IF [NOT] EXISTS does not get written into binlog if nothing to do
+# 
+
+CREATE TABLE t1(a INT, b INT);
+CREATE TABLE IF NOT EXISTS t1(a INT, b INT);
+CREATE INDEX IF NOT EXISTS i1 ON t1(a);
+CREATE INDEX IF NOT EXISTS i1 ON t1(a);
+SHOW CREATE TABLE t1;
+DROP INDEX IF EXISTS i1 ON t1;
+DROP INDEX IF EXISTS i1 ON t1;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1;
+--replace_column 1 # 2 # 5 #
+--replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Server.ver.*/VER/
+SHOW BINLOG EVENTS;
+RESET MASTER;
+

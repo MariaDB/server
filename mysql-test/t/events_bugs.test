@@ -8,6 +8,7 @@
 #       Bug#41925 Warning 1366 Incorrect string value: ...  for column processlist.info
 #
 # Please set $
+SET SQL_MODE="";
 let $fixed_bug41925= 0;
 #     
 # Dear maintainer of this test. Please do NOT remove the next big comment.
@@ -1319,5 +1320,4 @@ DROP DATABASE events_test;
 SET GLOBAL event_scheduler= 'ON';
 --source include/running_event_scheduler.inc
 SET @@global.concurrent_insert= @concurrent_insert;
-
 # THIS MUST BE THE LAST LINE in this file.

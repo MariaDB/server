@@ -137,7 +137,7 @@ bool sp_rcontext::init_var_items(THD *thd)
 
   for (uint idx = 0; idx < num_vars; ++idx)
   {
-    if (!(m_var_items[idx]= new Item_field(m_var_table->field[idx])))
+    if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, m_var_table->field[idx])))
       return true;
   }
 
@@ -387,7 +387,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 
   thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
 
-  holder= Item_cache::get_cache(item);
+  holder= Item_cache::get_cache(thd, item);
 
   thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
 

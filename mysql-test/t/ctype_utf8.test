@@ -1818,6 +1818,31 @@ SELECT * FROM t1 WHERE (a,a)=(10,'1e1');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE (a,a)=(10,'1e1');
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-8688 Wrong result for SELECT..WHERE varchar_column IN (1,2,3) AND varchar_column=' 1';
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('1e1'),('1ë1');
+SELECT * FROM t1 WHERE a IN (1,2);
+SELECT * FROM t1 WHERE a IN (1,2) AND a='1ë1';
+SELECT * FROM t1 WHERE a IN (1,2,'x') AND a='1ë1';
+# Equality should not propagate '1ë1' to IN: incompatible comparison context
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN (1,2) AND a='1ë1';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN (1,2,'x') AND a='1ë1';
+DROP TABLE IF EXISTS t1;
+
+
+--echo #
+--echo # MDEV-8816 Equal field propagation is not applied for WHERE varbinary_column>=_utf8'a' COLLATE utf8_swedish_ci AND varbinary_column='A';
+--echo #
+CREATE TABLE t1 (c VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.1 tests

@@ -24,10 +24,11 @@ return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
-     qr(WSREP: Could not open saved state file for reading: ),
-     qr(WSREP: option --wsrep-casual-reads is deprecated),
-     qr(WSREP: --wsrep-casual-reads=ON takes precedence over --wsrep-sync-wait=0),
-     qr|WSREP: access file\(gvwstate.dat\) failed\(No such file or directory\)|,
+     qr(WSREP: Could not open saved state file for reading: .*),
+     qr(WSREP: Could not open state file for reading: .*),
+     qr(WSREP: option --wsrep-causal-reads is deprecated),
+     qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0),
+     qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";

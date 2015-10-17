@@ -2,6 +2,7 @@
 --source include/have_debug_sync.inc
 --source include/have_log_bin.inc
 --source include/have_binlog_format_mixed_or_statement.inc
+--source include/binlog_start_pos.inc
 
 # Need DBUG to crash the server intentionally
 --source include/have_debug.inc
@@ -97,7 +98,8 @@ SELECT * FROM t1 ORDER BY a;
 # for the end of the second transaction (as can be checked with
 # mysqlbinlog).
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let pos=`select $binlog_start_pos + 678`;
+--replace_result $pos <pos>
 --exec grep 'InnoDB: Last MySQL binlog file position' $MYSQLD_DATADIR/../../log/mysqld.1.err | tail -1
-
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;

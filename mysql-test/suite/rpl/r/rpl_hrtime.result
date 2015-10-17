@@ -2,7 +2,7 @@ include/master-slave.inc
 [connection master]
 set time_zone='+03:00';
 set timestamp=unix_timestamp('2011-01-01 01:01:01') + 0.123456;
-create table t1 (a timestamp(4), b varchar(100), c datetime(2));
+create table t1 (a timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b varchar(100), c datetime(2));
 insert t1 (b,c) values (now(6), now(6));
 insert t1 values ('2010-10-10 10:10:10.101010','2010-10-10 10:10:10.101010','2010-10-10 10:10:10.101010');
 set timestamp=unix_timestamp('2022-02-02 02:02:02') + 0.654321;
@@ -35,13 +35,13 @@ use `test`/*!*/;
 SET TIMESTAMP=1293832861/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
-SET @@session.sql_mode=0/*!*/;
+SET @@session.sql_mode=1342177280/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-create table t1 (a timestamp(4), b varchar(100), c datetime(2))
+create table t1 (a timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b varchar(100), c datetime(2))
 /*!*/;
 BEGIN
 /*!*/;

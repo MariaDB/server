@@ -324,9 +324,11 @@ DROP DATABASE mysqltest_1;
 #
 connection locker;
 # Disable warnings to allow test to run also without InnoDB
+set sql_mode="";
 --disable_warnings
 create table t1 (f1 int(12) unsigned not null auto_increment, primary key(f1)) engine=innodb;
 --enable_warnings
+set sql_mode=default;
 lock tables t1 write;
 connection writer;
 send

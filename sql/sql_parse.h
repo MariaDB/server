@@ -108,7 +108,7 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
-void add_join_on(TABLE_LIST *b,Item *expr);
+void add_join_on(THD *thd, TABLE_LIST *b, Item *expr);
 void add_join_natural(TABLE_LIST *a,TABLE_LIST *b,List<String> *using_fields,
                       SELECT_LEX *lex);
 bool add_proc_to_list(THD *thd, Item *item);
@@ -118,7 +118,7 @@ bool push_new_name_resolution_context(THD *thd,
 void store_position_for_column(const char *name);
 void init_update_queries(void);
 bool check_simple_select();
-Item *normalize_cond(Item *cond);
+Item *normalize_cond(THD *thd, Item *cond);
 Item *negate_expression(THD *thd, Item *expr);
 bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 

@@ -182,7 +182,7 @@ Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column 'a' at row 4
 insert into t1 values ("123.4e"),("123.4e+2"),("123.4e-2"),("123e1"),("123e+0");
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 3
 select * from t1;
 a
@@ -247,7 +247,7 @@ Note	1265	Data truncated for column 'a' at row 2
 Warning	1264	Out of range value for column 'a' at row 3
 insert into t1 values ("123.4e"),("123.4e+2"),("123.4e-2"),("123e1"),("123e+0");
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 3
 select * from t1;
 a
@@ -306,7 +306,7 @@ Note	1265	Data truncated for column 'a' at row 2
 Warning	1264	Out of range value for column 'a' at row 3
 insert into t1 values ("123.4e"),("123.4e+2"),("123.4e-2"),("123e1"),("123e+0");
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 3
 select * from t1;
 a
@@ -359,6 +359,9 @@ insert into t1 values (123.4e0),(123.4e+2),(123.4e-2),(123e1),(123e+0);
 Warnings:
 Note	1265	Data truncated for column 'a' at row 3
 insert into t1 values (MID("987",1,2)),("987 "),("987.6e+2 ");
+Warnings:
+Note	1265	Data truncated for column 'a' at row 2
+Note	1265	Data truncated for column 'a' at row 3
 select * from t1;
 a
 0.00

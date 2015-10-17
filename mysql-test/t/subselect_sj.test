@@ -2524,7 +2524,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (pk),
   KEY col_int_key (col_int_key),
   KEY col_varchar_key (col_varchar_key, col_int_key)
-) ENGINE=InnoDB;
+);
 
 INSERT INTO t1 VALUES
 (10,8,'x','x'),

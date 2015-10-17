@@ -5,6 +5,7 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/binlog_start_pos.inc
 --let $rpl_server_count= 0
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
@@ -99,11 +100,11 @@ select * from db1.t1;
 
 # Check that relay logs are recognizable
 
---replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
-show relaylog events;
---replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
-show relaylog events in 'mysqld-relay-bin-master1.000002';
-
+let binlog_start=4;
+let binlog_file=;
+source include/show_relaylog_events.inc;
+let binlog_file= mysqld-relay-bin-master1.000002;
+source include/show_relaylog_events.inc;
 
 # Try to configure connection with the same name again,
 # should get an error because the slave is running
@@ -221,6 +222,8 @@ flush logs;
 
 --connection master1
 purge binary logs to 'master-bin.000002';
+let filesize=`select $binlog_start_pos+119`;
+--replace_result $filesize filesize
 show binary logs;
 insert into t1 (f1) values ('four');
 create table db1.t3 (f1 int) engine=InnoDB;
@@ -252,10 +255,10 @@ select * from db1.t1;
 
 # This should show relay log events for the default master
 # (the one with the empty name)
---replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
-show relaylog events;
---replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
-show relaylog events in 'mysqld-relay-bin.000002';
+let binlog_file=;
+source include/show_relaylog_events.inc;
+let binlog_file= mysqld-relay-bin.000002;
+source include/show_relaylog_events.inc;
 
 # Make sure we don't lose control over replication connections
 # after reconnecting to the slave

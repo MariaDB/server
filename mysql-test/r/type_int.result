@@ -1,0 +1,38 @@
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+#
+CREATE TABLE t1 (a INT ZEROFILL);
+INSERT INTO t1 VALUES (2010),(2020);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010)
+DROP TABLE t1;
+#
+# MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+#
+CREATE TABLE t1 (a INT ZEROFILL);
+INSERT INTO t1 VALUES (128),(129);
+SELECT * FROM t1 WHERE a=128;
+a
+0000000128
+SELECT * FROM t1 WHERE hex(a)='80';
+a
+0000000128
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+a
+0000000128
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 128) and (hex(`test`.`t1`.`a`) = '80'))
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

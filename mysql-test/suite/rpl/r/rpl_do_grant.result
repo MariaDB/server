@@ -6,6 +6,7 @@ flush privileges;
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
+create user rpl_do_grant@localhost;
 grant select on *.* to rpl_do_grant@localhost;
 grant drop on test.* to rpl_do_grant@localhost;
 show grants for rpl_do_grant@localhost;
@@ -113,7 +114,7 @@ GRANT EXECUTE, ALTER ROUTINE ON FUNCTION `bug42217_db`.`upgrade_del_func` TO 'cr
 USE bug42217_db;
 SHOW CREATE FUNCTION upgrade_del_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_del_func		CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1
+upgrade_del_func	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1
 BEGIN
 RETURN "INSIDE upgrade_del_func()";
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -124,7 +125,7 @@ INSIDE upgrade_del_func()
 USE bug42217_db;
 SHOW CREATE FUNCTION upgrade_del_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_del_func		CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1
+upgrade_del_func	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1
 BEGIN
 RETURN "INSIDE upgrade_del_func()";
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -149,7 +150,7 @@ upgrade_alter_func()
 INSIDE upgrade_alter_func()
 SHOW CREATE FUNCTION upgrade_alter_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_alter_func		CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_alter_func`() RETURNS char(30) CHARSET latin1
+upgrade_alter_func	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_alter_func`() RETURNS char(30) CHARSET latin1
 BEGIN
 RETURN "INSIDE upgrade_alter_func()";
 END	latin1	latin1_swedish_ci	latin1_swedish_ci

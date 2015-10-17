@@ -809,7 +809,7 @@ drop procedure if exists fn3;
 create function fn3 () returns point deterministic return GeomFromText("point(1 1)");
 show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn3		CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
+fn3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
     DETERMINISTIC
 return GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	latin1_swedish_ci
 select astext(fn3());
@@ -1661,6 +1661,9 @@ INSERT INTO g1 VALUES ('a'),('a');
 SELECT 1 FROM g1 WHERE a >= ANY
 (SELECT 1 FROM g1 WHERE a = geomfromtext('') OR a) ;
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 DROP TABLE g1;
 #
 # Bug#16451878 GEOMETRY QUERY CRASHES SERVER
@@ -1816,3 +1819,15 @@ disjoint
 select ST_IsRing(NULL);
 ST_IsRing(NULL)
 -1
+#
+# MDEV-8675 Different results of GIS functions on NULL vs NOT NULL columns
+#
+CREATE TABLE t1 (g1 GEOMETRY NOT NULL,g2 GEOMETRY NULL);
+CREATE TABLE t2 AS SELECT WITHIN(g1,g1) as w1,WITHIN(g2,g2) AS w2 FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `w1` int(1) DEFAULT NULL,
+  `w2` int(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;

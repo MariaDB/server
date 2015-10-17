@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE DATABASE privtest_db;
 CREATE TABLE privtest_db.t1 (a INT, b VARCHAR(3)) ENGINE=MyISAM;
 CREATE TABLE privtest_db.t2 (a INT, b VARCHAR(3)) ENGINE=MyISAM;
@@ -5232,3 +5234,4 @@ connection default;
 DROP USER 'privtest'@localhost;
 USE test;
 DROP DATABASE privtest_db;
+set GLOBAL sql_mode=default;

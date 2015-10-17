@@ -1077,7 +1077,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
-    report_error(report, ER_UDF_EXISTS, name->str);
+    report_error(report, ER_PLUGIN_INSTALLED, name->str);
     DBUG_RETURN(TRUE);
   }
   /* Clear the whole struct to catch future extensions. */
@@ -1577,6 +1577,9 @@ int plugin_init(int *argc, char **argv, int flags)
   /*
     First we register builtin plugins
   */
+  if (global_system_variables.log_warnings >= 9)
+    sql_print_information("Initializing built-in plugins");
+
   for (builtins= mysql_mandatory_plugins; *builtins || mandatory; builtins++)
   {
     if (!*builtins)
@@ -1640,6 +1643,8 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     I_List_iterator<i_string> iter(opt_plugin_load_list);
     i_string *item;
+    if (global_system_variables.log_warnings >= 9)
+      sql_print_information("Initializing plugins specified on the command line");
     while (NULL != (item= iter++))
       plugin_load_list(&tmp_root, item->ptr);
 
@@ -1763,6 +1768,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
   bool result;
   DBUG_ENTER("plugin_load");
 
+  if (global_system_variables.log_warnings >= 9)
+    sql_print_information("Initializing installed plugins");
+
   new_thd->thread_stack= (char*) &tables;
   new_thd->store_globals();
   new_thd->db= my_strdup("mysql", MYF(0));
@@ -1811,9 +1819,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
       the mutex here to satisfy the assert
     */
     mysql_mutex_lock(&LOCK_plugin);
-    if (plugin_add(tmp_root, &name, &dl, REPORT_TO_LOG))
-      sql_print_warning("Couldn't load plugin named '%s' with soname '%s'.",
-                        str_name.c_ptr(), str_dl.c_ptr());
+    plugin_add(tmp_root, &name, &dl, REPORT_TO_LOG);
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }

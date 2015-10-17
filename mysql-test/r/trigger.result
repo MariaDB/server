@@ -415,6 +415,13 @@ i	j	k	@b
 15	NULL	15	Fired
 set @b:="";
 load data infile '../../std_data/loaddata5.dat' into table t1 fields terminated by '' enclosed by '' (i, j);
+Warnings:
+Note	1265	Data truncated for column 'i' at row 1
+Note	1265	Data truncated for column 'j' at row 1
+Note	1265	Data truncated for column 'i' at row 2
+Note	1265	Data truncated for column 'j' at row 2
+Note	1265	Data truncated for column 'i' at row 3
+Note	1265	Data truncated for column 'j' at row 3
 select *, @b from t1;
 i	j	k	@b
 10	NULL	10	Fired

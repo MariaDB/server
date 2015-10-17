@@ -87,6 +87,7 @@
 #cmakedefine HAVE_SYS_UTSNAME_H 1
 #cmakedefine HAVE_SYS_STAT_H 1
 #cmakedefine HAVE_SYS_STREAM_H 1
+#cmakedefine HAVE_SYS_SYSCALL_H 1
 #cmakedefine HAVE_SYS_TERMCAP_H 1
 #cmakedefine HAVE_SYS_TIMEB_H 1
 #cmakedefine HAVE_SYS_TIMES_H 1
@@ -119,6 +120,7 @@
 #cmakedefine HAVE_LIBCRYPT 1
 #cmakedefine HAVE_LIBMTMALLOC 1
 #cmakedefine HAVE_LIBWRAP 1
+#cmakedefine HAVE_SYSTEMD 1
 /* Does "struct timespec" have a "sec" and "nsec" field? */
 #cmakedefine HAVE_TIMESPEC_TS_SEC 1
 
@@ -218,6 +220,7 @@
 #cmakedefine HAVE_POSIX_FALLOCATE 1
 #cmakedefine HAVE_LINUX_FALLOC_H 1
 #cmakedefine HAVE_FALLOCATE 1
+#cmakedefine HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE 1
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_PAUSE_INSTRUCTION 1
 #cmakedefine HAVE_FAKE_PAUSE_INSTRUCTION 1

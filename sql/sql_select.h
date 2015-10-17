@@ -745,8 +745,7 @@ public:
                                struct st_position *pos,
                                struct st_position *loose_scan_pos);
   friend bool get_best_combination(JOIN *join);
-  friend int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
-                                             uint no_jbuf_after);
+  friend int setup_semijoin_loosescan(JOIN *join);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -885,6 +884,7 @@ public:
   JOIN_TAB *end;
 };
 
+class Pushdown_query;
 
 class JOIN :public Sql_alloc
 {
@@ -963,6 +963,9 @@ public:
   Item *pre_sort_idx_pushed_cond;
   void clean_pre_sort_join_tab();
 
+  /* List of fields that aren't under an aggregate function */
+  List<Item_field> non_agg_fields;
+
   /*
     For "Using temporary+Using filesort" queries, JOIN::join_tab can point to
     either: 
@@ -1009,6 +1012,12 @@ public:
   */
   uint     top_join_tab_count;
   uint	   send_group_parts;
+  /*
+    This counts how many times do_select() was invoked for this JOIN.
+    It's used to restrict Pushdown_query::execute() only to the first
+    do_select() invocation.
+  */
+  uint     do_select_call_count;
   /*
     True if the query has GROUP BY.
     (that is, if group_by != NULL. when DISTINCT is converted into GROUP BY, it
@@ -1077,6 +1086,10 @@ public:
 
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
+
+  Pushdown_query *pushdown_query;
+  JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
 
 /******* Join optimization state members start *******/
   /*
@@ -1376,12 +1389,16 @@ public:
     group_optimized_away= 0;
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
+    pushdown_query= 0;
+    original_join_tab= 0;
+    do_select_call_count= 0;
 
     explain= NULL;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
       fields_list= fields_arg;
+    non_agg_fields.empty();
     bzero((char*) &keyuse,sizeof(keyuse));
     tmp_table_param.init();
     tmp_table_param.end_write_records= HA_POS_ERROR;
@@ -1850,9 +1867,9 @@ int test_if_item_cache_changed(List<Cached_item> &list);
 int join_init_read_record(JOIN_TAB *tab);
 int join_read_record_no_init(JOIN_TAB *tab);
 void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key);
-inline Item * and_items(Item* cond, Item *item)
+inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
-  return (cond? (new Item_cond_and(cond, item)) : item);
+  return (cond ? (new (thd->mem_root) Item_cond_and(thd, cond, item)) : item);
 }
 bool choose_plan(JOIN *join, table_map join_tables);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 
@@ -1945,5 +1962,22 @@ ulong check_selectivity(THD *thd,
                         TABLE *table,
                         List<COND_STATISTIC> *conds);
 
+class Pushdown_query: public Sql_alloc
+{
+public:
+  SELECT_LEX *select_lex;
+  bool store_data_in_temp_table;
+  group_by_handler *handler;
+  Item *having;
+
+  Pushdown_query(SELECT_LEX *select_lex_arg, group_by_handler *handler_arg)
+    : select_lex(select_lex_arg), store_data_in_temp_table(0),
+    handler(handler_arg), having(0) {}
+
+  ~Pushdown_query() { delete handler; }
+
+  /* Function that calls the above scan functions */
+  int execute(JOIN *join);
+};
 
 #endif /* SQL_SELECT_INCLUDED */

@@ -56,7 +56,7 @@
 +3	b
  DROP TABLE t1;
 -ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-+# ERROR: Statement succeeded (expected results: ER_ROW_IS_REFERENCED)
++# ERROR: Statement succeeded (expected results: ER_ROW_IS_REFERENCED_2)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command succeeded unexpectedly.
 +# Foreign keys or the mix could be unsupported|malfunctioning, or the problem was caused by previous errors. 

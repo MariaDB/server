@@ -69,8 +69,7 @@ public:
                           srccs, src, src_length, nchars, this);
   }
   /*
-     Copy a string. Fix bad bytes/characters one Unicode conversion,
-     break on bad bytes in case of non-Unicode copying.
+     Copy a string. Fix bad bytes/characters to '?'.
   */
   uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
                         CHARSET_INFO *from_cs, const char *from,
@@ -83,32 +82,6 @@ public:
     return well_formed_copy(to_cs, to, to_length,
                             from_cs, from, from_length,
                             from_length /* No limit on "nchars"*/);
-  }
-  /*
-    Copy a string. If a bad byte sequence is found in case of non-Unicode
-    copying, continues processing and replaces bad bytes to '?'.
-  */
-  uint copy_fix(CHARSET_INFO *to_cs, char *to, uint to_length,
-                CHARSET_INFO *from_cs, const char *from, uint from_length)
-  {
-    uint length= well_formed_copy(to_cs, to, to_length,
-                                  from_cs, from, from_length,
-                                  from_length /* No limit on nchars */);
-    if (well_formed_error_pos() && source_end_pos() < from + from_length)
-    {
-      /*
-        There was an error and there are still some bytes in the source string.
-        This is possible if there were no character set conversion and a
-        malformed byte sequence was found. Copy the rest and replace bad
-        bytes to '?'. Note: m_source_end_pos is not updated!!!
-      */
-      uint dummy_errors;
-      length+= copy_and_convert(to + length, to_length - length, to_cs,
-                                source_end_pos(),
-                                from_length - (source_end_pos() - from),
-                                from_cs, &dummy_errors);
-    }
-    return length;
   }
 };
 
@@ -284,9 +257,9 @@ public:
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
-  /* Move handling of buffer from some other object to String */
-  void reassociate(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
-                   CHARSET_INFO *cs)
+  /* Take over handling of buffer from some other object */
+  void reset(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
+             CHARSET_INFO *cs)
   { 
     free();
     Ptr= ptr_arg;
@@ -294,6 +267,15 @@ public:
     Alloced_length= alloced_length_arg;
     str_charset= cs;
     alloced= ptr_arg != 0;
+  }
+
+  /* Forget about the buffer, let some other object handle it */
+  char *release()
+  {
+    char *old= Ptr;
+    Ptr=0; str_length= Alloced_length= extra_alloc= 0;
+    alloced= thread_specific= 0;
+    return old;
   }
 
   /*
@@ -485,6 +467,10 @@ public:
     }
     return false;
   }
+  bool append_hex(const uchar *src, uint32 srclen)
+  {
+    return append_hex((const char*)src, srclen);
+  }
   bool fill(uint32 max_length,char fill);
   void strip_sp();
   friend int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
@@ -582,7 +568,15 @@ public:
     str_length+= arg_length;
     return FALSE;
   }
-  void print(String *print) const;
+  void print(String *to) const;
+  void print_with_conversion(String *to, CHARSET_INFO *cs) const;
+  void print(String *to, CHARSET_INFO *cs) const
+  {
+    if (my_charset_same(charset(), cs))
+      print(to);
+    else
+      print_with_conversion(to, cs);
+  }
 
   bool append_for_single_quote(const char *st, uint len);
   bool append_for_single_quote(const String *s)

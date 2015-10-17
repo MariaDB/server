@@ -28,7 +28,6 @@
 #
 # Prepare environment.
 #
-
 DELETE FROM mysql.user WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
@@ -1019,6 +1018,7 @@ DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 
+CREATE USER mysqltest_u1@localhost;
 GRANT ALL ON mysqltest_db1.* TO mysqltest_u1@localhost;
 
 --connect(con1,localhost,mysqltest_u1,,mysqltest_db1)

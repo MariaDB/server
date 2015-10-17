@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -132,6 +133,11 @@ enum dberr_t {
 					/*< Too many words in a phrase */
 	DB_TOO_BIG_FOR_REDO,		/* Record length greater than 10%
 					of redo log */
+	DB_DECRYPTION_FAILED,		/* Tablespace encrypted and
+					decrypt operation failed because
+					of missing key management plugin,
+					or missing or incorrect key or
+					incorret AES method or algorithm. */
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,

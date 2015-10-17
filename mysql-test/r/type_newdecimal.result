@@ -52,13 +52,13 @@ if(1, 1.1, 1.2)	if(0, 1.1, 1.2)	if(0.1, 1.1, 1.2)	if(0, 1, 1.1)	if(0, NULL, 1.2)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `if(1, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0.1, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0',
-  `if(0, 1, 1.1)` decimal(2,1) NOT NULL DEFAULT '0.0',
+  `if(1, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0.1, 1.1, 1.2)` decimal(2,1) NOT NULL,
+  `if(0, 1, 1.1)` decimal(2,1) NOT NULL,
   `if(0, NULL, 1.2)` decimal(2,1) DEFAULT NULL,
-  `if(1, 0.22e1, 1.1)` double NOT NULL DEFAULT '0',
-  `if(1E0, 1.1, 1.2)` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `if(1, 0.22e1, 1.1)` double NOT NULL,
+  `if(1E0, 1.1, 1.2)` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 select nullif(1.1, 1.1), nullif(1.1, 1.2), nullif(1.1, 0.11e1), nullif(1.0, 1), nullif(1, 1.0), nullif(1, 1.1);
@@ -174,10 +174,10 @@ create table t1 select round(15.4,-1), truncate(-5678.123451,-3), abs(-1.1), -(-
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `round(15.4,-1)` decimal(3,0) NOT NULL DEFAULT '0',
-  `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL DEFAULT '0',
-  `abs(-1.1)` decimal(3,1) NOT NULL DEFAULT '0.0',
-  `-(-1.1)` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `round(15.4,-1)` decimal(3,0) NOT NULL,
+  `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL,
+  `abs(-1.1)` decimal(3,1) NOT NULL,
+  `-(-1.1)` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set session sql_mode='traditional';
@@ -771,7 +771,7 @@ create table t1 as select 0.5;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `0.5` decimal(2,1) NOT NULL DEFAULT '0.0'
+  `0.5` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select round(1.5),round(2.5);
@@ -1509,7 +1509,7 @@ Warnings:
 Note	1265	Data truncated for column 'f1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-f1	decimal(31,30)	NO		0.000000000000000000000000000000	
+f1	decimal(31,30)	NO		NULL	
 SELECT f1 FROM t1;
 f1
 0.123456789012345678901234567890
@@ -1519,7 +1519,7 @@ Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-f1	decimal(65,30)	NO		0.000000000000000000000000000000	
+f1	decimal(65,30)	NO		NULL	
 SELECT f1 FROM t1;
 f1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1623,7 +1623,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(30,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(30,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 0.123456789123456789123456789123
@@ -1633,7 +1633,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(65,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(65,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 1.123456789123456789123456789123
@@ -1643,7 +1643,7 @@ Warnings:
 Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-my_col	decimal(65,30)	NO		0.000000000000000000000000000000	
+my_col	decimal(65,30)	NO		NULL	
 SELECT my_col FROM t1;
 my_col
 0.123456789123456789123456789123
@@ -1679,7 +1679,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1691,7 +1691,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1703,7 +1703,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1715,7 +1715,7 @@ Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,0)	NO		0	
+c1	decimal(65,0)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999999999999999999999999999999999
@@ -1727,7 +1727,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1737,7 +1737,7 @@ CREATE TABLE t1 SELECT
 AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(31,30)	NO		0.000000000000000000000000000000	
+c1	decimal(31,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 1.100000000000000000000000000000
@@ -1747,7 +1747,7 @@ CREATE TABLE t1 SELECT
 AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(31,30)	NO		0.000000000000000000000000000000	
+c1	decimal(31,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 1.100000000000000000000000000000
@@ -1759,7 +1759,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(30,30)	NO		0.000000000000000000000000000000	
+c1	decimal(30,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 0.100000000000000000000000000000
@@ -1771,7 +1771,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 99999999999999999999999999999999999.999999999999999999999999999999
@@ -1783,7 +1783,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,1)	NO		0.0	
+c1	decimal(65,1)	NO		NULL	
 SELECT * FROM t1;
 c1
 9999999999999999999999999999999999999999999999999999999999999999.9
@@ -1795,7 +1795,7 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,1)	NO		0.0	
+c1	decimal(65,1)	NO		NULL	
 SELECT * FROM t1;
 c1
 9999999999999999999999999999999999999999999999999999999999999999.9
@@ -1807,7 +1807,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(30,30)	NO		0.000000000000000000000000000000	
+c1	decimal(30,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 0.123456789012345678901234567890
@@ -1817,7 +1817,7 @@ Warnings:
 Note	1265	Data truncated for column 'c1' at row 1
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(33,30)	NO		0.000000000000000000000000000000	
+c1	decimal(33,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 123.123456789012345678901234567890
@@ -1825,7 +1825,7 @@ DROP TABLE t1;
 CREATE TABLE t1 SELECT 1.1 + CAST(1 AS DECIMAL(65,30)) AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,30)	NO		0.000000000000000000000000000000	
+c1	decimal(65,30)	NO		NULL	
 SELECT * FROM t1;
 c1
 2.100000000000000000000000000000
@@ -2042,33 +2042,19 @@ SELECT t1.* FROM t1 JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 ALTER TABLE t2 ADD PRIMARY KEY(a);
 SELECT t1.* FROM t1 JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2077,4 +2063,93 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8703 Wrong result for SELECT..WHERE LENGTH(decimal_10_1_column)!=3 AND decimal_10_1_column=1.10
+#
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=3;
+a
+SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10;
+a
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
+# Notice 1.1 instead of 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 1.10) and (<cache>(length(1.1)) <> rand()))
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10,2));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=4;
+a
+SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10;
+a
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
+# Notice 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 1.10) and (<cache>(length(1.10)) <> rand()))
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (1.1),(1.2),(1.3);
+SELECT * FROM t1 WHERE LENGTH(a)!=5;
+a
+SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10;
+a
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
+# Notice 1.100 rather than 1.10 in the final WHERE condition
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)!=rand() AND a=1.10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 1.10) and (<cache>(length(1.100)) <> rand()))
+DROP TABLE t1;
+#
+# MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+#
+CREATE TABLE t1 (a DECIMAL(10,1) ZEROFILL);
+INSERT INTO t1 VALUES (2010),(2020);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010.0 AND a>=2010.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010.0)
+DROP TABLE t1;
+#
+# MDEV-8635 Redundant warnings on WHERE decimal_column='ax'
+#
+CREATE TABLE t1 (a DECIMAL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+EXPLAIN SELECT * FROM t1 WHERE a='ax' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	6	const	1	Using where; Using index; Using filesort
+DROP TABLE t1;
+#
+# End of 10.1 tests
 #

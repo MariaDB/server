@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
-Copyright (c) 2013, 2014, Fusion-io. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates
+Copyright (c) 2013, 2015, MariaDB
+Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -931,11 +931,11 @@ buf_flush_write_block_low(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
+		mach_write_to_8(frame + FIL_PAGE_LSN,
+				bpage->newest_modification);
 
 		ut_a(page_zip_verify_checksum(frame, zip_size));
 
-		mach_write_to_8(frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
 		memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
@@ -2907,8 +2907,6 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE
 	       || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP) {
 
-		ulint n_flushed_lru;
-
 		srv_current_thread_priority = srv_cleaner_thread_priority;
 
 		page_cleaner_sleep_if_needed(next_loop_time);
@@ -2917,16 +2915,7 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 
 		next_loop_time = ut_time_ms() + lru_sleep_time;
 
-		n_flushed_lru = buf_flush_LRU_tail();
-
-		if (n_flushed_lru) {
-
-			MONITOR_INC_VALUE_CUMULATIVE(
-				MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
-				MONITOR_FLUSH_BACKGROUND_COUNT,
-				MONITOR_FLUSH_BACKGROUND_PAGES,
-				n_flushed_lru);
-		}
+		buf_flush_LRU_tail();
 	}
 
 	buf_lru_manager_is_active = false;

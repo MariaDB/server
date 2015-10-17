@@ -811,25 +811,8 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 static void pad_max_char(CHARSET_INFO *cs, char *str, char *end)
 {
   char buf[10];
-  char buflen;
-  
-  if (!(cs->state & MY_CS_UNICODE))
-  {
-    if (cs->max_sort_char <= 255)
-    {
-      bfill(str, end - str, cs->max_sort_char);
-      return;
-    }
-    buf[0]= cs->max_sort_char >> 8;
-    buf[1]= cs->max_sort_char & 0xFF;
-    buflen= 2;
-  }
-  else
-  {
-    buflen= cs->cset->wc_mb(cs, cs->max_sort_char, (uchar*) buf,
-                            (uchar*) buf + sizeof(buf));
-  }
-  
+  char buflen= cs->cset->native_to_mb(cs, cs->max_sort_char, (uchar*) buf,
+                                      (uchar*) buf + sizeof(buf));
   DBUG_ASSERT(buflen > 0);
   do
   {

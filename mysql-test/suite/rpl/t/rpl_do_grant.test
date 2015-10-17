@@ -17,6 +17,7 @@ flush privileges;
 
 # test replication of GRANT
 connection master;
+create user rpl_do_grant@localhost;
 grant select on *.* to rpl_do_grant@localhost;
 grant drop on test.* to rpl_do_grant@localhost;
 sync_slave_with_master;

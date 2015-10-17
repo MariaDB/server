@@ -105,6 +105,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
 void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                          size_t pre_alloc_size __attribute__((unused)))
 {
+  DBUG_ENTER("reset_root_defaults");
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   mem_root->block_size= (((block_size - ALLOC_ROOT_MIN_BLOCK_SIZE) & ~1) |
@@ -127,7 +128,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         {
           /* We found a suitable block, no need to do anything else */
           mem_root->pre_alloc= mem;
-          return;
+          DBUG_VOID_RETURN;
         }
         if (mem->left + ALIGN_SIZE(sizeof(USED_MEM)) == mem->size)
         {
@@ -157,6 +158,8 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
   else
 #endif
     mem_root->pre_alloc= 0;
+
+  DBUG_VOID_RETURN;
 }
 
 

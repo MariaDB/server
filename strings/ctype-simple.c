@@ -1619,7 +1619,10 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       if ((negative_exp= (*str == '-')) || *str=='+')
       {
         if (++str == end)
+        {
+          str-= 2; /* 'e-' or 'e+' not followed by digits */
           goto ret_sign;
+        }
       }
       for (exponent= 0 ;
            str < end && (ch= (uchar) (*str - '0')) < 10;
@@ -1629,6 +1632,8 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       }
       shift+= negative_exp ? -exponent : exponent;
     }
+    else
+      str--; /* 'e' not followed by digits */
   }
   
   if (shift == 0) /* No shift, check addon digit */
@@ -1950,6 +1955,7 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_charlen_8bit,
     my_well_formed_char_length_8bit,
     my_copy_8bit,
+    my_wc_mb_bin, /* native_to_mb */
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =

@@ -74,7 +74,8 @@ struct st_mariadb_encryption debug_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key,
-  0, 0 // use default encrypt/decrypt functions
+  // use default encrypt/decrypt functions
+  0, 0, 0, 0, 0
 };
 
 /*

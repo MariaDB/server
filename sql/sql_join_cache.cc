@@ -318,7 +318,7 @@ void JOIN_CACHE::collect_info_on_key_args()
     The allocated arrays are adjacent.
   
   NOTES
-    The memory is allocated in join->thd->memroot
+    The memory is allocated in join->thd->mem_root
 
   RETURN VALUE
     pointer to the first array  
@@ -328,8 +328,8 @@ int JOIN_CACHE::alloc_fields()
 {
   uint ptr_cnt= external_key_arg_fields+blobs+1;
   uint fields_size= sizeof(CACHE_FIELD)*fields;
-  field_descr= (CACHE_FIELD*) sql_alloc(fields_size +
-                                        sizeof(CACHE_FIELD*)*ptr_cnt);
+  field_descr= (CACHE_FIELD*) join->thd->alloc(fields_size +
+                                               sizeof(CACHE_FIELD*)*ptr_cnt);
   blob_ptr= (CACHE_FIELD **) ((uchar *) field_descr + fields_size);
   return (field_descr == NULL);
 }  
@@ -2620,7 +2620,8 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
                                            sizeof(mrr_str_buf));
   if (len > 0)
   {
-    str->append(STRING_WITH_LEN("; "));
+    if (str->length())
+      str->append(STRING_WITH_LEN("; "));
     str->append(mrr_str_buf, len);
   }
 }
@@ -2679,7 +2680,7 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
   if ((rc= JOIN_CACHE::init(for_explain)) || for_explain)
     DBUG_RETURN (rc); 
 
-  if (!(key_buff= (uchar*) sql_alloc(key_length)))
+  if (!(key_buff= (uchar*) join->thd->alloc(key_length)))
     DBUG_RETURN(1);
 
   /* Take into account a reference to the next record in the key chain */

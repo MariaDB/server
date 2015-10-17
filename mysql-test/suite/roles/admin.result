@@ -1,3 +1,4 @@
+create user foo@localhost;
 grant create user on *.* to foo@localhost;
 create role role1;
 create role role2 with admin current_user;

@@ -311,10 +311,10 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_aio(type, mode, name, file, buf, offset,			\
-	n, message1, message2, write_size)				\
-	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
-			n, message1, message2, write_size,              \
+# define os_aio(type, is_log, mode, name, file, buf, offset,		\
+	n, page_size, message1, message2, write_size)			\
+	pfs_os_aio_func(type, is_log, mode, name, file, buf, offset,	\
+		        n, page_size, message1, message2, write_size,	\
 		        __FILE__, __LINE__)
 
 
@@ -357,10 +357,10 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_aio(type, mode, name, file, buf, offset, n, message1,	\
+# define os_aio(type, is_log, mode, name, file, buf, offset, n, page_size, message1, \
 	message2, write_size)						\
-	os_aio_func(type, mode, name, file, buf, offset, n,		\
-		message1, message2, write_size)
+	os_aio_func(type, is_log, mode, name, file, buf, offset, n,	\
+		page_size, message1, message2, write_size)
 
 # define os_file_read(file, buf, offset, n)				\
 	os_file_read_func(file, buf, offset, n)
@@ -749,6 +749,7 @@ ibool
 pfs_os_aio_func(
 /*============*/
 	ulint		type,	/*!< in: OS_FILE_READ or OS_FILE_WRITE */
+	ulint		is_log,	/*!< in: 1 is OS_FILE_LOG or 0 */
 	ulint		mode,	/*!< in: OS_AIO_NORMAL etc. I/O mode */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
@@ -757,6 +758,7 @@ pfs_os_aio_func(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
 	ulint		n,	/*!< in: number of bytes to read or write */
+	ulint           page_size, /*!< in: page size in bytes */
 	fil_node_t*	message1,/*!< in: message for the aio handler
 				(can be used to identify a completed
 				aio operation); ignored if mode is
@@ -1107,6 +1109,7 @@ ibool
 os_aio_func(
 /*========*/
 	ulint		type,	/*!< in: OS_FILE_READ or OS_FILE_WRITE */
+	ulint		is_log,	/*!< in: 1 is OS_FILE_LOG or 0 */
 	ulint		mode,	/*!< in: OS_AIO_NORMAL, ..., possibly ORed
 				to OS_AIO_SIMULATED_WAKE_LATER: the
 				last flag advises this function not to wake
@@ -1127,6 +1130,7 @@ os_aio_func(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
 	ulint		n,	/*!< in: number of bytes to read or write */
+	ulint           page_size, /*!< in: page size in bytes */
 	fil_node_t*	message1,/*!< in: message for the aio handler
 				(can be used to identify a completed
 				aio operation); ignored if mode is

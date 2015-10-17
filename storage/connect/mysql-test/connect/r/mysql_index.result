@@ -1,0 +1,114 @@
+#
+# Make remote table
+#
+CREATE TABLE t1 (
+id int(11) NOT NULL,
+msg char(100) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES(1,'Un'),(3,'Trois'),(5,'Cinq');
+INSERT INTO t1 VALUES(2,'Two'),(4,'Four'),(6,'Six');
+SELECT * FROM t1;
+id	msg
+1	Un
+3	Trois
+5	Cinq
+2	Two
+4	Four
+6	Six
+#
+# Make local MYSQL table with indexed id column
+#
+CREATE TABLE t2 (
+id int(11) NOT NULL,
+msg char(100) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 TABLE_TYPE=MYSQL TABNAME=t1;
+#
+# Testing SELECT, etc.
+#
+SELECT * FROM t2;
+id	msg
+1	Un
+3	Trois
+5	Cinq
+2	Two
+4	Four
+6	Six
+SELECT * FROM t2 WHERE id = 3;
+id	msg
+3	Trois
+SELECT * FROM t2 WHERE id IN (2,4);
+id	msg
+2	Two
+4	Four
+SELECT * FROM t2 WHERE id IN (2,4) AND msg = 'Two';
+id	msg
+2	Two
+SELECT * FROM t2 WHERE id > 3;
+id	msg
+5	Cinq
+4	Four
+6	Six
+SELECT * FROM t2 WHERE id >= 3;
+id	msg
+3	Trois
+5	Cinq
+4	Four
+6	Six
+SELECT * FROM t2 WHERE id < 3;
+id	msg
+1	Un
+2	Two
+SELECT * FROM t2 WHERE id < 3 OR id > 4;
+id	msg
+1	Un
+2	Two
+5	Cinq
+6	Six
+SELECT * FROM t2 WHERE id <= 3;
+id	msg
+1	Un
+2	Two
+3	Trois
+SELECT * FROM t2 WHERE id BETWEEN 3 AND 5;
+id	msg
+3	Trois
+4	Four
+5	Cinq
+SELECT * FROM t2 WHERE id > 2 AND id < 6;
+id	msg
+3	Trois
+4	Four
+5	Cinq
+SELECT * FROM t2 ORDER BY id;
+id	msg
+1	Un
+2	Two
+3	Trois
+4	Four
+5	Cinq
+6	Six
+UPDATE t2 SET msg = 'Five' WHERE id = 5;
+Warnings:
+Note	1105	t1: 1 affected rows
+SELECT * FROM t2;
+id	msg
+1	Un
+3	Trois
+5	Five
+2	Two
+4	Four
+6	Six
+DELETE FROM t2 WHERE id = 4;
+Warnings:
+Note	1105	t1: 1 affected rows
+SELECT * FROM t2;
+id	msg
+1	Un
+3	Trois
+5	Five
+2	Two
+6	Six
+DROP TABLE t2;
+DROP TABLE t1;

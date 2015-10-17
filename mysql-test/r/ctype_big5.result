@@ -224,9 +224,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -439,9 +451,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -488,7 +512,7 @@ select hex(convert(_big5 0xC84041 using ucs2));
 hex(convert(_big5 0xC84041 using ucs2))
 003F0041
 Warnings:
-Warning	1976	Cannot convert 'big5' character 0xC840 to 'ucs2'
+Warning	1977	Cannot convert 'big5' character 0xC840 to 'ucs2'
 End of 4.1 tests
 set names big5;
 create table t1 (a blob);
@@ -528,7 +552,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -765,70 +789,70 @@ A2C0	‚Öß
 A2C1	‚Ö®
 A2C2	‚Ö©
 Warnings:
-Warning	1976	Cannot convert 'big5' character 0xA3C0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -844,70 +868,70 @@ C7D9	—Ä
 C7DA	—Å
 C7DB	—Ç
 Warnings:
-Warning	1976	Cannot convert 'big5' character 0xA3C0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3C9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3CF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D0 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D1 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D2 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D3 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D4 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D5 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D6 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D7 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D8 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3D9 to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DA to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DB to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DC to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DD to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DE to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DF to 'utf8'
-Warning	1976	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -926,7 +950,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -946,7 +970,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1185,7 +1209,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 COLLATE big5_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1205,7 +1229,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET big5 COLLATE big5_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -4548,7 +4572,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('‡\'),('‡\t');
 INSERT INTO t1 VALUES ('\\‡\'),('\\‡\t'),('\\‡\t\t');
@@ -4587,7 +4611,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (BINARY('‡\')),(BINARY('‡\t'));
 INSERT INTO t1 VALUES (BINARY('\\‡\')),(BINARY('\\‡\t')),(BINARY('\\‡\t\t'));
@@ -4626,7 +4650,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_BINARY'‡\'),(_BINARY'‡\t');
 INSERT INTO t1 VALUES (_BINARY'\\‡\'),(_BINARY'\\‡\t'),(_BINARY'\\‡\t\t');
@@ -4672,7 +4696,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('‡\['),('\‡\[');
 SELECT HEX(a) FROM t1;
@@ -4692,7 +4716,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(10) NOT NULL DEFAULT ''
+  `a` varbinary(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('‡\['),('\‡\[');
 SELECT HEX(a) FROM t1;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation
@@ -264,8 +264,8 @@ srv_file_check_mode(
 
 		/* Note: stat.rw_perm is only valid of files */
 
-		if (stat.type == OS_FILE_TYPE_FILE
-		    || stat.type == OS_FILE_TYPE_BLOCK) {
+		if (stat.type == OS_FILE_TYPE_FILE) {
+
 			if (!stat.rw_perm) {
 
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -462,14 +462,18 @@ srv_parse_data_file_paths_and_sizes(
 		    && *(str + 1) == 'e'
 		    && *(str + 2) == 'w') {
 			str += 3;
-			(srv_data_file_is_raw_partition)[i] = SRV_NEW_RAW;
+			/* Initialize new raw device only during bootstrap */
+			(srv_data_file_is_raw_partition)[i] =
+			opt_bootstrap ? SRV_NEW_RAW : SRV_OLD_RAW;
 		}
 
 		if (*str == 'r' && *(str + 1) == 'a' && *(str + 2) == 'w') {
 			str += 3;
 
+			/* Initialize new raw device only during bootstrap */
 			if ((srv_data_file_is_raw_partition)[i] == 0) {
-				(srv_data_file_is_raw_partition)[i] = SRV_OLD_RAW;
+				(srv_data_file_is_raw_partition)[i] =
+				opt_bootstrap ? SRV_NEW_RAW : SRV_OLD_RAW;
 			}
 		}
 
@@ -945,6 +949,21 @@ open_or_create_data_files(
 
 				return(DB_ERROR);
 			}
+
+			const char*	check_msg;
+			check_msg = fil_read_first_page(
+				files[i], FALSE, &flags, &space,
+				min_flushed_lsn, max_flushed_lsn, NULL);
+
+			/* If first page is valid, don't overwrite DB.
+			It prevents overwriting DB when mysql_install_db
+			starts mysqld multiple times during bootstrap. */
+			if (check_msg == NULL) {
+
+				srv_created_new_raw = FALSE;
+				ret = FALSE;
+			}
+
 		} else if (srv_data_file_is_raw_partition[i] == SRV_OLD_RAW) {
 			srv_start_raw_disk_in_use = TRUE;
 
@@ -2710,24 +2729,25 @@ files_checked:
 	}
 
 #ifdef UNIV_LOG_ARCHIVE
-	/* Archiving is always off under MySQL */
-	if (!srv_log_archive_on) {
-		ut_a(DB_SUCCESS == log_archive_noarchivelog());
-	} else {
-		bool	start_archive;
+	if (!srv_read_only_mode) {
+		if (!srv_log_archive_on) {
+			ut_a(DB_SUCCESS == log_archive_noarchivelog());
+		} else {
+			bool	start_archive;
 
-		mutex_enter(&(log_sys->mutex));
+			mutex_enter(&(log_sys->mutex));
 
-		start_archive = FALSE;
+			start_archive = false;
 
-		if (log_sys->archiving_state == LOG_ARCH_OFF) {
-			start_archive = TRUE;
-		}
+			if (log_sys->archiving_state == LOG_ARCH_OFF) {
+				start_archive = true;
+			}
 
-		mutex_exit(&(log_sys->mutex));
+			mutex_exit(&(log_sys->mutex));
 
-		if (start_archive) {
-			ut_a(DB_SUCCESS == log_archive_archivelog());
+			if (start_archive) {
+				ut_a(DB_SUCCESS == log_archive_archivelog());
+			}
 		}
 	}
 #endif /* UNIV_LOG_ARCHIVE */

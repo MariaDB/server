@@ -851,12 +851,18 @@ ibuf_bitmap_get_map_page_func(
 	ulint		line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	buf_block_t*	block;
+	buf_block_t*	block = NULL;
+	dberr_t		err = DB_SUCCESS;
 
 	block = buf_page_get_gen(space, zip_size,
 				 ibuf_bitmap_page_no_calc(zip_size, page_no),
 				 RW_X_LATCH, NULL, BUF_GET,
-				 file, line, mtr);
+				 file, line, mtr, &err);
+
+	if (err != DB_SUCCESS) {
+		return NULL;
+	}
+
 	buf_block_dbg_add_level(block, SYNC_IBUF_BITMAP);
 
 	return(buf_block_get_frame(block));
@@ -4631,16 +4637,20 @@ ibuf_merge_or_delete_for_page(
 			block = NULL;
 			update_ibuf_bitmap = FALSE;
 		} else {
-			page_t*	bitmap_page;
-			ulint	bitmap_bits;
+			page_t*	bitmap_page = NULL;
+			ulint	bitmap_bits = 0;
 
 			ibuf_mtr_start(&mtr);
 
 			bitmap_page = ibuf_bitmap_get_map_page(
 				space, page_no, zip_size, &mtr);
-			bitmap_bits = ibuf_bitmap_page_get_bits(
-				bitmap_page, page_no, zip_size,
-				IBUF_BITMAP_BUFFERED, &mtr);
+
+			if (bitmap_page &&
+			    fil_page_get_type(bitmap_page) != FIL_PAGE_TYPE_ALLOCATED) {
+				bitmap_bits = ibuf_bitmap_page_get_bits(
+					bitmap_page, page_no, zip_size,
+					IBUF_BITMAP_BUFFERED, &mtr);
+			}
 
 			ibuf_mtr_commit(&mtr);
 

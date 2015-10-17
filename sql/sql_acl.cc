@@ -6894,16 +6894,18 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
 
   for (tl= tables; number-- ; tl= tl->next_global)
   {
-    sctx= MY_TEST(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
+    TABLE_LIST *const t_ref=
+      tl->correspondent_table ? tl->correspondent_table : tl;
+    sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
 
     const ACL_internal_table_access *access=
-      get_cached_table_access(&tl->grant.m_internal,
-                              tl->get_db_name(),
-                              tl->get_table_name());
+      get_cached_table_access(&t_ref->grant.m_internal,
+                              t_ref->get_db_name(),
+                              t_ref->get_table_name());
 
     if (access)
     {
-      switch(access->check(orig_want_access, &tl->grant.privilege))
+      switch(access->check(orig_want_access, &t_ref->grant.privilege))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         /*
@@ -6927,26 +6929,26 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (!want_access)
       continue;                                 // ok
 
-    if (!(~tl->grant.privilege & want_access) ||
-        tl->is_anonymous_derived_table() || tl->schema_table)
+    if (!(~t_ref->grant.privilege & want_access) ||
+        t_ref->is_anonymous_derived_table() || t_ref->schema_table)
     {
       /*
-        It is subquery in the FROM clause. VIEW set tl->derived after
+        It is subquery in the FROM clause. VIEW set t_ref->derived after
         table opening, but this function always called before table opening.
       */
-      if (!tl->referencing_view)
+      if (!t_ref->referencing_view)
       {
         /*
           If it's a temporary table created for a subquery in the FROM
           clause, or an INFORMATION_SCHEMA table, drop the request for
           a privilege.
         */
-        tl->grant.want_privilege= 0;
+        t_ref->grant.want_privilege= 0;
       }
       continue;
     }
 
-    if (is_temporary_table(tl))
+    if (is_temporary_table(t_ref))
     {
       /*
         If this table list element corresponds to a pre-opened temporary
@@ -6954,8 +6956,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
         Note that during creation of temporary table we still need to check
         if user has CREATE_TMP_ACL.
       */
-      tl->grant.privilege|= TMP_TABLE_ACLS;
-      tl->grant.want_privilege= 0;
+      t_ref->grant.privilege|= TMP_TABLE_ACLS;
+      t_ref->grant.want_privilege= 0;
       continue;
     }
 
@@ -6966,20 +6968,20 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     }
 
     grant_table= table_hash_search(sctx->host, sctx->ip,
-                                   tl->get_db_name(),
+                                   t_ref->get_db_name(),
                                    sctx->priv_user,
-                                   tl->get_table_name(),
+                                   t_ref->get_table_name(),
                                    FALSE);
     if (sctx->priv_role[0])
-      grant_table_role= table_hash_search("", NULL, tl->get_db_name(),
+      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name(),
                                           sctx->priv_role,
-                                          tl->get_table_name(),
+                                          t_ref->get_table_name(),
                                           TRUE);
 
     if (!grant_table && !grant_table_role)
     {
-      want_access&= ~tl->grant.privilege;
-      goto err;
+      want_access&= ~t_ref->grant.privilege;
+      goto err;					// No grants
     }
 
     /*
@@ -6989,19 +6991,19 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (any_combination_will_do)
       continue;
 
-    tl->grant.grant_table_user= grant_table; // Remember for column test
-    tl->grant.grant_table_role= grant_table_role;
-    tl->grant.version= grant_version;
-    tl->grant.privilege|= grant_table ? grant_table->privs : 0;
-    tl->grant.privilege|= grant_table_role ? grant_table_role->privs : 0;
-    tl->grant.want_privilege= ((want_access & COL_ACLS) & ~tl->grant.privilege);
+    t_ref->grant.grant_table_user= grant_table; // Remember for column test
+    t_ref->grant.grant_table_role= grant_table_role;
+    t_ref->grant.version= grant_version;
+    t_ref->grant.privilege|= grant_table ? grant_table->privs : 0;
+    t_ref->grant.privilege|= grant_table_role ? grant_table_role->privs : 0;
+    t_ref->grant.want_privilege= ((want_access & COL_ACLS) & ~t_ref->grant.privilege);
 
-    if (!(~tl->grant.privilege & want_access))
+    if (!(~t_ref->grant.privilege & want_access))
       continue;
 
     if ((want_access&= ~((grant_table ? grant_table->cols : 0) |
                         (grant_table_role ? grant_table_role->cols : 0) |
-                        tl->grant.privilege)))
+                        t_ref->grant.privilege)))
     {
       goto err;                                 // impossible
     }
@@ -7788,7 +7790,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new Item_string_ascii("", 0);
+  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;
@@ -7796,9 +7798,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     strxmov(buff,"Grants for ",rolename, NullS);
   else
     strxmov(buff,"Grants for ",username,"@",hostname, NullS);
-  field_list.push_back(field);
+  field_list.push_back(field, thd->mem_root);
   if (protocol->send_result_set_metadata(&field_list,
-                                         Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
@@ -8574,7 +8577,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
 
   int error;
   int result= 0;
-  THD *thd= current_thd;
+  THD *thd= table->in_use;
   const char *host, *user, *role;
   Field *host_field= table->field[0];
   Field *user_field= table->field[1];
@@ -8667,7 +8670,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     < 0         Error.
 */
 
-static int handle_grant_table(TABLE_LIST *tables,
+static int handle_grant_table(THD *thd, TABLE_LIST *tables,
                               enum enum_acl_tables table_no, bool drop,
                               LEX_USER *user_from, LEX_USER *user_to)
 {
@@ -8684,7 +8687,6 @@ static int handle_grant_table(TABLE_LIST *tables,
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
   DBUG_ENTER("handle_grant_table");
-  THD *thd= current_thd;
 
   if (table_no == ROLES_MAPPING_TABLE)
   {
@@ -9188,7 +9190,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     < 0         Error.
 */
 
-static int handle_grant_data(TABLE_LIST *tables, bool drop,
+static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
                              LEX_USER *user_from, LEX_USER *user_to)
 {
   int result= 0;
@@ -9211,7 +9213,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle db table. */
-  if ((found= handle_grant_table(tables, DB_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, DB_TABLE, drop, user_from,
+                                 user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
     result= -1;
@@ -9231,7 +9234,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle stored routines table. */
-  if ((found= handle_grant_table(tables, PROCS_PRIV_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, PROCS_PRIV_TABLE, drop,
+                                 user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch in-memory array. */
     result= -1;
@@ -9259,7 +9263,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle tables table. */
-  if ((found= handle_grant_table(tables, TABLES_PRIV_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, TABLES_PRIV_TABLE, drop,
+                                 user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch columns and in-memory array. */
     result= -1;
@@ -9275,7 +9280,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     }
 
     /* Handle columns table. */
-    if ((found= handle_grant_table(tables, COLUMNS_PRIV_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, COLUMNS_PRIV_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9294,7 +9300,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   /* Handle proxies_priv table. */
   if (tables[PROXIES_PRIV_TABLE].table)
   {
-    if ((found= handle_grant_table(tables, PROXIES_PRIV_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, PROXIES_PRIV_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9313,7 +9320,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   /* Handle roles_mapping table. */
   if (tables[ROLES_MAPPING_TABLE].table)
   {
-    if ((found= handle_grant_table(tables, ROLES_MAPPING_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, ROLES_MAPPING_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9330,7 +9338,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle user table. */
-  if ((found= handle_grant_table(tables, USER_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, USER_TABLE, drop, user_from,
+                                 user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
     result= -1;
@@ -9424,12 +9433,12 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
     */
-    if (handle_grant_data(tables, 0, user_name, NULL))
+    if (handle_grant_data(thd, tables, 0, user_name, NULL))
     {
       if (thd->lex->create_info.or_replace())
       {
         // Drop the existing user
-        if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+        if (handle_grant_data(thd, tables, 1, user_name, NULL) <= 0)
         {
           // DROP failed
           append_user(thd, &wrong_users, user_name);
@@ -9572,7 +9581,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
-    if ((rc= handle_grant_data(tables, 1, user_name, NULL)) > 0)
+    if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
     {
       // The user or role was successfully deleted
       binlog= true;
@@ -9685,8 +9694,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
       Search all in-memory structures and grant tables
       for a mention of the new user name.
     */
-    if (handle_grant_data(tables, 0, user_to, NULL) ||
-        handle_grant_data(tables, 0, user_from, user_to) <= 0)
+    if (handle_grant_data(thd, tables, 0, user_to, NULL) ||
+        handle_grant_data(thd, tables, 0, user_from, user_to) <= 0)
     {
       /* NOTE TODO renaming roles is not yet implemented */
       append_user(thd, &wrong_users, user_from);
@@ -10158,7 +10167,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
     combo->auth= au->auth_string;
   }
 
-  if (user_list.push_back(combo))
+  if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
 
   thd->lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;

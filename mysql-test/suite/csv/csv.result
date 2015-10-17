@@ -5493,3 +5493,57 @@ RENAME TABLE t1 TO t2;
 SELECT * FROM t2;
 a
 DROP TABLE t2;
+#
+# MDEV-8664 - plugins.show_all_plugins --embedded fails in buildbot
+#
+CREATE TABLE t1(c1 TEXT NOT NULL, c2 TEXT NOT NULL) ENGINE=CSV IETF_QUOTES=yes;
+INSERT INTO t1 VALUES("a\"b,c","d");
+INSERT INTO t1 VALUES("d","a\"b,c");
+INSERT INTO t1 VALUES(",\"a","e");
+INSERT INTO t1 VALUES("e",",\"a");
+INSERT INTO t1 VALUES("\"","f");
+INSERT INTO t1 VALUES("f","\"");
+INSERT INTO t1 VALUES(",","g");
+INSERT INTO t1 VALUES("g",",");
+SELECT * FROM t1;
+c1	c2
+a"b,c	d
+d	a"b,c
+,"a	e
+e	,"a
+"	f
+f	"
+,	g
+g	,
+CSV file contents:
+"a""b,c","d"
+"d","a""b,c"
+",""a","e"
+"e",",""a"
+"""","f"
+"f",""""
+",","g"
+"g",","
+DROP TABLE t1;
+CREATE TABLE t1(c1 TEXT NOT NULL, c2 TEXT NOT NULL) ENGINE=CSV IETF_QUOTES=yes;
+Replacing t1.CSV
+SELECT * FROM t1;
+c1	c2
+a	b
+a	b
+a"b,c	d
+d	,"a
+a",	e
+e	"
+,	f
+ALTER TABLE t1 IETF_QUOTES=no;
+SELECT * FROM t1;
+c1	c2
+a	b
+a	b
+a"b,c	d
+d	,"a
+a",	e
+e	"
+,	f
+DROP TABLE t1;

@@ -4,6 +4,8 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+set global sql_mode="";
+set local sql_mode="";
 
 # Test of GRANT commands
 
@@ -204,6 +206,7 @@ connection default;
 DROP USER 'user2'@'%';
 DROP DATABASE temp;
 
+set global sql_mode=default;
 --echo End of 5.0 tests
 
 # Wait till we reached the initial number of concurrent sessions

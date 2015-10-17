@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, SkySQL Ab. All Rights Reserved.
+Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,7 +22,7 @@ Index defragmentation.
 
 Created  05/29/2014 Rongrong Zhong
 Modified 16/07/2014 Sunguck Lee
-Modified 30/07/2014 Jan Lindström jan.lindstrom@skysql.com
+Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "btr0defragment.h"
@@ -208,16 +208,31 @@ synchronized defragmentation. */
 os_event_t
 btr_defragment_add_index(
 	dict_index_t*	index,	/*!< index to be added  */
-	bool		async)	/*!< whether this is an async defragmentation */
+	bool		async,	/*!< whether this is an async
+				defragmentation */
+	dberr_t*	err)	/*!< out: error code */
 {
 	mtr_t mtr;
 	ulint space = dict_index_get_space(index);
 	ulint zip_size = dict_table_zip_size(index->table);
 	ulint page_no = dict_index_get_page(index);
+	*err = DB_SUCCESS;
+
 	mtr_start(&mtr);
 	// Load index rood page.
-	page_t* page = btr_page_get(space, zip_size, page_no,
-				    RW_NO_LATCH, index, &mtr);
+	buf_block_t* block = btr_block_get(space, zip_size, page_no, RW_NO_LATCH, index, &mtr);
+	page_t* page = NULL;
+
+	if (block) {
+		page = buf_block_get_frame(block);
+	}
+
+	if (page == NULL && index->table->is_encrypted) {
+		mtr_commit(&mtr);
+		*err = DB_DECRYPTION_FAILED;
+		return NULL;
+	}
+
 	if (btr_page_get_level(page, &mtr) == 0) {
 		// Index root is a leaf page, no need to defragment.
 		mtr_commit(&mtr);

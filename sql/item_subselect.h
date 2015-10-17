@@ -128,7 +128,7 @@ public:
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,
 		  EXISTS_SUBS, IN_SUBS, ALL_SUBS, ANY_SUBS};
 
-  Item_subselect();
+  Item_subselect(THD *thd);
 
   virtual subs_type substype() { return UNKNOWN_SUBS; }
   bool is_in_predicate()
@@ -269,7 +269,7 @@ protected:
   Item_cache *value, **row;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
-  Item_singlerow_subselect() :Item_subselect(), value(0), row (0)
+  Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
   {}
 
   void cleanup();
@@ -311,7 +311,7 @@ public:
   */
   st_select_lex* invalidate_and_restore_select_lex();
 
-  Item* expr_cache_insert_transformer(uchar *thd_arg);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
   friend class select_singlerow_subselect;
 };
@@ -364,8 +364,8 @@ public:
   bool exists_transformed;
 
   Item_exists_subselect(THD *thd_arg, st_select_lex *select_lex);
-  Item_exists_subselect()
-    :Item_subselect(), upper_not(NULL),abort_on_null(0),
+  Item_exists_subselect(THD *thd_arg):
+    Item_subselect(thd_arg), upper_not(NULL), abort_on_null(0),
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
   {}
 
@@ -391,7 +391,7 @@ public:
   inline bool is_top_level_item() { return abort_on_null; }
   bool exists2in_processor(uchar *opt_arg);
 
-  Item* expr_cache_insert_transformer(uchar *thd_arg);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
   void mark_as_condition_AND_part(TABLE_LIST *embedding)
   {
@@ -481,6 +481,12 @@ protected:
                                     Item **having_item);
 public:
   Item *left_expr;
+  /*
+    Important for PS/SP: left_expr_orig is the item that left_expr originally
+    pointed at. That item is allocated on the statement arena, while
+    left_expr could later be changed to something on the execution arena.
+  */
+  Item *left_expr_orig;
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
   /*
@@ -570,8 +576,8 @@ public:
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
-  Item_in_subselect()
-    :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
+  Item_in_subselect(THD *thd_arg):
+    Item_exists_subselect(thd_arg), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
     pushed_cond_guards(NULL), func(NULL), is_jtbm_merged(FALSE),
     is_jtbm_const_tab(FALSE), upper_item(0) {}

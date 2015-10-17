@@ -5,6 +5,10 @@
 # Note that this test gives error in the gzip library when running under
 # valgrind, but these warnings can be ignored
 
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
 select @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ';
 select length(@test_compress_string);
 
@@ -142,6 +146,9 @@ DROP TABLE t1;
 #
 SELECT UNCOMPRESS(CAST(0 AS BINARY(5)));
 
+disconnect conn1;
+connection default;
+set global max_allowed_packet=default;
 --echo #
 --echo # End of 5.5 tests
 --echo #

@@ -2094,6 +2094,9 @@ f1	f2	f3	f3
 4	0	0	0
 4	0	0	0
 0	NULL	NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 DROP TABLE t1, t2, t3, t4;
 set @tmp803457=@@optimizer_switch;
 #
@@ -2285,8 +2288,14 @@ CREATE TABLE t3 (a int, b int) ;
 PREPARE st1 FROM "SELECT * FROM t2 LEFT JOIN t1 ON t2.a != 0 AND ('j','r') IN ( SELECT b,a FROM t3)";
 EXECUTE st1;
 a	a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'r'
 EXECUTE st1;
 a	a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'r'
 DROP TABLE t1, t2, t3;
 #
 # BUG#849776: Wrong result with semijoin + "Impossible where"
@@ -2821,10 +2830,7 @@ col_varchar_nokey varchar(1) DEFAULT NULL,
 PRIMARY KEY (pk),
 KEY col_int_key (col_int_key),
 KEY col_varchar_key (col_varchar_key, col_int_key)
-) ENGINE=InnoDB;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't1'
+);
 INSERT INTO t1 VALUES
 (10,8,'x','x'),
 (11,7,'d','d'),

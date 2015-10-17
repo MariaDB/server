@@ -149,7 +149,9 @@ insert into t1 select "yesterday_24_";
 
 create table t2 ENGINE=MyISAM select rpad(UUID(),100,' ');
 create table t3 select 1 union select UUID();
+--disable_warnings
 create table t4 select * from t1 where 3 in (select 1 union select 2 union select UUID() union select 3);
+--enable_warnings
 create table t5 select * from t1 where 3 in (select 1 union select 2 union select curdate() union select 3);
 # what if UUID() is first:
 --disable_warnings

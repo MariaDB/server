@@ -4,6 +4,7 @@
 # (test case numbering refer to requirement document TP v1.1)
 #======================================================================
 # WL#4084: enable disabled parts, 2007-11-15 hhunger
+set GLOBAL sql_mode="";
 
 USE test;
 --source suite/funcs_1/include/tb3.inc
@@ -557,3 +558,4 @@ let $message= Testcase 3.5.8.7;
 	drop user test_super@localhost;
 
 DROP TABLE test.tb3;
+set GLOBAL sql_mode=default;

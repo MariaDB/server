@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1670,8 +1670,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
 	if (!key)
 	{
-	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length,
-					   MAX_KEY_LENGTH)))
+	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length)))
 	  {
 	    error=ENOMEM;
 	    goto err;
@@ -1897,7 +1896,7 @@ after_trg_n_copied_inc:
 
 ok_or_after_trg_err:
   if (key)
-    my_safe_afree(key,table->s->max_unique_length,MAX_KEY_LENGTH);
+    my_safe_afree(key,table->s->max_unique_length);
   if (!table->file->has_transactions())
     thd->transaction.stmt.modified_non_trans_table= TRUE;
   DBUG_RETURN(trg_error);
@@ -1909,7 +1908,7 @@ err:
 before_trg_err:
   table->file->restore_auto_increment(prev_insert_id);
   if (key)
-    my_safe_afree(key, table->s->max_unique_length, MAX_KEY_LENGTH);
+    my_safe_afree(key, table->s->max_unique_length);
   table->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(1);
 }
@@ -3482,7 +3481,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
       while ((item= li++))
       {
-        item->transform(&Item::update_value_transformer,
+        item->transform(thd, &Item::update_value_transformer,
                         (uchar*)lex->current_select);
       }
     }
@@ -3867,6 +3866,14 @@ void select_insert::abort_result_set() {
   CREATE TABLE (SELECT) ...
 ***************************************************************************/
 
+Field *Item::create_field_for_create_select(THD *thd, TABLE *table)
+{
+  Field *def_field, *tmp_field;
+  return create_tmp_field(thd, table, this, type(),
+                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0, 0);
+}
+
+
 /**
   Create table from lists of fields and items (or just return TABLE
   object for pre-opened existing table).
@@ -3921,7 +3928,6 @@ static TABLE *create_table_from_items(THD *thd,
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
-  Field *tmp_field;
   DBUG_ENTER("create_table_from_items");
 
   tmp_table.alias= 0;
@@ -3931,32 +3937,45 @@ static TABLE *create_table_from_items(THD *thd,
   tmp_table.s->db_create_options=0;
   tmp_table.null_row= 0;
   tmp_table.maybe_null= 0;
+  tmp_table.in_use= thd;
 
-  promote_first_timestamp_column(&alter_info->create_list);
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
 
   while ((item=it++))
   {
-    Create_field *cr_field;
-    Field *field, *def_field;
-    if (item->type() == Item::FUNC_ITEM)
+    Field *tmp_field= item->create_field_for_create_select(thd, &tmp_table);
+
+    if (!tmp_field)
+      DBUG_RETURN(NULL);
+
+    Field *table_field;
+
+    switch (item->type())
     {
-      if (item->result_type() != STRING_RESULT)
-        field= item->tmp_table_field(&tmp_table);
-      else
-        field= item->tmp_table_field_from_field_type(&tmp_table, 0);
+    /*
+      We have to take into account both the real table's fields and
+      pseudo-fields used in trigger's body. These fields are used
+      to copy defaults values later inside constructor of
+      the class Create_field.
+    */
+    case Item::FIELD_ITEM:
+    case Item::TRIGGER_FIELD_ITEM:
+      table_field= ((Item_field *) item)->field;
+      break;
+    default:
+      table_field= NULL;
     }
-    else
-      field= create_tmp_field(thd, &tmp_table, item, item->type(),
-                              (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
-                              0);
-    if (!field ||
-	!(cr_field=new Create_field(field,(item->type() == Item::FIELD_ITEM ?
-					   ((Item_field *)item)->field :
-					   (Field*) 0))))
-      DBUG_RETURN(0);
+
+    Create_field *cr_field= new (thd->mem_root)
+                                  Create_field(thd, tmp_field, table_field);
+
+    if (!cr_field)
+      DBUG_RETURN(NULL);
+
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
-    alter_info->create_list.push_back(cr_field);
+    alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
@@ -4043,7 +4062,7 @@ static TABLE *create_table_from_items(THD *thd,
   {
     if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
-    DBUG_RETURN(0);
+    DBUG_RETURN(NULL);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_lock");

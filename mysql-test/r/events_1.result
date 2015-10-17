@@ -1,3 +1,4 @@
+set sql_mode="";
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 drop database if exists events_test;
 drop database if exists db_x;
@@ -114,7 +115,8 @@ create table t_event3 (a int, b float);
 drop event if exists event3;
 Warnings:
 Note	1305	Event event3 does not exist
-create event event3 on schedule every 50 + 10 minute starts date_add("20100101", interval 5 minute) ends date_add("20151010", interval 5 day) comment "portokala_comment" DO insert into t_event3 values (unix_timestamp(), rand());
+create event event3 on schedule every 50 + 10 minute starts date_add("20100101", interval 5 minute) ends date_add("20251010", interval 5 day)
+comment "portokala_comment" DO insert into t_event3 values (unix_timestamp(), rand());
 select count(*) from t_event3;
 count(*)
 0

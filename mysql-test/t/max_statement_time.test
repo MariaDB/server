@@ -1,9 +1,11 @@
 #
 # Test behavior of MAX_STATEMENT_TIME.
+# We can't do this under valgrind as valgrind interferes with thread scheduling
 #
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/not_valgrind.inc
 
 --echo
 --echo # Test the MAX_STATEMENT_TIME option.
@@ -77,6 +79,7 @@ DROP TABLE t1;
 --echo # MAX_STATEMENT_TIME account resource
 --echo
 
+set statement sql_mode="" for
 GRANT USAGE ON *.* TO user1@localhost WITH MAX_STATEMENT_TIME 1.005;
 
 --echo # con1
@@ -201,17 +204,20 @@ create procedure pr()
    select 1;
    select sql_no_cache * from t1 where i > 5;
    select sql_no_cache * from t1 where i > 5;
+   select sleep(2);
  end |
 delimiter ;|
 set max_statement_time = 0.001;
 --error ER_STATEMENT_TIMEOUT
 call pr();
+set max_statement_time = 0;
 drop procedure pr;
 delimiter |;
 create procedure pr()
  begin
    select sql_no_cache * from t1 where i > 5;
    select sql_no_cache * from t1 where i > 5;
+   select sleep(2);
  end |
 delimiter ;|
 set max_statement_time = 0.001;

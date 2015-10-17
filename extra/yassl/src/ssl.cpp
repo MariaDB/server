@@ -37,6 +37,8 @@
 #include "file.hpp"             // for TaoCrypt Source
 #include "coding.hpp"           // HexDecoder
 #include "helpers.hpp"          // for placement new hack
+#include "rsa.hpp"              // for TaoCrypt RSA key decode
+#include "dsa.hpp"              // for TaoCrypt DSA key decode
 #include <stdio.h>
 #include <time.h>
 
@@ -55,6 +57,8 @@ namespace yaSSL {
 
 int read_file(SSL_CTX* ctx, const char* file, int format, CertType type)
 {
+    int ret = SSL_SUCCESS;
+
     if (format != SSL_FILETYPE_ASN1 && format != SSL_FILETYPE_PEM)
         return SSL_BAD_FILETYPE;
 
@@ -142,8 +146,31 @@ int read_file(SSL_CTX* ctx, const char* file, int format, CertType type)
             }
         }
     }
+
+    if (type == PrivateKey && ctx->privateKey_) {
+        // see if key is valid early
+        TaoCrypt::Source rsaSource(ctx->privateKey_->get_buffer(),
+                                   ctx->privateKey_->get_length());
+        TaoCrypt::RSA_PrivateKey rsaKey;
+        rsaKey.Initialize(rsaSource);
+
+        if (rsaSource.GetError().What()) {
+            // rsa failed see if DSA works
+
+            TaoCrypt::Source dsaSource(ctx->privateKey_->get_buffer(),
+                                       ctx->privateKey_->get_length());
+            TaoCrypt::DSA_PrivateKey dsaKey;
+            dsaKey.Initialize(dsaSource);
+
+            if (rsaSource.GetError().What()) {
+                // neither worked
+                ret = SSL_FAILURE;
+            }
+        }
+    }
+
     fclose(input);
-    return SSL_SUCCESS;
+    return ret;
 }
 
 
@@ -952,7 +979,7 @@ void OpenSSL_add_all_algorithms()  // compatibility only
 {}
 
 
-int SSL_library_init()  // compatiblity only
+int SSL_library_init()  // compatibility only
 {
     return 1;
 }

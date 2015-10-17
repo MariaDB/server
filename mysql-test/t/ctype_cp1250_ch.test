@@ -12,6 +12,7 @@ SHOW COLLATION LIKE 'cp1250_czech_cs';
 SET @test_character_set= 'cp1250';
 SET @test_collation= 'cp1250_general_ci';
 -- source include/ctype_common.inc
+-- source include/ctype_like_cond_propagation.inc
 
 SET @test_character_set= 'cp1250';
 SET @test_collation= 'cp1250_czech_cs';

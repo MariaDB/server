@@ -170,7 +170,7 @@ type_numeric numeric(5,2),
 empty_char char(0),
 type_char char(2),
 type_varchar varchar(10),
-type_timestamp timestamp not null,
+type_timestamp timestamp not null default current_timestamp on update current_timestamp,
 type_date date not null default '0000-00-00',
 type_time time not null default '00:00:00',
 type_datetime datetime not null default '0000-00-00 00:00:00',
@@ -322,8 +322,11 @@ create database mysqltest;
 show create database mysqltest;
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
+create user mysqltest_1@localhost;
 grant select on `mysqltest`.* to mysqltest_1@localhost;
+create user mysqltest_2@localhost;
 grant usage  on `mysqltest`.* to mysqltest_2@localhost;
+create user mysqltest_3@localhost;
 grant drop   on `mysqltest`.* to mysqltest_3@localhost;
 
 connect (con1,localhost,mysqltest_1,,mysqltest);
@@ -990,6 +993,7 @@ create database mysqltest;
 show create database mysqltest;
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
+create user mysqltest_4@localhost;
 grant select on `mysqltest`.`t1` to mysqltest_4@localhost;
 connect (con4,localhost,mysqltest_4,,mysqltest);
 connection con4;

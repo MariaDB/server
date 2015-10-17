@@ -172,6 +172,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.value= (uchar **)global_var_ptr();
   option.def_value= def_val;
   option.app_type= this;
+  option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
 
   if (chain->last)
     chain->last->next= this;
@@ -788,9 +789,30 @@ int set_var::light_check(THD *thd)
   Consider set_var::check() method if there is a need to return
   an error due to logics.
 */
+
 int set_var::update(THD *thd)
 {
   return value ? var->update(thd, this) : var->set_default(thd, this);
+}
+
+
+set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
+                 const LEX_STRING *base_name_arg, Item *value_arg)
+  :var(var_arg), type(type_arg), base(*base_name_arg)
+{
+  /*
+    If the set value is a field, change it to a string to allow things like
+    SET table_type=MYISAM;
+  */
+  if (value_arg && value_arg->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*) value_arg;
+    // names are utf8
+    if (!(value= new (thd->mem_root) Item_string_sys(thd, item->field_name)))
+      value=value_arg;                        /* Give error message later */
+  }
+  else
+    value=value_arg;
 }
 
 
@@ -982,7 +1004,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
   DBUG_ASSERT(tables->table->in_use == thd);
 
-  cond= make_cond_for_info_schema(cond, tables);
+  cond= make_cond_for_info_schema(thd, cond, tables);
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
 
@@ -1065,7 +1087,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("DOUBLE") },                 // GET_DOUBLE    14
       { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
     };
-    const LEX_CSTRING *type= types + (var->option.var_type & GET_TYPE_MASK);
+    const ulong vartype= (var->option.var_type & GET_TYPE_MASK);
+    const LEX_CSTRING *type= types + vartype;
     fields[6]->store(type->str, type->length, scs);
 
     // VARIABLE_COMMENT
@@ -1076,7 +1099,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     // NUMERIC_MAX_VALUE
     // NUMERIC_BLOCK_SIZE
     bool is_unsigned= true;
-    switch (var->option.var_type)
+    switch (vartype)
     {
     case GET_INT:
     case GET_LONG:
@@ -1158,7 +1181,7 @@ end:
   and update it directly.
 */
 
-void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
 {
   bool found __attribute__((unused))= false;
   DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
@@ -1175,5 +1198,22 @@ void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
   }
 
   DBUG_ASSERT(found); // variable must have been found
+}
+
+enum sys_var::where get_sys_var_value_origin(void *ptr)
+{
+  DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
+
+  for (uint i= 0; i < system_variable_hash.records; i++)
+  {
+    sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+    if (var->option.value == ptr)
+    {
+      return var->value_origin; //first match
+    }
+  }
+
+  DBUG_ASSERT(0); // variable must have been found
+  return sys_var::CONFIG;
 }
 

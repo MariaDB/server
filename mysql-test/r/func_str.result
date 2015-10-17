@@ -1,4 +1,5 @@
 drop table if exists t1,t2;
+set global max_allowed_packet=1048576;
 set names latin1;
 select 'hello',"'hello'",'""hello""','''h''e''l''l''o''',"hel""lo",'hel\'lo';
 hello	'hello'	""hello""	'h'e'l'l'o'	hel"lo	hel'lo
@@ -726,34 +727,34 @@ t1	CREATE TABLE `t1` (
   `bin(130)` varchar(64) DEFAULT NULL,
   `oct(130)` varchar(64) DEFAULT NULL,
   `conv(130,16,10)` varchar(64) DEFAULT NULL,
-  `hex(130)` varchar(6) NOT NULL DEFAULT '',
-  `char(130)` varbinary(4) NOT NULL DEFAULT '',
-  `format(130,10)` varchar(37) NOT NULL DEFAULT '',
-  `left(_latin2'a',1)` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `right(_latin2'a',1)` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `lcase(_latin2'a')` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `ucase(_latin2'a')` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `substring(_latin2'a',1,1)` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `concat(_latin2'a',_latin2'b')` varchar(2) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `lpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `rpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `concat_ws(_latin2'a',_latin2'b')` varchar(1) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `make_set(255,_latin2'a',_latin2'b',_latin2'c')` varchar(5) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `export_set(255,_latin2'y',_latin2'n',_latin2' ')` varchar(127) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `trim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `ltrim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `rtrim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `trim(LEADING _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `trim(TRAILING _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `trim(BOTH _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `repeat(_latin2'a',10)` varchar(10) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `reverse(_latin2'ab')` varchar(2) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `quote(_latin2'ab')` varchar(6) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `soundex(_latin2'ab')` varchar(4) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `substring(_latin2'ab',1)` varchar(2) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `insert(_latin2'abcd',2,3,_latin2'ef')` varchar(6) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `replace(_latin2'abcd',_latin2'b',_latin2'B')` varchar(4) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `encode('abcd','ab')` varbinary(4) NOT NULL DEFAULT ''
+  `hex(130)` varchar(6) NOT NULL,
+  `char(130)` varbinary(4) NOT NULL,
+  `format(130,10)` varchar(37) NOT NULL,
+  `left(_latin2'a',1)` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `right(_latin2'a',1)` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `lcase(_latin2'a')` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `ucase(_latin2'a')` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `substring(_latin2'a',1,1)` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `concat(_latin2'a',_latin2'b')` varchar(2) CHARACTER SET latin2 NOT NULL,
+  `lpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 NOT NULL,
+  `rpad(_latin2'a',4,_latin2'b')` varchar(4) CHARACTER SET latin2 NOT NULL,
+  `concat_ws(_latin2'a',_latin2'b')` varchar(1) CHARACTER SET latin2 NOT NULL,
+  `make_set(255,_latin2'a',_latin2'b',_latin2'c')` varchar(5) CHARACTER SET latin2 NOT NULL,
+  `export_set(255,_latin2'y',_latin2'n',_latin2' ')` varchar(127) CHARACTER SET latin2 NOT NULL,
+  `trim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `ltrim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `rtrim(_latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `trim(LEADING _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `trim(TRAILING _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `trim(BOTH _latin2' ' FROM _latin2' a ')` varchar(3) CHARACTER SET latin2 NOT NULL,
+  `repeat(_latin2'a',10)` varchar(10) CHARACTER SET latin2 NOT NULL,
+  `reverse(_latin2'ab')` varchar(2) CHARACTER SET latin2 NOT NULL,
+  `quote(_latin2'ab')` varchar(6) CHARACTER SET latin2 NOT NULL,
+  `soundex(_latin2'ab')` varchar(4) CHARACTER SET latin2 NOT NULL,
+  `substring(_latin2'ab',1)` varchar(2) CHARACTER SET latin2 NOT NULL,
+  `insert(_latin2'abcd',2,3,_latin2'ef')` varchar(6) CHARACTER SET latin2 NOT NULL,
+  `replace(_latin2'abcd',_latin2'b',_latin2'B')` varchar(4) CHARACTER SET latin2 NOT NULL,
+  `encode('abcd','ab')` varbinary(4) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a char character set latin2);
@@ -1159,6 +1160,8 @@ Warning	1292	Truncated incorrect DOUBLE value: 'notnumber'
 SELECT * FROM t1, t2 WHERE num=substring(str from 1 for 6);
 str	num
 notnumber	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'notnum'
 DROP TABLE t1,t2;
 CREATE TABLE t1(
 id int(11) NOT NULL auto_increment,
@@ -1351,6 +1354,8 @@ cast(rtrim('  20.06 ') as decimal(19,2))
 select cast(ltrim('  20.06 ') as decimal(19,2));
 cast(ltrim('  20.06 ') as decimal(19,2))
 20.06
+Warnings:
+Note	1292	Truncated incorrect DECIMAL value: '20.06 '
 select cast(rtrim(ltrim('  20.06 ')) as decimal(19,2));
 cast(rtrim(ltrim('  20.06 ')) as decimal(19,2))
 20.06
@@ -2848,7 +2853,7 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(37) NOT NULL DEFAULT ''
+  `format(123,2,'no_NO')` varchar(37) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 format(123,2,'no_NO')
@@ -2892,6 +2897,8 @@ NULL
 SELECT ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)));
 ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)))
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 SELECT ((0xf3) * (rpad(1.0,2048,1)) << (0xcc));
 ((0xf3) * (rpad(1.0,2048,1)) << (0xcc))
 0
@@ -2912,7 +2919,7 @@ format(rpad('111111111.1',
 1111111,
 '999999999999999999999999999999999999999999'),0,'be_BY')
 ;
-DO
+SELECT
 round(
 concat( (
 coalesce( (
@@ -2927,9 +2934,14 @@ sha1('P'),
 )
 )
 )
-);
+) AS r;
+r
+0
 Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
 Warning	1292	Truncated incorrect DECIMAL value: '[.DC2.]'
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
+Warning	1292	Truncated incorrect DOUBLE value: '0.000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111'
 SET @@global.max_allowed_packet:= @tmp_max;
 SELECT @tmp_max:= @@global.max_allowed_packet;
 @tmp_max:= @@global.max_allowed_packet
@@ -2980,7 +2992,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',63)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(85) NOT NULL DEFAULT ''
+  `to_base64` varchar(85) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3002,7 +3014,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',62)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(85) NOT NULL DEFAULT ''
+  `to_base64` varchar(85) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3024,7 +3036,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',61)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(85) NOT NULL DEFAULT ''
+  `to_base64` varchar(85) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3046,7 +3058,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',60)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(81) NOT NULL DEFAULT ''
+  `to_base64` varchar(81) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3068,7 +3080,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',59)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(81) NOT NULL DEFAULT ''
+  `to_base64` varchar(81) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3090,7 +3102,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',58)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(81) NOT NULL DEFAULT ''
+  `to_base64` varchar(81) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3112,7 +3124,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',57)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(76) NOT NULL DEFAULT ''
+  `to_base64` varchar(76) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3133,7 +3145,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',56)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(76) NOT NULL DEFAULT ''
+  `to_base64` varchar(76) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3154,7 +3166,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',55)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(76) NOT NULL DEFAULT ''
+  `to_base64` varchar(76) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3175,7 +3187,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',54)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(72) NOT NULL DEFAULT ''
+  `to_base64` varchar(72) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3196,7 +3208,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',53)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(72) NOT NULL DEFAULT ''
+  `to_base64` varchar(72) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3217,7 +3229,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',52)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(72) NOT NULL DEFAULT ''
+  `to_base64` varchar(72) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3238,7 +3250,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',51)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(68) NOT NULL DEFAULT ''
+  `to_base64` varchar(68) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3259,7 +3271,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',50)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(68) NOT NULL DEFAULT ''
+  `to_base64` varchar(68) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3280,7 +3292,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',49)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(68) NOT NULL DEFAULT ''
+  `to_base64` varchar(68) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3301,7 +3313,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',48)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(64) NOT NULL DEFAULT ''
+  `to_base64` varchar(64) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3322,7 +3334,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',47)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(64) NOT NULL DEFAULT ''
+  `to_base64` varchar(64) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3343,7 +3355,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',46)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(64) NOT NULL DEFAULT ''
+  `to_base64` varchar(64) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3364,7 +3376,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',45)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(60) NOT NULL DEFAULT ''
+  `to_base64` varchar(60) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3385,7 +3397,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',44)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(60) NOT NULL DEFAULT ''
+  `to_base64` varchar(60) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3406,7 +3418,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',43)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(60) NOT NULL DEFAULT ''
+  `to_base64` varchar(60) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3427,7 +3439,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',42)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(56) NOT NULL DEFAULT ''
+  `to_base64` varchar(56) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3448,7 +3460,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',41)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(56) NOT NULL DEFAULT ''
+  `to_base64` varchar(56) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3469,7 +3481,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',40)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(56) NOT NULL DEFAULT ''
+  `to_base64` varchar(56) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3490,7 +3502,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',39)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(52) NOT NULL DEFAULT ''
+  `to_base64` varchar(52) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3511,7 +3523,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',38)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(52) NOT NULL DEFAULT ''
+  `to_base64` varchar(52) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3532,7 +3544,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',37)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(52) NOT NULL DEFAULT ''
+  `to_base64` varchar(52) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3553,7 +3565,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',36)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(48) NOT NULL DEFAULT ''
+  `to_base64` varchar(48) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3574,7 +3586,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',35)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(48) NOT NULL DEFAULT ''
+  `to_base64` varchar(48) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3595,7 +3607,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',34)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(48) NOT NULL DEFAULT ''
+  `to_base64` varchar(48) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3616,7 +3628,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',33)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(44) NOT NULL DEFAULT ''
+  `to_base64` varchar(44) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3637,7 +3649,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',32)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(44) NOT NULL DEFAULT ''
+  `to_base64` varchar(44) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3658,7 +3670,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',31)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(44) NOT NULL DEFAULT ''
+  `to_base64` varchar(44) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3679,7 +3691,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',30)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(40) NOT NULL DEFAULT ''
+  `to_base64` varchar(40) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3700,7 +3712,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',29)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(40) NOT NULL DEFAULT ''
+  `to_base64` varchar(40) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3721,7 +3733,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',28)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(40) NOT NULL DEFAULT ''
+  `to_base64` varchar(40) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3742,7 +3754,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',27)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(36) NOT NULL DEFAULT ''
+  `to_base64` varchar(36) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3763,7 +3775,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',26)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(36) NOT NULL DEFAULT ''
+  `to_base64` varchar(36) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3784,7 +3796,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',25)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(36) NOT NULL DEFAULT ''
+  `to_base64` varchar(36) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3805,7 +3817,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',24)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(32) NOT NULL DEFAULT ''
+  `to_base64` varchar(32) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3826,7 +3838,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',23)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(32) NOT NULL DEFAULT ''
+  `to_base64` varchar(32) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3847,7 +3859,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',22)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(32) NOT NULL DEFAULT ''
+  `to_base64` varchar(32) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3868,7 +3880,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',21)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(28) NOT NULL DEFAULT ''
+  `to_base64` varchar(28) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3889,7 +3901,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',20)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(28) NOT NULL DEFAULT ''
+  `to_base64` varchar(28) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3910,7 +3922,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',19)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(28) NOT NULL DEFAULT ''
+  `to_base64` varchar(28) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3931,7 +3943,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',18)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(24) NOT NULL DEFAULT ''
+  `to_base64` varchar(24) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3952,7 +3964,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',17)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(24) NOT NULL DEFAULT ''
+  `to_base64` varchar(24) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3973,7 +3985,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',16)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(24) NOT NULL DEFAULT ''
+  `to_base64` varchar(24) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -3994,7 +4006,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',15)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(20) NOT NULL DEFAULT ''
+  `to_base64` varchar(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4015,7 +4027,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',14)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(20) NOT NULL DEFAULT ''
+  `to_base64` varchar(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4036,7 +4048,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',13)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(20) NOT NULL DEFAULT ''
+  `to_base64` varchar(20) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4057,7 +4069,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',12)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(16) NOT NULL DEFAULT ''
+  `to_base64` varchar(16) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4078,7 +4090,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',11)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(16) NOT NULL DEFAULT ''
+  `to_base64` varchar(16) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4099,7 +4111,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',10)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(16) NOT NULL DEFAULT ''
+  `to_base64` varchar(16) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4120,7 +4132,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',9)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(12) NOT NULL DEFAULT ''
+  `to_base64` varchar(12) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4141,7 +4153,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',8)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(12) NOT NULL DEFAULT ''
+  `to_base64` varchar(12) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4162,7 +4174,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',7)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(12) NOT NULL DEFAULT ''
+  `to_base64` varchar(12) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4183,7 +4195,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',6)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(8) NOT NULL DEFAULT ''
+  `to_base64` varchar(8) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4204,7 +4216,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',5)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(8) NOT NULL DEFAULT ''
+  `to_base64` varchar(8) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4225,7 +4237,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',4)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(8) NOT NULL DEFAULT ''
+  `to_base64` varchar(8) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4246,7 +4258,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',3)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(4) NOT NULL DEFAULT ''
+  `to_base64` varchar(4) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4267,7 +4279,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',2)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(4) NOT NULL DEFAULT ''
+  `to_base64` varchar(4) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4288,7 +4300,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',1)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` varchar(4) NOT NULL DEFAULT ''
+  `to_base64` varchar(4) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4309,7 +4321,7 @@ CREATE TABLE t1 AS SELECT TO_BASE64(REPEAT('a',0)) AS to_base64;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `to_base64` char(0) NOT NULL DEFAULT ''
+  `to_base64` char(0) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT to_base64, LENGTH(to_base64) FROM t1;
 to_base64	LENGTH(to_base64)
@@ -4530,6 +4542,34 @@ SET NAMES latin2;
 EXECUTE stmt;
 COLLATION(space(2))
 latin2_general_ci
+set global max_allowed_packet=default;
 #
 # End of 5.6 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+#
+CREATE TABLE t1 (a BIGINT(20) ZEROFILL);
+INSERT INTO t1 VALUES (18446744073709551615),(0);
+SELECT * FROM t1 WHERE a=18446744073709551615;
+a
+18446744073709551615
+SELECT * FROM t1 WHERE FORMAT(a,0)='18,446,744,073,709,551,615';
+a
+18446744073709551615
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+a
+18446744073709551615
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
+DROP TABLE t1;
+#
+# End of 10.1 tests
 #

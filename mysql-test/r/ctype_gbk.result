@@ -224,9 +224,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -440,9 +452,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -465,7 +489,7 @@ select hex(convert(_gbk 0xA14041 using ucs2));
 hex(convert(_gbk 0xA14041 using ucs2))
 003F0041
 Warnings:
-Warning	1976	Cannot convert 'gbk' character 0xA140 to 'ucs2'
+Warning	1977	Cannot convert 'gbk' character 0xA140 to 'ucs2'
 create table t1 (c1 text not null, c2 text not null) character set gbk;
 alter table t1 change c1 c1 mediumtext  character set gbk not null;
 show create table t1;
@@ -507,7 +531,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 UPDATE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
@@ -773,70 +797,70 @@ code	a
 A2FB	â…ª
 A2FC	â…«
 Warnings:
-Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15F to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -870,70 +894,70 @@ A8BA	Ãª
 A8BD	Å„
 A8BE	Åˆ
 Warnings:
-Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
-Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1977	Cannot convert 'gbk' character 0xA15F to 'utf8'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -952,7 +976,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -972,7 +996,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1385,7 +1409,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET gbk COLLATE gbk_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET gbk COLLATE gbk_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1405,7 +1429,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET gbk COLLATE gbk_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET gbk COLLATE gbk_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -4922,7 +4946,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\'),('à\t');
 INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
@@ -4961,7 +4985,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
 INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
@@ -5000,7 +5024,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
 INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
@@ -5046,7 +5070,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET gbk NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET gbk NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
@@ -5066,7 +5090,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(10) NOT NULL DEFAULT ''
+  `a` varbinary(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;

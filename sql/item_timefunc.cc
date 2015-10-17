@@ -2756,8 +2756,6 @@ void Item_func_add_time::print(String *str, enum_query_type query_type)
 bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  longlong seconds;
-  long microseconds;
   int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
   ErrConvTime str(&l_time3);
@@ -2774,31 +2772,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (l_time1.neg != l_time2.neg)
     l_sign= -l_sign;
 
-  bzero((char *)&l_time3, sizeof(l_time3));
-  
-  l_time3.neg= calc_time_diff(&l_time1, &l_time2, l_sign,
-			      &seconds, &microseconds);
-
-  /*
-    For MYSQL_TIMESTAMP_TIME only:
-      If first argument was negative and diff between arguments
-      is non-zero we need to swap sign to get proper result.
-  */
-  if (l_time1.neg && (seconds || microseconds))
-    l_time3.neg= 1-l_time3.neg;         // Swap sign of result
-
-  /*
-    seconds is longlong, when casted to long it may become a small number
-    even if the original seconds value was too large and invalid.
-    as a workaround we limit seconds by a large invalid long number
-    ("invalid" means > TIME_MAX_SECOND)
-  */
-  set_if_smaller(seconds, INT_MAX32);
-
-  calc_time_from_sec(&l_time3, (long) seconds, microseconds);
-
-  if ((fuzzy_date & TIME_NO_ZERO_DATE) && (seconds == 0) &&
-      (microseconds == 0))
+  if (calc_time_diff(&l_time1, &l_time2, l_sign, &l_time3, fuzzy_date))
     return (null_value= 1);
 
   *ltime= l_time3;

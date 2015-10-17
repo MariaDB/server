@@ -787,7 +787,7 @@ drop table t2;
 create table t2 select f2 from (select now() f2 from t1) a;
 show columns from t2;
 Field	Type	Null	Key	Default	Extra
-f2	datetime	NO		0000-00-00 00:00:00	
+f2	datetime	NO		NULL	
 drop table t2, t1;
 CREATE TABLE t1(
 id int PRIMARY KEY,
@@ -2107,6 +2107,9 @@ select avg(export_set( 3, 'y', sha(i))), group_concat(d) from t1 group by d orde
 avg(export_set( 3, 'y', sha(i)))	group_concat(d)
 0	2008-10-02
 0	2010-12-12
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,3'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,d'
 drop table t1;
 #
 # MDEV-4290: crash in st_select_lex::mark_as_dependent
@@ -2270,3 +2273,46 @@ t2_id	GROUP_CONCAT(IF (t6.b, t6.f, t5.f) ORDER BY 1)
 EXECUTE stmt;
 t2_id	GROUP_CONCAT(IF (t6.b, t6.f, t5.f) ORDER BY 1)
 DROP TABLE t1,t2,t3,t4,t5,t6;
+#
+# MDEV-8852 Implicit or explicit CAST from MAX(string) to INT,DOUBLE,DECIMAL does not produce warnings
+#
+SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);
+MAX('x') << 1	CAST(MAX('x') AS DOUBLE)	CAST(MAX('x') AS DECIMAL)
+0	0	0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
+#
+#  MDEV-8918 Wrong result for CAST(AVG(a) AS SIGNED)
+#
+CREATE TABLE t1 (id INT, a BIGINT);
+INSERT INTO t1 VALUES (1,0x7FFFFFFFFFFFFFFF),(2,0x7FFFFFFFFFFFFFFF);
+SELECT id, AVG(a) AS avg, CAST(MIN(a) AS SIGNED) AS cast_min FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+id	avg	cast_min
+1	9223372036854775807.0000	9223372036854775807
+2	9223372036854775807.0000	9223372036854775807
+SELECT id, AVG(a) AS avg, CAST(AVG(a) AS SIGNED) AS cast_avg FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+id	avg	cast_avg
+1	9223372036854775807.0000	9223372036854775807
+2	9223372036854775807.0000	9223372036854775807
+DROP TABLE t1;
+#
+# MDEV-8921 Wrong result for CAST(AVG(double_column) AS SIGNED)
+#
+CREATE TABLE t1 (id INT, a DOUBLE);
+INSERT INTO t1 VALUES (1,0x7FFFFFFFFFFFFFFF),(2,0x7FFFFFFFFFFFFFFF);
+SELECT id, AVG(a) AS avg, CAST(MIN(a) AS SIGNED) AS cast_min,CAST(AVG(a) AS SIGNED) AS cast_avg FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+id	avg	cast_min	cast_avg
+1	9.223372036854776e18	9223372036854775807	9223372036854775807
+2	9.223372036854776e18	9223372036854775807	9223372036854775807
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+SELECT MIN(a), SUM(a), CAST(SUM(a) AS SIGNED), CAST(AVG(a) AS SIGNED) FROM t1;
+MIN(a)	SUM(a)	CAST(SUM(a) AS SIGNED)	CAST(AVG(a) AS SIGNED)
+9.223372036854776e18	9.223372036854776e18	9223372036854775807	9223372036854775807
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

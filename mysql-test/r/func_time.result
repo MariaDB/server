@@ -163,6 +163,8 @@ Saturday	5
 select monthname("1972-03-04"),monthname("1972-03-04")+0;
 monthname("1972-03-04")	monthname("1972-03-04")+0
 March	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'March'
 select time_format(000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
 time_format(000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T')	date_format(19980131000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T')
 00|12|0|12|00|AM|12:00:00 AM|00|00:00:00	00|12|0|12|00|AM|12:00:00 AM|00|00:00:00
@@ -948,8 +950,8 @@ sec_to_time(1) + 0, from_unixtime(1) + 0;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `now() - now()` bigint(21) NOT NULL DEFAULT '0',
-  `curtime() - curtime()` bigint(12) NOT NULL DEFAULT '0',
+  `now() - now()` bigint(21) NOT NULL,
+  `curtime() - curtime()` bigint(12) NOT NULL,
   `sec_to_time(1) + 0` bigint(12) DEFAULT NULL,
   `from_unixtime(1) + 0` bigint(21) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -1714,14 +1716,19 @@ min(timestampadd(month, 1>'', from_days('%Z')))
 NULL
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '%Z'
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Incorrect datetime value: '0000-00-00'
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:00');
 create table t1(a time);
 insert into t1 values ('00:00:00'),('00:01:00');
 select 1 from t1 where 1 < some (select cast(a as datetime) from t1);
 1
 1
 1
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
 drop table t1;
+SET timestamp=DEFAULT;
 select time('10:10:10') > 10;
 time('10:10:10') > 10
 1
@@ -1823,8 +1830,6 @@ create table t1 (f1 datetime, key (f1));
 insert into t1 values ('2000-09-12 00:00:00'), ('2007-04-25 05:08:49');
 select * from t1 where f1 > time('-23:00:06');
 f1
-2000-09-12 00:00:00
-2007-04-25 05:08:49
 drop table t1;
 select maketime(20,61,10)+0;
 maketime(20,61,10)+0
@@ -1835,25 +1840,14 @@ select last_day(f2) from t1;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select last_day(f2) from t1 where last_day(f2) is null;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select * from t1 order by last_day (f2);
 f2
 0
 0
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
@@ -1909,8 +1903,6 @@ insert ignore t1 values ('04:38:11','0000-00-00 00:00:00',0,'0000-00-00 00:00:00
 select least(greatest(f3, f2, f4), f5) from t1;
 least(greatest(f3, f2, f4), f5)
 0000-00-00 00:00:00
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 select day(coalesce(null));
 day(coalesce(null))
@@ -1927,16 +1919,19 @@ drop table t1;
 SET timestamp=UNIX_TIMESTAMP('2014-06-01 10:20:30');
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time));
 greatest(cast("0-0-0" as date), cast("10:20:05" as time))
-2014-06-01
+2014-06-01 10:20:05
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00';
 greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00'
 0
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01';
 greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01'
+0
+select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05';
+greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05'
 1
 select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6));
 cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6))
-2014-06-01 00:00:00.000000
+2014-06-01 10:20:05.000000
 SET timestamp=DEFAULT;
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
@@ -1980,6 +1975,9 @@ SELECT * FROM t1 GROUP BY SEC_TO_TIME(concat(a,'10'))*1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');
@@ -2029,22 +2027,37 @@ SELECT * FROM t1 GROUP BY FROM_UNIXTIME(concat(a,'10'))*1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY (-FROM_UNIXTIME(concat(a,'10')))*1;
 a
 2005-05-04
 2000-02-23
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY (-FROM_UNIXTIME(concat(a,'10')));
 a
 2005-05-04
 2000-02-23
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY ABS(FROM_UNIXTIME(concat(a,'10')));
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY @a:=(FROM_UNIXTIME(concat(a,'10'))*1);
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 SET TIME_ZONE='+02:00';
 #
@@ -2056,10 +2069,18 @@ SELECT a, FROM_UNIXTIME(CONCAT(a,'10')) AS f1, FROM_UNIXTIME(CONCAT(a,'10'))+0 A
 a	f1	f2
 2005-05-04	1970-01-01 02:33:25	19700101023325.000000
 2000-02-23	1970-01-01 02:33:20	19700101023320.000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY FROM_UNIXTIME(CONCAT(a,'10'))+0;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');
@@ -2067,16 +2088,28 @@ SELECT * FROM t1 GROUP BY FROM_UNIXTIME(concat(a,'10'))/1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2005-05-04');
 SELECT CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10'))) AS f2 FROM t1;
 f2
 0.000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SELECT CHAR_LENGTH(CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10')))) AS f2 FROM t1;
 f2
 8
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 CREATE TABLE t2 AS SELECT CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10'))) AS f2 FROM t1;
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -2533,18 +2566,12 @@ CREATE TABLE t1 (t TIME);
 INSERT INTO t1 VALUES ('03:22:30'),('18:30:05');
 SELECT CONVERT_TZ(GREATEST(t, CURRENT_DATE()), '+02:00', '+10:00') FROM t1;
 CONVERT_TZ(GREATEST(t, CURRENT_DATE()), '+02:00', '+10:00')
-2014-02-26 06:59:59
-2014-02-26 06:59:59
-Warnings:
-Warning	1292	Truncated incorrect time value: '1296:00:00'
-Warning	1292	Truncated incorrect time value: '1296:00:00'
+2014-01-22 11:22:30
+2014-01-23 02:30:05
 SELECT GREATEST(t, CURRENT_DATE()) FROM t1;
 GREATEST(t, CURRENT_DATE())
-838:59:59
-838:59:59
-Warnings:
-Warning	1292	Truncated incorrect time value: '1296:00:00'
-Warning	1292	Truncated incorrect time value: '1296:00:00'
+2014-01-22 03:22:30
+2014-01-22 18:30:05
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
 #
@@ -2665,18 +2692,15 @@ SET timestamp=DEFAULT;
 #
 # MDEV-5750 Assertion `ltime->year == 0' fails on a query with EXTRACT DAY_MINUTE and TIME column
 #
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 00:00:00');
 CREATE TABLE t1 ( d DATE, t TIME );
 INSERT INTO t1 VALUES ('2008-12-05','22:34:09'),('2005-03-27','14:26:02');
 SELECT EXTRACT(DAY_MINUTE FROM GREATEST(t,d)), GREATEST(t,d) FROM t1;
 EXTRACT(DAY_MINUTE FROM GREATEST(t,d))	GREATEST(t,d)
-342259	838:59:59
-342259	838:59:59
-Warnings:
-Warning	1292	Truncated incorrect time value: '9336:00:00'
-Warning	1292	Truncated incorrect time value: '9336:00:00'
-Warning	1292	Truncated incorrect time value: '2952:00:00'
-Warning	1292	Truncated incorrect time value: '2952:00:00'
+12234	2010-01-01 22:34:09
+11426	2010-01-01 14:26:02
 DROP TABLE t1;
+SET timestamp=DEFAULT;
 #
 # MDEV-7221 from_days fails after null value
 #

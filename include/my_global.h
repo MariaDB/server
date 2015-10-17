@@ -477,6 +477,13 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define UNINIT_VAR(x) x
 #endif
 
+/* This is only to be used when reseting variables in a class constructor */
+#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#define LINT_INIT(x) x= 0
+#else
+#define LINT_INIT(x)
+#endif
+
 #if !defined(HAVE_UINT)
 #undef HAVE_UINT
 #define HAVE_UINT
@@ -540,7 +547,7 @@ typedef int	my_socket;	/* File descriptor for sockets */
 /* Type for fuctions that handles signals */
 #define sig_handler RETSIGTYPE
 C_MODE_START
-typedef void	(*sig_return)();/* Returns type from signal */
+typedef void (*sig_return)(); /* Returns type from signal */
 C_MODE_END
 #if defined(__GNUC__) && !defined(_lint)
 typedef char	pchar;		/* Mixed prototypes can take char */

@@ -24,6 +24,7 @@ FIND_PATH(WIX_DIR heat.exe
   "$ENV{ProgramFiles}/Windows Installer XML v3/bin"
   "$ENV{ProgramFiles}/Windows Installer XML v3.5/bin"
   "$ENV{ProgramFiles}/Windows Installer XML v3.6/bin"
+  "$ENV{ProgramFiles}/WiX Toolset v3.9/bin"
   "$ENV{WIX}/bin"
 )
 

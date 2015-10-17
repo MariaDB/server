@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@
 #include "sql_connect.h"      // decrease_user_connections,
                               // check_mqh,
                               // reset_mqh
-#include "sql_rename.h"       // mysql_rename_table
+#include "sql_rename.h"       // mysql_rename_tables
 #include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
 #include "sql_acl.h"          // *_ACL, check_grant, is_acl_user,
@@ -133,7 +133,7 @@ static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
-static bool execute_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
+static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -271,9 +271,6 @@ void init_update_queries(void)
 
   server_command_flags[COM_STATISTICS]= CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_STMT_PREPARE]= CF_SKIP_QUESTIONS;
-  server_command_flags[COM_STMT_CLOSE]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_STMT_RESET]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
 
   server_command_flags[COM_QUIT]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_PROCESS_INFO]= CF_SKIP_WSREP_CHECK;
@@ -284,11 +281,16 @@ void init_update_queries(void)
   server_command_flags[COM_END]= CF_SKIP_WSREP_CHECK;
 
   /*
-    COM_QUERY and COM_SET_OPTION are allowed to pass the early COM_xxx filter,
-    they're checked later in mysql_execute_command().
+    COM_QUERY, COM_SET_OPTION and COM_STMT_XXX are allowed to pass the early
+    COM_xxx filter, they're checked later in mysql_execute_command().
   */
   server_command_flags[COM_QUERY]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_SET_OPTION]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_PREPARE]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_CLOSE]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_RESET]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_EXECUTE]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -886,9 +888,9 @@ void cleanup_items(Item *item)
 
 #ifndef EMBEDDED_LIBRARY
 
+#ifdef WITH_WSREP
 static bool wsrep_node_is_ready(THD *thd)
 {
-#ifdef WITH_WSREP
   if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready)
   {
     my_message(ER_UNKNOWN_COM_ERROR,
@@ -896,9 +898,9 @@ static bool wsrep_node_is_ready(THD *thd)
                MYF(0));
     return false;
   }
-#endif
   return true;
 }
+#endif
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1081,14 +1083,25 @@ bool do_command(THD *thd)
                      vio_description(net->vio), command,
                      command_name[command].str));
 
-  /* bail out if DB snapshot has not been installed. */
+#ifdef WITH_WSREP
+  /*
+    Bail out if DB snapshot has not been installed.
+  */
   if (!(server_command_flags[command] & CF_SKIP_WSREP_CHECK) &&
       !wsrep_node_is_ready(thd))
   {
     thd->protocol->end_statement();
+
+    /* Performance Schema Interface instrumentation end. */
+    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+    thd->m_statement_psi= NULL;
+    thd->m_digest= NULL;
+
     return_value= FALSE;
     goto out;
   }
+#endif
+
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
@@ -2637,13 +2650,13 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. We however,
-      allow SET and SHOW queries.
+      Bail out if DB snapshot has not been installed. We however, allow SET,
+      SHOW and SELECT queries (only if wsrep_dirty_reads is set).
     */
-    if (lex->sql_command != SQLCOM_SET_OPTION &&
+    if (lex->sql_command != SQLCOM_SET_OPTION  &&
         !wsrep_is_show_query(lex->sql_command) &&
-        !(thd->variables.wsrep_dirty_reads &&
-          lex->sql_command == SQLCOM_SELECT) &&
+        !(thd->variables.wsrep_dirty_reads     &&
+          lex->sql_command == SQLCOM_SELECT)   &&
         !wsrep_node_is_ready(thd))
       goto error;
   }
@@ -2672,6 +2685,7 @@ mysql_execute_command(THD *thd)
     if (lex->set_arena_for_set_stmt(&backup))
       goto error;
 
+    MEM_ROOT *mem_root= thd->mem_root;
     while ((var= it++))
     {
       DBUG_ASSERT(var->is_system());
@@ -2685,7 +2699,7 @@ mysql_execute_command(THD *thd)
         goto error;
       }
       if (v->var->session_is_default(thd))
-          o= new set_var(v->type, v->var, &v->base, NULL);
+          o= new set_var(thd,v->type, v->var, &v->base, NULL);
       else
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
@@ -2697,10 +2711,10 @@ mysql_execute_command(THD *thd)
           {
             bool null_value;
             longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_int(val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_int(thd, val)));
           }
           break;
         case GET_UINT:
@@ -2709,20 +2723,20 @@ mysql_execute_command(THD *thd)
           {
             bool null_value;
             ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_uint(val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_uint(thd, val)));
           }
           break;
         case GET_DOUBLE:
           {
             bool null_value;
             double val= v->var->val_real(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_float(val, 1)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_float(thd, val, 1)));
           }
           break;
         default:
@@ -2741,18 +2755,19 @@ mysql_execute_command(THD *thd)
             val= v->var->val_str(&tmp, thd, v->type, &v->base);
             if (val)
             {
-              Item_string *str= new Item_string(v->var->charset(thd),
+              Item_string *str= new (mem_root) Item_string(thd, v->var->charset(thd),
                                                 val->ptr(), val->length());
-              o= new set_var(v->type, v->var, &v->base, str);
+              o= new set_var(thd, v->type, v->var, &v->base, str);
             }
             else
-              o= new set_var(v->type, v->var, &v->base, new Item_null());
+              o= new set_var(thd, v->type, v->var, &v->base,
+                             new (mem_root) Item_null(thd));
           }
           break;
         }
       }
       DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
     }
     lex->reset_arena_for_set_stmt(&backup);
     if (lex->old_var_list.is_empty())
@@ -3002,7 +3017,7 @@ mysql_execute_command(THD *thd)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "PURGE LOGS BEFORE");
       goto error;
     }
-    it= new Item_func_unix_timestamp(it);
+    it= new (thd->mem_root) Item_func_unix_timestamp(thd, it);
     it->fix_fields(thd, &it);
     res = purge_master_logs_before_date(thd, (ulong)it->val_int());
     break;
@@ -3271,7 +3286,7 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= thd->lex->part_info->get_clone()))
+      if (part_info && !(part_info= thd->lex->part_info->get_clone(thd)))
       {
         res= -1;
         goto end_with_restore_list;
@@ -3425,11 +3440,16 @@ mysql_execute_command(THD *thd)
       }
       else
       {
-        /* in STATEMENT format, we probably have to replicate also temporary
-           tables, like mysql replication does
+        /*
+          In STATEMENT format, we probably have to replicate also temporary
+          tables, like mysql replication does. Also check if the requested
+          engine is allowed/supported.
         */
-        if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
-            !create_info.tmp_table()))
+        if (WSREP(thd) &&
+            !check_engine(thd, create_table->db, create_table->table_name,
+                          &create_info) &&
+            (!thd->is_current_stmt_binlog_format_row() ||
+             !create_info.tmp_table()))
         {
 	  WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name, NULL)
         }
@@ -3587,8 +3607,12 @@ end_with_restore_list:
 #endif /* HAVE_REPLICATION */
   case SQLCOM_RENAME_TABLE:
   {
+    if (check_rename_table(thd, first_table, all_tables))
+      goto error;
+
     WSREP_TO_ISOLATION_BEGIN(0, 0, first_table)
-    if (execute_rename_table(thd, first_table, all_tables))
+
+    if (mysql_rename_tables(thd, first_table, 0))
       goto error;
     break;
   }
@@ -3974,7 +3998,10 @@ end_with_restore_list:
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
 
-	res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
+        if (explain)
+          res= mysql_explain_union(thd, &thd->lex->unit, sel_result);
+        else
+          res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
         /*
           Invalidate the table in the query cache if something changed
           after unlocking when changes become visible.
@@ -3989,6 +4016,16 @@ end_with_restore_list:
           first_table->next_local= 0;
           query_cache_invalidate3(thd, first_table, 1);
           first_table->next_local= save_table;
+        }
+        if (explain)
+        {
+          /*
+            sel_result needs to be cleaned up properly.
+            INSERT... SELECT statement will call either send_eof() or
+            abort_result_set(). EXPLAIN doesn't call either, so we need
+            to cleanup manually.
+          */
+          sel_result->abort_result_set();
         }
         delete sel_result;
       }
@@ -4087,7 +4124,7 @@ end_with_restore_list:
     /* condition will be TRUE on SP re-excuting */
     if (select_lex->item_list.elements != 0)
       select_lex->item_list.empty();
-    if (add_item_to_list(thd, new Item_null()))
+    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
       goto error;
 
     THD_STAGE_INFO(thd, stage_init);
@@ -5745,7 +5782,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
-        new (thd->mem_root) Item_int((ulonglong) thd->variables.select_limit);
+        new (thd->mem_root) Item_int(thd,
+                                     (ulonglong) thd->variables.select_limit);
   }
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
@@ -5792,7 +5830,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
               The warnings system requires input in utf8, @see
               mysqld_show_warnings().
             */
-            lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+            lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
             push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                          ER_YES, str.c_ptr_safe());
           }
@@ -5877,8 +5915,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
 }
 
 
-static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
-                                 TABLE_LIST *all_tables)
+static bool check_rename_table(THD *thd, TABLE_LIST *first_table,
+                               TABLE_LIST *all_tables)
 {
   DBUG_ASSERT(first_table == all_tables && first_table != 0);
   TABLE_LIST *table;
@@ -5908,7 +5946,7 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
       return 1;
   }
 
-  return mysql_rename_tables(thd, first_table, 0);
+  return 0;
 }
 
 
@@ -6379,9 +6417,12 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
   for (; i < number && tables != first_not_own_table && tables;
        tables= tables->next_global, i++)
   {
+    TABLE_LIST *const table_ref= tables->correspondent_table ?
+      tables->correspondent_table : tables;
+
     ulong want_access= requirements;
-    if (tables->security_ctx)
-      sctx= tables->security_ctx;
+    if (table_ref->security_ctx)
+      sctx= table_ref->security_ctx;
     else
       sctx= backup_ctx;
 
@@ -6389,26 +6430,26 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
        Register access for view underlying table.
        Remove SHOW_VIEW_ACL, because it will be checked during making view
      */
-    tables->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
+    table_ref->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
 
-    if (tables->schema_table_reformed)
+    if (table_ref->schema_table_reformed)
     {
-      if (check_show_access(thd, tables))
+      if (check_show_access(thd, table_ref))
         goto deny;
       continue;
     }
 
-    DBUG_PRINT("info", ("derived: %d  view: %d", tables->derived != 0,
-                        tables->view != 0));
+    DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
+                        table_ref->view != 0));
 
-    if (tables->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table())
       continue;
 
     thd->security_ctx= sctx;
 
-    if (check_access(thd, want_access, tables->get_db_name(),
-                     &tables->grant.privilege,
-                     &tables->grant.m_internal,
+    if (check_access(thd, want_access, table_ref->get_db_name(),
+                     &table_ref->grant.privilege,
+                     &table_ref->grant.m_internal,
                      0, no_errors))
       goto deny;
   }
@@ -6845,6 +6886,8 @@ void THD::reset_for_next_command()
   thd->reset_current_stmt_binlog_format_row();
   thd->binlog_unsafe_warning_flags= 0;
 
+  thd->save_prep_leaf_list= false;
+
   DBUG_PRINT("debug",
              ("is_current_stmt_binlog_format_row(): %d",
               thd->is_current_stmt_binlog_format_row()));
@@ -6932,9 +6975,26 @@ mysql_new_select(LEX *lex, bool move_down)
   }
   else
   {
+    bool const outer_most= (lex->current_select->master_unit() == &lex->unit);
+    if (outer_most && lex->result)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
+      DBUG_RETURN(TRUE);
+    }
+    if (lex->proc_list.elements!=0)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "UNION",
+               "SELECT ... PROCEDURE ANALYSE()");
+      DBUG_RETURN(TRUE);
+    }
     if (lex->current_select->order_list.first && !lex->current_select->braces)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
+      DBUG_RETURN(1);
+    }
+    if (lex->current_select->explicit_limit && !lex->current_select->braces)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
       DBUG_RETURN(1);
     }
     select_lex->include_neighbour(lex->current_select);
@@ -7217,7 +7277,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
       DBUG_PRINT("info",("Command aborted. Fatal_error: %d",
 			 thd->is_fatal_error));
 
-      query_cache_abort(&thd->query_cache_tls);
+      query_cache_abort(thd, &thd->query_cache_tls);
     }
     THD_STAGE_INFO(thd, stage_freeing_items);
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
@@ -7548,7 +7608,7 @@ bool st_select_lex::init_nested_join(THD *thd)
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
 
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   ptr->embedding= embedding;
   ptr->join_list= join_list;
   ptr->alias= (char*) "(nested_join)";
@@ -7590,7 +7650,7 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
     join_list->pop();
     embedded->join_list= join_list;
     embedded->embedding= embedding;
-    join_list->push_front(embedded);
+    join_list->push_front(embedded, thd->mem_root);
     ptr= embedded;
     embedded->lifted= 1;
   }
@@ -7654,7 +7714,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
         ptr->join_using_fields= prev_join_using;
     }
   }
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   nested_join->used_tables= nested_join->not_null_tables= (table_map) 0;
   DBUG_RETURN(ptr);
 }
@@ -7721,8 +7781,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
   TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
 
-  join_list->push_front(tab2);
-  join_list->push_front(tab1);
+  join_list->push_front(tab2, parent_lex->thd->mem_root);
+  join_list->push_front(tab1, parent_lex->thd->mem_root);
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
@@ -7867,14 +7927,14 @@ push_new_name_resolution_context(THD *thd,
   @return fixed condition
 */
 
-Item *normalize_cond(Item *cond)
+Item *normalize_cond(THD *thd, Item *cond)
 {
   if (cond)
   {
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
-      cond= new Item_func_ne(cond, new Item_int(0));
+      cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
     }
   }
   return cond;
@@ -7895,11 +7955,11 @@ Item *normalize_cond(Item *cond)
     TRUE   if all is OK
 */
 
-void add_join_on(TABLE_LIST *b, Item *expr)
+void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
 {
   if (expr)
   {
-    expr= normalize_cond(expr);
+    expr= normalize_cond(thd, expr);
     if (!b->on_expr)
       b->on_expr= expr;
     else
@@ -7909,7 +7969,7 @@ void add_join_on(TABLE_LIST *b, Item *expr)
         right and left join. If called later, it happens if we add more
         than one condition to the ON clause.
       */
-      b->on_expr= new Item_cond_and(b->on_expr,expr);
+      b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
   }
@@ -8279,16 +8339,17 @@ Item * all_any_subquery_creator(THD *thd, Item *left_expr,
     return new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex);
 
   if ((cmp == &comp_ne_creator) && all)        // <> ALL <=> NOT IN
-    return new (thd->mem_root) Item_func_not(
+    return new (thd->mem_root) Item_func_not(thd,
              new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex));
 
   Item_allany_subselect *it=
     new (thd->mem_root) Item_allany_subselect(thd, left_expr, cmp, select_lex,
                                               all);
-  if (all)
-    return it->upper_item= new (thd->mem_root) Item_func_not_all(it); /* ALL */
+  if (all) /* ALL */
+    return it->upper_item= new (thd->mem_root) Item_func_not_all(thd, it);
 
-  return it->upper_item= new (thd->mem_root) Item_func_nop_all(it);   /* ANY/SOME */
+  /* ANY/SOME */
+  return it->upper_item= new (thd->mem_root) Item_func_nop_all(thd, it);
 }
 
 
@@ -8323,6 +8384,8 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
   */
   for (table= tables; table; table= table->next_local)
   {
+    if (table->is_jtbm())
+      continue;
     if (table->derived)
       table->grant.privilege= SELECT_ACL;
     else if ((check_access(thd, UPDATE_ACL, table->db,
@@ -8816,12 +8879,12 @@ Item *negate_expression(THD *thd, Item *expr)
       if it is not boolean function then we have to emulate value of
       not(not(a)), it will be a != 0
     */
-    return new Item_func_ne(arg, new Item_int((char*) "0", 0, 1));
+    return new (thd->mem_root) Item_func_ne(thd, arg, new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1));
   }
 
   if ((negated= expr->neg_transformer(thd)) != 0)
     return negated;
-  return new Item_func_not(expr);
+  return new (thd->mem_root) Item_func_not(thd, expr);
 }
 
 /**

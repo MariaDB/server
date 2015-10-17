@@ -1,4 +1,5 @@
 use mysql;
+set sql_mode="";
 create database MYSQLtest;
 grant all on MySQLtest.* to mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;

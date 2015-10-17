@@ -1133,12 +1133,12 @@ ERROR HY000: Variable 'ft_stopword_file' is a read only variable
 #
 SHOW VARIABLES like 'back_log';
 Variable_name	Value
-back_log	150
+back_log	80
 SELECT @@session.back_log;
 ERROR HY000: Variable 'back_log' is a GLOBAL variable
 SELECT @@global.back_log;
 @@global.back_log
-150
+80
 SET @@session.back_log= 7;
 ERROR HY000: Variable 'back_log' is a read only variable
 SET @@global.back_log= 7;
@@ -1528,7 +1528,7 @@ SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
 select @@max_long_data_size;
 @@max_long_data_size
-1048576
+4194304
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 
@@ -1569,7 +1569,7 @@ CREATE TABLE t1 AS SELECT @a:= CAST(1 AS UNSIGNED) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) unsigned NOT NULL DEFAULT '0'
+  `a` int(1) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 End of 5.1 tests
@@ -1743,7 +1743,9 @@ SET @@sql_quote_show_create = @sql_quote_show_create_saved;
 drop table if exists t1;
 drop function if exists t1_max;
 drop function if exists t1_min;
+set sql_mode="";
 create table t1 (a int) engine=innodb;
+set sql_mode=default;
 insert into t1(a) values (0), (1);
 create function t1_max() returns int return (select max(a) from t1);
 create function t1_min() returns int return (select min(a) from t1);

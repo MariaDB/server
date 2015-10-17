@@ -38,7 +38,7 @@
 class JOIN;
 class Item_sum;
 
-typedef struct st_key_part {
+struct KEY_PART {
   uint16           key,part;
   /* See KEY_PART_INFO for meaning of the next two: */
   uint16           store_length, length;
@@ -50,7 +50,617 @@ typedef struct st_key_part {
   uint8 flag;
   Field            *field;
   Field::imagetype image_type;
-} KEY_PART;
+};
+
+
+class RANGE_OPT_PARAM;
+/*
+  A construction block of the SEL_ARG-graph.
+
+  The following description only covers graphs of SEL_ARG objects with
+  sel_arg->type==KEY_RANGE:
+
+  One SEL_ARG object represents an "elementary interval" in form
+
+      min_value <=?  table.keypartX  <=? max_value
+
+  The interval is a non-empty interval of any kind: with[out] minimum/maximum
+  bound, [half]open/closed, single-point interval, etc.
+
+  1. SEL_ARG GRAPH STRUCTURE
+
+  SEL_ARG objects are linked together in a graph. The meaning of the graph
+  is better demostrated by an example:
+
+     tree->keys[i]
+      |
+      |             $              $
+      |    part=1   $     part=2   $    part=3
+      |             $              $
+      |  +-------+  $   +-------+  $   +--------+
+      |  | kp1<1 |--$-->| kp2=5 |--$-->| kp3=10 |
+      |  +-------+  $   +-------+  $   +--------+
+      |      |      $              $       |
+      |      |      $              $   +--------+
+      |      |      $              $   | kp3=12 |
+      |      |      $              $   +--------+
+      |  +-------+  $              $
+      \->| kp1=2 |--$--------------$-+
+         +-------+  $              $ |   +--------+
+             |      $              $  ==>| kp3=11 |
+         +-------+  $              $ |   +--------+
+         | kp1=3 |--$--------------$-+       |
+         +-------+  $              $     +--------+
+             |      $              $     | kp3=14 |
+            ...     $              $     +--------+
+
+  The entire graph is partitioned into "interval lists".
+
+  An interval list is a sequence of ordered disjoint intervals over the same
+  key part. SEL_ARG are linked via "next" and "prev" pointers. Additionally,
+  all intervals in the list form an RB-tree, linked via left/right/parent
+  pointers. The RB-tree root SEL_ARG object will be further called "root of the
+  interval list".
+
+    In the example pic, there are 4 interval lists:
+    "kp<1 OR kp1=2 OR kp1=3", "kp2=5", "kp3=10 OR kp3=12", "kp3=11 OR kp3=13".
+    The vertical lines represent SEL_ARG::next/prev pointers.
+
+  In an interval list, each member X may have SEL_ARG::next_key_part pointer
+  pointing to the root of another interval list Y. The pointed interval list
+  must cover a key part with greater number (i.e. Y->part > X->part).
+
+    In the example pic, the next_key_part pointers are represented by
+    horisontal lines.
+
+  2. SEL_ARG GRAPH SEMANTICS
+
+  It represents a condition in a special form (we don't have a name for it ATM)
+  The SEL_ARG::next/prev is "OR", and next_key_part is "AND".
+
+  For example, the picture represents the condition in form:
+   (kp1 < 1 AND kp2=5 AND (kp3=10 OR kp3=12)) OR
+   (kp1=2 AND (kp3=11 OR kp3=14)) OR
+   (kp1=3 AND (kp3=11 OR kp3=14))
+
+
+  3. SEL_ARG GRAPH USE
+
+  Use get_mm_tree() to construct SEL_ARG graph from WHERE condition.
+  Then walk the SEL_ARG graph and get a list of dijsoint ordered key
+  intervals (i.e. intervals in form
+
+   (constA1, .., const1_K) < (keypart1,.., keypartK) < (constB1, .., constB_K)
+
+  Those intervals can be used to access the index. The uses are in:
+   - check_quick_select() - Walk the SEL_ARG graph and find an estimate of
+                            how many table records are contained within all
+                            intervals.
+   - get_quick_select()   - Walk the SEL_ARG, materialize the key intervals,
+                            and create QUICK_RANGE_SELECT object that will
+                            read records within these intervals.
+
+  4. SPACE COMPLEXITY NOTES
+
+    SEL_ARG graph is a representation of an ordered disjoint sequence of
+    intervals over the ordered set of index tuple values.
+
+    For multi-part keys, one can construct a WHERE expression such that its
+    list of intervals will be of combinatorial size. Here is an example:
+
+      (keypart1 IN (1,2, ..., n1)) AND
+      (keypart2 IN (1,2, ..., n2)) AND
+      (keypart3 IN (1,2, ..., n3))
+
+    For this WHERE clause the list of intervals will have n1*n2*n3 intervals
+    of form
+
+      (keypart1, keypart2, keypart3) = (k1, k2, k3), where 1 <= k{i} <= n{i}
+
+    SEL_ARG graph structure aims to reduce the amount of required space by
+    "sharing" the elementary intervals when possible (the pic at the
+    beginning of this comment has examples of such sharing). The sharing may
+    prevent combinatorial blowup:
+
+      There are WHERE clauses that have combinatorial-size interval lists but
+      will be represented by a compact SEL_ARG graph.
+      Example:
+        (keypartN IN (1,2, ..., n1)) AND
+        ...
+        (keypart2 IN (1,2, ..., n2)) AND
+        (keypart1 IN (1,2, ..., n3))
+
+    but not in all cases:
+
+    - There are WHERE clauses that do have a compact SEL_ARG-graph
+      representation but get_mm_tree() and its callees will construct a
+      graph of combinatorial size.
+      Example:
+        (keypart1 IN (1,2, ..., n1)) AND
+        (keypart2 IN (1,2, ..., n2)) AND
+        ...
+        (keypartN IN (1,2, ..., n3))
+
+    - There are WHERE clauses for which the minimal possible SEL_ARG graph
+      representation will have combinatorial size.
+      Example:
+        By induction: Let's take any interval on some keypart in the middle:
+
+           kp15=c0
+
+        Then let's AND it with this interval 'structure' from preceding and
+        following keyparts:
+
+          (kp14=c1 AND kp16=c3) OR keypart14=c2) (*)
+
+        We will obtain this SEL_ARG graph:
+
+             kp14     $      kp15      $      kp16
+                      $                $
+         +---------+  $   +---------+  $   +---------+
+         | kp14=c1 |--$-->| kp15=c0 |--$-->| kp16=c3 |
+         +---------+  $   +---------+  $   +---------+
+              |       $                $
+         +---------+  $   +---------+  $
+         | kp14=c2 |--$-->| kp15=c0 |  $
+         +---------+  $   +---------+  $
+                      $                $
+
+       Note that we had to duplicate "kp15=c0" and there was no way to avoid
+       that.
+       The induction step: AND the obtained expression with another "wrapping"
+       expression like (*).
+       When the process ends because of the limit on max. number of keyparts
+       we'll have:
+
+         WHERE clause length  is O(3*#max_keyparts)
+         SEL_ARG graph size   is O(2^(#max_keyparts/2))
+
+       (it is also possible to construct a case where instead of 2 in 2^n we
+        have a bigger constant, e.g. 4, and get a graph with 4^(31/2)= 2^31
+        nodes)
+
+    We avoid consuming too much memory by setting a limit on the number of
+    SEL_ARG object we can construct during one range analysis invocation.
+*/
+
+class SEL_ARG :public Sql_alloc
+{
+  static int sel_cmp(Field *field, uchar *a, uchar *b, uint8 a_flag,
+                     uint8 b_flag);
+public:
+  uint8 min_flag,max_flag,maybe_flag;
+  uint8 part;					// Which key part
+  uint8 maybe_null;
+  /*
+    The ordinal number the least significant component encountered in
+    the ranges of the SEL_ARG tree (the first component has number 1)
+  */
+  uint16 max_part_no;
+  /*
+    Number of children of this element in the RB-tree, plus 1 for this
+    element itself.
+  */
+  uint16 elements;
+  /*
+    Valid only for elements which are RB-tree roots: Number of times this
+    RB-tree is referred to (it is referred by SEL_ARG::next_key_part or by
+    SEL_TREE::keys[i] or by a temporary SEL_ARG* variable)
+  */
+  ulong use_count;
+
+  Field *field;
+  uchar *min_value,*max_value;			// Pointer to range
+
+  /*
+    eq_tree() requires that left == right == 0 if the type is MAYBE_KEY.
+   */
+  SEL_ARG *left,*right;   /* R-B tree children */
+  SEL_ARG *next,*prev;    /* Links for bi-directional interval list */
+  SEL_ARG *parent;        /* R-B tree parent */
+  SEL_ARG *next_key_part;
+  enum leaf_color { BLACK,RED } color;
+  enum Type { IMPOSSIBLE, MAYBE, MAYBE_KEY, KEY_RANGE } type;
+
+  enum { MAX_SEL_ARGS = 16000 };
+
+  SEL_ARG() {}
+  SEL_ARG(SEL_ARG &);
+  SEL_ARG(Field *,const uchar *, const uchar *);
+  SEL_ARG(Field *field, uint8 part, uchar *min_value, uchar *max_value,
+	  uint8 min_flag, uint8 max_flag, uint8 maybe_flag);
+  SEL_ARG(enum Type type_arg)
+    :min_flag(0), max_part_no(0) /* first key part means 1. 0 mean 'no parts'*/,
+     elements(1),use_count(1),left(0),right(0),
+     next_key_part(0), color(BLACK), type(type_arg)
+  {}
+  /**
+    returns true if a range predicate is equal. Use all_same()
+    to check for equality of all the predicates on this keypart.
+  */
+  inline bool is_same(const SEL_ARG *arg) const
+  {
+    if (type != arg->type || part != arg->part)
+      return false;
+    if (type != KEY_RANGE)
+      return true;
+    return cmp_min_to_min(arg) == 0 && cmp_max_to_max(arg) == 0;
+  }
+  /**
+    returns true if all the predicates in the keypart tree are equal
+  */
+  bool all_same(const SEL_ARG *arg) const
+  {
+    if (type != arg->type || part != arg->part)
+      return false;
+    if (type != KEY_RANGE)
+      return true;
+    if (arg == this)
+      return true;
+    const SEL_ARG *cmp_arg= arg->first();
+    const SEL_ARG *cur_arg= first();
+    for (; cur_arg && cmp_arg && cur_arg->is_same(cmp_arg);
+         cur_arg= cur_arg->next, cmp_arg= cmp_arg->next) ;
+    if (cur_arg || cmp_arg)
+      return false;
+    return true;
+  }
+  inline void merge_flags(SEL_ARG *arg) { maybe_flag|=arg->maybe_flag; }
+  inline void maybe_smaller() { maybe_flag=1; }
+  /* Return true iff it's a single-point null interval */
+  inline bool is_null_interval() { return maybe_null && max_value[0] == 1; }
+  inline int cmp_min_to_min(const SEL_ARG* arg) const
+  {
+    return sel_cmp(field,min_value, arg->min_value, min_flag, arg->min_flag);
+  }
+  inline int cmp_min_to_max(const SEL_ARG* arg) const
+  {
+    return sel_cmp(field,min_value, arg->max_value, min_flag, arg->max_flag);
+  }
+  inline int cmp_max_to_max(const SEL_ARG* arg) const
+  {
+    return sel_cmp(field,max_value, arg->max_value, max_flag, arg->max_flag);
+  }
+  inline int cmp_max_to_min(const SEL_ARG* arg) const
+  {
+    return sel_cmp(field,max_value, arg->min_value, max_flag, arg->min_flag);
+  }
+  SEL_ARG *clone_and(THD *thd, SEL_ARG* arg)
+  {						// Get overlapping range
+    uchar *new_min,*new_max;
+    uint8 flag_min,flag_max;
+    if (cmp_min_to_min(arg) >= 0)
+    {
+      new_min=min_value; flag_min=min_flag;
+    }
+    else
+    {
+      new_min=arg->min_value; flag_min=arg->min_flag; /* purecov: deadcode */
+    }
+    if (cmp_max_to_max(arg) <= 0)
+    {
+      new_max=max_value; flag_max=max_flag;
+    }
+    else
+    {
+      new_max=arg->max_value; flag_max=arg->max_flag;
+    }
+    return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
+                                       flag_max,
+                                       MY_TEST(maybe_flag && arg->maybe_flag));
+  }
+  SEL_ARG *clone_first(SEL_ARG *arg)
+  {						// min <= X < arg->min
+    return new SEL_ARG(field,part, min_value, arg->min_value,
+		       min_flag, arg->min_flag & NEAR_MIN ? 0 : NEAR_MAX,
+		       maybe_flag | arg->maybe_flag);
+  }
+  SEL_ARG *clone_last(SEL_ARG *arg)
+  {						// min <= X <= key_max
+    return new SEL_ARG(field, part, min_value, arg->max_value,
+		       min_flag, arg->max_flag, maybe_flag | arg->maybe_flag);
+  }
+  SEL_ARG *clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent, SEL_ARG **next);
+
+  bool copy_min(SEL_ARG* arg)
+  {						// Get overlapping range
+    if (cmp_min_to_min(arg) > 0)
+    {
+      min_value=arg->min_value; min_flag=arg->min_flag;
+      if ((max_flag & (NO_MAX_RANGE | NO_MIN_RANGE)) ==
+	  (NO_MAX_RANGE | NO_MIN_RANGE))
+	return 1;				// Full range
+    }
+    maybe_flag|=arg->maybe_flag;
+    return 0;
+  }
+  bool copy_max(SEL_ARG* arg)
+  {						// Get overlapping range
+    if (cmp_max_to_max(arg) <= 0)
+    {
+      max_value=arg->max_value; max_flag=arg->max_flag;
+      if ((max_flag & (NO_MAX_RANGE | NO_MIN_RANGE)) ==
+	  (NO_MAX_RANGE | NO_MIN_RANGE))
+	return 1;				// Full range
+    }
+    maybe_flag|=arg->maybe_flag;
+    return 0;
+  }
+
+  void copy_min_to_min(SEL_ARG *arg)
+  {
+    min_value=arg->min_value; min_flag=arg->min_flag;
+  }
+  void copy_min_to_max(SEL_ARG *arg)
+  {
+    max_value=arg->min_value;
+    max_flag=arg->min_flag & NEAR_MIN ? 0 : NEAR_MAX;
+  }
+  void copy_max_to_min(SEL_ARG *arg)
+  {
+    min_value=arg->max_value;
+    min_flag=arg->max_flag & NEAR_MAX ? 0 : NEAR_MIN;
+  }
+  /* returns a number of keypart values (0 or 1) appended to the key buffer */
+  int store_min(uint length, uchar **min_key,uint min_key_flag)
+  {
+    /* "(kp1 > c1) AND (kp2 OP c2) AND ..." -> (kp1 > c1) */
+    if ((min_flag & GEOM_FLAG) ||
+        (!(min_flag & NO_MIN_RANGE) &&
+	!(min_key_flag & (NO_MIN_RANGE | NEAR_MIN))))
+    {
+      if (maybe_null && *min_value)
+      {
+	**min_key=1;
+	bzero(*min_key+1,length-1);
+      }
+      else
+	memcpy(*min_key,min_value,length);
+      (*min_key)+= length;
+      return 1;
+    }
+    return 0;
+  }
+  /* returns a number of keypart values (0 or 1) appended to the key buffer */
+  int store_max(uint length, uchar **max_key, uint max_key_flag)
+  {
+    if (!(max_flag & NO_MAX_RANGE) &&
+	!(max_key_flag & (NO_MAX_RANGE | NEAR_MAX)))
+    {
+      if (maybe_null && *max_value)
+      {
+	**max_key=1;
+	bzero(*max_key+1,length-1);
+      }
+      else
+	memcpy(*max_key,max_value,length);
+      (*max_key)+= length;
+      return 1;
+    }
+    return 0;
+  }
+
+  /*
+    Returns a number of keypart values appended to the key buffer
+    for min key and max key. This function is used by both Range
+    Analysis and Partition pruning. For partition pruning we have
+    to ensure that we don't store also subpartition fields. Thus
+    we have to stop at the last partition part and not step into
+    the subpartition fields. For Range Analysis we set last_part
+    to MAX_KEY which we should never reach.
+  */
+  int store_min_key(KEY_PART *key,
+                    uchar **range_key,
+                    uint *range_key_flag,
+                    uint last_part)
+  {
+    SEL_ARG *key_tree= first();
+    uint res= key_tree->store_min(key[key_tree->part].store_length,
+                                  range_key, *range_key_flag);
+    *range_key_flag|= key_tree->min_flag;
+    if (key_tree->next_key_part &&
+	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
+        key_tree->part != last_part &&
+	key_tree->next_key_part->part == key_tree->part+1 &&
+	!(*range_key_flag & (NO_MIN_RANGE | NEAR_MIN)))
+      res+= key_tree->next_key_part->store_min_key(key,
+                                                   range_key,
+                                                   range_key_flag,
+                                                   last_part);
+    return res;
+  }
+
+  /* returns a number of keypart values appended to the key buffer */
+  int store_max_key(KEY_PART *key,
+                    uchar **range_key,
+                    uint *range_key_flag,
+                    uint last_part)
+  {
+    SEL_ARG *key_tree= last();
+    uint res=key_tree->store_max(key[key_tree->part].store_length,
+                                 range_key, *range_key_flag);
+    (*range_key_flag)|= key_tree->max_flag;
+    if (key_tree->next_key_part &&
+	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
+        key_tree->part != last_part &&
+	key_tree->next_key_part->part == key_tree->part+1 &&
+	!(*range_key_flag & (NO_MAX_RANGE | NEAR_MAX)))
+      res+= key_tree->next_key_part->store_max_key(key,
+                                                   range_key,
+                                                   range_key_flag,
+                                                   last_part);
+    return res;
+  }
+
+  SEL_ARG *insert(SEL_ARG *key);
+  SEL_ARG *tree_delete(SEL_ARG *key);
+  SEL_ARG *find_range(SEL_ARG *key);
+  SEL_ARG *rb_insert(SEL_ARG *leaf);
+  friend SEL_ARG *rb_delete_fixup(SEL_ARG *root,SEL_ARG *key, SEL_ARG *par);
+#ifdef EXTRA_DEBUG
+  friend int test_rb_tree(SEL_ARG *element,SEL_ARG *parent);
+  void test_use_count(SEL_ARG *root);
+#endif
+  SEL_ARG *first();
+  const SEL_ARG *first() const;
+  SEL_ARG *last();
+  void make_root();
+  inline bool simple_key()
+  {
+    return !next_key_part && elements == 1;
+  }
+  void increment_use_count(long count)
+  {
+    if (next_key_part)
+    {
+      next_key_part->use_count+=count;
+      count*= (next_key_part->use_count-count);
+      for (SEL_ARG *pos=next_key_part->first(); pos ; pos=pos->next)
+	if (pos->next_key_part)
+	  pos->increment_use_count(count);
+    }
+  }
+  void incr_refs()
+  {
+    increment_use_count(1);
+    use_count++;
+  }
+  void incr_refs_all()
+  {
+    for (SEL_ARG *pos=first(); pos ; pos=pos->next)
+    {
+      pos->increment_use_count(1);
+    }
+    use_count++;
+  }
+  void free_tree()
+  {
+    for (SEL_ARG *pos=first(); pos ; pos=pos->next)
+      if (pos->next_key_part)
+      {
+	pos->next_key_part->use_count--;
+	pos->next_key_part->free_tree();
+      }
+  }
+
+  inline SEL_ARG **parent_ptr()
+  {
+    return parent->left == this ? &parent->left : &parent->right;
+  }
+
+
+  /*
+    Check if this SEL_ARG object represents a single-point interval
+
+    SYNOPSIS
+      is_singlepoint()
+
+    DESCRIPTION
+      Check if this SEL_ARG object (not tree) represents a single-point
+      interval, i.e. if it represents a "keypart = const" or
+      "keypart IS NULL".
+
+    RETURN
+      TRUE   This SEL_ARG object represents a singlepoint interval
+      FALSE  Otherwise
+  */
+
+  bool is_singlepoint()
+  {
+    /*
+      Check for NEAR_MIN ("strictly less") and NO_MIN_RANGE (-inf < field)
+      flags, and the same for right edge.
+    */
+    if (min_flag || max_flag)
+      return FALSE;
+    uchar *min_val= min_value;
+    uchar *max_val= max_value;
+
+    if (maybe_null)
+    {
+      /* First byte is a NULL value indicator */
+      if (*min_val != *max_val)
+        return FALSE;
+
+      if (*min_val)
+        return TRUE; /* This "x IS NULL" */
+      min_val++;
+      max_val++;
+    }
+    return !field->key_cmp(min_val, max_val);
+  }
+  SEL_ARG *clone_tree(RANGE_OPT_PARAM *param);
+};
+
+
+class RANGE_OPT_PARAM
+{
+public:
+  THD	*thd;   /* Current thread handle */
+  TABLE *table; /* Table being analyzed */
+  table_map prev_tables;
+  table_map read_tables;
+  table_map current_table; /* Bit of the table being analyzed */
+
+  /* Array of parts of all keys for which range analysis is performed */
+  KEY_PART *key_parts;
+  KEY_PART *key_parts_end;
+  MEM_ROOT *mem_root; /* Memory that will be freed when range analysis completes */
+  MEM_ROOT *old_root; /* Memory that will last until the query end */
+  /*
+    Number of indexes used in range analysis (In SEL_TREE::keys only first
+    #keys elements are not empty)
+  */
+  uint keys;
+
+  /*
+    If true, the index descriptions describe real indexes (and it is ok to
+    call field->optimize_range(real_keynr[...], ...).
+    Otherwise index description describes fake indexes.
+  */
+  bool using_real_indexes;
+
+  /*
+    Aggressively remove "scans" that do not have conditions on first
+    keyparts. Such scans are usable when doing partition pruning but not
+    regular range optimization.
+  */
+  bool remove_jump_scans;
+
+  /*
+    TRUE <=> Range analyzer should remove parts of condition that are found
+    to be always FALSE.
+  */
+  bool remove_false_where_parts;
+
+  /*
+    used_key_no -> table_key_no translation table. Only makes sense if
+    using_real_indexes==TRUE
+  */
+  uint real_keynr[MAX_KEY];
+
+  /*
+    Used to store 'current key tuples', in both range analysis and
+    partitioning (list) analysis
+  */
+  uchar *min_key;
+  uchar *max_key;
+
+  /* Number of SEL_ARG objects allocated by SEL_ARG::clone_tree operations */
+  uint alloced_sel_args;
+
+  bool force_default_mrr;
+  KEY_PART *key[MAX_KEY]; /* First key parts of keys used in the query */
+
+  bool statement_should_be_aborted() const
+  {
+    return
+      thd->is_fatal_error ||
+      thd->is_error() ||
+      alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
+  }
+};
+
 
 class Explain_quick_select;
 /*
@@ -401,7 +1011,6 @@ public:
 
 struct st_qsel_param;
 class PARAM;
-class SEL_ARG;
 
 
 /*

@@ -111,7 +111,7 @@
 #define MAX_FIELDS_BEFORE_HASH	32
 #define USER_VARS_HASH_SIZE     16
 #define TABLE_OPEN_CACHE_MIN    400
-#define TABLE_OPEN_CACHE_DEFAULT 400
+#define TABLE_OPEN_CACHE_DEFAULT 2000
 #define TABLE_DEF_CACHE_DEFAULT 400
 /**
   We must have room for at least 400 table definitions in the table
@@ -142,7 +142,7 @@
 */
 #define STACK_MIN_SIZE          16000   // Abort if less stack during eval.
 
-#define STACK_MIN_SIZE_FOR_OPEN 1024*80
+#define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks
 #ifndef MYSQLD_NET_RETRY_COUNT
 #define MYSQLD_NET_RETRY_COUNT  10	///< Abort read after this many int.
@@ -238,7 +238,7 @@
 #define DEFAULT_CONCURRENCY	10
 #define DELAYED_LIMIT		100		/**< pause after xxx inserts */
 #define DELAYED_QUEUE_SIZE	1000
-#define DELAYED_WAIT_TIMEOUT	5*60		/**< Wait for delayed insert */
+#define DELAYED_WAIT_TIMEOUT	(5*60)		/**< Wait for delayed insert */
 #define MAX_CONNECT_ERRORS	100		///< errors before disabling host
 
 #define LONG_TIMEOUT ((ulong) 3600L*24L*365L)

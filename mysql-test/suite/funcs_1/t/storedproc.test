@@ -9,6 +9,7 @@
 #                   - restore global sort_buffer_size after some subtest
 #                  
 ############################################################################
+set sql_mode="";
 
 # Bug#37746 - Arithmetic range ("int") is smaller than expected
 # This code is in place to ensure this test is only skipped

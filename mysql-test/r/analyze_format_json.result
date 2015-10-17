@@ -143,7 +143,7 @@ ANALYZE
         "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "r_filtered": 100
     }
@@ -181,7 +181,7 @@ ANALYZE
         "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "attached_condition": "(tbl1.c > tbl2.c)",
       "r_filtered": 15.833
@@ -467,3 +467,299 @@ ANALYZE
   }
 }
 drop table t0, t1;
+#
+# MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+a int, 
+b int, 
+key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+# normal HAVING
+analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "having_condition": "(TOP > a)",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 0,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always TRUE (not printed)
+analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 256,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always FALSE (intercepted by message)
+analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible HAVING"
+    }
+  }
+}
+# HAVING is absent
+analyze format=json select a, max(b) as TOP from t2 group by a;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 256,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t0, t1, t2;
+#
+# MDEV-7267: Server crashes in Item_field::print on ANALYZE FORMAT=JSON	
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 2,
+      "r_rows": 2,
+      "volatile parameter": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<subquery2>",
+        "access_type": "ALL",
+        "possible_keys": ["distinct_key"],
+        "r_loops": 1,
+        "rows": 2,
+        "r_rows": 2,
+        "volatile parameter": "REPLACED",
+        "filtered": 100,
+        "r_filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "r_filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "r_loops": 1,
+          "volatile parameter": "REPLACED",
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "volatile parameter": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "r_loops": 1,
+        "rows": 2,
+        "r_rows": 2,
+        "volatile parameter": "REPLACED",
+        "filtered": 100,
+        "r_filtered": 100
+      },
+      "buffer_type": "incremental",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "(t2.b = `<subquery2>`.a)",
+      "r_filtered": 0
+    }
+  }
+}
+drop table t1,t2;
+#
+# MDEV-8864: Server crash #2 in Item_field::print on ANALYZE FORMAT=JSON
+#
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (f3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (3),(4);
+ANALYZE FORMAT=JSON 
+SELECT GROUP_CONCAT(f3) AS gc, ( SELECT MAX(f1) FROM t1, t2 WHERE f2 = f3 ) sq
+FROM t2, t3
+WHERE f3 IN ( 1, 2 ) 
+GROUP BY sq ORDER BY gc;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 0,
+      "volatile parameter": "REPLACED",
+      "filesort": {
+        "r_loops": 1,
+        "volatile parameter": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 0,
+        "volatile parameter": "REPLACED",
+        "temporary_table": {
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 2,
+              "volatile parameter": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            },
+            "block-nl-join": {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "rows": 2,
+                "r_rows": 2,
+                "volatile parameter": "REPLACED",
+                "filtered": 100,
+                "r_filtered": 0,
+                "attached_condition": "(t3.f3 in (1,2))"
+              },
+              "buffer_type": "flat",
+              "buffer_size": "256Kb",
+              "join_type": "BNL",
+              "r_filtered": null
+            },
+            "subqueries": [
+              {
+                "expression_cache": {
+                  "state": "uninitialized",
+                  "r_loops": 0,
+                  "query_block": {
+                    "select_id": 2,
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "r_loops": 0,
+                      "rows": 2,
+                      "r_rows": null,
+                      "filtered": 100,
+                      "r_filtered": null
+                    },
+                    "block-nl-join": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "r_loops": 0,
+                        "rows": 2,
+                        "r_rows": null,
+                        "filtered": 100,
+                        "r_filtered": null
+                      },
+                      "buffer_type": "flat",
+                      "buffer_size": "256Kb",
+                      "join_type": "BNL",
+                      "attached_condition": "(t2.f2 = t3.f3)",
+                      "r_filtered": null
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1,t2,t3;

@@ -35,6 +35,6 @@
 #define VERSION_thd_autoinc             0x0100
 #define VERSION_thd_error_context       0x0100
 #define VERSION_thd_specifics           0x0100
-#define VERSION_encryption              0x0200
+#define VERSION_encryption              0x0300
 #define VERSION_encryption_scheme       0x0100
 

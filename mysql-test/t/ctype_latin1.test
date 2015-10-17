@@ -248,3 +248,131 @@ SELECT _latin1 0x7E, _latin1 X'7E', _latin1 B'01111110';
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8661 Wrong result for SELECT..WHERE a='a' AND a='a' COLLATE latin1_bin
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a='a' COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' COLLATE latin1_bin AND a='A' COLLATE latin1_swedish_ci;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8679 Equal field propagation is not used for VARCHAR when it safely could
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('10'),('11'),('12');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND IF(a='10',1,0)=1;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND CASE WHEN a='10' THEN 1 ELSE 0 END;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8680 Wrong result for SELECT..WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a'
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b');
+SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8698 Wrong result for SELECT..WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A'),('b'),('B'),('c'),('C');
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin AND a='a';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8707 Wrong result for SELECT..WHERE varchar_column=DATE'2001-01-01' AND varchar_column='2001-01-01'
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(40),b VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'),b ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE CRC32(a)=3904355907;
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+--echo # 'a' should not be propagated into CRC32(a)
+EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
+SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+--echo # 'a' should not be propagated into HEX(a)
+EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+SELECT * FROM t1 WHERE a='a';
+SELECT * FROM t1 WHERE LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+--echo # 'a' should not be propagated into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8712 Wrong result for SELECT..WHERE latin1_bin_column=_latin1'a' AND latin1_bin_column='A'
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(20) COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('b');
+SELECT * FROM t1 WHERE a='A';
+SELECT * FROM t1 WHERE a='A' AND a=_latin1'a';
+SELECT * FROM t1 WHERE a=_latin1'a' AND a='A';
+SELECT * FROM t1 WHERE a=_latin1'A';
+SELECT * FROM t1 WHERE a=_latin1'A' AND a=_latin1'a';
+SELECT * FROM t1 WHERE a=_latin1'a' AND a=_latin1'A';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8253 EXPLAIN SELECT prints unexpected characters
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a DECIMAL(10,1),b DECIMAL(10,1),c VARCHAR(10),d VARCHAR(10));
+INSERT INTO t1 VALUES (1.5,1.5,'1','1'),(3.5,3.5,'3','3');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(c,0)='3 ' AND COALESCE(d,0)=COALESCE(c,0);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

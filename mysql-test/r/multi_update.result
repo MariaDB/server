@@ -181,8 +181,8 @@ ERROR HY000: You are using safe update mode and you tried to update a table with
 set sql_safe_updates=0;
 drop table t1,t2;
 set timestamp=1038401397;
-create table t1 (n int(10) not null primary key, d int(10), t timestamp);
-create table t2 (n int(10) not null primary key, d int(10), t timestamp);
+create table t1 (n int(10) not null primary key, d int(10), t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+create table t2 (n int(10) not null primary key, d int(10), t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 values(1,1,NULL);
 insert into t2 values(1,10,NULL),(2,20,NULL);
 set timestamp=1038000000;
@@ -422,6 +422,7 @@ create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key (a));
 create table mysqltest.t2 (a int, b int, primary key (a));
 create table mysqltest.t3 (a int, b int, primary key (a));
+create user mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 grant update on mysqltest.t1 to mysqltest_1@localhost;
 update t1, t2 set t1.b=1 where t1.a=t2.a;

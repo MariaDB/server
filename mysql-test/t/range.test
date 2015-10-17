@@ -1796,5 +1796,14 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-8613 Full table scan for WHERE indexed_varchar_column <=> 'bad-character'
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
+EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

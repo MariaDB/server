@@ -213,7 +213,8 @@ struct fsp_open_info {
 #ifdef UNIV_LOG_ARCHIVE
 	ulint		arch_log_no;	/*!< latest archived log file number */
 #endif /* UNIV_LOG_ARCHIVE */
-	fil_space_crypt_t* crypt_data; /*!< crypt data */
+	fil_space_crypt_t* crypt_data;	/*!< crypt data */
+	dict_table_t*	table;		/*!< table */
 };
 
 struct fil_space_t;
@@ -774,6 +775,9 @@ char*
 fil_read_link_file(
 /*===============*/
 	const char*	name);		/*!< in: tablespace name */
+
+#include "fil0crypt.h"
+
 /*******************************************************************//**
 Creates a new single-table tablespace to a database directory of MySQL.
 Database directories are under the 'datadir' of MySQL. The datadir is the
@@ -792,9 +796,11 @@ fil_create_new_single_table_tablespace(
 	const char*	dir_path,	/*!< in: NULL or a dir path */
 	ulint		flags,		/*!< in: tablespace flags */
 	ulint		flags2,		/*!< in: table flags2 */
-	ulint		size)		/*!< in: the initial size of the
+	ulint		size,		/*!< in: the initial size of the
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 	__attribute__((nonnull, warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
@@ -828,7 +834,8 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: tablespace flags */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	filepath)	/*!< in: tablespace filepath */
+	const char*	filepath,	/*!< in: tablespace filepath */
+	dict_table_t*	table)		/*!< in: table */
 	__attribute__((nonnull(5), warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */

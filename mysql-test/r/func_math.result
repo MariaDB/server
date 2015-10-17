@@ -165,7 +165,7 @@ create table t1 select round(1, 6);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `round(1, 6)` int(1) NOT NULL DEFAULT '0'
+  `round(1, 6)` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select * from t1;
 round(1, 6)
@@ -214,7 +214,9 @@ CAST(RAND(2) * 1000 AS UNSIGNED)	CAST(RAND(?) * 1000 AS UNSIGNED)
 122	122
 645	645
 DROP TABLE t1;
+set sql_mode="";
 create table t1 (a varchar(90), ts datetime not null, index (a)) engine=innodb default charset=utf8;
+set sql_mode=default;
 insert into t1 values ('http://www.foo.com/', now());
 select a from t1 where a='http://www.foo.com/' order by abs(timediff(ts, 0));
 a
@@ -474,8 +476,13 @@ CREATE TABLE t1(f1 LONGTEXT) engine=myisam;
 INSERT INTO t1 VALUES ('a');
 SELECT 1 FROM (SELECT ROUND(f1) AS a FROM t1) AS s WHERE a LIKE 'a';
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM (SELECT ROUND(f1, f1) AS a FROM t1) AS s WHERE a LIKE 'a';
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect INTEGER value: 'a'
 DROP TABLE t1;
 End of 5.0 tests
 SELECT 1e308 + 1e308;
@@ -695,6 +702,9 @@ SELECT floor(log10(format(concat_ws(5445796E25, 5306463, 30837), -358821)))
 as foo;
 foo
 2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '53064635.445796e3130837'
+Warning	1292	Truncated incorrect DOUBLE value: '179,769,313,486,231,570,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,'
 #
 # Bug #58137 char(0) column cause:
 #            my_gcvt: Assertion `width > 0 && to != ((void *)0)' failed

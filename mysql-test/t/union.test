@@ -26,8 +26,12 @@ select 't1',b,count(*) from t1 group by b UNION select 't2',b,count(*) from t2 g
 --error 1250
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by t1.b;
 explain extended (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
+select count(*) from (
+(select                      a,b from t1 limit 2)  union all (select a,b from t2 order by a)) q;
 (select sql_calc_found_rows  a,b from t1 limit 2)  union all (select a,b from t2 order by a) limit 2;
 select found_rows();
+select count(*) from (
+select                      a,b from t1  union all select a,b from t2) q;
 select sql_calc_found_rows  a,b from t1  union all select a,b from t2 limit 2;
 select found_rows();
 
@@ -206,16 +210,28 @@ create table t2 (a int);
 insert into t2 values (3),(4),(5);
 
 # Test global limits
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1) UNION all (SELECT * FROM t2)) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1) UNION all (SELECT * FROM t2) LIMIT 1;
 select found_rows();
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION all (SELECT * FROM t2)) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION all (SELECT * FROM t2) LIMIT 2;
 select found_rows();
 
 # Test cases where found_rows() should return number of returned rows
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION all (SELECT * FROM t2)) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION all (SELECT * FROM t2);
 select found_rows();
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1) UNION all (SELECT * FROM t2 LIMIT 1)) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1) UNION all (SELECT * FROM t2 LIMIT 1);
 select found_rows();
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 1;
+select found_rows();
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 1;
 select found_rows();
 
@@ -226,20 +242,41 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
 
 # The following examples will not be exact
+SELECT COUNT(*) FROM (
+SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2;
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION all SELECT * FROM t2) q;
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
+SELECT COUNT(*) FROM (
+SELECT                     * FROM t1 UNION all SELECT * FROM t2) q;
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 100;
 select found_rows();
 --error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100 UNION SELECT * FROM t2;
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 100) UNION SELECT * FROM t2) q;
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100) UNION SELECT * FROM t2;
 --error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2;
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2;
 --error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2 LIMIT 2;
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 2;
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2,2;
 select found_rows();
+SELECT COUNT(*) FROM (
+SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 --error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 limit 2,2 UNION SELECT * FROM t2;
+SELECT COUNT(*) FROM (
+(SELECT                     * FROM t1 limit 2,2) UNION SELECT * FROM t2) q;
+(SELECT SQL_CALC_FOUND_ROWS * FROM t1 limit 2,2) UNION SELECT * FROM t2;
 
 # Test some limits with ORDER BY
 SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a desc LIMIT 1;
@@ -847,7 +884,7 @@ drop table t1;
 #
 # Bug#12185: Data type aggregation may produce wrong result
 #
-create table t1(f1 char(1), f2 char(5), f3 binary(1), f4 binary(5), f5 timestamp, f6 varchar(1) character set utf8 collate utf8_general_ci, f7 text);
+create table t1(f1 char(1), f2 char(5), f3 binary(1), f4 binary(5), f5 timestamp NOT NULL DEFAULT '0000-00-00 00:00:00', f6 varchar(1) character set utf8 collate utf8_general_ci, f7 text);
 create table t2 as select *, f6 as f8 from t1 union select *, f7 from t1;
 show create table t2;
 drop table t1, t2;

@@ -29,7 +29,7 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3;
-  unsigned char *unused;
+  void *thd;
   unsigned int last_errno;
   unsigned char error;
   my_bool unused4;
@@ -81,7 +81,7 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
-my_bool my_net_init(NET *net, Vio* vio, unsigned int my_flags);
+my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
 void net_clear(NET *net, my_bool clear_buffer);
@@ -100,7 +100,7 @@ struct my_rnd_struct;
 enum Item_result
 {
   STRING_RESULT=0, REAL_RESULT, INT_RESULT, ROW_RESULT, DECIMAL_RESULT,
-  TIME_RESULT,IMPOSSIBLE_RESULT
+  TIME_RESULT
 };
 typedef struct st_udf_args
 {

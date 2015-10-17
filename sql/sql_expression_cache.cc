@@ -161,7 +161,8 @@ void Expression_cache_tmptable::init()
     goto error;
   }
 
-  if (!(cached_result= new Item_field(cache_table->field[0])))
+  if (!(cached_result= new (table_thd->mem_root)
+        Item_field(table_thd, cache_table->field[0])))
   {
     DBUG_PRINT("error", ("Creating Item_field failed"));
     goto error;

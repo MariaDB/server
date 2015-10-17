@@ -12,4 +12,4 @@ drop user mysqltest;
 drop table t1;
 
 set global query_cache_size= default;
-
+set global query_cache_type=default;

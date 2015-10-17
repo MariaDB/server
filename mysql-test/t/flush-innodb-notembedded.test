@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
+set sql_mode="";
+
 --echo # Test 7: Check privileges required.
 --echo #
 

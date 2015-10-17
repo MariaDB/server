@@ -135,7 +135,7 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_EXTRA_CHARSETS=".$charsets;
     next;
   }
-  if($option =~ /without-plugin=/)
+  if($option =~ /without-plugin=/ || $option =~ /without-plugin-/)
   {
     $cmakeargs = $cmakeargs." -DWITHOUT_".uc(substr($option,15))."=1";
     next;

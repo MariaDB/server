@@ -77,26 +77,24 @@ get_key(unsigned int key_id, unsigned int version,
 
 /*
   for the sake of an example, let's use different encryption algorithms/modes
-  for different keys.
+  for different keys versions:
 */
-int encrypt(const unsigned char* src, unsigned int slen,
-            unsigned char* dst, unsigned int* dlen,
-            const unsigned char* key, unsigned int klen,
-            const unsigned char* iv, unsigned int ivlen,
-            int no_padding, unsigned int keyid, unsigned int key_version)
+static inline enum my_aes_mode mode(unsigned int key_version)
 {
-  return ((key_version & 1) ? my_aes_encrypt_cbc : my_aes_encrypt_ecb)
-    (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
+  return key_version & 1 ? MY_AES_ECB : MY_AES_CBC;
 }
 
-int decrypt(const unsigned char* src, unsigned int slen,
-            unsigned char* dst, unsigned int* dlen,
-            const unsigned char* key, unsigned int klen,
-            const unsigned char* iv, unsigned int ivlen,
-            int no_padding, unsigned int keyid, unsigned int key_version)
+int ctx_init(void *ctx, const unsigned char* key, unsigned int klen, const
+             unsigned char* iv, unsigned int ivlen, int flags, unsigned int
+             key_id, unsigned int key_version)
 {
-  return ((key_version & 1) ? my_aes_decrypt_cbc : my_aes_decrypt_ecb)
-    (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
+  return my_aes_crypt_init(ctx, mode(key_version), flags, key, klen, iv, ivlen);
+}
+
+static unsigned int get_length(unsigned int slen, unsigned int key_id,
+                               unsigned int key_version)
+{
+  return my_aes_get_size(mode(key_version), slen);
 }
 
 static int example_key_management_plugin_init(void *p)
@@ -119,8 +117,11 @@ struct st_mariadb_encryption example_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key,
-  encrypt,
-  decrypt
+  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  ctx_init,
+  my_aes_crypt_update,
+  my_aes_crypt_finish,
+  get_length
 };
 
 /*

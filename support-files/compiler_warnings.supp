@@ -56,6 +56,8 @@ buf/buf0buf\.c : label.*loop2.* defined but not used
 #
 storage/xtradb/handler/ha_innodb\.cc: ignoring return value of
 storage/xtradb/row/row0log\.cc: ignoring return value of
+storage/xtradb/btr/btr0cur\.cc : null argument where non-null required
+storage/xtradb/btr/btr0scrub\.cc : null argument where non-null required
 
 #
 # bdb is not critical to keep up to date
@@ -176,22 +178,29 @@ jemalloc/src/jemalloc\.c: set but not used
 #
 # Connect engine
 #
-storage/connect/connect\.cc: might be clobbered by ~longjmp~
+storage/connect/ha_connect\.cc: might be clobbered by
+storage/connect/connect\.cc: might be clobbered by
 storage/connect/filamvct\.cpp: ignoring return value of
-storage/connect/filamvct\.cpp: might be clobbered by ~longjmp~
+storage/connect/filamvct\.cpp: might be clobbered by
 storage/connect/xindex\.cpp: ignoring return value of
+
+#
+# Mroonga
+#
+groonga/lib/expr\.c : const/copy propagation disabled
 
 #
 # Unexplanable (?) stuff
 #
-listener.cc : .*conversion from 'SOCKET' to 'int'.*
-net_serv.cc : .*conversion from 'SOCKET' to 'int'.*
+listener\.cc : .*conversion from 'SOCKET' to 'int'.*
+net_serv\.cc : .*conversion from 'SOCKET' to 'int'.*
 
 #
 # Ignorable warnings from header files
 #
 backward_warning\.h : This file includes at least one
 /usr/include/i386-linux-gnu/bits/string3\.h: memset used with constant zero length parameter
+bits/string3.h : might overflow destination buffer
 
 # allow a little moving space for the warning below
 mi_packrec\.c : .*result of 32-bit shift implicitly converted to 64 bits.* : 560-600

@@ -150,6 +150,7 @@ drop view v1|
 drop table t3|
 drop procedure if exists bug15298_1;
 drop procedure if exists bug15298_2;
+create user 'mysqltest_1'@'localhost';
 grant all privileges on test.* to 'mysqltest_1'@'localhost';
 create procedure 15298_1 () sql security definer show grants for current_user;
 create procedure 15298_2 () sql security definer show grants;
@@ -203,6 +204,8 @@ Warnings:
 Warning	1364	Field 'authentication_string' doesn't have a default value
 FLUSH PRIVILEGES;
 CREATE PROCEDURE p1(i INT) BEGIN END;
+Warnings:
+Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 DROP PROCEDURE p1;
 DELETE FROM mysql.user WHERE User='mysqltest_1';
 FLUSH PRIVILEGES;

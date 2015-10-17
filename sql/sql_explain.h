@@ -209,8 +209,10 @@ public:
   Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
     message(NULL),
+    having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
-    time_tracker(is_analyze)
+    time_tracker(is_analyze),
+    ops_tracker(is_analyze)
   {}
 
   /*
@@ -230,7 +232,11 @@ public:
 
   /* Expensive constant condition */
   Item *exec_const_cond;
-  
+
+  /* HAVING condition */
+  COND *having;
+  Item::cond_result having_value;
+
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
@@ -694,7 +700,12 @@ public:
   */
   Item *where_cond;
   Item *cache_cond;
-
+  
+  /*
+    This is either pushed index condition, or BKA's index condition. 
+    (the latter refers to columns of other tables and so can only be checked by
+     BKA code). Examine extra_tags to tell which one it is.
+  */
   Item *pushed_index_cond;
 
   Explain_basic_join *sjm_nest;
@@ -729,6 +740,8 @@ private:
   
   This is similar to Explain_table_access, except that it is more restrictive.
   Also, it can have UPDATE operation options, but currently there aren't any.
+
+  Explain_delete inherits from this.
 */
 
 class Explain_update : public Explain_node

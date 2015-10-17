@@ -153,7 +153,9 @@ SET @@session.gtid_domain_id=1;
 BEGIN;
 INSERT INTO t2 VALUES(3);
 INSERT INTO t3 VALUES(3);
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 1
@@ -180,7 +182,9 @@ SET @@session.gtid_domain_id=1;
 BEGIN;
 INSERT INTO t2 VALUES(5);
 INSERT INTO t3 VALUES(5);
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 

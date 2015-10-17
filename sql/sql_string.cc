@@ -879,13 +879,7 @@ my_copy_with_hex_escaping(CHARSET_INFO *cs,
   with optional character set conversion,
   with optional left padding (for binary -> UCS2 conversion)
 
-  In case if there is a Unicode conversion (i.e. to_cs and from_cs are
-  different character sets and both are not &my_charset_bin), bad input bytes
-  as well as characters that cannot be encoded in to_cs are replaced to '?'.
-
-  In case of non-Unicode copying (i.e. to_cs and from_cs are same character set,
-  or from_cs is &my_charset_bin),  the function stops on the first bad
-  byte sequence.
+  Bad input bytes are replaced to '?'.
 
   The string that is written to "to" is always well-formed.
 
@@ -959,6 +953,16 @@ void String::print(String *str) const
 {
   str->append_for_single_quote(Ptr, str_length);
 }
+
+
+void String::print_with_conversion(String *print, CHARSET_INFO *cs) const
+{
+  StringBuffer<256> tmp(cs);
+  uint errors= 0;
+  tmp.copy(this, cs, &errors);
+  tmp.print(print);
+}
+
 
 /*
   Exchange state of this object and argument.

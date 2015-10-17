@@ -1350,8 +1350,11 @@ a	b
 delete from t1;
 load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields terminated by '' enclosed by '' ignore 1 lines;
 Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 2
 Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
 Warning	1369	CHECK OPTION failed 'test.v1'
+Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 4
 Warning	1369	CHECK OPTION failed 'test.v1'
 select * from t1 order by a,b;
@@ -2237,12 +2240,12 @@ drop table t1;
 create table t1 (
 r_object_id char(16) NOT NULL,
 group_name varchar(32) NOT NULL
-) engine = InnoDB;
+);
 create table t2 (
 r_object_id char(16) NOT NULL,
 i_position int(11) NOT NULL,
 users_names varchar(32) default NULL
-) Engine = InnoDB;
+);
 create view v1 as select r_object_id, group_name from t1;
 create view v2 as select r_object_id, i_position, users_names from t2;
 create unique index r_object_id on t1(r_object_id);
@@ -2902,6 +2905,8 @@ Tables_in_test
 t1
 DROP TABLE t1;
 DROP VIEW IF EXISTS v1;
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE DATABASE bug21261DB;
 USE bug21261DB;
 CREATE TABLE t1 (x INT);
@@ -2924,6 +2929,8 @@ DROP VIEW v1;
 DROP TABLE t1;
 DROP DATABASE bug21261DB;
 USE test;
+set GLOBAL sql_mode=default;
+set LOCAL sql_mode=default;
 create table t1 (f1 datetime);
 create view v1 as select * from t1 where f1 between now() and now() + interval 1 minute;
 show create view v1;
@@ -4426,36 +4433,58 @@ CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
 ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
 CREATE VIEW v1 AS SELECT * FROM t1;
+# t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 a
 KK
 MM
 ZZ
 ZZ
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+a
+KK
+MM
+ZZ
+ZZ
+# t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > 'JJ')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+# t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 a
 KK
 MM
 ZZ
 ZZ
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+a
+KK
+MM
+ZZ
+ZZ
+# t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > 'JJ')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -4827,6 +4856,41 @@ SHOW CREATE VIEW v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS (select 'BUG#14117018' AS `col1`) union all (select '' AS `col2`) union all (select '' AS `Name_exp_1`)	latin1	latin1_swedish_ci
 DROP VIEW v1, v2, v3, v4, v5;
+#
+# BUG#19886430: VIEW CREATION WITH NAMED COLUMNS, OVER UNION,
+#               IS REJECTED
+# Without the patch, reports an error.
+CREATE VIEW v1 (fld1, fld2) AS
+SELECT 1 AS a, 2 AS b
+UNION ALL
+SELECT 1 AS a, 1 AS a;
+# The column names are explicitly specified and not duplicates, hence
+# succeeds.
+CREATE VIEW v2 (fld1, fld2) AS
+SELECT 1 AS a, 2 AS a
+UNION ALL
+SELECT 1 AS a, 1 AS a;
+# The column name in the first SELECT are not duplicates, hence succeeds.
+CREATE VIEW v3 AS
+SELECT 1 AS a, 2 AS b
+UNION ALL
+SELECT 1 AS a, 1 AS a;
+# Should report an error, since the explicitly specified column names are
+# duplicates.
+CREATE VIEW v4 (fld1, fld1) AS
+SELECT 1 AS a, 2 AS b
+UNION ALL
+SELECT 1 AS a, 1 AS a;
+ERROR 42S21: Duplicate column name 'fld1'
+# Should report an error, since duplicate column name is specified in the
+# First SELECT.
+CREATE VIEW v4 AS
+SELECT 1 AS a, 2 AS a
+UNION ALL
+SELECT 1 AS a, 1 AS a;
+ERROR 42S21: Duplicate column name 'a'
+# Cleanup
+DROP VIEW v1, v2, v3;
 #
 # lp:833600 Wrong result with view + outer join + uncorrelated subquery (non-semijoin) 
 #
@@ -5428,6 +5492,21 @@ View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select (`t1`.`b` + 1) AS `c` from `t1`	latin1	latin1_swedish_ci
 drop view v2;
 drop table t1;
+#
+# MDEV-8554: Server crashes in base_list_iterator::next_fast on 1st execution of PS with a multi-table update
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (5),(6);
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v3 AS SELECT * FROM t3;
+PREPARE stmt FROM 'UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM t3 )';
+UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM v3 );
+EXECUTE stmt;
+DROP TABLE t1, t2, t3;
+DROP VIEW v3;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -5552,3 +5631,74 @@ drop view v3;
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------
 SET optimizer_switch=@save_optimizer_switch;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+#
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a)) ;
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+a
+5
+SELECT * FROM v1 WHERE a='5' AND a<2;
+a
+5
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+#
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a));
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+a
+5
+SELECT * FROM v1 WHERE a='5' AND a<2;
+a
+5
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-8742 Wrong result for SELECT..WHERE view_latin1_swedish_ci_field='a' COLLATE latin1_bin
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a='a';
+SELECT * FROM v1 WHERE a=_latin1'a' COLLATE latin1_bin;
+a
+a
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

@@ -549,6 +549,14 @@ DECLARE_THREAD(dict_stats_thread)(
 			break;
 		}
 
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+		if (srv_ibuf_disable_background_merge) {
+			usleep(100000);
+			os_event_reset(dict_stats_event);
+			continue;
+		}
+#endif
+
 		dict_stats_process_entry_from_recalc_pool();
 
 		while (defrag_pool.size())

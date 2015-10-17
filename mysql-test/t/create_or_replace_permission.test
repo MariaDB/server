@@ -2,6 +2,8 @@
 # Grant tests not performed with embedded server
 -- source include/not_embedded.inc
 
+set local sql_mode="";
+set global sql_mode="";
 --echo #
 --echo # Tests for checking permission denied on CREATE OR REPLACE if DROP
 --echo # access is revoked
@@ -64,3 +66,6 @@ REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
 DROP DATABASE IF EXISTS db2;
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
+
+
+set global sql_mode=default;

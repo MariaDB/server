@@ -10,7 +10,7 @@ alter table foo change a aa int;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `aa` int(11) NOT NULL DEFAULT '0',
+  `aa` int(11) NOT NULL,
   `b` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `d` varchar(10) DEFAULT NULL,
@@ -32,7 +32,7 @@ alter table foo change b bb bigint;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `aa` int(11) NOT NULL DEFAULT '0',
+  `aa` int(11) NOT NULL,
   `bb` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `d` varchar(10) DEFAULT NULL,
@@ -51,7 +51,7 @@ alter table foo change d dd varchar(10);
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `aa` int(11) NOT NULL DEFAULT '0',
+  `aa` int(11) NOT NULL,
   `bb` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `dd` varchar(10) DEFAULT NULL,
