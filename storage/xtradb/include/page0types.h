@@ -107,6 +107,8 @@ struct page_zip_stat_t {
 	{ }
 };
 
+#ifndef UNIV_INNOCHECKSUM
+
 /** Compression statistics types */
 typedef map<index_id_t, page_zip_stat_t>	page_zip_stat_per_index_t;
 
@@ -118,6 +120,8 @@ extern ib_mutex_t				page_zip_stat_per_index_mutex;
 #ifdef HAVE_PSI_INTERFACE
 extern mysql_pfs_key_t				page_zip_stat_per_index_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************************//**
 Write the "deleted" flag of a record on a compressed page.  The flag must

@@ -238,7 +238,6 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
 {
   int rc= 1;
   handlerton *hton;
-  bool new_exists, old_exists;
   const char *new_alias, *old_alias;
   DBUG_ENTER("do_rename");
 
@@ -254,17 +253,13 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
   }
   DBUG_ASSERT(new_alias);
 
-  new_exists= ha_table_exists(thd, new_db, new_alias);
-
-  if (new_exists)
+  if (ha_table_exists(thd, new_db, new_alias))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias);
     DBUG_RETURN(1);                     // This can't be skipped
   }
 
-  old_exists= ha_table_exists(thd, ren_table->db, old_alias, &hton);
-
-  if (old_exists)
+  if (ha_table_exists(thd, ren_table->db, old_alias, &hton) && hton)
   {
     DBUG_ASSERT(!thd->locked_tables_mode);
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL,

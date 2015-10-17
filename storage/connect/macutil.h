@@ -1,10 +1,10 @@
 // MACUTIL.H     Olivier Bertrand    2008-2012
 // Get Mac Addresses via GetAdaptersInfo
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <iphlpapi.h>
-#else   // !WIN32
-#error This is WIN32 only
-#endif  // !WIN32
+#else   // !__WIN__
+#error This is WINDOWS only
+#endif  // !__WIN__
 #include "block.h"
 
 typedef class MACINFO *MACIP;

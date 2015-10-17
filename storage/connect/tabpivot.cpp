@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(WIN32)
+#if defined(__WIN__)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -376,7 +376,7 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE m)
+PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE)
   {
   return new(g) TDBPIVOT(this);
   } // end of GetTable
@@ -634,7 +634,7 @@ bool TDBPIVOT::MakeViewColumns(PGLOBAL g)
 /***********************************************************************/
 /*  PIVOT GetMaxSize: returns the maximum number of rows in the table. */
 /***********************************************************************/
-int TDBPIVOT::GetMaxSize(PGLOBAL g)
+int TDBPIVOT::GetMaxSize(PGLOBAL g __attribute__((unused)))
   {     
 #if  0
   if (MaxSize < 0)
@@ -649,7 +649,7 @@ int TDBPIVOT::GetMaxSize(PGLOBAL g)
 /*  In this sample, ROWID will be the (virtual) row number,            */
 /*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
-int TDBPIVOT::RowNumber(PGLOBAL g, bool b)
+int TDBPIVOT::RowNumber(PGLOBAL, bool b)
   {
   return (b) ? M : N;
   } // end of RowNumber
@@ -806,7 +806,7 @@ int TDBPIVOT::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for PIVOT access methods.            */
 /***********************************************************************/
-int TDBPIVOT::DeleteDB(PGLOBAL g, int irc)
+int TDBPIVOT::DeleteDB(PGLOBAL g, int)
   {
   sprintf(g->Message, MSG(NO_TABLE_DEL), "PIVOT");
   return RC_FX;

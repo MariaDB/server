@@ -1455,6 +1455,12 @@ Warnings:
 Warning	1918	Encountered illegal value '18446744073709552001' when converting to INT
 Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 #
+# MDEV-7505 - Too large scale in DECIMAL dynamic column getter crashes
+#             mysqld
+#
+SELECT COLUMN_GET(`x`, 'y' AS DECIMAL(5,34));
+ERROR 42000: Too big scale 34 specified for ''y''. Maximum is 30.
+#
 # test of symbolic names
 #
 # creation test (names)

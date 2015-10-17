@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2015, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -629,18 +629,17 @@ digest_start_noop(PSI_statement_locker *locker NNN)
   return NULL;
 }
 
-static PSI_digest_locker*
-digest_add_token_noop(PSI_digest_locker *locker NNN,
-                      uint token NNN,
-                      struct OPAQUE_LEX_YYSTYPE *yylval NNN)
+static void
+digest_end_noop(PSI_digest_locker *locker NNN,
+                const struct sql_digest_storage *digest NNN)
 {
-  return NULL;
+  return;
 }
 
 static int
-set_thread_connect_attrs_noop(const char *buffer __attribute__((unused)),
-                             uint length  __attribute__((unused)),
-                             const void *from_cs __attribute__((unused)))
+set_thread_connect_attrs_noop(const char *buffer NNN,
+                             uint length  NNN,
+                             const void *from_cs NNN)
 {
   return 0;
 }
@@ -742,7 +741,7 @@ static PSI PSI_noop=
   set_socket_info_noop,
   set_socket_thread_owner_noop,
   digest_start_noop,
-  digest_add_token_noop,
+  digest_end_noop,
   set_thread_connect_attrs_noop
 };
 

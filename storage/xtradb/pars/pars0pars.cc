@@ -1997,7 +1997,7 @@ pars_create_table(
 	n_cols = que_node_list_get_len(column_defs);
 
 	table = dict_mem_table_create(
-		table_sym->name, 0, n_cols, flags, flags2, false);
+		table_sym->name, 0, n_cols, flags, flags2);
 
 #ifdef UNIV_DEBUG
 	if (not_fit_in_memory != NULL) {

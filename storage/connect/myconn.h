@@ -7,24 +7,24 @@
 /*  DO NOT define DLL_EXPORT in your application so these items are    */
 /*  declared are imported from the Myconn DLL.                         */
 /***********************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <winsock.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <sys/socket.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 #include <mysql.h>
 #include <errmsg.h>
 #include "myutil.h"
 
-#if defined(WIN32) && defined(MYCONN_EXPORTS)
+#if defined(__WIN__) && defined(MYCONN_EXPORTS)
 #if defined(DLL_EXPORT)
 #define DllItem _declspec(dllexport)
 #else   // !DLL_EXPORT
 #define DllItem _declspec(dllimport)
 #endif  // !DLL_EXPORT
-#else   // !WIN32  ||        !MYCONN_EXPORTS
+#else   // !__WIN__  ||        !MYCONN_EXPORTS
 #define DllItem
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #define MYSQL_ENABLED  0x00000001
 #define MYSQL_LOGON    0x00000002

@@ -644,11 +644,10 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
 
     mysql_mutex_unlock(log_lock);
-
-    if (opt_slave_parallel_threads > 0 &&
-        !master_info_index->any_slave_sql_running())
-      rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   }
+  if (opt_slave_parallel_threads > 0 &&
+      !master_info_index->any_slave_sql_running())
+    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating IO thread"));
@@ -4524,9 +4523,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->parallel.reset();
 
   //tell the I/O thread to take relay_log_space_limit into account from now on
-  mysql_mutex_lock(&rli->log_space_lock);
   rli->ignore_log_space_limit= 0;
-  mysql_mutex_unlock(&rli->log_space_lock);
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
@@ -4827,10 +4824,8 @@ err_during_init:
   THD_CHECK_SENTRY(thd);
   rli->sql_driver_thd= 0;
   mysql_mutex_lock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   thd->rgi_fake= thd->rgi_slave= NULL;
   delete serial_rgi;
-  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
@@ -4840,6 +4835,22 @@ err_during_init:
   mysql_cond_broadcast(&rli->stop_cond);
   DBUG_EXECUTE_IF("simulate_slave_delay_at_terminate_bug38694", sleep(5););
   mysql_mutex_unlock(&rli->run_lock);  // tell the world we are done
+
+  /*
+    Deactivate the parallel replication thread pool, if there are now no more
+    SQL threads running. Do this here, when we have released all locks, but
+    while our THD (and current_thd) is still valid.
+  */
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (opt_slave_parallel_threads > 0 &&
+      !master_info_index->any_slave_sql_running())
+    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  THD_CHECK_SENTRY(thd);
+  delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
@@ -5451,7 +5462,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     if (uint4korr(&buf[0]) == 0 && checksum_alg == BINLOG_CHECKSUM_ALG_OFF &&
         mi->rli.relay_log.relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
     {
-      ha_checksum rot_crc= my_checksum(0L, NULL, 0);
+      ha_checksum rot_crc= 0;
       event_len += BINLOG_CHECKSUM_LEN;
       memcpy(rot_buf, buf, event_len - BINLOG_CHECKSUM_LEN);
       int4store(&rot_buf[EVENT_LEN_OFFSET],
@@ -6613,14 +6624,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           rli->ignore_log_space_limit= true;
         }
 
-        /*
-          If the I/O thread is blocked, unblock it.  Ok to broadcast
-          after unlock, because the mutex is only destroyed in
-          ~Relay_log_info(), i.e. when rli is destroyed, and rli will
-          not be destroyed before we exit the present function.
-        */
-        mysql_mutex_unlock(&rli->log_space_lock);
         mysql_cond_broadcast(&rli->log_space_cond);
+        mysql_mutex_unlock(&rli->log_space_lock);
         // Note that wait_for_update_relay_log unlocks lock_log !
         rli->relay_log.wait_for_update_relay_log(rli->sql_driver_thd);
         // re-acquire data lock since we released it earlier

@@ -11,6 +11,7 @@
 /*  Include mariaDB header file.                                       */
 /***********************************************************************/
 #include "my_global.h"
+#include "m_string.h"
 
 /***********************************************************************/
 /*  Include required application header files                          */

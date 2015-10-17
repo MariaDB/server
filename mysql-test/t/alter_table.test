@@ -1,3 +1,7 @@
+if (`select plugin_auth_version < "5.6.26" from information_schema.plugins where plugin_name='innodb'`)
+{
+  --skip Not fixed in XtraDB below 5.6.26
+}
 --source include/have_innodb.inc
 #
 # Test of alter table
@@ -1324,6 +1328,14 @@ ALTER TABLE t2 DROP COLUMN a, DROP COLUMN IF EXISTS a;
 SHOW CREATE TABLE t2;
 
 DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+    `transaction_id` int(11) NOT NULL DEFAULT '0', 
+    KEY `transaction_id` (`transaction_id`));
+ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS (transaction_id);
+SHOW CREATE TABLE t1;
+
 DROP TABLE t1;
 
 --echo # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't

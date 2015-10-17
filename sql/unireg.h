@@ -110,36 +110,36 @@
   The flag means that we need to process tables only to get necessary data.
   Views are not processed.
 */
-#define OPEN_TABLE_ONLY        OPEN_FRM_FILE_ONLY*2
+#define OPEN_TABLE_ONLY        (OPEN_FRM_FILE_ONLY*2)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine
   The flag means that we need to process views only to get necessary data.
   Tables are not processed.
 */
-#define OPEN_VIEW_ONLY         OPEN_TABLE_ONLY*2
+#define OPEN_VIEW_ONLY         (OPEN_TABLE_ONLY*2)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine.
   The flag means that we need to open a view using
   open_normal_and_derived_tables() function.
 */
-#define OPEN_VIEW_FULL         OPEN_VIEW_ONLY*2
+#define OPEN_VIEW_FULL         (OPEN_VIEW_ONLY*2)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine.
   The flag means that I_S table uses optimization algorithm.
 */
-#define OPTIMIZE_I_S_TABLE     OPEN_VIEW_FULL*2
+#define OPTIMIZE_I_S_TABLE     (OPEN_VIEW_FULL*2)
 /**
   This flag is used to instruct tdc_open_view() to check metadata version.
 */
-#define CHECK_METADATA_VERSION OPEN_TRIGGER_ONLY*2
+#define CHECK_METADATA_VERSION (OPEN_TRIGGER_ONLY*2)
 
 /*
   The flag means that we need to process trigger files only.
 */
-#define OPEN_TRIGGER_ONLY      OPTIMIZE_I_S_TABLE*2
+#define OPEN_TRIGGER_ONLY      (OPTIMIZE_I_S_TABLE*2)
 
 #define SC_INFO_LENGTH 4		/* Form format constant */
 #define TE_INFO_LENGTH 3

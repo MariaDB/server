@@ -13,11 +13,11 @@
 /************************************************************************/
 #include "my_global.h"
 #include <mysql.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include "osutil.h"
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #include "global.h"
 #include "plgdbsem.h"

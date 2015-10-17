@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <sys\timeb.h>                   // For testing only
 #include <fcntl.h>
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -112,12 +112,13 @@ DOSDEF::DOSDEF(void)
   Maxerr = 0;
   ReadMode = 0;
   Ending = 0;
+  Teds = 0;
   } // end of DOSDEF constructor
 
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   {
   char   buf[8];
   bool   map = (am && (*am == 'M' || *am == 'm'));
@@ -146,6 +147,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Padded = GetBoolCatInfo("Padded", false);
     Blksize = GetIntCatInfo("Blksize", 0);
     Eof = (GetIntCatInfo("EOF", 0) != 0);
+    Teds = toupper(*GetStringCatInfo(g, "Endian", ""));
   } else if (Recfm == RECFM_DBF) {
     Maxerr = GetIntCatInfo("Maxerr", 0);
     Accept = GetBoolCatInfo("Accept", false);
@@ -206,11 +208,11 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 
   // Delete any eventually ill formed non matching optimization file
   if (!GetOptFileName(g, filename))
-#if defined(WIN32)
+#if defined(__WIN__)
     DeleteFile(filename);
 #else    // UNIX
     remove(filename);
-#endif   // WIN32
+#endif   // __WIN__
 
   Optimized = 0;
   } // end of RemoveOptValues
@@ -251,7 +253,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   /*********************************************************************/
   if (sep) {
     // Indexes are save in separate files
-#if !defined(UNIX)
+#if defined(__WIN__)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -268,7 +270,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
       strcat(strcat(fname, "_"), pxdf->GetName());
       _makepath(filename, drive, direc, fname, ftype);
       PlugSetPath(filename, filename, GetPath());
-#if defined(WIN32)
+#if defined(__WIN__)
       if (!DeleteFile(filename))
         rc |= (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -285,7 +287,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
     strcat(PlugRemoveType(filename, filename), ftype);
-#if defined(WIN32)
+#if defined(__WIN__)
     if (!DeleteFile(filename))
       rc = (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -303,7 +305,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
 /***********************************************************************/
 /*  InvalidateIndex: mark all indexes as invalid.                      */
 /***********************************************************************/
-bool DOSDEF::InvalidateIndex(PGLOBAL g)
+bool DOSDEF::InvalidateIndex(PGLOBAL)
   {
   if (To_Indx)
     for (PIXDEF xp = To_Indx; xp; xp = xp->Next)
@@ -954,7 +956,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
-#endif   // WIN32
+#endif   // __WIN__
 
   if (defp->Optimized)
     return false;                   // Already done or to be redone
@@ -1736,15 +1738,16 @@ err:
 /***********************************************************************/
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
-bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
+bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   {
   int     k, rc;
-  bool    brc, dynamic;
+  volatile bool dynamic;
+  bool    brc;
   PCOL    colp;
   PCOLDEF cdp;
   PVAL    valp;
   PXLOAD  pxp;
-  PKXBASE kxp;
+  volatile PKXBASE kxp;
   PKPDEF  kdp;
 
   if (!xdp && !(xdp = To_Xdp)) {
@@ -1864,7 +1867,7 @@ int TDBDOS::GetProgCur(void)
 /***********************************************************************/
 /*  RowNumber: return the ordinal number of the current row.           */
 /***********************************************************************/
-int TDBDOS::RowNumber(PGLOBAL g, bool b)
+int TDBDOS::RowNumber(PGLOBAL g, bool)
   {
   if (To_Kindex) {
     /*******************************************************************/
@@ -1944,7 +1947,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
           rec = ((PDOSDEF)To_Def)->Ending;
 
           if (AvgLen <= 0)          // No given average estimate
-            rec += EstimatedLength(g);
+            rec += EstimatedLength();
           else   // An estimate was given for the average record length
             rec += AvgLen;
 
@@ -1988,7 +1991,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       /*  Estimate the number of lines in the table (if not known) by  */
       /*  dividing the file length by minimum record length.           */
       /*****************************************************************/
-      rec = EstimatedLength(g) + ((PDOSDEF)To_Def)->Ending;
+      rec = EstimatedLength() + ((PDOSDEF)To_Def)->Ending;
       MaxSize = (len + rec - 1) / rec;
 
       if (trace)
@@ -2005,7 +2008,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 /*  DOS EstimatedLength. Returns an estimated minimum line length.     */
 /***********************************************************************/
-int TDBDOS::EstimatedLength(PGLOBAL g)
+int TDBDOS::EstimatedLength(void)
   {
   int     dep = 0;
   PCOLDEF cdp = To_Def->GetCols();
@@ -2023,7 +2026,7 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
 /***********************************************************************/
 /*  DOS tables favor the use temporary files for Update.               */
 /***********************************************************************/
-bool TDBDOS::IsUsingTemp(PGLOBAL g)
+bool TDBDOS::IsUsingTemp(PGLOBAL)
   {
   USETEMP utp = UseTemp();
 
@@ -2183,7 +2186,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 /***********************************************************************/
 /*  PrepareWriting: Prepare the line to write.                         */
 /***********************************************************************/
-bool TDBDOS::PrepareWriting(PGLOBAL g)
+bool TDBDOS::PrepareWriting(PGLOBAL)
   {
   if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;

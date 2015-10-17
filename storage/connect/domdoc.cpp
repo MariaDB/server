@@ -4,7 +4,7 @@
 /******************************************************************/
 #include "my_global.h"
 #include <stdio.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
 #if   defined(MSX2)
 #import "msxml2.dll"  //Does not exist on Vista

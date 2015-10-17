@@ -29,7 +29,7 @@
 /***********************************************************************/
 /*  Return the unique column definition to MariaDB.                    */
 /***********************************************************************/
-PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info)
+PQRYRES VirColumns(PGLOBAL g, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                    TYPE_INT, TYPE_STRING, TYPE_STRING};
@@ -95,7 +95,7 @@ PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info)
 /***********************************************************************/
 /*  GetTable: makes a new Table Description Block.                     */
 /***********************************************************************/
-PTDB VIRDEF::GetTable(PGLOBAL g, MODE m)
+PTDB VIRDEF::GetTable(PGLOBAL g, MODE)
   {
   //  Column blocks will be allocated only when needed.
   if (Catfunc == FNC_COL)
@@ -241,7 +241,7 @@ bool TDBVIR::OpenDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base read routine for the VIR access method.                  */
 /***********************************************************************/
-int TDBVIR::ReadDB(PGLOBAL g)
+int TDBVIR::ReadDB(PGLOBAL)
   {
   return (++N >= Size) ? RC_EF : RC_OK;
   } // end of ReadDB
@@ -258,7 +258,7 @@ int TDBVIR::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for the VIR access methods.          */
 /***********************************************************************/
-int TDBVIR::DeleteDB(PGLOBAL g, int irc)
+int TDBVIR::DeleteDB(PGLOBAL g, int)
   {
   sprintf(g->Message, MSG(VIR_NO_DELETE), To_Def->GetType());
   return RC_FX;
@@ -269,7 +269,7 @@ int TDBVIR::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  VIRCOL public constructor.                                         */
 /***********************************************************************/
-VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+VIRCOL::VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
       : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -299,7 +299,7 @@ void VIRCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBVICL::GetResult(PGLOBAL g)
   {
-  return VirColumns(g, NULL, NULL, false);
+  return VirColumns(g, false);
 	} // end of GetResult
 
 /* ------------------------- End of Virtual -------------------------- */

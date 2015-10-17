@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 */
 
 /****************************************************************************/
-/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2014       */
+/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2015       */
 /****************************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -63,7 +63,7 @@ void SetWorkSize(uint);
 /****************************************************************************/
 /*  Constructor.                                                            */
 /****************************************************************************/
-user_connect::user_connect(THD *thd, const char *dbn)
+user_connect::user_connect(THD *thd)
 {
   thdp= thd;
   next= NULL;

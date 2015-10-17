@@ -556,6 +556,7 @@ void lex_start(THD *thd)
 
   lex->is_lex_started= TRUE;
   lex->used_tables= 0;
+  lex->only_view= FALSE;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -1873,7 +1874,7 @@ void st_select_lex::init_query()
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
-  is_prep_leaf_list_saved= FALSE;
+  prep_leaf_list_state= UNINIT;
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   m_non_agg_field_used= false;
@@ -1909,7 +1910,6 @@ void st_select_lex::init_select()
   with_sum_func= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
-  non_agg_fields.empty();
   cond_value= having_value= Item::COND_UNDEF;
   inner_refs_list.empty();
   insert_tables= 0;
@@ -1917,6 +1917,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   name_visibility_map= 0;
+  join= 0;
 }
 
 /*
@@ -4152,12 +4153,22 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
+
+  /*
+    Check that the SELECT_LEX was really prepared and so tables are setup.
+
+    It can be subquery in SET clause of UPDATE which was not prepared yet, so
+    its tables are not yet setup and ready for storing.
+  */
+  if (prep_leaf_list_state != READY)
+    return FALSE;
+
   while ((table= li++))
   {
     if (leaf_tables_prep.push_back(table))
       return TRUE;
   }
-  is_prep_leaf_list_saved= TRUE;
+  prep_leaf_list_state= SAVED;
   for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
   {
     for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())

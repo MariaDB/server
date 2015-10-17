@@ -733,7 +733,8 @@ public:
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
-  bool is_prep_leaf_list_saved;
+  enum leaf_list_state {UNINIT, READY, SAVED};
+  enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
@@ -822,8 +823,6 @@ public:
   bool no_wrap_view_item;
   /* exclude this select from check of unique_table() */
   bool exclude_from_table_unique_test;
-  /* List of fields that aren't under an aggregate function */
-  List<Item_field> non_agg_fields;
   /* index in the select list of the expression currently being fixed */
   int cur_pos_in_select_list;
 

@@ -295,7 +295,7 @@ struct sql_ex_info
   to the slave. It is used to increase the thd(max_allowed) for both the
   DUMP thread on the master and the SQL/IO thread on the slave. 
 */
-#define MAX_MAX_ALLOWED_PACKET 1024*1024*1024
+#define MAX_MAX_ALLOWED_PACKET (1024*1024*1024)
 
 /* 
    Event header offsets; 

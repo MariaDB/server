@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2013
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include "block.h"
 #include "catalog.h"
 
-typedef struct ha_table_option_struct TOS, *PTOS;
+//typedef struct ha_table_option_struct TOS, *PTOS;
 
 /**
   structure for CREATE TABLE options (table options)
@@ -98,7 +98,7 @@ class MYCAT : public CATALOG {
   void    Reset(void);
 //void    SetDataPath(PGLOBAL g, const char *path) 
 //            {SetPath(g, &DataPath, path);}
-  bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}  // Temporary
+  bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
   PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
                                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 

@@ -44,7 +44,7 @@
 /*                                                                     */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
 #else
 #if defined(UNIX) || defined(UNIV_LINUX)
@@ -80,9 +80,9 @@
 #include "rcmsg.h"
 #endif   // NEWMSG
 
-#if defined(WIN32)
+#if defined(__WIN__)
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
-#endif   // WIN32
+#endif   // __WIN__
 
 #if defined(XMSG)
 extern char *msg_path;
@@ -192,7 +192,7 @@ int PlugExit(PGLOBAL g)
 /***********************************************************************/
 LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
   {
-#if !defined(UNIX) && !defined(UNIV_LINUX)
+#if defined(__WIN__)
   char drive[_MAX_DRIVE];
 #else
   char *drive = NULL;
@@ -220,7 +220,7 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
 
 BOOL PlugIsAbsolutePath(LPCSTR path)
 {
-#if defined(WIN32)
+#if defined(__WIN__)
   return ((path[0] >= 'a' && path[0] <= 'z') ||
           (path[0] >= 'A' && path[0] <= 'Z')) && path[1] == ':';
 #else
@@ -238,7 +238,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   char direc[_MAX_DIR], defdir[_MAX_DIR], tmpdir[_MAX_DIR];
   char fname[_MAX_FNAME];
   char ftype[_MAX_EXT];
-#if !defined(UNIX) && !defined(UNIV_LINUX)
+#if defined(__WIN__)
   char drive[_MAX_DRIVE], defdrv[_MAX_DRIVE];
 #else
   char *drive = NULL, *defdrv = NULL;
@@ -255,7 +255,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     return pBuff;
   } // endif
   
-#if !defined(WIN32)
+#if !defined(__WIN__)
   if (*FileName == '~') {
     if (_fullpath(pBuff, FileName, _MAX_PATH)) {
       if (trace > 1)
@@ -266,7 +266,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
       return FileName;     // Error, return unchanged name
       
     } // endif FileName  
-#endif   // !WIN32
+#endif   // !__WIN__
   
   if (prefix && strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
   {
@@ -295,11 +295,11 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 
   if (trace > 1) {
     htrc("after _splitpath: FileName=%s\n", FileName);
-#if defined(UNIX) || defined(UNIV_LINUX)
-    htrc("dir=%s fname=%s ext=%s\n", direc, fname, ftype);
-#else
+#if defined(__WIN__)
     htrc("drive=%s dir=%s fname=%s ext=%s\n", drive, direc, fname, ftype);
     htrc("defdrv=%s defdir=%s\n", defdrv, defdir);
+#else
+    htrc("dir=%s fname=%s ext=%s\n", direc, fname, ftype);
 #endif
     } // endif trace
 
@@ -427,7 +427,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
   } // end of PlugGetMessage
 #endif     // NEWMSG
 
-#if defined(WIN32)
+#if defined(__WIN__)
 /***********************************************************************/
 /*  Return the line length of the console screen buffer.               */
 /***********************************************************************/
@@ -439,7 +439,7 @@ short GetLineLength(PGLOBAL g)
 
   return (b) ? coninfo.dwSize.X : 0;
   } // end of GetLineLength
-#endif   // WIN32
+#endif   // __WIN__
 
 /***********************************************************************/
 /*  Program for memory allocation of work and language areas.          */
@@ -502,7 +502,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
-  if (trace > 2)
+  if (trace > 3)
     htrc("SubAlloc in %p size=%d used=%d free=%d\n",
           memp, size, pph->To_Free, pph->FreeBlk);
 
@@ -526,7 +526,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph->To_Free += size;               /* New offset of pool free block */
   pph->FreeBlk -= size;               /* New size   of pool free block */
 
-  if (trace > 2)
+  if (trace > 3)
     htrc("Done memp=%p used=%d free=%d\n",
           memp, pph->To_Free, pph->FreeBlk);
 

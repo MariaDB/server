@@ -73,11 +73,11 @@ class TDBMYSQL : public TDBASE {
  public:
   // Constructor
   TDBMYSQL(PMYDEF tdp);
-  TDBMYSQL(PGLOBAL g, PTDBMY tdbp);
+  TDBMYSQL(PTDBMY tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_MYSQL;}
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(g, this);}
+  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(this);}
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
@@ -180,11 +180,11 @@ class TDBMYEXC : public TDBMYSQL {
  public:
   // Constructors
   TDBMYEXC(PMYDEF tdp); 
-  TDBMYEXC(PGLOBAL g, PTDBMYX tdbp);
+  TDBMYEXC(PTDBMYX tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_MYX;}
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(g, this);}
+  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(this);}
 
   // Methods
   virtual PTDB CopyOne(PTABS t);

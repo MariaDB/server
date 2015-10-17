@@ -1530,6 +1530,9 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   /* Cache constant expressions in WHERE, HAVING, ON clauses. */
   cache_const_exprs();
 
+  if (setup_semijoin_loosescan(this))
+    DBUG_RETURN(1);
+
   if (make_join_select(this, select, conds))
   {
     zero_result_cause=
@@ -5185,6 +5188,8 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   KEY_FIELD *key_fields, *end, *field;
   uint sz;
   uint m= MY_MAX(select_lex->max_equal_elems,1);
+  DBUG_ENTER("update_ref_and_keys");
+  DBUG_PRINT("enter", ("normal_tables: %llx", normal_tables));
 
   SELECT_LEX *sel=thd->lex->current_select; 
   sel->cond_count= 0;
@@ -5231,7 +5236,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
     ((sel->cond_count*2 + sel->between_count)*m+1);
   if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
-    return TRUE; /* purecov: inspected */
+    DBUG_RETURN(TRUE); /* purecov: inspected */
   and_level= 0;
   field= end= key_fields;
   *sargables= (SARGABLE_PARAM *) key_fields + 
@@ -5241,7 +5246,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
 
   if (my_init_dynamic_array(keyuse,sizeof(KEYUSE),20,64,
                             MYF(MY_THREAD_SPECIFIC)))
-    return TRUE;
+    DBUG_RETURN(TRUE);
 
   if (cond)
   {
@@ -5291,16 +5296,16 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   for ( ; field != end ; field++)
   {
     if (add_key_part(keyuse,field))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
 
   if (select_lex->ftfunc_list->elements)
   {
     if (add_ft_keys(keyuse,join_tab,cond,normal_tables))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
 
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -9674,9 +9679,14 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    Check again if we should use an index.
 	    We could have used an column from a previous table in
 	    the index if we are using limit and this is the first table
+
+            (1) - Don't switch the used index if we are using semi-join
+                  LooseScan on this table. Using different index will not
+                  produce the desired ordering and de-duplication.
 	  */
 
 	  if (!tab->table->is_filled_at_execution() &&
+              !tab->loosescan_match_tab &&              // (1)
               ((cond && (!tab->keys.is_subset(tab->const_keys) && i > 0)) ||
                (!tab->const_keys.is_clear_all() && i == join->const_tables &&
                 join->unit->select_limit_cnt <
@@ -9736,10 +9746,24 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  if (!sel->quick_keys.is_subset(tab->checked_keys) ||
               !sel->needed_reg.is_subset(tab->checked_keys))
 	  {
+            /*
+              "Range checked for each record" is a "last resort" access method
+              that should only be used when the other option is a cross-product
+              join.
+
+              We use the following condition (it's approximate):
+              1. There are potential keys for (sel->needed_reg)
+              2. There were no possible ways to construct a quick select, or
+                 the quick select would be more expensive than the full table
+                 scan.
+            */
 	    tab->use_quick= (!sel->needed_reg.is_clear_all() &&
 			     (sel->quick_keys.is_clear_all() ||
-			      (sel->quick &&
-			       (sel->quick->records >= 100L)))) ?
+                              (sel->quick && 
+                               sel->quick->read_time > 
+                               tab->table->file->scan_time() + 
+                               tab->table->file->stats.records/TIME_FOR_COMPARE
+                               ))) ?
 	      2 : 1;
 	    sel->read_tables= used_tables & ~current_map;
             sel->quick_keys.clear_all();
@@ -21530,7 +21554,7 @@ setup_group(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     Item_field *field;
     int cur_pos_in_select_list= 0;
     List_iterator<Item> li(fields);
-    List_iterator<Item_field> naf_it(thd->lex->current_select->non_agg_fields);
+    List_iterator<Item_field> naf_it(thd->lex->current_select->join->non_agg_fields);
 
     field= naf_it++;
     while (field && (item=li++))

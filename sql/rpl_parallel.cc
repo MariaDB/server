@@ -95,7 +95,6 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   if (cmp < 0)
   {
     strcpy(rli->group_master_log_name, qev->future_event_master_log_name);
-    rli->notify_group_master_log_name_update();
     rli->group_master_log_pos= qev->future_event_master_log_pos;
   }
   else if (cmp == 0
@@ -168,6 +167,8 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       done and also no longer need waiting for.
     */
     entry->last_committed_sub_id= sub_id;
+    if (entry->need_sub_id_signal)
+      mysql_cond_broadcast(&entry->COND_parallel_entry);
 
     /* Now free any GCOs in which all transactions have committed. */
     group_commit_orderer *tmp_gco= rgi->gco;
@@ -224,6 +225,11 @@ static void
 signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
 {
   rgi->worker_error= err;
+  /*
+    In case we get an error during commit, inform following transactions that
+    we aborted our commit.
+  */
+  rgi->unmark_start_commit();
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
@@ -310,13 +316,26 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
 }
 
 
-static bool
+/*
+  Check if an event marks the end of an event group. Returns non-zero if so,
+  zero otherwise.
+
+  In addition, returns 1 if the group is committing, 2 if it is rolling back.
+*/
+static int
 is_group_ending(Log_event *ev, Log_event_type event_type)
 {
-  return event_type == XID_EVENT ||
-         (event_type == QUERY_EVENT &&
-          (((Query_log_event *)ev)->is_commit() ||
-           ((Query_log_event *)ev)->is_rollback()));
+  if (event_type == XID_EVENT)
+    return 1;
+  if (event_type == QUERY_EVENT)
+  {
+    Query_log_event *qev = (Query_log_event *)ev;
+    if (qev->is_commit())
+      return 1;
+    if (qev->is_rollback())
+      return 2;
+  }
+  return 0;
 }
 
 
@@ -368,6 +387,7 @@ do_retry:
     transaction we deadlocked with will not signal that it started to commit
     until after the unmark.
   */
+  DBUG_EXECUTE_IF("inject_mdev8302", { my_sleep(20000);});
   rgi->unmark_start_commit();
   DEBUG_SYNC(thd, "rpl_parallel_retry_after_unmark");
 
@@ -566,7 +586,7 @@ do_retry:
       err= 1;
       goto err;
     }
-    if (is_group_ending(ev, event_type))
+    if (is_group_ending(ev, event_type) == 1)
       rgi->mark_start_commit();
 
     err= rpt_handle_event(qev, rpt);
@@ -705,7 +725,8 @@ handle_rpl_parallel_thread(void *arg)
       Log_event_type event_type;
       rpl_group_info *rgi= qev->rgi;
       rpl_parallel_entry *entry= rgi->parallel_entry;
-      bool end_of_group, group_ending;
+      bool end_of_group;
+      int group_ending;
 
       next_qev= qev->next;
       if (qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE)
@@ -880,11 +901,37 @@ handle_rpl_parallel_thread(void *arg)
 
       group_rgi= rgi;
       group_ending= is_group_ending(qev->ev, event_type);
-      if (group_ending && likely(!rgi->worker_error))
+      /*
+        We do not unmark_start_commit() here in case of an explicit ROLLBACK
+        statement. Such events should be very rare, there is no real reason
+        to try to group commit them - on the contrary, it seems best to avoid
+        running them in parallel with following group commits, as with
+        ROLLBACK events we are already deep in dangerous corner cases with
+        mix of transactional and non-transactional tables or the like. And
+        avoiding the mark_start_commit() here allows us to keep an assertion
+        in ha_rollback_trans() that we do not rollback after doing
+        mark_start_commit().
+      */
+      if (group_ending == 1 && likely(!rgi->worker_error))
       {
-        DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
-        rgi->mark_start_commit();
-        DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+        /*
+          Do an extra check for (deadlock) kill here. This helps prevent a
+          lingering deadlock kill that occured during normal DML processing to
+          propagate past the mark_start_commit(). If we detect a deadlock only
+          after mark_start_commit(), we have to unmark, which has at least a
+          theoretical possibility of leaving a window where it looks like all
+          transactions in a GCO have started committing, while in fact one
+          will need to rollback and retry. This is not supposed to be possible
+          (since there is a deadlock, at least one transaction should be
+          blocked from reaching commit), but this seems a fragile ensurance,
+          and there were historically a number of subtle bugs in this area.
+        */
+        if (!thd->killed)
+        {
+          DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
+          rgi->mark_start_commit();
+          DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+        }
       }
 
       /*
@@ -909,7 +956,17 @@ handle_rpl_parallel_thread(void *arg)
           });
         if (!err)
 #endif
-        err= rpt_handle_event(qev, rpt);
+        {
+          if (thd->check_killed())
+          {
+            thd->clear_error();
+            thd->get_stmt_da()->reset_diagnostics_area();
+            thd->send_kill_message();
+            err= 1;
+          }
+          else
+            err= rpt_handle_event(qev, rpt);
+        }
         delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
                         err= dbug_simulate_tmp_error(rgi, thd););
@@ -1894,26 +1951,29 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
   max_i= domain_hash.records;
   for (i= 0; i < max_i; ++i)
   {
-    bool active;
-    wait_for_commit my_orderer;
+    PSI_stage_info old_stage;
     struct rpl_parallel_entry *e;
+    int err= 0;
 
     e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
     mysql_mutex_lock(&e->LOCK_parallel_entry);
-    if ((active= (e->current_sub_id > e->last_committed_sub_id)))
+    e->need_sub_id_signal= true;
+    thd->ENTER_COND(&e->COND_parallel_entry, &e->LOCK_parallel_entry,
+                    &stage_waiting_for_workers_idle, &old_stage);
+    while (e->current_sub_id > e->last_committed_sub_id)
     {
-      wait_for_commit *waitee= &e->current_group_info->commit_orderer;
-      my_orderer.register_wait_for_prior_commit(waitee);
-      thd->wait_for_commit_ptr= &my_orderer;
+      if (thd->check_killed())
+      {
+        thd->send_kill_message();
+        err= 1;
+        break;
+      }
+      mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
     }
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-    {
-      int err= my_orderer.wait_for_prior_commit(thd);
-      thd->wait_for_commit_ptr= NULL;
-      if (err)
-        return err;
-    }
+    e->need_sub_id_signal= false;
+    thd->EXIT_COND(&old_stage);
+    if (err)
+      return err;
   }
   return 0;
 }
@@ -2004,6 +2064,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     {
       memcpy(rli->future_event_master_log_name,
              rev->new_log_ident, rev->ident_len+1);
+      rli->notify_group_master_log_name_update();
     }
   }
 

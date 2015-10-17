@@ -37,6 +37,48 @@ INSERT INTO t1 VALUES (1,sleep(2));
 --source include/show_slave_status.inc
 
 
+--echo *** MDEV-8294: Inconsistent behavior of slave parallel threads at runtime ***
+
+--connection server_1
+INSERT INTO t1 VALUES (10,0);
+# Force a duplicate key error on the slave.
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=10;
+SET sql_log_bin= 1;
+INSERT INTO t1 VALUES (10,0);
+--save_master_pos
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+--connection server_2
+--let $slave_sql_errno= 1062
+--source include/wait_for_slave_sql_error.inc
+
+# At this point, the worker threads should have stopped also.
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+# Check that the pool can still be resized, but remains inactive as no slave
+# SQL thread is running.
+SET GLOBAL slave_parallel_threads=8;
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+STOP SLAVE;
+# At this point, the worker threads should have stopped.
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+
+SET GLOBAL sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+# At this point, the worker threads should have been spawned.
+--let $wait_condition= SELECT COUNT(*)=8 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+--sync_with_master
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+
+# Clean up
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;

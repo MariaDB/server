@@ -97,7 +97,7 @@ static ulong find_set(TYPELIB *lib, const char *x, uint length,
 static char *alloc_query_str(ulong size);
 
 static void field_escape(DYNAMIC_STRING* in, const char *from);
-static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0,
+static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_med= 1,
                 quick= 1, extended_insert= 1,
                 lock_tables=1,ignore_errors=0,flush_logs=0,flush_privileges=0,
                 opt_drop=1,opt_keywords=0,opt_lock=1,opt_compress=0,
@@ -202,6 +202,8 @@ const char *compatible_mode_names[]=
 )
 TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
                                   "", compatible_mode_names, NULL};
+
+#define MED_ENGINES "MRG_MyISAM, MRG_ISAM, CONNECT, OQGRAPH, SPIDER, VP, FEDERATED"
 
 HASH ignore_table;
 
@@ -429,6 +431,9 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-data", 'd', "No row information.", &opt_no_data,
    &opt_no_data, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"no-data-med", 0, "No row information for engines that "
+   "Manage External Data (" MED_ENGINES ").", &opt_no_data_med,
+   &opt_no_data_med, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"no-set-names", 'N', "Same as --skip-set-charset.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"opt", OPT_OPTIMIZE,
@@ -5406,12 +5411,12 @@ char check_if_ignore_table(const char *table_name, char *table_type)
     /*
       If these two types, we do want to skip dumping the table
     */
-    if (!opt_no_data &&
-        (!my_strcasecmp(&my_charset_latin1, table_type, "MRG_MyISAM") ||
-         !strcmp(table_type,"MRG_ISAM") ||
-         !strcmp(table_type,"CONNECT") ||
-         !strcmp(table_type,"FEDERATED")))
-      result= IGNORE_DATA;
+    if (!opt_no_data && opt_no_data_med)
+    {
+      const char *found= strstr(" " MED_ENGINES ",", table_type);
+      if (found && found[-1] == ' ' && found[strlen(table_type)] == ',')
+        result= IGNORE_DATA;
+    }
   }
   mysql_free_result(res);
   DBUG_RETURN(result);

@@ -3,7 +3,7 @@
 /* -------------                                                       */
 /*  Version 2.3                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND                           2004-2014        */
+/*  Author Olivier BERTRAND                           2004-2015        */
 /*                                                                     */
 /*  This program are the INI/CFG tables classes.                       */
 /***********************************************************************/
@@ -12,12 +12,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -25,7 +25,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -36,9 +36,9 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "reldef.h"
-#if !defined(WIN32)
+#if !defined(__WIN__)
 #include "osutil.h"
-#endif   // !WIN32
+#endif   // !__WIN__
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabsys.h"
@@ -48,10 +48,10 @@
 #define CSZ      36                       // Column section name length
 #define CDZ      256                      // Column definition length
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 #define GetPrivateProfileSectionNames(S,L,I)  \
         GetPrivateProfileString(NULL,NULL,"",S,L,I)
-#endif   // !WIN32
+#endif   // !__WIN__
 
 /* -------------- Implementation of the INI classes ------------------ */
 
@@ -70,7 +70,7 @@ INIDEF::INIDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool INIDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   char   buf[8];
 
@@ -96,7 +96,7 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
+PTDB INIDEF::GetTable(PGLOBAL g, MODE)
   {
   PTDBASE tdbp;
 
@@ -123,7 +123,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
   // Delete the INI table file if not protected
   if (!IsReadOnly()) {
     PlugSetPath(filename, Fn, GetPath());
-#if defined(WIN32)
+#if defined(__WIN__)
     rc = !DeleteFile(filename);
 #else    // UNIX
     rc = remove(filename);
@@ -277,49 +277,27 @@ bool TDBINI::OpenDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base read routine for INI access method.                      */
 /***********************************************************************/
-int TDBINI::ReadDB(PGLOBAL g)
+int TDBINI::ReadDB(PGLOBAL)
   {
   /*********************************************************************/
   /*  Now start the pseudo reading process.                            */
   /*********************************************************************/
-#if 0                // INI tables are not indexable
-  if (To_Kindex) {
-    /*******************************************************************/
-    /*  Reading is by an index table.                                  */
-    /*******************************************************************/
-    int recpos = To_Kindex->Fetch(g);
+  if (!Section)
+    Section = Seclist;
+  else
+    Section += (strlen(Section) + 1);
 
-    switch (recpos) {
-      case -1:           // End of file reached
-        return RC_EF;
-      case -2:           // No match for join
-        return RC_NF;
-      case -3:           // Same record as last non null one
-        return RC_OK;
-      default:
-        Section = (char*)recpos;    // No good on 64 bit machines
-      } // endswitch recpos
+  if (trace > 1)
+    htrc("INI ReadDB: section=%s N=%d\n", Section, N);
 
-  } else {
-#endif // 0
-    if (!Section)
-      Section = Seclist;
-    else
-      Section += (strlen(Section) + 1);
-
-    if (trace > 1)
-      htrc("INI ReadDB: section=%s N=%d\n", Section, N);
-
-    N++;
-//} // endif To_Kindex
-
+  N++;
   return (*Section) ? RC_OK : RC_EF;
   } // end of ReadDB
 
 /***********************************************************************/
 /*  WriteDB: Data Base write routine for INI access methods.           */
 /***********************************************************************/
-int TDBINI::WriteDB(PGLOBAL g)
+int TDBINI::WriteDB(PGLOBAL)
   {
   // This is to check that section name was given when inserting
   if (Mode == MODE_INSERT)
@@ -365,11 +343,11 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for INI access methods.                    */
 /***********************************************************************/
-void TDBINI::CloseDB(PGLOBAL g)
+void TDBINI::CloseDB(PGLOBAL)
   {
-#if !defined(WIN32)
+#if !defined(__WIN__)
   PROFILE_Close(Ifile);
-#endif   // !WIN32
+#endif   // !__WIN__
   } // end of CloseDB
 
 // ------------------------ INICOL functions ----------------------------
@@ -377,7 +355,7 @@ void TDBINI::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  INICOL public constructor.                                         */
 /***********************************************************************/
-INICOL::INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+INICOL::INICOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
   : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
@@ -471,7 +449,7 @@ bool INICOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 /*  from the corresponding section, extract from it the key value      */
 /*  corresponding to this column name and convert it to buffer type.   */
 /***********************************************************************/
-void INICOL::ReadColumn(PGLOBAL g)
+void INICOL::ReadColumn(PGLOBAL)
   {
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
@@ -747,7 +725,7 @@ int TDBXIN::ReadDB(PGLOBAL g)
 /***********************************************************************/
 /*  WriteDB: Data Base write routine for XIN access methods.           */
 /***********************************************************************/
-int TDBXIN::WriteDB(PGLOBAL g)
+int TDBXIN::WriteDB(PGLOBAL)
   {
   // To check that section and key names were given when inserting
   if (Mode == MODE_INSERT) {
@@ -809,7 +787,7 @@ XINCOL::XINCOL(XINCOL *col1, PTDB tdbp) : INICOL(col1, tdbp)
 /*  from the corresponding section, extract from it the key value      */
 /*  corresponding to this column name and convert it to buffer type.   */
 /***********************************************************************/
-void XINCOL::ReadColumn(PGLOBAL g)
+void XINCOL::ReadColumn(PGLOBAL)
   {
   PTDBXIN tdbp = (PTDBXIN)To_Tdb;
 

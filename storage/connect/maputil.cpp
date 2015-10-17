@@ -14,7 +14,7 @@
 #include "plgdbsem.h"
 #include "maputil.h"
 
-#ifdef WIN32
+#ifdef __WIN__
 /***********************************************************************/
 /*  In Insert mode, just open the file for append. Otherwise           */
 /*  create the mapping file object. The map handle can be released     */

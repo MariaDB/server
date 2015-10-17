@@ -36,8 +36,9 @@ typedef struct _datpar *PDTP;         // For DTVAL
 DllExport PSZ   GetTypeName(int);
 DllExport int   GetTypeSize(int, int);
 #ifdef ODBC_SUPPORT
-/* This function is exported for use in EOM table type DLLs */
-DllExport int   TranslateSQLType(int stp, int prec, int& len, char& v);
+/* This function is exported for use in OEM table type DLLs */
+DllExport int   TranslateSQLType(int stp, int prec, 
+                                 int& len, char& v, bool& w);
 #endif
 DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
@@ -94,18 +95,18 @@ class DllExport VALUE : public BLOCK {
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
   virtual bool   SetValue_char(char *p, int n) = 0;
   virtual void   SetValue_psz(PSZ s) = 0;
-  virtual void   SetValue_bool(bool b) {assert(FALSE);}
+  virtual void   SetValue_bool(bool) {assert(FALSE);}
   virtual int    CompareValue(PVAL vp) = 0;
   virtual BYTE   TestValue(PVAL vp);
-  virtual void   SetValue(char c) {assert(false);}
-  virtual void   SetValue(uchar c) {assert(false);}
-  virtual void   SetValue(short i) {assert(false);}
-  virtual void   SetValue(ushort i) {assert(false);}
-  virtual void   SetValue(int n) {assert(false);}
-  virtual void   SetValue(uint n) {assert(false);}
-  virtual void   SetValue(longlong n) {assert(false);}
-  virtual void   SetValue(ulonglong n) {assert(false);}
-  virtual void   SetValue(double f) {assert(false);}
+  virtual void   SetValue(char) {assert(false);}
+  virtual void   SetValue(uchar) {assert(false);}
+  virtual void   SetValue(short) {assert(false);}
+  virtual void   SetValue(ushort) {assert(false);}
+  virtual void   SetValue(int) {assert(false);}
+  virtual void   SetValue(uint) {assert(false);}
+  virtual void   SetValue(longlong) {assert(false);}
+  virtual void   SetValue(ulonglong) {assert(false);}
+  virtual void   SetValue(double) {assert(false);}
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
   virtual void   SetBinValue(void *p) = 0;
   virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
@@ -338,7 +339,7 @@ class DllExport BINVAL: public VALUE {
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual int    CompareValue(PVAL vp) {assert(false); return 0;}
+  virtual int    CompareValue(PVAL) {assert(false); return 0;}
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
@@ -359,14 +360,9 @@ class DllExport DTVAL : public TYPVAL<int> {
  public:
   // Constructors
   DTVAL(PGLOBAL g, int n, int p, PSZ fmt);
-  DTVAL(PGLOBAL g, PSZ s, int n);
-  DTVAL(PGLOBAL g, short i);
-  DTVAL(PGLOBAL g, int n);
-  DTVAL(PGLOBAL g, longlong n);
-  DTVAL(PGLOBAL g, double f);
+  DTVAL(int n);
 
   // Implementation
-  virtual bool   IsZero(void) {return Null;}
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);

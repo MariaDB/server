@@ -5,7 +5,7 @@
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2014     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2015     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -35,11 +35,11 @@
 #include "my_sys.h"
 #include "mysqld_error.h"
 #endif   // !MYSQL_PREPARED_STATEMENTS
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include "osutil.h"
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #include "global.h"
 #include "plgdbsem.h"
@@ -451,15 +451,15 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   if (!strcmp(host, ".")) {
     mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
     pipe = mysqld_unix_port;
     } // endif host
-#else   // !WIN32
+#else   // !__WIN__
   if (!strcmp(host, "localhost"))
     pipe = mysqld_unix_port;
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
@@ -720,7 +720,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
 /***********************************************************************/
 /*  Get table size by executing "select count(*) from table_name".     */
 /***********************************************************************/
-int MYSQLC::GetTableSize(PGLOBAL g, PSZ query)
+int MYSQLC::GetTableSize(PGLOBAL g __attribute__((unused)), PSZ query)
   {
   if (mysql_real_query(m_DB, query, strlen(query))) {
 #if defined(_DEBUG)

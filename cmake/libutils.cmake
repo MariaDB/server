@@ -308,15 +308,13 @@ INCLUDE(CheckCCompilerFlag)
 
 SET(VISIBILITY_HIDDEN_FLAG)
 
-IF(CMAKE_COMPILER_IS_GNUCXX AND UNIX)
+IF(CMAKE_C_COMPILER_ID MATCHES "SunPro")
+  SET(VISIBILITY_HIDDEN_FLAG "-xldscope=hidden")
+ELSEIF(UNIX)
   CHECK_C_COMPILER_FLAG("-fvisibility=hidden" HAVE_VISIBILITY_HIDDEN)
   IF(HAVE_VISIBILITY_HIDDEN)
     SET(VISIBILITY_HIDDEN_FLAG "-fvisibility=hidden")
   ENDIF()
-ENDIF()
-
-IF(CMAKE_C_COMPILER_ID MATCHES "SunPro")
-  SET(VISIBILITY_HIDDEN_FLAG "-xldscope=hidden")
 ENDIF()
 
 # We try to hide the symbols in yassl/zlib to avoid name clashes with

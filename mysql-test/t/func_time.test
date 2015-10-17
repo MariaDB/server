@@ -1649,3 +1649,44 @@ INSERT INTO t1 VALUES (17, NULL);
 INSERT INTO t1 VALUES (18, '2010-10-13');
 SELECT a.id,a.date1,FROM_DAYS(TO_DAYS(a.date1)-10) as date2, DATE_ADD(a.date1,INTERVAL -10 DAY),TO_DAYS(a.date1)-10 FROM t1 a ORDER BY a.id;
 DROP TABLE t1;
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-8205 timediff returns null when comparing decimal time to time string value
+--echo #
+
+# 1h difference
+SELECT
+  TIMEDIFF('2014-01-01 00:00:00' , '2014-01-01 01:00:00' ) AS str_str,
+  TIMEDIFF('2014-01-01 00:00:00' , 20140101010000.000    ) AS str_dec,
+  TIMEDIFF(20140101000000.000    , 20140101010000.000    ) AS dec_dec,
+  TIMEDIFF(20140101000000.000    , '2014-01-01 01:00:00' ) AS dec_str;
+
+# 1D1h difference
+SELECT
+  TIMEDIFF('2014-01-01 00:00:00' , '2014-01-02 01:00:00' ) AS str_str,
+  TIMEDIFF('2014-01-01 00:00:00' , 20140102010000.000    ) AS str_dec,
+  TIMEDIFF(20140101000000.000    , 20140102010000.000    ) AS dec_dec,
+  TIMEDIFF(20140101000000.000    , '2014-01-02 01:00:00' ) AS dec_str;
+
+# 1M1D1h difference
+SELECT
+  TIMEDIFF('2014-01-01 00:00:00' , '2014-02-02 01:00:00' ) AS str_str,
+  TIMEDIFF('2014-01-01 00:00:00' , 20140202010000.000    ) AS str_dec,
+  TIMEDIFF(20140101000000.000    , 20140202010000.000    ) AS dec_dec,
+  TIMEDIFF(20140101000000.000    , '2014-02-02 01:00:00' ) AS dec_str;
+
+# 2M1D1h difference
+SELECT
+  TIMEDIFF('2014-01-01 00:00:00' , '2014-03-02 01:00:00' ) AS str_str,
+  TIMEDIFF('2014-01-01 00:00:00' , 20140302010000.000    ) AS str_dec,
+  TIMEDIFF(20140101000000.000    , 20140302010000.000    ) AS dec_dec,
+  TIMEDIFF(20140101000000.000    , '2014-03-02 01:00:00' ) AS dec_str;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

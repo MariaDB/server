@@ -1,7 +1,7 @@
 /*************** TabDos H Declares Source Code File (.H) ***************/
-/*  Name: TABFIX.H    Version 2.3                                      */
+/*  Name: TABFIX.H    Version 2.4                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /*  This file contains the TDBFIX and (FIX/BIN)COL classes declares.   */
 /***********************************************************************/
@@ -12,7 +12,7 @@
 
 typedef class FIXCOL *PFIXCOL;
 typedef class BINCOL *PBINCOL;
-typedef class TXTFAM      *PTXF;
+typedef class TXTFAM *PTXF;
 
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for files     */
@@ -53,7 +53,8 @@ class DllExport TDBFIX : public TDBDOS {
  protected:
   virtual bool PrepareWriting(PGLOBAL g) {return false;}
 
-  // Members are inherited from TDBDOS
+  // Members
+  char Teds;                  /* Binary table default endian setting   */
   }; // end of class TDBFIX
 
 /***********************************************************************/
@@ -68,17 +69,29 @@ class DllExport BINCOL : public DOSCOL {
   BINCOL(BINCOL *colp, PTDB tdbp);  // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_BIN;}
+  virtual int  GetAmType(void) {return TYPE_AM_BIN;}
+          int  GetDeplac(void) {return Deplac;}
+          int  GetFileSize(void) 
+               {return N ? N : GetTypeSize(Buf_Type, Long);}
 
   // Methods
-  virtual void   ReadColumn(PGLOBAL g);
-  virtual void   WriteColumn(PGLOBAL g);
+  virtual void ReadColumn(PGLOBAL g);
+  virtual void WriteColumn(PGLOBAL g);
+
+  // Static
+  static  void SetEndian(void); 
 
  protected:
   BINCOL(void) {}    // Default constructor not to be used
 
   // Members
-  char Fmt;                   // The column numeric format
+  static char Endian;         // The host endian setting (L or B)
+  char *Buff;                 // Utility buffer
+  char  Eds;                  // The file endian setting
+  char  Fmt;                  // The converted value format
+  int   N;                    // The number of bytes in the file
+  int   M;                    // The buffer type size
+  int   Lim;                  // Min(N,M)
   }; // end of class BINCOL
 
 /***********************************************************************/

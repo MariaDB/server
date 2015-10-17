@@ -2423,10 +2423,11 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
 
     if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
     {
-      sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
-                      (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
-                      (const char *) ip_addr,
-                      (int) socket_errno);
+      sql_print_message_func func= real_bind_addr_str ? sql_print_error
+                                                      : sql_print_warning;
+      func("Failed to create a socket for %s '%s': errno: %d.",
+           (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
+           (const char *) ip_addr, (int) socket_errno);
     }
     else 
     {
@@ -5275,8 +5276,6 @@ int mysqld_main(int argc, char **argv)
       pfs_param.m_hints.m_table_open_cache= tc_size;
       pfs_param.m_hints.m_max_connections= max_connections;
       pfs_param.m_hints.m_open_files_limit= open_files_limit;
-      /* the performance schema digest size is the same as the SQL layer */
-      pfs_param.m_max_digest_length= max_digest_length;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {
@@ -5555,6 +5554,8 @@ int mysqld_main(int argc, char **argv)
   mysqld_server_started= 1;
   mysql_cond_signal(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
+
+  MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
 #if defined(_WIN32) || defined(HAVE_SMEM)
   handle_connections_methods();
@@ -9513,6 +9514,7 @@ PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work fr
 PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
 PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
+PSI_stage_info stage_waiting_for_workers_idle= { 0, "Waiting for worker threads to be idle", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};

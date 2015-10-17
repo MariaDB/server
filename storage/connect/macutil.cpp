@@ -2,11 +2,11 @@
 /*  MACUTIL: Author Olivier Bertrand --  2008-2012                     */
 /*  From the article and sample code by Khalid Shaikh.                 */
 /***********************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
 #include "my_global.h"
-#else   // !WIN32
-#error This is WIN32 only DLL
-#endif  // !WIN32
+#else   // !__WIN__
+#error This is WINDOWS only DLL
+#endif  // !__WIN__
 #include "global.h"
 #include "plgdbsem.h"
 #include "macutil.h"

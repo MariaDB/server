@@ -42,9 +42,9 @@ class DllExport XOBJECT : public BLOCK {
   virtual int    GetResultType(void) {return TYPE_VOID;}
   virtual int    GetKey(void) {return 0;}
 #if defined(_DEBUG)
-  virtual void   SetKey(int k) {assert(false);}
+  virtual void   SetKey(int) {assert(false);}
 #else    // !_DEBUG
-  virtual void   SetKey(int k) {}   // Only defined for COLBLK
+  virtual void   SetKey(int) {}     // Only defined for COLBLK
 #endif  // !_DEBUG
   virtual int    GetLength(void) = 0;
   virtual int    GetLengthEx(void) = 0;

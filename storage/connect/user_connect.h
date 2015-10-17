@@ -45,7 +45,7 @@ class user_connect
   friend int connect_done_func(void *);
 public:
   // Constructor
-  user_connect(THD *thd, const char *dbn);
+  user_connect(THD *thd);
 
   // Destructor
   virtual ~user_connect();

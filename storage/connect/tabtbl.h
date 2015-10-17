@@ -81,7 +81,7 @@ class DllExport TDBTBL : public TDBPRX {
   virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
+  virtual PCOL InsertSpecialColumn(PCOL scp);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
 

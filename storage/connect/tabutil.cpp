@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -292,7 +292,7 @@ PRXDEF::PRXDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XCOL file.          */
 /***********************************************************************/
-bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   char *pn, *db, *tab, *def = NULL;
 
@@ -322,7 +322,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB PRXDEF::GetTable(PGLOBAL g, MODE mode)
+PTDB PRXDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
@@ -341,7 +341,7 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
   Tdbp = NULL;                    // The object table
   } // end of TDBPRX constructor
 
-TDBPRX::TDBPRX(PGLOBAL g, PTDBPRX tdbp) : TDBASE(tdbp)
+TDBPRX::TDBPRX(PTDBPRX tdbp) : TDBASE(tdbp)
   {
   Tdbp = tdbp->Tdbp;
   } // end of TDBPRX copy constructor
@@ -353,7 +353,7 @@ PTDB TDBPRX::CopyOne(PTABS t)
   PPRXCOL cp1, cp2;
   PGLOBAL g = t->G;
 
-  tp = new(g) TDBPRX(g, this);
+  tp = new(g) TDBPRX(this);
 
   for (cp1 = (PPRXCOL)Columns; cp1; cp1 = (PPRXCOL)cp1->GetNext()) {
     cp2 = new(g) PRXCOL(cp1, tp);  // Make a copy

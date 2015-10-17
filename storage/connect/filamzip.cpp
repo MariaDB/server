@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,21 +17,21 @@
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
 #include <io.h>
 #endif
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -89,11 +89,11 @@ int ZIPFAM::Zerror(PGLOBAL g)
   strcpy(g->Message, gzerror(Zfile, &errnum));
 
   if (errnum == Z_ERRNO)
-#if defined(WIN32)
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(NULL));
-#else   // !WIN32
+#else   // !__WIN__
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#endif  // !WIN32
+#endif  // !__WIN__
 
     return (errnum == Z_STREAM_END) ? RC_EF : RC_FX;
   } // end of Zerror
@@ -247,7 +247,7 @@ int ZIPFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool ZIPFAM::SetPos(PGLOBAL g, int pos)
+bool ZIPFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   {
   sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
   return true;
@@ -267,7 +267,7 @@ bool ZIPFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 /*  Record file position in case of UPDATE or DELETE.                  */
 /***********************************************************************/
-bool ZIPFAM::RecordPos(PGLOBAL g)
+bool ZIPFAM::RecordPos(PGLOBAL)
   {
   Zpos = gztell(Zfile);
   return false;
@@ -376,7 +376,7 @@ int ZIPFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for ZDOS access method.  (NIY)       */
 /***********************************************************************/
-int ZIPFAM::DeleteRecords(PGLOBAL g, int irc)
+int ZIPFAM::DeleteRecords(PGLOBAL g, int)
   {
   strcpy(g->Message, MSG(NO_ZIP_DELETE));
   return RC_FX;
@@ -385,7 +385,7 @@ int ZIPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for DOS access method.                     */
 /***********************************************************************/
-void ZIPFAM::CloseTableFile(PGLOBAL g, bool abort)
+void ZIPFAM::CloseTableFile(PGLOBAL, bool)
   {
   int rc = gzclose(Zfile);
 
@@ -431,7 +431,7 @@ ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
 /***********************************************************************/
 /*  Use BlockTest to reduce the table estimated size.                  */
 /***********************************************************************/
-int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
+int ZBKFAM::MaxBlkSize(PGLOBAL g, int)
   {
   int rc = RC_OK, savcur = CurBlk;
   int size;
@@ -503,7 +503,7 @@ int ZBKFAM::GetPos(void)
 /*  Record file position in case of UPDATE or DELETE.                  */
 /*  Not used yet for fixed tables.                                     */
 /***********************************************************************/
-bool ZBKFAM::RecordPos(PGLOBAL g)
+bool ZBKFAM::RecordPos(PGLOBAL /*g*/)
   {
 //strcpy(g->Message, "RecordPos not implemented for zip blocked tables");
 //return true;
@@ -513,7 +513,7 @@ bool ZBKFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int ZBKFAM::SkipRecord(PGLOBAL g, bool header)
+int ZBKFAM::SkipRecord(PGLOBAL /*g*/, bool)
   {
 //strcpy(g->Message, "SkipRecord not implemented for zip blocked tables");
 //return RC_FX;
@@ -668,7 +668,7 @@ int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for ZBK access method.                     */
 /***********************************************************************/
-void ZBKFAM::CloseTableFile(PGLOBAL g, bool abort)
+void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   {
   int rc = RC_OK;
 
@@ -764,9 +764,9 @@ bool ZIXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() < 2)
       // if not binary, the file is physically a text file
       for (int len = Lrecl; len <= Buflen; len += Lrecl) {
-#if defined(WIN32)
+#if defined(__WIN__)
         To_Buf[len - 2] = '\r';
-#endif   // WIN32
+#endif   // __WIN__
         To_Buf[len - 1] = '\n';
         } // endfor len
 
@@ -1060,7 +1060,7 @@ int ZLBFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool ZLBFAM::SetPos(PGLOBAL g, int pos)
+bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   {
   sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
   return true;
@@ -1350,7 +1350,7 @@ bool ZLBFAM::WriteCompressedBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void ZLBFAM::CloseTableFile(PGLOBAL g, bool abort)
+void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   {
   int rc = RC_OK;
 

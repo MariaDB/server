@@ -1,1 +1,1 @@
---skip-name-resolve
+--skip-name-resolve --bind-address=*
