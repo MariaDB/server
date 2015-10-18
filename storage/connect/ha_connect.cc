@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0007 July 05, 2015";
+       char  version[]= "Version 1.03.0007 October 18, 2015";
 #if defined(__WIN__)
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -2471,7 +2471,18 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             !(colp[i]= tdbp->ColDB(g, (PSZ)pField->field->field_name, 0)))
           return NULL;  // Column does not belong to this table
 
-        if (trace) {
+				// These types are not yet implemented (buggy)
+				switch (pField->field->type()) {
+				case MYSQL_TYPE_TIMESTAMP:
+				case MYSQL_TYPE_DATE:
+				case MYSQL_TYPE_TIME:
+				case MYSQL_TYPE_DATETIME:
+				case MYSQL_TYPE_YEAR:
+				case MYSQL_TYPE_NEWDATE:
+					return NULL;
+				} // endswitch type
+
+				if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
           htrc("Field name=%s\n", pField->field->field_name);
           } // endif trace
