@@ -2529,6 +2529,17 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             !(colp[i]= tdbp->ColDB(g, (PSZ)pField->field->field_name, 0)))
           return NULL;  // Column does not belong to this table
 
+				// These are not yet implemented (buggy)
+				switch (pField->field->type()) {
+				case MYSQL_TYPE_TIMESTAMP:
+				case MYSQL_TYPE_DATE:
+				case MYSQL_TYPE_TIME:
+				case MYSQL_TYPE_DATETIME:
+				case MYSQL_TYPE_YEAR:
+				case MYSQL_TYPE_NEWDATE:
+					return NULL;
+				} // endswitch type
+
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
           htrc("Field name=%s\n", pField->field->field_name);
