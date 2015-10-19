@@ -457,6 +457,7 @@ public:
   MDL_key key;
 
 public:
+
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}

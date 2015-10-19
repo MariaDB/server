@@ -274,8 +274,10 @@ void wsrep_replay_transaction(THD *thd)
         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);
         break;
       default:
-        WSREP_ERROR("trx_replay failed for: %d, query: %s",
-                    rcode, thd->query() ? thd->query() : "void");
+        WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
+                    rcode,
+                    (thd->db ? thd->db : "(null)"),
+                    thd->query() ? thd->query() : "void");
         /* we're now in inconsistent state, must abort */
 
         /* http://bazaar.launchpad.net/~codership/codership-mysql/5.6/revision/3962#sql/wsrep_thd.cc */
