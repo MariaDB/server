@@ -1478,13 +1478,14 @@ void wsrep_to_isolation_end(THD *thd)
 
 #define WSREP_MDL_LOG(severity, msg, schema, schema_len, req, gra)             \
     WSREP_##severity(                                                          \
+      "%s\n"                                                                   \
       "schema:  %.*s\n"                                                        \
       "request: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)\n"      \
       "granted: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)",       \
-      msg, schema_len, schema,                                                                     \
+      msg, schema_len, schema,                                                 \
       req->thread_id, (long long)wsrep_thd_trx_seqno(req),                     \
       req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
-      req->get_command(), req->lex->sql_command, req->query(),		       \
+      req->get_command(), req->lex->sql_command, req->query(),                 \
       gra->thread_id, (long long)wsrep_thd_trx_seqno(gra),                     \
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
       gra->get_command(), gra->lex->sql_command, gra->query());
