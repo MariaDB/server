@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0007 October 18, 2015";
+       char  version[]= "Version 1.03.0007 October 20, 2015";
 #if defined(__WIN__)
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -1134,7 +1134,10 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 {
   TABLE_SHARE *tsp= (tshp) ? tshp : (s) ? s : table_share;
 
-  return (tsp) ? tsp->option_struct : NULL;
+	return (tsp && (!tsp->db_plugin ||
+		!stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
+		!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
+		? tsp->option_struct : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
