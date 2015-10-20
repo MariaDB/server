@@ -2395,6 +2395,7 @@ public:
   size_t                    wsrep_TOI_pre_query_len;
   void*                     wsrep_apply_format;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

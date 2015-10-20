@@ -1804,6 +1804,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       goto err;
     }
   }
+
   /*
     Try to obtain an exclusive lock on the query cache. If the cache is
     disabled or if a full cache flush is in progress, the attempt to
@@ -1914,6 +1915,25 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     goto err_unlock;
   }
   DBUG_PRINT("qcache", ("Query in query hash 0x%lx", (ulong)query_block));
+
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT(thd) && wsrep_must_sync_wait(thd)) {
+    unlock();
+    if (wsrep_sync_wait(thd))
+      goto err;
+    if (try_lock(TRUE))
+      goto err;
+    query_block = (Query_cache_block *) my_hash_search(&queries,
+                                                       (uchar*) sql,
+                                                       tot_length);
+    if (query_block == 0 ||
+        query_block->query()->result() == 0 ||
+        query_block->query()->result()->type != Query_cache_block::RESULT)
+    {
+      goto err_unlock;
+    }
+  }
+#endif /* WITH_WSREP */
 
   /* Now lock and test that nothing changed while blocks was unlocked */
   BLOCK_LOCK_RD(query_block);

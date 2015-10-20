@@ -866,19 +866,24 @@ bool wsrep_start_replication()
   return true;
 }
 
+bool wsrep_must_sync_wait (THD* thd, uint mask)
+{
+  return (thd->variables.wsrep_sync_wait & mask) &&
+    thd->variables.wsrep_on &&
+    !thd->in_active_multi_stmt_transaction() &&
+    thd->wsrep_conflict_state != REPLAYING &&
+    thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
+}
+
 bool wsrep_sync_wait (THD* thd, uint mask)
 {
-  if ((thd->variables.wsrep_sync_wait & mask) &&
-      thd->variables.wsrep_on &&
-      !thd->in_active_multi_stmt_transaction() &&
-      thd->wsrep_conflict_state != REPLAYING)
+  if (wsrep_must_sync_wait(thd, mask))
   {
     WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
                 thd->variables.wsrep_sync_wait, mask);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
-    wsrep_gtid_t  gtid;
-    wsrep_status_t ret= wsrep->causal_read (wsrep, &gtid);
+    wsrep_status_t ret= wsrep->causal_read (wsrep, &thd->wsrep_sync_wait_gtid);
 
     if (unlikely(WSREP_OK != ret))
     {
