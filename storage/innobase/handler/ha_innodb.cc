@@ -4,7 +4,7 @@ Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015 MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4328,6 +4328,8 @@ innobase_kill_query(
         enum thd_kill_levels level) /*!< in: kill level */
 {
 	trx_t*	trx;
+	bool	took_lock_sys = false;
+
 	DBUG_ENTER("innobase_kill_query");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
@@ -4353,14 +4355,24 @@ innobase_kill_query(
 
 		/* Cancel a pending lock request. */
 		if (owner != cur) {
+			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
+			took_lock_sys = true;
 		}
+
+		ut_ad(!trx_mutex_own(trx));
 		trx_mutex_enter(trx);
+
 		if (trx->lock.wait_lock) {
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 		}
+
+	        ut_ad(lock_mutex_own());
+		ut_ad(trx_mutex_own(trx));
+
 		trx_mutex_exit(trx);
-		if (owner != cur) {
+
+		if (took_lock_sys) {
 			lock_mutex_exit();
 		}
 	}
@@ -17320,6 +17332,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
 		DBUG_RETURN(1);
 	}
+
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
 		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
@@ -17343,6 +17356,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
+
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
 		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
 			    victim_trx->id,
@@ -17350,7 +17364,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 	}
 
 	switch (wsrep_thd_conflict_state(thd)) {
-	case NO_CONFLICT: 
+	case NO_CONFLICT:
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
@@ -17472,6 +17486,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		mysql_mutex_lock(&LOCK_wsrep_rollback);
 
 		abortees = wsrep_aborting_thd;
+
 		while (abortees && !skip_abort) {
 			/* check if we have a kill message for this already */
 			if (abortees->aborting_thd == thd) {
@@ -17481,6 +17496,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			}
 			abortees = abortees->next;
 		}
+
 		if (!skip_abort) {
 			wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
 				my_malloc(sizeof(struct wsrep_aborting_thd), 
@@ -17522,17 +17538,17 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		    wsrep_thd_query(bf_thd),
 		    wsrep_thd_query(victim_thd));
 
-	if (victim_trx)
-	{
-                lock_mutex_enter();
-                trx_mutex_enter(victim_trx);
+	if (victim_trx) {
+		victim_trx->current_lock_mutex_owner = victim_thd;
+		lock_mutex_enter();
+		trx_mutex_enter(victim_trx);
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
-                trx_mutex_exit(victim_trx);
-                lock_mutex_exit();
+		trx_mutex_exit(victim_trx);
+		victim_trx->current_lock_mutex_owner = NULL;
+		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
-
- 		DBUG_RETURN(rcode);
+		DBUG_RETURN(rcode);
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
 		wsrep_thd_LOCK(victim_thd);
@@ -17540,6 +17556,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_UNLOCK(victim_thd);
 		wsrep_thd_awake(victim_thd, signal); 
 	}
+
 	DBUG_RETURN(-1);
 }
 

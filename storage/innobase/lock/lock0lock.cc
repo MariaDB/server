@@ -6767,14 +6767,16 @@ lock_clust_rec_modify_check_and_lock(
 	lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 
 	lock_mutex_enter();
-
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	trx_t*		trx = thr_get_trx(thr);
+	trx->current_lock_mutex_owner = trx->mysql_thd;
+	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
+	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -6826,15 +6828,18 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
+	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
+	trx->current_lock_mutex_owner = trx->mysql_thd;
 
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
+	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 #ifdef UNIV_DEBUG
@@ -6925,18 +6930,21 @@ lock_sec_rec_read_check_and_lock(
 		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 	}
 
+	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
+	trx->current_lock_mutex_owner = trx->mysql_thd;
 
 	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	      || lock_table_has(trx, index->table, LOCK_IX));
 	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
+	      || lock_table_has(trx, index->table, LOCK_IS));
 
 	err = lock_rec_lock(FALSE, mode | gap_mode,
 			    block, heap_no, index, thr);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
+	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -6998,17 +7006,20 @@ lock_clust_rec_read_check_and_lock(
 	}
 
 	lock_mutex_enter();
+	trx_t* trx = thr_get_trx(thr);
+	trx->current_lock_mutex_owner = trx->mysql_thd;
 
 	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	      || lock_table_has(trx, index->table, LOCK_IX));
 	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
+	      || lock_table_has(trx, index->table, LOCK_IS));
 
 	err = lock_rec_lock(FALSE, mode | gap_mode,
 			    block, heap_no, index, thr);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
+	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
