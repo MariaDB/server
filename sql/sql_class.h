@@ -2787,7 +2787,6 @@ public:
     query_id_t first_query_id;
   } binlog_evt_union;
 
-
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
@@ -3865,6 +3864,7 @@ public:
   void*                     wsrep_apply_format;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
   bool                      wsrep_skip_append_keys;
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
 #endif /* WITH_WSREP */
 };
 
