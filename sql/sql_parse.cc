@@ -670,7 +670,7 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 static void handle_bootstrap_impl(THD *thd)
 {
   MYSQL_FILE *file= bootstrap_file;
-  DBUG_ENTER("handle_bootstrap");
+  DBUG_ENTER("handle_bootstrap_impl");
 
 #ifndef EMBEDDED_LIBRARY
   pthread_detach_this_thread();
