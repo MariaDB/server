@@ -323,10 +323,21 @@ PSZ TDBODBC::GetFile(PGLOBAL g)
   {
   if (Connect) {
     char  *p1, *p2;
+		int    i;
     size_t n;
 
-    if ((p1 = strstr(Connect, "DBQ="))) {
-      p1 += 4;                        // Beginning of file name
+		if (!(p1 = strstr(Connect, "DBQ="))) {
+			char *p, *lc = strlwr(PlugDup(g, Connect));
+
+			if ((p = strstr(lc, "database=")))
+				p1 = Connect + (p - lc);
+
+			i = 9;
+		} else
+			i = 4;
+
+    if (p1) {
+      p1 += i;                        // Beginning of file name
       p2 = strchr(p1, ';');           // End of file path/name
 
       // Make the File path/name from the connect string
