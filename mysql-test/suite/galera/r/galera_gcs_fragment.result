@@ -7,7 +7,6 @@ INSERT INTO t1 VALUES (1, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_cluster_address = 'gcomm://127.0.0.1:13001';
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");

@@ -32,7 +32,9 @@ SET SESSION wsrep_retry_autocommit=0;
 
 # Restart node_2, wait until it joins the group and then make INSERT
 --connection node_2
+--disable_query_log
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig'
+--enable_query_log
 SET SESSION wsrep_on = 0;
 --source include/galera_wait_ready.inc
 SET SESSION wsrep_on = 1;
