@@ -4,7 +4,7 @@ Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015 MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -18321,11 +18321,13 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 }
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
-
+UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
-                            const trx_t * const bf_trx,
-                            trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(
+	void * const bf_thd_ptr,
+	const trx_t * const bf_trx,
+	trx_t *victim_trx,
+	ibool signal)
 {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(victim_trx));
@@ -18549,8 +18551,8 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		    wsrep_thd_query(victim_thd));
 
 	if (victim_trx) {
-		victim_trx->current_lock_mutex_owner = victim_thd;
 		lock_mutex_enter();
+		victim_trx->current_lock_mutex_owner = victim_thd;
 		trx_mutex_enter(victim_trx);
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);

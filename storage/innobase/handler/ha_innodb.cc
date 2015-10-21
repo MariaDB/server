@@ -4,7 +4,7 @@ Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015 MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -17311,11 +17311,13 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 }
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
-
+UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
-                            const trx_t * const bf_trx,
-                            trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(
+	void * const bf_thd_ptr,
+	const trx_t * const bf_trx,
+	trx_t *victim_trx,
+	ibool signal)
 {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(victim_trx));
@@ -17341,12 +17343,12 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu", 
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu",
  		    signal, (long long)bf_seqno,
  		    wsrep_thd_thread_id(thd),
 		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s", 
+	WSREP_DEBUG("Aborting query: %s",
 		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
 
 	wsrep_thd_LOCK(thd);
@@ -17429,7 +17431,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		wsrep_thd_awake(thd, signal);
 		break;
 	case QUERY_EXEC:
-		/* it is possible that victim trx is itself waiting for some 
+		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
 		 */
 		WSREP_DEBUG("kill trx QUERY_EXEC for %lu", victim_trx->id);
@@ -17449,7 +17451,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
-			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld", 
+			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld",
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
@@ -17469,7 +17471,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 	{
 		bool skip_abort= false;
 		wsrep_aborting_thd_t abortees;
-                        
+
 		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -17491,7 +17493,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			/* check if we have a kill message for this already */
 			if (abortees->aborting_thd == thd) {
 				skip_abort = true;
-				WSREP_WARN("duplicate thd aborter %lu", 
+				WSREP_WARN("duplicate thd aborter %lu",
 					  wsrep_thd_thread_id(thd));
 			}
 			abortees = abortees->next;
@@ -17499,7 +17501,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		if (!skip_abort) {
 			wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
-				my_malloc(sizeof(struct wsrep_aborting_thd), 
+				my_malloc(sizeof(struct wsrep_aborting_thd),
 					  MYF(0));
 			aborting->aborting_thd  = thd;
 			aborting->next          = wsrep_aborting_thd;
@@ -17519,28 +17521,34 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		break;
 	}
 	default:
-		WSREP_WARN("bad wsrep query state: %d", 
+		WSREP_WARN("bad wsrep query state: %d",
 			  wsrep_thd_query_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		break;
 	}
-     
+
 	DBUG_RETURN(0);
 }
-static int 
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd, 
-			my_bool signal)
+
+static
+int
+wsrep_abort_transaction(
+	handlerton* hton,
+	THD *bf_thd,
+	THD *victim_thd,
+	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s", 
+
+	WSREP_DEBUG("abort transaction: BF: %s victim: %s",
 		    wsrep_thd_query(bf_thd),
 		    wsrep_thd_query(victim_thd));
 
 	if (victim_trx) {
-		victim_trx->current_lock_mutex_owner = victim_thd;
 		lock_mutex_enter();
+		victim_trx->current_lock_mutex_owner = victim_thd;
 		trx_mutex_enter(victim_trx);
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
@@ -17554,7 +17562,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_LOCK(victim_thd);
 		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
 		wsrep_thd_UNLOCK(victim_thd);
-		wsrep_thd_awake(victim_thd, signal); 
+		wsrep_thd_awake(victim_thd, signal);
 	}
 
 	DBUG_RETURN(-1);
