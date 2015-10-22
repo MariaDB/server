@@ -2558,7 +2558,8 @@ int check_change_password(THD *thd, const char *host, const char *user,
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
     return(1);
   }
-  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
+  if (!thd->slave_thread && !thd->security_ctx->priv_user[0] &&
+      !in_bootstrap)
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
