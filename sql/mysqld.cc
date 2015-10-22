@@ -4259,7 +4259,7 @@ static int init_common_variables()
     return 1;
   set_server_version();
 
-  if (!opt_help)
+  if (!opt_abort)
     sql_print_information("%s (mysqld %s) starting as process %lu ...",
                           my_progname, server_version, (ulong) getpid());
 
