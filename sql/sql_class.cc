@@ -856,6 +856,7 @@ THD::THD(bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
+   protocol_text(this), protocol_binary(this),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),

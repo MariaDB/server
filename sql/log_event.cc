@@ -1016,7 +1016,7 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
   Log_event::pack_info()
 */
 
-void Log_event::pack_info(THD *thd, Protocol *protocol)
+void Log_event::pack_info(Protocol *protocol)
 {
   protocol->store("", &my_charset_bin);
 }
@@ -1025,8 +1025,7 @@ void Log_event::pack_info(THD *thd, Protocol *protocol)
 /**
   Only called by SHOW BINLOG EVENTS
 */
-int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
-                        my_off_t pos)
+int Log_event::net_send(Protocol *protocol, const char* log_name, my_off_t pos)
 {
   const char *p= strrchr(log_name, FN_LIBCHAR);
   const char *event_type;
@@ -1040,7 +1039,7 @@ int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
   protocol->store(event_type, strlen(event_type), &my_charset_bin);
   protocol->store((uint32) server_id);
   protocol->store((ulonglong) log_pos);
-  pack_info(thd, protocol);
+  pack_info(protocol);
   return protocol->write();
 }
 #endif /* HAVE_REPLICATION */
@@ -2813,7 +2812,7 @@ Log_event::continue_group(rpl_group_info *rgi)
     show the catalog ??
 */
 
-void Query_log_event::pack_info(THD *thd, Protocol *protocol)
+void Query_log_event::pack_info(Protocol *protocol)
 {
   // TODO: show the catalog ??
   char buf_mem[1024];
@@ -2823,7 +2822,7 @@ void Query_log_event::pack_info(THD *thd, Protocol *protocol)
       && db && db_len)
   {
     buf.append(STRING_WITH_LEN("use "));
-    append_identifier(thd, &buf, db, db_len);
+    append_identifier(protocol->thd, &buf, db, db_len);
     buf.append(STRING_WITH_LEN("; "));
   }
   if (query && q_len)
@@ -4628,7 +4627,7 @@ Start_log_event_v3::Start_log_event_v3()
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Start_log_event_v3::pack_info(THD *thd, Protocol *protocol)
+void Start_log_event_v3::pack_info(Protocol *protocol)
 {
   char buf[12 + ST_SERVER_VER_LEN + 14 + 22], *pos;
   pos= strmov(buf, "Server ver: ");
@@ -5392,7 +5391,7 @@ void Start_encryption_log_event::print(FILE* file,
   **************************************************************************/
 
 /*
-  Load_log_event::pack_info()
+  Load_log_event::print_query()
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
@@ -5495,13 +5494,13 @@ void Load_log_event::print_query(THD *thd, bool need_db, const char *cs,
 }
 
 
-void Load_log_event::pack_info(THD *thd, Protocol *protocol)
+void Load_log_event::pack_info(Protocol *protocol)
 {
   char query_buffer[1024];
   String query_str(query_buffer, sizeof(query_buffer), system_charset_info);
 
   query_str.length(0);
-  print_query(thd, TRUE, NULL, &query_str, 0, 0, NULL);
+  print_query(protocol->thd, TRUE, NULL, &query_str, 0, 0, NULL);
   protocol->store(query_str.ptr(), query_str.length(), &my_charset_bin);
 }
 #endif /* defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT) */
@@ -6172,7 +6171,7 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rotate_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rotate_log_event::pack_info(Protocol *protocol)
 {
   StringBuffer<256> tmp(log_cs);
   tmp.length(0);
@@ -6384,7 +6383,7 @@ Rotate_log_event::do_shall_skip(rpl_group_info *rgi)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
+void Binlog_checkpoint_log_event::pack_info(Protocol *protocol)
 {
   protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
 }
@@ -6621,7 +6620,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 
 #ifdef HAVE_REPLICATION
 void
-Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
+Gtid_log_event::pack_info(Protocol *protocol)
 {
   char buf[6+5+10+1+10+1+20+1+4+20+1];
   char *p;
@@ -7002,7 +7001,7 @@ Gtid_list_log_event::do_shall_skip(rpl_group_info *rgi)
 
 
 void
-Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
+Gtid_list_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
@@ -7112,7 +7111,7 @@ Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Intvar_log_event::pack_info(THD *thd, Protocol *protocol)
+void Intvar_log_event::pack_info(Protocol *protocol)
 {
   char buf[256], *pos;
   pos= strmake(buf, get_var_type_name(), sizeof(buf)-23);
@@ -7263,7 +7262,7 @@ Intvar_log_event::do_shall_skip(rpl_group_info *rgi)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rand_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rand_log_event::pack_info(Protocol *protocol)
 {
   char buf1[256], *pos;
   pos= strmov(buf1,"rand_seed1=");
@@ -7382,7 +7381,7 @@ bool slave_execute_deferred_events(THD *thd)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Xid_log_event::pack_info(THD *thd, Protocol *protocol)
+void Xid_log_event::pack_info(Protocol *protocol)
 {
   char buf[128], *pos;
   pos= strmov(buf, "COMMIT /* xid=");
@@ -7557,14 +7556,14 @@ user_var_append_name_part(THD *thd, String *buf,
     buf->append("=");
 }
 
-void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
+void User_var_log_event::pack_info(Protocol* protocol)
 {
   if (is_null)
   {
     char buf_mem[FN_REFLEN+7];
     String buf(buf_mem, sizeof(buf_mem), system_charset_info);
     buf.length(0);
-    if (user_var_append_name_part(thd, &buf, name, name_len) ||
+    if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
         buf.append("NULL"))
       return;
     protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -7580,7 +7579,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       float8get(real_val, val);
       buf.length(0);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2, my_gcvt(real_val, MY_GCVT_ARG_DOUBLE,
                                    MY_GCVT_MAX_FIELD_WIDTH, buf2, NULL)))
         return;
@@ -7593,7 +7592,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       char buf_mem[FN_REFLEN + 22];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       buf.length(0);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2,
                  longlong10_to_str(uint8korr(val), buf2,
                    ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10))-buf2))
@@ -7612,7 +7611,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) (val+2), &dec, val[0],
                         val[1]);
       my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, 0, &str);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -7634,7 +7633,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       {
         size_t old_len;
         char *beg, *end;
-        if (user_var_append_name_part(thd, &buf, name, name_len) ||
+        if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
             buf.append("_") ||
             buf.append(cs->csname) ||
             buf.append(" "))
@@ -8310,7 +8309,7 @@ void Create_file_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Create_file_log_event::pack_info(THD *thd, Protocol *protocol)
+void Create_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[SAFE_NAME_LEN*2 + 30 + 21*2], *pos;
   pos= strmov(buf, "db=");
@@ -8498,7 +8497,7 @@ void Append_block_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Append_block_log_event::pack_info(THD *thd, Protocol *protocol)
+void Append_block_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   uint length;
@@ -8655,7 +8654,7 @@ void Delete_file_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Delete_file_log_event::pack_info(THD *thd, Protocol *protocol)
+void Delete_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
@@ -8756,7 +8755,7 @@ void Execute_load_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Execute_load_log_event::pack_info(THD *thd, Protocol *protocol)
+void Execute_load_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
@@ -9019,7 +9018,7 @@ void Execute_load_query_log_event::print(FILE* file,
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
+void Execute_load_query_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
@@ -9027,7 +9026,7 @@ void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
   if (db && db_len)
   {
     if (buf.append(STRING_WITH_LEN("use ")) ||
-        append_identifier(thd, &buf, db, db_len) ||
+        append_identifier(protocol->thd, &buf, db, db_len) ||
         buf.append(STRING_WITH_LEN("; ")))
       return;
   }
@@ -10204,7 +10203,7 @@ bool Rows_log_event::write_data_body()
 #endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rows_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rows_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   char const *const flagstr=
@@ -10308,7 +10307,7 @@ bool Annotate_rows_log_event::write_data_body()
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-void Annotate_rows_log_event::pack_info(THD *thd, Protocol* protocol)
+void Annotate_rows_log_event::pack_info(Protocol* protocol)
 {
   if (m_query_txt && m_query_len)
     protocol->store(m_query_txt, m_query_len, &my_charset_bin);
@@ -11069,7 +11068,7 @@ bool Table_map_log_event::write_data_body()
  */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Table_map_log_event::pack_info(THD *thd, Protocol *protocol)
+void Table_map_log_event::pack_info(Protocol *protocol)
 {
     char buf[256];
     size_t bytes= my_snprintf(buf, sizeof(buf),
@@ -12532,7 +12531,7 @@ Incident_log_event::description() const
 
 
 #ifndef MYSQL_CLIENT
-void Incident_log_event::pack_info(THD *thd, Protocol *protocol)
+void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   size_t bytes;
@@ -12663,7 +12662,7 @@ Ignorable_log_event::~Ignorable_log_event()
 
 #ifndef MYSQL_CLIENT
 /* Pack info for its unrecognized ignorable event */
-void Ignorable_log_event::pack_info(THD *thd, Protocol *protocol)
+void Ignorable_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   size_t bytes;

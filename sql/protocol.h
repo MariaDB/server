@@ -33,7 +33,6 @@ typedef struct st_mysql_rows MYSQL_ROWS;
 class Protocol
 {
 protected:
-  THD	 *thd;
   String *packet;
   /* Used by net_store_data() for charset conversions */
   String *convert;
@@ -71,7 +70,7 @@ protected:
                           const char *sql_state);
 
 public:
-  Protocol() {}
+  THD	 *thd;
   Protocol(THD *thd_arg) { init(thd_arg); }
   virtual ~Protocol() {}
   void init(THD* thd_arg);
@@ -151,7 +150,6 @@ public:
 class Protocol_text :public Protocol
 {
 public:
-  Protocol_text() {}
   Protocol_text(THD *thd_arg) :Protocol(thd_arg) {}
   virtual void prepare_for_resend();
   virtual bool store_null();
@@ -183,7 +181,6 @@ class Protocol_binary :public Protocol
 private:
   uint bit_fields;
 public:
-  Protocol_binary() {}
   Protocol_binary(THD *thd_arg) :Protocol(thd_arg) {}
   virtual bool prepare_for_send(uint num_columns);
   virtual void prepare_for_resend();

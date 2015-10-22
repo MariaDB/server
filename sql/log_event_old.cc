@@ -1804,7 +1804,7 @@ bool Old_rows_log_event::write_data_body()
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Old_rows_log_event::pack_info(THD *thd, Protocol *protocol)
+void Old_rows_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   char const *const flagstr=
