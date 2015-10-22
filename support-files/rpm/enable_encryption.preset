@@ -4,8 +4,10 @@
 # ensure that everything that can be encrypted will be and your
 # data will not leak unencrypted.
 #
-# Note that for the encryption to work, you must generate an IV and a key with
+# Note that for the encryption to work, you must generate a key with
 # the following command: openssl enc -aes-256-ctr -k mypass -P -md sha1
+# Paste the key=[encryption key] contents into a file with the following format:
+# 1;[encryption key]
 # Please check https://mariadb.com/kb/en/mariadb/data-at-rest-encryption/ for more info.
 #
 # If in the future more encryption related options will be implemented,
