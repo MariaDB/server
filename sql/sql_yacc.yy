@@ -15170,6 +15170,9 @@ current_role:
 grant_role:
           ident_or_text
           {
+            CHARSET_INFO *cs= system_charset_info;
+            /* trim end spaces (as they'll be lost in mysql.user anyway) */
+            $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
             if ($1.length == 0)
             {
               my_error(ER_INVALID_ROLE, MYF(0), "");
@@ -15184,8 +15187,7 @@ grant_role:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         username_char_length,
-                                         system_charset_info, 0))
+                                         username_char_length, cs, 0))
               MYSQL_YYABORT;
           }
         | current_role
