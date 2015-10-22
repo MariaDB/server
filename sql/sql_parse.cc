@@ -4690,16 +4690,7 @@ end_with_restore_list:
     REFRESH_QUERY_CACHE_FREE                |
 #endif /* HAVE_QUERY_CACHE */
     REFRESH_STATUS                          |
-    REFRESH_USER_RESOURCES                  |
-    /*
-      Percona Server specific
-    */
-    REFRESH_FLUSH_PAGE_BITMAPS              |
-    REFRESH_TABLE_STATS                     |
-    REFRESH_INDEX_STATS                     |
-    REFRESH_USER_STATS                      |
-    REFRESH_CLIENT_STATS                    |
-    REFRESH_THREAD_STATS))
+    REFRESH_USER_RESOURCES))
     {
       WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL)
     }
@@ -4736,11 +4727,11 @@ end_with_restore_list:
         */
         if (first_table)
         {
-            WSREP_TO_ISOLATION_BEGIN(NULL, NULL, first_table);
+            WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
         }
         else
         {
-            WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+            WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL);
         }
       }
 #endif /* WITH_WSREP */
