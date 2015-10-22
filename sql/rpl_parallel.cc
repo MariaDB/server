@@ -44,6 +44,9 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
   strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
+  if (!(ev->is_artificial_event() || ev->is_relay_log_event() ||
+        (ev->when == 0)))
+    rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
   mysql_mutex_lock(&rli->data_lock);
   /* Mutex will be released in apply_event_and_update_pos(). */
   err= apply_event_and_update_pos(ev, thd, rgi, rpt);
