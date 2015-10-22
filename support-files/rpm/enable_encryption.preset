@@ -4,13 +4,26 @@
 # ensure that everything that can be encrypted will be and your
 # data will not leak unencrypted.
 #
+# Note that for the encryption to work, you must generate an IV and a key with
+# the following command: openssl enc -aes-256-ctr -k mypass -P -md sha1
+# Please check https://mariadb.com/kb/en/mariadb/data-at-rest-encryption/ for more info.
+#
 # If in the future more encryption related options will be implemented,
 # this file will enable them too.
 #
 [mariadb]
-aria-encrypt-tables
+# Load the encryption plugin
+plugin-load-add=file_key_management.so
+file-key-management
+# Location of your encryption key, preferably on an external device or remote location
+file-key-management-filename = /mount/usb1/keys.txt
+# Encrypt InnoDB Tables and log
+innodb-encrypt-tables
+innodb-encrypt-log
+innodb-encryption-threads=4
+# Encrypt Aria tables
+aria-encrypt-tables=1
+# Encrypt binary log, temp tables and temp files
 encrypt-binlog
 encrypt-tmp-disk-tables
 encrypt-tmp-files
-loose-innodb-encrypt-log
-loose-innodb-encrypt-tables
