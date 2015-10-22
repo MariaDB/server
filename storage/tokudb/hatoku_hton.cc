@@ -356,9 +356,23 @@ static int tokudb_init_func(void *p) {
     tokudb_hton = (handlerton *) p;
 
 #if TOKUDB_CHECK_JEMALLOC
-    if (tokudb_check_jemalloc && dlsym(RTLD_DEFAULT, "mallctl") == NULL) {
-        sql_print_error("%s is not initialized because jemalloc is not loaded", tokudb_hton_name);
-        goto error;
+    if (tokudb_check_jemalloc) {
+        typedef int (*mallctl_type)(const char *, void *, size_t *, void *, size_t);
+        mallctl_type mallctl_func;
+        mallctl_func= (mallctl_type)dlsym(RTLD_DEFAULT, "mallctl");
+        if (!mallctl_func) {
+            sql_print_error("%s is not initialized because jemalloc is not loaded", tokudb_hton_name);
+            goto error;
+        }
+        char *ver;
+        size_t len= sizeof(ver);
+        mallctl_func("version", &ver, &len, NULL, 0);
+        /* jemalloc 2.2.5 crashes mysql-test */
+        if (strcmp(ver, "2.3.") < 0) {
+            sql_print_error("%s is not initialized because jemalloc is older than 2.3.0", tokudb_hton_name);
+            goto error;
+        }
+
     }
 #endif
 
