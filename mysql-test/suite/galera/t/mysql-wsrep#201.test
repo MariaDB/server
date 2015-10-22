@@ -12,7 +12,7 @@ SET SESSION wsrep_sync_wait = 7;
 
 --disable_query_log
 
---let $count = 10000
+--let $count = 500
 while ($count)
 {
   --connection node_1
