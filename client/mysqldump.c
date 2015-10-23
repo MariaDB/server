@@ -2443,7 +2443,7 @@ static uint dump_routines_for_db(char *db)
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
-  mysql_real_escape_string(mysql, db_name_buff, db, strlen(db));
+  escape_quotes_for_mysql(mysql->charset, db_name_buff, 0, db, strlen(db), '`');
 
   /* nice comments */
   print_comment(sql_file, 0,

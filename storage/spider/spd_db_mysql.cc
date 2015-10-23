@@ -2531,7 +2531,7 @@ size_t spider_db_mysql::escape_string(
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
     DBUG_RETURN(escape_quotes_for_mysql(db_conn->charset, to, 0,
-      from, from_length));
+      from, from_length, '\''));
   DBUG_RETURN(escape_string_for_mysql(db_conn->charset, to, 0,
     from, from_length));
 }
