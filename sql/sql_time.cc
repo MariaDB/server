@@ -19,7 +19,6 @@
 
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                      // REQUIRED by other includes
 #include "sql_time.h"
 #include "tztime.h"                      // struct Time_zone
 #include "sql_class.h"                   // THD

@@ -17,11 +17,13 @@
   @file
   File containing constants that can be used throughout the server.
 
-  @note This file shall not contain any includes of any kinds.
+  @note This file shall not contain or include any declarations of any kinds.
 */
 
 #ifndef SQL_CONST_INCLUDED
 #define SQL_CONST_INCLUDED
+
+#include <mysql_version.h>
 
 #define LIBLEN FN_REFLEN-FN_LEN			/* Max l{ngd p} dev */
 /* extra 4+4 bytes for slave tmp tables */
