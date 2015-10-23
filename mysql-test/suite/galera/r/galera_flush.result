@@ -42,22 +42,6 @@ wsrep_last_committed_diff
 FLUSH RELAY LOGS;
 wsrep_last_committed_diff
 1
-SET @userstat_old= @@userstat;
-SET GLOBAL userstat=ON;
-FLUSH CLIENT_STATISTICS;
-FLUSH INDEX_STATISTICS;
-FLUSH TABLE_STATISTICS;
-FLUSH USER_STATISTICS;
-wsrep_last_committed_diff
-1
-SET @old_thread_statistics= @@global.thread_statistics;
-SET GLOBAL thread_statistics= ON;
-FLUSH THREAD_STATISTICS;
-wsrep_last_committed_diff
-1
-FLUSH CHANGED_PAGE_BITMAPS;
-wsrep_last_committed_diff
-1
 CREATE TABLE t1 (f1 INTEGER);
 FLUSH LOGS;
 FLUSH TABLES WITH READ LOCK;
@@ -84,5 +68,3 @@ wsrep_last_committed_diff
 1
 DROP TABLE t1;
 DROP TABLE t2;
-SET GLOBAL userstat= @userstat_old;
-SET GLOBAL thread_statistics= @old_thread_statistics;
