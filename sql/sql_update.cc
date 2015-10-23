@@ -459,7 +459,8 @@ int mysql_update(THD *thd,
   query_plan.scanned_rows= select? select->records: table->file->stats.records;
         
   if (select && select->quick && select->quick->unique_key_range())
-  { // Single row select (always "ordered"): Ok to use with key field UPDATE
+  {
+    /* Single row select (always "ordered"): Ok to use with key field UPDATE */
     need_sort= FALSE;
     query_plan.index= MAX_KEY;
     used_key_is_modified= FALSE;
@@ -468,7 +469,8 @@ int mysql_update(THD *thd,
   {
     ha_rows scanned_limit= query_plan.scanned_rows;
     query_plan.index= get_index_for_order(order, table, select, limit,
-                                          &scanned_limit, &need_sort, &reverse);
+                                          &scanned_limit, &need_sort,
+                                          &reverse);
     if (!need_sort)
       query_plan.scanned_rows= scanned_limit;
 
@@ -481,12 +483,15 @@ int mysql_update(THD *thd,
     else
     {
       if (need_sort)
-      { // Assign table scan index to check below for modified key fields:
+      {
+        /* Assign table scan index to check below for modified key fields: */
         query_plan.index= table->file->key_used_on_scan;
       }
       if (query_plan.index != MAX_KEY)
-      { // Check if we are modifying a key that we are used to search with:
-        used_key_is_modified= is_key_used(table, query_plan.index, table->write_set);
+      {
+        /* Check if we are modifying a key that we are used to search with: */
+        used_key_is_modified= is_key_used(table, query_plan.index,
+                                          table->write_set);
       }
     }
   }
@@ -597,19 +602,20 @@ int mysql_update(THD *thd,
         B. query_plan.index != MAX_KEY
            B.1 quick select is used, start the scan with init_read_record
            B.2 quick select is not used, this is full index scan (with LIMIT)
-               Full index scan must be started with init_read_record_idx
+           Full index scan must be started with init_read_record_idx
       */
 
       if (query_plan.index == MAX_KEY || (select && select->quick))
-      {
-        if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
-        {
-          close_cached_file(&tempfile);
-          goto err;
-        }
-      }
+        error= init_read_record(&info, thd, table, select, 0, 1, FALSE);
       else
-        init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
+        error= init_read_record_idx(&info, thd, table, 1, query_plan.index,
+                                    reverse);
+
+      if (error)
+      {
+        close_cached_file(&tempfile);
+        goto err;
+      }
 
       THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
