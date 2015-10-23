@@ -19,8 +19,6 @@
 #include "heapdef.h"
 #include <m_ctype.h>
 
-
-
 /*
   Find out how many rows there is in the given range
 
@@ -120,7 +118,7 @@ uchar *hp_search(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
       {
 	switch (nextflag) {
 	case 0:					/* Search after key */
-	  DBUG_PRINT("exit", ("found key at 0x%lx", (long) pos->ptr_to_rec));
+	  DBUG_PRINT("exit", ("found key at %p", pos->ptr_to_rec));
 	  info->current_hash_ptr=pos;
 	  DBUG_RETURN(info->current_ptr= pos->ptr_to_rec);
 	case 1:					/* Search next */
@@ -878,17 +876,8 @@ uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
       /* Convert NULL from MySQL representation into HEAP's. */
       if (!(*key++= (char) 1 - *old++))
       {
-#if 0
-        /*
-          Skip length part of a variable length field.
-          Length of key-part used with heap_rkey() always 2.
-          See also hp_hashnr().
-        */
-        if (seg->flag & (HA_VAR_LENGTH_PART | HA_BLOB_PART))
-#else
 	/* Add key pack length (2) to key for VARCHAR segments */
         if (seg->type == HA_KEYTYPE_VARTEXT1)
-#endif
           old+= 2;
         continue;
       }

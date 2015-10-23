@@ -136,31 +136,6 @@ int main(int argc, char **argv)
     }
   }
 
-#ifdef OLD_HEAP_VERSION
-  {
-    int found;
-    printf("- Reading records with position\n");
-    for (i=1,found=0 ; i <= 30 ; i++)
-    {
-      my_errno=0;
-      if ((error=heap_rrnd(file,record,i == 1 ? 0L : (ulong) -1)) ==
-	  HA_ERR_END_OF_FILE)
-      {
-	if (found != 25-deleted)
-	  printf("Found only %d of %d records\n",found,25-deleted);
-	break;
-      }
-      if (!error)
-	found++;
-      if (verbose || (error != 0 && error != HA_ERR_RECORD_DELETED))
-      {
-	printf("pos: %2d  ni_rrnd: %3d  my_errno: %3d  record: %s\n",
-	       i-1,error,my_errno,(char*) record+1);
-      }
-    }
-  }
-#endif
-
   if (heap_close(file) || hp_panic(HA_PANIC_CLOSE))
     goto err;
   my_end(MY_GIVE_INFO);
