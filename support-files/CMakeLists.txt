@@ -79,7 +79,7 @@ IF(UNIX)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
-    IF(CMAKE_VERSION VERSION_LESS 3.3.0)
+    IF(NOT RPM)
       CONFIGURE_FILE(mariadb@.service.in
                      ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
       INSTALL(FILES use_galera_new_cluster.conf
