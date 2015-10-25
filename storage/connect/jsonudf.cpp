@@ -15,9 +15,14 @@
 
 #include "jsonudf.h"
 
+#if defined(UNIX) || defined(UNIV_LINUX)
+#define _O_RDONLY O_RDONLY
+#endif
+
+
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) \
+#define PUSH_WARNING(M) \ 
 push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
@@ -1356,7 +1361,11 @@ static char *GetJsonFile(PGLOBAL g, char *fn)
 	char   *str;
 	int     h, n, len;
 
+#if defined(UNIX) || defined(UNIV_LINUX)
+	h= open(fn, O_RDONLY);
+#else
 	h= open(fn, _O_RDONLY, _O_TEXT);
+#endif
 
 	if (h == -1) {
 		sprintf(g->Message, "Error %d opening %s", errno, fn);
@@ -1504,7 +1513,7 @@ char *jsonvalue(UDF_INIT *initid, UDF_ARGS *args, char *result,
   return str;
 } // end of JsonValue
 
-void JsonValue_deinit(UDF_INIT* initid)
+void jsonvalue_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of jsonvalue_deinit
@@ -2804,12 +2813,12 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
-			more = (ulong)*(longlong*)args->args[2];
+			more += (ulong)*(longlong*)args->args[2];
 
 	CalcLen(args, false, reslen, memlen);
 
 	if (IsJson(args, 0) != 3)
-		memlen += 1000;       // TODO: calculate this
+		memlen += more;       // TODO: calculate this
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of jsonlocate_init
@@ -2905,7 +2914,7 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	return NULL;
 } // end of jsonlocate
 
-void json_locate_deinit(UDF_INIT* initid)
+void jsonlocate_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of jsonlocate_deinit
@@ -2931,14 +2940,14 @@ my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
-			more = (ulong)*(longlong*)args->args[2];
+			more += (ulong)*(longlong*)args->args[2];
 
-		CalcLen(args, false, reslen, memlen);
+	CalcLen(args, false, reslen, memlen);
 
-		if (IsJson(args, 0) != 3)
-			memlen += 1000;       // TODO: calculate this
+	if (IsJson(args, 0) != 3)
+		memlen += more;       // TODO: calculate this
 
-		return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of json_locate_all_init
 
 char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3237,6 +3246,8 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			case INT_RESULT:
 				pretty = (int)*(longlong*)args->args[i];
 				break;
+      default:
+				PUSH_WARNING("Unexpected argument type in jfile_make");
 			}	// endswitch arg_type
 
 	if (fn) {
@@ -3397,12 +3408,12 @@ char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!CheckMemory(g, initid, args, 2, false, true)) {
 		int  *x = NULL;
 		uint	n = 2;
-		PJSON jsp;
+//	PJSON jsp;
 		PJVAL jvp;
 		PJAR  arp;
 
 		jvp = MakeValue(g, args, 0, &top);
-		jsp = jvp->GetJson();
+//	jsp = jvp->GetJson();
 		x = GetIntArgPtr(g, args, n);
 
 		if (CheckPath(g, args, top, jvp, n))
