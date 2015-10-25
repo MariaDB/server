@@ -5846,6 +5846,16 @@ drop_create_field:
     {
       if (!key->create_if_not_exists)
         continue;
+
+      /* Check if the table already has a PRIMARY KEY */
+      if (key->type == Key::PRIMARY &&
+          table->s->primary_key != MAX_KEY)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_DUP_KEYNAME, ER(ER_MULTIPLE_PRI_KEY));
+        goto remove_key_no_warn;
+      }
+
       /* If the name of the key is not specified,     */
       /* let us check the name of the first key part. */
       if ((keyname= key->name.str) == NULL)
@@ -5912,6 +5922,7 @@ drop_create_field:
 remove_key:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
           ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
+remove_key_no_warn:
       key_it.remove();
       if (key->type == Key::FOREIGN_KEY)
       {
