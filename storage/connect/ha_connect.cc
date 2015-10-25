@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0003 October 20, 2015";
+       char version[]= "Version 1.04.0003 October 25, 2015";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -1114,7 +1114,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL) {
+  if (opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -2222,7 +2222,8 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	                            const key_range *kr)
 {
 	const uchar     *ptr;
-	uint             i, rem, len, klen, stlen;
+//uint             i, rem, len, klen, stlen;
+	uint             i, rem, len, stlen;
 	bool             nq, both, oom= false;
 	OPVAL            op;
 	Field           *fp;
@@ -2255,7 +2256,8 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 		else
 			oom|= qry->Append(" WHERE (");
 
-		klen= len= ranges[i]->length;
+//	klen= len= ranges[i]->length;
+		len= ranges[i]->length;
 		rem= kfp->user_defined_key_parts;
 		ptr= ranges[i]->key;
 
@@ -2541,6 +2543,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 				case MYSQL_TYPE_YEAR:
 				case MYSQL_TYPE_NEWDATE:
 					return NULL;
+				default:
+					break;
 				} // endswitch type
 
         if (trace) {

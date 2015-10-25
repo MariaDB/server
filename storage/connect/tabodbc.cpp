@@ -513,7 +513,7 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
   {
 	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
-	bool   b = false, oom;
+	bool   b = false, oom = false;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
