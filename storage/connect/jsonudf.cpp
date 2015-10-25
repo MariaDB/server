@@ -19,11 +19,9 @@
 #define _O_RDONLY O_RDONLY
 #endif
 
-
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) \ 
-push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif

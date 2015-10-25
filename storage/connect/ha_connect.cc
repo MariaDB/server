@@ -1114,7 +1114,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == (unsigned)NO_IVAL) {
+  if (opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
