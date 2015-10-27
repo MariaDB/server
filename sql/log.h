@@ -17,7 +17,6 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "handler.h"                            /* my_xid */
 
 class Relay_log_info;

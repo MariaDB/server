@@ -49,7 +49,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_partition.h"
 #include "key.h"                            // key_restore
 #include "sql_parse.h"                      // parse_sql

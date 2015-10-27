@@ -103,6 +103,7 @@ ulonglong CharToNumber(char *p, int n, ulonglong maxval,
 
   if (minus) *minus = false;
   if (rc) *rc = false;
+	if (n <= 0) return 0LL;
 
   // Eliminate leading blanks or 0
   for (p2 = p + n; p < p2 && (*p == ' ' || *p == '0'); p++) ;
@@ -705,7 +706,7 @@ bool TYPVAL<TYPE>::SetValue_char(char *p, int n)
 template <>
 bool TYPVAL<double>::SetValue_char(char *p, int n)
   {
-  if (p) {
+  if (p && n > 0) {
     char buf[64];
 
     for (; n > 0 && *p == ' '; p++)
@@ -1345,7 +1346,7 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
   bool rc;
 
-  if (p) {
+  if (p && n > 0) {
     rc = n > Len;
 
     if ((n = MY_MIN(n, Len))) {
@@ -1804,7 +1805,7 @@ bool DECVAL::SetValue_char(char *p, int n)
   {
   bool rc;
 
-  if (p) {
+  if (p && n > 0) {
     rc = n > Len;
 
     if ((n = MY_MIN(n, Len))) {
@@ -2095,7 +2096,7 @@ bool BINVAL::SetValue_char(char *p, int n)
   {
   bool rc;
 
-  if (p) {
+  if (p && n > 0) {
     rc = n > Clen;
     Len = MY_MIN(n, Clen);
     memcpy(Binp, p, Len);
@@ -2672,13 +2673,16 @@ bool DTVAL::SetValue_char(char *p, int n)
     int   ndv;
     int  dval[6];
 
-    // Trim trailing blanks
-    for (p2 = p + n -1; p < p2 && *p2 == ' '; p2--) ;
+		if (n > 0) {
+			// Trim trailing blanks
+			for (p2 = p + n -1; p < p2 && *p2 == ' '; p2--);
 
-    if ((rc = (n = p2 - p + 1) > Len))
-      n = Len;
+			if ((rc = (n = p2 - p + 1) > Len))
+				n = Len;
 
-    memcpy(Sdate, p, n);
+			memcpy(Sdate, p, n);
+			} // endif n
+
     Sdate[n] = '\0';
 
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
