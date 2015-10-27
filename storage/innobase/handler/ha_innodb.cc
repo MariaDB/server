@@ -4,7 +4,7 @@ Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -644,6 +644,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_os_log_pending_writes,	  SHOW_LONG},
   {"os_log_written",
   (char*) &export_vars.innodb_os_log_written,		  SHOW_LONGLONG},
+  {"os_merge_buffers_written",
+  (char*) &export_vars.innodb_merge_buffers_written,	  SHOW_LONGLONG},
+  {"os_merge_buffers_read",
+  (char*) &export_vars.innodb_merge_buffers_read,	  SHOW_LONGLONG},
+  {"os_merge_buffers_merged",
+  (char*) &export_vars.innodb_merge_buffers_merged,	  SHOW_LONGLONG},
   {"page_size",
   (char*) &export_vars.innodb_page_size,		  SHOW_LONG},
   {"pages_created",
