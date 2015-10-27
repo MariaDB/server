@@ -193,7 +193,8 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   friend class COLBLK;
   friend class DBFFAM;
   friend class TDBASE;
- public:
+	friend class TDBDOS;
+public:
   COLDEF(void);                // Constructor
 
   // Implementation

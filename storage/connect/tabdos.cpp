@@ -2018,7 +2018,8 @@ int TDBDOS::EstimatedLength(void)
     // result if we set dep to 1
     dep = 1 + cdp->GetLong() / 20;           // Why 20 ?????
   } else for (; cdp; cdp = cdp->GetNext())
-    dep = MY_MAX(dep, cdp->GetOffset());
+		if (!(cdp->Flags & (U_VIRTUAL|U_SPECIAL)))
+			dep = MY_MAX(dep, cdp->GetOffset());
 
   return (int)dep;
   } // end of Estimated Length
