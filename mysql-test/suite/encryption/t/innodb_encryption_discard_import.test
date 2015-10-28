@@ -70,6 +70,20 @@ FLUSH TABLE t1, t2, t3 FOR EXPORT;
 
 --echo # List before copying files
 --list_files $MYSQLD_DATADIR/test
+--disable_result_log
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t1.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t1.ibd
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t2.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t2.ibd
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t3.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t3.ibd
+--enable_result_log
 --copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1.cfg
 --copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1.ibd
 --copy_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_TMPDIR/t2.cfg
@@ -108,6 +122,7 @@ ALTER TABLE t3 DISCARD TABLESPACE;
 
 --echo # List after t1 DISCARD
 --list_files $MYSQLD_DATADIR/test
+
 --copy_file $MYSQLD_TMPDIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
 --copy_file $MYSQLD_TMPDIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
 --copy_file $MYSQLD_TMPDIR/t2.cfg $MYSQLD_DATADIR/test/t2.cfg
