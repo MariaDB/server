@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Kentoku Shiba
+/* Copyright (C) 2009-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -557,6 +557,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   if ((*error_num = spider_db_udf_direct_sql_connect(direct_sql, conn)))
     goto error;
   conn->ping_time = (time_t) time((time_t*) 0);
+  conn->connect_error_time = conn->ping_time;
 
   DBUG_RETURN(conn);
 
@@ -760,6 +761,16 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
     }
 #endif
   }
+
+  if (conn->queued_connect)
+  {
+    if ((*error_num = spider_db_udf_direct_sql_connect(direct_sql, conn)))
+      goto error;
+    conn->queued_connect = FALSE;
+  }
+
+  if (conn->queued_ping)
+    conn->queued_ping = FALSE;
 
   DBUG_PRINT("info",("spider conn=%p", conn));
   DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
