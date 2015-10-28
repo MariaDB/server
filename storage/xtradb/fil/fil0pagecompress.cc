@@ -277,7 +277,11 @@ fil_compress_page(
 	{
 		snappy_status cstatus;
 
-		cstatus = snappy_compress((const char *)buf, len, (char *)(out_buf+header_len), &write_size);
+		cstatus = snappy_compress(
+			(const char *)buf,
+			(size_t)len,
+			(char *)(out_buf+header_len),
+			(size_t*)&write_size);
 
 		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
@@ -644,9 +648,9 @@ fil_decompress_page(
 
 		cstatus = snappy_uncompress(
 			(const char *)(buf+header_len),
-			actual_size,
+			(size_t)actual_size,
 			(char *)in_buf,
-			&olen);
+			(size_t*)&olen);
 
 		if (cstatus != SNAPPY_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
