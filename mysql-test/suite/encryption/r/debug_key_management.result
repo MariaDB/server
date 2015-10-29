@@ -1,3 +1,4 @@
+set global innodb_encrypt_tables=ON;
 show variables like 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON
@@ -16,4 +17,5 @@ space	name	current_key_version
 0	NULL	10
 1	mysql/innodb_table_stats	10
 2	mysql/innodb_index_stats	10
+set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;
