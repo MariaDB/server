@@ -410,11 +410,12 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
       WSREP_ERROR("Networking not configured, cannot receive state "
                   "transfer.");
       ret= 0;
+      goto done;
     } else if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
       ret= strlen(buf);
+      goto done;
     }
-    goto done;
   }
 
   // Attempt 2: mysqld binds to all interfaces, try IP from wsrep_node_address.
