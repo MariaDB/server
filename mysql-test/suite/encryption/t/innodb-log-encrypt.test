@@ -1,0 +1,112 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source filekeys_plugin.inc
+
+#
+# MDEV-9011: Redo log encryption does not work
+#
+
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
+create table t1(c1 bigint not null, b char(200), c varchar(200)) engine=innodb encrypted=yes encryption_key_id=1;
+show warnings;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(current_num, substring(MD5(RAND()), -64), REPEAT('secredsecredsecred',10));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(2000);
+commit;
+set autocommit=1;
+
+update t1 set c1 = c1 +1;
+select count(*) from t1;
+
+--let $MYSQLD_DATADIR=`select @@datadir`
+--let ib1_IBD = $MYSQLD_DATADIR/ibdata1
+--let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
+--let log0 = $MYSQLD_DATADIR/ib_logfile0
+--let log1 = $MYSQLD_DATADIR/ib_logfile1
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=secredsecred
+
+--echo # ibdata1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$ib1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # log0 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$log0
+-- source include/search_pattern_in_file.inc
+--echo # log1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$log1
+-- source include/search_pattern_in_file.inc
+
+--echo # Restart mysqld --innodb_encrypt_log=0
+-- let $restart_parameters=--innodb_encrypt_log=0
+-- source include/restart_mysqld.inc
+
+insert into t1 values(5000, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+insert into t1 values(5001, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+insert into t1 values(5002, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+insert into t1 values(5003, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+insert into t1 values(5004, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+
+--let SEARCH_PATTERN=secredsecred
+--echo # ibdata1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$ib1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # log0 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$log0
+-- source include/search_pattern_in_file.inc
+--echo # log1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$log1
+-- source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=notsecred
+--echo # ibdata1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$ib1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # log0 no on expecting FOUND/NOTFOUND depending where insert goes
+-- let SEARCH_FILE=$log0
+-- source include/search_pattern_in_file.inc
+--echo # log1 no on expecting FOUND/NOTFOUND depending where insert goes
+-- let SEARCH_FILE=$log1
+-- source include/search_pattern_in_file.inc
+
+drop procedure innodb_insert_proc;
+drop table t1;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log

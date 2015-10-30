@@ -209,30 +209,32 @@ init_crypt_key(
 		return true;
 	}
 
-	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
+	byte mysqld_key[MY_AES_MAX_KEY_LENGTH] = {0};
 	uint keylen= sizeof(mysqld_key);
+	uint rc;
 
-	if (encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY, info->key_version, mysqld_key, &keylen))
-	{
+	rc = encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY, info->key_version, mysqld_key, &keylen);
+
+	if (rc) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
-			"from key version failed. Reason could be that requested"
+			"from key version failed err = %u. Reason could be that requested"
 			" key_version %u is not found or required encryption "
-			" key management is not found.", info->key_version);
+			" key management is not found.", rc, info->key_version);
 		return false;
 	}
 
 	uint dst_len;
-	int rc= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_NOPAD|ENCRYPTION_FLAG_ENCRYPT,
+	int err= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_NOPAD|ENCRYPTION_FLAG_ENCRYPT,
                              info->crypt_msg, sizeof(info->crypt_msg), //src, srclen
                              info->crypt_key, &dst_len, //dst, &dstlen
                              (unsigned char*)&mysqld_key, sizeof(mysqld_key),
                              NULL, 0);
 
-	if (rc != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
+	if (err != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		fprintf(stderr,
 			"\nInnodb redo log crypto: getting redo log crypto key "
-			"failed.\n");
+			"failed err = %d len = %u.\n", err, dst_len);
 		return false;
 	}
 
