@@ -5338,7 +5338,7 @@ btr_free_externally_stored_field(
 		/* In the rollback, we may encounter a clustered index
 		record with some unwritten off-page columns. There is
 		nothing to free then. */
-		if (rb_ctx != RB_NONE) {
+		if (rb_ctx == RB_NONE) {
 			char		buf[3 * 512];
 			char		*bufend;
 			ulint ispace = dict_index_get_space(index);
@@ -5353,6 +5353,7 @@ btr_free_externally_stored_field(
 				rb_ctx, index->table->name, buf, space_id, ispace);
 		}
 
+		ut_a(rb_ctx != RB_NONE);
 		return;
 	}
 
