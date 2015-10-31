@@ -443,6 +443,10 @@ case "$mode" in
     exit $r
     ;;
   'bootstrap')
+      if test "$_use_systemctl" == 1 ; then
+        log_failure_msg "Please use galera_new_cluster to start the mariadb service with --wsrep-new-cluster"
+        exit 1
+      fi
       # Bootstrap the cluster, start the first node
       # that initiate the cluster
       echo $echo_n "Bootstrapping the cluster.. "
