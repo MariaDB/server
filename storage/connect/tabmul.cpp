@@ -123,7 +123,7 @@ PTDB TDBMUL::Duplicate(PGLOBAL g)
 bool TDBMUL::InitFileNames(PGLOBAL g)
   {
 #define PFNZ  4096
-#define FNSZ  _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT
+#define FNSZ  (_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT)
   char *pfn[PFNZ];
   char *filename;
   int   rc, n = 0;

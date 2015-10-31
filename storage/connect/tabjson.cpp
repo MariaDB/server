@@ -755,7 +755,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
     } else
       strcpy(To_Line, s);
 
-    Row->Clear();
+//  Row->Clear();
     return false;
   } else
     return true;
@@ -979,7 +979,8 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       if (!stricmp(Name, colp->GetName())) {
         Nod = colp->Nod;
         Nodes = colp->Nodes;
-        goto fin;
+				Xpd = colp->Xpd;
+				goto fin;
         } // endif Name
 
     sprintf(g->Message, "Cannot parse updated column %s", Name);
@@ -1347,7 +1348,12 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
 /***********************************************************************/
 void JSONCOL::WriteColumn(PGLOBAL g)
   {
-  /*********************************************************************/
+	if (Xpd && Tjp->Pretty < 2) {
+		strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
+		longjmp(g->jumper[g->jump_level], 666);
+	  }	// endif Xpd
+
+	/*********************************************************************/
   /*  Check whether this node must be written.                         */
   /*********************************************************************/
   if (Value != To_Val)

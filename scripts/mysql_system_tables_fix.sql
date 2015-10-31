@@ -597,6 +597,8 @@ ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;
 ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
+# Enable event scheduler if the event table was not up to date before.
+set global event_scheduler=original;
 
 #
 # TRIGGER privilege

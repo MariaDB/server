@@ -1098,13 +1098,20 @@ bool close_temporary_tables(THD *thd)
     DBUG_RETURN(FALSE);
   DBUG_ASSERT(!thd->rgi_slave);
 
+  /*
+    Ensure we don't have open HANDLERs for tables we are about to close.
+    This is necessary when close_temporary_tables() is called as part
+    of execution of BINLOG statement (e.g. for format description event).
+  */
+  mysql_ha_rm_temporary_tables(thd);
   if (!mysql_bin_log.is_open())
   {
     TABLE *tmp_next;
-    for (table= thd->temporary_tables; table; table= tmp_next)
+    for (TABLE *t= thd->temporary_tables; t; t= tmp_next)
     {
-      tmp_next= table->next;
-      close_temporary(table, 1, 1);
+      tmp_next= t->next;
+      mysql_lock_remove(thd, thd->lock, t);
+      close_temporary(t, 1, 1);
     }
     thd->temporary_tables= 0;
     DBUG_RETURN(FALSE);
@@ -1200,6 +1207,7 @@ bool close_temporary_tables(THD *thd)
                           strlen(table->s->table_name.str));
         s_query.append(',');
         next= table->next;
+        mysql_lock_remove(thd, thd->lock, table);
         close_temporary(table, 1, 1);
       }
       thd->clear_error();
@@ -7424,14 +7432,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   */
   result= FALSE;
 
-  /*
-    Save the lists made during natural join matching (because
-    the matching done only once but we need the list in case
-    of prepared statements).
-  */
-  table_ref_1->persistent_used_items= table_ref_1->used_items;
-  table_ref_2->persistent_used_items= table_ref_2->used_items;
-
 err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -8478,11 +8478,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         }
       }
 #endif
-      /*
-         field_iterator.create_item() builds used_items which we
-         have to save because changes made once and they are persistent
-      */
-      tables->persistent_used_items= tables->used_items;
 
       if ((field= field_iterator.field()))
       {

@@ -4515,14 +4515,24 @@ static int init_common_variables()
   {
     if (lower_case_table_names_used)
     {
+#if MYSQL_VERSION_ID < 100100
       if (global_system_variables.log_warnings)
         sql_print_warning("You have forced lower_case_table_names to 0 through "
                           "a command-line option, even though your file system "
                           "'%s' is case insensitive.  This means that you can "
-                          "corrupt a MyISAM table by accessing it with "
-                          "different cases.  You should consider changing "
-                          "lower_case_table_names to 1 or 2",
-			mysql_real_data_home);
+                          "corrupt your tables if you access them using names "
+                          "with different letter case. You should consider "
+                          "changing lower_case_table_names to 1 or 2",
+                          mysql_real_data_home);
+#else
+      sql_print_error("The server option 'lower_case_table_names' is "
+                      "configured to use case sensitive table names but the "
+                      "data directory resides on a case-insensitive file system. "
+                      "Please use a case sensitive file system for your data "
+                      "directory or switch to a case-insensitive table name "
+                      "mode.");
+#endif
+      return 1;
     }
     else
     {
@@ -6249,7 +6259,15 @@ int mysqld_main(int argc, char **argv)
 
   execute_ddl_log_recovery();
 
-  if (Events::init(opt_noacl || opt_bootstrap))
+  /*
+    Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
+    point in using ORIGINAL during startup
+  */
+  if (Events::opt_event_scheduler == Events::EVENTS_ORIGINAL)
+    Events::opt_event_scheduler= Events::EVENTS_OFF;
+
+  Events::set_original_state(Events::opt_event_scheduler);
+  if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
 #ifdef WITH_WSREP /* WSREP AFTER SE */

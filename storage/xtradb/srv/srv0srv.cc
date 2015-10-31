@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1949,6 +1949,10 @@ srv_export_innodb_status(void)
 	}
 #endif /* UNIV_DEBUG */
 
+	export_vars.innodb_merge_buffers_written = srv_stats.merge_buffers_written;
+	export_vars.innodb_merge_buffers_read = srv_stats.merge_buffers_read;
+	export_vars.innodb_merge_buffers_merged = srv_stats.merge_buffers_merged;
+
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
 
@@ -2244,8 +2248,7 @@ rescan_idle:
 		mutex_enter(&trx_sys->mutex);
 		trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 		while (trx) {
-			if (!trx_state_eq(trx, TRX_STATE_NOT_STARTED)
-			    && trx_state_eq(trx, TRX_STATE_ACTIVE)
+			if (trx->state == TRX_STATE_ACTIVE
 			    && trx->mysql_thd
 			    && innobase_thd_is_idle(trx->mysql_thd)) {
 				ib_int64_t	start_time = innobase_thd_get_start_time(trx->mysql_thd);

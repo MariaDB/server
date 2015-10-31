@@ -210,6 +210,23 @@ explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100 and t
 
 drop table t0,t1,t2;
 
+--echo #
+--echo # MDEV-8779: mysqld got signal 11 in sql/opt_range_mrr.cc:100(step_down_to)
+--echo #
+set @tmp_mdev8779=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=5;
+CREATE TABLE t1 (
+  i int(10) unsigned NOT NULL AUTO_INCREMENT,
+  n varchar(2048) NOT NULL,
+  d tinyint(1) unsigned NOT NULL,
+  p int(10) unsigned NOT NULL,
+  PRIMARY KEY (i)
+) DEFAULT CHARSET=utf8;
+insert into t1 values (1,'aaa',1,1), (2,'bbb',2,2);
+SELECT * FROM t1 WHERE t1.d = 0 AND t1.p = '1' AND t1.i != '-1' AND t1.n = 'some text';
+set optimizer_use_condition_selectivity= @tmp_mdev8779;
+DROP TABLE t1;
+
 --echo # 
 --echo # End of the test file
 --echo # 

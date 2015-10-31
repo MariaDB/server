@@ -79,9 +79,11 @@ public:
     and the @@global.event_scheduler SQL variable.
     See sys_var.cc
   */
-  enum enum_opt_event_scheduler { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED };
+  enum enum_opt_event_scheduler { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED,
+                                  EVENTS_ORIGINAL };
   /* Protected using LOCK_global_system_variables only. */
-  static ulong opt_event_scheduler;
+  static ulong opt_event_scheduler, startup_state;
+  static ulong inited;
   static bool check_if_system_tables_error();
   static bool start(int *err_no);
   static bool stop();
@@ -91,8 +93,7 @@ public:
   static Event_db_repository *
   get_db_repository() { return db_repository; }
 
-  static bool
-  init(bool opt_noacl);
+  static bool init(THD *thd, bool opt_noacl);
 
   static void
   deinit();
@@ -130,6 +131,11 @@ public:
   static void
   dump_internal_status();
 
+  static void set_original_state(ulong startup_state_org)
+  {
+    startup_state= startup_state_org;
+  }
+
 private:
 
   static bool
@@ -139,8 +145,6 @@ private:
   static Event_queue         *event_queue;
   static Event_scheduler     *scheduler;
   static Event_db_repository *db_repository;
-  /* Set to TRUE if an error at start up */
-  static bool check_system_tables_error;
 
 private:
   /* Prevent use of these */

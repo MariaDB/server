@@ -56,3 +56,9 @@ Host	User	Role	Admin_option
 localhost	root	r1	Y
 drop role r1;
 drop user u2;
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+create role look, isp, xxx, ppp;
+rename user current_user to nnnn@'%';
+drop role look, isp, xxx, ppp;
+drop user nnnn@'%';

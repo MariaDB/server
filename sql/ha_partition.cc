@@ -5277,6 +5277,7 @@ err:
     {
       (void) m_file[j]->ha_index_end();
     }
+    destroy_record_priority_queue();
   }
   DBUG_RETURN(error);
 }

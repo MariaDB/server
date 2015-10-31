@@ -36,6 +36,10 @@ select user, host, is_role from user where user like 'test%';
 user	host	is_role
 create role '';
 ERROR OP000: Invalid role specification ``.
+create role ' ';
+ERROR OP000: Invalid role specification ``.
+create role 'foo  ';
+drop role foo;
 create role r1;
 drop user r1;
 ERROR HY000: Operation DROP USER failed for 'r1'@'%'

@@ -18,7 +18,7 @@ change column body  body longtext character set utf8 collate utf8_bin;
 use events_test;
 select @@event_scheduler;
 @@event_scheduler
-DISABLED
+OFF
 show events;
 ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
 select event_name from information_schema.events;
@@ -40,12 +40,12 @@ ERROR HY000: Cannot proceed because system tables used by Event Scheduler were f
 drop event intact_check;
 ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
 set global event_scheduler=on;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
 set global event_scheduler=off;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
 show variables like 'event_scheduler';
 Variable_name	Value
-event_scheduler	DISABLED
+event_scheduler	OFF
 Make sure that we still can create and drop databases,
 and no warnings are produced.
 drop database if exists mysqltest_database_not_exists;
@@ -58,6 +58,22 @@ Error	1545	Failed to open mysql.event
 Restore the original mysql.event table
 drop table mysql.event;
 rename table event_like to mysql.event;
+check that we can now enable events without restart
+set global event_scheduler=original;
+Warnings:
+Note	1408	Event Scheduler: Loaded 3 events
+select @@global.event_scheduler;
+@@global.event_scheduler
+ON
+set global event_scheduler=on;
+select @@global.event_scheduler;
+@@global.event_scheduler
+ON
+show events;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	abc1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+events_test	abc2	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+events_test	abc3	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
 Now let's restart the server again
 use events_test;
 select @@event_scheduler;

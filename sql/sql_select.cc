@@ -1530,6 +1530,9 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   /* Cache constant expressions in WHERE, HAVING, ON clauses. */
   cache_const_exprs();
 
+  if (setup_semijoin_loosescan(this))
+    DBUG_RETURN(1);
+
   if (make_join_select(this, select, conds))
   {
     zero_result_cause=
@@ -9676,9 +9679,14 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    Check again if we should use an index.
 	    We could have used an column from a previous table in
 	    the index if we are using limit and this is the first table
+
+            (1) - Don't switch the used index if we are using semi-join
+                  LooseScan on this table. Using different index will not
+                  produce the desired ordering and de-duplication.
 	  */
 
 	  if (!tab->table->is_filled_at_execution() &&
+              !tab->loosescan_match_tab &&              // (1)
               ((cond && (!tab->keys.is_subset(tab->const_keys) && i > 0)) ||
                (!tab->const_keys.is_clear_all() && i == join->const_tables &&
                 join->unit->select_limit_cnt <
@@ -15592,6 +15600,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   case Item::FIELD_ITEM:
   case Item::DEFAULT_VALUE_ITEM:
   case Item::INSERT_VALUE_ITEM:
+  case Item::TRIGGER_FIELD_ITEM:
   {
     Item_field *field= (Item_field*) item;
     bool orig_modify= modify_item;
@@ -18042,6 +18051,10 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
         DBUG_RETURN(rc);
       if (return_tab < join->return_tab)
         join->return_tab= return_tab;
+
+      /* check for errors evaluating the condition */
+      if (join->thd->is_error())
+        DBUG_RETURN(NESTED_LOOP_ERROR);
 
       if (join->return_tab < join_tab)
         DBUG_RETURN(NESTED_LOOP_OK);

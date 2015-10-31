@@ -4,7 +4,7 @@ Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -862,6 +862,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_os_log_pending_writes,	  SHOW_LONG},
   {"os_log_written",
   (char*) &export_vars.innodb_os_log_written,		  SHOW_LONGLONG},
+  {"os_merge_buffers_written",
+  (char*) &export_vars.innodb_merge_buffers_written,	  SHOW_LONGLONG},
+  {"os_merge_buffers_read",
+  (char*) &export_vars.innodb_merge_buffers_read,	  SHOW_LONGLONG},
+  {"os_merge_buffers_merged",
+  (char*) &export_vars.innodb_merge_buffers_merged,	  SHOW_LONGLONG},
   {"page_size",
   (char*) &export_vars.innodb_page_size,		  SHOW_LONG},
   {"pages_created",
@@ -1210,6 +1216,17 @@ innobase_end(
 /*=========*/
 	handlerton*		hton,	/* in: Innodb handlerton */
 	ha_panic_function	type);
+
+#if NOT_USED
+/*****************************************************************//**
+Stores the current binlog coordinates in the trx system header. */
+static
+int
+innobase_store_binlog_info(
+/*=======================*/
+	handlerton*	hton,	/*!< in: InnoDB handlerton */
+	THD*		thd);	/*!< in: MySQL thread handle */
+#endif
 
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
@@ -3327,6 +3344,9 @@ innobase_init(
 	innobase_hton->start_consistent_snapshot =
 		innobase_start_trx_and_assign_read_view;
 
+	/*innobase_hton->store_binlog_info =
+		innobase_store_binlog_info;*/
+
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS |
@@ -4063,6 +4083,38 @@ innobase_commit_low(
 	if (wsrep_on((void*)thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */
 }
+
+#if NOT_USED
+/*****************************************************************//**
+Stores the current binlog coordinates in the trx system header. */
+static
+int
+innobase_store_binlog_info(
+/*=======================*/
+	handlerton*	hton,	/*!< in: InnoDB handlerton */
+	THD*		thd)	/*!< in: MySQL thread handle */
+
+{
+	const char*			file_name;
+	unsigned long long 	pos;
+	mtr_t			mtr;
+
+	DBUG_ENTER("innobase_store_binlog_info");
+
+	thd_binlog_pos(thd, &file_name, &pos);
+
+	mtr_start(&mtr);
+
+	trx_sys_update_mysql_binlog_offset(file_name, pos,
+					   TRX_SYS_MYSQL_LOG_INFO, &mtr);
+
+	mtr_commit(&mtr);
+
+	innobase_flush_logs(hton);
+
+	DBUG_RETURN(0);
+}
+#endif
 
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
@@ -10714,13 +10766,23 @@ create_table_def(
 
 	/* MySQL does the name length check. But we do additional check
 	on the name length here */
-	if (strlen(table_name) > MAX_FULL_NAME_LEN) {
+	const size_t	table_name_len = strlen(table_name);
+	if (table_name_len > MAX_FULL_NAME_LEN) {
 		push_warning_printf(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_TABLE_NAME,
 			"InnoDB: Table Name or Database Name is too long");
 
 		DBUG_RETURN(ER_TABLE_NAME);
+	}
+
+	if (table_name[table_name_len - 1] == '/') {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_TABLE_NAME,
+			"InnoDB: Table name is empty");
+
+		DBUG_RETURN(ER_WRONG_TABLE_NAME);
 	}
 
 	n_cols = form->s->fields;
@@ -12035,6 +12097,10 @@ ha_innobase::discard_or_import_tablespace(
 
 	if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
+	}
+
+	if (UNIV_UNLIKELY(prebuilt->trx->fake_changes)) {
+		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
 	dict_table = prebuilt->table;
@@ -13733,8 +13799,8 @@ ha_innobase::check(
 		my_error(ER_QUERY_INTERRUPTED, MYF(0));
 	}
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
-		return(HA_ADMIN_CORRUPT);
+	if (UNIV_UNLIKELY(prebuilt->table && prebuilt->table->corrupted)) {
+		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
@@ -16249,6 +16315,9 @@ innodb_log_archive_update(
 	void*				var_ptr,
 	const void*			save)
 {
+	if (srv_read_only_mode)
+		return;
+
 	my_bool	in_val = *static_cast<const my_bool*>(save);
 
 	if (in_val) {

@@ -1805,5 +1805,20 @@ set     impressions = column_add(impressions,
         );
 drop table t1;
 #
+# MDEV-8565: COLUMN_CHECK fails on valid data
+#
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',0,'b','1'));
+COLUMN_CHECK(COLUMN_CREATE('a',0,'b','1'))
+1
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',1,'b','1'));
+COLUMN_CHECK(COLUMN_CREATE('a',1,'b','1'))
+1
+SELECT COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'));
+COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'))
+{"a":0,"b":"1"}
+SELECT COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'));
+COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'))
+{"a":1,"b":"1"}
+#
 # end of 10.0 tests
 #

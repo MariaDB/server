@@ -872,5 +872,17 @@ set     impressions = column_add(impressions,
 drop table t1;
 
 --echo #
+--echo # MDEV-8565: COLUMN_CHECK fails on valid data
+--echo #
+
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',0,'b','1'));
+
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',1,'b','1'));
+
+SELECT COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'));
+
+SELECT COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'));
+
+--echo #
 --echo # end of 10.0 tests
 --echo #

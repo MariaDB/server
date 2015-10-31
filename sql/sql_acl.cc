@@ -2561,9 +2561,11 @@ int check_change_password(THD *thd, const char *host, const char *user,
 
 #ifdef WITH_WSREP
   if ((!WSREP(thd) || !thd->wsrep_applier) &&
-      !thd->slave_thread && !thd->security_ctx->priv_user[0])
+      !thd->slave_thread && !thd->security_ctx->priv_user[0] &&
+      !in_bootstrap)
 #else
-  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
+  if (!thd->slave_thread && !thd->security_ctx->priv_user[0] &&
+      !in_bootstrap)
 #endif /* WITH_WSREP */
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
@@ -6759,16 +6761,18 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
 
   for (tl= tables; number-- ; tl= tl->next_global)
   {
-    sctx= MY_TEST(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
+    TABLE_LIST *const t_ref=
+      tl->correspondent_table ? tl->correspondent_table : tl;
+    sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
 
     const ACL_internal_table_access *access=
-      get_cached_table_access(&tl->grant.m_internal,
-                              tl->get_db_name(),
-                              tl->get_table_name());
+      get_cached_table_access(&t_ref->grant.m_internal,
+                              t_ref->get_db_name(),
+                              t_ref->get_table_name());
 
     if (access)
     {
-      switch(access->check(orig_want_access, &tl->grant.privilege))
+      switch(access->check(orig_want_access, &t_ref->grant.privilege))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         /*
@@ -6792,26 +6796,26 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (!want_access)
       continue;                                 // ok
 
-    if (!(~tl->grant.privilege & want_access) ||
-        tl->is_anonymous_derived_table() || tl->schema_table)
+    if (!(~t_ref->grant.privilege & want_access) ||
+        t_ref->is_anonymous_derived_table() || t_ref->schema_table)
     {
       /*
-        It is subquery in the FROM clause. VIEW set tl->derived after
+        It is subquery in the FROM clause. VIEW set t_ref->derived after
         table opening, but this function always called before table opening.
       */
-      if (!tl->referencing_view)
+      if (!t_ref->referencing_view)
       {
         /*
           If it's a temporary table created for a subquery in the FROM
           clause, or an INFORMATION_SCHEMA table, drop the request for
           a privilege.
         */
-        tl->grant.want_privilege= 0;
+        t_ref->grant.want_privilege= 0;
       }
       continue;
     }
 
-    if (is_temporary_table(tl))
+    if (is_temporary_table(t_ref))
     {
       /*
         If this table list element corresponds to a pre-opened temporary
@@ -6819,8 +6823,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
         Note that during creation of temporary table we still need to check
         if user has CREATE_TMP_ACL.
       */
-      tl->grant.privilege|= TMP_TABLE_ACLS;
-      tl->grant.want_privilege= 0;
+      t_ref->grant.privilege|= TMP_TABLE_ACLS;
+      t_ref->grant.want_privilege= 0;
       continue;
     }
 
@@ -6831,20 +6835,20 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     }
 
     grant_table= table_hash_search(sctx->host, sctx->ip,
-                                   tl->get_db_name(),
+                                   t_ref->get_db_name(),
                                    sctx->priv_user,
-                                   tl->get_table_name(),
+                                   t_ref->get_table_name(),
                                    FALSE);
     if (sctx->priv_role[0])
-      grant_table_role= table_hash_search("", NULL, tl->get_db_name(),
+      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name(),
                                           sctx->priv_role,
-                                          tl->get_table_name(),
+                                          t_ref->get_table_name(),
                                           TRUE);
 
     if (!grant_table && !grant_table_role)
     {
-      want_access&= ~tl->grant.privilege;
-      goto err;
+      want_access&= ~t_ref->grant.privilege;
+      goto err;					// No grants
     }
 
     /*
@@ -6854,19 +6858,19 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (any_combination_will_do)
       continue;
 
-    tl->grant.grant_table_user= grant_table; // Remember for column test
-    tl->grant.grant_table_role= grant_table_role;
-    tl->grant.version= grant_version;
-    tl->grant.privilege|= grant_table ? grant_table->privs : 0;
-    tl->grant.privilege|= grant_table_role ? grant_table_role->privs : 0;
-    tl->grant.want_privilege= ((want_access & COL_ACLS) & ~tl->grant.privilege);
+    t_ref->grant.grant_table_user= grant_table; // Remember for column test
+    t_ref->grant.grant_table_role= grant_table_role;
+    t_ref->grant.version= grant_version;
+    t_ref->grant.privilege|= grant_table ? grant_table->privs : 0;
+    t_ref->grant.privilege|= grant_table_role ? grant_table_role->privs : 0;
+    t_ref->grant.want_privilege= ((want_access & COL_ACLS) & ~t_ref->grant.privilege);
 
-    if (!(~tl->grant.privilege & want_access))
+    if (!(~t_ref->grant.privilege & want_access))
       continue;
 
     if ((want_access&= ~((grant_table ? grant_table->cols : 0) |
                         (grant_table_role ? grant_table_role->cols : 0) |
-                        tl->grant.privilege)))
+                        t_ref->grant.privilege)))
     {
       goto err;                                 // impossible
     }
@@ -9013,8 +9017,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
             So we need to examine the current element once again, but
             we don't need to restart the search from the beginning.
           */
-          if (idx != elements)
-            idx++;
+          idx++;
           break;
         }
 
@@ -9046,6 +9049,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
           my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
                          (uchar*) old_key, old_key_length);
+          idx++; // see the comment above
           break;
         }
 

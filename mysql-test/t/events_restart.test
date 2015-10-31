@@ -71,9 +71,9 @@ drop event intact_check_1;
 drop event intact_check_2;
 --error ER_EVENTS_DB_ERROR
 drop event intact_check;
---error ER_EVENTS_DB_ERROR
+--error ER_STARTUP
 set global event_scheduler=on;
---error ER_EVENTS_DB_ERROR
+--error ER_STARTUP
 set global event_scheduler=off;
 show variables like 'event_scheduler';
 --echo Make sure that we still can create and drop databases,
@@ -84,6 +84,16 @@ drop database mysqltest_db1;
 --echo Restore the original mysql.event table
 drop table mysql.event;
 rename table event_like to mysql.event;
+
+--echo check that we can now enable events without restart
+set global event_scheduler=original;
+select @@global.event_scheduler;
+set global event_scheduler=on;
+select @@global.event_scheduler;
+--sorted_result
+--replace_column 6 # 9 # 10 #
+show events;
+
 --echo Now let's restart the server again
 
 --source include/restart_mysqld.inc

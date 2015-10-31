@@ -66,10 +66,12 @@ static int rr_index_desc(READ_RECORD *info);
   @param reverse      Scan in the reverse direction
 */
 
-void init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
+bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
                           bool print_error, uint idx, bool reverse)
 {
   int error;
+  DBUG_ENTER("init_read_record_idx");
+
   empty_record(table);
   bzero((char*) info,sizeof(*info));
   info->thd= thd;
@@ -88,6 +90,7 @@ void init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
 
   /* read_record will be changed to rr_index in rr_index_first */
   info->read_record= reverse ? rr_index_last : rr_index_first;
+  DBUG_RETURN(error != 0);
 }
 
 

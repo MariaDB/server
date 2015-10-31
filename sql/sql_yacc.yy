@@ -35,7 +35,6 @@
 #define Select Lex->current_select
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */
 #include "sql_partition.h"  /* mem_alloc_error, partition_info, HASH_PARTITION */
@@ -11513,8 +11512,20 @@ procedure_clause:
             if (add_proc_to_list(lex->thd, item))
               MYSQL_YYABORT;
             Lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
+
+            /*
+              PROCEDURE CLAUSE cannot handle subquery as one of its parameter,
+              so set expr_allows_subselect as false to disallow any subqueries
+              further. Reset expr_allows_subselect back to true once the
+              parameters are reduced.
+            */
+            Lex->expr_allows_subselect= false;
           }
           '(' procedure_list ')'
+          {
+            /* Subqueries are allowed from now.*/
+            Lex->expr_allows_subselect= true;
+          }
         ;
 
 procedure_list:
@@ -15164,6 +15175,9 @@ current_role:
 grant_role:
           ident_or_text
           {
+            CHARSET_INFO *cs= system_charset_info;
+            /* trim end spaces (as they'll be lost in mysql.user anyway) */
+            $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
             if ($1.length == 0)
             {
               my_error(ER_INVALID_ROLE, MYF(0), "");
@@ -15178,8 +15192,7 @@ grant_role:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         username_char_length,
-                                         system_charset_info, 0))
+                                         username_char_length, cs, 0))
               MYSQL_YYABORT;
           }
         | current_role

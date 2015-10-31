@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"        // sql_kill, *_precheck, *_prepare
 #include "lock.h"             // try_transactional_lock,
                               // check_transactional_lock,
@@ -677,7 +676,7 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 static void handle_bootstrap_impl(THD *thd)
 {
   MYSQL_FILE *file= bootstrap_file;
-  DBUG_ENTER("handle_bootstrap");
+  DBUG_ENTER("handle_bootstrap_impl");
 
 #ifndef EMBEDDED_LIBRARY
   pthread_detach_this_thread();
@@ -3887,7 +3886,10 @@ end_with_restore_list:
                                                  lex->duplicates,
                                                  lex->ignore)))
       {
-	res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
+        if (explain)
+          res= mysql_explain_union(thd, &thd->lex->unit, sel_result);
+        else
+          res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
         /*
           Invalidate the table in the query cache if something changed
           after unlocking when changes become visible.
@@ -3902,6 +3904,16 @@ end_with_restore_list:
           first_table->next_local= 0;
           query_cache_invalidate3(thd, first_table, 1);
           first_table->next_local= save_table;
+        }
+        if (explain)
+        {
+          /*
+            sel_result needs to be cleaned up properly.
+            INSERT... SELECT statement will call either send_eof() or
+            abort_result_set(). EXPLAIN doesn't call either, so we need
+            to cleanup manually.
+          */
+          sel_result->abort_result_set();
         }
         delete sel_result;
       }
@@ -6326,9 +6338,12 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
   for (; i < number && tables != first_not_own_table && tables;
        tables= tables->next_global, i++)
   {
+    TABLE_LIST *const table_ref= tables->correspondent_table ?
+      tables->correspondent_table : tables;
+
     ulong want_access= requirements;
-    if (tables->security_ctx)
-      sctx= tables->security_ctx;
+    if (table_ref->security_ctx)
+      sctx= table_ref->security_ctx;
     else
       sctx= backup_ctx;
 
@@ -6336,26 +6351,26 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
        Register access for view underlying table.
        Remove SHOW_VIEW_ACL, because it will be checked during making view
      */
-    tables->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
+    table_ref->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
 
-    if (tables->schema_table_reformed)
+    if (table_ref->schema_table_reformed)
     {
-      if (check_show_access(thd, tables))
+      if (check_show_access(thd, table_ref))
         goto deny;
       continue;
     }
 
-    DBUG_PRINT("info", ("derived: %d  view: %d", tables->derived != 0,
-                        tables->view != 0));
+    DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
+                        table_ref->view != 0));
 
-    if (tables->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table())
       continue;
 
     thd->security_ctx= sctx;
 
-    if (check_access(thd, want_access, tables->get_db_name(),
-                     &tables->grant.privilege,
-                     &tables->grant.m_internal,
+    if (check_access(thd, want_access, table_ref->get_db_name(),
+                     &table_ref->grant.privilege,
+                     &table_ref->grant.m_internal,
                      0, no_errors))
       goto deny;
   }
