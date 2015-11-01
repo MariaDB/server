@@ -8326,6 +8326,9 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
   *precision= *scale= *srid= 0;
   *st_type= Field_geom::GEOM_STORAGE_WKB;
 
+  if (!buf)  /* can only happen with the old FRM file */
+    goto end_of_record;
+
   while (cbuf < buf_end)
   {
     switch ((option_id= *(cbuf++)))
