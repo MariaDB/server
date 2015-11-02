@@ -48,8 +48,9 @@ static int validate(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
          others < min_others;
 }
 
-static void fix_min_length(MYSQL_THD thd, struct st_mysql_sys_var *var,
-              void *var_ptr, const void *save)
+static void fix_min_length(MYSQL_THD thd __attribute__((unused)),
+                           struct st_mysql_sys_var *var,
+                           void *var_ptr, const void *save)
 {
   *((unsigned int *)var_ptr)= *((unsigned int *)save);
   if (min_length < min_digits + 2 * min_letters + min_others)
