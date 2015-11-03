@@ -209,14 +209,6 @@ EOF
         "  Show_view_priv='Y', Create_routine_priv='Y', Alter_routine_priv='Y', "\
         "  Create_user_priv='Y', Event_priv='Y', Trigger_priv='Y',"\
         "  ssl_cipher='', x509_issuer='', x509_subject='';"`;
-    # Engines supported by etch should be installed per default. The query sequence is supposed
-    # to be aborted if the CREATE TABLE fails due to an already existent table in which case the
-    # admin might already have chosen to remove one or more plugins. Newlines are necessary.
-    install_plugins=`/bin/echo -e \
-        "USE mysql;\n" \
-        "CREATE TABLE IF NOT EXISTS plugin (name char(64) COLLATE utf8_bin NOT NULL DEFAULT '', " \
-        "  dl char(128) COLLATE utf8_bin NOT NULL DEFAULT '', " \
-        "  PRIMARY KEY (name)) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='MySQL plugins';" `
 
     # Upgrade password column format before the root password gets set.
     echo "$password_column_fix_query"                        | $MYSQL_BOOTSTRAP 2>&1 | $ERR_LOGGER
@@ -228,7 +220,6 @@ EOF
 
     set +e
     echo "$replace_query"                                    | $MYSQL_BOOTSTRAP 2>&1 | $ERR_LOGGER
-    echo "$install_plugins"                                  | $MYSQL_BOOTSTRAP 2>&1 | $ERR_LOGGER
     set -e
 
     # If there is a real AppArmor profile, we reload it.
