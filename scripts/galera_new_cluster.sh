@@ -8,7 +8,7 @@
 VERSION="@VERSION@@MYSQL_SERVER_SUFFIX@"
 COMPILATION_COMMENT="@COMPILATION_COMMENT@"
 
-/usr/bin/systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
-     /usr/bin/systemctl start {1:-mariadb@service}
+systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
+    systemctl start ${1:-mariadb}
 
-/usr/bin/systemctl set-environment _WSREP_NEW_CLUSTER=''
+systemctl set-environment _WSREP_NEW_CLUSTER=''
