@@ -7247,6 +7247,12 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                              sql_statement_info[SQLCOM_SELECT].m_key);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SELECT]);
     thd->update_stats();
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd))
+    {
+      thd->wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
+    }
+#endif /* WITH_WSREP */
   }
   DBUG_VOID_RETURN;
 }
