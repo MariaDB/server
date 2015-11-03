@@ -191,10 +191,6 @@ EOF
     chown 0:0 $dc
     chmod 0600 $dc
 
-    # update privilege tables
-    password_column_fix_query=`/bin/echo -e \
-        "USE mysql;\n" \
-        "ALTER TABLE user CHANGE Password Password char(41) character set latin1 collate latin1_bin DEFAULT '' NOT NULL;"`
     replace_query=`/bin/echo -e \
         "USE mysql;\n" \
         "SET sql_mode='';\n" \
@@ -209,9 +205,6 @@ EOF
         "  Show_view_priv='Y', Create_routine_priv='Y', Alter_routine_priv='Y', "\
         "  Create_user_priv='Y', Event_priv='Y', Trigger_priv='Y',"\
         "  ssl_cipher='', x509_issuer='', x509_subject='';"`;
-
-    # Upgrade password column format before the root password gets set.
-    echo "$password_column_fix_query"                        | $MYSQL_BOOTSTRAP 2>&1 | $ERR_LOGGER
 
     db_get mysql-server/root_password && rootpw="$RET"
     if ! set_mysql_rootpw; then
