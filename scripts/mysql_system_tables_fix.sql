@@ -1,5 +1,5 @@
 -- Copyright (C) 2003, 2013 Oracle and/or its affiliates.
--- Copyright (C) 2010, 2014 SkySQL Ab.
+-- Copyright (C) 2010, 2015 MariaDB Corporation Ab.
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 
 set sql_mode='';
 set storage_engine=MyISAM;
+set enforce_storage_engine=NULL;
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL;
 
