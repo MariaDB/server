@@ -316,7 +316,7 @@ int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 const wsrep_uuid_t* wsrep_cluster_uuid();
 struct xid_t;
 void wsrep_set_SE_checkpoint(xid_t*);
-
+void wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
 void wsrep_xid_init(xid_t*, const wsrep_uuid_t*, wsrep_seqno_t);
 const wsrep_uuid_t* wsrep_xid_uuid(const xid_t*);
 wsrep_seqno_t wsrep_xid_seqno(const xid_t*);

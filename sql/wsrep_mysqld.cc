@@ -207,6 +207,30 @@ void wsrep_get_SE_checkpoint(XID* xid)
   plugin_foreach(NULL, get_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN, xid);
 }
 
+void wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
+{
+  uuid= WSREP_UUID_UNDEFINED;
+  seqno= WSREP_SEQNO_UNDEFINED;
+
+  XID xid;
+  memset(&xid, 0, sizeof(xid));
+  xid.formatID= -1;
+
+  wsrep_get_SE_checkpoint(&xid);
+
+  if (xid.formatID == -1) return; // nil XID
+
+  if (!wsrep_is_wsrep_xid(&xid))
+  {
+    WSREP_WARN("Read non-wsrep XID from storage engines.");
+    return;
+  }
+
+  uuid= *wsrep_xid_uuid(&xid);
+  seqno= wsrep_xid_seqno(&xid);
+}
+
+
 static wsrep_cb_status_t
 wsrep_view_handler_cb (void*                    app_ctx,
                        void*                    recv_ctx,
