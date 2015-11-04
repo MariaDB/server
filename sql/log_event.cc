@@ -8556,7 +8556,18 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
       const_cast<Relay_log_info*>(rli)->m_table_map.set_table(ptr->table_id, ptr->table);
 
 #ifdef HAVE_QUERY_CACHE
-    query_cache.invalidate_locked_for_write(thd, rli->tables_to_lock);
+#ifdef WITH_WSREP
+    /*
+       Moved invalidation right before the call to rows_event_stmt_cleanup(),
+       to avoid query cache being polluted with stale entries.
+    */
+    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    {
+#endif /* WITH_WSREP */
+      query_cache.invalidate_locked_for_write(thd, rli->tables_to_lock);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
 #endif
   }
 
@@ -8749,6 +8760,13 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
     DBUG_RETURN(error);
   }
 
+#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
+  if (get_flags(STMT_END_F) &&
+      WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+  {
+    query_cache.invalidate_locked_for_write(thd, rli->tables_to_lock);
+  }
+#endif /* WITH_WSREP */
   if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rli, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,
