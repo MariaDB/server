@@ -2046,6 +2046,16 @@ extern "C" void unireg_abort(int exit_code)
   mysqld_exit(exit_code);
 }
 
+
+static void cleanup_tls()
+{
+  if (THR_THD)
+    (void)pthread_key_delete(THR_THD);
+  if (THR_MALLOC)
+    (void)pthread_key_delete(THR_MALLOC);
+}
+
+
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
@@ -2064,6 +2074,7 @@ static void mysqld_exit(int exit_code)
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   shutdown_performance_schema();        // we do it as late as possible
 #endif
+  cleanup_tls();
   DBUG_LEAVE;
   sd_notify(0, "STATUS=MariaDB server is down");
   exit(exit_code); /* purecov: inspected */
@@ -2185,12 +2196,6 @@ void clean_up(bool print_message)
   my_free(const_cast<char*>(relay_log_index));
 #endif
   free_list(opt_plugin_load_list_ptr);
-
-  if (THR_THD)
-    (void) pthread_key_delete(THR_THD);
-
-  if (THR_MALLOC)
-    (void) pthread_key_delete(THR_MALLOC);
 
   /*
     The following lines may never be executed as the main thread may have
