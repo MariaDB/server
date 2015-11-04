@@ -23,11 +23,6 @@ invoke() {
 
 MYSQL_BOOTSTRAP="/usr/sbin/mysqld --bootstrap --user=mysql --disable-log-bin --skip-grant-tables --default-storage-engine=myisam"
 
-test_mysql_access() {
-       mysql --no-defaults -u root -h localhost </dev/null >/dev/null 2>&1
-}
-
-# call with $1 = "online" to connect to the server, otherwise it bootstraps
 set_mysql_rootpw() {
        # forget we ever saw the password.  don't use reset to keep the seen status
        db_set mysql-server/root_password ""
@@ -47,9 +42,6 @@ FLUSH PRIVILEGES;
 EOF
        if grep -q 'PASSWORD("")' $tfile; then
                retval=0
-       elif [ "$1" = "online" ]; then
-               mysql --no-defaults -u root -h localhost <$tfile >/dev/null
-               retval=$?
        else
                $MYSQL_BOOTSTRAP <$tfile
                retval=$?
@@ -208,7 +200,8 @@ EOF
 
     db_get mysql-server/root_password && rootpw="$RET"
     if ! set_mysql_rootpw; then
-        password_error="yes"
+      db_input high mysql-server/error_setting_password || true
+      db_go
     fi
 
     set +e
@@ -229,6 +222,13 @@ EOF
             echo "/usr/sbin/mysqld { }" | apparmor_parser --remove 2>/dev/null || true
 	fi
     fi
+
+    # copy out any mysqld_safe settings
+    systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+    if [ -x /usr/bin/mariadb-service-convert -a ! -f "${systemd_conf}" ]; then
+      mkdir -p /etc/systemd/system/mariadb.service.d
+      /usr/bin/mariadb-service-convert > "${systemd_conf}"
+    fi
   ;;
 
   abort-upgrade|abort-remove|abort-configure)
@@ -239,34 +239,6 @@ EOF
     exit 1
   ;;
 esac
-
-# here we check to see if we can connect as root without a password
-# this should catch upgrades from previous versions where the root
-# password wasn't set.  if there is a password, or if the connection
-# fails for any other reason, nothing happens.
-if [ "$1" = "configure" ]; then
-       if test_mysql_access; then
-               db_input medium mysql-server/root_password || true
-               db_go
-               db_get mysql-server/root_password && rootpw="$RET"
-
-               if ! set_mysql_rootpw "online"; then
-                       password_error="yes"
-               fi
-       fi
-
-       if [ "$password_error" = "yes" ]; then
-               db_input high mysql-server/error_setting_password || true
-               db_go
-       fi
-
-       # copy out any mysqld_safe settings
-       systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
-       if [ -x /usr/bin/mariadb-service-convert  -a ! -f "${systemd_conf}" ]; then
-              mkdir -p /etc/systemd/system/mariadb.service.d
-              /usr/bin/mariadb-service-convert > "${systemd_conf}"
-       fi
-fi
 
 db_stop # in case invoke failes
 
