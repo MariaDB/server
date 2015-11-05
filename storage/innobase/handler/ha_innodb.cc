@@ -9852,7 +9852,7 @@ ha_innobase::wsrep_append_keys(
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
-			thd, table, 0, key, WSREP_MAX_SUPPORTED_KEY_LENGTH, 
+			thd, table, 0, key, WSREP_MAX_SUPPORTED_KEY_LENGTH,
 			record0, &is_null);
 
 		if (!is_null) {

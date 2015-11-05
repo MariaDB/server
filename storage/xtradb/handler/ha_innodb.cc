@@ -10474,6 +10474,27 @@ wsrep_append_key(
 extern void compute_md5_hash(char *digest, const char *buf, int len);
 #define MD5_HASH compute_md5_hash
 
+static bool
+referenced_by_foreign_key2(dict_table_t* table,
+	                   dict_index_t* index) {
+	ut_ad(table != NULL);
+	ut_ad(index != NULL);
+
+	const dict_foreign_set* fks = &table->referenced_set;
+	for (dict_foreign_set::const_iterator it = fks->begin();
+	     it != fks->end();
+	     ++it)
+	{
+		dict_foreign_t* foreign = *it;
+		if (foreign->referenced_index != index) {
+			continue;
+		}
+		ut_ad(table == foreign->referenced_table);
+		return true;
+	}
+	return false;
+}
+
 int
 ha_innobase::wsrep_append_keys(
 /*==================*/
@@ -10553,7 +10574,7 @@ ha_innobase::wsrep_append_keys(
 			/* !hasPK == table with no PK, must append all non-unique keys */
 			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
-			      dict_table_get_referenced_constraint(tab, idx)) ||
+			      referenced_by_foreign_key2(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {
 
 				len = wsrep_store_key_val_for_row(
