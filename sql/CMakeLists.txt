@@ -317,8 +317,7 @@ IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ENDIF()
 ENDIF()
 
-FOREACH(tool glibtoolize libtoolize aclocal autoconf autoheader automake gtar 
- tar git)
+FOREACH(tool gtar tar git)
  STRING(TOUPPER ${tool}  TOOL)
  FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
  MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)

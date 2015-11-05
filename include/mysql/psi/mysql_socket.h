@@ -1013,7 +1013,7 @@ inline_mysql_socket_accept
 #endif
   MYSQL_SOCKET socket_listen, struct sockaddr *addr, socklen_t *addr_len)
 {
-  int flags;
+  int flags __attribute__ ((unused));
 
   MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;
   socklen_t addr_length= (addr_len != NULL) ? *addr_len : 0;

@@ -33,7 +33,7 @@ endif()
 
 include(TokuFeatureDetection)
 include(TokuSetupCompiler)
-include(TokuSetupCTest)
+#include(TokuSetupCTest)
 include(TokuThirdParty)
 
 set(TOKU_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

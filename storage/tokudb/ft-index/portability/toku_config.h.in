@@ -47,6 +47,10 @@
 #cmakedefine HAVE_O_DIRECT 1
 #cmakedefine HAVE_F_NOCACHE 1
 
+#cmakedefine HAVE_MAP_ANONYMOUS 1
+#cmakedefine HAVE_MINCORE 1
+#cmakedefine HAVE_PR_SET_PTRACER 1
+#cmakedefine HAVE_PR_SET_PTRACER_ANY 1
 #cmakedefine HAVE_MALLOC_SIZE 1
 #cmakedefine HAVE_MALLOC_USABLE_SIZE 1
 #cmakedefine HAVE_MEMALIGN 1

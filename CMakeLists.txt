@@ -40,12 +40,6 @@ MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
-# Distinguish between community and non-community builds, with the
-# default being a community build. This does not impact the feature
-# set that will be compiled in; it's merely provided as a hint to
-# custom packaging steps.
-OPTION(COMMUNITY_BUILD "Set to true if this is a community build" ON) 
-
 # Use a default manufacturer if no manufacturer was identified.
 IF(NOT DEFINED MANUFACTURER) 
   SET(MANUFACTURER "Built from Source" CACHE  STRING
@@ -170,13 +164,11 @@ IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
-OPTION(CYBOZU "" OFF)
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
 ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
-MARK_AS_ADVANCED(CYBOZU)
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
