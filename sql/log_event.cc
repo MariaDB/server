@@ -9851,6 +9851,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       bitmap_intersect(table->read_set,&m_cols);
 
     bitmap_set_all(table->write_set);
+    table->rpl_write_set= table->write_set;
 
     /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
     MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
@@ -11109,8 +11110,8 @@ void Table_map_log_event::print(FILE *, PRINT_EVENT_INFO *print_event_info)
 Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                            ulong tid_arg,
                                            bool is_transactional)
-  : Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->write_set,
-                   is_transactional, WRITE_ROWS_EVENT_V1)
+  :Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->rpl_write_set,
+                  is_transactional, WRITE_ROWS_EVENT_V1)
 {
 }
 #endif
@@ -11218,8 +11219,10 @@ Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *
    */
   if (is_auto_inc_in_extra_columns())
   {
-    bitmap_clear_bit(m_table->write_set, m_table->next_number_field->field_index);
-    bitmap_clear_bit( m_table->read_set, m_table->next_number_field->field_index);
+    bitmap_clear_bit(m_table->rpl_write_set,
+                     m_table->next_number_field->field_index);
+    bitmap_clear_bit(m_table->read_set,
+                     m_table->next_number_field->field_index);
 
     if (get_flags(STMT_END_F))
       m_table->file->ha_release_auto_increment();
@@ -11388,8 +11391,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     m_table->next_number_field->set_null();
   
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
-  DBUG_PRINT_BITSET("debug", "write_set = %s", table->write_set);
-  DBUG_PRINT_BITSET("debug", "read_set = %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
+  DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
 
   if (invoke_triggers &&
       process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE))
@@ -12259,7 +12262,7 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                  UPDATE_ROWS_EVENT_V1)
 {
-  init(tbl_arg->write_set);
+  init(tbl_arg->rpl_write_set);
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)

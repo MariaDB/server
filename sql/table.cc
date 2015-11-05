@@ -2885,20 +2885,28 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*6)))
+  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*7)))
     goto err;
   my_bitmap_init(&outparam->def_read_set,
-              (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
   my_bitmap_init(&outparam->def_write_set,
-              (my_bitmap_map*) (bitmaps+bitmap_size), share->fields, FALSE);
+                 (my_bitmap_map*) (bitmaps+bitmap_size), share->fields,
+                 FALSE);
   my_bitmap_init(&outparam->def_vcol_set,
-              (my_bitmap_map*) (bitmaps+bitmap_size*2), share->fields, FALSE);
+                 (my_bitmap_map*) (bitmaps+bitmap_size*2), share->fields,
+                 FALSE);
   my_bitmap_init(&outparam->tmp_set,
-              (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields, FALSE);
+                 (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields,
+                 FALSE);
   my_bitmap_init(&outparam->eq_join_set,
-              (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields, FALSE);
+                 (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields,
+                 FALSE);
   my_bitmap_init(&outparam->cond_set,
-              (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields, FALSE);
+                 (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields,
+                 FALSE);
+  my_bitmap_init(&outparam->def_rpl_write_set,
+                 (my_bitmap_map*) (bitmaps+bitmap_size*6), share->fields,
+                 FALSE);
   outparam->default_column_bitmaps();
 
   outparam->cond_selectivity= 1.0;
@@ -5679,6 +5687,7 @@ void TABLE::clear_column_bitmaps()
   */
   bzero((char*) def_read_set.bitmap, s->column_bitmap_size*3);
   column_bitmaps_set(&def_read_set, &def_write_set, &def_vcol_set);
+  rpl_write_set= 0;                             // Safety
 }
 
 
@@ -5959,6 +5968,8 @@ void TABLE::mark_columns_needed_for_insert()
 /*
   Mark columns according the binlog row image option.
 
+  Columns to be written are stored in 'rpl_write_set'
+
   When logging in RBR, the user can select whether to
   log partial or full rows, depending on the table
   definition, and the value of binlog_row_image.
@@ -5970,16 +5981,16 @@ void TABLE::mark_columns_needed_for_insert()
   binlog_row_image= MINIMAL
     - This marks the PKE fields in the read_set
     - This marks all fields where a value was specified
-      in the write_set
+      in the rpl_write_set
 
   binlog_row_image= NOBLOB
     - This marks PKE + all non-blob fields in the read_set
     - This marks all fields where a value was specified
-      and all non-blob fields in the write_set
+      and all non-blob fields in the rpl_write_set
 
   binlog_row_image= FULL
     - all columns in the read_set
-    - all columns in the write_set
+    - all columns in the rpl_write_set
 
   This marking is done without resetting the original
   bitmaps. This means that we will strip extra fields in
@@ -5987,36 +5998,48 @@ void TABLE::mark_columns_needed_for_insert()
   we only want to log a PK and we needed other fields for
   execution).
 */
+
 void TABLE::mark_columns_per_binlog_row_image()
 {
+  THD *thd= in_use;
   DBUG_ENTER("mark_columns_per_binlog_row_image");
   DBUG_ASSERT(read_set->bitmap);
   DBUG_ASSERT(write_set->bitmap);
 
-  THD *thd= current_thd;
+  /* If not using row format */
+  rpl_write_set= write_set;
 
   /**
     If in RBR we may need to mark some extra columns,
     depending on the binlog-row-image command line argument.
    */
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      in_use &&
-      in_use->is_current_stmt_binlog_format_row() &&
+      thd->is_current_stmt_binlog_format_row() &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
-      bitmap_set_all(read_set);
-
-    switch (thd->variables.binlog_row_image)
     {
+      bitmap_set_all(read_set);
+      rpl_write_set= read_set;
+    }
+    else
+    {
+      switch (thd->variables.binlog_row_image) {
       case BINLOG_ROW_IMAGE_FULL:
-        if (s->primary_key < MAX_KEY)
-          bitmap_set_all(read_set);
-        bitmap_set_all(write_set);
+        bitmap_set_all(read_set);
+        /* Set of columns that should be written (all) */
+        rpl_write_set= read_set;
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
-        /* for every field that is not set, mark it unless it is a blob */
+        /* Only write changed columns + not blobs */
+        rpl_write_set= &def_rpl_write_set;
+        bitmap_copy(rpl_write_set, write_set);
+
+        /*
+          for every field that is not set, mark it unless it is a blob or
+          part of a primary key
+        */
         for (Field **ptr=field ; *ptr ; ptr++)
         {
           Field *my_field= *ptr;
@@ -6027,24 +6050,30 @@ void TABLE::mark_columns_per_binlog_row_image()
 
             If set in the AI, then the blob is really needed, there is
             nothing we can do about it.
-           */
-          if ((s->primary_key < MAX_KEY) &&
-              ((my_field->flags & PRI_KEY_FLAG) ||
-              (my_field->type() != MYSQL_TYPE_BLOB)))
+          */
+          if ((my_field->flags & PRI_KEY_FLAG) ||
+              (my_field->type() != MYSQL_TYPE_BLOB))
+          {
             bitmap_set_bit(read_set, my_field->field_index);
-
-          if (my_field->type() != MYSQL_TYPE_BLOB)
-            bitmap_set_bit(write_set, my_field->field_index);
+            bitmap_set_bit(rpl_write_set, my_field->field_index);
+          }
         }
         break;
       case BINLOG_ROW_IMAGE_MINIMAL:
-        /* mark the primary key if available in the read_set */
-        if (s->primary_key < MAX_KEY)
-          mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+        /*
+          mark the primary key in the read set so that we can find the row
+          that is updated / deleted.
+          We don't need to mark the primary key in the rpl_write_set as the
+          binary log will include all columns read anyway.
+        */
+        mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+        /* Only write columns that have changed */
+        rpl_write_set= write_set;
         break;
 
       default:
         DBUG_ASSERT(FALSE);
+      }
     }
     file->column_bitmaps_signal();
   }
@@ -7389,4 +7418,3 @@ double KEY::actual_rec_per_key(uint i)
   return (is_statistics_from_stat_tables ?
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
 }
-

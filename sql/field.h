@@ -3093,8 +3093,6 @@ public:
   uint32 max_display_length();
   uint32 char_length();
   uint is_equal(Create_field *new_field);
-  inline bool in_read_set() { return bitmap_is_set(table->read_set, field_index); }
-  inline bool in_write_set() { return bitmap_is_set(table->write_set, field_index); }
 private:
   int do_save_field_metadata(uchar *first_byte);
 };

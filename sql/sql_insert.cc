@@ -2867,6 +2867,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
     /* Tell client that the thread is initialized */
     mysql_cond_signal(&di->cond_client);
 
+    di->table->mark_columns_needed_for_insert();
+
     /* Now wait until we get an insert or lock to handle */
     /* We will not abort as long as a client thread uses this thread */
 

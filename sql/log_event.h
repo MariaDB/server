@@ -4304,7 +4304,7 @@ public:
                  bitmap_cmp return logic).
 
    */
-  virtual bool read_write_bitmaps_cmp(TABLE *table)
+  bool read_write_bitmaps_cmp(TABLE *table)
   {
     bool res= FALSE;
 
@@ -4315,10 +4315,10 @@ public:
         break;
       case UPDATE_ROWS_EVENT:
         res= (bitmap_cmp(get_cols(), table->read_set) &&
-              bitmap_cmp(get_cols_ai(), table->write_set));
+              bitmap_cmp(get_cols_ai(), table->rpl_write_set));
         break;
       case WRITE_ROWS_EVENT:
-        res= bitmap_cmp(get_cols(), table->write_set);
+        res= bitmap_cmp(get_cols(), table->rpl_write_set);
         break;
       default:
         /*

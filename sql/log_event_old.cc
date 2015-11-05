@@ -1522,6 +1522,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     bitmap_set_all(table->write_set);
     if (!get_flags(COMPLETE_ROWS_F))
       bitmap_intersect(table->write_set,&m_cols);
+    table->rpl_write_set= table->write_set;
 
     // Do event specific preparations 
     
@@ -1896,8 +1897,9 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     DBUG_RETURN(error);
   
   /* unpack row into table->record[0] */
-  error= unpack_current_row(rgi); // TODO: how to handle errors?
-
+  if ((error= unpack_current_row(rgi)))
+    DBUG_RETURN(error);
+  
 #ifndef DBUG_OFF
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "write_set = %s", table->write_set);

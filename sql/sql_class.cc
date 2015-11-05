@@ -6173,7 +6173,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 
   uchar *row_data= memory.slot(0);
 
-  size_t const len= pack_row(table, table->write_set, row_data, record);
+  size_t const len= pack_row(table, table->rpl_write_set, row_data, record);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6197,13 +6197,6 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
-  /**
-    Save a reference to the original read and write set bitmaps.
-    We will need this to restore the bitmaps at the end.
-   */
-  MY_BITMAP *old_read_set= table->read_set;
-  MY_BITMAP *old_write_set= table->write_set;
-
   size_t const before_maxlen = max_row_length(table, before_record);
   size_t const after_maxlen  = max_row_length(table, after_record);
 
@@ -6216,7 +6209,7 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 
   size_t const before_size= pack_row(table, table->read_set, before_row,
                                         before_record);
-  size_t const after_size= pack_row(table, table->write_set, after_row,
+  size_t const after_size= pack_row(table, table->rpl_write_set, after_row,
                                        after_record);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -6245,10 +6238,6 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   int error=  ev->add_row_data(before_row, before_size) ||
               ev->add_row_data(after_row, after_size);
 
-  /* restore read/write set for the rest of execution */
-  table->column_bitmaps_set_no_signal(old_read_set,
-                                      old_write_set);
-
   return error;
 
 }
@@ -6259,11 +6248,13 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
   /**
-    Save a reference to the original read and write set bitmaps.
-    We will need this to restore the bitmaps at the end.
-   */
+    Save a reference to the original read bitmaps
+    We will need this to restore the bitmaps at the end as
+    binlog_prepare_row_images() may change table->read_set.
+    table->read_set is used by pack_row and deep in
+    binlog_prepare_pending_events().
+  */
   MY_BITMAP *old_read_set= table->read_set;
-  MY_BITMAP *old_write_set= table->write_set;
 
   /** 
      This will remove spurious fields required during execution but
@@ -6300,9 +6291,9 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 
   int error= ev->add_row_data(row_data, len);
 
-  /* restore read/write set for the rest of execution */
+  /* restore read set for the rest of execution */
   table->column_bitmaps_set_no_signal(old_read_set,
-                                      old_write_set);
+                                      table->write_set);
 
   return error;
 }
