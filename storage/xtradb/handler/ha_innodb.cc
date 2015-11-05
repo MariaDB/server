@@ -5261,7 +5261,10 @@ ha_innobase::max_supported_key_length() const
 
 	For page sizes = 16k, InnoDB historically reported 3500 bytes here,
 	But the MySQL limit of 3072 was always used through the handler
-	interface. */
+	interface.
+
+	Note: Handle 16k and 32k pages the same here since the limits
+	are higher than imposed by MySQL. */
 
 	switch (UNIV_PAGE_SIZE) {
 	case 4096:
@@ -11556,6 +11559,21 @@ create_options_are_invalid(
 		ret = "INDEX DIRECTORY";
 	}
 
+	if ((kbs_specified || row_format == ROW_TYPE_COMPRESSED)
+		&& UNIV_PAGE_SIZE > (1<<14)) {
+		push_warning(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_ILLEGAL_HA_CREATE_OPTION,
+			"InnoDB: Cannot create a COMPRESSED table"
+			" when innodb_page_size > 16k.");
+
+		if (kbs_specified) {
+			ret = "KEY_BLOCK_SIZE";
+		} else {
+			ret = "ROW_TYPE";
+		}
+	}
+
 	return(ret);
 }
 
@@ -11908,6 +11926,17 @@ index_bad:
 		row_format = ROW_TYPE_COMPACT;
 	case ROW_TYPE_COMPACT:
 		break;
+	}
+
+	/* Don't support compressed table when page size > 16k. */
+	if (zip_allowed && zip_ssize && UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF) {
+		push_warning(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_ILLEGAL_HA_CREATE_OPTION,
+			"InnoDB: Cannot create a COMPRESSED table"
+			" when innodb_page_size > 16k."
+			" Assuming ROW_FORMAT=COMPACT.");
+		zip_allowed = FALSE;
 	}
 
 	/* Set the table flags */
@@ -20094,7 +20123,7 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
 static MYSQL_SYSVAR_LONG(log_buffer_size, innobase_log_buffer_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-  NULL, NULL, 8*1024*1024L, 256*1024L, LONG_MAX, 1024);
+  NULL, NULL, 16*1024*1024L, 256*1024L, LONG_MAX, 1024);
 
 static MYSQL_SYSVAR_LONGLONG(log_file_size, innobase_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

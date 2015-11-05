@@ -4,6 +4,9 @@
 --source include/have_innodb_64k.inc
 
 call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
+call mtr.add_suppression("InnoDB: Resizing redo log from *");
+call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files.");
+call mtr.add_suppression("InnoDB: New log files created, LSN=*");
 
 --disable_query_log
 let $MYSQLD_DATADIR= `select @@datadir`;
@@ -263,33 +266,6 @@ c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
 c190 char(200), c191 char(200), c192 char(100),
 c81 char(157)
 ) ROW_FORMAT=dynamic;
-
-
-# Compressed table; 16063 bytes with 81 CHAR fields
-
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
-c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
-c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
-c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
-c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
-c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
-c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
-c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
-c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
-c81 char(62)
-) ROW_FORMAT=compressed;
-
-
 
 --echo # Test 8) Test creating a table that could lead to undo log overflow.
 

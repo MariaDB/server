@@ -2276,6 +2276,12 @@ any_extern:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_zip) {
+		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
+					   dict_index_get_n_fields(index),
+					   page_zip_get_size(page_zip))) {
+			goto any_extern;
+		}
+
 		if (!btr_cur_update_alloc_zip(
 			    page_zip, page_cursor, index, *offsets,
 			    new_rec_size, true, mtr)) {
