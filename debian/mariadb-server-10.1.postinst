@@ -104,8 +104,10 @@ EOF
     
     # Ensure the existence and right permissions for the database and
     # log files.
-    if [ ! -d "$mysql_statedir"       -a ! -L "$mysql_statedir"       ]; then mkdir "$mysql_statedir"; fi
-    if [ ! -d "$mysql_statedir/mysql" -a ! -L "$mysql_statedir/mysql" ]; then mkdir "$mysql_statedir/mysql"; fi
+    if [ ! -d "$mysql_statedir/mysql" -a ! -L "$mysql_statedir/mysql" ]; then
+      # Debian: beware of the bashisms...
+      /bin/bash /usr/bin/mysql_install_db --rpm --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+    fi
     if [ ! -d "$mysql_newlogdir"      -a ! -L "$mysql_newlogdir"      ]; then mkdir "$mysql_newlogdir"; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
     # /var/lib/mysql, you get a .journal file that is not modifyable by chown.
@@ -130,16 +132,6 @@ EOF
 
     # To avoid downgrades.
     touch $mysql_statedir/debian-10.1.flag
-
-    # initiate databases. Output is not allowed by debconf :-(
-    # This will fail if we are upgrading an existing database; in this case
-    # mysql_upgrade, called from the /etc/init.d/mysql start script, will
-    # handle things.
-    # Debian: beware of the bashisms... 
-    # Debian: can safely run on upgrades with existing databases 
-    set +e
-    /bin/bash /usr/bin/mysql_install_db --rpm --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
-    set -e
     
     ## On every reconfiguration the maintenance user is recreated.
     #
