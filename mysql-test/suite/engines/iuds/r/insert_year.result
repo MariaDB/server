@@ -36,6 +36,8 @@ Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
 INSERT INTO t1(c1) VALUES('5');
 INSERT INTO t2(c1) VALUES('5');
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
 INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
@@ -3218,6 +3220,8 @@ TRUNCATE TABLE t5;
 DROP TABLE t5;
 INSERT INTO t1 SET c1='00';
 INSERT INTO t2 SET c1=69;
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3 SET c1=70;
 INSERT INTO t4 SET c2=99;
 Warnings:
@@ -3291,6 +3295,8 @@ Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
 INSERT INTO t1(c1) VALUES('5');
 INSERT INTO t2(c1) VALUES('5');
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
 INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
@@ -6183,6 +6189,8 @@ TRUNCATE TABLE t5;
 DROP TABLE t5;
 INSERT INTO t1 SET c1='00';
 INSERT INTO t2 SET c1=69;
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3 SET c1=70;
 INSERT INTO t4 SET c2=99;
 Warnings:
