@@ -41,10 +41,6 @@
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
 
-#if MAX_KEY > 128
-#error MAX_KEY is too large.  Values up to 128 are supported.
-#endif
-
 class Alter_info;
 
 // the following is for checking tables

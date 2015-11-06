@@ -232,6 +232,11 @@ foreach my $option (@ARGV)
       $cmakeargs = $cmakeargs." -DENABLE_GCOV=ON"; 
       next;
   }
+  if ($option =~ /with-max-indexes=/)
+  {
+    $cmakeargs = $cmakeargs." -DMAX_INDEXES=".substr($option, 17); 
+    next;
+  }
   if ($option =~ /verbose/)
   {
       $cmakeargs = $cmakeargs." -DCMAKE_VERBOSE_MAKEFILE=1";

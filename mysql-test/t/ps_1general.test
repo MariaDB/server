@@ -497,11 +497,13 @@ prepare stmt1 from ' explain select a from t1 order by b ';
 # PS protocol gives slightly different metadata
 --disable_ps_protocol
 --enable_metadata
+--replace_result 4096 4_OR_8_K 8192 4_OR_8_K
 execute stmt1;
 --disable_metadata
 SET @arg00=1 ;
 prepare stmt1 from ' explain select a from t1 where a > ? order by b ';
 --enable_metadata
+--replace_result 4096 4_OR_8_K 8192 4_OR_8_K
 execute stmt1 using @arg00;
 --disable_metadata
 --enable_ps_protocol

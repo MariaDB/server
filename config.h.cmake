@@ -404,7 +404,7 @@
 
 #cmakedefine HAVE_MBSTATE_T 1
 
-#define MAX_INDEXES 64
+#cmakedefine MAX_INDEXES @MAX_INDEXES@
 
 #cmakedefine QSORT_TYPE_IS_VOID 1
 #cmakedefine RETQSORTTYPE @RETQSORTTYPE@

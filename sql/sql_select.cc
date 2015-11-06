@@ -60,6 +60,19 @@
 #include <hash.h>
 #include <ft_global.h>
 
+/*
+  A key part number that means we're using a fulltext scan.
+
+  In order not to confuse it with regular equalities, we need to pick
+  a number that's greater than MAX_REF_PARTS.
+
+  Hash Join code stores field->field_index in KEYUSE::keypart, so the 
+  number needs to be bigger than MAX_FIELDS, also.
+
+  CAUTION: sql_test.cc has its own definition of FT_KEYPART.
+*/
+#define FT_KEYPART   (MAX_FIELDS+10)
+
 const char *join_type_str[]={ "UNKNOWN","system","const","eq_ref","ref",
 			      "MAYBE_REF","ALL","range","index","fulltext",
 			      "ref_or_null","unique_subquery","index_subquery",
@@ -3877,7 +3890,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           has_expensive_keyparts= false;
 	  do
 	  {
-	    if (keyuse->val->type() != Item::NULL_ITEM && !keyuse->optimize)
+            if (keyuse->val->type() != Item::NULL_ITEM &&
+                !keyuse->optimize &&
+                keyuse->keypart != FT_KEYPART)
 	    {
 	      if (!((~found_const_table_map) & keyuse->used_tables))
               {
@@ -5112,19 +5127,6 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
   return FALSE;
 }
 
-
-/*
-  A key part number that means we're using a fulltext scan.
-  
-  In order not to confuse it with regular equalities, we need to pick
-  a number that's greater than MAX_REF_PARTS.
-
-  Hash Join code stores field->field_index in KEYUSE::keypart, so the 
-  number needs to be bigger than MAX_FIELDS, also.
-
-  CAUTION: sql_test.cc has its own definition of FT_KEYPART.
-*/
-#define FT_KEYPART   (MAX_FIELDS+10)
 
 static bool
 add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
@@ -9705,7 +9707,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       if (tab->type == JT_REF && tab->quick &&
 	  (((uint) tab->ref.key == tab->quick->index &&
 	    tab->ref.key_length < tab->quick->max_used_key_length) ||
-	    tab->table->intersect_keys.is_set(tab->ref.key)))
+           (!is_hash_join_key_no(tab->ref.key) &&
+            tab->table->intersect_keys.is_set(tab->ref.key))))
       {
 	/* Range uses longer key;  Use this instead of ref on key */
 	tab->type=JT_ALL;
@@ -20770,7 +20773,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
         quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)
-      ref_key= MAX_KEY;
+      ref_key= -1;
     else
     {
       ref_key= select->quick->index;
@@ -25462,6 +25465,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                          uint *saved_best_key_parts)
 {
   DBUG_ENTER("test_if_cheaper_ordering");
+  DBUG_ASSERT(ref_key < int(MAX_KEY));
   /*
     Check whether there is an index compatible with the given order
     usage of which is cheaper than usage of the ref_key index (ref_key>=0)
@@ -25526,7 +25530,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     Calculate the selectivity of the ref_key for REF_ACCESS. For
     RANGE_ACCESS we use table->quick_condition_rows.
   */
-  if (ref_key >= 0 && tab->type == JT_REF)
+  if (ref_key >= 0 && !is_hash_join_key_no(ref_key) && tab->type == JT_REF)
   {
     if (table->quick_keys.is_set(ref_key))
       refkey_rows_estimate= table->quick_rows[ref_key];
@@ -25693,6 +25697,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         {
           ha_rows quick_records= table_records;
           ha_rows refkey_select_limit= (ref_key >= 0 &&
+                                        !is_hash_join_key_no(ref_key) &&
                                         table->covering_keys.is_set(ref_key)) ?
                                         refkey_rows_estimate :
                                         HA_POS_ERROR;

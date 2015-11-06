@@ -51,8 +51,27 @@ public:
   void intersect(Bitmap& map2) { bitmap_intersect(&map, &map2.map); }
   void intersect(ulonglong map2buff)
   {
+    // Use a spearate temporary buffer, as bitmap_init() clears all the bits.
+    ulonglong buf2;
     MY_BITMAP map2;
-    my_bitmap_init(&map2, (uint32 *)&map2buff, sizeof(ulonglong)*8, 0);
+
+    my_bitmap_init(&map2, (uint32 *) &buf2, sizeof(ulonglong) * 8, 0);
+
+    // Store the original bits.
+    if (sizeof(ulonglong) >= 8)
+    {
+      int8store(const_cast<uchar *>(static_cast<uchar *>
+                                    (static_cast<void *>(&buf2))),
+                map2buff);
+    }
+    else
+    {
+      DBUG_ASSERT(sizeof(buffer) >= 4);
+      int4store(const_cast<uchar *>(static_cast<uchar *>
+                                    (static_cast<void *>(&buf2))),
+                static_cast<uint32>(map2buff));
+    }
+
     bitmap_intersect(&map, &map2);
   }
   /* Use highest bit for all bits above sizeof(ulonglong)*8. */
@@ -93,14 +112,33 @@ public:
   ulonglong to_ulonglong() const
   {
     if (sizeof(buffer) >= 8)
-      return uint8korr(buffer);
+      return uint8korr(static_cast<const uchar *>
+                       (static_cast<const void *>(buffer)));
     DBUG_ASSERT(sizeof(buffer) >= 4);
-    return (ulonglong) uint4korr(buffer);
+    return (ulonglong)
+      uint4korr(static_cast<const uchar *>
+                (static_cast<const void *>(buffer)));
   }
   uint bits_set()
   {
     return bitmap_bits_set(&map);
   }
+  class Iterator
+  {
+    Bitmap &map;
+    uint no;
+  public:
+    Iterator(Bitmap<default_width> &map2): map(map2), no(0) {}
+    int operator++(int) {
+      if (no == default_width) return BITMAP_END;
+      while (!map.is_set(no))
+      {
+        if ((++no) == default_width) return BITMAP_END;
+      }
+      return no ++;
+    }
+    enum { BITMAP_END= default_width };
+  };
 };
 
 /* An iterator to quickly walk over bits in unlonglong bitmap. */

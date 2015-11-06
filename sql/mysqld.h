@@ -39,6 +39,8 @@ typedef struct st_mysql_show_var SHOW_VAR;
 
 #if MAX_INDEXES <= 64
 typedef Bitmap<64>  key_map;          /* Used for finding keys */
+#elif MAX_INDEXES > 128
+#error "MAX_INDEXES values greater than 128 is not supported."
 #else
 typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #endif

@@ -767,6 +767,7 @@ select '------ explain select tests ------' as test_sequence ;
 # table with many column types
 prepare stmt1 from ' explain select * from t9 ' ;
 --enable_metadata
+--replace_result 4096 4_OR_8_K 8192 4_OR_8_K
 execute stmt1;
 --disable_metadata
 

@@ -5214,6 +5214,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     return 1;
 
   bzero(init, sizeof(*init));
+  init->filtered_scans.init();
   init->common_info= common;
   init->cost= cutoff_cost;
 
