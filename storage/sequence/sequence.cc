@@ -483,7 +483,7 @@ static int init(void *p)
   hton->create= create_handler;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback= hton->prepare=
+  hton->commit= hton->rollback=
    (int (*)(handlerton *, THD *, bool)) &dummy_ret_int;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
    (int  (*)(handlerton *, THD *, void *)) &dummy_ret_int;
