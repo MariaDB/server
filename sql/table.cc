@@ -2585,7 +2585,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        bool is_create_table)
 {
   enum open_frm_error error;
-  uint records, i, bitmap_size;
+  uint records, i, bitmap_size, bitmap_count;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
   Field **field_ptr, **UNINIT_VAR(vfield_ptr), **UNINIT_VAR(dfield_ptr);
@@ -2885,28 +2885,42 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*7)))
+  bitmap_count= 6;
+  if (share->vfields)
+  {
+    if (!(outparam->def_vcol_set= (MY_BITMAP*)
+          alloc_root(&outparam->mem_root, sizeof(*outparam->def_vcol_set))))
+      goto err;
+    bitmap_count++;
+  }
+  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root,
+                                     bitmap_size * bitmap_count)))
     goto err;
+
   my_bitmap_init(&outparam->def_read_set,
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_write_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size), share->fields,
-                 FALSE);
-  my_bitmap_init(&outparam->def_vcol_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size*2), share->fields,
-                 FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  if (share->vfields)
+  {
+    /* Don't allocate vcol_bitmap if we don't need it */
+    my_bitmap_init(outparam->def_vcol_set,
+                   (my_bitmap_map*) bitmaps, share->fields, FALSE);
+    bitmaps+= bitmap_size;
+  }
   my_bitmap_init(&outparam->tmp_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields,
-                 FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->eq_join_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields,
-                 FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->cond_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields,
-                 FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
-                 (my_bitmap_map*) (bitmaps+bitmap_size*6), share->fields,
-                 FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
   outparam->default_column_bitmaps();
 
   outparam->cond_selectivity= 1.0;
@@ -2954,10 +2968,6 @@ partititon_err:
       goto err;
     }
   }
-
-#if defined(HAVE_valgrind) && !defined(DBUG_OFF)
-  bzero((char*) bitmaps, bitmap_size*3);
-#endif
 
   if (share->table_category == TABLE_CATEGORY_LOG)
   {
@@ -5683,10 +5693,13 @@ void TABLE::clear_column_bitmaps()
     Reset column read/write usage. It's identical to:
     bitmap_clear_all(&table->def_read_set);
     bitmap_clear_all(&table->def_write_set);
-    bitmap_clear_all(&table->def_vcol_set);
+    if (s->vfields) bitmap_clear_all(table->def_vcol_set);
+    The code assumes that the bitmaps are allocated after each other, as
+    guaranteed by open_table_from_share()
   */
-  bzero((char*) def_read_set.bitmap, s->column_bitmap_size*3);
-  column_bitmaps_set(&def_read_set, &def_write_set, &def_vcol_set);
+  bzero((char*) def_read_set.bitmap,
+        s->column_bitmap_size * (s->vfields ? 3 : 2));
+  column_bitmaps_set(&def_read_set, &def_write_set, def_vcol_set);
   rpl_write_set= 0;                             // Safety
 }
 

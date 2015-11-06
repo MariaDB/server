@@ -2470,6 +2470,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 
   if (share->vfields)
   {
+    if (!(copy->def_vcol_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
+                                                      sizeof(MY_BITMAP))))
+      goto error;
     copy->vfield= vfield;
     for (field= copy->field; *field; field++)
     {
@@ -2502,13 +2505,17 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy->def_read_set.bitmap= (my_bitmap_map*) bitmap;
   copy->def_write_set.bitmap= ((my_bitmap_map*)
                                (bitmap + share->column_bitmap_size));
-  copy->def_vcol_set.bitmap= ((my_bitmap_map*)
-                               (bitmap + 2*share->column_bitmap_size));
+  if (share->vfields)
+  {
+    my_bitmap_init(copy->def_vcol_set,
+                   (my_bitmap_map*) (bitmap + 2*share->column_bitmap_size),
+                   share->fields, FALSE);
+    copy->vcol_set= copy->def_vcol_set;
+  }
   copy->tmp_set.bitmap= 0;                      // To catch errors
-  bzero((char*) bitmap, share->column_bitmap_size*3);
+  bzero((char*) bitmap, share->column_bitmap_size + (share->vfields ? 3 : 2));
   copy->read_set=  &copy->def_read_set;
   copy->write_set= &copy->def_write_set;
-  copy->vcol_set= &copy->def_vcol_set;
 
   DBUG_RETURN(copy);
 

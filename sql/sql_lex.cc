@@ -3867,7 +3867,8 @@ void SELECT_LEX::update_used_tables()
           tab->covering_keys.intersect(tab->keys_in_use_for_query);
           tab->merge_keys.clear_all();
           bitmap_clear_all(tab->read_set);
-          bitmap_clear_all(tab->vcol_set);
+          if (tab->vcol_set)
+            bitmap_clear_all(tab->vcol_set);
           break;
         }
       }
