@@ -44,7 +44,7 @@ extern "C" {
 
 typedef uint my_hash_value_type;
 typedef uchar *(*my_hash_get_key)(const uchar *,size_t*,my_bool);
-typedef my_hash_value_type (*my_hash_function)(const CHARSET_INFO *,
+typedef my_hash_value_type (*my_hash_function)(CHARSET_INFO *,
                                                const uchar *, size_t);
 typedef void (*my_hash_free_key)(void *);
 typedef my_bool (*my_hash_walk_action)(void *,void *);
@@ -78,7 +78,7 @@ uchar *my_hash_search(const HASH *info, const uchar *key, size_t length);
 uchar *my_hash_search_using_hash_value(const HASH *info,
                                        my_hash_value_type hash_value,
                                        const uchar *key, size_t length);
-my_hash_value_type my_hash_sort(const CHARSET_INFO *cs,
+my_hash_value_type my_hash_sort(CHARSET_INFO *cs,
                                 const uchar *key, size_t length);
 #define my_calc_hash(A, B, C) my_hash_sort((A)->charset, B, C)
 uchar *my_hash_first(const HASH *info, const uchar *key, size_t length,
