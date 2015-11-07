@@ -5397,21 +5397,30 @@ static int init_server_components()
     (void) mi_log(1);
 
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
-  if (locked_in_memory && !getuid())
+  if (locked_in_memory)
   {
-    if (setreuid((uid_t)-1, 0) == -1)
-    {                        // this should never happen
-      sql_perror("setreuid");
-      unireg_abort(1);
-    }
+    /* Try without priv user first, CAP_IPC_LOCK may be set */
     if (mlockall(MCL_CURRENT))
     {
-      if (global_system_variables.log_warnings)
-	sql_print_warning("Failed to lock memory. Errno: %d\n",errno);
-      locked_in_memory= 0;
+      int mlockall_err = errno;
+      /* ok, denied. Try to gain effective uid=0 to mlockall */
+      if (errno == EPERM && setreuid((uid_t)-1, 0) != -1)
+      {
+        if (mlockall(MCL_CURRENT)) {
+          if (global_system_variables.log_warnings)
+            sql_print_warning("Failed to lock memory as effective uid=0. Errno: %d\n",errno);
+          locked_in_memory= 0;
+        }
+        if (user_info)
+          set_user(mysqld_user, user_info);
+      }
+      else
+      {
+        if (global_system_variables.log_warnings)
+          sql_print_warning("Failed to lock memory as current user (didn't try as effective uid=0). Errno: %d\n", mlockall_err);
+        locked_in_memory= 0;
+      }
     }
-    if (user_info)
-      set_user(mysqld_user, user_info);
   }
   else
 #endif
