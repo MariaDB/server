@@ -37,7 +37,7 @@ addons:
       - po-debconf
       - psmisc
       - zlib1g-dev
-      - libcrack2-dev
+      - libcrack2-dev # no effect as the package is disallowed on Travis-CI
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
 
