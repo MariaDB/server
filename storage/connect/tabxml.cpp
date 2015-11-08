@@ -60,6 +60,7 @@ extern "C" char version[];
 #endif  // !__WIN__
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
+#define XSTR(M)  sizeof(M) - strlen(M) - 1	       /* To avoid overflow*/
 
 /***********************************************************************/
 /* Class and structure used by XMLColumns.                             */
@@ -225,30 +226,30 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
      more:
       if (vp->atp) {
         strncpy(colname, vp->atp->GetName(g), sizeof(colname));
-        strncat(xcol->Name, colname, 64);
+				strncat(xcol->Name, colname, XSTR(xcol->Name));
 
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
             PushWarning(g, txmp);
           case RC_OK:
-            strncat(fmt, "@", sizeof(fmt));
+            strncat(fmt, "@", XSTR(fmt));
             break;
           default:
             goto err;
           } // enswitch rc
 
         if (j)
-          strncat(fmt, colname, sizeof(fmt));
+					strncat(fmt, colname, XSTR(fmt));
 
       } else {
         if (tdp->Usedom && node->GetType() != 1)
           continue;
 
         strncpy(colname, node->GetName(g), sizeof(colname));
-        strncat(xcol->Name, colname, 64);
+				strncat(xcol->Name, colname, XSTR(xcol->Name));
 
         if (j)
-          strncat(fmt, colname, sizeof(fmt));
+					strncat(fmt, colname, XSTR(fmt));
 
         if (j < lvl && ok) {
           vp = lvlp[j+1];
@@ -266,8 +267,9 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
             if (!vp->atp)
               node = vp->nl->GetItem(g, vp->k++, node);
 
-            strncat(strncat(fmt, colname, 125), "/", 125);
-            strncat(xcol->Name, "_", 64);
+            strncat(fmt, colname, XSTR(fmt));
+						strncat(fmt, "/", XSTR(fmt));
+						strncat(xcol->Name, "_", XSTR(xcol->Name));
             j++;
             vp->n = (int)strlen(xcol->Name);
             vp->m = (int)strlen(fmt);
