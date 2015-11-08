@@ -2,7 +2,8 @@
 # travis-ci.org definition
 
 # non-container builds don't have enough RAM to reliably compile
-sudo: false
+sudo: required
+dist: trusty
 
 language: cpp
 compiler:
@@ -36,6 +37,7 @@ addons:
       - po-debconf
       - psmisc
       - zlib1g-dev
+      - libcrack2-dev
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
 
