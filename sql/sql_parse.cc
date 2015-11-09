@@ -6081,6 +6081,7 @@ bool check_fk_parent_table_access(THD *thd,
         table_name.str= (char *) thd->memdup(fk_key->ref_table.str,
                                              fk_key->ref_table.length+1);
         table_name.length= my_casedn_str(files_charset_info, table_name.str);
+        db_name.length = my_casedn_str(files_charset_info, db_name.str);
       }
 
       parent_table.init_one_table(db_name.str, db_name.length,
