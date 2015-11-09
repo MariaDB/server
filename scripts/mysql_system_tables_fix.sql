@@ -711,3 +711,5 @@ flush privileges;
 ALTER TABLE help_category MODIFY url TEXT NOT NULL;
 ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
+# MDEV-7383 - varbinary on mix/max of column_stats
+alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;

@@ -888,7 +888,7 @@ public:
 
     @note
     A value from the field min_value/max_value is always converted
-    into a utf8 string. If the length of the column 'min_value'/'max_value'
+    into a varbinary string. If the length of the column 'min_value'/'max_value'
     is less than the length of the string the string is trimmed to fit the
     length of the column. 
   */    
@@ -896,7 +896,7 @@ public:
   void store_stat_fields()
   {
     char buff[MAX_FIELD_WIDTH];
-    String val(buff, sizeof(buff), &my_charset_utf8_bin);
+    String val(buff, sizeof(buff), &my_charset_bin);
 
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
@@ -913,7 +913,7 @@ public:
           else
           {
             table_field->collected_stats->min_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_utf8_bin);
+            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
           }
           break;
         case COLUMN_STAT_MAX_VALUE:
@@ -922,7 +922,7 @@ public:
           else
           {
             table_field->collected_stats->max_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_utf8_bin);
+            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
           }
           break;
         case COLUMN_STAT_NULLS_RATIO:
@@ -983,7 +983,7 @@ public:
     if (find_stat())
     {
       char buff[MAX_FIELD_WIDTH];
-      String val(buff, sizeof(buff), &my_charset_utf8_bin);
+      String val(buff, sizeof(buff), &my_charset_bin);
 
       for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HIST_TYPE; i++)
       {  
@@ -1002,12 +1002,12 @@ public:
           case COLUMN_STAT_MIN_VALUE:
             stat_field->val_str(&val);
             table_field->read_stats->min_value->store(val.ptr(), val.length(),
-                                                      &my_charset_utf8_bin);
+                                                      &my_charset_bin);
             break;
           case COLUMN_STAT_MAX_VALUE:
             stat_field->val_str(&val);
             table_field->read_stats->max_value->store(val.ptr(), val.length(),
-                                                      &my_charset_utf8_bin);
+                                                      &my_charset_bin);
             break;
           case COLUMN_STAT_NULLS_RATIO:
             table_field->read_stats->set_nulls_ratio(stat_field->val_real());
@@ -1053,7 +1053,7 @@ public:
     if (find_stat())
     {
       char buff[MAX_FIELD_WIDTH];
-      String val(buff, sizeof(buff), &my_charset_utf8_bin);
+      String val(buff, sizeof(buff), &my_charset_bin);
       uint fldno= COLUMN_STAT_HISTOGRAM;
       Field *stat_field= stat_table->field[fldno];
       table_field->read_stats->set_not_null(fldno);
