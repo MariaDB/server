@@ -825,6 +825,9 @@ const char* Log_event::get_type_str(Log_event_type type)
   case ANONYMOUS_GTID_LOG_EVENT: return "MySQL Anonymous_Gtid";
   case PREVIOUS_GTIDS_LOG_EVENT: return "MySQL Previous_gtids";
   case HEARTBEAT_LOG_EVENT: return "Heartbeat";
+  case TRANSACTION_CONTEXT_EVENT: return "Transaction_context";
+  case VIEW_CHANGE_EVENT: return "View_change";
+  case XA_PREPARE_LOG_EVENT: return "XA_prepare";
 
   default: return "Unknown";				/* impossible */
   }
@@ -1735,6 +1738,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     case GTID_LOG_EVENT:
     case ANONYMOUS_GTID_LOG_EVENT:
     case PREVIOUS_GTIDS_LOG_EVENT:
+    case TRANSACTION_CONTEXT_EVENT:
+    case VIEW_CHANGE_EVENT:
+    case XA_PREPARE_LOG_EVENT:
       ev= new Ignorable_log_event(buf, fdle,
                                   get_type_str((Log_event_type) event_type));
       break;
@@ -4917,6 +4923,9 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[GTID_LOG_EVENT-1]= 0;
       post_header_len[ANONYMOUS_GTID_LOG_EVENT-1]= 0;
       post_header_len[PREVIOUS_GTIDS_LOG_EVENT-1]= 0;
+      post_header_len[TRANSACTION_CONTEXT_EVENT-1]= 0;
+      post_header_len[VIEW_CHANGE_EVENT-1]= 0;
+      post_header_len[XA_PREPARE_LOG_EVENT-1]= 0;
       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
@@ -12792,6 +12801,9 @@ bool event_that_should_be_ignored(const char *buf)
   if (event_type == GTID_LOG_EVENT ||
       event_type == ANONYMOUS_GTID_LOG_EVENT ||
       event_type == PREVIOUS_GTIDS_LOG_EVENT ||
+      event_type == TRANSACTION_CONTEXT_EVENT ||
+      event_type == VIEW_CHANGE_EVENT ||
+      event_type == XA_PREPARE_LOG_EVENT ||
       (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F))
     return 1;
   return 0;
