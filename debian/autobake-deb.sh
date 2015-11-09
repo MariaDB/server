@@ -10,10 +10,16 @@ set -e
 # Debug script and command lines
 #set -x
 
-# Don't run the mysql-test-run test suite as part of build.
+# On Buildbot, don't run the mysql-test-run test suite as part of build.
 # It takes a lot of time, and we will do a better test anyway in
 # Buildbot, running the test suite from installed .debs on a clean VM.
-export DEB_BUILD_OPTIONS="nocheck"
+# On Travis-CI we want to simulate the full build, including tests.
+# Also on Travis-CI it is useful not to override the DEB_BUILD_OPTIONS
+# at this stage at all.
+if [[ ! $TRAVIS ]]
+then
+  export DEB_BUILD_OPTIONS="nocheck"
+fi
 
 export MARIADB_OPTIONAL_DEBS=""
 
