@@ -465,7 +465,7 @@
 
 #cmakedefine HAVE_WEAK_SYMBOL 1
 #cmakedefine HAVE_ABI_CXA_DEMANGLE 1
-
+#cmakedefine HAVE_ATTRIBUTE_CLEANUP 1
 
 #cmakedefine HAVE_POSIX_SIGNALS 1
 #cmakedefine HAVE_BSD_SIGNALS 1
