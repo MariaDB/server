@@ -29,20 +29,15 @@ ifeq (${MAKE_J}, -j0)
   MAKE_J = -j1
 endif
 
-MAKE_TEST_TARGET=test-force
-ifneq ($(findstring fulltest,$(DEB_BUILD_OPTIONS)),)
-# make test-bt is the testsuite run by the MySQL build team 
-# before a release, but it is long
-    MAKE_TEST_TARGET=test-bt
+# Parallel build support as advised
+# at https://www.debian.org/doc/debian-policy/ch-source.html#s-debianrules-options
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+    NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+    MAKEFLAGS += -j $(NUMJOBS)
 endif
 
-USE_ASSEMBLER=--enable-assembler 
 
-ifneq (,$(filter $(ARCH), amd64 i386 ia64 s390))
-    TESTSUITE_FAIL_CMD=exit 1
-else
-    TESTSUITE_FAIL_CMD=true
-endif
+USE_ASSEMBLER=--enable-assembler
 
 BUILDDIR = builddir
 builddir = $(BUILDDIR)
@@ -88,7 +83,7 @@ build-stamp: configure
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
 	if [ ! -f testsuite-stamp ] ; then \
-	  cd $(builddir) && $(MAKE) $(MAKE_TEST_TARGET) || $(TESTSUITE_FAIL_CMD) ; \
+	  cd $(builddir)/mysql-test && ./mtr --parallel=$(NUMJOBS); \
 	fi
 endif
 
