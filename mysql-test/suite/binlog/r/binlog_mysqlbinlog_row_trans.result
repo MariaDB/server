@@ -175,8 +175,8 @@ c2 VARCHAR(20)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
@@ -191,8 +191,8 @@ BEGIN
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
@@ -216,8 +216,8 @@ BEGIN
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -248,8 +248,8 @@ TRUNCATE TABLE t1
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
@@ -274,8 +274,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
@@ -309,8 +309,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
@@ -327,8 +327,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
@@ -343,8 +343,8 @@ BEGIN
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
@@ -368,8 +368,8 @@ BEGIN
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -400,8 +400,8 @@ TRUNCATE TABLE t2
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
@@ -426,8 +426,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
@@ -461,8 +461,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Table_map: `test`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
