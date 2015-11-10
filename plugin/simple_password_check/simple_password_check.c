@@ -17,6 +17,7 @@
 #include <mysql/plugin_password_validation.h>
 #include <ctype.h>
 #include <string.h>
+#include <my_attribute.h>
 
 static unsigned min_length, min_digits, min_letters, min_others;
 
