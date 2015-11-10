@@ -2080,7 +2080,7 @@ int JOIN::init_execution()
   if (need_tmp && !exec_tmp_table1)
   {
     DBUG_PRINT("info",("Creating tmp table"));
-    THD_STAGE_INFO(thd, stage_copying_to_tmp_table);
+    THD_STAGE_INFO(thd, stage_creating_tmp_table);
 
     init_items_ref_array();
 
