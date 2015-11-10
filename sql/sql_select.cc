@@ -25060,8 +25060,7 @@ bool JOIN::change_result(select_result *new_result, select_result *old_result)
       DBUG_RETURN(true); /* purecov: inspected */
     DBUG_RETURN(false);
   }
-  else
-    DBUG_RETURN(result->change_result(new_result));
+  DBUG_RETURN(result->change_result(new_result));
 }
 
 
