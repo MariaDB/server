@@ -486,7 +486,7 @@ int handle_options(int *argc, char ***argv,
 				     "unsupported by option '--%s'",
                                      my_progname, optp->name);
 	    if (!option_is_loose)
-	      return EXIT_ARGUMENT_INVALID;
+	      DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
 	  }
 	  else

@@ -529,6 +529,7 @@ ok:
       mysql_cond_signal(&sort_param->sort_info->cond);
     mysql_mutex_unlock(&sort_param->sort_info->mutex);
     DBUG_PRINT("exit", ("======== ending thread ========"));
+    DBUG_LEAVE;
   }
   my_thread_end();
   return NULL;
