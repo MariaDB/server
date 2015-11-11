@@ -83,7 +83,7 @@ build-stamp: configure
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
 	if [ ! -f testsuite-stamp ] ; then \
-	  cd $(builddir)/mysql-test && ./mtr --parallel=$(NUMJOBS); \
+	  cd $(builddir)/mysql-test && ./mtr --force --parallel=$(NUMJOBS) --skip-rpl --suite=main; \
 	fi
 endif
 
