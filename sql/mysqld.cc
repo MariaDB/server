@@ -5402,13 +5402,17 @@ static int init_server_components()
     /* Try without priv user first, CAP_IPC_LOCK may be set */
     if (mlockall(MCL_CURRENT))
     {
-      int mlockall_err = errno;
+      int mlockall_err= errno;
+      if (global_system_variables.log_warnings)
+        sql_print_warning("Failed to lock memory as current user "
+                            "(Errno: %d)", mlockall_err);
       /* ok, denied. Try to gain effective uid=0 to mlockall */
-      if (errno == EPERM && setreuid((uid_t)-1, 0) != -1)
+      if (mlockall_err == EPERM && setreuid((uid_t)-1, 0) != -1)
       {
         if (mlockall(MCL_CURRENT)) {
           if (global_system_variables.log_warnings)
-            sql_print_warning("Failed to lock memory as effective uid=0. Errno: %d\n",errno);
+            sql_print_warning("Failed to lock memory as effective uid=0. "
+                              "Errno: %d\n",errno);
           locked_in_memory= 0;
         }
         if (user_info)
@@ -5416,8 +5420,10 @@ static int init_server_components()
       }
       else
       {
-        if (global_system_variables.log_warnings)
-          sql_print_warning("Failed to lock memory as current user (didn't try as effective uid=0). Errno: %d\n", mlockall_err);
+        if (global_system_variables.log_warnings && mlockall_err == EPERM)
+          sql_print_warning("Failed setreuid to effective uid=0 while "
+                            "attempting to lock memory, (Errno: %d)\n"
+                            , errno);
         locked_in_memory= 0;
       }
     }
