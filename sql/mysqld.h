@@ -59,6 +59,7 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);
+void signal_thd_deleted();
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
@@ -538,7 +539,7 @@ extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
-extern int32 thread_count;
+extern int32 thread_count, service_thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
 extern my_atomic_rwlock_t slave_executed_entries_lock;
 

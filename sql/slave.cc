@@ -294,6 +294,7 @@ handle_slave_init(void *arg __attribute__((unused)))
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->system_thread = SYSTEM_THREAD_SLAVE_INIT;
+  thread_safe_increment32(&service_thread_count, &thread_count_lock);
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -309,6 +310,8 @@ handle_slave_init(void *arg __attribute__((unused)))
   mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
   my_thread_end();
 
   mysql_mutex_lock(&LOCK_slave_init);
@@ -2953,6 +2956,11 @@ static int init_slave_thread(THD* thd, Master_info *mi,
                   simulate_error|= (1 << SLAVE_THD_IO););
   DBUG_EXECUTE_IF("simulate_sql_slave_error_on_init",
                   simulate_error|= (1 << SLAVE_THD_SQL););
+
+  thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
+    SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
+  thread_safe_increment32(&service_thread_count, &thread_count_lock);
+
   /* We must call store_globals() before doing my_net_init() */
   if (init_thr_lock() || thd->store_globals() ||
       my_net_init(&thd->net, 0, MYF(MY_THREAD_SPECIFIC)) ||
@@ -2962,8 +2970,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
     DBUG_RETURN(-1);
   }
 
-  thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
-    SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
   thd->security_ctx->skip_grants();
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
@@ -4228,11 +4234,14 @@ err_during_init:
   mi->rli.relay_log.description_event_for_queue= 0;
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
+
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   delete thd;
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
+
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
   mi->io_thd= 0;
@@ -4848,9 +4857,10 @@ err_during_init:
   mysql_mutex_unlock(&LOCK_active_mi);
 
   mysql_mutex_lock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
