@@ -669,6 +669,13 @@ struct rpl_group_info
   char gtid_info_buf[5+10+1+10+1+20+1];
 
   /*
+    The timestamp, from the master, of the commit event.
+    Used to do delayed update of rli->last_master_timestamp, for getting
+    reasonable values out of Seconds_Behind_Master in SHOW SLAVE STATUS.
+  */
+  time_t last_master_timestamp;
+
+  /*
     Information to be able to re-try an event group in case of a deadlock or
     other temporary error.
   */
