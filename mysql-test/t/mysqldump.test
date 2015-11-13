@@ -2516,3 +2516,38 @@ drop table t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqldump-test.out
 #select * from mysql.user;
 #checksum table mysql.user;
+
+--echo #
+--echo # MDEV-9124 mysqldump does not dump data if table name is same as view earlier on
+--echo #
+
+CREATE DATABASE db1 CHARSET=utf8;
+CREATE DATABASE db2 CHARSET=utf8;
+USE db2;
+CREATE TABLE nonunique_table_name (i1 serial) ENGINE=MEMORY;
+INSERT INTO nonunique_table_name VALUES (1),(2);
+CREATE TABLE nonunique_table_view_name (i2 int) ENGINE=InnoDB;
+INSERT INTO nonunique_table_view_name VALUES (3),(4);
+use db1;
+CREATE TABLE basetable (id smallint) ENGINE=MyISAM;
+CREATE TABLE nonunique_table_name (i3 smallint) ENGINE=MERGE UNION (basetable) INSERT_METHOD=LAST;
+INSERT INTO nonunique_table_name VALUES (5),(6);
+CREATE VIEW nonunique_table_view_name AS SELECT 1;
+
+--echo 
+--echo ##################################################
+--echo # --compact --databases db1 db2
+--exec $MYSQL_DUMP --compact --databases db1 db2
+--echo 
+--echo ##################################################
+--echo # --compact db2
+--echo
+--exec $MYSQL_DUMP --compact db2
+--echo 
+--echo ##################################################
+--echo # --compact --delayed-insert --no-data-med=0 --databases db2 db1
+--exec $MYSQL_DUMP --compact --delayed-insert --no-data-med=0 --databases db2 db1
+--echo 
+
+DROP DATABASE db1;
+DROP DATABASE db2;
