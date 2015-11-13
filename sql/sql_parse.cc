@@ -4811,6 +4811,7 @@ end_with_restore_list:
     }
 #endif /* WITH_WSREP*/
 
+#ifdef HAVE_REPLICATION
     if (lex->type & REFRESH_READ_LOCK)
     {
       /*
@@ -4822,6 +4823,7 @@ end_with_restore_list:
       if (rpl_pause_for_ftwrl(thd))
         goto error;
     }
+#endif
     /*
       reload_acl_and_cache() will tell us if we are allowed to write to the
       binlog or not.
@@ -4852,8 +4854,10 @@ end_with_restore_list:
       if (!res)
         my_ok(thd);
     } 
+#ifdef HAVE_REPLICATION
     if (lex->type & REFRESH_READ_LOCK)
       rpl_unpause_after_ftwrl(thd);
+#endif
     
     break;
   }
