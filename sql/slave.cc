@@ -3578,8 +3578,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       If it is an artificial event, or a relay log event (IO thread generated
       event) or ev->when is set to 0, we don't update the
       last_master_timestamp.
+
+      In parallel replication, we might queue a large number of events, and
+      the user might be surprised to see a claim that the slave is up to date
+      long before those queued events are actually executed.
      */
-    if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+    if (!rli->mi->using_parallel() &&
+        !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
       DBUG_ASSERT(rli->last_master_timestamp >= 0);

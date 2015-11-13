@@ -998,6 +998,18 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       else if (group_master_log_pos < log_pos)
         group_master_log_pos= log_pos;
     }
+
+    /*
+      In the parallel case, we only update the Seconds_Behind_Master at the
+      end of a transaction. In the non-parallel case, the value is updated as
+      soon as an event is read from the relay log; however this would be too
+      confusing for the user, seeing the slave reported as up-to-date when
+      potentially thousands of events are still queued up for worker threads
+      waiting for execution.
+    */
+    if (rgi->last_master_timestamp &&
+        rgi->last_master_timestamp > last_master_timestamp)
+      last_master_timestamp= rgi->last_master_timestamp;
   }
   else
   {
@@ -1614,6 +1626,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   commit_orderer.reinit();

@@ -4811,6 +4811,17 @@ end_with_restore_list:
     }
 #endif /* WITH_WSREP*/
 
+    if (lex->type & REFRESH_READ_LOCK)
+    {
+      /*
+        We need to pause any parallel replication slave workers during FLUSH
+        TABLES WITH READ LOCK. Otherwise we might cause a deadlock, as
+        worker threads eun run in arbitrary order but need to commit in a
+        specific given order.
+      */
+      if (rpl_pause_for_ftwrl(thd))
+        goto error;
+    }
     /*
       reload_acl_and_cache() will tell us if we are allowed to write to the
       binlog or not.
@@ -4841,6 +4852,8 @@ end_with_restore_list:
       if (!res)
         my_ok(thd);
     } 
+    if (lex->type & REFRESH_READ_LOCK)
+      rpl_unpause_after_ftwrl(thd);
     
     break;
   }
