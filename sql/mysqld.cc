@@ -5418,7 +5418,7 @@ static int init_server_components()
         }
         else
           if (global_system_variables.log_warnings)
-            sql_print_warning("Succeed at locking memory as effective uid=0.");
+            sql_print_information("Succeed at locking memory as effective uid=0.");
         if (user_info)
           set_user(mysqld_user, user_info);
       }
@@ -5439,7 +5439,7 @@ static int init_server_components()
     else
     {
       if (global_system_variables.log_warnings)
-        sql_print_warning("Succeed at locking memory as current user.");
+        sql_print_information("Succeed at locking memory as current user.");
       if (user_info)
       {
         if (setreuid((uid_t)-1, 0) != -1)
