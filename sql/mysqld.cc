@@ -5399,7 +5399,8 @@ static int init_server_components()
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
   if (locked_in_memory)
   {
-    /* Try without priv user first, CAP_IPC_LOCK may be set */
+    /* Try without priv user first, CAP_IPC_LOCK may be set or sufficient
+       resource limits MEMLOCK */
     if (mlockall(MCL_CURRENT))
     {
       int mlockall_err= errno;
@@ -5415,11 +5416,19 @@ static int init_server_components()
                               "Errno: %d\n",errno);
           locked_in_memory= 0;
         }
-        if (global_system_variables.log_warnings)
-          sql_print_warning("Succeed at locking memory as effective uid=0.");
+        else
+          if (global_system_variables.log_warnings)
+            sql_print_warning("Succeed at locking memory as effective uid=0.");
+        if (user_info)
+          set_user(mysqld_user, user_info);
       }
       else
       {
+        if (errno != EPERM)
+        {
+          sql_perror("setreuid");
+          unireg_abort(1);
+        }
         if (global_system_variables.log_warnings)
           sql_print_warning("Failed setreuid to effective uid=0 while "
                             "attempting to lock memory, (Errno: %d)\n"
@@ -5428,10 +5437,23 @@ static int init_server_components()
       }
     }
     else
+    {
       if (global_system_variables.log_warnings)
         sql_print_warning("Succeed at locking memory as current user.");
-    if (user_info)
-      set_user(mysqld_user, user_info);
+      if (user_info)
+      {
+        if (setreuid((uid_t)-1, 0) != -1)
+          set_user(mysqld_user, user_info);
+        else if (errno != EPERM)
+        {
+          /* setreuid failing for permission reasons - i.e. we didn't start as
+             as root is acceptable. For any other reason we still have
+             effective user id 0 which isn't acceptable */
+          sql_perror("setreuid");
+          unireg_abort(1);
+        }
+      }
+    }
   }
 #endif
 
