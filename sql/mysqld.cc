@@ -5407,7 +5407,7 @@ static int init_server_components()
         sql_print_warning("Failed to lock memory as current user "
                             "(Errno: %d)", mlockall_err);
       /* ok, denied. Try to gain effective uid=0 to mlockall */
-      if (mlockall_err == EPERM && setreuid((uid_t)-1, 0) != -1)
+      if (setreuid((uid_t)-1, 0) != -1)
       {
         if (mlockall(MCL_CURRENT)) {
           if (global_system_variables.log_warnings)
@@ -5415,22 +5415,25 @@ static int init_server_components()
                               "Errno: %d\n",errno);
           locked_in_memory= 0;
         }
+        if (global_system_variables.log_warnings)
+          sql_print_warning("Succeed at locking memory as effective uid=0.");
       }
       else
       {
-        if (global_system_variables.log_warnings && mlockall_err == EPERM)
+        if (global_system_variables.log_warnings)
           sql_print_warning("Failed setreuid to effective uid=0 while "
                             "attempting to lock memory, (Errno: %d)\n"
                             , errno);
         locked_in_memory= 0;
       }
     }
+    else
+      if (global_system_variables.log_warnings)
+        sql_print_warning("Succeed at locking memory as current user.");
     if (user_info)
       set_user(mysqld_user, user_info);
   }
-  else
 #endif
-    locked_in_memory=0;
 
   ft_init_stopwords();
 
