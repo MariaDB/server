@@ -6,6 +6,7 @@ user1	statement/sql/flush	flush tables with read lock
 username	event_name	nesting_event_type
 username	event_name	nesting_event_type
 user1	stage/sql/init	STATEMENT
+user1	stage/sql/init	STATEMENT
 user1	stage/sql/Waiting for query cache lock	STATEMENT
 user1	stage/sql/init	STATEMENT
 user1	stage/sql/query end	STATEMENT
