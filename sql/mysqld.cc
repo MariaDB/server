@@ -5415,8 +5415,6 @@ static int init_server_components()
                               "Errno: %d\n",errno);
           locked_in_memory= 0;
         }
-        if (user_info)
-          set_user(mysqld_user, user_info);
       }
       else
       {
@@ -5427,6 +5425,8 @@ static int init_server_components()
         locked_in_memory= 0;
       }
     }
+    if (user_info)
+      set_user(mysqld_user, user_info);
   }
   else
 #endif
