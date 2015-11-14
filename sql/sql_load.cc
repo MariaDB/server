@@ -295,6 +295,9 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
   }
+  switch_to_nullable_trigger_fields(fields_vars, table);
+  switch_to_nullable_trigger_fields(set_fields, table);
+  switch_to_nullable_trigger_fields(set_values, table);
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();

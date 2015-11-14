@@ -153,6 +153,36 @@ int set_field_to_null(Field *field)
 
 
 /**
+  Set TIMESTAMP to NOW(), AUTO_INCREMENT to the next number, or report an error
+
+  @param field           Field to update
+
+  @retval
+    0    Field could take 0 or an automatic conversion was used
+  @retval
+    -1   Field could not take NULL and no conversion was used.
+    If no_conversion was not set, an error message is printed
+*/
+
+int convert_null_to_field_value_or_error(Field *field)
+{
+  if (field->type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    ((Field_timestamp*) field)->set_time();
+    return 0;
+  }
+
+  field->reset(); // Note: we ignore any potential failure of reset() here.
+
+  if (field == field->table->next_number_field)
+  {
+    field->table->auto_increment_field_not_null= FALSE;
+    return 0;                             // field is set in fill_record()
+  }
+  return set_bad_null_error(field, ER_BAD_NULL_ERROR);
+}
+
+/**
   Set field to NULL or TIMESTAMP or to next auto_increment number.
 
   @param field           Field to update
@@ -186,26 +216,7 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
   if (no_conversions)
     return -1;
 
-  /*
-    Check if this is a special type, which will get a special walue
-    when set to NULL (TIMESTAMP fields which allow setting to NULL
-    are handled by first check).
-  */
-  if (field->type() == MYSQL_TYPE_TIMESTAMP)
-  {
-    ((Field_timestamp*) field)->set_time();
-    return 0;					// Ok to set time to NULL
-  }
-  
-  // Note: we ignore any potential failure of reset() here.
-  field->reset();
-
-  if (field == field->table->next_number_field)
-  {
-    field->table->auto_increment_field_not_null= FALSE;
-    return 0;				  // field is set in fill_record()
-  }
-  return set_bad_null_error(field, ER_BAD_NULL_ERROR);
+  return convert_null_to_field_value_or_error(field);
 }
 
 

@@ -455,6 +455,8 @@ int mysql_update(THD *thd,
   }
   init_ftfuncs(thd, select_lex, 1);
 
+  switch_to_nullable_trigger_fields(fields, table);
+  switch_to_nullable_trigger_fields(values, table);
   table->mark_columns_needed_for_update();
 
   table->update_const_key_parts(conds);
@@ -1766,7 +1768,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     }
   }
 
-
   table_count=  update.elements;
   update_tables= update.first;
 
@@ -1802,7 +1803,15 @@ int multi_update::prepare(List<Item> &not_used_values,
   /* Allocate copy fields */
   max_fields=0;
   for (i=0 ; i < table_count ; i++)
+  {
     set_if_bigger(max_fields, fields_for_table[i]->elements + leaf_table_count);
+    if (fields_for_table[i]->elements)
+    {
+      TABLE *table= ((Item_field*)(fields_for_table[i]->head()))->field->table;
+      switch_to_nullable_trigger_fields(*fields_for_table[i], table);
+      switch_to_nullable_trigger_fields(*values_for_table[i], table);
+    }
+  }
   copy_field= new Copy_field[max_fields];
   DBUG_RETURN(thd->is_fatal_error != 0);
 }

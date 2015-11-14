@@ -844,7 +844,7 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
 					  table->record[0]);
     memcpy(ptr, ptr + l_offset, pack_length());
-    if (null_ptr)
+    if (maybe_null_in_table())
       *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
 		  (null_ptr[l_offset] & null_bit));
   }
@@ -1024,9 +1024,9 @@ public:
     { return null_ptr && (null_ptr[row_offset] & null_bit); }
   inline bool is_null_in_record(const uchar *record) const
   {
-    if (!null_ptr)
-      return 0;
-    return record[(uint) (null_ptr - table->record[0])] & null_bit;
+    if (maybe_null_in_table())
+      return record[(uint) (null_ptr - table->record[0])] & null_bit;
+    return 0;
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
@@ -1035,10 +1035,19 @@ public:
   inline bool maybe_null(void) const
   { return null_ptr != 0 || table->maybe_null; }
 
-  /* @return true if this field is NULL-able, false otherwise. */
+  /* @return true if this field is NULL-able (even if temporarily) */
   inline bool real_maybe_null(void) const { return null_ptr != 0; }
   uint null_offset(const uchar *record) const
   { return (uint) (null_ptr - record); }
+  /*
+    For a NULL-able field (that can actually store a NULL value in a table)
+    null_ptr points to the "null bitmap" in the table->record[0] header. For
+    NOT NULL fields it is either 0 or points outside table->record[0] into the
+    table->triggers->extra_null_bitmap (so that the field can store a NULL
+    value temporarily, only in memory)
+  */
+  bool maybe_null_in_table() const
+  { return null_ptr >= table->record[0] && null_ptr <= ptr; }
 
   uint null_offset() const
   { return null_offset(table->record[0]); }
@@ -3600,6 +3609,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
+int convert_null_to_field_value_or_error(Field *field);
 
 /*
   The following are for the interface with the .frm file

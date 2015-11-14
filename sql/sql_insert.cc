@@ -761,6 +761,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   */
   table_list->next_local= 0;
   context->resolve_in_table_list_only(table_list);
+  switch_to_nullable_trigger_fields(*values, table);
 
   while ((values= its++))
   {
@@ -772,6 +773,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     }
     if (setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0))
       goto abort;
+    switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
  
@@ -870,6 +872,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     error= 1;
 
   table->reset_default_fields();
+  switch_to_nullable_trigger_fields(fields, table);
+  switch_to_nullable_trigger_fields(update_fields, table);
+  switch_to_nullable_trigger_fields(update_values, table);
 
   if (fields.elements || !value_count)
   {
@@ -943,8 +948,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
             share->default_values[share->null_bytes - 1];
         }
       }
-      if (fill_record_n_invoke_before_triggers(thd, table, table->field, *values, 0,
-                                               TRG_EVENT_INSERT))
+      if (fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
+                                               *values, 0, TRG_EVENT_INSERT))
       {
 	if (values_list.elements != 1 && ! thd->is_error())
 	{
@@ -3704,8 +3709,8 @@ void select_insert::store_values(List<Item> &values)
     fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
                                          TRG_EVENT_INSERT);
   else
-    fill_record_n_invoke_before_triggers(thd, table, table->field, values, 1,
-                                         TRG_EVENT_INSERT);
+    fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
+                                         values, 1, TRG_EVENT_INSERT);
 }
 
 bool select_insert::prepare_eof()

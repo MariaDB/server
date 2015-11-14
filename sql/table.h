@@ -1386,6 +1386,7 @@ public:
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
 
+  inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 };
 

@@ -68,6 +68,13 @@ class Table_triggers_list: public Sql_alloc
   */
   Item_trigger_field *trigger_fields[TRG_EVENT_MAX][TRG_ACTION_MAX];
   /**
+    Copy of TABLE::Field array which all fields made nullable
+    (using extra_null_bitmap, if needed). Used for NEW values in
+    BEFORE INSERT/UPDATE triggers.
+  */
+  Field             **record0_field;
+  uchar              *extra_null_bitmap;
+  /**
     Copy of TABLE::Field array with field pointers set to TABLE::record[1]
     buffer instead of TABLE::record[0] (used for OLD values in on UPDATE
     trigger and DELETE trigger when it is called for REPLACE).
@@ -143,7 +150,8 @@ public:
   /* End of character ser context. */
 
   Table_triggers_list(TABLE *table_arg)
-    :record1_field(0), trigger_table(table_arg),
+    :record0_field(0), extra_null_bitmap(0), record1_field(0),
+    trigger_table(table_arg),
     m_has_unparseable_trigger(false)
   {
     bzero((char *)bodies, sizeof(bodies));
@@ -211,8 +219,16 @@ public:
                                     trg_event_type event_type,
                                     trg_action_time_type action_time);
 
+  Field **nullable_fields() { return record0_field; }
+  void reset_extra_null_bitmap()
+  {
+    int null_bytes= (trigger_table->s->stored_fields -
+                     trigger_table->s->null_fields + 7)/8;
+    bzero(extra_null_bitmap, null_bytes);
+  }
+
 private:
-  bool prepare_record1_accessors(TABLE *table);
+  bool prepare_record_accessors(TABLE *table);
   LEX_STRING* change_table_name_in_trignames(const char *old_db_name,
                                              const char *new_db_name,
                                              LEX_STRING *new_table_name,
@@ -233,6 +249,13 @@ private:
     return false;
   }
 };
+
+inline Field **TABLE::field_to_fill()
+{
+  return triggers && triggers->nullable_fields() ? triggers->nullable_fields()
+                                                 : field;
+}
+
 
 extern const LEX_STRING trg_action_time_type_names[];
 extern const LEX_STRING trg_event_type_names[];

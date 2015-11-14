@@ -2379,6 +2379,24 @@ bool Item_field::update_table_bitmaps_processor(uchar *arg)
   return FALSE;
 }
 
+static inline void set_field_to_new_field(Field **field, Field **new_field)
+{
+  if (*field)
+  {
+    Field *newf= new_field[(*field)->field_index];
+    if ((*field)->ptr == newf->ptr)
+      *field= newf;
+  }
+}
+
+bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
+{
+  Field **new_fields= (Field **)arg;
+  set_field_to_new_field(&field, new_fields);
+  set_field_to_new_field(&result_field, new_fields);
+  return 0;
+}
+
 const char *Item_ident::full_name() const
 {
   char *tmp;
@@ -8191,9 +8209,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     }
     field_arg->set_default();
     return
-      !field_arg->is_null_in_record(field_arg->table->s->default_values) &&
-       field_arg->validate_value_in_record_with_warn(thd,
-                                       field_arg->table->s->default_values) &&
+      !field_arg->is_null() &&
+       field_arg->validate_value_in_record_with_warn(thd, table->record[0]) &&
        thd->is_error() ? -1 : 0;
   }
   return Item_field::save_in_field(field_arg, no_conversions);
@@ -8387,6 +8404,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
+  field->set_explicit_default(item);
 
   return err_code < 0;
 }
