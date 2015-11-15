@@ -195,24 +195,24 @@ get_transfer()
             stagemsg+="-OpenSSL-Encrypted-2"
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 wsrep_log_info "Decrypting with PEM $tpem, CA: $tcert"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=$tpem,cafile=${tcert}${sockopt} stdio"
+                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with PEM $tpem, CA: $tcert"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=$tpem,cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
-            wsrep_log_info "Using openssl based encryption with socat: with key and crt"
-            if [[ -z $tpem || -z $tkey ]];then 
+            wsrep_log_info "Using openssl based encryption with socat: with ca, key and crt"
+            if [[ -z $tpem || -z $tkey || -z $tcert ]];then 
                 wsrep_log_error "Both certificate and key files required"
                 exit 22
             fi
             stagemsg+="-OpenSSL-Encrypted-3"
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-                wsrep_log_info "Decrypting with certificate $tpem, key $tkey"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=$tpem,key=${tkey},verify=0${sockopt} stdio"
+                wsrep_log_info "Decrypting with certificate $tpem, key $tkey, CA: $tcert"
+                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},key=${tkey},cafile=${tcert}${sockopt} stdio"
             else
-                wsrep_log_info "Encrypting with certificate $tpem, key $tkey"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=$tpem,key=${tkey},verify=0${sockopt}"
+                wsrep_log_info "Encrypting with certificate $tpem, key $tkey, CA: $tcert"
+                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
             fi
 
         else 
