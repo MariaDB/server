@@ -25,3 +25,5 @@ galera_gra_log : TODO: investigate
 galera_as_slave_replication_bundle : TODO: investigate
 galera_ssl_upgrade : TODO: investigate
 mysql-wsrep#90 : TODO: investigate
+galera_flush : mysql-wsrep/issues/229
+galera_transaction_read_only : mysql-wsrep/issues/229
