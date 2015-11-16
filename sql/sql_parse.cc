@@ -4367,6 +4367,11 @@ end_with_restore_list:
     db_name.str= db_name_buff;
     db_name.length= lex->name.length;
     strmov(db_name.str, lex->name.str);
+
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
+
     if (check_db_name(&db_name))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
@@ -4423,6 +4428,9 @@ end_with_restore_list:
   /* lex->unit.cleanup() is called outside, no need to call it here */
   break;
   case SQLCOM_SHOW_CREATE_EVENT:
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
     res= Events::show_create_event(thd, lex->spname->m_db,
                                    lex->spname->m_name);
     break;
@@ -5389,12 +5397,18 @@ create_sp_error:
     }
   case SQLCOM_SHOW_CREATE_PROC:
     {
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
       if (sp_show_create_routine(thd, TYPE_ENUM_PROCEDURE, lex->spname))
         goto error;
       break;
     }
   case SQLCOM_SHOW_CREATE_FUNC:
     {
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
       if (sp_show_create_routine(thd, TYPE_ENUM_FUNCTION, lex->spname))
 	goto error;
       break;
@@ -5407,6 +5421,9 @@ create_sp_error:
       stored_procedure_type type= (lex->sql_command == SQLCOM_SHOW_PROC_CODE ?
                  TYPE_ENUM_PROCEDURE : TYPE_ENUM_FUNCTION);
 
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
       if (sp_cache_routine(thd, type, lex->spname, FALSE, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
@@ -5431,6 +5448,9 @@ create_sp_error:
         goto error;
       }
 
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
+#endif /* WITH_WSREP */
       if (show_create_trigger(thd, lex->spname))
         goto error; /* Error has been already logged. */
 
