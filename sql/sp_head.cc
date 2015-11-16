@@ -3229,7 +3229,10 @@ sp_instr_set_trigger_field::execute(THD *thd, uint *nextp)
 int
 sp_instr_set_trigger_field::exec_core(THD *thd, uint *nextp)
 {
+  bool sav_abort_on_warning= thd->abort_on_warning;
+  thd->abort_on_warning= thd->is_strict_mode() && !thd->lex->ignore;
   const int res= (trigger_field->set_value(thd, &value) ? -1 : 0);
+  thd->abort_on_warning= sav_abort_on_warning;
   *nextp = m_ip+1;
   return res;
 }
