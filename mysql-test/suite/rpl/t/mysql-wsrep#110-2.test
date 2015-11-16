@@ -39,6 +39,6 @@ DROP TABLE t1;
 
 DROP PROCEDURE p1;
 
---source include/sync_slave_sql_with_master.inc
+sync_slave_with_master;
 --source include/rpl_end.inc
 
