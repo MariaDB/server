@@ -1405,8 +1405,11 @@ static struct my_option my_options[] =
    "passed on the command line.",
    &start_position, &start_position, 0, GET_ULL,
    REQUIRED_ARG, BIN_LOG_HEADER_SIZE, BIN_LOG_HEADER_SIZE,
-   /* COM_BINLOG_DUMP accepts only 4 bytes for the position */
-   (ulonglong)(~(uint32)0), 0, 0, 0},
+   /*
+     COM_BINLOG_DUMP accepts only 4 bytes for the position
+     so remote log reading has lower limit.
+   */
+   (ulonglong)(0xffffffffffffffffULL), 0, 0, 0},
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
@@ -1721,6 +1724,14 @@ static int parse_args(int *argc, char*** argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
+  if (start_position > UINT_MAX32 && remote_opt)
+  {
+    /* Here we just emulate old behaviour of option limit handling */
+    fprintf(stderr, "Warning: option 'start-position': unsigned value %llu "
+            "adjusted to 4294967295 (limitation of the client-server protocol)",
+            start_position);
+    start_position= UINT_MAX32;
+  }
   return 0;
 }
 
@@ -1953,6 +1964,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
     COM_BINLOG_DUMP accepts only 4 bytes for the position, so we are forced to
     cast to uint32.
   */
+  DBUG_ASSERT(start_position <= UINT_MAX32);
   int4store(buf, (uint32)start_position);
   if (!opt_skip_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
