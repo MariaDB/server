@@ -1,5 +1,6 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2015 Shuang Qiu and Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -56,6 +57,11 @@
 #include "password.h"
 
 #include "sql_plugin_compat.h"
+
+#ifdef HAVE_GSSAPI
+char *kerberos_principal_name_ptr;
+char *kerberos_keytab_path_ptr;
+#endif /* HAVE_GSSAPI */
 
 bool mysql_user_table_is_in_short_password_format= false;
 
@@ -184,6 +190,12 @@ static LEX_STRING old_password_plugin_name= {
   C_STRING_WITH_LEN("mysql_old_password")
 };
 
+#ifdef HAVE_GSSAPI
+static LEX_STRING kerberos_plugin_name= {
+  C_STRING_WITH_LEN("kerberos")
+};
+#endif /* HAVE_GSSAPI */
+
 /// @todo make it configurable
 LEX_STRING *default_auth_plugin_name= &native_password_plugin_name;
 
@@ -206,6 +218,9 @@ LEX_STRING current_user_and_current_role= { C_STRING_WITH_LEN("*current_user_and
 static plugin_ref old_password_plugin;
 #endif
 static plugin_ref native_password_plugin;
+#ifdef HAVE_GSSAPI
+static plugin_ref kerberos_plugin;
+#endif
 
 /* Classes */
 
@@ -275,7 +290,11 @@ public:
     dst->x509_issuer= safe_strdup_root(root, x509_issuer);
     dst->x509_subject= safe_strdup_root(root, x509_subject);
     if (plugin.str == native_password_plugin_name.str ||
-        plugin.str == old_password_plugin_name.str)
+        plugin.str == old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+        || plugin.str == kerberos_plugin_name.str
+#endif /* HAVE_GSSAPI */
+      )
       dst->plugin= plugin;
     else
       dst->plugin.str= strmake_root(root, plugin.str, plugin.length);
@@ -942,6 +961,10 @@ static char *fix_plugin_ptr(char *name)
                     old_password_plugin_name.str) == 0)
     return old_password_plugin_name.str;
   else
+  if (my_strcasecmp(system_charset_info, name,
+                    kerberos_plugin_name.str) == 0)
+    return kerberos_plugin_name.str;
+  else
     return name;
 }
 
@@ -967,6 +990,10 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   if (my_strcasecmp(system_charset_info, user->plugin.str,
                     old_password_plugin_name.str) == 0)
     user->plugin= old_password_plugin_name;
+  else
+  if (my_strcasecmp(system_charset_info, user->plugin.str,
+                    kerberos_plugin_name.str) == 0)
+    user->plugin= kerberos_plugin_name;
   else
     return true;
 
@@ -1117,8 +1144,16 @@ bool acl_init(bool dont_read_acl_tables)
            &native_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
   old_password_plugin= my_plugin_lock_by_name(0,
            &old_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
+#ifdef HAVE_GSSAPI
+  kerberos_plugin= my_plugin_lock_by_name(0,
+           &kerberos_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
+#endif /* HAVE_GSSAPI */
 
-  if (!native_password_plugin || !old_password_plugin)
+  if (!native_password_plugin || !old_password_plugin
+#ifdef HAVE_GSSAPI
+      || !kerberos_plugin
+#endif /* HAVE_GSSAPI */
+    )
     DBUG_RETURN(1);
 
   if (dont_read_acl_tables)
@@ -1681,6 +1716,9 @@ void acl_free(bool end)
   my_hash_free(&acl_roles_mappings);
   plugin_unlock(0, native_password_plugin);
   plugin_unlock(0, old_password_plugin);
+#ifdef HAVE_GSSAPI
+  plugin_unlock(0, kerberos_plugin);
+#endif /* HAVE_GSSAPI */
   if (!end)
     acl_cache->clear(1); /* purecov: inspected */
   else
@@ -2809,7 +2847,11 @@ bool change_password(THD *thd, LEX_USER *user)
 
   /* update loaded acl entry: */
   if (acl_user->plugin.str == native_password_plugin_name.str ||
-      acl_user->plugin.str == old_password_plugin_name.str)
+      acl_user->plugin.str == old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+      || acl_user->plugin.str == kerberos_plugin_name.str
+#endif /* HAVE_GSSAPI */
+    )
   {
     acl_user->auth_string.str= strmake_root(&acl_memroot, user->password.str, user->password.length);
     acl_user->auth_string.length= user->password.length;
@@ -7992,7 +8034,11 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
     global.append ('\'');
 
     if (acl_user->plugin.str == native_password_plugin_name.str ||
-        acl_user->plugin.str == old_password_plugin_name.str)
+        acl_user->plugin.str == old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+        || acl_user->plugin.str == kerberos_plugin_name.str
+#endif /* HAVE_GSSAPI */
+      )
     {
       if (acl_user->auth_string.length)
       {
@@ -10162,7 +10208,11 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if(au)
   {
     if (au->plugin.str != native_password_plugin_name.str &&
-        au->plugin.str != old_password_plugin_name.str)
+        au->plugin.str != old_password_plugin_name.str
+#ifdef HAVE_GSSAPI
+        && au->plugin.str != kerberos_plugin_name.str
+#endif
+      )
       combo->plugin= au->plugin;
     combo->auth= au->auth_string;
   }
@@ -11494,12 +11544,19 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   /* user account requires non-default plugin and the client is too old */
   if (mpvio->acl_user->plugin.str != native_password_plugin_name.str &&
       mpvio->acl_user->plugin.str != old_password_plugin_name.str &&
+#ifdef HAVE_GSSAPI
+      mpvio->acl_user->plugin.str != kerberos_plugin_name.str &&
+#endif /* HAVE_GSSAPI */
       !(mpvio->thd->client_capabilities & CLIENT_PLUGIN_AUTH))
   {
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               native_password_plugin_name.str));
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               old_password_plugin_name.str));
+#ifdef HAVE_GSSAPI
+    DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
+                              kerberos_plugin_name.str));
+#endif /* HAVE_GSSAPI */
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
     general_log_print(mpvio->thd, COM_CONNECT,
                       ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
@@ -12238,6 +12295,10 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
 
   if (auth_plugin_name->str == native_password_plugin_name.str)
     plugin= native_password_plugin;
+#ifdef HAVE_GSSAPI
+  else if (auth_plugin_name->str == kerberos_plugin_name.str)
+    plugin= kerberos_plugin;
+#endif /* HAVE_GSSAPI */
 #ifndef EMBEDDED_LIBRARY
   else if (auth_plugin_name->str == old_password_plugin_name.str)
     plugin= old_password_plugin;
@@ -12769,6 +12830,203 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   return CR_AUTH_HANDSHAKE;
 }
 
+#ifdef HAVE_GSSAPI
+static int gssapi_kerberos_auth(MYSQL_PLUGIN_VIO *vio,
+                                MYSQL_SERVER_AUTH_INFO *info)
+{
+  DBUG_ENTER("gssapi_kerberos_auth");
+  int r_len= 0; /* packet read length */
+  int rc= CR_OK; /* return code */
+  int have_cred= FALSE;
+  int have_ctxt= FALSE;
+  const char *err_msg= NULL; /* error message text */
+  /* GSSAPI related fields */
+  OM_uint32 major= 0, minor= 0, flags= 0;
+  gss_cred_id_t cred; /* credential identifier */
+  gss_ctx_id_t ctxt; /* context identifier */
+  gss_name_t client_name, service_name;
+  gss_buffer_desc principal_name_buf, client_name_buf, input, output;
+
+  /* import service principal from plain text */
+  /* initialize principal name */
+  principal_name_buf.length= strlen(kerberos_principal_name_ptr);
+  principal_name_buf.value= kerberos_principal_name_ptr;
+  major= gss_import_name(&minor, &principal_name_buf,
+                         (gss_OID) gss_nt_user_name, &service_name);
+  /* gss_import_name error checking */
+  if (GSS_ERROR(major))
+  {
+    GSS_DBUG_ERROR(major, minor);
+    rc= CR_ERROR;
+    goto cleanup;
+  }
+
+  /* server acquires credential */
+  if (kerberos_keytab_path_ptr[0] != '\0')
+  {
+    /* it's been set */
+    gss_key_value_element_desc element=
+      { "keytab", kerberos_keytab_path_ptr, };
+    gss_key_value_set_desc cred_store= { 1, &element, };
+    major= gss_acquire_cred_from(&minor, service_name, GSS_C_INDEFINITE,
+                                 GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred_store,
+                                 &cred, NULL, NULL);
+  }
+  else
+  {
+    /* if there's no keytab set, try to use the env var */
+    major= gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
+                            GSS_C_NO_OID_SET, GSS_C_ACCEPT, &cred, NULL,
+                            NULL);
+  }
+
+  if (GSS_ERROR(major))
+  {
+    GSS_DBUG_ERROR(major, minor);
+    rc= CR_ERROR;
+    goto cleanup;
+  }
+  else
+    have_cred= TRUE;
+
+  major= gss_release_name(&minor, &service_name);
+  if (major == GSS_S_BAD_NAME)
+  {
+    rc= CR_ERROR;
+    GSS_DBUG_ERROR(major, minor);
+    goto cleanup;
+  }
+
+  /* accept security context */
+  ctxt= GSS_C_NO_CONTEXT;
+  /* first trial */
+  input.length= 0;
+  input.value= NULL;
+  do
+  {
+    /* receive token from peer first */
+    r_len= vio->read_packet(vio, (unsigned char **) &input.value);
+    if (r_len < 0)
+    {
+      rc= CR_ERROR;
+      my_error(1, MYF(0),
+               "Kerberos: fail to read token from client.");
+      goto cleanup;
+    }
+    else
+    {
+      /* make length consistent with value */
+      input.length= r_len;
+    }
+
+    major= gss_accept_sec_context(&minor, &ctxt, cred, &input,
+                                  GSS_C_NO_CHANNEL_BINDINGS, &client_name,
+                                  NULL, &output, &flags, NULL, NULL);
+    if (GSS_ERROR(major))
+    {
+      if (ctxt != GSS_C_NO_CONTEXT)
+      {
+        gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+      }
+      GSS_DBUG_ERROR(major, minor);
+      rc= CR_ERROR;
+      goto cleanup;
+    }
+    /* security context established (partially) */
+    have_ctxt= TRUE;
+
+    /* send token to peer */
+    if (output.length)
+    {
+      if (vio->write_packet(vio, (const uchar *) output.value, output.length))
+      {
+        gss_release_buffer(&minor, &output);
+        rc= CR_ERROR;
+        my_error(1, MYF(0),
+                 "Kerberos: fail to send authentication token.");
+        goto cleanup;
+      }
+      gss_release_buffer(&minor, &output);
+    }
+  } while (major & GSS_S_CONTINUE_NEEDED);
+
+  /* extract plain text client name */
+  major= gss_display_name(&minor, client_name, &client_name_buf, NULL);
+  if (major == GSS_S_BAD_NAME)
+  {
+    rc= CR_ERROR;
+    GSS_DBUG_ERROR(major, minor);
+    goto cleanup;
+  }
+
+  /* expected user? */
+  if (strncmp((const char *) client_name_buf.value, info->auth_string,
+              client_name_buf.length))
+  {
+    gss_release_buffer(&minor, &client_name_buf);
+    rc= CR_ERROR;
+    GSS_DBUG_ERROR(major, minor);
+    goto cleanup;
+  }
+  gss_release_buffer(&minor, &client_name_buf);
+  have_ctxt= FALSE; /* don't clear this */
+  ((MPVIO_EXT *)vio)->thd->net.vio->gss_ctxt= ctxt;
+  /*
+    vio will be reset later in login_connection() after completion of sending
+    the end statement.  End statement must be sent in the clear, since
+    otherwise our client would not know when to start encrypting.
+  */
+
+cleanup:
+  if (have_ctxt)
+    gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+  if (have_cred)
+    gss_release_cred(&minor, &cred);
+
+  DBUG_RETURN(rc);
+}
+
+static int kerberos_authenticate(MYSQL_PLUGIN_VIO *vio,
+                                 MYSQL_SERVER_AUTH_INFO *info)
+{
+  DBUG_ENTER("kerberos_authenticate");
+
+  size_t p_len= 0; /* length of principal name */
+  int rc= CR_OK; /* return code */
+  char *principal_name= NULL;
+
+  /* server sends service principal name first. */
+  p_len= strlen(kerberos_principal_name_ptr);
+  if (!p_len)
+  {
+    my_error(1, MYF(0),
+             "Kerberos: no principal name specified.");
+    DBUG_RETURN(CR_ERROR);
+  }
+
+  if (vio->write_packet(vio, (unsigned char *) kerberos_principal_name_ptr,
+                        (int) p_len) < 0)
+  {
+    my_error(1, MYF(0),
+             "Kerberos: fail to send service principal name.");
+    DBUG_RETURN(CR_ERROR);
+  }
+
+  rc= gssapi_kerberos_auth(vio, info);
+
+  free(principal_name);
+
+  DBUG_RETURN(rc);
+}
+
+static struct st_mysql_auth kerberos_handler=
+{
+  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  kerberos_plugin_name.str,
+  kerberos_authenticate
+};
+#endif /* HAVE_GSSAPI */
+
 static struct st_mysql_auth native_password_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
@@ -12813,6 +13071,22 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
   MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
+},
+#ifdef HAVE_GSSAPI
+{
+  MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
+  &kerberos_handler,                            /* type descriptor  */
+  kerberos_plugin_name.str,                     /* Name             */
+  "Shuang Qiu, Monty Program Ab",               /* Author           */
+  "Kerberos-based aquthentication",             /* Description      */
+  PLUGIN_LICENSE_GPL,                           /* License          */
+  NULL,                                         /* Init function    */
+  NULL,                                         /* Deinit function  */
+  0x0100,                                       /* Version (1.0)    */
+  NULL,                                         /* status variables */
+  NULL,                                         /* system variables */
+  "1.0",                                        /* String version   */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
+#endif /* HAVE_GSSAPI */
 maria_declare_plugin_end;
-

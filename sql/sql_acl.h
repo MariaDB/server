@@ -186,6 +186,11 @@ extern LEX_STRING current_user;
 extern LEX_STRING current_role;
 extern LEX_STRING current_user_and_current_role;
 
+#ifdef HAVE_GSSAPI
+/* system variables and manipulation thereof */
+extern char *kerberos_principal_name_ptr;
+extern char *kerberos_keytab_path_ptr;
+#endif /* HAVE_GSSAPI */
 
 static inline int access_denied_error_code(int passwd_used)
 {

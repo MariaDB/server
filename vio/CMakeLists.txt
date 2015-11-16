@@ -14,12 +14,16 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-${SSL_INCLUDE_DIRS})
+  ${SSL_INCLUDE_DIRS}
+  ${GSSAPI_INCLUDE_DIRS}
+  )
 ADD_DEFINITIONS(${SSL_DEFINES})
 
-SET(VIO_SOURCES vio.c viosocket.c viossl.c viopipe.c vioshm.c viosslfactories.c)
+SET(VIO_SOURCES vio.c viosocket.c viossl.c viopipe.c vioshm.c
+  viosslfactories.c viogss.c)
 ADD_CONVENIENCE_LIBRARY(vio ${VIO_SOURCES})
-TARGET_LINK_LIBRARIES(vio ${LIBSOCKET})
+LINK_DIRECTORIES(${GSSAPI_LINK_DIRECTORIES})
+TARGET_LINK_LIBRARIES(vio ${LIBSOCKET} ${GSSAPI_LIBRARIES})
 
 IF(MSVC)
    INSTALL_DEBUG_TARGET(vio DESTINATION ${INSTALL_LIBDIR}/debug)

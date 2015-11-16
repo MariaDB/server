@@ -163,6 +163,7 @@ INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
+INCLUDE(gssapi)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -333,6 +334,8 @@ MYSQL_CHECK_ZLIB_WITH_COMPRESS()
 MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()
+# Add GSSAPI
+MYSQL_CHECK_GSSAPI()
 
 SET(MALLOC_LIBRARY "system")
 CHECK_JEMALLOC()

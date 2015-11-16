@@ -149,8 +149,15 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
                        mysql_socket_getfd(vio->mysql_socket), buf,
                        (int) size));
 
-  /* Ensure nobody uses vio_read_buff and vio_read simultaneously. */
-  DBUG_ASSERT(vio->read_end == vio->read_pos);
+  /*
+    Ensure nobody uses vio_read_buff and vio_read simultaneously.
+    Viogss uses these buffers differently, and so is an exception.
+  */
+  DBUG_ASSERT(
+#ifdef HAVE_GSSAPI
+    vio->read == vio_gss_read ||
+#endif
+    vio->read_end == vio->read_pos);
 
   /* If timeout is enabled, do not block if data is unavailable. */
   if (vio->read_timeout >= 0)
@@ -600,7 +607,8 @@ int vio_close(Vio *vio)
   {
     DBUG_ASSERT(vio->type ==  VIO_TYPE_TCPIP ||
       vio->type == VIO_TYPE_SOCKET ||
-      vio->type == VIO_TYPE_SSL);
+      vio->type == VIO_TYPE_SSL ||
+      vio->type == VIO_TYPE_GSSAPI);
 
     DBUG_ASSERT(mysql_socket_getfd(vio->mysql_socket) >= 0);
     if (mysql_socket_shutdown(vio->mysql_socket, SHUT_RDWR))

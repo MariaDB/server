@@ -1102,6 +1102,20 @@ bool login_connection(THD *thd)
     error=1;
     goto exit;
   }
+
+#ifdef HAVE_GSSAPI
+  if (thd->net.vio->gss_ctxt != GSS_C_NO_CONTEXT)
+  {
+    /*
+      The auth handshake successfully used GSSAPI.  Additionally,
+      thd->protocol->end_statement() will flush, so it is okay to start
+      encrypting.
+    */
+    vio_reset(thd->net.vio, VIO_TYPE_GSSAPI,
+              mysql_socket_getfd(thd->net.vio->mysql_socket), NULL, 0);
+  }
+#endif /* HAVE_GSSAPI */
+
   /* Connect completed, set read/write timeouts back to default */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
   my_net_set_write_timeout(net, thd->variables.net_write_timeout);

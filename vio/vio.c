@@ -78,13 +78,28 @@ int vio_pipe_shutdown(Vio *vio, int how)
 static void vio_init(Vio *vio, enum enum_vio_type type,
                      my_socket sd, uint flags)
 {
+#ifdef HAVE_GSSAPI
+  /* Need to preserve GSSAPI context, if available */
+  gss_ctx_id_t ctxt = vio->gss_ctxt;
+#endif /* HAVE_GSSAPI */
+
   DBUG_ENTER("vio_init");
   DBUG_PRINT("enter", ("type: %d  sd: %d  flags: %d", type, sd, flags));
 
 #ifndef HAVE_VIO_READ_BUFF
   flags&= ~VIO_BUFFERED_READ;
 #endif
+
   memset(vio, 0, sizeof(*vio));
+#ifdef HAVE_GSSAPI
+  /*
+    Only preserve GSSAPI contexts when they're properly initialized - which
+    will only occur when we're switching to GSSAPI.
+   */
+  if (type == VIO_TYPE_GSSAPI)
+    vio->gss_ctxt = ctxt;
+#endif /* HAVE_GSSAPI */
+
   vio->type= type;
   vio->mysql_socket= MYSQL_INVALID_SOCKET;
   mysql_socket_setfd(&vio->mysql_socket, sd);
@@ -160,6 +175,44 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     DBUG_VOID_RETURN;
   }
 #endif /* HAVE_OPENSSL */
+#ifdef HAVE_GSSAPI
+  if (type == VIO_TYPE_GSSAPI)
+  {
+    if (!vio->read_buffer)
+    {
+      /* GSSAPI needs this buffer to do decryption */
+      vio->read_buffer =my_malloc(VIO_READ_BUFFER_SIZE, MYF(MY_WME));
+      if (!vio->read_buffer)
+      {
+        DBUG_PRINT("vio_init", ("malloc failure!"));
+        DBUG_ASSERT(0);
+      }
+      flags |= VIO_BUFFERED_READ;
+    }
+    /* see note in vio_gss_read() for how this works */
+    vio->read_pos       =vio->read_end = vio->read_buffer;
+
+    vio->viodelete      =vio_delete;
+    vio->vioerrno       =vio_errno;
+    vio->read           =vio_gss_read;
+    vio->write          =vio_gss_write;
+    vio->fastsend       =vio_fastsend;
+    vio->viokeepalive   =vio_keepalive;
+    vio->should_retry   =vio_should_retry;
+    vio->was_timeout    =vio_was_timeout;
+    vio->vioclose       =vio_gss_close;
+    vio->peer_addr      =vio_peer_addr;
+    vio->vioblocking    =vio_blocking;
+    vio->is_blocking    =vio_is_blocking;
+    vio->io_wait        =vio_io_wait;
+    vio->is_connected   =vio_is_connected;
+    vio->has_data       =vio_gss_has_data;
+    vio->shutdown       =vio_socket_shutdown;
+    vio->timeout        =vio_socket_timeout;
+    DBUG_VOID_RETURN;
+  }
+#endif /* HAVE_GSSAPI */
+  /* type == VIO_TYPE_TCPIP */
   vio->viodelete        =vio_delete;
   vio->vioerrno         =vio_errno;
   vio->read=            (flags & VIO_BUFFERED_READ) ? vio_read_buff : vio_read;
