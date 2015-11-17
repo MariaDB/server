@@ -4111,10 +4111,6 @@ static int init_common_variables()
     return 1;
   }
 
-#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
-  SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
-#endif
-
   if (init_thread_environment() ||
       mysql_init_variables())
     return 1;
@@ -4343,6 +4339,11 @@ static int init_common_variables()
   }
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
+
+#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+  if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
+    SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
+#endif
 
   /* Fix host_cache_size. */
   if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
