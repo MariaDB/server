@@ -487,7 +487,7 @@ os_atomic_clear(volatile lock_word_t* ptr)
 	__atomic_clear(ptr, __ATOMIC_RELEASE);
 }
 
-# elif defined(IB_STRONG_MEMORY_MODEL)
+# elif defined(HAVE_ATOMIC_BUILTINS)
 
 /** Do an atomic test and set.
 @param[in,out]	ptr		Memory location to set to non-zero
