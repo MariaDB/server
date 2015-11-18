@@ -63,7 +63,8 @@
 const char *primary_key_name="PRIMARY";
 
 static bool check_if_keyname_exists(const char *name,KEY *start, KEY *end);
-static char *make_unique_key_name(const char *field_name,KEY *start,KEY *end);
+static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
+                                  KEY *end);
 static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     List<Create_field> &create, bool ignore,
 				    uint order_num, ORDER *order,
@@ -4026,7 +4027,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  primary_key=1;
 	}
 	else if (!(key_name= key->name.str))
-	  key_name=make_unique_key_name(sql_field->field_name,
+	  key_name=make_unique_key_name(thd, sql_field->field_name,
 					*key_info_buffer, key_info);
 	if (check_if_keyname_exists(key_name, *key_info_buffer, key_info))
 	{
@@ -5068,7 +5069,7 @@ check_if_keyname_exists(const char *name, KEY *start, KEY *end)
 
 
 static char *
-make_unique_key_name(const char *field_name,KEY *start,KEY *end)
+make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
 {
   char buff[MAX_FIELD_NAME],*buff_end;
 
@@ -5086,7 +5087,7 @@ make_unique_key_name(const char *field_name,KEY *start,KEY *end)
     *buff_end= '_';
     int10_to_str(i, buff_end+1, 10);
     if (!check_if_keyname_exists(buff,start,end))
-      return sql_strdup(buff);
+      return thd->strdup(buff);
   }
   return (char*) "not_specified";		// Should never happen
 }

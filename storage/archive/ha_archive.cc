@@ -1645,7 +1645,7 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
   }
 
   if (!(my_readlink(tmp_real_path, share->data_file_name, MYF(0))))
-    create_info->data_file_name= sql_strdup(tmp_real_path);
+    create_info->data_file_name= thd_strdup(ha_thd(), tmp_real_path);
 
   DBUG_VOID_RETURN;
 }

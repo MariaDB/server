@@ -24,7 +24,6 @@ void init_sql_alloc(MEM_ROOT *root, uint block_size, uint pre_alloc_size,
                     myf my_flags);
 void *sql_alloc(size_t);
 void *sql_calloc(size_t);
-char *sql_strdup(const char *str);
 char *sql_strmake(const char *str, size_t len);
 char *sql_strmake_with_convert(const char *str, size_t arg_length,
 			       CHARSET_INFO *from_cs,

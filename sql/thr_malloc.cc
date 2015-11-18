@@ -84,16 +84,6 @@ void *sql_calloc(size_t size)
 }
 
 
-char *sql_strdup(const char *str)
-{
-  size_t len= strlen(str)+1;
-  char *pos;
-  if ((pos= (char*) sql_alloc(len)))
-    memcpy(pos,str,len);
-  return pos;
-}
-
-
 char *sql_strmake(const char *str, size_t len)
 {
   char *pos;
