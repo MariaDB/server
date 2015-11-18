@@ -106,15 +106,6 @@ char *sql_strmake(const char *str, size_t len)
 }
 
 
-void* sql_memdup(const void *ptr, size_t len)
-{
-  void *pos;
-  if ((pos= sql_alloc(len)))
-    memcpy(pos,ptr,len);
-  return pos;
-}
-
-
 char *sql_strmake_with_convert(const char *str, size_t arg_length,
 			       CHARSET_INFO *from_cs,
 			       size_t max_res_length,

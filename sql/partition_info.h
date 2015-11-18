@@ -332,7 +332,7 @@ public:
   void init_col_val(part_column_list_val *col_val, Item *item);
   int reorganize_into_single_field_col_val(THD *thd);
   part_column_list_val *add_column_value(THD *thd);
-  bool set_part_expr(char *start_token, Item *item_ptr,
+  bool set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                      char *end_token, bool is_subpart);
   static int compare_column_values(const void *a, const void *b);
   bool set_up_charset_field_preps(THD *thd);

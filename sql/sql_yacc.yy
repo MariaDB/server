@@ -5055,7 +5055,7 @@ part_func:
           '(' remember_name part_func_expr remember_end ')'
           {
             partition_info *part_info= Lex->part_info;
-            if (part_info->set_part_expr($2+1, $3, $4, FALSE))
+            if (part_info->set_part_expr(thd, $2 + 1, $3, $4, FALSE))
             { MYSQL_YYABORT; }
             part_info->num_columns= 1;
             part_info->column_list= FALSE;
@@ -5065,7 +5065,7 @@ part_func:
 sub_part_func:
           '(' remember_name part_func_expr remember_end ')'
           {
-            if (Lex->part_info->set_part_expr($2+1, $3, $4, TRUE))
+            if (Lex->part_info->set_part_expr(thd, $2 + 1, $3, $4, TRUE))
             { MYSQL_YYABORT; }
           }
         ;

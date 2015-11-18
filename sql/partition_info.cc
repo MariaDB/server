@@ -1940,11 +1940,11 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
     FALSE                     Success
 */
 
-bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
+bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                                    char *end_token, bool is_subpart)
 {
   uint expr_len= end_token - start_token;
-  char *func_string= (char*) sql_memdup(start_token, expr_len);
+  char *func_string= (char*) thd->memdup(start_token, expr_len);
 
   if (!func_string)
   {
@@ -3153,7 +3153,7 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
   return NULL;
 }
 
-bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
+bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                                    char *end_token, bool is_subpart)
 {
   (void)start_token;
