@@ -1,0 +1,73 @@
+include/rpl_init.inc [topology=1->2->3]
+include/stop_slave.inc
+CHANGE MASTER TO
+MASTER_USE_GTID = SLAVE_POS, IGNORE_SERVER_IDS = (2,3);
+CHANGE MASTER "M_3" TO
+MASTER_HOST = "127.0.0.1", MASTER_PORT = SERVER_MYPORT_3,
+MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+IGNORE_SERVER_IDS = (1,2);
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'M_3' started
+Note	1937	SLAVE '' started
+include/stop_slave.inc
+CHANGE MASTER "M_1" TO
+MASTER_HOST = "127.0.0.1", MASTER_PORT = MASTER_MYPORT,
+MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+IGNORE_SERVER_IDS = (2,3);
+CHANGE MASTER TO
+MASTER_USE_GTID = SLAVE_POS, IGNORE_SERVER_IDS = (1,3);
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'M_1' started
+Note	1937	SLAVE '' started
+CHANGE MASTER "M_2" TO
+MASTER_HOST = "127.0.0.1", MASTER_PORT = SLAVE_MYPORT,
+MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+IGNORE_SERVER_IDS = (1,3);
+CHANGE MASTER "M_3" TO
+MASTER_HOST = "127.0.0.1", MASTER_PORT = SERVER_MYPORT_3,
+MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+IGNORE_SERVER_IDS = (1,2);
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'M_3' started
+Note	1937	SLAVE 'M_2' started
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+# Cleanup
+DROP TABLE t1;
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/sync_with_master_gtid.inc
+STOP SLAVE "M_3";
+RESET SLAVE "M_3" ALL;
+STOP SLAVE "M_1";
+RESET SLAVE "M_1" ALL;
+STOP SLAVE "M_2";
+RESET SLAVE "M_2" ALL;
+STOP SLAVE "M_3";
+RESET SLAVE "M_3" ALL;
+include/sync_with_master_gtid.inc
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_SERVER_IDS = ();
+include/sync_with_master_gtid.inc
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_SERVER_IDS = ();
+# End of test.

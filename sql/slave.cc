@@ -5875,22 +5875,6 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                       }
                     };);
 
-    if (mi->using_gtid != Master_info::USE_GTID_NO &&
-        mi->domain_id_filter.is_group_filtered() &&
-        mi->events_queued_since_last_gtid > 0 &&
-        ((mi->last_queued_gtid_standalone &&
-          !Log_event::is_part_of_group((Log_event_type)(uchar)
-                                       buf[EVENT_TYPE_OFFSET])) ||
-         (!mi->last_queued_gtid_standalone &&
-          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
-           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&
-            Query_log_event::peek_is_commit_rollback(buf, event_len,
-                                                     checksum_alg))))))
-    {
-      /* Reset the domain_id_filter flag. */
-      mi->domain_id_filter.reset_filter();
-    }
-
     if (mi->using_gtid != Master_info::USE_GTID_NO && mi->gtid_event_seen)
     {
       if (unlikely(mi->gtid_reconnect_event_skip_count))
@@ -6076,6 +6060,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       */
       mi->gtid_current_pos.update(&mi->last_queued_gtid);
       mi->events_queued_since_last_gtid= 0;
+
+      /* Reset the domain_id_filter flag. */
+      mi->domain_id_filter.reset_filter();
     }
 
 skip_relay_logging:

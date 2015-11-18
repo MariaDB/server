@@ -1,0 +1,92 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2->3
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+eval CHANGE MASTER TO
+  MASTER_USE_GTID = SLAVE_POS, IGNORE_SERVER_IDS = (2,3);
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER "M_3" TO
+  MASTER_HOST = "127.0.0.1", MASTER_PORT = $SERVER_MYPORT_3,
+  MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+  IGNORE_SERVER_IDS = (1,2);
+START ALL SLAVES;
+
+--connection server_3
+--source include/stop_slave.inc
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CHANGE MASTER "M_1" TO
+  MASTER_HOST = "127.0.0.1", MASTER_PORT = $MASTER_MYPORT,
+  MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+  IGNORE_SERVER_IDS = (2,3);
+eval CHANGE MASTER TO
+  MASTER_USE_GTID = SLAVE_POS, IGNORE_SERVER_IDS = (1,3);
+START ALL SLAVES;
+
+--connection server_1
+--replace_result $SLAVE_MYPORT SLAVE_MYPORT
+eval CHANGE MASTER "M_2" TO
+  MASTER_HOST = "127.0.0.1", MASTER_PORT = $SLAVE_MYPORT,
+  MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+  IGNORE_SERVER_IDS = (1,3);
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER "M_3" TO
+  MASTER_HOST = "127.0.0.1", MASTER_PORT = $SERVER_MYPORT_3,
+  MASTER_USER = "root", MASTER_USE_GTID = SLAVE_POS,
+  IGNORE_SERVER_IDS = (1,2);
+START ALL SLAVES;
+
+connection server_1;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+
+--source include/save_master_gtid.inc
+
+connection server_2;
+--source include/sync_with_master_gtid.inc
+let $wait_condition=SELECT COUNT(*)=4 FROM t1;
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+connection server_3;
+--source include/sync_with_master_gtid.inc
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo # Cleanup
+--connection server_1
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--connection server_2
+STOP SLAVE "M_3";
+RESET SLAVE "M_3" ALL;
+
+--connection server_3
+STOP SLAVE "M_1";
+RESET SLAVE "M_1" ALL;
+
+--connection server_1
+STOP SLAVE "M_2";
+RESET SLAVE "M_2" ALL;
+STOP SLAVE "M_3";
+RESET SLAVE "M_3" ALL;
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_SERVER_IDS = ();
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_SERVER_IDS = ();
+
+--echo # End of test.
