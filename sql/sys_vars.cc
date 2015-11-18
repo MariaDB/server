@@ -3291,7 +3291,7 @@ static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
        READ_ONLY SHOW_VALUE_IN_HELP
        GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
-       IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
+       IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
