@@ -49,7 +49,7 @@ public:
   enum Type type() const { return ROW_ITEM; };
   void illegal_method_call(const char *);
   bool is_null() { return null_value; }
-  void make_field(Send_field *)
+  void make_field(THD *thd, Send_field *)
   {
     illegal_method_call((const char*)"make_field");
   };

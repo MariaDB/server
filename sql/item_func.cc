@@ -5345,7 +5345,7 @@ bool Item_func_set_user_var::send(Protocol *protocol, String *str_arg)
   return Item::send(protocol, str_arg);
 }
 
-void Item_func_set_user_var::make_field(Send_field *tmp_field)
+void Item_func_set_user_var::make_field(THD *thd, Send_field *tmp_field)
 {
   if (result_field)
   {
@@ -5355,7 +5355,7 @@ void Item_func_set_user_var::make_field(Send_field *tmp_field)
       tmp_field->col_name=Item::name;               // Use user supplied name
   }
   else
-    Item::make_field(tmp_field);
+    Item::make_field(thd, tmp_field);
 }
 
 
@@ -5811,7 +5811,7 @@ Item_func_get_system_var(THD *thd, sys_var *var_arg, enum_var_type var_type_arg,
   orig_var_type(var_type_arg), component(*component_arg), cache_present(0)
 {
   /* set_name() will allocate the name */
-  set_name(name_arg, (uint) name_len_arg, system_charset_info);
+  set_name(thd, name_arg, (uint) name_len_arg, system_charset_info);
 }
 
 
@@ -6768,7 +6768,7 @@ error:
 
 
 void
-Item_func_sp::make_field(Send_field *tmp_field)
+Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
 {
   DBUG_ENTER("Item_func_sp::make_field");
   DBUG_ASSERT(sp_result_field);

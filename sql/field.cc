@@ -10531,7 +10531,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
       {
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
-        char *pos= (char*) sql_strmake(res->ptr(), res->length());
+        char *pos= (char*) thd->strmake(res->ptr(), res->length());
         def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
     }

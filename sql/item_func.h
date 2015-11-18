@@ -1753,7 +1753,7 @@ public:
   bool update_hash(void *ptr, uint length, enum Item_result type,
                    CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, String *str_arg);
-  void make_field(Send_field *tmp_field);
+  void make_field(THD *thd, Send_field *tmp_field);
   bool check(bool use_result_field);
   void save_item_result(Item *item);
   bool update();
@@ -1839,7 +1839,7 @@ class Item_user_var_as_out_param :public Item
   user_var_entry *entry;
 public:
   Item_user_var_as_out_param(THD *thd, LEX_STRING a): Item(thd), name(a)
-  { set_name(a.str, 0, system_charset_info); }
+  { set_name(thd, a.str, 0, system_charset_info); }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
@@ -2132,7 +2132,7 @@ public:
 
   Field *tmp_table_field(TABLE *t_arg);
 
-  void make_field(Send_field *tmp_field);
+  void make_field(THD *thd, Send_field *tmp_field);
 
   Item_result result_type() const;
 

@@ -714,14 +714,15 @@ public:
     name=0;
 #endif
   }		/*lint -e1509 */
-  void set_name(const char *str, uint length, CHARSET_INFO *cs);
-  void set_name_no_truncate(const char *str, uint length, CHARSET_INFO *cs);
+  void set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs);
+  void set_name_no_truncate(THD *thd, const char *str, uint length,
+                            CHARSET_INFO *cs);
   void set_name_for_rollback(THD *thd, const char *str, uint length,
                              CHARSET_INFO *cs);
   void rename(char *new_name);
   void init_make_field(Send_field *tmp_field,enum enum_field_types type);
   virtual void cleanup();
-  virtual void make_field(Send_field *field);
+  virtual void make_field(THD *thd, Send_field *field);
   virtual Field *make_string_field(TABLE *table);
   virtual bool fix_fields(THD *, Item **);
   /*
@@ -1982,7 +1983,7 @@ public:
   bool is_null();
 
 public:
-  inline void make_field(Send_field *field);
+  inline void make_field(THD *thd, Send_field *field);
   
   inline bool const_item() const;
   
@@ -1994,15 +1995,15 @@ public:
   Item_sp_variable inline implementation.
 *****************************************************************************/
 
-inline void Item_sp_variable::make_field(Send_field *field)
+inline void Item_sp_variable::make_field(THD *thd, Send_field *field)
 {
   Item *it= this_item();
 
   if (name)
-    it->set_name(name, (uint) strlen(name), system_charset_info);
+    it->set_name(thd, name, (uint) strlen(name), system_charset_info);
   else
-    it->set_name(m_name.str, (uint) m_name.length, system_charset_info);
-  it->make_field(field);
+    it->set_name(thd, m_name.str, (uint) m_name.length, system_charset_info);
+  it->make_field(thd, field);
 }
 
 inline bool Item_sp_variable::const_item() const
@@ -2325,7 +2326,7 @@ public:
   longlong val_int() { return field->val_int(); }
   String *val_str(String *str) { return field->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
-  void make_field(Send_field *tmp_field);
+  void make_field(THD *thd, Send_field *tmp_field);
   CHARSET_INFO *charset_for_protocol(void) const
   { return field->charset_for_protocol(); }
 };
@@ -2381,7 +2382,7 @@ public:
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
-  void make_field(Send_field *tmp_field);
+  void make_field(THD *thd, Send_field *tmp_field);
   int save_in_field(Field *field,bool no_conversions);
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field);
@@ -2733,7 +2734,7 @@ private:
 public:
   virtual const Send_field *get_out_param_info() const;
 
-  virtual void make_field(Send_field *field);
+  virtual void make_field(THD *thd, Send_field *field);
 
 private:
   Send_field *m_out_param_info;
@@ -2925,10 +2926,11 @@ protected:
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
   }
-  void fix_and_set_name_from_value(Derivation dv, const Metadata metadata)
+  void fix_and_set_name_from_value(THD *thd, Derivation dv,
+                                   const Metadata metadata)
   {
     fix_from_value(dv, metadata);
-    set_name(str_value.ptr(), str_value.length(), str_value.charset());
+    set_name(thd, str_value.ptr(), str_value.length(), str_value.charset());
   }
 protected:
   /* Just create an item and do not fill string representation */
@@ -2937,7 +2939,7 @@ protected:
   {
     collation.set(cs, dv);
     max_length= 0;
-    set_name(NULL, 0, system_charset_info);
+    set_name(thd, NULL, 0, system_charset_info);
     decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
@@ -2946,7 +2948,7 @@ public:
     Item_basic_constant(thd)
   {
     collation.set(csi, DERIVATION_COERCIBLE);
-    set_name(NULL, 0, system_charset_info);
+    set_name(thd, NULL, 0, system_charset_info);
     decimals= NOT_FIXED_DEC;
     fixed= 1;
     str_value.copy(str_arg, length_arg, csi);
@@ -2957,14 +2959,14 @@ public:
               Derivation dv, uint repertoire): Item_basic_constant(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
-    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
+    fix_and_set_name_from_value(thd, dv, Metadata(&str_value, repertoire));
   }
   Item_string(THD *thd, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE):
     Item_basic_constant(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
-    fix_and_set_name_from_value(dv, Metadata(&str_value));
+    fix_and_set_name_from_value(thd, dv, Metadata(&str_value));
   }
   Item_string(THD *thd, const String *str, CHARSET_INFO *tocs, uint *conv_errors,
               Derivation dv, uint repertoire): Item_basic_constant(thd)
@@ -2972,7 +2974,7 @@ public:
     if (str_value.copy(str, tocs, conv_errors))
       str_value.set("", 0, tocs); // EOM ?
     str_value.mark_as_const();
-    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
+    fix_and_set_name_from_value(thd, dv, Metadata(&str_value, repertoire));
   }
   // Constructors with an externally provided item name
   Item_string(THD *thd, const char *name_par, const char *str, uint length,
@@ -2981,7 +2983,7 @@ public:
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value));
-    set_name(name_par, 0, system_charset_info);
+    set_name(thd, name_par, 0, system_charset_info);
   }
   Item_string(THD *thd, const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv, uint repertoire):
@@ -2989,7 +2991,7 @@ public:
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
-    set_name(name_par, 0, system_charset_info);
+    set_name(thd, name_par, 0, system_charset_info);
   }
   void print_value(String *to) const
   {
@@ -3218,7 +3220,7 @@ public:
     Item_partition_func_safe_string(thd, "", 0,
                                     cs ? cs : &my_charset_utf8_general_ci)
     { name=(char*) header; max_length= length * collation.collation->mbmaxlen; }
-  void make_field(Send_field *field);
+  void make_field(THD *thd, Send_field *field);
 };
 
 
@@ -3890,7 +3892,7 @@ public:
   bool val_bool_result();
   bool is_null_result();
   bool send(Protocol *prot, String *tmp);
-  void make_field(Send_field *field);
+  void make_field(THD *thd, Send_field *field);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   int save_in_field(Field *field, bool no_conversions);
@@ -4155,7 +4157,8 @@ public:
 
   virtual void print(String *str, enum_query_type query_type);
   virtual const char *full_name() const { return orig_item->full_name(); }
-  virtual void make_field(Send_field *field) { orig_item->make_field(field); }
+  virtual void make_field(THD *thd, Send_field *field)
+  { orig_item->make_field(thd, field); }
   bool eq(const Item *item, bool binary_cmp) const
   {
     Item *it= ((Item *) item)->real_item();
@@ -4586,7 +4589,7 @@ public:
   enum_field_types field_type() const { return cached_field_type; }
   enum Item_result result_type () const { return cached_result_type; }
 
-  void make_field(Send_field *field) { item->make_field(field); }
+  void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
   bool const_item() const { return 0; }
   bool is_null() { return null_value; }
@@ -5196,7 +5199,7 @@ public:
   bool setup(THD *thd, Item *item);
   void store(Item *item);
   void illegal_method_call(const char *);
-  void make_field(Send_field *)
+  void make_field(THD *thd, Send_field *)
   {
     illegal_method_call((const char*)"make_field");
   };

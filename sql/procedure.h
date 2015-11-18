@@ -48,7 +48,7 @@ public:
   virtual void set(longlong nr)=0;
   virtual enum_field_types field_type() const=0;
   void set(const char *str) { set(str,(uint) strlen(str), default_charset()); }
-  void make_field(Send_field *tmp_field)
+  void make_field(THD *thd, Send_field *tmp_field)
   {
     init_make_field(tmp_field,field_type());
   }

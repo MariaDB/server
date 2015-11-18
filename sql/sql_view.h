@@ -51,7 +51,8 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt);
 
 extern TYPELIB updatable_views_with_limit_typelib;
 
-bool check_duplicate_names(List<Item>& item_list, bool gen_unique_view_names);
+bool check_duplicate_names(THD *thd, List<Item>& item_list,
+                           bool gen_unique_view_names);
 bool mysql_rename_view(THD *thd, const char *new_db, const char *new_name,
                        TABLE_LIST *view);
 

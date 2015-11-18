@@ -4312,7 +4312,7 @@ void Item_func_dyncol_create::fix_length_and_dec()
   decimals= 0;
 }
 
-bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
+bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
 {
   char buff[STRING_BUFFER_USUAL_SIZE];
   String *res, tmp(buff, sizeof(buff), &my_charset_bin);
@@ -4432,7 +4432,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
         if (my_charset_same(res->charset(), &my_charset_utf8_general_ci))
         {
           keys_str[i].length= res->length();
-          keys_str[i].str= sql_strmake(res->ptr(), res->length());
+          keys_str[i].str= thd->strmake(res->ptr(), res->length());
         }
         else
         {
@@ -4487,7 +4487,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
     case DYN_COL_STRING:
       res= args[valpos]->val_str(&tmp);
       if (res &&
-          (vals[i].x.string.value.str= sql_strmake(res->ptr(), res->length())))
+          (vals[i].x.string.value.str= thd->strmake(res->ptr(), res->length())))
       {
 	vals[i].x.string.value.length= res->length();
 	vals[i].x.string.charset= res->charset();
@@ -4519,7 +4519,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
     case DYN_COL_DATETIME:
     case DYN_COL_DATE:
       args[valpos]->get_date(&vals[i].x.time_value,
-                             sql_mode_for_dates(current_thd));
+                             sql_mode_for_dates(thd));
       break;
     case DYN_COL_TIME:
       args[valpos]->get_time(&vals[i].x.time_value);
@@ -4545,7 +4545,8 @@ String *Item_func_dyncol_create::val_str(String *str)
   enum enum_dyncol_func_result rc;
   DBUG_ASSERT((arg_count & 0x1) == 0); // even number of arguments
 
-  if (prepare_arguments(FALSE))
+  /* FIXME: add thd argument to Item::val_str() */
+  if (prepare_arguments(current_thd, FALSE))
   {
     res= NULL;
     null_value= 1;
@@ -4690,7 +4691,8 @@ String *Item_func_dyncol_add::val_str(String *str)
   col.length= res->length();
   memcpy(col.str, res->ptr(), col.length);
 
-  if (prepare_arguments(mariadb_dyncol_has_names(&col)))
+  /* FIXME: add thd argument to Item::val_str() */
+  if (prepare_arguments(current_thd, mariadb_dyncol_has_names(&col)))
     goto null;
 
   if ((rc= ((names || force_names) ?

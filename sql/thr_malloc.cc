@@ -84,18 +84,6 @@ void *sql_calloc(size_t size)
 }
 
 
-char *sql_strmake(const char *str, size_t len)
-{
-  char *pos;
-  if ((pos= (char*) sql_alloc(len+1)))
-  {
-    memcpy(pos,str,len);
-    pos[len]=0;
-  }
-  return pos;
-}
-
-
 char *sql_strmake_with_convert(const char *str, size_t arg_length,
 			       CHARSET_INFO *from_cs,
 			       size_t max_res_length,

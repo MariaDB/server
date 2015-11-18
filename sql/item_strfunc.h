@@ -1195,7 +1195,7 @@ protected:
   uint *keys_num;
   LEX_STRING *keys_str;
   bool names, force_names;
-  bool prepare_arguments(bool force_names);
+  bool prepare_arguments(THD *thd, bool force_names);
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(THD *thd, List<Item> &args, DYNCALL_CREATE_DEF *dfs);

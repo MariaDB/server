@@ -7083,7 +7083,7 @@ void create_select_for_variable(const char *var_name)
   if ((var= get_system_var(thd, OPT_SESSION, tmp, null_lex_str)))
   {
     end= strxmov(buff, "@@session.", var_name, NullS);
-    var->set_name(buff, end-buff, system_charset_info);
+    var->set_name(thd, buff, end-buff, system_charset_info);
     add_item_to_list(thd, var);
   }
   DBUG_VOID_RETURN;

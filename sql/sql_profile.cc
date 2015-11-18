@@ -124,7 +124,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
-      field->set_name(field_info->old_name,
+      field->set_name(thd, field_info->old_name,
                       (uint) strlen(field_info->old_name),
                       system_charset_info);
       if (add_item_to_list(thd, field))
