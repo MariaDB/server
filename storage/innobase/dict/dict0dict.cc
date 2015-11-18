@@ -4289,13 +4289,13 @@ dict_foreign_push_index_error(
 			"%s table '%s' with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns. Error close to %s.\n",
+			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table '%s' with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns. Error close to %s.",
+			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
 		break;
 	}
@@ -4304,13 +4304,13 @@ dict_foreign_push_index_error(
 			"%s table '%s' with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns. Error close to %s.\n",
+			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table '%s' with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
-			" as the first columns. Error close to %s.",
+			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
 		break;
 	}
@@ -4318,12 +4318,12 @@ dict_foreign_push_index_error(
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. You have defined a SET NULL condition but "
-			"field %s on index is defined as NOT NULL close to %s\n",
+			"column '%s' on index is defined as NOT NULL near '%s'.\n",
 			operation, create_name, columns[err_col], latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. You have defined a SET NULL condition but "
-			"field %s on index is defined as NOT NULL close to %s",
+			"column '%s' on index is defined as NOT NULL near '%s'.",
 			operation, create_name, columns[err_col], latest_foreign);
 		break;
 	}
@@ -4336,13 +4336,13 @@ dict_foreign_push_index_error(
 			table, dict_col_get_no(field->col));
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
-			" failed. Field type or character set for column %s "
-			"does not mach referenced column %s close to %s\n",
+			" failed. Field type or character set for column '%s' "
+			"does not mach referenced column '%s' near '%s'.\n",
 			operation, create_name, columns[err_col], col_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Field type or character set for column %s "
-			"does not mach referenced column %s close to %s",
+			" failed. Field type or character set for column '%s' "
+			"does not mach referenced column '%s' near '%s'.",
 			operation, create_name, columns[err_col], col_name, latest_foreign);
 		break;
 	}
@@ -4676,14 +4676,14 @@ loop:
 		  if (!success) {
 			  dict_foreign_report_syntax_err(
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.\n",
+				" failed. Parse error in '%s'"
+				" near '%s'.\n",
 				operation, create_name, start_of_latest_foreign, orig);
 
 			  ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.",
+				" failed. Parse error in '%s'"
+				" near '%s'.",
 				operation, create_name, start_of_latest_foreign, orig);
 			  return(DB_CANNOT_ADD_CONSTRAINT);
                   }
@@ -4720,16 +4720,16 @@ col_loop1:
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		mutex_exit(&dict_foreign_err_mutex);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4749,14 +4749,14 @@ col_loop1:
 	if (!success) {
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4795,14 +4795,14 @@ col_loop1:
 	if (!success || !my_isspace(cs, *ptr)) {
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -4882,13 +4882,13 @@ col_loop1:
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint failed. Referenced table %s not found in the data dictionary "
-			"close to %s.",
+			"near '%s'.",
 			operation, create_name, buf, start_of_latest_foreign);
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef,
 			"%s table %s with foreign key constraint failed. Referenced table %s not found in the data dictionary "
-			"close to %s.\n",
+			"near '%s'.\n",
 			operation, create_name, buf, start_of_latest_foreign);
 
 		mutex_exit(&dict_foreign_err_mutex);
@@ -4902,14 +4902,14 @@ col_loop1:
 	if (!success) {
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4930,14 +4930,14 @@ col_loop2:
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 		mutex_exit(&dict_foreign_err_mutex);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4957,14 +4957,12 @@ col_loop2:
 
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s. Too few referenced columns.\n",
+			" failed. Parse error in '%s' near '%s'.  Referencing column count does not match referenced column count.\n",
 			operation, create_name, start_of_latest_foreign, orig);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s. Too few referenced columns, you have %d when you should have %d.",
+			" failed. Parse error in '%s' near '%s'.  Referencing column count %d does not match referenced column count %d.\n",
 			operation, create_name, start_of_latest_foreign, orig, i, foreign->n_fields);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4995,14 +4993,14 @@ scan_on_conditions:
 
 			dict_foreign_report_syntax_err(
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.\n",
+				" failed. Parse error in '%s'"
+				" near '%s'.\n",
 				operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 			ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.",
+				" failed. Parse error in '%s'"
+				" near '%s'.",
 				operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -5045,14 +5043,14 @@ scan_on_conditions:
 		if (!success) {
 			dict_foreign_report_syntax_err(
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.\n",
+				" failed. Parse error in '%s'"
+				" near '%s'.\n",
 				operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 			ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 				"%s table %s with foreign key constraint"
-				" failed. Foreign key constraint parse error in %s"
-				" close to %s.",
+				" failed. Parse error in '%s'"
+				" near '%s'.",
 				operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -5073,14 +5071,14 @@ scan_on_conditions:
 	if (!success) {
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -5091,14 +5089,14 @@ scan_on_conditions:
 	if (!success) {
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.\n",
+			" failed. Parse error in '%s'"
+			" near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
-			" failed. Foreign key constraint parse error in %s"
-			" close to %s.",
+			" failed. Parse error in '%s'"
+			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -5119,15 +5117,15 @@ scan_on_conditions:
 			dict_foreign_error_report_low(ef, create_name);
 			fprintf(ef,
 				"%s table %s with foreign key constraint"
-				" failed. You have defined a SET NULL condition but column %s is defined as NOT NULL"
-				" in %s close to %s.\n",
+				" failed. You have defined a SET NULL condition but column '%s' is defined as NOT NULL"
+				" in '%s' near '%s'.\n",
 				operation, create_name, col_name, start_of_latest_foreign, start_of_latest_set);
 			mutex_exit(&dict_foreign_err_mutex);
 
 			ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 				"%s table %s with foreign key constraint"
-				" failed. You have defined a SET NULL condition but column %s is defined as NOT NULL"
-				" in %s close to %s.",
+				" failed. You have defined a SET NULL condition but column '%s' is defined as NOT NULL"
+				" in '%s' near '%s'.",
 				operation, create_name, col_name, start_of_latest_foreign, start_of_latest_set);
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -5151,13 +5149,13 @@ try_find_index:
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. You have more than one on delete or on update clause"
-			" in %s close to %s.\n",
+			" in '%s' near '%s'.\n",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. You have more than one on delete or on update clause"
-			" in %s close to %s.",
+			" in '%s' near '%s'.",
 			operation, create_name, start_of_latest_foreign, start_of_latest_set);
 
 		dict_foreign_free(foreign);
