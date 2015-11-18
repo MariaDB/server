@@ -75,15 +75,6 @@ void *sql_alloc(size_t Size)
 #endif
 
 
-void *sql_calloc(size_t size)
-{
-  void *ptr;
-  if ((ptr=sql_alloc(size)))
-    bzero(ptr,size);
-  return ptr;
-}
-
-
 char *sql_strmake_with_convert(const char *str, size_t arg_length,
 			       CHARSET_INFO *from_cs,
 			       size_t max_res_length,

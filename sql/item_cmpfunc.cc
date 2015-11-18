@@ -3452,8 +3452,9 @@ int in_vector::find(Item *item)
   return (int) ((*compare)(collation, base+start*size, result) == 0);
 }
 
-in_string::in_string(uint elements,qsort2_cmp cmp_func, CHARSET_INFO *cs)
-  :in_vector(elements, sizeof(String), cmp_func, cs),
+in_string::in_string(THD *thd, uint elements, qsort2_cmp cmp_func,
+                     CHARSET_INFO *cs)
+  :in_vector(thd, elements, sizeof(String), cmp_func, cs),
    tmp(buff, sizeof(buff), &my_charset_bin)
 {}
 
@@ -3536,8 +3537,9 @@ void in_row::set(uint pos, Item *item)
   DBUG_VOID_RETURN;
 }
 
-in_longlong::in_longlong(uint elements)
-  :in_vector(elements,sizeof(packed_longlong),(qsort2_cmp) cmp_longlong, 0)
+in_longlong::in_longlong(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(packed_longlong),
+             (qsort2_cmp) cmp_longlong, 0)
 {}
 
 void in_longlong::set(uint pos,Item *item)
@@ -3594,8 +3596,8 @@ Item *in_datetime::create_item(THD *thd)
 }
 
 
-in_double::in_double(uint elements)
-  :in_vector(elements,sizeof(double),(qsort2_cmp) cmp_double, 0)
+in_double::in_double(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
 {}
 
 void in_double::set(uint pos,Item *item)
@@ -3617,8 +3619,8 @@ Item *in_double::create_item(THD *thd)
 }
 
 
-in_decimal::in_decimal(uint elements)
-  :in_vector(elements, sizeof(my_decimal),(qsort2_cmp) cmp_decimal, 0)
+in_decimal::in_decimal(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(my_decimal), (qsort2_cmp) cmp_decimal, 0)
 {}
 
 
@@ -4063,14 +4065,15 @@ void Item_func_in::fix_length_and_dec()
     }
     switch (m_compare_type) {
     case STRING_RESULT:
-      array=new (thd->mem_root) in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
+      array=new (thd->mem_root) in_string(thd, arg_count - 1,
+                                          (qsort2_cmp) srtcmp_in,
                                           cmp_collation.collation);
       break;
     case INT_RESULT:
-      array= new (thd->mem_root) in_longlong(arg_count-1);
+      array= new (thd->mem_root) in_longlong(thd, arg_count - 1);
       break;
     case REAL_RESULT:
-      array= new (thd->mem_root) in_double(arg_count-1);
+      array= new (thd->mem_root) in_double(thd, arg_count - 1);
       break;
     case ROW_RESULT:
       /*
@@ -4081,11 +4084,11 @@ void Item_func_in::fix_length_and_dec()
       ((in_row*)array)->tmp.store_value(args[0]);
       break;
     case DECIMAL_RESULT:
-      array= new (thd->mem_root) in_decimal(arg_count - 1);
+      array= new (thd->mem_root) in_decimal(thd, arg_count - 1);
       break;
     case TIME_RESULT:
       date_arg= find_date_time_item(args, arg_count, 0);
-      array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
+      array= new (thd->mem_root) in_datetime(thd, date_arg, arg_count - 1);
       break;
     }
     if (array && !(thd->is_fatal_error))		// If not EOM

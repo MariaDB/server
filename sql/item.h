@@ -25,7 +25,6 @@
 #include "sql_priv.h"                /* STRING_BUFFER_USUAL_SIZE */
 #include "unireg.h"
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
-#include "thr_malloc.h"                         /* sql_calloc */
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
 
@@ -4790,11 +4789,11 @@ class Cached_item_field :public Cached_item
   uint length;
 
 public:
-  Cached_item_field(Field *arg_field) : field(arg_field)
+  Cached_item_field(THD *thd, Field *arg_field): field(arg_field)
   {
     field= arg_field;
     /* TODO: take the memory allocation below out of the constructor. */
-    buff= (uchar*) sql_calloc(length=field->pack_length());
+    buff= (uchar*) thd_calloc(thd, length= field->pack_length());
   }
   bool cmp(void);
 };
