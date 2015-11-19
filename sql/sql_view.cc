@@ -1532,6 +1532,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       lex->sql_command= old_lex->sql_command;
       lex->duplicates= old_lex->duplicates;
+
+      /* Fields in this view can be used in upper select in case of merge.  */
+      if (table->select_lex)
+        table->select_lex->select_n_where_fields+=
+          lex->select_lex.select_n_where_fields;
     }
     /*
       This method has a dependency on the proper lock type being set,

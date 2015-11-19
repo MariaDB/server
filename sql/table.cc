@@ -19,7 +19,6 @@
 
 #include <my_global.h>                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "table.h"
 #include "key.h"                                // find_ref_key
 #include "sql_table.h"                          // build_table_filename,

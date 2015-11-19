@@ -94,6 +94,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         my_error(ER_UNKNOWN_ERROR, MYF(0));
       }
     }
+    opt_noacl= 0;
 
     if (tmp_thd)
     {

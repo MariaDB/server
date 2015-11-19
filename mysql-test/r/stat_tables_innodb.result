@@ -448,6 +448,101 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 DROP TABLE t1,t2;
+#
+# MDEV-7370: Server deadlocks on renaming a table for which persistent statistics exists
+#
+drop database if exists db1;
+drop database if exists db1;
+create database db1;
+create database db2;
+use db1;
+#
+# First, run the original testcase:
+#
+create table t1 (i int);
+insert into t1 values (10),(20);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+rename table t1 to db2.t1;
+# Verify that stats in the old database are gone:
+select * from mysql.column_stats where db_name='db1' and table_name='t1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+select * from mysql.table_stats where db_name='db1' and table_name='t1';
+db_name	table_name	cardinality
+# Verify that stats are present in the new database:
+select * from mysql.column_stats where db_name='db2' and table_name='t1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+db2	t1	i	10	20	0.0000	4.0000	1.0000	0	NULL	NULL
+select * from mysql.table_stats where db_name='db2' and table_name='t1';
+db_name	table_name	cardinality
+db2	t1	2
+#
+# Now, try with more than one column and with indexes:
+#
+use test;
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+use db1;
+create table t2 (a int, b int, c int, key IDX1(a), key IDX2(a,b));
+insert into t2 select a/10, a/2, a from test.t1;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t2	analyze	status	Engine-independent statistics collected
+db1.t2	analyze	status	OK
+alter table t2 rename db2.t2;
+# Verify that stats in the old database are gone:
+select * from mysql.table_stats where db_name='db1' and table_name='t2';
+db_name	table_name	cardinality
+select * from mysql.column_stats where db_name='db1' and table_name='t2';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+select * from mysql.index_stats where db_name='db1' and table_name='t2';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+# Verify that stats are present in the new database:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+db_name	table_name	cardinality
+db2	t2	10
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+db2	t2	a	0	1	0.0000	4.0000	5.0000	0	NULL	NULL
+db2	t2	b	0	5	0.0000	4.0000	1.6667	0	NULL	NULL
+db2	t2	c	0	9	0.0000	4.0000	1.0000	0	NULL	NULL
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+db2	t2	IDX1	1	5.0000
+db2	t2	IDX2	1	5.0000
+db2	t2	IDX2	2	1.6667
+use db2;
+#
+# Now, rename within the same database and verify:
+#
+rename table t2 to t3;
+# No stats under old name:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+db_name	table_name	cardinality
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+# Stats under the new name:
+select * from mysql.table_stats where db_name='db2' and table_name='t3';
+db_name	table_name	cardinality
+db2	t3	10
+select * from mysql.column_stats where db_name='db2' and table_name='t3';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+db2	t3	a	0	1	0.0000	4.0000	5.0000	0	NULL	NULL
+db2	t3	b	0	5	0.0000	4.0000	1.6667	0	NULL	NULL
+db2	t3	c	0	9	0.0000	4.0000	1.0000	0	NULL	NULL
+select * from mysql.index_stats where db_name='db2' and table_name='t3';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+db2	t3	IDX1	1	5.0000
+db2	t3	IDX2	1	5.0000
+db2	t3	IDX2	2	1.6667
+use test;
+drop database db1;
+drop database db2;
+drop table t1;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;

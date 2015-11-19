@@ -511,29 +511,29 @@ void BINCOL::ReadColumn(PGLOBAL g)
   switch (Fmt) {
     case 'X':                 // Standard not converted values
       if (Eds && IsTypeChar(Buf_Type))
-        Value->SetValue(*(longlong*)p);
+        Value->SetValueNonAligned<longlong>(p);
       else
         Value->SetBinValue(p);
 
       break;
     case 'S':                 // Short integer
-      Value->SetValue(*(short*)p);
+      Value->SetValueNonAligned<short>(p);
       break;
     case 'T':                 // Tiny integer
       Value->SetValue(*p);
       break;
     case 'I':                 // Integer
-      Value->SetValue(*(int*)p);
+      Value->SetValueNonAligned<int>(p);
       break;
     case 'G':                 // Large (great) integer
-      Value->SetValue(*(longlong*)p);
+      Value->SetValueNonAligned<longlong>(p);
       break;
     case 'F':                 // Float
     case 'R':                 // Real
-      Value->SetValue((double)*(float*)p);
+      Value->SetValueNonAligned<float>(p);
       break;
     case 'D':                 // Double
-      Value->SetValue(*(double*)p);
+      Value->SetValueNonAligned<double>(p);
       break;
     case 'C':                 // Text
       if (Value->SetValue_char(p, Long)) {

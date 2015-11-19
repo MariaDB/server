@@ -28,7 +28,6 @@
 #include "sql_audit.h"
 #include "sql_connect.h"
 #include "probes_mysql.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                          // sql_command_flags,
                                                 // execute_init_command,
                                                 // do_command

@@ -232,4 +232,77 @@ SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-7370: Server deadlocks on renaming a table for which persistent statistics exists
+--echo #
+
+--disable_warnings
+drop database if exists db1;
+drop database if exists db1;
+--enable_warnings
+
+create database db1;
+create database db2;
+use db1;
+--echo #
+--echo # First, run the original testcase:
+--echo #
+create table t1 (i int);
+insert into t1 values (10),(20);
+analyze table t1 persistent for all;
+rename table t1 to db2.t1;
+
+--echo # Verify that stats in the old database are gone:
+select * from mysql.column_stats where db_name='db1' and table_name='t1';
+select * from mysql.table_stats where db_name='db1' and table_name='t1';
+
+--echo # Verify that stats are present in the new database:
+select * from mysql.column_stats where db_name='db2' and table_name='t1';
+select * from mysql.table_stats where db_name='db2' and table_name='t1';
+
+
+--echo #
+--echo # Now, try with more than one column and with indexes:
+--echo #
+use test;
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+
+use db1;
+create table t2 (a int, b int, c int, key IDX1(a), key IDX2(a,b));
+insert into t2 select a/10, a/2, a from test.t1;
+analyze table t2 persistent for all;
+
+alter table t2 rename db2.t2;
+
+--echo # Verify that stats in the old database are gone:
+select * from mysql.table_stats where db_name='db1' and table_name='t2';
+select * from mysql.column_stats where db_name='db1' and table_name='t2';
+select * from mysql.index_stats where db_name='db1' and table_name='t2';
+
+--echo # Verify that stats are present in the new database:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+
+use db2;
+--echo #
+--echo # Now, rename within the same database and verify:
+--echo #
+rename table t2 to t3;
+--echo # No stats under old name:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+--echo # Stats under the new name:
+select * from mysql.table_stats where db_name='db2' and table_name='t3';
+select * from mysql.column_stats where db_name='db2' and table_name='t3';
+select * from mysql.index_stats where db_name='db2' and table_name='t3';
+
+use test;
+drop database db1;
+drop database db2;
+drop table t1;
+
 set use_stat_tables=@save_use_stat_tables;

@@ -1,0 +1,30 @@
+CREATE TABLE `test_wo_keys` (
+`f01` int AUTO_INCREMENT,
+`f02` bigint, `f03` bigint, `f04` enum('a','b'),
+`f05` date, `f06` int, `f07` int, `f08` double, `f09` int,
+`f10` bigint, `f11` double, `f12` enum('a','b','c','d','e'),
+`f13` int, `f14` int, `f15` varchar(255), `f16` int, `f17` int, `f18` int,
+`f19` double, `f20` double, `f21` double, `f22` double, `f23` double, `f24` tinyint,
+`f25` double, `f26` double, `f27` double, `f28` double, `f29` int unsigned,
+`f30` int unsigned, `f31` bigint, `f32` int unsigned, `f33` bigint,
+`f34` int unsigned, `f35` int unsigned,
+PRIMARY KEY `f01` (`f01`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+show status like '%merge_buffers%';
+Variable_name	Value
+Innodb_os_merge_buffers_written	0
+Innodb_os_merge_buffers_read	0
+Innodb_os_merge_buffers_merged	0
+ALTER TABLE test_wo_keys
+ADD KEY `f06` (`f06`), ADD KEY `f05` (`f05`), ADD KEY `f04` (`f04`), ADD KEY `f23` (`f23`),
+ADD KEY `f10` (`f10`), ADD KEY `f11` (`f11`), ADD KEY `f09` (`f09`), ADD KEY `f22` (`f22`),
+ADD KEY `f21` (`f21`), ADD KEY `f07` (`f07`), ADD KEY `f08` (`f08`), ADD KEY `f18` (`f18`),
+ADD KEY `f19` (`f19`), ADD KEY `f20` (`f20`), ADD KEY `f29` (`f29`,`f31`,`f33`),
+ADD KEY `f35` (`f35`), ADD KEY `f25` (`f25`), ADD KEY `f26` (`f26`),
+ADD KEY `f27` (`f27`), ADD KEY `f28` (`f28`);
+show status like '%merge_buffers%';
+Variable_name	Value
+Innodb_os_merge_buffers_written	0
+Innodb_os_merge_buffers_read	0
+Innodb_os_merge_buffers_merged	0
+DROP TABLE test_wo_keys;

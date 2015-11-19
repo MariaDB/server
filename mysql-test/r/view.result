@@ -5507,6 +5507,39 @@ UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM v3 );
 EXECUTE stmt;
 DROP TABLE t1, t2, t3;
 DROP VIEW v3;
+#
+# MDEV-8632: Segmentation fault on INSERT
+#
+CREATE TABLE `t1` (
+`id` int(10) unsigned NOT NULL,
+`r` float NOT NULL,
+PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+create view v1 as select id, if(r=r,1,2) as d from t1;
+create view v2 as
+select id, 
+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+from v1;
+insert into t1 (id, r)
+select id,p from
+(
+select id, 
+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+from (
+select id, if(r=r,1,2) as d
+from t1
+) a
+) b
+on duplicate key update r=p;
+insert into t1 (id, r)
+select id,p from v2 
+on duplicate key update r=p;
+prepare stmt from "insert into t1 (id, r) select id,p from v2 on duplicate key update r=p";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+drop view v1,v2;
+drop table `t1`;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -5627,6 +5660,149 @@ count(v3.i)
 0
 drop table t1, t2;
 drop view v3;
+#
+# MDEV-8525: mariadb 10.0.20 crashing when data is read by Kodi 
+# media center (http://kodi.tv).
+#
+CREATE TABLE `t1` (
+`idSong` int(11) NOT NULL AUTO_INCREMENT,
+`idAlbum` int(11) DEFAULT NULL,
+`idPath` int(11) DEFAULT NULL,
+`strArtists` text,
+`strGenres` text,
+`strTitle` varchar(512) DEFAULT NULL,
+`iTrack` int(11) DEFAULT NULL,
+`iDuration` int(11) DEFAULT NULL,
+`iYear` int(11) DEFAULT NULL,
+`dwFileNameCRC` text,
+`strFileName` text,
+`strMusicBrainzTrackID` text,
+`iTimesPlayed` int(11) DEFAULT NULL,
+`iStartOffset` int(11) DEFAULT NULL,
+`iEndOffset` int(11) DEFAULT NULL,
+`idThumb` int(11) DEFAULT NULL,
+`lastplayed` varchar(20) DEFAULT NULL,
+`rating` char(1) DEFAULT '0',
+`comment` text,
+`mood` text,
+PRIMARY KEY (`idSong`),
+UNIQUE KEY `idxSong7` (`idAlbum`,`strMusicBrainzTrackID`(36)),
+KEY `idxSong` (`strTitle`(255)),
+KEY `idxSong1` (`iTimesPlayed`),
+KEY `idxSong2` (`lastplayed`),
+KEY `idxSong3` (`idAlbum`),
+KEY `idxSong6` (`idPath`,`strFileName`(255))
+)  DEFAULT CHARSET=utf8;
+INSERT INTO `t1` VALUES (1,1,1,'strArtists1','strGenres1','strTitle1',1,100,2000,NULL,'strFileName1','strMusicBrainzTrackID1',0,0,0,NULL,NULL,'0','',''),(2,2,2,'strArtists2','strGenres2','strTitle2',2,200,2001,NULL,'strFileName2','strMusicBrainzTrackID2',0,0,0,NULL,NULL,'0','','');
+CREATE TABLE `t2` (
+`idAlbum` int(11) NOT NULL AUTO_INCREMENT,
+`strAlbum` varchar(256) DEFAULT NULL,
+`strMusicBrainzAlbumID` text,
+`strArtists` text,
+`strGenres` text,
+`iYear` int(11) DEFAULT NULL,
+`idThumb` int(11) DEFAULT NULL,
+`bCompilation` int(11) NOT NULL DEFAULT '0',
+`strMoods` text,
+`strStyles` text,
+`strThemes` text,
+`strReview` text,
+`strImage` text,
+`strLabel` text,
+`strType` text,
+`iRating` int(11) DEFAULT NULL,
+`lastScraped` varchar(20) DEFAULT NULL,
+`dateAdded` varchar(20) DEFAULT NULL,
+`strReleaseType` text,
+PRIMARY KEY (`idAlbum`),
+UNIQUE KEY `idxAlbum_2` (`strMusicBrainzAlbumID`(36)),
+KEY `idxAlbum` (`strAlbum`(255)),
+KEY `idxAlbum_1` (`bCompilation`)
+) DEFAULT CHARSET=utf8;
+INSERT INTO `t2` VALUES (1,'strAlbum1','strMusicBrainzAlbumID1','strArtists1','strGenres1',2000,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'album');
+CREATE TABLE `t3` (
+`idArtist` int(11) DEFAULT NULL,
+`idAlbum` int(11) DEFAULT NULL,
+`strJoinPhrase` text,
+`boolFeatured` int(11) DEFAULT NULL,
+`iOrder` int(11) DEFAULT NULL,
+`strArtist` text,
+UNIQUE KEY `idxAlbumArtist_1` (`idAlbum`,`idArtist`),
+UNIQUE KEY `idxAlbumArtist_2` (`idArtist`,`idAlbum`),
+KEY `idxAlbumArtist_3` (`boolFeatured`)
+) DEFAULT CHARSET=utf8;
+INSERT INTO `t3` VALUES (1,1,'',0,0,'strArtist1');
+CREATE TABLE `t4` (
+`idArtist` int(11) NOT NULL AUTO_INCREMENT,
+`strArtist` varchar(256) DEFAULT NULL,
+`strMusicBrainzArtistID` text,
+`strBorn` text,
+`strFormed` text,
+`strGenres` text,
+`strMoods` text,
+`strStyles` text,
+`strInstruments` text,
+`strBiography` text,
+`strDied` text,
+`strDisbanded` text,
+`strYearsActive` text,
+`strImage` text,
+`strFanart` text,
+`lastScraped` varchar(20) DEFAULT NULL,
+`dateAdded` varchar(20) DEFAULT NULL,
+PRIMARY KEY (`idArtist`),
+UNIQUE KEY `idxArtist1` (`strMusicBrainzArtistID`(36)),
+KEY `idxArtist` (`strArtist`(255))
+) DEFAULT CHARSET=utf8;
+INSERT INTO `t4` VALUES (1,'strArtist1','strMusicBrainzArtistID',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+CREATE VIEW `v1` AS select `t2`.`idAlbum` AS `idAlbum`,`t2`.`strAlbum` AS `strAlbum`,`t2`.`strMusicBrainzAlbumID` AS `strMusicBrainzAlbumID`,`t2`.`strArtists` AS `strArtists`,`t2`.`strGenres` AS `strGenres`,`t2`.`iYear` AS `iYear`,`t2`.`strMoods` AS `strMoods`,`t2`.`strStyles` AS `strStyles`,`t2`.`strThemes` AS `strThemes`,`t2`.`strReview` AS `strReview`,`t2`.`strLabel` AS `strLabel`,`t2`.`strType` AS `strType`,`t2`.`strImage` AS `strImage`,`t2`.`iRating` AS `iRating`,`t2`.`bCompilation` AS `bCompilation`,(select min(`t1`.`iTimesPlayed`) from `t1` where (`t1`.`idAlbum` = `t2`.`idAlbum`)) AS `iTimesPlayed`,`t2`.`strReleaseType` AS `strReleaseType` from `t2`;
+CREATE VIEW `v2` AS select `t3`.`idAlbum` AS `idAlbum`,`t3`.`idArtist` AS `idArtist`,`t4`.`strArtist` AS `strArtist`,`t4`.`strMusicBrainzArtistID` AS `strMusicBrainzArtistID`,`t3`.`boolFeatured` AS `boolFeatured`,`t3`.`strJoinPhrase` AS `strJoinPhrase`,`t3`.`iOrder` AS `iOrder` from (`t3` join `t4` on((`t3`.`idArtist` = `t4`.`idArtist`)));
+SELECT v1.*,v2.* FROM v1 LEFT JOIN v2 ON v1.idAlbum = v2.idAlbum WHERE v1.idAlbum = 1 ORDER BY v2.iOrder;
+idAlbum	strAlbum	strMusicBrainzAlbumID	strArtists	strGenres	iYear	strMoods	strStyles	strThemes	strReview	strLabel	strType	strImage	iRating	bCompilation	iTimesPlayed	strReleaseType	idAlbum	idArtist	strArtist	strMusicBrainzArtistID	boolFeatured	strJoinPhrase	iOrder
+1	strAlbum1	strMusicBrainzAlbumID1	strArtists1	strGenres1	2000	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	0	album	1	1	strArtist1	strMusicBrainzArtistID	0		0
+drop view v1,v2;
+drop table t1,t2,t3,t4;
+#
+# MDEV-8913: Derived queries with same column names as final
+# projection causes issues when using Order By
+#
+create table t1 (field int);
+insert into t1 values (10),(5),(3),(8),(20);
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM ( SELECT field AS f1, 1 AS f2 FROM t1) AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+create view v1 as SELECT field AS f1, 1 AS f2 FROM t1;
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM v1 AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+drop view v1;
+create table t2 SELECT field AS f1, 1 AS f2 FROM t1;
+SELECT
+sq.f2 AS f1,
+sq.f1 AS f2
+FROM t2 AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+drop table t1, t2;
+SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1;
+ERROR 42S22: Unknown column 'SOME_GARBAGE.b.a' in 'field list'
 # -----------------------------------------------------------------
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------

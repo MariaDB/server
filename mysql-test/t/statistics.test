@@ -701,3 +701,19 @@ drop table t1, t2;
 
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug MDEV-7383: min/max value for a column not utf8 compatible
+--echo #
+
+create table t1 (a varchar(100)) engine=MyISAM;
+insert into t1 values(unhex('D879626AF872675F73E662F8'));
+analyze table t1 persistent for all;
+show warnings;
+
+select db_name, table_name, column_name,
+       HEX(min_value), HEX(max_value),
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+drop table t1;

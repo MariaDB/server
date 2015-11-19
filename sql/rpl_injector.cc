@@ -15,7 +15,6 @@
 
 #include <my_global.h>
 #include "sql_priv.h" 
-#include "unireg.h"                             // REQUIRED by later includes
 #include "rpl_injector.h"
 #include "transaction.h"
 #include "sql_parse.h"                          // begin_trans, end_trans, COMMIT

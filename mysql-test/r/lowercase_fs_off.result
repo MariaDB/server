@@ -65,4 +65,9 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a= 1;
 RENAME TABLE t1 TO T1;
 ALTER TABLE T1 RENAME t1;
 DROP TABLE t1;
+create table t1 (a int);
+create trigger t1_bi before insert on t1 for each row set new.a= 1;
+show triggers like '%T1%';
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+drop table t1;
 set GLOBAL sql_mode=default;

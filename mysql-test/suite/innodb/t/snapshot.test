@@ -1,0 +1,18 @@
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connect (con1,localhost,root,,test)
+CREATE TABLE IF NOT EXISTS t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=InnoDB;
+
+--connection default
+--error 1412
+UPDATE t1 SET i = 0;
+--error 1412
+UPDATE t1 SET pk = 0;
+commit;
+
+drop table t1;

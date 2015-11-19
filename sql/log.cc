@@ -8013,12 +8013,14 @@ int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_bin_log");
 
+  thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(&LOCK_log);
   if (!timeout)
     mysql_cond_wait(&update_cond, &LOCK_log);
   else
     ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
                               const_cast<struct timespec *>(timeout));
+  thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
 

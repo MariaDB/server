@@ -35,7 +35,6 @@
 #define Select Lex->current_select
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */
 #include "sql_partition.h"  /* mem_alloc_error, partition_info, HASH_PARTITION */
@@ -10909,6 +10908,15 @@ table_factor:
               sel->add_joined_table($$);
               lex->pop_context();
               lex->nest_level--;
+              /*
+                Fields in derived table can be used in upper select in
+                case of merge. We do not add HAVING fields because we do
+                not merge such derived. We do not add union because
+                also do not merge them
+              */
+              if (!sel->next_select())
+                $2->select_n_where_fields+=
+                  sel->select_n_where_fields;
             }
             /*else if (($3->select_lex &&
                       $3->select_lex->master_unit()->is_union() &&
@@ -15418,6 +15426,9 @@ current_role:
 grant_role:
           ident_or_text
           {
+            CHARSET_INFO *cs= system_charset_info;
+            /* trim end spaces (as they'll be lost in mysql.user anyway) */
+            $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
             if ($1.length == 0)
             {
               my_error(ER_INVALID_ROLE, MYF(0), "");
@@ -15433,7 +15444,7 @@ grant_role:
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
-                                         system_charset_info, 0))
+                                         cs, 0))
               MYSQL_YYABORT;
           }
         | current_role

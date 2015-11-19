@@ -170,188 +170,6 @@ static int get_vio_connect_timeout(MYSQL *mysql)
 }
 
 
-/****************************************************************************
-  A modified version of connect().  my_connect() allows you to specify
-  a timeout value, in seconds, that we should wait until we
-  derermine we can't connect to a particular host.  If timeout is 0,
-  my_connect() will behave exactly like connect().
-
-  Base version coded by Steve Bernacki, Jr. <steve@navinet.net>
-*****************************************************************************/
-
-int my_connect(my_socket fd, const struct sockaddr *name, uint namelen,
-	       uint timeout)
-{
-#if defined(__WIN__)
-  DBUG_ENTER("my_connect");
-  DBUG_RETURN(connect(fd, (struct sockaddr*) name, namelen));
-#else
-  int flags, res, s_err;
-  DBUG_ENTER("my_connect");
-  DBUG_PRINT("enter", ("fd: %d  timeout: %u", fd, timeout));
-
-  /*
-    If they passed us a timeout of zero, we should behave
-    exactly like the normal connect() call does.
-  */
-
-  if (timeout == 0)
-    DBUG_RETURN(connect(fd, (struct sockaddr*) name, namelen));
-
-  flags = fcntl(fd, F_GETFL, 0);	  /* Set socket to not block */
-#ifdef O_NONBLOCK
-  fcntl(fd, F_SETFL, flags | O_NONBLOCK);  /* and save the flags..  */
-#endif
-
-  DBUG_PRINT("info", ("connecting non-blocking"));
-  res= connect(fd, (struct sockaddr*) name, namelen);
-  DBUG_PRINT("info", ("connect result: %d  errno: %d", res, errno));
-  s_err= errno;			/* Save the error... */
-  fcntl(fd, F_SETFL, flags);
-  if ((res != 0) && (s_err != EINPROGRESS))
-  {
-    errno= s_err;			/* Restore it */
-    DBUG_RETURN(-1);
-  }
-  if (res == 0)				/* Connected quickly! */
-    DBUG_RETURN(0);
-  DBUG_RETURN(wait_for_data(fd, timeout));
-#endif
-}
-
-
-/*
-  Wait up to timeout seconds for a connection to be established.
-
-  We prefer to do this with poll() as there is no limitations with this.
-  If not, we will use select()
-*/
-
-#if !defined(__WIN__)
-
-static int wait_for_data(my_socket fd, uint timeout)
-{
-#ifdef HAVE_POLL
-  struct pollfd ufds;
-  int res;
-  DBUG_ENTER("wait_for_data");
-
-  DBUG_PRINT("info", ("polling"));
-  ufds.fd= fd;
-  ufds.events= POLLIN | POLLPRI;
-  if (!(res= poll(&ufds, 1, (int) timeout*1000)))
-  {
-    DBUG_PRINT("info", ("poll timed out"));
-    errno= EINTR;
-    DBUG_RETURN(-1);
-  }
-  DBUG_PRINT("info",
-             ("poll result: %d  errno: %d  revents: 0x%02d  events: 0x%02d",
-              res, errno, ufds.revents, ufds.events));
-  if (res < 0 || !(ufds.revents & (POLLIN | POLLPRI)))
-    DBUG_RETURN(-1);
-  /*
-    At this point, we know that something happened on the socket.
-    But this does not means that everything is alright.
-    The connect might have failed. We need to retrieve the error code
-    from the socket layer. We must return success only if we are sure
-    that it was really a success. Otherwise we might prevent the caller
-    from trying another address to connect to.
-  */
-  {
-    int         s_err;
-    socklen_t   s_len= sizeof(s_err);
-
-    DBUG_PRINT("info", ("Get SO_ERROR from non-blocked connected socket."));
-    res= getsockopt(fd, SOL_SOCKET, SO_ERROR, &s_err, &s_len);
-    DBUG_PRINT("info", ("getsockopt res: %d  s_err: %d", res, s_err));
-    if (res)
-      DBUG_RETURN(res);
-    /* getsockopt() was successful, check the retrieved status value. */
-    if (s_err)
-    {
-      errno= s_err;
-      DBUG_RETURN(-1);
-    }
-    /* Status from connect() is zero. Socket is successfully connected. */
-  }
-  DBUG_RETURN(0);
-#else
-  SOCKOPT_OPTLEN_TYPE s_err_size = sizeof(uint);
-  fd_set sfds;
-  struct timeval tv;
-  time_t start_time, now_time;
-  int res, s_err;
-  DBUG_ENTER("wait_for_data");
-
-  if (fd >= FD_SETSIZE)				/* Check if wrong error */
-    DBUG_RETURN(0);					/* Can't use timeout */
-
-  /*
-    Our connection is "in progress."  We can use the select() call to wait
-    up to a specified period of time for the connection to suceed.
-    If select() returns 0 (after waiting howevermany seconds), our socket
-    never became writable (host is probably unreachable.)  Otherwise, if
-    select() returns 1, then one of two conditions exist:
-   
-    1. An error occured.  We use getsockopt() to check for this.
-    2. The connection was set up sucessfully: getsockopt() will
-    return 0 as an error.
-   
-    Thanks goes to Andrew Gierth <andrew@erlenstar.demon.co.uk>
-    who posted this method of timing out a connect() in
-    comp.unix.programmer on August 15th, 1997.
-  */
-
-  FD_ZERO(&sfds);
-  FD_SET(fd, &sfds);
-  /*
-    select could be interrupted by a signal, and if it is, 
-    the timeout should be adjusted and the select restarted
-    to work around OSes that don't restart select and 
-    implementations of select that don't adjust tv upon
-    failure to reflect the time remaining
-   */
-  start_time= my_time(0);
-  for (;;)
-  {
-    tv.tv_sec = (long) timeout;
-    tv.tv_usec = 0;
-#if defined(HPUX10)
-    if ((res = select(fd+1, NULL, (int*) &sfds, NULL, &tv)) > 0)
-      break;
-#else
-    if ((res = select(fd+1, NULL, &sfds, NULL, &tv)) > 0)
-      break;
-#endif
-    if (res == 0)					/* timeout */
-      DBUG_RETURN(-1);
-    now_time= my_time(0);
-    timeout-= (uint) (now_time - start_time);
-    if (errno != EINTR || (int) timeout <= 0)
-      DBUG_RETURN(-1);
-  }
-
-  /*
-    select() returned something more interesting than zero, let's
-    see if we have any errors.  If the next two statements pass,
-    we've got an open socket!
-  */
-
-  s_err=0;
-  if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char*) &s_err, &s_err_size) != 0)
-    DBUG_RETURN(-1);
-
-  if (s_err)
-  {						/* getsockopt could succeed */
-    errno = s_err;
-    DBUG_RETURN(-1);					/* but return an error... */
-  }
-  DBUG_RETURN(0);					/* ok */
-#endif /* HAVE_POLL */
-}
-#endif /* !defined(__WIN__) */
-
 /**
   Set the internal error message to mysql handler
 
@@ -3165,19 +2983,20 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
 static int
 connect_sync_or_async(MYSQL *mysql, NET *net, my_socket fd,
-                      const struct sockaddr *name, uint namelen)
+                      struct sockaddr *name, uint namelen)
 {
+  int vio_timeout = get_vio_connect_timeout(mysql);
+
   if (mysql->options.extension && mysql->options.extension->async_context &&
       mysql->options.extension->async_context->active)
   {
     my_bool old_mode;
-    int vio_timeout= get_vio_connect_timeout(mysql);
     vio_blocking(net->vio, FALSE, &old_mode);
     return my_connect_async(mysql->options.extension->async_context, fd,
                             name, namelen, vio_timeout);
   }
 
-  return my_connect(fd, name, namelen, mysql->options.connect_timeout);
+  return vio_socket_connect(net->vio, name, namelen, vio_timeout);
 }
 
 

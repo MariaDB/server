@@ -17,7 +17,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"        // sql_kill, *_precheck, *_prepare
 #include "lock.h"             // try_transactional_lock,
                               // check_transactional_lock,
@@ -693,7 +692,7 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 static void handle_bootstrap_impl(THD *thd)
 {
   MYSQL_FILE *file= bootstrap_file;
-  DBUG_ENTER("handle_bootstrap");
+  DBUG_ENTER("handle_bootstrap_impl");
 
 #ifndef EMBEDDED_LIBRARY
   pthread_detach_this_thread();
@@ -6691,6 +6690,7 @@ bool check_fk_parent_table_access(THD *thd,
         table_name.str= (char *) thd->memdup(fk_key->ref_table.str,
                                              fk_key->ref_table.length+1);
         table_name.length= my_casedn_str(files_charset_info, table_name.str);
+        db_name.length = my_casedn_str(files_charset_info, db_name.str);
       }
 
       parent_table.init_one_table(db_name.str, db_name.length,

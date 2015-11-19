@@ -1622,3 +1622,22 @@ test	t2	id	1	1024	0.0000	8.0000	63	SINGLE_PREC_HB	03070B0F13171B1F23272B2F33373B
 set histogram_size=default;
 drop table t1, t2;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug MDEV-7383: min/max value for a column not utf8 compatible
+#
+create table t1 (a varchar(100)) engine=MyISAM;
+insert into t1 values(unhex('D879626AF872675F73E662F8'));
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+show warnings;
+Level	Code	Message
+select db_name, table_name, column_name,
+HEX(min_value), HEX(max_value),
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
+drop table t1;

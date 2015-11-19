@@ -2693,7 +2693,8 @@ static int check_alter_user(THD *thd, const char *host, const char *user)
   }
 
   if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier), 1) &&
-      !thd->slave_thread && !thd->security_ctx->priv_user[0])
+      !thd->slave_thread && !thd->security_ctx->priv_user[0] &&
+      !in_bootstrap)
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER,
                ER_THD(thd, ER_PASSWORD_ANONYMOUS_USER),
@@ -9110,8 +9111,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
             So we need to examine the current element once again, but
             we don't need to restart the search from the beginning.
           */
-          if (idx != elements)
-            idx++;
+          idx++;
           break;
         }
 
@@ -9143,6 +9143,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
           my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
                          (uchar*) old_key, old_key_length);
+          idx++; // see the comment above
           break;
         }
 
