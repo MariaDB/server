@@ -254,7 +254,6 @@ ELSE()
     mysql_fix_extensions
     mysql_setpermission
     mysql_secure_installation
-    mysql_zap
     mysqlaccess
     mysql_convert_table_format
     mysql_find_rows
