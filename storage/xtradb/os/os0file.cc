@@ -117,6 +117,7 @@ UNIV_INTERN ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 #else
 /** Umask for creating files */
 UNIV_INTERN ulint	os_innodb_umask	= 0;
+#define ECANCELED  125
 #endif /* __WIN__ */
 
 #ifndef UNIV_HOTBACKUP

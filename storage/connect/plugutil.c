@@ -143,7 +143,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
     return NULL;
   } else {
-    g->Sarea_Size = worksize;
+    g->Sarea = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
     g->Mrr = 0;
@@ -155,7 +155,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     /*******************************************************************/
     /*  Allocate the main work segment.                                */
     /*******************************************************************/
-    if (!(g->Sarea = PlugAllocMem(g, worksize))) {
+    if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
       char errmsg[256];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
@@ -163,7 +163,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     } else
       g->Sarea_Size = worksize;
 
-    } /* endif g */
+  } /* endif g */
 
   g->jump_level = -1;   /* New setting to allow recursive call of Plug */
   return(g);

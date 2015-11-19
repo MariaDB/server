@@ -340,7 +340,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type, short prec)
 
   switch (type) {
     case TYPE_STRING:
-      valp = new(g) TYPVAL<PSZ>((PSZ)value);
+      valp = new(g) TYPVAL<PSZ>((PSZ)value, prec);
       break;
     case TYPE_SHORT:
       valp = new(g) TYPVAL<short>(*(short*)value, TYPE_SHORT);
@@ -1209,12 +1209,12 @@ void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
 /***********************************************************************/
 /*  STRING  public constructor from a constant string.                 */
 /***********************************************************************/
-TYPVAL<PSZ>::TYPVAL(PSZ s) : VALUE(TYPE_STRING)
+TYPVAL<PSZ>::TYPVAL(PSZ s, short c) : VALUE(TYPE_STRING)
   {
   Strp = s;
   Len = strlen(s);
   Clen = Len;
-  Ci = false;
+  Ci = (c == 1);
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -2440,6 +2440,7 @@ void DTVAL::SetTimeShift(void)
 
   } // end of SetTimeShift
 
+#if defined(connect_EXPORTS)
 // Added by Alexander Barkov
 static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
 {
@@ -2461,6 +2462,9 @@ static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
   TIME_to_localtime(tm, &ltime);
   return tm;
 } // end of gmtime_mysql
+#else
+#define gmtime_mysql(T,B)			gmtime((const time_t *)T)
+#endif
 
 /***********************************************************************/
 /*  GetGmTime: returns a pointer to a static tm structure obtained     */
@@ -2489,6 +2493,7 @@ struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   return datm;
   } // end of GetGmTime
 
+#if defined(connect_EXPORTS)
 // Added by Alexander Barkov
 static time_t mktime_mysql(struct tm *ptm)
 {
@@ -2499,6 +2504,9 @@ static time_t mktime_mysql(struct tm *ptm)
   time_t t= TIME_to_timestamp(current_thd, &ltime, &error_code);
   return error_code ? (time_t) -1 : t;
 }
+#else
+#define mktime_mysql   mktime
+#endif
 
 /***********************************************************************/
 /*  MakeTime: calculates a date value from a tm structures using the   */

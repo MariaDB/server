@@ -236,7 +236,7 @@ template <>
 class DllExport TYPVAL<PSZ>: public VALUE {
  public:
   // Constructors
-  TYPVAL(PSZ s);
+  TYPVAL(PSZ s, short c = 0);
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
 
   // Implementation

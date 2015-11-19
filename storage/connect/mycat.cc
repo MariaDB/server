@@ -299,13 +299,13 @@ int GetIndexType(TABTYPE type)
       xtyp= 1;
       break;
     case TAB_MYSQL:
-//  case TAB_ODBC:
+    case TAB_ODBC:
       xtyp= 2;
       break;
     case TAB_VIR:
       xtyp= 3;
       break;
-    case TAB_ODBC:
+//  case TAB_ODBC:
     default:
       xtyp= 0;
       break;
