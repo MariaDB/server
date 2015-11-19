@@ -165,6 +165,9 @@ os_log_bytes_written	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	di
 os_log_fsyncs	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of fsync log writes (innodb_os_log_fsyncs)
 os_log_pending_fsyncs	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of pending fsync write (innodb_os_log_pending_fsyncs)
 os_log_pending_writes	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of pending log file writes (innodb_os_log_pending_writes)
+os_merge_blocks_written	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of merge blocks written (innodb_os_merge_blocks_written)
+os_merge_blocks_read	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of merge blocks read (innodb_os_merge_blocks_read)
+os_merge_blocks_merged	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of merge blocks merged (innodb_os_merge_blocks_merged)
 trx_rw_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of read-write transactions committed
 trx_ro_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of read-only transactions committed
 trx_nl_ro_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of non-locking auto-commit read-only transactions committed
