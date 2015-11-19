@@ -19,6 +19,13 @@ wsrep_last_committed_diff
 FLUSH USER_RESOURCES;
 wsrep_last_committed_diff
 1
+FLUSH TABLES;
+wsrep_last_committed_diff
+1
+CREATE TABLE t2 (f1 INTEGER);
+FLUSH TABLES t2;
+wsrep_last_committed_diff
+1
 CREATE TABLE t1 (f1 INTEGER);
 FLUSH LOGS;
 FLUSH TABLES WITH READ LOCK;
@@ -29,4 +36,19 @@ FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 wsrep_last_committed_diff
 1
+LOCK TABLES t1 WRITE;
+FLUSH TABLES t1;
+UNLOCK TABLES;
+wsrep_last_committed_diff
+1
+LOCK TABLES t1 READ;
+FLUSH TABLES t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+wsrep_last_committed_diff
+1
+FLUSH TABLES t1;
+wsrep_last_committed_diff
+1
 DROP TABLE t1;
+DROP TABLE t2;

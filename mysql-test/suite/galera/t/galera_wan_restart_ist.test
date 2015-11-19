@@ -1,0 +1,148 @@
+#
+# Test that even after multiple restarts in a WAN context with two segments, the cluster continues to operate correctly.
+#
+# We can not easily restart the first node, so instead we restart all the other nodes. MTR does not allow multiple nodes
+# to be down at the same time, so restarts are sequential.
+#
+# We can not test any of the actual WAN optimizations from inside MTR and no 
+# status variables are provided. So we only check that simple replication works.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+INSERT INTO t1 VALUES (2);
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+INSERT INTO t1 VALUES (3);
+
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+--connection node_4
+INSERT INTO t1 VALUES (4);
+
+#
+# Restart node #3
+#
+
+--connection node_3
+INSERT INTO t1 VALUES (13);
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+--sleep 5
+
+--connection node_1
+INSERT INTO t1 VALUES (11);
+
+--connection node_2
+INSERT INTO t1 VALUES (12);
+
+--connection node_4
+INSERT INTO t1 VALUES (14);
+
+--connection node_3
+--source include/start_mysqld.inc
+--sleep 5
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (131);
+
+#
+# Restart node #2
+#
+
+--connection node_2
+INSERT INTO t1 VALUES (22);
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+--sleep 5
+
+--connection node_1
+INSERT INTO t1 VALUES (21);
+
+--connection node_3
+INSERT INTO t1 VALUES (23);
+
+--connection node_4
+INSERT INTO t1 VALUES (24);
+
+--connection node_2
+--source include/start_mysqld.inc
+--sleep 5
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (221);
+
+#
+# Restart node #4
+#
+
+--connection node_4
+INSERT INTO t1 VALUES (34);
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+--sleep 5
+
+--connection node_1
+INSERT INTO t1 VALUES (31);
+
+--connection node_2
+INSERT INTO t1 VALUES (32);
+
+--connection node_3
+INSERT INTO t1 VALUES (33);
+
+--connection node_4
+--source include/start_mysqld.inc
+--sleep 5
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (341);
+
+
+#
+# Check all nodes
+#
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) = 19 FROM t1;
+
+--connection node_2
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) = 19 FROM t1;
+
+--connection node_3
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) = 19 FROM t1;
+
+--connection node_4
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) = 19 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+
+--connection node_2
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+
+--connection node_3
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+
+--connection node_4
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");

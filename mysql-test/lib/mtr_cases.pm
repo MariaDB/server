@@ -319,7 +319,7 @@ sub parse_disabled {
       chomp;
       next if /^\s*#/ or /^\s*$/;
       mtr_error("Syntax error in $filename line $.")
-        unless /^\s*(?:([-0-9A-Za-z_\/]+)\.)?([-0-9A-Za-z_]+)\s*:\s*(.*?)\s*$/;
+        unless /^\s*(?:([-0-9A-Za-z_\/]+)\.)?([-0-9A-Za-z_#]+)\s*:\s*(.*?)\s*$/;
       mtr_error("Wrong suite name in $filename line $.")
         if defined $1 and defined $suitename and $1 ne $suitename;
       $disabled{($1 || $suitename || '') . ".$2"} = $3;

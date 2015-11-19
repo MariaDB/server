@@ -2,9 +2,10 @@
 --source include/have_innodb.inc
 
 #
-# At this time, issing a FLUSH TABLES WITH READ LOCK causes SELECT and SHOW to hang if 
-# casuality can not be ensured because another node issued a statement in the meantime
-# which could not be applied because FTWRL blocks the applier as well
+# At this time, issing a FLUSH TABLES WITH READ LOCK causes SELECT and SHOW to
+# hang if causality can not be ensured because another node issued a statement
+# in the meantime which could not be applied because FTWRL blocks the applier
+# as well
 #
 # See LP bug 1271177
 #

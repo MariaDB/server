@@ -3374,6 +3374,17 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   if (reason == Log_event::EVENT_SKIP_NOT)
     exec_res= ev->apply_event(rgi);
 
+#ifdef WITH_WSREP
+    if (exec_res && thd->wsrep_conflict_state != NO_CONFLICT)
+    {
+      WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
+                  exec_res, thd->wsrep_conflict_state);
+      rli->abort_slave= 1;
+      rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                  "Node has dropped from cluster");
+    }
+#endif
+
 #ifndef DBUG_OFF
   /*
     This only prints information to the debug trace.
@@ -3693,6 +3704,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     serial_rgi->event_relay_log_pos= rli->event_relay_log_pos;
     exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
 
+#ifdef WITH_WSREP
+    WSREP_DEBUG("apply_event_and_update_pos() result: %d", exec_res);
+#endif /* WITH_WSREP */
+
     delete_or_keep_event_post_apply(serial_rgi, typ, ev);
 
     /*
@@ -3702,6 +3717,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (exec_res == 2)
       DBUG_RETURN(1);
 
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (thd->wsrep_conflict_state == NO_CONFLICT)
+    {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     if (slave_trans_retries)
     {
       int UNINIT_VAR(temp_err);
@@ -3774,6 +3795,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                             serial_rgi->trans_retries));
       }
     }
+#ifdef WITH_WSREP
+    }
+    else
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
+
     thread_safe_increment64(&rli->executed_entries);
     DBUG_RETURN(exec_res);
   }
@@ -4756,15 +4783,21 @@ pthread_handler_t handle_slave_sql(void *arg)
 
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
+#ifdef WITH_WSREP
+      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      {
+        wsrep_node_dropped= TRUE;
+        rli->abort_slave= TRUE;
+      }
+#endif /* WITH_WSREP */
+
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
       if (!sql_slave_killed(serial_rgi))
       {
         slave_output_error_info(serial_rgi, thd);
         if (WSREP_ON && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
-        {
-	  wsrep_node_dropped= TRUE;
-	}
+          wsrep_node_dropped= TRUE;
       }
       goto err;
     }
@@ -4889,27 +4922,33 @@ err_during_init:
   thd->rgi_fake= thd->rgi_slave= NULL;
   delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
+
 #ifdef WITH_WSREP
-  /* if slave stopped due to node going non primary, we set global flag to
-     trigger automatic restart of slave when node joins back to cluster
+  /*
+    If slave stopped due to node going non primary, we set global flag to
+    trigger automatic restart of slave when node joins back to cluster.
   */
-   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
-   {
-     if (wsrep_ready)
-     {
-       WSREP_INFO("Slave error due to node temporarily non-primary"
-		  "SQL slave will continue");
-       wsrep_node_dropped= FALSE;
-       mysql_mutex_unlock(&rli->run_lock);
-       goto wsrep_restart_point;
-     } else {
-       WSREP_INFO("Slave error due to node going non-primary");
-       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
-		  "automatically restarted when node joins back to cluster");
-       wsrep_restart_slave_activated= TRUE;
-     }
-   }
+  if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
+  {
+    if (wsrep_ready)
+    {
+      WSREP_INFO("Slave error due to node temporarily non-primary"
+                 "SQL slave will continue");
+      wsrep_node_dropped= FALSE;
+      mysql_mutex_unlock(&rli->run_lock);
+      WSREP_DEBUG("wsrep_conflict_state now: %d", thd->wsrep_conflict_state);
+      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state);
+      thd->wsrep_conflict_state= NO_CONFLICT;
+      goto wsrep_restart_point;
+    } else {
+      WSREP_INFO("Slave error due to node going non-primary");
+      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+                 "automatically restarted when node joins back to cluster.");
+      wsrep_restart_slave_activated= TRUE;
+    }
+  }
 #endif /* WITH_WSREP */
+
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
   is important. Otherwise a killer_thread can execute between the calls and

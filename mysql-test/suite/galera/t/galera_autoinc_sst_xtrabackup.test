@@ -1,0 +1,95 @@
+#
+# Test that autoincrement works correctly while the cluster membership
+# is changing and IST takes place.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+--let $connection_id = `SELECT CONNECTION_ID()`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+
+# Issue an endless stream of autoincrement inserts
+
+DELIMITER |;
+CREATE PROCEDURE p1 ()
+BEGIN
+	DECLARE x INT DEFAULT 1;
+	DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+
+	WHILE 1 DO
+	        INSERT INTO t1 VALUES (DEFAULT);
+		COMMIT;
+	END WHILE;
+END|
+DELIMITER ;|
+
+--send CALL p1();
+--sleep 2
+
+--connection node_2
+--send CALL p1();
+--sleep 2
+
+# Kill and restart node #2
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--source include/kill_galera.inc
+
+--sleep 10
+--source include/start_mysqld.inc
+--sleep 25
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (DEFAULT);
+
+# Terminate the stored procedure
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--disable_query_log
+--eval KILL CONNECTION $connection_id
+--enable_query_log
+
+INSERT INTO t1 VALUES (DEFAULT);
+
+--connection node_1
+# CR_SERVER_LOST
+--error 2013,2006
+--reap
+
+--connection node_2
+# CR_SERVER_LOST
+--error 2013,2006
+--reap
+
+--sleep 10
+
+# Confirm that the count is correct and that the cluster is intact
+
+--connection node_1a
+--let $count = `SELECT COUNT(*) FROM t1`
+
+--connection node_2a
+--disable_query_log
+--eval SELECT COUNT(*) = $count AS count_equal FROM t1
+--enable_query_log
+
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_1a
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");

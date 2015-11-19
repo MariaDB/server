@@ -9,3 +9,5 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
+
+binlog_index : codership/mysql-wsrep##71 Regression: Duplicate "file was not purged because it is the active log file" warning

@@ -1,0 +1,48 @@
+#
+# Test the wsrep_replication_bundle variable. We expect that multiple async replication events
+# will be grouped together and thus a smaller number of wsrep_last_committed transactions will
+# be reported.
+#
+
+--source include/have_innodb.inc
+
+# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/galera_cluster.inc
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+INSERT INTO t1 VALUES(4);
+INSERT INTO t1 VALUES(5);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+# With wsrep_mysql_replication_bundle = 2, the last insert is not delivered
+# because there are not enough events remaining to complete an entire bundle
+SELECT COUNT(*) = 4 FROM t1;
+
+# Bundle is now complete, the last INSERT and the DROP are delivered
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+--sleep 1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;

@@ -2,6 +2,8 @@
 
 [mysqld]
 wsrep_sst_method=xtrabackup-v2
+wsrep_sst_auth=root:
+
 innodb_flush_log_at_trx_commit=0
 
 [mysqld.1]

@@ -97,7 +97,7 @@ void wsrep_notify_status (wsrep_member_status_t    status,
     return;
   }
 
-  wsp::process p(cmd_ptr, "r");
+  wsp::process p(cmd_ptr, "r", NULL);
 
   p.wait();
   int err = p.error();

@@ -1,0 +1,24 @@
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+FLUSH TABLES WITH READ LOCK;;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION lock_wait_timeout = 1;
+SET SESSION innodb_lock_wait_timeout=1;
+SET SESSION wait_timeout=1;
+INSERT INTO t2 VALUES (2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UNLOCK TABLES;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+INSERT INTO t1 VALUES (3);
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+DROP TABLE t1;

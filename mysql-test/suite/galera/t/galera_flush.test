@@ -77,8 +77,32 @@ FLUSH USER_RESOURCES;
 --enable_query_log
 
 
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+FLUSH TABLES;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+--connection node_1
+CREATE TABLE t2 (f1 INTEGER);
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+FLUSH TABLES t2;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
 #
-# The following statements should not be replicated: FLUSH LOGS, FLUSH TABLES
+# The following statements should not be replicated: FLUSH LOGS, FLUSH TABLES WITH LOCKS
 #
 
 
@@ -103,5 +127,47 @@ UNLOCK TABLES;
 --eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before AS wsrep_last_committed_diff;
 --enable_query_log
 
+
+## Test LOCK TABLES with FLUSH TABLES
+## LOCK TABLES t1 write followed by flush tables t1 should succeed due to MDL upgrade.
+## LOCK tables t2 read followed by flush tables t2 should fail with ER_TABLE_NOT_LOCKED_FOR_WRITE
+
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+LOCK TABLES t1 WRITE;
+FLUSH TABLES t1;
+UNLOCK TABLES;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+LOCK TABLES t1 READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+FLUSH TABLES t1;
+UNLOCK TABLES;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before AS wsrep_last_committed_diff;
+--enable_query_log
+--connection node_1
+FLUSH TABLES t1;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
+
 --connection node_1
 DROP TABLE t1;
+DROP TABLE t2;
