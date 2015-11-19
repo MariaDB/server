@@ -260,7 +260,7 @@ ret:
       the effect of the background thread on SHOW STATUS.
     */
     mysql_mutex_lock(&LOCK_thread_count);
-    bzero(&thd->status_var, sizeof(thd->status_var));
+    thd->set_status_var_init();
     thread_count--;
     thd->killed= KILL_CONNECTION;
     mysql_cond_broadcast(&COND_thread_count);
