@@ -711,7 +711,6 @@ SHOW_COMP_OPTION have_openssl;
 
 /* Thread specific variables */
 
-pthread_key(MEM_ROOT**,THR_MALLOC);
 pthread_key(THD*, THR_THD);
 mysql_mutex_t LOCK_thread_count, LOCK_thread_cache;
 mysql_mutex_t
@@ -2051,8 +2050,6 @@ static void cleanup_tls()
 {
   if (THR_THD)
     (void)pthread_key_delete(THR_THD);
-  if (THR_MALLOC)
-    (void)pthread_key_delete(THR_MALLOC);
 }
 
 
@@ -4082,8 +4079,7 @@ static int init_common_variables()
   connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
 
-  if (pthread_key_create(&THR_THD,NULL) ||
-      pthread_key_create(&THR_MALLOC,NULL))
+  if (pthread_key_create(&THR_THD, NULL))
   {
     sql_print_error("Can't create thread-keys");
     return 1;

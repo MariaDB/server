@@ -1149,7 +1149,8 @@ void Item_singlerow_subselect::fix_length_and_dec()
   }
   else
   {
-    if (!(row= (Item_cache**) sql_alloc(sizeof(Item_cache*)*max_columns)))
+    if (!(row= (Item_cache**) current_thd->alloc(sizeof(Item_cache*) *
+                                                 max_columns)))
       return;
     engine->fix_length_and_dec(row);
     value= *row;

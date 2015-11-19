@@ -6584,12 +6584,10 @@ bool grant_init()
 
 static bool grant_load(THD *thd, TABLE_LIST *tables)
 {
-  MEM_ROOT *memex_ptr;
   bool return_val= 1;
   TABLE *t_table, *c_table, *p_table;
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
-  MEM_ROOT **save_mem_root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**,
-                                                           THR_MALLOC);
+  MEM_ROOT *save_mem_root= thd->mem_root;
   ulonglong old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("grant_load");
 
@@ -6614,15 +6612,14 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
   t_table->use_all_columns();
   c_table->use_all_columns();
 
-  memex_ptr= &grant_memroot;
-  my_pthread_setspecific_ptr(THR_MALLOC, &memex_ptr);
+  thd->mem_root= &grant_memroot;
 
   if (!t_table->file->ha_index_first(t_table->record[0]))
   {
     do
     {
       GRANT_TABLE *mem_check;
-      if (!(mem_check=new (memex_ptr) GRANT_TABLE(t_table,c_table)))
+      if (!(mem_check= new (&grant_memroot) GRANT_TABLE(t_table, c_table)))
       {
 	/* This could only happen if we are out memory */
 	goto end_unlock;
@@ -6667,7 +6664,7 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
       {
         GRANT_NAME *mem_check;
         HASH *hash;
-        if (!(mem_check=new (memex_ptr) GRANT_NAME(p_table, TRUE)))
+        if (!(mem_check= new (&grant_memroot) GRANT_NAME(p_table, TRUE)))
         {
           /* This could only happen if we are out memory */
           goto end_unlock_p;
@@ -6720,7 +6717,7 @@ end_unlock_p:
     p_table->file->ha_index_end();
 end_unlock:
   t_table->file->ha_index_end();
-  my_pthread_setspecific_ptr(THR_MALLOC, save_mem_root_ptr);
+  thd->mem_root= save_mem_root;
 end_index_init:
   thd->variables.sql_mode= old_sql_mode;
   DBUG_RETURN(return_val);

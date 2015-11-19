@@ -4436,11 +4436,9 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
         }
         else
         {
-          uint strlen;
+          uint strlen= res->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
           uint dummy_errors;
-          char *str=
-            (char *)sql_alloc((strlen= res->length() *
-                               my_charset_utf8_general_ci.mbmaxlen + 1));
+          char *str= (char *) thd->alloc(strlen);
           if (str)
           {
             keys_str[i].length=
@@ -4742,7 +4740,8 @@ void Item_func_dyncol_add::print(String *str,
   This function ensures that null_value is set correctly
 */
 
-bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
+bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
+                                    String *tmp)
 {
   DYNAMIC_COLUMN dyn_str;
   String *res;
@@ -4770,10 +4769,9 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
     }
     else
     {
-      uint strlen;
+      uint strlen= nm->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= (char *)sql_alloc((strlen= nm->length() *
-                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+      buf.str= (char *) thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=
@@ -4823,7 +4821,7 @@ String *Item_dyncol_get::val_str(String *str_result)
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
 
-  if (get_dyn_value(&val, &tmp))
+  if (get_dyn_value(current_thd, &val, &tmp))
     return NULL;
 
   switch (val.type) {
@@ -4905,11 +4903,12 @@ null:
 
 longlong Item_dyncol_get::val_int()
 {
+  THD *thd= current_thd;
   DYNAMIC_COLUMN_VALUE val;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
 
-  if (get_dyn_value(&val, &tmp))
+  if (get_dyn_value(thd, &val, &tmp))
     return 0;
 
   switch (val.type) {
@@ -4930,7 +4929,6 @@ longlong Item_dyncol_get::val_int()
     num= double_to_longlong(val.x.double_value, unsigned_flag, &error);
     if (error)
     {
-      THD *thd= current_thd;
       char buff[30];
       sprintf(buff, "%lg", val.x.double_value);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -4950,7 +4948,6 @@ longlong Item_dyncol_get::val_int()
     num= my_strtoll10(val.x.string.value.str, &end, &error);
     if (end != org_end || error > 0)
     {
-      THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
@@ -4987,11 +4984,12 @@ null:
 
 double Item_dyncol_get::val_real()
 {
+  THD *thd= current_thd;
   DYNAMIC_COLUMN_VALUE val;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
 
-  if (get_dyn_value(&val, &tmp))
+  if (get_dyn_value(thd, &val, &tmp))
     return 0.0;
 
   switch (val.type) {
@@ -5014,7 +5012,6 @@ double Item_dyncol_get::val_real()
     if (end != (char*) val.x.string.value.str + val.x.string.value.length ||
         error)
     {
-      THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
@@ -5046,11 +5043,12 @@ null:
 
 my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
 {
+  THD *thd= current_thd;
   DYNAMIC_COLUMN_VALUE val;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
 
-  if (get_dyn_value(&val, &tmp))
+  if (get_dyn_value(thd, &val, &tmp))
     return NULL;
 
   switch (val.type) {
@@ -5075,7 +5073,6 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     if (rc != E_DEC_OK ||
         end != val.x.string.value.str + val.x.string.value.length)
     {
-      THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
@@ -5110,7 +5107,7 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   String tmp(buff, sizeof(buff), &my_charset_bin);
   bool signed_value= 0;
 
-  if (get_dyn_value(&val, &tmp))
+  if (get_dyn_value(current_thd, &val, &tmp))
     return 1;                                   // Error
 
   switch (val.type) {

@@ -12372,9 +12372,9 @@ static void clear_tables(JOIN *join)
 
 class COND_CMP :public ilink {
 public:
-  static void *operator new(size_t size)
+  static void *operator new(size_t size, MEM_ROOT *mem_root)
   {
-    return (void*) sql_alloc((uint) size);
+    return alloc_root(mem_root, size);
   }
   static void operator delete(void *ptr __attribute__((unused)),
                               size_t size __attribute__((unused)))
@@ -13994,7 +13994,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       {
 	cond->marker=1;
 	COND_CMP *tmp2;
-	if ((tmp2=new COND_CMP(and_father,func)))
+        if ((tmp2= new (thd->mem_root) COND_CMP(and_father, func)))
 	  save_list->push_back(tmp2);
       }
       /*
@@ -14026,7 +14026,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
         thd->change_item_tree(args + 1, value);
 	cond->marker=1;
 	COND_CMP *tmp2;
-	if ((tmp2=new COND_CMP(and_father,func)))
+        if ((tmp2=new (thd->mem_root) COND_CMP(and_father, func)))
 	  save_list->push_back(tmp2);
       }
       if (functype != Item_func::LIKE_FUNC)

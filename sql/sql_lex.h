@@ -496,10 +496,6 @@ public:
   enum sub_select_type linkage;
   bool no_table_names_allowed; /* used for global order by */
 
-  static void *operator new(size_t size) throw ()
-  {
-    return sql_alloc(size);
-  }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }

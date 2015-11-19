@@ -948,12 +948,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   plugin_ref se_plugin= 0;
   keyinfo= &first_keyinfo;
   share->ext_key_parts= 0;
-  MEM_ROOT **root_ptr, *old_root;
+  MEM_ROOT *old_root= thd->mem_root;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
-  root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
-  old_root= *root_ptr;
-  *root_ptr= &share->mem_root;
+  thd->mem_root= &share->mem_root;
 
   if (write && write_frm_image(frm_image, frm_length))
     goto err;
@@ -2087,7 +2085,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->db_plugin= se_plugin;
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
-  *root_ptr= old_root;
+  thd->mem_root= old_root;
   DBUG_RETURN(0);
 
  err:
@@ -2100,7 +2098,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!thd->is_error())
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
-  *root_ptr= old_root;
+  thd->mem_root= old_root;
   DBUG_RETURN(HA_ERR_NOT_A_TABLE);
 }
 

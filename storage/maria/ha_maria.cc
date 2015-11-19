@@ -435,8 +435,8 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
                           NullS) - name);
   /*
     TODO: switch from protocol to push_warning here. The main reason we didn't
-    it yet is parallel repair. Due to following trace:
-    ma_check_print_msg/push_warning/sql_alloc/my_pthread_getspecific_ptr.
+    it yet is parallel repair, which threads have no THD object accessible via
+    current_thd.
 
     Also we likely need to lock mutex here (in both cases with protocol and
     push_warning).

@@ -87,7 +87,6 @@ struct Worker_thread_context
 #endif
     pthread_setspecific(THR_KEY_mysys,mysys_var);
     pthread_setspecific(THR_THD, 0);
-    pthread_setspecific(THR_MALLOC, 0);
   }
 };
 

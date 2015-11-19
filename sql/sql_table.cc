@@ -1814,7 +1814,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       partition_info *part_info= lpt->table->part_info;
       if (part_info)
       {
-        if (!(part_syntax_buf= generate_partition_syntax(part_info,
+        if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
                                                          &syntax_len,
                                                          TRUE, TRUE,
                                                          lpt->create_info,
@@ -1897,7 +1897,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     {
       TABLE_SHARE *share= lpt->table->s;
       char *tmp_part_syntax_str;
-      if (!(part_syntax_buf= generate_partition_syntax(part_info,
+      if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
                                                        &syntax_len,
                                                        TRUE, TRUE,
                                                        lpt->create_info,
@@ -4477,7 +4477,7 @@ handler *mysql_create_frm_image(THD *thd,
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
     */
-    if (!(part_syntax_buf= generate_partition_syntax(part_info,
+    if (!(part_syntax_buf= generate_partition_syntax(thd, part_info,
                                                      &syntax_len,
                                                      TRUE, TRUE,
                                                      create_info,

@@ -8504,7 +8504,7 @@ int spider_discover_table_structure(
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
-    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
+    if (!(part_syntax = generate_partition_syntax(thd, part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL, NULL)))
 #else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,

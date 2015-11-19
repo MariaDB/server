@@ -1184,7 +1184,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   /*
     Switch query context. This has to be done early as this is sometimes
-    allocated trough sql_alloc
+    allocated on THD::mem_root
   */
   if (m_creation_ctx)
     saved_creation_ctx= m_creation_ctx->set_n_backup(thd);
@@ -2291,9 +2291,9 @@ sp_head::restore_lex(THD *thd)
   Put the instruction on the backpatch list, associated with the label.
 */
 int
-sp_head::push_backpatch(sp_instr *i, sp_label *lab)
+sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab)
 {
-  bp_t *bp= (bp_t *)sql_alloc(sizeof(bp_t));
+  bp_t *bp= (bp_t *) thd->alloc(sizeof(bp_t));
 
   if (!bp)
     return 1;

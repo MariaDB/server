@@ -696,7 +696,7 @@ public:
   bool with_subselect;                  /* If this item is a subselect or some
                                            of its arguments is or contains a
                                            subselect */
-  // alloc & destruct is done as start of select using sql_alloc
+  // alloc & destruct is done as start of select on THD::mem_root
   Item(THD *thd);
   /*
      Constructor used by Item_field, Item_ref & aggregate (sum) functions.
@@ -3560,28 +3560,28 @@ public:
   {
     args[0]= a; args[1]= b;
   }
-  Item_args(Item *a, Item *b, Item *c)
+  Item_args(THD *thd, Item *a, Item *b, Item *c)
   {
     arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*) * 3)))
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
     {
       arg_count= 3;
       args[0]= a; args[1]= b; args[2]= c;
     }
   }
-  Item_args(Item *a, Item *b, Item *c, Item *d)
+  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
   {
     arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*) * 4)))
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
     {
       arg_count= 4;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d;
     }
   }
-  Item_args(Item *a, Item *b, Item *c, Item *d, Item* e)
+  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
   {
     arg_count= 5;
-    if ((args= (Item**) sql_alloc(sizeof(Item*) * 5)))
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
     {
       arg_count= 5;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
@@ -3791,11 +3791,11 @@ public:
   Item_func_or_sum(THD *thd, Item *a, Item *b):
     Item_result_field(thd), Item_args(a, b) { }
   Item_func_or_sum(THD *thd, Item *a, Item *b, Item *c):
-    Item_result_field(thd), Item_args(a, b, c) { }
+    Item_result_field(thd), Item_args(thd, a, b, c) { }
   Item_func_or_sum(THD *thd, Item *a, Item *b, Item *c, Item *d):
-    Item_result_field(thd), Item_args(a, b, c, d) { }
+    Item_result_field(thd), Item_args(thd, a, b, c, d) { }
   Item_func_or_sum(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e):
-    Item_result_field(thd), Item_args(a, b, c, d, e) { }
+    Item_result_field(thd), Item_args(thd, a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
     Item_result_field(thd, item), Item_args(thd, item),
     Used_tables_and_const_cache(item) { }

@@ -66,16 +66,7 @@ void init_sql_alloc(MEM_ROOT *mem_root, uint block_size, uint pre_alloc,
 }
 
 
-#ifndef MYSQL_CLIENT
-void *sql_alloc(size_t Size)
-{
-  MEM_ROOT *root= *my_pthread_getspecific_ptr(MEM_ROOT**,THR_MALLOC);
-  return alloc_root(root,Size);
-}
-#endif
-
-
-char *sql_strmake_with_convert(const char *str, size_t arg_length,
+char *sql_strmake_with_convert(THD *thd, const char *str, size_t arg_length,
 			       CHARSET_INFO *from_cs,
 			       size_t max_res_length,
 			       CHARSET_INFO *to_cs, size_t *result_length)
@@ -85,7 +76,7 @@ char *sql_strmake_with_convert(const char *str, size_t arg_length,
   max_res_length--;				// Reserve place for end null
 
   set_if_smaller(new_length, max_res_length);
-  if (!(pos= (char*) sql_alloc(new_length+1)))
+  if (!(pos= (char*) thd->alloc(new_length + 1)))
     return pos;					// Error
 
   if ((from_cs == &my_charset_bin) || (to_cs == &my_charset_bin))

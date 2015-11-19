@@ -1677,7 +1677,7 @@ public:
     }
         
     if ((calc_state=
-         (Prefix_calc_state *) sql_alloc(sizeof(Prefix_calc_state)*key_parts)))
+         (Prefix_calc_state *) thd->alloc(sizeof(Prefix_calc_state)*key_parts)))
     {
       uint keyno= key_info-table->key_info;
       for (i= 0, state= calc_state; i < key_parts; i++, state++)

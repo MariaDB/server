@@ -317,7 +317,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   */
 
   return !MY_TEST(i) ||
-         sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
+         sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
 }
@@ -351,7 +351,7 @@ int case_stmt_action_then(LEX *lex)
     (jump from instruction 4 to 12, 7 to 12 ... in the example)
   */
 
-  return sp->push_backpatch(i, ctx->last_label());
+  return sp->push_backpatch(lex->thd, i, ctx->last_label());
 }
 
 static bool
@@ -3131,10 +3131,10 @@ sp_decl:
 
             /* For continue handlers, mark end of handler scope. */
             if ($2 == sp_handler::CONTINUE &&
-                sp->push_backpatch(i, ctx->last_label()))
+                sp->push_backpatch(thd, i, ctx->last_label()))
               MYSQL_YYABORT;
 
-            if (sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)))
+            if (sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0)))
               MYSQL_YYABORT;
           }
           sp_hcond_list sp_proc_stmt
@@ -3159,7 +3159,7 @@ sp_decl:
                  sp_instr_hreturn(sp->instructions(), ctx);
               if (i == NULL ||
                   sp->add_instr(i) ||
-                  sp->push_backpatch(i, lex->spcont->last_label())) /* Block end */
+                  sp->push_backpatch(thd, i, lex->spcont->last_label())) /* Block end */
                 MYSQL_YYABORT;
             }
             lex->sphead->backpatch(hlab);
@@ -3858,7 +3858,7 @@ sp_proc_stmt_leave:
               i= new (lex->thd->mem_root) sp_instr_jump(ip, ctx);
               if (i == NULL)
                 MYSQL_YYABORT;
-              sp->push_backpatch(i, lab);  /* Jumping forward */
+              sp->push_backpatch(thd, i, lab);  /* Jumping forward */
               sp->add_instr(i);
             }
           }
@@ -4035,7 +4035,7 @@ sp_if:
             sp_instr_jump_if_not *i= new (lex->thd->mem_root)
               sp_instr_jump_if_not(ip, ctx, $2, lex);
             if (i == NULL ||
-                sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
+                sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0)) ||
                 sp->add_cont_backpatch(i) ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -4052,7 +4052,7 @@ sp_if:
                 sp->add_instr(i))
               MYSQL_YYABORT;
             sp->backpatch(ctx->pop_label());
-            sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0));
+            sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0));
           }
           sp_elseifs
           {
@@ -4378,7 +4378,7 @@ sp_control_content:
               sp_instr_jump_if_not(ip, lex->spcont, $3, lex);
             if (i == NULL ||
                 /* Jumping forward */
-                sp->push_backpatch(i, lex->spcont->last_label()) ||
+                sp->push_backpatch(thd, i, lex->spcont->last_label()) ||
                 sp->new_cont_backpatch(i) ||
                 sp->add_instr(i))
               MYSQL_YYABORT;

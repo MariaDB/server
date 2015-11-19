@@ -1281,8 +1281,8 @@ static bool print_admin_msg(THD* thd, uint len,
   length=(uint) (strxmov(name, db_name, ".", table_name.c_ptr_safe(), NullS) - name);
   /*
      TODO: switch from protocol to push_warning here. The main reason we didn't
-     it yet is parallel repair. Due to following trace:
-     mi_check_print_msg/push_warning/sql_alloc/my_pthread_getspecific_ptr.
+     it yet is parallel repair, which threads have no THD object accessible via
+     current_thd.
 
      Also we likely need to lock mutex here (in both cases with protocol and
      push_warning).
@@ -9058,7 +9058,7 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
           }
           m_part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
           if (skip_generation ||
-              !(part_buf= generate_partition_syntax(m_part_info,
+              !(part_buf= generate_partition_syntax(thd, m_part_info,
                                                     &part_buf_len,
                                                     true,
                                                     true,

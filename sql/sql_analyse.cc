@@ -134,7 +134,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
   }
 
   if (!(pc->f_info=
-        (field_info**)sql_alloc(sizeof(field_info*)*field_list.elements)))
+        (field_info**) thd->alloc(sizeof(field_info*) * field_list.elements)))
     goto err;
   pc->f_end = pc->f_info + field_list.elements;
   pc->fields = field_list;

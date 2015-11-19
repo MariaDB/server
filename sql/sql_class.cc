@@ -370,16 +370,6 @@ void thd_close_connection(THD *thd)
 }
 
 /**
-  Get current THD object from thread local data
-
-  @retval     The THD object for the thread, NULL if not connection thread
-*/
-THD *thd_get_current_thd()
-{
-  return current_thd;
-}
-
-/**
   Lock data that needs protection in THD object
 
   @param thd                   THD object
@@ -467,6 +457,16 @@ my_socket thd_get_fd(THD *thd)
   return mysql_socket_getfd(thd->net.vio->mysql_socket);
 }
 #endif
+
+/**
+  Get current THD object from thread local data
+
+  @retval     The THD object for the thread, NULL if not connection thread
+*/
+THD *thd_get_current_thd()
+{
+  return current_thd;
+}
 
 /**
   Get thread attributes for connection threads
@@ -2043,7 +2043,7 @@ int killed_errno(killed_state killed)
 
 /*
   Remember the location of thread info, the structure needed for
-  sql_alloc() and the structure for the net buffer
+  the structure for the net buffer
 */
 
 bool THD::store_globals()
@@ -2054,8 +2054,7 @@ bool THD::store_globals()
   */
   DBUG_ASSERT(thread_stack);
 
-  if (set_current_thd(this) ||
-      my_pthread_setspecific_ptr(THR_MALLOC, &mem_root))
+  if (set_current_thd(this))
     return 1;
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2108,7 +2107,6 @@ void THD::reset_globals()
 
   /* Undocking the thread specific data. */
   set_current_thd(0);
-  my_pthread_setspecific_ptr(THR_MALLOC, NULL);
   net.thd= 0;
 }
 
@@ -3547,7 +3545,7 @@ void Query_arena::free_items()
 {
   Item *next;
   DBUG_ENTER("Query_arena::free_items");
-  /* This works because items are allocated with sql_alloc() */
+  /* This works because items are allocated on THD::mem_root */
   for (; free_list; free_list= next)
   {
     next= free_list->next;

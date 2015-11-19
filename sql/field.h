@@ -610,7 +610,7 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
-  { return sql_alloc(size); }
+  { return thd_alloc(current_thd, size); }
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }

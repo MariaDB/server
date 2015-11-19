@@ -1846,8 +1846,8 @@ void Item_func_interval::fix_length_and_dec()
     }
 
     if (not_null_consts &&
-        (intervals=
-          (interval_range*) sql_alloc(sizeof(interval_range) * (rows - 1))))
+        (intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
+                                                         (rows - 1))))
     {
       if (use_decimal_comparison)
       {
@@ -3462,7 +3462,7 @@ in_string::~in_string()
 {
   if (base)
   {
-    // base was allocated with help of sql_alloc => following is OK
+    // base was allocated on THD::mem_root => following is OK
     for (uint i=0 ; i < count ; i++)
       ((String*) base)[i].free();
   }
@@ -6567,10 +6567,9 @@ longlong Item_func_dyncol_exists::val_int()
     }
     else
     {
-      uint strlen;
+      uint strlen= nm->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= (char *)sql_alloc((strlen= nm->length() *
-                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+      buf.str= (char *) current_thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=

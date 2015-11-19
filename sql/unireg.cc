@@ -921,9 +921,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
   while ((field=it++))
   {
-    /*
-      regfield don't have to be deleted as it's allocated with sql_alloc()
-    */
+    /* regfield don't have to be deleted as it's allocated on THD::mem_root */
     Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
                                 field->length,

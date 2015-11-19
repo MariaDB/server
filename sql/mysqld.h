@@ -262,12 +262,6 @@ extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 
-/*
-  THR_MALLOC is a key which will be used to set/get MEM_ROOT** for a thread,
-  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
-*/
-extern pthread_key(MEM_ROOT**,THR_MALLOC);
-
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,

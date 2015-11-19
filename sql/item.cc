@@ -1018,7 +1018,7 @@ void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
   if (!my_charset_same(cs, system_charset_info))
   {
     size_t res_length;
-    name= sql_strmake_with_convert(str, length, cs,
+    name= sql_strmake_with_convert(thd, str, length, cs,
 				   MAX_ALIAS_NAME, system_charset_info,
 				   &res_length);
     name_length= res_length;
@@ -1034,7 +1034,7 @@ void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
   if (!my_charset_same(cs, system_charset_info))
   {
     size_t res_length;
-    name= sql_strmake_with_convert(str, length, cs,
+    name= sql_strmake_with_convert(thd, str, length, cs,
 				   UINT_MAX, system_charset_info,
 				   &res_length);
     name_length= res_length;
@@ -8483,7 +8483,7 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
 
   Item *new_item= NULL;
   Item_result res_type= item_cmp_type(comp_item, item);
-  char *name=item->name;			// Alloced by sql_alloc
+  char *name= item->name;                       // Alloced on THD::mem_root
   MEM_ROOT *mem_root= thd->mem_root;
 
   switch (res_type) {

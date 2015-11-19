@@ -3553,7 +3553,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
-    //TODO: why all following memory is not allocated with 1 call of sql_alloc?
+    //TODO: why all following memory is not allocated with 1 thd->alloc() call?
     if (!(buffers=new String[arg_count]) ||
 	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
 	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||

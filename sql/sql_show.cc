@@ -2123,7 +2123,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       char *part_syntax;
       String comment_start;
       table->part_info->set_show_version_string(&comment_start);
-      if ((part_syntax= generate_partition_syntax(table->part_info,
+      if ((part_syntax= generate_partition_syntax(thd, table->part_info,
                                                   &part_syntax_len,
                                                   FALSE,
                                                   show_table_options,

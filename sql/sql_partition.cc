@@ -2468,7 +2468,7 @@ static int add_key_with_algorithm(File fptr, partition_info *part_info,
   common queries.
 */
 
-char *generate_partition_syntax(partition_info *part_info,
+char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 uint *buf_length,
                                 bool use_sql_alloc,
                                 bool show_partition_options,
@@ -2642,7 +2642,7 @@ char *generate_partition_syntax(partition_info *part_info,
     goto close_file;
   *buf_length= (uint)buffer_length;
   if (use_sql_alloc)
-    buf= (char*) sql_alloc(*buf_length+1);
+    buf= (char*) thd->alloc(*buf_length + 1);
   else
     buf= (char*) my_malloc(*buf_length+1, MYF(MY_WME));
   if (!buf)

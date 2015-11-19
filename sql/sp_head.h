@@ -386,7 +386,7 @@ public:
 
   /// Put the instruction on the backpatch list, associated with the label.
   int
-  push_backpatch(sp_instr *, sp_label *);
+  push_backpatch(THD *thd, sp_instr *, sp_label *);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.

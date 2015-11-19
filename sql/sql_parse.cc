@@ -858,7 +858,7 @@ end:
 }
 
 
-/* This works because items are allocated with sql_alloc() */
+/* This works because items are allocated on THD::mem_root */
 
 void free_items(Item *item)
 {
@@ -873,7 +873,7 @@ void free_items(Item *item)
 }
 
 /**
-   This works because items are allocated with sql_alloc().
+   This works because items are allocated on THD::mem_root.
    @note The function also handles null pointers (empty list).
 */
 void cleanup_items(Item *item)
@@ -2099,7 +2099,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
       {
         DBUG_RETURN(1);
       }
-      schema_select_lex= new SELECT_LEX();
+      schema_select_lex= new (thd->mem_root) SELECT_LEX();
       db.str= schema_select_lex->db= lex->select_lex.db;
       schema_select_lex->table_list.first= NULL;
       db.length= strlen(db.str);
@@ -2122,7 +2122,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
 #else
     DBUG_ASSERT(table_ident);
     TABLE_LIST **query_tables_last= lex->query_tables_last;
-    schema_select_lex= new SELECT_LEX();
+    schema_select_lex= new (thd->mem_root) SELECT_LEX();
     /* 'parent_lex' is used in init_query() so it must be before it. */
     schema_select_lex->parent_lex= lex;
     schema_select_lex->init_query();

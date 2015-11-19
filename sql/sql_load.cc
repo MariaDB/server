@@ -86,7 +86,7 @@ public:
   CHARSET_INFO *read_charset;
   LOAD_FILE_IO_CACHE cache;
 
-  READ_INFO(File file,uint tot_length,CHARSET_INFO *cs,
+  READ_INFO(THD *thd, File file, uint tot_length, CHARSET_INFO *cs,
 	    String &field_term,String &line_start,String &line_term,
 	    String &enclosed,int escape,bool get_it_from_net, bool is_fifo);
   ~READ_INFO();
@@ -437,7 +437,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
                     !(thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)))
                     ? (*escaped)[0] : INT_MAX;
 
-  READ_INFO read_info(file,tot_length,
+  READ_INFO read_info(thd, file, tot_length,
                       ex->cs ? ex->cs : thd->variables.collation_database,
 		      *field_term,*ex->line_start, *ex->line_term, *enclosed,
 		      info.escape_char, read_file_from_client, is_fifo);
@@ -1330,7 +1330,7 @@ READ_INFO::unescape(char chr)
 */
 
 
-READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
+READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
 		     String &field_term, String &line_start, String &line_term,
 		     String &enclosed_par, int escape, bool get_it_from_net,
 		     bool is_fifo)
@@ -1377,7 +1377,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
   /* Set of a stack for unget if long terminators */
   uint length= MY_MAX(cs->mbmaxlen, MY_MAX(field_term_length, line_term_length)) + 1;
   set_if_bigger(length,line_start.length());
-  stack=stack_pos=(int*) sql_alloc(sizeof(int)*length);
+  stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
 
   if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(MY_THREAD_SPECIFIC))))
     error=1; /* purecov: inspected */
