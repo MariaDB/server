@@ -140,8 +140,6 @@ static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
 /* How to access the pthread_mutex in mysql_mutex_t */
 #ifdef SAFE_MUTEX
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
-#elif defined(MY_PTHREAD_FASTMUTEX)
-#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
 #else
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex
 #endif

@@ -445,29 +445,9 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
 
-#if defined(MY_PTHREAD_FASTMUTEX)
-#define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A), &(B)->mutex, (C))
-#define my_cond_wait(A,B) pthread_cond_wait((A), &(B)->mutex)
-#else
 #define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A),(B),(C))
 #define my_cond_wait(A,B) pthread_cond_wait((A), (B))
-#endif /* MY_PTHREAD_FASTMUTEX */
 #endif /* !SAFE_MUTEX */
-
-#if defined(MY_PTHREAD_FASTMUTEX) && !defined(SAFE_MUTEX)
-typedef struct st_my_pthread_fastmutex_t
-{
-  pthread_mutex_t mutex;
-  uint spins;
-  uint rng_state;
-} my_pthread_fastmutex_t;
-void fastmutex_global_init(void);
-
-int my_pthread_fastmutex_init(my_pthread_fastmutex_t *mp, 
-                              const pthread_mutexattr_t *attr);
-int my_pthread_fastmutex_lock(my_pthread_fastmutex_t *mp);
-
-#endif /* defined(MY_PTHREAD_FASTMUTEX) && !defined(SAFE_MUTEX) */
 
 	/* READ-WRITE thread locking */
 
