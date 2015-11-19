@@ -6274,10 +6274,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     int   n;
     struct stat info;
 
-    if (check_access(ha_thd(), FILE_ACL, table->s->db.str,
-                     NULL, NULL, 0, 0))
-      return true;
-
 #if defined(__WIN__)
     s= "\\";
 #else   // !__WIN__
