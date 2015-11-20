@@ -5934,8 +5934,9 @@ remove_key:
           alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
               Alter_info::ADD_FOREIGN_KEY);
       }
-      else if (key->or_replace())
+      else
       {
+        DBUG_ASSERT(key->or_replace());
         Alter_drop::drop_type type= (key->type == Key::FOREIGN_KEY) ?
           Alter_drop::FOREIGN_KEY : Alter_drop::KEY;
         Alter_drop *ad= new Alter_drop(type, key->name.str, FALSE);
