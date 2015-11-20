@@ -96,7 +96,7 @@ PATENT RIGHTS GRANT:
 #pragma interface               /* gcc class implementation */
 #endif
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
+#if 100000 <= MYSQL_VERSION_ID
 
 #if !defined(TOKUDB_CHECK_JEMALLOC)
 #define TOKUDB_CHECK_JEMALLOC 1
