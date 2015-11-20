@@ -28,7 +28,7 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 
 ############################################
-SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.1/README-TOKUDB\nusr/share/doc/mariadb-server-10.1/README.md" PARENT_SCOPE)
+SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.2/README-TOKUDB\nusr/share/doc/mariadb-server-10.2/README.md" PARENT_SCOPE)
 SET(TOKUDB_VERSION "tokudb-7.5.7")
 SET(USE_BDB OFF CACHE BOOL "")
 MARK_AS_ADVANCED(BUILDNAME)

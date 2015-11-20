@@ -46,7 +46,7 @@ stop_server() {
 
 ################################ main() ##########################
 
-this_version=10.1
+this_version=10.2
 
 # Safe the user from stupidities.
 show_downgrade_warning=0

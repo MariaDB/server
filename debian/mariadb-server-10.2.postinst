@@ -131,7 +131,7 @@ EOF
     db_set mysql-server/postrm_remove_database false || true
 
     # To avoid downgrades.
-    touch $mysql_statedir/debian-10.1.flag
+    touch $mysql_statedir/debian-10.2.flag
     
     ## On every reconfiguration the maintenance user is recreated.
     #

@@ -37,7 +37,7 @@ if apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
 then
   # Anything in MARIADB_OPTIONAL_DEBS is omitted from the resulting
   # packages by snipped in rules file
-  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.1"
+  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.2"
   sed -i -e "/\\\${MAYBE_LIBCRACK}/d" debian/control
 else
   MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0),'

@@ -3,7 +3,7 @@
 export DH_VERBOSE=1
 export DEB_BUILD_HARDENING=1
 
-PACKAGE=mariadb-10.1
+PACKAGE=mariadb-10.2
 
 include /usr/share/dpatch/dpatch.make
 
@@ -163,37 +163,37 @@ install: build
 
 	# mariadb-server
 	install -m 0755 $(BUILDDIR)/scripts/mysqld_safe $(TMP)/usr/bin/mysqld_safe
-	mkdir -p $(TMP)/usr/share/doc/mariadb-server-10.1/examples
+	mkdir -p $(TMP)/usr/share/doc/mariadb-server-10.2/examples
 	# We have a sane my.cnf, cruft not needed (remove my-*.cnf and config-*.cnf)
-	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-server-10.1/examples/
+	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-server-10.2/examples/
 	rm -vf $(TMP)/usr/share/mysql/my-*.cnf \
 	       $(TMP)/usr/share/mysql/config-*.cnf \
 	       $(TMP)/usr/share/mysql/mi_test_all* \
 	       $(TMP)/usr/share/mysql/mysql-log-rotate \
 	       $(TMP)/usr/share/mysql/mysql.server \
 	       $(TMP)/usr/share/mysql/binary-configure
-	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-10.1/mysqld.sym.gz
+	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-10.2/mysqld.sym.gz
 	install -m 0755 debian/additions/echo_stderr $(TMP)/usr/share/mysql/
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
 
-	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.1/INFO_SRC
-	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.1/INFO_BIN
+	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.2/INFO_SRC
+	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.2/INFO_BIN
 
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 
-	# For 5.0 -> 10.1 transition
+	# For 5.0 -> 10.2 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
-	cp debian/mariadb-server-10.1.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.1.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
+	cp debian/mariadb-server-10.2.mysql.init $$d/_etc_init.d_mysql; \
+	cp debian/mariadb-server-10.2.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
 	# install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.1.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.1.py
+	install -D -m 644 debian/mariadb-server-10.2.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.2.py
 
 	autorm=debian/autorm-file;                                      \
 	rm -f $$autorm;                                                 \
@@ -241,12 +241,12 @@ binary-arch: build install
 	dh_installexamples -a
 	dh_installmenu -a
 	dh_installlogrotate -a --name mysql-server
-	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.1/lib/systemd/system/mariadb.service ]; then dh_systemd_enable -pmariadb-server-10.1 mariadb.service; fi
-	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.1/lib/systemd/system/mariadb@.service ]; then dh_systemd_enable --no-enable -pmariadb-server-10.1 mariadb@.service; fi
+	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb.service ]; then dh_systemd_enable -pmariadb-server-10.2 mariadb.service; fi
+	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb@.service ]; then dh_systemd_enable --no-enable -pmariadb-server-10.2 mariadb@.service; fi
 	# Start mysql in runlevel 19 before 20 where apache, proftpd etc gets
 	# started which might depend on a running database server.
 	dh_installinit -a --name=mysql -- defaults 19 21
-	if [ -x /usr/bin/dh_systemd_start -a -f debian/mariadb-server-10.1/lib/systemd/system/mariadb.service ]; then dh_systemd_start -pmariadb-server-10.1 --restart-after-upgrade mariadb.service; fi
+	if [ -x /usr/bin/dh_systemd_start -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb.service ]; then dh_systemd_start -pmariadb-server-10.2 --restart-after-upgrade mariadb.service; fi
 	dh_installcron -a --name mysql-server
 	dh_installman -a
 	dh_installinfo -a

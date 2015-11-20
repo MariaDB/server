@@ -1,4 +1,4 @@
-Source: mariadb-10.1
+Source: mariadb-10.2
 Section: database
 Priority: optional
 Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
@@ -128,7 +128,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
  This package includes files needed by all versions of the client library
  (e.g. /etc/mysql/conf.d/mariadb.cnf).
 
-Package: mariadb-client-core-10.1
+Package: mariadb-client-core-10.2
 Architecture: any
 Depends: libmariadbclient18 (>= ${source:Version}),
          mariadb-common (>= ${source:Version}),
@@ -139,11 +139,13 @@ Provides: mysql-client-core,
           mysql-client-core-5.5,
           mysql-client-core-5.6,
           virtual-mysql-client-core
-Conflicts: mariadb-client-10.0,
+Conflicts: mariadb-client-10.1,
+           mariadb-client-10.0,
            mariadb-client-5.1,
            mariadb-client-5.2,
            mariadb-client-5.3,
            mariadb-client-5.5,
+           mariadb-client-core-10.1,
            mariadb-client-core-10.0,
            mariadb-client-core-5.1,
            mariadb-client-core-5.2,
@@ -157,11 +159,13 @@ Conflicts: mariadb-client-10.0,
            mysql-client-core-5.5,
            mysql-client-core-5.6,
            virtual-mysql-client-core
-Replaces: mariadb-client-10.0,
+Replaces: mariadb-client-10.1,
+          mariadb-client-10.0,
           mariadb-client-5.1,
           mariadb-client-5.2,
           mariadb-client-5.3,
           mariadb-client-5.5,
+          mariadb-client-core-10.1,
           mariadb-client-core-10.0,
           mariadb-client-core-5.1,
           mariadb-client-core-5.2,
@@ -183,13 +187,13 @@ Description: MariaDB database core client binaries
  .
  This package includes the core client files, as used by Akonadi.
 
-Package: mariadb-client-10.1
+Package: mariadb-client-10.2
 Architecture: any
 Depends: debianutils (>=1.6),
          libdbd-mysql-perl (>= 1.2202),
          libdbi-perl,
          libmariadbclient18 (>= ${source:Version}),
-         mariadb-client-core-10.1 (>= ${source:Version}),
+         mariadb-client-core-10.2 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
          ${perl:Depends},
@@ -202,6 +206,7 @@ Provides: mysql-client,
           mysql-client-5.6,
           virtual-mysql-client
 Conflicts: mariadb-client (<< ${source:Version}),
+           mariadb-client-10.1,
            mariadb-client-10.0,
            mariadb-client-5.1,
            mariadb-client-5.2,
@@ -214,6 +219,7 @@ Conflicts: mariadb-client (<< ${source:Version}),
            mysql-client-5.6,
            virtual-mysql-client
 Replaces: mariadb-client (<< ${source:Version}),
+          mariadb-client-10.1,
           mariadb-client-10.0,
           mariadb-client-5.1,
           mariadb-client-5.2,
@@ -234,7 +240,7 @@ Description: MariaDB database client binaries
  This package includes the client binaries and the additional tools
  innotop and mysqlreport.
 
-Package: mariadb-server-core-10.1
+Package: mariadb-server-core-10.2
 Architecture: any
 Depends: libmariadbclient18 (>= ${binary:Version}),
          mariadb-common (>= ${source:Version}),
@@ -245,7 +251,8 @@ Provides: mysql-server-core,
           mysql-server-core-5.5,
           mysql-server-core-5.6,
           virtual-mysql-server-core
-Conflicts: mariadb-server-core-10.0,
+Conflicts: mariadb-server-core-10.1,
+           mariadb-server-core-10.0,
            mariadb-server-core-5.1,
            mariadb-server-core-5.2,
            mariadb-server-core-5.3,
@@ -256,7 +263,8 @@ Conflicts: mariadb-server-core-10.0,
            mysql-server-core-5.5,
            mysql-server-core-5.6,
            virtual-mysql-server-core
-Replaces: mariadb-server-core-10.0,
+Replaces: mariadb-server-core-10.1,
+          mariadb-server-core-10.0,
           mariadb-server-core-5.1,
           mariadb-server-core-5.2,
           mariadb-server-core-5.3,
@@ -275,20 +283,22 @@ Description: MariaDB database core server files
  .
  This package includes the core server files, as used by Akonadi.
 
-Package: mariadb-test-10.1
+Package: mariadb-test-10.2
 Architecture: any
-Depends: mariadb-client-10.1 (= ${binary:Version}),
-         mariadb-server-10.1 (= ${binary:Version})
+Depends: mariadb-client-10.2 (= ${binary:Version}),
+         mariadb-server-10.2 (= ${binary:Version})
 Suggests: patch
 Conflicts: mariadb-galera-server-5.5 (<< 5.5.33),
            mariadb-server-5.5 (<< 5.5.33),
            mariadb-test (<< ${source:Version}),
+           mariadb-test-10.1,
            mariadb-test-10.0,
            mariadb-test-5.1,
            mariadb-test-5.2,
            mariadb-test-5.3,
            virtual-mysql-testsuite
 Replaces: mariadb-test (<< ${source:Version}),
+          mariadb-test-10.1,
           mariadb-test-10.0,
           mariadb-test-5.1,
           mariadb-test-5.2,
@@ -303,7 +313,7 @@ Description: MariaDB database regression test suite
  .
  This package includes the regression test suite.
 
-Package: mariadb-server-10.1
+Package: mariadb-server-10.2
 Architecture: any
 Suggests: mailx, mariadb-test, netcat-openbsd, socat, tinyca
 Recommends: libhtml-template-perl
@@ -318,8 +328,8 @@ Depends: bsdutils,
          libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof,
-         mariadb-client-10.1 (>= ${source:Version}),
-         mariadb-server-core-10.1 (>= ${binary:Version}),
+         mariadb-client-10.2 (>= ${source:Version}),
+         mariadb-server-core-10.2 (>= ${binary:Version}),
          passwd,
          perl (>= 5.6),
          psmisc,
@@ -329,6 +339,7 @@ Depends: bsdutils,
          ${shlibs:Depends}
 Provides: mariadb-server, mysql-server, virtual-mysql-server
 Conflicts: mariadb-server (<< ${source:Version}),
+           mariadb-server-10.1,
            mariadb-server-10.0,
            mariadb-server-5.1,
            mariadb-server-5.2,
@@ -346,6 +357,7 @@ Conflicts: mariadb-server (<< ${source:Version}),
 Replaces: libmariadbclient-dev (<< 5.5.0),
           libmariadbclient16 (<< 5.3.4),
           mariadb-server (<< ${source:Version}),
+          mariadb-server-10.1,
           mariadb-server-10.0,
           mariadb-server-5.1,
           mariadb-server-5.2,
@@ -370,10 +382,10 @@ Description: MariaDB database server binaries
 
 Package: mariadb-server
 Architecture: all
-Depends: mariadb-server-10.1 (= ${source:Version}), ${misc:Depends}
+Depends: mariadb-server-10.2 (= ${source:Version}), ${misc:Depends}
 Description: MariaDB database server (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-server (currently mariadb-server-10.1), as determined by the MariaDB
+ mariadb-server (currently mariadb-server-10.2), as determined by the MariaDB
  maintainers. Install this package if in doubt about which MariaDB
  version you need. That will install the version recommended by the
  package maintainers.
@@ -385,26 +397,26 @@ Description: MariaDB database server (metapackage depending on the latest versio
 
 Package: mariadb-client
 Architecture: all
-Depends: mariadb-client-10.1 (= ${source:Version}), ${misc:Depends}
+Depends: mariadb-client-10.2 (= ${source:Version}), ${misc:Depends}
 Description: MariaDB database client (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-client (currently mariadb-client-10.1), as determined by the MariaDB
+ mariadb-client (currently mariadb-client-10.2), as determined by the MariaDB
  maintainers.  Install this package if in doubt about which MariaDB version
  you want, as this is the one considered to be in the best shape.
 
 Package: mariadb-test
 Architecture: all
-Depends: mariadb-test-10.1 (= ${source:Version}), ${misc:Depends}
+Depends: mariadb-test-10.2 (= ${source:Version}), ${misc:Depends}
 Description: MariaDB database regression test suite (metapackage for the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-test (currently mariadb-test-10.1), as determined by the MariaDB
+ mariadb-test (currently mariadb-test-10.2), as determined by the MariaDB
  maintainers.
 
-Package: mariadb-connect-engine-10.1
+Package: mariadb-connect-engine-10.2
 Architecture: any
-Depends: libxml2, mariadb-server-10.1, unixODBC
+Depends: libxml2, mariadb-server-10.2, unixODBC
 Build-Depends: libxml2-dev,
-               mariadb-server-10.1,
+               mariadb-server-10.2,
                unixODBC-dev,
                ${misc:Depends},
                ${shlibs:Depends}
@@ -414,18 +426,18 @@ Description: Connect storage engine for MariaDB
  other interesting features.
  This package contains the Connect plugin for MariaDB.
 
-Package: mariadb-oqgraph-engine-10.1
+Package: mariadb-oqgraph-engine-10.2
 Architecture: any
-Depends: libjudydebian1, mariadb-server-10.1, ${misc:Depends}, ${shlibs:Depends}
+Depends: libjudydebian1, mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
 Description: OQGraph storage engine for MariaDB
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
  This package contains the OQGraph plugin for MariaDB.
 
-Package: mariadb-cracklib-password-check-10.1
+Package: mariadb-cracklib-password-check-10.2
 Section: database
 Architecture: any
-Depends: libcrack2 (>= 2.9.0), mariadb-server-10.1
+Depends: libcrack2 (>= 2.9.0), mariadb-server-10.2
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.

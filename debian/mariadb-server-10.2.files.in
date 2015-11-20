@@ -20,7 +20,7 @@ usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/wsrep_info.so
 usr/lib/libhsclient.so.*
 etc/apparmor.d/usr.sbin.mysqld
-usr/share/apport/package-hooks/source_mariadb-10.1.py
+usr/share/apport/package-hooks/source_mariadb-10.2.py
 etc/mysql/debian-start
 etc/mysql/conf.d/mysqld_safe_syslog.cnf
 usr/bin/msql2mysql
@@ -55,9 +55,9 @@ usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_xtrabackup
 usr/bin/wsrep_sst_xtrabackup-v2
-usr/share/doc/mariadb-server-10.1/mysqld.sym.gz
-usr/share/doc/mariadb-server-10.1/INFO_SRC
-usr/share/doc/mariadb-server-10.1/INFO_BIN
+usr/share/doc/mariadb-server-10.2/mysqld.sym.gz
+usr/share/doc/mariadb-server-10.2/INFO_SRC
+usr/share/doc/mariadb-server-10.2/INFO_BIN
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisam_ftdump.1
