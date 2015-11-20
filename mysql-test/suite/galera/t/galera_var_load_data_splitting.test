@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/big_test.inc
 
 --let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
 

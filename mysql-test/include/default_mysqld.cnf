@@ -33,7 +33,6 @@ debug-no-sync
 
 # Retry bind as this may fail on busy server
 port-open-timeout=10
-bind-address=127.0.0.1
 
 log-bin-trust-function-creators=1
 key_buffer_size=            1M
@@ -42,6 +41,9 @@ max_heap_table_size=        1M
 loose-aria-pagecache-buffer-size=8M
 
 loose-feedback-user-info=  mysql-test
+loose-feedback-debug-startup-interval=20
+loose-feedback-debug-first-interval=60
+loose-feedback-debug-interval=60
 
 loose-innodb_data_file_path=      ibdata1:12M:autoextend
 loose-innodb_buffer_pool_size=    8M

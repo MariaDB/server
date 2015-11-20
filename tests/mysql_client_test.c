@@ -17175,7 +17175,7 @@ static void test_bug28386()
     if (! opt_silent)
       printf("Skipping the test since logging to tables is not enabled\n");
     /* Log output is not to tables */
-    return;
+    DBUG_VOID_RETURN;
   }
   mysql_free_result(result);
 

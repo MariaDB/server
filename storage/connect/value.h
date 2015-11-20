@@ -116,6 +116,26 @@ class DllExport VALUE : public BLOCK {
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
 
+  /**
+    Set value from a non-aligned in-memory value in the machine byte order.
+    TYPE can be either of:
+    - int, short, longlong
+    - uint, ushort, ulonglong
+    - float, double
+    @param - a pointer to a non-aligned value of type TYPE.
+  */
+  template<typename TYPE>
+  void SetValueNonAligned(const char *p)
+  {
+#if defined(__i386__) || defined(__x86_64__)
+    SetValue(*((TYPE*) p)); // x86 can cast non-aligned memory directly
+#else
+    TYPE tmp;               // a slower version for non-x86 platforms
+    memcpy(&tmp, p, sizeof(tmp));
+    SetValue(tmp);
+#endif
+  }
+
  protected:
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&) = 0;
   const   char  *GetXfmt(void);
@@ -216,7 +236,7 @@ template <>
 class DllExport TYPVAL<PSZ>: public VALUE {
  public:
   // Constructors
-  TYPVAL(PSZ s);
+  TYPVAL(PSZ s, short c = 0);
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
 
   // Implementation

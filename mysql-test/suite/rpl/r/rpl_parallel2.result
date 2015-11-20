@@ -29,8 +29,104 @@ include/start_slave.inc
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a	b
 10	0
+*** MDEV-7818: Deadlock occurring with parallel replication and FTWRL ***
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0), (2,0), (3,0);
+include/stop_slave.inc
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 4242;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=2;
+COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (4,10);
+COMMIT;
+SET SESSION debug_dbug= @old_dbug;
+INSERT INTO t2 VALUES (5,0);
+INSERT INTO t2 VALUES (6,0);
+INSERT INTO t2 VALUES (7,0);
+INSERT INTO t2 VALUES (8,0);
+INSERT INTO t2 VALUES (9,0);
+INSERT INTO t2 VALUES (10,0);
+INSERT INTO t2 VALUES (11,0);
+INSERT INTO t2 VALUES (12,0);
+INSERT INTO t2 VALUES (13,0);
+INSERT INTO t2 VALUES (14,0);
+INSERT INTO t2 VALUES (15,0);
+INSERT INTO t2 VALUES (16,0);
+INSERT INTO t2 VALUES (17,0);
+INSERT INTO t2 VALUES (18,0);
+INSERT INTO t2 VALUES (19,0);
+BEGIN;
+SELECT * FROM t2 WHERE a=2 FOR UPDATE;
+a	b
+2	0
+include/start_slave.inc
+FLUSH TABLES WITH READ LOCK;
+COMMIT;
+STOP SLAVE;
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	1
+3	0
+4	10
+5	0
+6	0
+7	0
+8	0
+9	0
+10	0
+11	0
+12	0
+13	0
+14	0
+15	0
+16	0
+17	0
+18	0
+19	0
+UNLOCK TABLES;
+SELECT "after UNLOCK TABLES" as state;
+state
+after UNLOCK TABLES
+SELECT "after reap of STOP SLAVE" as state;
+state
+after reap of STOP SLAVE
+include/wait_for_slave_to_stop.inc
+include/start_slave.inc
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	1
+3	0
+4	10
+5	0
+6	0
+7	0
+8	0
+9	0
+10	0
+11	0
+12	0
+13	0
+14	0
+15	0
+16	0
+17	0
+18	0
+19	0
+*** MDEV-8318: Assertion `!pool->busy' failed in pool_mark_busy(rpl_parallel_thread_pool*) on concurrent FTWRL ***
+LOCK TABLE t2 WRITE;
+FLUSH TABLES WITH READ LOCK;
+FLUSH TABLES WITH READ LOCK;
+KILL QUERY CID;
+ERROR 70100: Query execution was interrupted
+UNLOCK TABLES;
+UNLOCK TABLES;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
-DROP TABLE t1;
+DROP TABLE t1, t2;
 include/rpl_end.inc

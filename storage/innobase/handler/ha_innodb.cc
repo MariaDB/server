@@ -760,6 +760,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_os_log_pending_writes,	  SHOW_LONG},
   {"os_log_written",
   (char*) &export_vars.innodb_os_log_written,		  SHOW_LONGLONG},
+  {"os_merge_buffers_written",
+  (char*) &export_vars.innodb_merge_buffers_written,	  SHOW_LONGLONG},
+  {"os_merge_buffers_read",
+  (char*) &export_vars.innodb_merge_buffers_read,	  SHOW_LONGLONG},
+  {"os_merge_buffers_merged",
+  (char*) &export_vars.innodb_merge_buffers_merged,	  SHOW_LONGLONG},
   {"page_size",
   (char*) &export_vars.innodb_page_size,		  SHOW_LONG},
   {"pages_created",
@@ -4588,6 +4594,8 @@ innobase_kill_query(
         enum thd_kill_levels level) /*!< in: kill level */
 {
 	trx_t*	trx;
+	bool	took_lock_sys = false;
+
 	DBUG_ENTER("innobase_kill_query");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
@@ -4612,16 +4620,25 @@ innobase_kill_query(
 		THD *owner = trx->current_lock_mutex_owner;
 
 		if (!owner || owner != cur) {
+			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
+			took_lock_sys = true;
 		}
+
+		ut_ad(!trx_mutex_own(trx));
 		trx_mutex_enter(trx);
 
 		/* Cancel a pending lock request. */
 		if (trx->lock.wait_lock) {
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 		}
+
+	        ut_ad(lock_mutex_own());
+		ut_ad(trx_mutex_own(trx));
+
 		trx_mutex_exit(trx);
-		if (!owner || owner != cur) {
+
+		if (took_lock_sys) {
 			lock_mutex_exit();
 		}
 	}
@@ -18092,11 +18109,13 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 }
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
-
+UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
-                            const trx_t * const bf_trx,
-                            trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(
+	void * const bf_thd_ptr,
+	const trx_t * const bf_trx,
+	trx_t *victim_trx,
+	ibool signal)
 {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(victim_trx));
@@ -18113,6 +18132,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
 		DBUG_RETURN(1);
 	}
+
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
 		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
@@ -18136,6 +18156,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
+
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
 		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
 			    victim_trx->id,
@@ -18290,28 +18311,33 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 	DBUG_RETURN(0);
 }
 
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal)
+static
+int
+wsrep_abort_transaction(
+	handlerton* hton,
+	THD *bf_thd,
+	THD *victim_thd,
+	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
+
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s",
 		    wsrep_thd_query(bf_thd),
 		    wsrep_thd_query(victim_thd));
 
-	if (victim_trx)
-	{
-                lock_mutex_enter();
-                trx_mutex_enter(victim_trx);
+	if (victim_trx) {
+		lock_mutex_enter();
+		victim_trx->current_lock_mutex_owner = victim_thd;
+		trx_mutex_enter(victim_trx);
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
-                trx_mutex_exit(victim_trx);
-                lock_mutex_exit();
+		trx_mutex_exit(victim_trx);
+		victim_trx->current_lock_mutex_owner = NULL;
+		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
-
- 		DBUG_RETURN(rcode);
+		DBUG_RETURN(rcode);
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
 		wsrep_thd_LOCK(victim_thd);
@@ -18319,6 +18345,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_UNLOCK(victim_thd);
 		wsrep_thd_awake(victim_thd, signal);
 	}
+
 	DBUG_RETURN(-1);
 }
 

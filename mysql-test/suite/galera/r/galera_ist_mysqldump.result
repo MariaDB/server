@@ -1,6 +1,6 @@
 Setting SST method to mysqldump ...
-GRANT ALL PRIVILEGES ON *.* TO 'sst' IDENTIFIED BY 'sst';
-SET GLOBAL wsrep_sst_auth = 'sst:sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
 SET GLOBAL wsrep_sst_method = 'mysqldump';
 Performing State Transfer on a server that has been shut down cleanly and restarted
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;

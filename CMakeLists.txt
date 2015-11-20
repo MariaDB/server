@@ -64,7 +64,6 @@ ENDIF(NOT MAX_INDEXES)
 IF (${MAX_INDEXES} GREATER 128)
   MESSAGE(FATAL_ERROR "MAX_INDEXES values greater than 128 is not supported!")
 ENDIF()
-MESSAGE(STATUS "Configuring with MAX_INDEXES = ${MAX_INDEXES}")
 
 IF(UNIX AND NOT APPLE)
   # Note, that generally one should not change settings depending
@@ -144,11 +143,11 @@ ENDIF(NOT CPACK_GENERATOR)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
+INCLUDE(wsrep)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
 # Add macros
-INCLUDE(wsrep)
 INCLUDE(character_sets)
 INCLUDE(cpu_info)
 INCLUDE(zlib)

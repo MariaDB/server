@@ -910,6 +910,14 @@ CHECK_C_SOURCE_COMPILES("
     HAVE_WEAK_SYMBOL
 )
 
+CHECK_C_SOURCE_COMPILES("
+    void foo(int *x) { }
+    int main() {
+      int a __attribute__((cleanup(foo)));
+      return 0;
+    }"
+    HAVE_ATTRIBUTE_CLEANUP
+)
 
 CHECK_CXX_SOURCE_COMPILES("
     #include <new>
@@ -1058,6 +1066,9 @@ CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_IN
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
 CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)
+
+CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_sec "time.h" STRUCT_TIMESPEC_HAS_TV_SEC)
+CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_nsec "time.h" STRUCT_TIMESPEC_HAS_TV_NSEC)
 
 IF(NOT MSVC)
   CHECK_C_SOURCE_RUNS(

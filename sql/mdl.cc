@@ -1069,7 +1069,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }
     else
-#endif
+#endif /* WITH_WSREP */
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
@@ -1170,7 +1170,8 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
       if (granted->get_ctx() != ticket->get_ctx() &&
           granted->is_incompatible_when_granted(ticket->get_type()))
       {
-        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted))
+        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted,
+                                       &ticket->get_lock()->key))
         {
           WSREP_DEBUG("MDL victim killed at add_ticket");
         }
@@ -1561,7 +1562,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
                         wsrep_thd_query(requestor_ctx->get_thd()));
             can_grant = true;
           }
-          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket))
+          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
           {
             wsrep_can_grant= FALSE;
             if (wsrep_log_conflicts)
@@ -2036,7 +2037,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   find_deadlock();
 
   struct timespec abs_timeout, abs_shortwait;
-  set_timespec(abs_timeout, lock_wait_timeout);
+  set_timespec(abs_timeout, (ulonglong) lock_wait_timeout);
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 
@@ -2904,6 +2905,19 @@ void MDL_context::release_explicit_locks()
   release_locks_stored_before(MDL_EXPLICIT, NULL);
 }
 
+bool MDL_context::has_explicit_locks()
+{
+  MDL_ticket *ticket = NULL;
+
+  Ticket_iterator it(m_tickets[MDL_EXPLICIT]);
+
+  while ((ticket = it++))
+  {
+    return true;
+  }
+
+  return false;
+}
 
 #ifdef WITH_WSREP
 void MDL_ticket::wsrep_report(bool debug)

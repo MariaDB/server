@@ -24,6 +24,14 @@
 # Short-Description: start and stop MySQL
 # Description: MySQL is a very fast and reliable SQL database engine.
 ### END INIT INFO
+
+# Prevent OpenSUSE's init scripts from calling systemd, so that
+# both 'bootstrap' and 'start' are handled entirely within this
+# script
+SYSTEMD_NO_WRAP=1
+
+# Prevent Debian's init scripts from calling systemctl
+_SYSTEMCTL_SKIP_REDIRECT=true
  
 # If you install MySQL on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
@@ -119,12 +127,6 @@ mode=$1    # start or stop
 
 [ $# -ge 1 ] && shift
 
-
-other_args="$*"   # uncommon, but needed when called from an RPM upgrade action
-           # Expected: "--skip-networking --skip-grant-tables"
-           # They are not checked here, intentionally, as it is the resposibility
-           # of the "spec" file author to give correct arguments only.
-
 case `echo "testing\c"`,`echo -n testing` in
     *c*,-n*) echo_n=   echo_c=     ;;
     *c*,*)   echo_n=-n echo_c=     ;;
@@ -216,6 +218,7 @@ else
 fi
 
 parse_server_arguments `$print_defaults $extra_args mysqld server mysql_server mysql.server`
+parse_server_arguments "$@"
 
 # wait for the pid file to disappear
 wait_for_gone () {
@@ -313,7 +316,7 @@ case "$mode" in
     then
       # Give extra arguments to mysqld with the my.cnf file. This script
       # may be overwritten at next upgrade.
-      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" $other_args >/dev/null 2>&1 &
+      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" "$@" >/dev/null 2>&1 &
       wait_for_ready; return_value=$?
 
       # Make lock for RedHat / SuSE
@@ -361,8 +364,8 @@ case "$mode" in
   'restart')
     # Stop the service and regardless of whether it was
     # running or not, start it again.
-    if $0 stop  $other_args; then
-      if ! $0 start $other_args; then
+    if $0 stop  "$@"; then
+      if ! $0 start "$@"; then
         log_failure_msg "Failed to restart server."
         exit 1
       fi

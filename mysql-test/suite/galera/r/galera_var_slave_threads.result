@@ -104,3 +104,11 @@ COUNT(*) = 1
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
+#
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+SET GLOBAL wsrep_slave_threads = 4;
+SET GLOBAL wsrep_slave_threads = 1;
+DROP TABLE t1;
+# End of tests

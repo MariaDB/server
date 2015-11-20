@@ -1,0 +1,106 @@
+Setting SST method to mysqldump ...
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+CREATE USER sslsst;
+GRANT ALL PRIVILEGES ON *.* TO sslsst;
+GRANT USAGE ON *.* TO sslsst REQUIRE SSL;
+SET GLOBAL wsrep_sst_auth = 'sslsst:';
+Performing State Transfer on a server that has been temporarily disconnected
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+COMMIT;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+COMMIT;
+Unloading wsrep provider ...
+SET GLOBAL wsrep_provider = 'none';
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+COMMIT;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+Loading wsrep provider ...
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+COMMIT;
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+COMMIT;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_after');
+INSERT INTO t1 VALUES ('node1_committed_after');
+INSERT INTO t1 VALUES ('node1_committed_after');
+INSERT INTO t1 VALUES ('node1_committed_after');
+INSERT INTO t1 VALUES ('node1_committed_after');
+COMMIT;
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+ROLLBACK;
+SELECT COUNT(*) = 35 FROM t1;
+COUNT(*) = 35
+1
+SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
+COUNT(*) = 0
+1
+COMMIT;
+SET AUTOCOMMIT=ON;
+SELECT COUNT(*) = 35 FROM t1;
+COUNT(*) = 35
+1
+SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+COMMIT;
+SET AUTOCOMMIT=ON;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+DROP USER sst;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
+CALL mtr.add_suppression("InnoDB: New log files created");
+CALL mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
+CALL mtr.add_suppression("Can't open and lock time zone table");
+CALL mtr.add_suppression("Can't open and lock privilege tables");
+CALL mtr.add_suppression("Info table is not ready to be used");
+CALL mtr.add_suppression("Native table .* has the wrong structure");
+DROP USER sslsst;

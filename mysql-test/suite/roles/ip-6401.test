@@ -1,3 +1,6 @@
+#
+# MDEV-6401 SET ROLE returning ERROR 1959 Invalid role specification for valid role
+#
 --source include/not_embedded.inc
 create role r1;
 create user foo@'127.0.0.1';

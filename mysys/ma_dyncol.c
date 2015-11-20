@@ -3722,10 +3722,12 @@ mariadb_dyncol_check(DYNAMIC_COLUMN *str)
     if (prev_type != DYN_COL_NULL)
     {
       /* It is not first entry */
-      if (prev_data_offset >= data_offset)
+      if (prev_data_offset > data_offset ||
+          ((prev_type !=  DYN_COL_INT &&
+            prev_type != DYN_COL_UINT) && prev_data_offset == data_offset))
       {
         DBUG_PRINT("info", ("Field order: %u  Previous data offset: %u"
-                            " >= Current data offset: %u",
+                            " >(=) Current data offset: %u",
                             (uint)i,
                             (uint)prev_data_offset,
                             (uint)data_offset));

@@ -5468,7 +5468,7 @@ char check_if_ignore_table(const char *table_name, char *table_type)
   DBUG_ASSERT(2*sizeof(table_name) < sizeof(show_name_buff));
   my_snprintf(buff, sizeof(buff),
               "SELECT engine FROM INFORMATION_SCHEMA.TABLES "
-              "WHERE table_name = %s",
+              "WHERE table_schema = DATABASE() AND table_name = %s",
               quote_for_equal(table_name, show_name_buff));
   if (mysql_query_with_error_report(mysql, &res, buff))
   {

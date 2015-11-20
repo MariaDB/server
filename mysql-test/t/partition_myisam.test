@@ -123,6 +123,7 @@ CHECK TABLE t1;
 SELECT * FROM t1;
 --echo # Note that it is currently impossible to drop a partitioned table
 --echo # without the .par file
+--replace_result "Not owner" "Operation not permitted"
 --error ER_GET_ERRNO
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.frm

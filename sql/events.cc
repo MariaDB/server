@@ -80,7 +80,8 @@ Event_queue *Events::event_queue;
 Event_scheduler *Events::scheduler;
 Event_db_repository *Events::db_repository;
 ulong Events::opt_event_scheduler= Events::EVENTS_OFF;
-bool Events::check_system_tables_error= FALSE;
+ulong Events::startup_state= Events::EVENTS_OFF;
+ulong Events::inited;
 
 
 /*
@@ -114,7 +115,7 @@ bool Events::check_if_system_tables_error()
 {
   DBUG_ENTER("Events::check_if_system_tables_error");
 
-  if (check_system_tables_error)
+  if (!inited)
   {
     my_error(ER_EVENTS_DB_ERROR, MYF(0));
     DBUG_RETURN(TRUE);
@@ -257,10 +258,10 @@ common_1_lev_code:
 
 
 /**
-  Create a new query string for removing executable comments 
-  for avoiding leak and keeping consistency of the execution 
+  Create a new query string for removing executable comments
+  for avoiding leak and keeping consistency of the execution
   on master and slave.
-  
+
   @param[in] thd                 Thread handler
   @param[in] buf                 Query string
 
@@ -287,7 +288,7 @@ create_query_string(THD *thd, String *buf)
                   thd->lex->stmt_definition_end -
                   thd->lex->stmt_definition_begin))
     return 1;
- 
+
   return 0;
 }
 
@@ -340,8 +341,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   if (parse_data->do_not_create)
     DBUG_RETURN(FALSE);
-  /* 
-    Turn off row binlogging of this statement and use statement-based 
+  /*
+    Turn off row binlogging of this statement and use statement-based
     so that all supporting tables are updated for CREATE EVENT command.
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -392,8 +393,10 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
       String log_query(buffer, sizeof(buffer), &my_charset_bin);
       if (create_query_string(thd, &log_query))
       {
-        sql_print_error("Event Error: An error occurred while creating query "
-                        "string, before writing it into binary log.");
+        my_message_sql(ER_STARTUP,
+                       "Event Error: An error occurred while creating query "
+                       "string, before writing it into binary log.",
+                       MYF(ME_NOREFRESH));
         ret= true;
       }
       else
@@ -481,8 +484,8 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     }
   }
 
-  /* 
-    Turn off row binlogging of this statement and use statement-based 
+  /*
+    Turn off row binlogging of this statement and use statement-based
     so that all supporting tables are updated for UPDATE EVENT command.
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -769,6 +772,13 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   int ret;
   DBUG_ENTER("Events::fill_schema_events");
 
+  /*
+    If we didn't start events because of --skip-grant-tables, return an
+    empty set
+  */
+  if (opt_noacl)
+    DBUG_RETURN(0);
+
   if (check_if_system_tables_error())
     DBUG_RETURN(1);
 
@@ -797,6 +807,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 /**
   Initializes the scheduler's structures.
 
+  @param  THD or null (if called by init)
   @param  opt_noacl_or_bootstrap
                      TRUE if there is --skip-grant-tables or --bootstrap
                      option. In that case we disable the event scheduler.
@@ -804,44 +815,56 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   @note   This function is not synchronized.
 
   @retval  FALSE   Perhaps there was an error, and the event scheduler
-                   is disabled. But the error is not fatal and the 
+                   is disabled. But the error is not fatal and the
                    server start up can continue.
   @retval  TRUE    Fatal error. Startup must terminate (call unireg_abort()).
 */
 
 bool
-Events::init(bool opt_noacl_or_bootstrap)
+Events::init(THD *thd, bool opt_noacl_or_bootstrap)
 {
-
-  THD *thd;
   int err_no;
   bool res= FALSE;
-
+  bool had_thd= thd != 0;
   DBUG_ENTER("Events::init");
 
+  DBUG_ASSERT(inited == 0);
+
+  /*
+    Was disabled explicitly from the command line
+  */
+  if (opt_event_scheduler == Events::EVENTS_DISABLED ||
+      opt_noacl_or_bootstrap)
+    DBUG_RETURN(FALSE);
+
   /* We need a temporary THD during boot */
-  if (!(thd= new THD()))
+  if (!thd)
   {
-    res= TRUE;
-    goto end;
+
+    if (!(thd= new THD()))
+    {
+      res= TRUE;
+      goto end;
+    }
+    /*
+      The thread stack does not start from this function but we cannot
+      guess the real value. So better some value that doesn't assert than
+      no value.
+    */
+    thd->thread_stack= (char*) &thd;
+    thd->store_globals();
+    /*
+      Set current time for the thread that handles events.
+      Current time is stored in data member start_time of THD class.
+      Subsequently, this value is used to check whether event was expired
+      when make loading events from storage. Check for event expiration time
+      is done at Event_queue_element::compute_next_execution_time() where
+      event's status set to Event_parse_data::DISABLED and dropped flag set
+      to true if event was expired.
+    */
+    thd->set_time();
   }
-  /*
-    The thread stack does not start from this function but we cannot
-    guess the real value. So better some value that doesn't assert than
-    no value.
-  */
-  thd->thread_stack= (char*) &thd;
-  thd->store_globals();
-  /*
-    Set current time for the thread that handles events.
-    Current time is stored in data member start_time of THD class.
-    Subsequently, this value is used to check whether event was expired
-    when make loading events from storage. Check for event expiration time
-    is done at Event_queue_element::compute_next_execution_time() where
-    event's status set to Event_parse_data::DISABLED and dropped flag set
-    to true if event was expired.
-  */
-  thd->set_time();
+
   /*
     We will need Event_db_repository anyway, even if the scheduler is
     disabled - to perform events DDL.
@@ -861,27 +884,18 @@ Events::init(bool opt_noacl_or_bootstrap)
     are most likely not there and we're going to disable the event
     scheduler anyway.
   */
-  if (opt_noacl_or_bootstrap || Event_db_repository::check_system_tables(thd))
+  if (Event_db_repository::check_system_tables(thd))
   {
-    if (! opt_noacl_or_bootstrap)
-    {
-      sql_print_error("Event Scheduler: An error occurred when initializing "
-                      "system tables. Disabling the Event Scheduler.");
-      check_system_tables_error= TRUE;
-    }
-
+    delete db_repository;
+    db_repository= 0;
+    my_message(ER_STARTUP,
+               "Event Scheduler: An error occurred when initializing "
+               "system tables. Disabling the Event Scheduler.",
+               MYF(ME_NOREFRESH));
     /* Disable the scheduler since the system tables are not up to date */
-    opt_event_scheduler= EVENTS_DISABLED;
+    opt_event_scheduler= EVENTS_OFF;
     goto end;
   }
-
-  /*
-    Was disabled explicitly from the command line, or because we're running
-    with --skip-grant-tables, or --bootstrap, or because we have no system
-    tables.
-  */
-  if (opt_event_scheduler == Events::EVENTS_DISABLED)
-    goto end;
 
 
   DBUG_ASSERT(opt_event_scheduler == Events::EVENTS_ON ||
@@ -897,20 +911,20 @@ Events::init(bool opt_noacl_or_bootstrap)
   if (event_queue->init_queue(thd) || load_events_from_db(thd) ||
       (opt_event_scheduler == EVENTS_ON && scheduler->start(&err_no)))
   {
-    sql_print_error("Event Scheduler: Error while loading from disk.");
+    my_message_sql(ER_STARTUP,
+                   "Event Scheduler: Error while loading from mysql.event table.",
+                   MYF(ME_NOREFRESH));
     res= TRUE; /* fatal error: request unireg_abort */
     goto end;
   }
   Event_worker_thread::init(db_repository);
+  inited= 1;
 
 end:
   if (res)
-  {
-    delete db_repository;
-    delete event_queue;
-    delete scheduler;
-  }
-  delete thd;
+    deinit();
+  if (!had_thd)
+    delete thd;
 
   DBUG_RETURN(res);
 }
@@ -930,17 +944,14 @@ Events::deinit()
 {
   DBUG_ENTER("Events::deinit");
 
-  if (opt_event_scheduler != EVENTS_DISABLED)
-  {
-    delete scheduler;
-    scheduler= NULL;                            /* safety */
-    delete event_queue;
-    event_queue= NULL;                          /* safety */
-  }
-
+  delete scheduler;
+  scheduler= NULL;                            /* For restart */
+  delete event_queue;
+  event_queue= NULL;                          /* For restart */
   delete db_repository;
-  db_repository= NULL;                          /* safety */
+  db_repository= NULL;                        /* For restart */
 
+  inited= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -1043,7 +1054,7 @@ Events::dump_internal_status()
     holding LOCK_global_system_variables.
   */
   mysql_mutex_lock(&LOCK_global_system_variables);
-  if (opt_event_scheduler == EVENTS_DISABLED)
+  if (!inited)
     puts("The Event Scheduler is disabled");
   else
   {
@@ -1057,11 +1068,13 @@ Events::dump_internal_status()
 
 bool Events::start(int *err_no)
 {
+  DBUG_ASSERT(inited);
   return scheduler->start(err_no);
 }
 
 bool Events::stop()
 {
+  DBUG_ASSERT(inited);
   return scheduler->stop();
 }
 
@@ -1091,7 +1104,6 @@ Events::load_events_from_db(THD *thd)
   bool ret= TRUE;
   uint count= 0;
   ulong saved_master_access;
-
   DBUG_ENTER("Events::load_events_from_db");
   DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
 
@@ -1116,7 +1128,9 @@ Events::load_events_from_db(THD *thd)
 
   if (ret)
   {
-    sql_print_error("Event Scheduler: Failed to open table mysql.event");
+    my_message_sql(ER_STARTUP,
+                   "Event Scheduler: Failed to open table mysql.event",
+                   MYF(ME_NOREFRESH));
     DBUG_RETURN(TRUE);
   }
 
@@ -1138,9 +1152,11 @@ Events::load_events_from_db(THD *thd)
 
     if (et->load_from_row(thd, table))
     {
-      sql_print_error("Event Scheduler: "
-                      "Error while loading events from mysql.event. "
-                      "The table probably contains bad data or is corrupted");
+      my_message(ER_STARTUP,
+                 "Event Scheduler: "
+                 "Error while loading events from mysql.event. "
+                 "The table probably contains bad data or is corrupted",
+                 MYF(ME_NOREFRESH));
       delete et;
       goto end;
     }
@@ -1177,9 +1193,12 @@ Events::load_events_from_db(THD *thd)
       }
     }
   }
-  if (global_system_variables.log_warnings)
-    sql_print_information("Event Scheduler: Loaded %d event%s",
-                          count, (count == 1) ? "" : "s");
+  my_printf_error(ER_STARTUP,
+                  "Event Scheduler: Loaded %d event%s",
+                  MYF(ME_NOREFRESH |
+                      (global_system_variables.log_warnings) ?
+                      ME_JUST_INFO: 0),
+                  count, (count == 1) ? "" : "s");
   ret= FALSE;
 
 end:
@@ -1197,7 +1216,8 @@ int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len)
 
   if (create_query_string(thd, &log_query))
   {
-    WSREP_WARN("events create string failed: %s", thd->query());
+    WSREP_WARN("events create string failed: schema: %s, query: %s",
+               (thd->db ? thd->db : "(null)"), thd->query());
     return 1;
   }
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);

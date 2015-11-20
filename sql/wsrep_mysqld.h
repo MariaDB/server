@@ -289,7 +289,8 @@ int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
 extern bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
-                           MDL_ticket *ticket);
+                          MDL_ticket *ticket,
+                          const MDL_key *key);
 IO_CACHE * get_trans_log(THD * thd);
 bool wsrep_trans_cache_is_empty(THD *thd);
 void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);

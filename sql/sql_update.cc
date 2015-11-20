@@ -22,7 +22,6 @@
 
 #include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_update.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_base.h"                       // close_tables_for_reopen
@@ -366,6 +365,9 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);				/* purecov: inspected */
   }
 
+  if (check_unique_table(thd, table_list))
+    DBUG_RETURN(TRUE);
+
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
@@ -460,7 +462,8 @@ int mysql_update(THD *thd,
   query_plan.scanned_rows= select? select->records: table->file->stats.records;
         
   if (select && select->quick && select->quick->unique_key_range())
-  { // Single row select (always "ordered"): Ok to use with key field UPDATE
+  {
+    /* Single row select (always "ordered"): Ok to use with key field UPDATE */
     need_sort= FALSE;
     query_plan.index= MAX_KEY;
     used_key_is_modified= FALSE;
@@ -469,7 +472,8 @@ int mysql_update(THD *thd,
   {
     ha_rows scanned_limit= query_plan.scanned_rows;
     query_plan.index= get_index_for_order(order, table, select, limit,
-                                          &scanned_limit, &need_sort, &reverse);
+                                          &scanned_limit, &need_sort,
+                                          &reverse);
     if (!need_sort)
       query_plan.scanned_rows= scanned_limit;
 
@@ -482,12 +486,15 @@ int mysql_update(THD *thd,
     else
     {
       if (need_sort)
-      { // Assign table scan index to check below for modified key fields:
+      {
+        /* Assign table scan index to check below for modified key fields: */
         query_plan.index= table->file->key_used_on_scan;
       }
       if (query_plan.index != MAX_KEY)
-      { // Check if we are modifying a key that we are used to search with:
-        used_key_is_modified= is_key_used(table, query_plan.index, table->write_set);
+      {
+        /* Check if we are modifying a key that we are used to search with: */
+        used_key_is_modified= is_key_used(table, query_plan.index,
+                                          table->write_set);
       }
     }
   }
@@ -604,19 +611,20 @@ int mysql_update(THD *thd,
         B. query_plan.index != MAX_KEY
            B.1 quick select is used, start the scan with init_read_record
            B.2 quick select is not used, this is full index scan (with LIMIT)
-               Full index scan must be started with init_read_record_idx
+           Full index scan must be started with init_read_record_idx
       */
 
       if (query_plan.index == MAX_KEY || (select && select->quick))
-      {
-        if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
-        {
-          close_cached_file(&tempfile);
-          goto err;
-        }
-      }
+        error= init_read_record(&info, thd, table, select, 0, 1, FALSE);
       else
-        init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
+        error= init_read_record_idx(&info, thd, table, 1, query_plan.index,
+                                    reverse);
+
+      if (error)
+      {
+        close_cached_file(&tempfile);
+        goto err;
+      }
 
       THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
@@ -1115,19 +1123,30 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
 
-  /* Check that we are not using table that we are updating in a sub select */
-  {
-    TABLE_LIST *duplicate;
-    if ((duplicate= unique_table(thd, table_list, table_list->next_global, 0)))
-    {
-      update_non_unique_table_error(table_list, "UPDATE", duplicate);
-      DBUG_RETURN(TRUE);
-    }
-  }
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
   DBUG_RETURN(FALSE);
 }
 
+/**
+  Check that we are not using table that we are updating in a sub select
+
+  @param thd             Thread handle
+  @param table_list      List of table with first to check
+
+  @retval TRUE  Error
+  @retval FALSE OK
+*/
+bool check_unique_table(THD *thd, TABLE_LIST *table_list)
+{
+  TABLE_LIST *duplicate;
+  DBUG_ENTER("check_unique_table");
+  if ((duplicate= unique_table(thd, table_list, table_list->next_global, 0)))
+  {
+    update_non_unique_table_error(table_list, "UPDATE", duplicate);
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
+}
 
 /***************************************************************************
   Update multiple tables from join 

@@ -1276,3 +1276,366 @@
   fun:_dlerror_run
   fun:dlopen@@GLIBC_2.2.5
 }
+
+{
+   GitHub codership/galera#308
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_ZNK6galera13ReplicatorSMM9stats_getEv
+   fun:_ZL28export_wsrep_status_to_mysqlP3THD
+   fun:_Z17wsrep_show_statusP3THDP17st_mysql_show_varPc
+   fun:_ZL17show_status_arrayP3THDPKcP17st_mysql_show_var13enum_var_typeP17system_status_varS2_P5TABLEbP4Item
+   fun:_Z11fill_statusP3THDP10TABLE_LISTP4Item
+   fun:_ZL13do_fill_tableP3THDP10TABLE_LISTP13st_join_table
+   fun:_Z24get_schema_tables_resultP4JOIN23enum_schema_table_state
+   fun:_ZN4JOIN14prepare_resultEPP4ListI4ItemE
+   fun:_ZN4JOIN4execEv
+   fun:_ZL20mysql_execute_selectP3THDP13st_select_lexb
+   fun:_Z12mysql_selectP3THDP10TABLE_LISTjR4ListI4ItemEPS4_P10SQL_I_ListI8st_orderESB_S7_yP13select_resultP18st_select_lex_unitP13st_select_lex
+   fun:_Z13handle_selectP3THDP13select_resultm
+   fun:_ZL21execute_sqlcom_selectP3THDP10TABLE_LIST
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+}
+
+{
+   GitHub codership/mysql-wsrep#176
+   Memcheck:Leak
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   GitHub codership/galera#330
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:/usr/lib64/libssl.so.1.0.1e
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_initC1Ev
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_init8instanceEv
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EEC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii.constprop.120
+   fun:call_init.part.0
+   fun:_dl_init
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+}
+{
+   GitHub codership/galera#330
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:/usr/lib64/libssl.so.1.0.1e
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_initC1Ev
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_init8instanceEv
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EEC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii.constprop.120
+   fun:call_init.part.0
+   fun:_dl_init
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+}
+
+{
+   GitHub codership/mysql-wsrep#175
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:do_lookup_x
+   fun:_dl_lookup_symbol_x
+   fun:_dl_relocate_object
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen@@GLIBC_2.2.5
+   fun:wsrep_load
+   fun:_Z10wsrep_initv
+   fun:_Z18wsrep_init_startupb
+   fun:_ZL22init_server_componentsv
+   fun:_Z11mysqld_mainiPPc
+}
+
+{
+   galera/mysql-wsrep#147
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:_ZNK6galera13ReplicatorSMM9stats_getEv
+   fun:_ZL28export_wsrep_status_to_mysqlP3THD
+   fun:_Z17wsrep_show_statusP3THDP17st_mysql_show_varPc
+   fun:_ZL17show_status_arrayP3THDPKcP17st_mysql_show_var13enum_var_typeP17system_status_varS2_P5TABLEbP4Item
+   fun:_Z11fill_statusP3THDP10TABLE_LISTP4Item
+   fun:_ZL13do_fill_tableP3THDP10TABLE_LISTP13st_join_table
+   fun:_Z24get_schema_tables_resultP4JOIN23enum_schema_table_state
+   fun:_ZN4JOIN14prepare_resultEPP4ListI4ItemE
+   fun:_ZN4JOIN4execEv
+   fun:_ZL20mysql_execute_selectP3THDP13st_select_lexb
+   fun:_Z12mysql_selectP3THDP10TABLE_LISTjR4ListI4ItemEPS4_P10SQL_I_ListI8st_orderESB_S7_yP13select_resultP18st_select_lex_unitP13st_select_lex
+   fun:_Z13handle_selectP3THDP13select_resultm
+   fun:_ZL21execute_sqlcom_selectP3THDP10TABLE_LIST
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+}
+
+{
+g   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z21wsrep_provider_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:ListParse
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:state_map_insert
+   fun:code_state
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:StrDup
+   fun:ListParse
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:code_state
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:PushState
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:strdup
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:strdup
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:strdup
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z21wsrep_provider_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/galera#331
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:state_map_insert
+   fun:code_state
+   fun:_gu_db_keyword_
+   fun:_ZN6galera3ist6Sender4sendEll
+   fun:run_async_sender
+   fun:start_thread
+   fun:clone
+}
+
+{
+   codership/galera#331
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:code_state
+   fun:_gu_db_keyword_
+   fun:_ZN6galera3ist6Sender4sendEll
+   fun:run_async_sender
+   fun:start_thread
+   fun:clone
+}
+

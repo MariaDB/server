@@ -27,7 +27,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at 352
-#<date> server id 1  end_log_pos 532 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 532 	Query	thread_id=4	exec_time=x	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=4/*!*/;
@@ -44,7 +44,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f
 #<date> server id 1  end_log_pos 570 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at 570
-#<date> server id 1  end_log_pos 743 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 743 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1))
 /*!*/;
@@ -69,7 +69,7 @@ BEGIN
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # at 898
-#<date> server id 1  end_log_pos 967 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 967 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -94,7 +94,7 @@ BEGIN
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
 # at 1121
-#<date> server id 1  end_log_pos 1190 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 1190 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -119,7 +119,7 @@ BEGIN
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # at 1343
-#<date> server id 1  end_log_pos 1412 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 1412 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -144,7 +144,7 @@ BEGIN
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # at 1568
-#<date> server id 1  end_log_pos 1637 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 1637 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -202,7 +202,7 @@ BEGIN
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # at 1890
-#<date> server id 1  end_log_pos 1959 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 1959 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -234,7 +234,7 @@ BEGIN
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
 # at 2119
-#<date> server id 1  end_log_pos 2188 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 2188 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -260,7 +260,7 @@ BEGIN
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
 # at 2328
-#<date> server id 1  end_log_pos 2397 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 2397 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -286,7 +286,7 @@ BEGIN
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
 # at 2537
-#<date> server id 1  end_log_pos 2606 	Query	thread_id=4	exec_time=0	error_code=0
+#<date> server id 1  end_log_pos 2606 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;

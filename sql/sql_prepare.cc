@@ -1419,7 +1419,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, 0, stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0))
+  if (setup_fields(thd, 0, stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0) ||
+      check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
@@ -3475,7 +3476,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   
   select_number_after_prepare= thd->select_number;
 
-  lex_end(lex);
+  /* Preserve CHANGE MASTER attributes */
+  lex_end_stage1(lex);
   cleanup_stmt();
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
@@ -4102,6 +4104,10 @@ void Prepared_statement::deallocate()
 {
   /* We account deallocate in the same manner as mysqld_stmt_close */
   status_var_increment(thd->status_var.com_stmt_close);
+
+  /* It should now be safe to reset CHANGE MASTER parameters */
+  lex_end_stage2(lex);
+
   /* Statement map calls delete stmt on erase */
   thd->stmt_map.erase(this);
 }

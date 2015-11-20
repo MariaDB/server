@@ -2,6 +2,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/have_timer_cycle.inc
 
 # Set to a known state
 update performance_schema.setup_timers

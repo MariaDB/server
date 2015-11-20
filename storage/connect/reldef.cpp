@@ -57,6 +57,7 @@ extern handlerton *connect_hton;
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
+char   *GetPluginDir(void);
 
 /* --------------------------- Class RELDEF -------------------------- */
 

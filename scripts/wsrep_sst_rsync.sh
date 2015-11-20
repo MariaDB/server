@@ -18,8 +18,10 @@
 
 # This is a reference script for rsync-based state snapshot tansfer
 
-RSYNC_PID=
-RSYNC_CONF=
+RSYNC_PID=                                      # rsync pid file
+RSYNC_CONF=                                     # rsync configuration file
+RSYNC_REAL_PID=                                 # rsync process id
+
 OS=$(uname)
 [ "$OS" == "Darwin" ] && export -n LD_LIBRARY_PATH
 
@@ -32,10 +34,12 @@ wsrep_check_programs rsync
 
 cleanup_joiner()
 {
-    wsrep_log_info "Joiner cleanup."
-    local PID=$(cat "$RSYNC_PID" 2>/dev/null || echo 0)
-    [ "0" != "$PID" ] && kill $PID && sleep 0.5 && kill -9 $PID >/dev/null 2>&1 \
-    || :
+    wsrep_log_info "Joiner cleanup. rsync PID: $RSYNC_REAL_PID"
+    [ "0" != "$RSYNC_REAL_PID" ]            && \
+    kill $RSYNC_REAL_PID                    && \
+    sleep 0.5                               && \
+    kill -9 $RSYNC_REAL_PID >/dev/null 2>&1 || \
+    :
     rm -rf "$RSYNC_CONF"
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
@@ -45,6 +49,7 @@ cleanup_joiner()
     fi
 }
 
+# Check whether rsync process is still running.
 check_pid()
 {
     local pid_file=$1

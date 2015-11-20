@@ -20,7 +20,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END
 #include "sql_lex.h"
 #include "sql_parse.h"                          // add_to_list
@@ -557,6 +556,16 @@ void lex_end(LEX *lex)
   DBUG_ENTER("lex_end");
   DBUG_PRINT("enter", ("lex: 0x%lx", (long) lex));
 
+  lex_end_stage1(lex);
+  lex_end_stage2(lex);
+
+  DBUG_VOID_RETURN;
+}
+
+void lex_end_stage1(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage1");
+
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
   {
@@ -580,6 +589,19 @@ void lex_end(LEX *lex)
     lex->sphead= NULL;
   }
 
+  DBUG_VOID_RETURN;
+}
+
+/*
+  MASTER INFO parameters (or state) is normally cleared towards the end
+  of a statement. But in case of PS, the state needs to be preserved during
+  its lifetime and should only be cleared on PS close or deallocation.
+*/
+void lex_end_stage2(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage2");
+
+  /* Reset LEX_MASTER_INFO */
   lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
 
   DBUG_VOID_RETURN;

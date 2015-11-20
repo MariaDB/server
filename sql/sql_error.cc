@@ -510,8 +510,10 @@ Diagnostics_area::set_error_status(uint sql_errno,
 void
 Diagnostics_area::disable_status()
 {
+  DBUG_ENTER("disable_status");
   DBUG_ASSERT(! is_set());
   m_status= DA_DISABLED;
+  DBUG_VOID_RETURN;
 }
 
 Warning_info::Warning_info(ulonglong warn_id_arg,

@@ -4,5 +4,15 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
+CREATE USER foo@localhost;
+# Open connection to node 2 using 'foo' user.
+
+# Connect with foo_node_2
+INSERT INTO t1 VALUES (2);
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
 SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
+DROP USER foo@localhost;

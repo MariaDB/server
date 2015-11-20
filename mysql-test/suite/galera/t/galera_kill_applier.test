@@ -1,0 +1,26 @@
+#
+# This test checks that applier threads are immune to KILL QUERY and KILL STATEMENT
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE != 'wsrep aborter idle' OR STATE IS NULL LIMIT 1`
+
+--disable_query_log
+--error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--eval KILL $applier_thread
+
+--error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--eval KILL QUERY $applier_thread
+
+--let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
+
+--error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--eval KILL $aborter_thread
+
+--error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--eval KILL QUERY $aborter_thread
+--enable_query_log

@@ -34,6 +34,8 @@ SELECT COUNT(*) = 1 FROM t1;
 --echo Killing garbd ...
 --exec pkill --oldest --full garbd.*$NODE_GALERAPORT_3
 
+--sleep 5
+
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
@@ -48,3 +50,15 @@ DROP TABLE t1;
 --echo Restarting node #3 to satisfy MTR's end-of-test checks
 --connection node_3
 --source include/start_mysqld.inc
+
+
+# Workaround for galera#101
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_3
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");

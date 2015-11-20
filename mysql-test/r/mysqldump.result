@@ -5329,3 +5329,165 @@ select * from t1;
 a
 1
 drop table t1;
+#
+# MDEV-9124 mysqldump does not dump data if table name is same as view earlier on
+#
+CREATE DATABASE db1 CHARSET=utf8;
+CREATE DATABASE db2 CHARSET=utf8;
+USE db2;
+CREATE TABLE nonunique_table_name (i1 serial) ENGINE=MEMORY;
+INSERT INTO nonunique_table_name VALUES (1),(2);
+CREATE TABLE nonunique_table_view_name (i2 int) ENGINE=InnoDB;
+INSERT INTO nonunique_table_view_name VALUES (3),(4);
+use db1;
+CREATE TABLE basetable (id smallint) ENGINE=MyISAM;
+CREATE TABLE nonunique_table_name (i3 smallint) ENGINE=MERGE UNION (basetable) INSERT_METHOD=LAST;
+INSERT INTO nonunique_table_name VALUES (5),(6);
+CREATE VIEW nonunique_table_view_name AS SELECT 1;
+
+##################################################
+# --compact --databases db1 db2
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+USE `db1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `basetable` (
+  `id` smallint(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `basetable` VALUES (5),(6);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_name` (
+  `i3` smallint(6) DEFAULT NULL
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8 INSERT_METHOD=LAST UNION=(`basetable`);
+/*!40101 SET character_set_client = @saved_cs_client */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `nonunique_table_view_name` (
+  `1` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+USE `db2`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_name` (
+  `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `i1` (`i1`)
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_name` VALUES (1),(2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_view_name` (
+  `i2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+
+USE `db1`;
+/*!50001 DROP TABLE IF EXISTS `nonunique_table_view_name`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+USE `db2`;
+
+##################################################
+# --compact db2
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_name` (
+  `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `i1` (`i1`)
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_name` VALUES (1),(2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_view_name` (
+  `i2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+
+##################################################
+# --compact --delayed-insert --no-data-med=0 --databases db2 db1
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+USE `db2`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_name` (
+  `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `i1` (`i1`)
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT  DELAYED INTO `nonunique_table_name` VALUES (1),(2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_view_name` (
+  `i2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+USE `db1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `basetable` (
+  `id` smallint(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT  DELAYED INTO `basetable` VALUES (5),(6);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `nonunique_table_name` (
+  `i3` smallint(6) DEFAULT NULL
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8 INSERT_METHOD=LAST UNION=(`basetable`);
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `nonunique_table_name` VALUES (5),(6);
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `nonunique_table_view_name` (
+  `1` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+
+USE `db2`;
+
+USE `db1`;
+/*!50001 DROP TABLE IF EXISTS `nonunique_table_view_name`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+DROP DATABASE db1;
+DROP DATABASE db2;

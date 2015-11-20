@@ -24,7 +24,6 @@ rootpass=""
 echo_n=
 echo_c=
 basedir=
-bindir=
 defaults_file=
 defaults_extra_file=
 no_defaults=
@@ -159,8 +158,15 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+  mysql_command=`find_in_basedir mysql bin`
+  if test -z "$mysql_command"
+  then
+    cannot_find_file mysql $basedir/bin
+    exit 1
+  fi
 else
   print_defaults="@bindir@/my_print_defaults"
+  mysql_command="@bindir@/mysql"
 fi
 
 if test ! -x "$print_defaults"
@@ -169,28 +175,16 @@ then
   exit 1
 fi
 
+if test ! -x "$mysql_command"
+then
+  cannot_find_file "$mysql_command"
+  exit 1
+fi
+
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
 parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
-
-# Configure paths to support files
-if test -n "$basedir"
-then
-  bindir="$basedir/bin"
-elif test -f "./bin/mysql"
-  then
-  bindir="./bin"
-else
-  bindir="@bindir@"
-fi
-
-mysql_command=`find_in_basedir mysql $bindir`
-if test -z "$mysql_command"
-then
-  cannot_find_file mysql $bindir
-  exit 1
-fi
 
 set_echo_compat() {
     case `echo "testing\c"`,`echo -n testing` in

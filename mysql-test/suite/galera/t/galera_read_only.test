@@ -17,7 +17,23 @@ INSERT INTO t1 VALUES (1);
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1;
 
-SET GLOBAL read_only=FALSE;
+CREATE USER foo@localhost;
 
+--echo # Open connection to node 2 using 'foo' user.
+--let $port_2= \$NODE_MYPORT_2
+--connect(foo_node_2,127.0.0.1,foo,,test,$port_2,)
+
+--echo
+--echo # Connect with foo_node_2
+--connection foo_node_2
+--error ER_OPTION_PREVENTS_STATEMENT
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+# Cleanup
+SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
+DROP USER foo@localhost;
 

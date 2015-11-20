@@ -24,12 +24,10 @@
     "ISBN": "9782840825685",
     "LANG": "fr",
     "SUBJECT": "applications",
-    "AUTHOR": [
-      {
-        "FIRSTNAME": "William J.",
-        "LASTNAME": "Pardi"
-      }
-    ],
+    "AUTHOR": {
+      "FIRSTNAME": "William J.",
+      "LASTNAME": "Pardi"
+      },
     "TITLE": "XML en Action",
     "TRANSLATION": "adapté de l'anglais par",
     "TRANSLATOR": {

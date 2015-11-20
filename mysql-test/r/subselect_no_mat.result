@@ -7102,6 +7102,30 @@ sq
 NULL
 deallocate prepare stmt;
 drop table t1,t2,t3,t4;
+#
+# MDEV-7930: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+# m_lock_type != 2' failed in  handler::ha_index_read_map
+#
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f2 INT, KEY(f2));
+INSERT INTO t2 VALUES (3);
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
+sq
+3
+SELECT * FROM v2 where ( SELECT MIN(v2.f2) FROM t1 ) > 0;
+f2
+3
+SELECT count(*) FROM v2 group by ( SELECT MIN(v2.f2) FROM t1 );
+count(*)
+1
+delete from t1;
+SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
+sq
+NULL
+drop view v2;
+drop table t1,t2;
 set optimizer_switch=default;
 select @@optimizer_switch like '%materialization=on%';
 @@optimizer_switch like '%materialization=on%'

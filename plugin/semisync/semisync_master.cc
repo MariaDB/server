@@ -746,8 +746,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     /*
       At this point, the binlog file and position of this transaction
       must have been removed from ActiveTranx.
+      active_tranxs_ may be NULL if someone disabled semi sync during
+      cond_timewait()
     */
-    assert(thd_killed(current_thd) ||
+    assert(thd_killed(current_thd) || !active_tranxs_ ||
            !active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
     

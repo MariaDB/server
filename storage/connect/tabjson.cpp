@@ -659,7 +659,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
       // Deferred reading failed
     } else if (!(Row = ParseJson(g, To_Line, 
-                             strlen(To_Line), Pretty, &Comma))) {
+                             strlen(To_Line), &Pretty, &Comma))) {
       rc = (Pretty == 1 && !strcmp(To_Line, "]")) ? RC_EF : RC_FX;
     } else {
       Row = FindRow(g);
@@ -755,7 +755,6 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
     } else
       strcpy(To_Line, s);
 
-    Row->Clear();
     return false;
   } else
     return true;
@@ -979,6 +978,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       if (!stricmp(Name, colp->GetName())) {
         Nod = colp->Nod;
         Nodes = colp->Nodes;
+				Xpd = colp->Xpd;
         goto fin;
         } // endif Name
 
@@ -1045,7 +1045,8 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
     switch (val->GetValType()) {
       case TYPE_STRG:
       case TYPE_INTG:
-      case TYPE_DBL:
+			case TYPE_BINT:
+			case TYPE_DBL:
         vp->SetValue_pval(val->GetValue());
         break;
       case TYPE_BOOL:
@@ -1347,6 +1348,11 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
 /***********************************************************************/
 void JSONCOL::WriteColumn(PGLOBAL g)
   {
+	if (Xpd && Tjp->Pretty < 2) {
+		strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
+		longjmp(g->jumper[g->jump_level], 666);
+	  }	// endif Xpd
+
   /*********************************************************************/
   /*  Check whether this node must be written.                         */
   /*********************************************************************/
@@ -1378,7 +1384,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
       if (Nodes[Nod-1].Op == OP_XX) {
         s = Value->GetCharValue();
 
-        if (!(jsp = ParseJson(g, s, (int)strlen(s), 0))) {
+        if (!(jsp = ParseJson(g, s, (int)strlen(s)))) {
           strcpy(g->Message, s);
           longjmp(g->jumper[g->jump_level], 666);
           } // endif jsp
@@ -1516,7 +1522,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   /*  Parse the json file and allocate its tree structure.             */
   /*********************************************************************/
   g->Message[0] = 0;
-  jsp = Top = ParseJson(g, memory, len, Pretty);
+  jsp = Top = ParseJson(g, memory, len, &Pretty);
   Txfp->CloseTableFile(g, false);
   Mode = mode;             // Restore saved Mode
 
@@ -1534,7 +1540,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
     if (*objpath != '[') {         // objpass is a key
       if (jsp->GetType() != TYPE_JOB) {
-        strcpy(g->Message, "Table path does no match json file");
+        strcpy(g->Message, "Table path does not match the json file");
         return RC_FX;
         } // endif Type
 
@@ -1550,7 +1556,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
     } else if (objpath[strlen(objpath)-1] == ']') {
       if (jsp->GetType() != TYPE_JAR) {
-        strcpy(g->Message, "Table path does no match json file");
+        strcpy(g->Message, "Table path does not match the json file");
         return RC_FX;
         } // endif Type
 
@@ -1831,7 +1837,6 @@ void TDBJSON::CloseDB(PGLOBAL g)
   // Save the modified document
   char  filename[_MAX_PATH];
   PSZ   msg;
-  FILE *fop;
 
   Doc->InitArray(g);
 
@@ -1839,11 +1844,7 @@ void TDBJSON::CloseDB(PGLOBAL g)
   PlugSetPath(filename, ((PJDEF)To_Def)->Fn, GetPath());
 
   // Serialize the modified table
-  if (!(fop = fopen(filename, "wb"))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            "w", (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
-  } else if ((msg = Serialize(g, Top, fop, Pretty)))
+  if ((msg = Serialize(g, Top, filename, Pretty)))
     puts(msg);
 
   } // end of CloseDB

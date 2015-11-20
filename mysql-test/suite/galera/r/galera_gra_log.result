@@ -1,0 +1,41 @@
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER);
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+<ISO TIMESTAMP> server id 2  end_log_pos 120 	Start: binlog v 4, server v 5.6.24-debug-log created 150804 11:37:14 at startup
+# Warning: this binlog is either in use or was not closed properly.
+ROLLBACK/*!*/;
+BINLOG '
+unnAVQ8CAAAAdAAAAHgAAAABAAQANS42LjI0LWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAC6ecBVEzgNAAgAEgAEBAQEEgAAXAAEGggAAAAICAgCAAAACgoKGRkAAKNu
+Jfk=
+'/*!*/;
+# at 120
+<ISO TIMESTAMP> server id 1  end_log_pos 91 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=0	error_code=0
+use `test`/*!*/;
+SET TIMESTAMP=<TIMESTAMP>/*!*/;
+SET @@session.pseudo_thread_id=<PSEUDO_THREAD_ID>/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1073741824/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+CREATE TABLE t1 (f1 INTEGER)
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+SET SESSION wsrep_on=ON;
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
+DROP TABLE t1;

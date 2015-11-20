@@ -3,7 +3,7 @@ ENGINE	SEQUENCE
 SUPPORT	YES
 COMMENT	Generated tables filled with sequential values
 TRANSACTIONS	YES
-XA	YES
+XA	NO
 SAVEPOINTS	YES
 set sql_quote_show_create=0;
 show create table seq_1_to_15_step_2;

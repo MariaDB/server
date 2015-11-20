@@ -36,7 +36,7 @@ bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
 int   CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort);
 int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id, bool sorted);
 RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
-RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n, bool mrr); 
+RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const key_range *kr, bool mrr); 
 RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
 RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
 RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
@@ -60,7 +60,7 @@ class TDBDOX: public TDBDOS {
   friend int   MakeIndex(PGLOBAL, PTDB, PIXDEF);
   friend int   CntCloseTable(PGLOBAL, PTDB, bool, bool);
   friend int   CntIndexInit(PGLOBAL, PTDB, int, bool);
-  friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const void*, int, bool);
+  friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const key_range*, bool);
   friend RCODE CntDeleteRow(PGLOBAL, PTDB, bool);
   friend int   CntIndexRange(PGLOBAL, PTDB, const uchar**, uint*,
                              bool*, key_part_map*);

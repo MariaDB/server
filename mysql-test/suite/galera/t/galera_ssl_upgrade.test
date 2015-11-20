@@ -1,0 +1,46 @@
+#
+# Test upgrading the SSL certificates in a rolling fashion.
+#
+# 1. The starting state with the old key and cert is is described in galera_ssl_upgrade.cnf
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 2. Restart node #1 with a socket.ssl_ca that includes both the new and the old certificate
+
+--connection node_1
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 3. Restart node #2 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key 
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-key.pem
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 4. Restart node #1 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key 
+
+--connection node_1
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-key.pem
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# Upgrade complete. Both nodes now use the new key and certificate

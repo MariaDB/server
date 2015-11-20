@@ -35,9 +35,9 @@ INSERT INTO t2 VALUES (1);
 
 --connection node_2
 
-SELECT COUNT(*) = 6 FROM t1;
-SELECT COUNT(*) = 6 FROM t2;
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'closing tables';
+SELECT COUNT(*) = 10 FROM t1;
+SELECT COUNT(*) = 10 FROM t2;
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'committed%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
 

@@ -355,9 +355,16 @@ toku_get_processor_frequency_cpuinfo(uint64_t *hzret) {
         r = get_error_errno();
     } else {
         uint64_t maxhz = 0;
-        char *buf = NULL;
-        size_t n = 0;
-        while (getline(&buf, &n, fp) >= 0) {
+        /*
+          Some lines in the "/proc/cpuinfo" output can be long, e.g.:
+            "flags  : fpu vme de pse tsc ms .... smep erms"
+          In case a line does not fit into "buf", it will be read
+          in parts by multiple "fgets" calls. This is ok, as
+          it is very unlikely that a non-leading substring of a line
+          will match again the pattern "processor: %u".
+        */
+        char buf[512];
+        while (fgets(buf, (int) sizeof(buf), fp) != NULL) {
             unsigned int cpu;
             sscanf(buf, "processor : %u", &cpu);
             unsigned int ma, mb;
@@ -367,8 +374,6 @@ toku_get_processor_frequency_cpuinfo(uint64_t *hzret) {
                     maxhz = hz;
             }
         }
-        if (buf)
-            free(buf);
         fclose(fp);
         *hzret = maxhz;
         r = maxhz == 0 ? ENOENT : 0;;

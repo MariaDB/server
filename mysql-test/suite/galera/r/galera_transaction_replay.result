@@ -7,12 +7,12 @@ UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
 SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 f1	f2
 2	a
-SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
 COMMIT;;
 SET SESSION wsrep_sync_wait = 0;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 1
 1

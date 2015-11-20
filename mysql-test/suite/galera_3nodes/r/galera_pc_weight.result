@@ -39,9 +39,6 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
 wsrep_local_state_comment	Initialized
 Resuming node ...
-SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-VARIABLE_VALUE = 1
-1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
@@ -57,6 +54,7 @@ VARIABLE_VALUE = 4
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 VARIABLE_VALUE = 'Synced'
 1
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 SET SESSION wsrep_sync_wait=0;
 SET SESSION wsrep_sync_wait=0;
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
@@ -113,6 +111,9 @@ VARIABLE_VALUE = 4
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 VARIABLE_VALUE = 'Synced'
 1
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 CALL mtr.add_suppression('WSREP: gcs_caused\\(\\) returned -1');
+CALL mtr.add_suppression('overriding reported weight for');
 CALL mtr.add_suppression('WSREP: user message in state LEAVING');
 CALL mtr.add_suppression('sending install message failed: Transport endpoint is not connected');
+CALL mtr.add_suppression('overriding reported weight for');

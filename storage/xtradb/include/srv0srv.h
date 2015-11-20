@@ -186,6 +186,13 @@ struct srv_stats_t {
 	/** Number of lock waits that have been up to max time (i.e.) lock
 	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
+
+	/** Number of merge buffers written */
+	ulint_ctr_64_t		merge_buffers_written;
+	/** Number of merge buffers read */
+	ulint_ctr_64_t		merge_buffers_read;
+	/** Number of merge buffers merged */
+	ulint_ctr_64_t		merge_buffers_merged;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -1202,7 +1209,9 @@ struct export_var_t{
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
 						- purged view's min trx_id */
 #endif /* UNIV_DEBUG */
-
+	ib_int64_t innodb_merge_buffers_written;
+	ib_int64_t innodb_merge_buffers_read;
+	ib_int64_t innodb_merge_buffers_merged;
 
 	ib_int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */

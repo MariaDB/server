@@ -2030,6 +2030,10 @@ srv_export_innodb_status(void)
 	}
 #endif /* UNIV_DEBUG */
 
+	export_vars.innodb_merge_buffers_written = srv_stats.merge_buffers_written;
+	export_vars.innodb_merge_buffers_read = srv_stats.merge_buffers_read;
+	export_vars.innodb_merge_buffers_merged = srv_stats.merge_buffers_merged;
+
 	export_vars.innodb_sec_rec_cluster_reads =
 		srv_stats.n_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =

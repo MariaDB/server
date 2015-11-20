@@ -492,6 +492,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     if (ref_pointer_array && !ref->found_in_select_list)
     {
       int el= all_fields.elements;
+      DBUG_ASSERT(all_fields.elements <= select->ref_pointer_array_size);
       ref_pointer_array[el]= item;
       /* Add the field item to the select list of the current select. */
       all_fields.push_front(item, thd->mem_root);
@@ -907,6 +908,7 @@ JOIN::prepare(Item ***rref_pointer_array,
       {
         Item_field *field= new (thd->mem_root) Item_field(thd, *(Item_field**)ord->item);
         int el= all_fields.elements;
+        DBUG_ASSERT(all_fields.elements <= select_lex->ref_pointer_array_size);
         ref_pointer_array[el]= field;
         all_fields.push_front(field, thd->mem_root);
         ord->item= ref_pointer_array + el;
@@ -21980,6 +21982,8 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     return TRUE; /* Wrong field. */
 
   uint el= all_fields.elements;
+  DBUG_ASSERT(all_fields.elements <=
+              thd->lex->current_select->ref_pointer_array_size);
  /* Add new field to field list. */
   all_fields.push_front(order_item, thd->mem_root);
   ref_pointer_array[el]= order_item;
@@ -22240,6 +22244,8 @@ create_distinct_group(THD *thd, Item **ref_pointer_array,
         */
         Item_field *new_item= new (thd->mem_root) Item_field(thd, (Item_field*)item);
         int el= all_fields.elements;
+        DBUG_ASSERT(all_fields.elements <=
+                    thd->lex->current_select->ref_pointer_array_size);
         orig_ref_pointer_array[el]= new_item;
         all_fields.push_front(new_item, thd->mem_root);
         ord->item= orig_ref_pointer_array + el;
@@ -25060,8 +25066,7 @@ bool JOIN::change_result(select_result *new_result, select_result *old_result)
       DBUG_RETURN(true); /* purecov: inspected */
     DBUG_RETURN(false);
   }
-  else
-    DBUG_RETURN(result->change_result(new_result));
+  DBUG_RETURN(result->change_result(new_result));
 }
 
 
@@ -25389,7 +25394,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         if (kp == table->quick_key_parts[keynr])
           ref_rows= table->quick_rows[keynr];
         else
-          ref_rows= table->key_info[keynr].actual_rec_per_key(kp-1);
+          ref_rows= (ha_rows) table->key_info[keynr].actual_rec_per_key(kp-1);
 
         if (ref_rows > 0)
         {

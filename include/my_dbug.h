@@ -30,6 +30,7 @@ struct _db_stack_frame_ {
   const char *func;      /* function name of the previous stack frame       */
   const char *file;      /* filename of the function of previous frame      */
   uint level;            /* this nesting level, highest bit enables tracing */
+  int line;              /* line of DBUG_RETURN                             */
   struct _db_stack_frame_ *prev; /* pointer to the previous frame */
 };
 
@@ -48,7 +49,7 @@ extern  void _db_set_(const char *control);
 extern  void _db_set_init_(const char *control);
 extern void _db_enter_(const char *_func_, const char *_file_, uint _line_,
                        struct _db_stack_frame_ *_stack_frame_);
-extern  void _db_return_(uint _line_, struct _db_stack_frame_ *_stack_frame_);
+extern  void _db_return_(struct _db_stack_frame_ *_stack_frame_);
 extern  void _db_pargs_(uint _line_,const char *keyword);
 extern  void _db_doprnt_(const char *format,...)
   ATTRIBUTE_FORMAT(printf, 1, 2);
@@ -63,12 +64,24 @@ extern void dbug_swap_code_state(void **code_state_store);
 extern void dbug_free_code_state(void **code_state_store);
 extern  const char* _db_get_func_(void);
 
+#define DBUG_LEAVE do { \
+    _db_stack_frame_.line= __LINE__; \
+    _db_return_ (&_db_stack_frame_); \
+    _db_stack_frame_.line= 0; \
+  } while(0)
+
+#ifdef HAVE_ATTRIBUTE_CLEANUP
+#define DBUG_ENTER(a) struct _db_stack_frame_ _db_stack_frame_  __attribute__((cleanup(_db_return_))); \
+        _db_enter_ (a,__FILE__,__LINE__,&_db_stack_frame_)
+#define DBUG_RETURN(a1) do { _db_stack_frame_.line=__LINE__; return(a1);} while(0)
+#define DBUG_VOID_RETURN do { _db_stack_frame_.line=__LINE__; return;} while(0)
+#else
 #define DBUG_ENTER(a) struct _db_stack_frame_ _db_stack_frame_; \
         _db_enter_ (a,__FILE__,__LINE__,&_db_stack_frame_)
-#define DBUG_LEAVE _db_return_ (__LINE__, &_db_stack_frame_)
-
 #define DBUG_RETURN(a1) do {DBUG_LEAVE; return(a1);} while(0)
 #define DBUG_VOID_RETURN do {DBUG_LEAVE; return;} while(0)
+#endif
+
 #define DBUG_EXECUTE(keyword,a1) \
         do {if (_db_keyword_(0, (keyword), 0)) { a1 }} while(0)
 #define DBUG_EXECUTE_IF(keyword,a1) \

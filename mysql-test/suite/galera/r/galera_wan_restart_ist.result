@@ -1,0 +1,53 @@
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (13);
+Shutting down server ...
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (14);
+INSERT INTO t1 VALUES (131);
+INSERT INTO t1 VALUES (22);
+Shutting down server ...
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+INSERT INTO t1 VALUES (221);
+INSERT INTO t1 VALUES (34);
+Shutting down server ...
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+INSERT INTO t1 VALUES (33);
+INSERT INTO t1 VALUES (341);
+SELECT COUNT(*) = 19 FROM t1;
+COUNT(*) = 19
+1
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) = 19 FROM t1;
+COUNT(*) = 19
+1
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) = 19 FROM t1;
+COUNT(*) = 19
+1
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) = 19 FROM t1;
+COUNT(*) = 19
+1
+DROP TABLE t1;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");

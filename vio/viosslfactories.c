@@ -259,14 +259,17 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   }
 
   /* DH stuff */
-  dh=get_dh2048();
-  if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+  if (!is_client_method)
   {
-    *error= SSL_INITERR_DH;
-    goto err3;
-  }
+    dh=get_dh2048();
+    if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+    {
+      *error= SSL_INITERR_DH;
+      goto err3;
+    }
 
-  DH_free(dh);
+    DH_free(dh);
+  }
 
   DBUG_PRINT("exit", ("OK 1"));
 

@@ -5966,3 +5966,26 @@ EXECUTE stmt;
 
 deallocate prepare stmt;
 drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-7930: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+--echo # m_lock_type != 2' failed in  handler::ha_index_read_map
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 INT, KEY(f2));
+INSERT INTO t2 VALUES (3);
+
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+
+SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
+SELECT * FROM v2 where ( SELECT MIN(v2.f2) FROM t1 ) > 0;
+SELECT count(*) FROM v2 group by ( SELECT MIN(v2.f2) FROM t1 );
+
+delete from t1;
+SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
+
+drop view v2;
+drop table t1,t2;

@@ -215,6 +215,7 @@ void wsrep_replay_transaction(THD *thd)
       */
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
       thd_proc_info(thd, "wsrep replaying trx");
       WSREP_DEBUG("replay trx: %s %lld",
                   thd->query() ? thd->query() : "void",
@@ -274,8 +275,10 @@ void wsrep_replay_transaction(THD *thd)
         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);
         break;
       default:
-        WSREP_ERROR("trx_replay failed for: %d, query: %s",
-                    rcode, thd->query() ? thd->query() : "void");
+        WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
+                    rcode,
+                    (thd->db ? thd->db : "(null)"),
+                    thd->query() ? thd->query() : "void");
         /* we're now in inconsistent state, must abort */
 
         /* http://bazaar.launchpad.net/~codership/codership-mysql/5.6/revision/3962#sql/wsrep_thd.cc */
@@ -608,3 +611,8 @@ int wsrep_thd_in_locking_session(void *thd_ptr)
   return 0;
 }
 
+bool wsrep_thd_has_explicit_locks(THD *thd)
+{
+  assert(thd);
+  return thd->mdl_context.has_explicit_locks();
+}

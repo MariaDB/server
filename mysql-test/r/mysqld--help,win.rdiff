@@ -1,6 +1,6 @@
---- mysqld--help.result	2014-11-26 11:47:49.151273200 +0400
-+++ mysqld--help,win.reject	2014-11-26 12:57:09.108153400 +0400
-@@ -288,7 +288,6 @@
+--- mysqld--help.result
++++ mysqld--help,win.reject
+@@ -321,7 +321,6 @@ The following options may be given as the first argument:
   The number of segments in a key cache
   -L, --language=name Client error messages in given language. May be given as
   a full path. Deprecated. Use --lc-messages-dir instead.
@@ -8,7 +8,7 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -483,6 +482,7 @@
+@@ -517,6 +516,7 @@ The following options may be given as the first argument:
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -870,6 +870,9 @@
+@@ -906,6 +906,9 @@ The following options may be given as the first argument:
   files within specified directory
   --server-id=#       Uniquely identifies the server instance in the community
   of replication partners
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -969,6 +972,10 @@
+@@ -1016,6 +1019,10 @@ The following options may be given as the first argument:
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,7 +37,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -987,6 +994,7 @@
+@@ -1034,6 +1041,7 @@ The following options may be given as the first argument:
   NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -45,7 +45,7 @@
   --stored-program-cache=# 
   The soft upper limit for number of cached stored routines
   for one connection.
-@@ -1019,25 +1027,11 @@
+@@ -1070,25 +1078,11 @@ The following options may be given as the first argument:
   COMMIT, ROLLBACK
   --thread-cache-size=# 
   How many threads we should keep in a cache for reuse
@@ -73,7 +73,7 @@
   --thread-stack=#    The stack size for each thread
   --time-format=name  The TIME format (ignored)
   --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
-@@ -1046,8 +1040,8 @@
+@@ -1097,8 +1091,8 @@ The following options may be given as the first argument:
   size, MySQL will automatically convert it to an on-disk
   MyISAM or Aria table
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -84,7 +84,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1165,7 +1159,6 @@
+@@ -1224,7 +1218,6 @@ key-cache-block-size 1024
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -92,7 +92,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1231,6 +1224,7 @@
+@@ -1290,6 +1283,7 @@ myisam-sort-buffer-size 134216704
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -100,25 +100,32 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1327,6 +1321,8 @@
- secure-auth FALSE
+@@ -1386,6 +1380,8 @@ safe-user-create FALSE
+ secure-auth TRUE
  secure-file-priv (No default value)
  server-id 0
 +shared-memory FALSE
 +shared-memory-base-name MYSQL
  show-slave-auth-info FALSE
+ silent-startup FALSE
  skip-grant-tables TRUE
- skip-name-resolve FALSE
-@@ -1348,6 +1344,7 @@
+@@ -1409,6 +1405,7 @@ slave-transaction-retries 10
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
 +slow-start-timeout 15000
  sort-buffer-size 2097152
- sql-mode 
+ sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1364,10 +1361,8 @@
- table-open-cache 400
+@@ -1421,15 +1418,13 @@ sync-master-info 10000
+ sync-relay-log 10000
+ sync-relay-log-info 10000
+ sysdate-is-now FALSE
+-table-cache 431
++table-cache 2000
+ table-definition-cache 400
+-table-open-cache 431
++table-open-cache 2000
  tc-heuristic-recover COMMIT
  thread-cache-size 0
 -thread-pool-idle-timeout 60

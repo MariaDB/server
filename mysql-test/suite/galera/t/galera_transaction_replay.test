@@ -23,7 +23,7 @@ SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 
 # Block the commit
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
-SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
 
 --connection node_1
 --send COMMIT;
@@ -31,17 +31,25 @@ SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_enter_sync';
 # Wait until commit is blocked
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'apply_monitor_enter_sync'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'commit_monitor_enter_sync'
 --source include/wait_condition.inc
 
 # Issue a conflicting update on node #2
 --connection node_2
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 
+# Wait for both transactions to be blocked
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'System lock';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
+--source include/wait_condition.inc
+
 # Unblock the commit
 --connection node_1a
 SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
 
 # Commit succeeds
 --connection node_1

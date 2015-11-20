@@ -458,6 +458,7 @@ public:
   MDL_key key;
 
 public:
+
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
@@ -930,6 +931,7 @@ private:
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
+  bool has_explicit_locks();
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }

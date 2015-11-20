@@ -27,7 +27,7 @@ DELETE FROM t2;
 
 FLUSH BINARY LOGS;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /\d\d\d\d\d\d \d\d:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/
+--replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/
 --exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
 
 DROP TABLE t1,t2;

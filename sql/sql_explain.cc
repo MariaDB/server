@@ -1122,7 +1122,7 @@ void Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
   }
   else
     key_name= NULL;
-  key_len= -1;
+  key_len= ~(uint) 0;
 }
 
 
@@ -2252,7 +2252,7 @@ void Explain_update::print_explain_json(Explain_query *query,
       if (is_using_filesort())
       {
         if (filesort_tracker->get_r_loops())
-          r_rows= filesort_tracker->get_avg_examined_rows();
+          r_rows= (ha_rows) filesort_tracker->get_avg_examined_rows();
         else
           r_rows= 0;
         r_filtered= filesort_tracker->get_r_filtered() * 100.0;

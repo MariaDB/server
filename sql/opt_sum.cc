@@ -341,7 +341,8 @@ int opt_sum_query(THD *thd,
           there are no outer joins.
         */
         if (!conds && !((Item_sum_count*) item)->get_arg(0)->maybe_null &&
-            !outer_tables && maybe_exact_count)
+            !outer_tables && maybe_exact_count &&
+            ((item->used_tables() & OUTER_REF_TABLE_BIT) == 0))
         {
           if (!is_exact_count)
           {
@@ -369,7 +370,8 @@ int opt_sum_query(THD *thd,
           indexes to find the key.
         */
         Item *expr=item_sum->get_arg(0);
-        if (expr->real_item()->type() == Item::FIELD_ITEM)
+        if (((expr->used_tables() & OUTER_REF_TABLE_BIT) == 0) &&
+            expr->real_item()->type() == Item::FIELD_ITEM)
         {
           uchar key_buff[MAX_KEY_LENGTH];
           TABLE_REF ref;

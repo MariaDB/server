@@ -291,14 +291,14 @@ bool STRING::Set(char *s, uint n)
 } // end of Set
 
 /***********************************************************************/
-/*  Append a char* to a STRING.                                          */
+/*  Append a char* to a STRING.                                        */
 /***********************************************************************/
-bool STRING::Append(const char *s, uint ln)
+bool STRING::Append(const char *s, uint ln, bool nq)
 {
   if (!s)
     return false;
 
-  uint len = Length + ln + 1;
+  uint i, len = Length + ln + 1;
 
   if (len > Size) {
     char *p = Realloc(len);
@@ -312,8 +312,22 @@ bool STRING::Append(const char *s, uint ln)
 
     } // endif n
 
-  strncpy(Strp + Length, s, ln);
-  Length = len - 1;
+	if (nq) {
+		for (i = 0; i < ln; i++)
+			switch (s[i]) {
+			case '\\':   Strp[Length++] = '\\'; Strp[Length++] = '\\'; break;
+			case '\0':   Strp[Length++] = '\\'; Strp[Length++] = '0';  break;
+			case '\'':   Strp[Length++] = '\\'; Strp[Length++] = '\''; break;
+			case '\n':   Strp[Length++] = '\\'; Strp[Length++] = 'n';  break;
+			case '\r':   Strp[Length++] = '\\'; Strp[Length++] = 'r';  break;
+			case '\032': Strp[Length++] = '\\'; Strp[Length++] = 'Z';  break;
+			default:     Strp[Length++] = s[i];
+			}	// endswitch s[i]
+
+	} else
+		for (i = 0; i < ln && s[i]; i++)
+			Strp[Length++] = s[i];
+
   Strp[Length] = 0;
   return false;
 } // end of Append

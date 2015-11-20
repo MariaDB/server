@@ -1,2 +1,5 @@
 galera_garbd : Fix the test case
 galera_evs_suspect_timeout : TODO: investigate
+galera_innobackupex_backup : TODO: investigate
+galera_slave_options_do :MDEV-8798
+galera_slave_options_ignore : MDEV-8798
