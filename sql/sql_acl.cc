@@ -12527,7 +12527,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       thd->variables.max_statement_time_double=
         acl_user->user_resource.max_statement_time;
       thd->variables.max_statement_time=
-        (thd->variables.max_statement_time_double * 1e6 + 0.1);
+        (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
     }
   }
   else

@@ -125,7 +125,7 @@ foreach my $option (@ARGV)
     foreach my $p (@plugins)
     {
       $p =~ s/-/_/g;
-      $cmakeargs = $cmakeargs." -DWITH_".uc($p)."=1";
+      $cmakeargs = $cmakeargs." -DWITH_".uc($p)."=AUTO";
     }
     next;
   }
@@ -137,7 +137,12 @@ foreach my $option (@ARGV)
   }
   if($option =~ /without-plugin=/ || $option =~ /without-plugin-/)
   {
-    $cmakeargs = $cmakeargs." -DWITHOUT_".uc(substr($option,15))."=1";
+    $cmakeargs = $cmakeargs." -DPLUGIN_".uc(substr($option,15))."=NO";
+    next;
+  }
+  if($option =~ /with-plugin-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs." -DPLUGIN_".uc($1)."=".uc($2);
     next;
   }
   if($option =~ /with-zlib-dir=bundled/)

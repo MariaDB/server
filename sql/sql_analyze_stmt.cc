@@ -39,7 +39,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
     if (r_limit == 0)
       writer->add_str(varied_str);
     else
-      writer->add_ll(rint(r_limit/get_r_loops()));
+      writer->add_ll((longlong) rint(r_limit/get_r_loops()));
   }
 
   writer->add_member("r_used_priority_queue"); 
@@ -50,13 +50,13 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   else
     writer->add_str(varied_str);
 
-  writer->add_member("r_output_rows").add_ll(rint(r_output_rows / 
-                                                  get_r_loops()));
+  writer->add_member("r_output_rows").add_ll((longlong) rint(r_output_rows / 
+                                                             get_r_loops()));
 
   if (sort_passes)
   {
-    writer->add_member("r_sort_passes").add_ll(rint(sort_passes /
-                                                    get_r_loops()));
+    writer->add_member("r_sort_passes").add_ll((longlong) rint(sort_passes /
+                                                               get_r_loops()));
   }
 
   if (sort_buffer_size != 0)

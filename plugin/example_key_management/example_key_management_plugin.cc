@@ -36,24 +36,25 @@
 #define KEY_ROTATION_MAX 90
 
 static struct my_rnd_struct seed;
-static unsigned int key_version = 0;
-static unsigned int next_key_version = 0;
+static time_t key_version = 0;
+static time_t next_key_version = 0;
 static pthread_mutex_t mutex;
 
 static unsigned int
 get_latest_key_version(unsigned int key_id)
 {
-  uint now = time(0);
+  time_t now = time(0);
   pthread_mutex_lock(&mutex);
   if (now >= next_key_version)
   {
     key_version = now;
     unsigned int interval = KEY_ROTATION_MAX - KEY_ROTATION_MIN;
-    next_key_version = now + KEY_ROTATION_MIN + my_rnd(&seed) * interval;
+    next_key_version = (time_t) (now + KEY_ROTATION_MIN +
+                                 my_rnd(&seed) * interval);
   }
   pthread_mutex_unlock(&mutex);
 
-  return key_version;
+  return (unsigned int) key_version;
 }
 
 static unsigned int
