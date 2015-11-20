@@ -25388,7 +25388,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         if (kp == table->quick_key_parts[keynr])
           ref_rows= table->quick_rows[keynr];
         else
-          ref_rows= table->key_info[keynr].actual_rec_per_key(kp-1);
+          ref_rows= (ha_rows) table->key_info[keynr].actual_rec_per_key(kp-1);
 
         if (ref_rows > 0)
         {
