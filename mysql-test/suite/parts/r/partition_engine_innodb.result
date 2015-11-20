@@ -68,8 +68,8 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (f_int1)
-PARTITIONS 2 */
+ PARTITION BY HASH (f_int1)
+PARTITIONS 2
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -525,9 +525,9 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (f_int1)
+ PARTITION BY HASH (f_int1)
 (PARTITION part1 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -984,14 +984,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -1509,14 +1509,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -2010,14 +2010,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -2472,14 +2472,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -2934,9 +2934,9 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (f_int1)
+ PARTITION BY HASH (f_int1)
 (PARTITION part1 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -3393,14 +3393,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -3858,14 +3858,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (10)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
   SUBPARTITION subpart12 ENGINE = InnoDB),
  PARTITION part2 VALUES LESS THAN (2147483646)
  (SUBPARTITION subpart21 ENGINE = InnoDB,
-  SUBPARTITION subpart22 ENGINE = InnoDB)) */
+  SUBPARTITION subpart22 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -4316,8 +4316,8 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (f_int1)
-(PARTITION part1 ENGINE = InnoDB) */
+ PARTITION BY HASH (f_int1)
+(PARTITION part1 ENGINE = InnoDB)
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -4770,11 +4770,11 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (f_int1)
+ PARTITION BY RANGE (f_int1)
 SUBPARTITION BY HASH (f_int1)
 (PARTITION part1 VALUES LESS THAN (1000)
  (SUBPARTITION subpart11 ENGINE = InnoDB,
-  SUBPARTITION subpart12 ENGINE = InnoDB)) */
+  SUBPARTITION subpart12 ENGINE = InnoDB))
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1

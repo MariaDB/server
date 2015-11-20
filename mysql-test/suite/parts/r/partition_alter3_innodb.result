@@ -78,7 +78,7 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date)) */
+ PARTITION BY HASH (YEAR(f_date))
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -97,7 +97,7 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (DAYOFYEAR(f_date)) */
+ PARTITION BY HASH (DAYOFYEAR(f_date))
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -114,7 +114,7 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date)) */
+ PARTITION BY HASH (YEAR(f_date))
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -137,10 +137,10 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
- PARTITION part7 ENGINE = InnoDB) */
+ PARTITION part7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part7.ibd
@@ -163,11 +163,11 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part2.ibd
@@ -188,7 +188,7 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
@@ -196,7 +196,7 @@ t1	CREATE TABLE `t1` (
  PARTITION p4 ENGINE = InnoDB,
  PARTITION p5 ENGINE = InnoDB,
  PARTITION p6 ENGINE = InnoDB,
- PARTITION p7 ENGINE = InnoDB) */
+ PARTITION p7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -233,14 +233,14 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
  PARTITION p4 ENGINE = InnoDB,
  PARTITION p5 ENGINE = InnoDB,
- PARTITION p6 ENGINE = InnoDB) */
+ PARTITION p6 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -263,13 +263,13 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
  PARTITION p4 ENGINE = InnoDB,
- PARTITION p5 ENGINE = InnoDB) */
+ PARTITION p5 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -291,12 +291,12 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
- PARTITION p4 ENGINE = InnoDB) */
+ PARTITION p4 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#part1.ibd
@@ -317,11 +317,11 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part2.ibd
@@ -341,10 +341,10 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
- PARTITION part7 ENGINE = InnoDB) */
+ PARTITION part7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part7.ibd
@@ -363,9 +363,9 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
+ PARTITION BY HASH (YEAR(f_date))
 (PARTITION p0 ENGINE = InnoDB,
- PARTITION part1 ENGINE = InnoDB) */
+ PARTITION part1 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1.frm
@@ -383,8 +383,8 @@ t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY HASH (YEAR(f_date))
-(PARTITION p0 ENGINE = InnoDB) */
+ PARTITION BY HASH (YEAR(f_date))
+(PARTITION p0 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -469,7 +469,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1) */
+ PARTITION BY KEY (f_int1)
 t1#P#p0.ibd
 t1.frm
 t1.par
@@ -495,10 +495,10 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
- PARTITION part7 ENGINE = InnoDB) */
+ PARTITION part7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part7.ibd
@@ -521,11 +521,11 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part2.ibd
@@ -549,7 +549,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
@@ -557,7 +557,7 @@ t1	CREATE TABLE `t1` (
  PARTITION p4 ENGINE = InnoDB,
  PARTITION p5 ENGINE = InnoDB,
  PARTITION p6 ENGINE = InnoDB,
- PARTITION p7 ENGINE = InnoDB) */
+ PARTITION p7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -592,14 +592,14 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
  PARTITION p4 ENGINE = InnoDB,
  PARTITION p5 ENGINE = InnoDB,
- PARTITION p6 ENGINE = InnoDB) */
+ PARTITION p6 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -625,13 +625,13 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
  PARTITION p4 ENGINE = InnoDB,
- PARTITION p5 ENGINE = InnoDB) */
+ PARTITION p5 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#p5.ibd
@@ -656,12 +656,12 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
  PARTITION part2 ENGINE = InnoDB,
- PARTITION p4 ENGINE = InnoDB) */
+ PARTITION p4 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#p4.ibd
 t1#P#part1.ibd
@@ -685,11 +685,11 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
  PARTITION part7 ENGINE = InnoDB,
- PARTITION part2 ENGINE = InnoDB) */
+ PARTITION part2 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part2.ibd
@@ -712,10 +712,10 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
  PARTITION part1 ENGINE = InnoDB,
- PARTITION part7 ENGINE = InnoDB) */
+ PARTITION part7 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1#P#part7.ibd
@@ -737,9 +737,9 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
+ PARTITION BY KEY (f_int1)
 (PARTITION p0 ENGINE = InnoDB,
- PARTITION part1 ENGINE = InnoDB) */
+ PARTITION part1 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1#P#part1.ibd
 t1.frm
@@ -760,8 +760,8 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (f_int1)
-(PARTITION p0 ENGINE = InnoDB) */
+ PARTITION BY KEY (f_int1)
+(PARTITION p0 ENGINE = InnoDB)
 t1#P#p0.ibd
 t1.frm
 t1.par

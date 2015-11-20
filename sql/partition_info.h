@@ -344,7 +344,6 @@ public:
   bool check_partition_field_length();
   bool init_column_part(THD *thd);
   bool add_column_list_value(THD *thd, Item *item);
-  void set_show_version_string(String *packet);
   partition_element *get_part_elem(const char *partition_name,
                                    char *file_name,
                                    uint32 *part_id);

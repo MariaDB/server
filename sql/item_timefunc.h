@@ -115,15 +115,6 @@ public:
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool check_partition_func_processor(void *bool_arg) { return FALSE;}
 
-  bool intro_version(void *int_arg)
-  {
-    int *input_version= (int*)int_arg;
-    /* This function was introduced in 5.5 */
-    int output_version= MY_MAX(*input_version, 50500);
-    *input_version= output_version;
-    return 0;
-  }
-
   /* Only meaningful with date part and optional time part */
   bool check_valid_arguments_processor(void *int_arg)
   {
