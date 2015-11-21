@@ -115,12 +115,6 @@ static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
 static int join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2);
 static int join_tab_cmp_embedded_first(const void *emb, const void* ptr1, const void *ptr2);
 C_MODE_END
-/*
-  TODO: 'find_best' is here only temporarily until 'greedy_search' is
-  tested and approved.
-*/
-static bool find_best(JOIN *join,table_map rest_tables,uint index,
-		      double record_count,double read_time, uint use_cond_selectivity);
 static uint cache_record_length(JOIN *join,uint index);
 bool get_best_combination(JOIN *join);
 static store_key *get_store_key(THD *thd,
@@ -6607,10 +6601,6 @@ static void choose_initial_table_order(JOIN *join)
                       the query
   @param join_tables  set of the tables in the query
 
-  @todo
-    'MAX_TABLES+2' denotes the old implementation of find_best before
-    the greedy version. Will be removed when greedy_search is approved.
-
   @retval
     FALSE       ok
   @retval
@@ -6673,27 +6663,13 @@ choose_plan(JOIN *join, table_map join_tables)
   }
   else
   {
-    if (search_depth == MAX_TABLES+2)
-    { /*
-        TODO: 'MAX_TABLES+2' denotes the old implementation of find_best before
-        the greedy version. Will be removed when greedy_search is approved.
-      */
-      join->best_read= DBL_MAX;
-      if (find_best(join, join_tables, join->const_tables, 1.0, 0.0,
-                    use_cond_selectivity))
-      {
-        DBUG_RETURN(TRUE);
-      }
-    } 
-    else
-    {
-      if (search_depth == 0)
-        /* Automatically determine a reasonable value for 'search_depth' */
-        search_depth= determine_search_depth(join);
-      if (greedy_search(join, join_tables, search_depth, prune_level,
-                        use_cond_selectivity))
-        DBUG_RETURN(TRUE);
-    }
+    DBUG_ASSERT(search_depth <= MAX_TABLES + 1);
+    if (search_depth == 0)
+      /* Automatically determine a reasonable value for 'search_depth' */
+      search_depth= determine_search_depth(join);
+    if (greedy_search(join, join_tables, search_depth, prune_level,
+                      use_cond_selectivity))
+      DBUG_RETURN(TRUE);
   }
 
   /* 
@@ -7988,105 +7964,6 @@ best_extension_by_limited_search(JOIN      *join,
       }
       restore_prev_nj_state(s);
       restore_prev_sj_state(remaining_tables, s, idx);
-    }
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/**
-  @todo
-  - TODO: this function is here only temporarily until 'greedy_search' is
-  tested and accepted.
-
-  RETURN VALUES
-    FALSE       ok
-    TRUE        Fatal error
-*/
-static bool
-find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
-	  double read_time, uint use_cond_selectivity)
-{
-  DBUG_ENTER("find_best");
-  THD *thd= join->thd;
-  if (thd->check_killed())
-    DBUG_RETURN(TRUE);
-  if (!rest_tables)
-  {
-    DBUG_PRINT("best",("read_time: %g  record_count: %g",read_time,
-		       record_count));
-
-    read_time+=record_count/(double) TIME_FOR_COMPARE;
-    if (join->sort_by_table &&
-	join->sort_by_table !=
-	join->positions[join->const_tables].table->table)
-      read_time+=record_count;			// We have to make a temp table
-    if (read_time < join->best_read)
-    {
-      memcpy((uchar*) join->best_positions,(uchar*) join->positions,
-	     sizeof(POSITION)*idx);
-      join->best_read= read_time - 0.001;
-    }
-    DBUG_RETURN(FALSE);
-  }
-  if (read_time+record_count/(double) TIME_FOR_COMPARE >= join->best_read)
-    DBUG_RETURN(FALSE);					/* Found better before */
-
-  JOIN_TAB *s;
-  double best_record_count=DBL_MAX,best_read_time=DBL_MAX;
-  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
-  for (JOIN_TAB **pos=join->best_ref+idx ; (s=*pos) ; pos++)
-  {
-    table_map real_table_bit=s->table->map;
-    if ((rest_tables & real_table_bit) && !(rest_tables & s->dependent) &&
-        (!idx|| !check_interleaving_with_nj(s)))
-    {
-      double records, best;
-      POSITION loose_scan_pos;
-      best_access_path(join, s, rest_tables, idx, disable_jbuf, record_count, 
-                       join->positions + idx, &loose_scan_pos);
-      records= join->positions[idx].records_read;
-      best= join->positions[idx].read_time;
-      /*
-	Go to the next level only if there hasn't been a better key on
-	this level! This will cut down the search for a lot simple cases!
-      */
-      double current_record_count=record_count*records;
-      double current_read_time=read_time+best;
-      advance_sj_state(join, rest_tables, idx, &current_record_count, 
-                       &current_read_time, &loose_scan_pos);
-
-      double pushdown_cond_selectivity= 1.0;
-      if (use_cond_selectivity > 1)
-        pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
-				                          rest_tables &
-                                                          ~real_table_bit);
-      join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
-      double partial_join_cardinality= current_record_count *
-                                        pushdown_cond_selectivity;
-
-      if (best_record_count > partial_join_cardinality ||
-	  best_read_time > current_read_time ||
-	  (idx == join->const_tables && s->table == join->sort_by_table))
-      {
-	if (best_record_count >= partial_join_cardinality &&
-	    best_read_time >= current_read_time &&
-	    (!(s->key_dependent & rest_tables) || records < 2.0))
-	{
-	  best_record_count= partial_join_cardinality;
-	  best_read_time=current_read_time;
-	}
-	swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
-	if (find_best(join,rest_tables & ~real_table_bit,idx+1,
-                      partial_join_cardinality,current_read_time,
-                      use_cond_selectivity))
-          DBUG_RETURN(TRUE);
-	swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
-      }
-      restore_prev_nj_state(s);
-      restore_prev_sj_state(rest_tables, s, idx);
-      if (join->select_options & SELECT_STRAIGHT_JOIN)
-	break;				// Don't test all combinations
     }
   }
   DBUG_RETURN(FALSE);
