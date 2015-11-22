@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0003 October 25, 2015";
+       char version[]= "Version 1.04.0005 November 20, 2015";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0003 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -6273,10 +6273,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     bool  b= false;
     int   n;
     struct stat info;
-
-    if (check_access(ha_thd(), FILE_ACL, table->s->db.str,
-                     NULL, NULL, 0, 0))
-      return true;
 
 #if defined(__WIN__)
     s= "\\";

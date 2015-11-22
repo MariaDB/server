@@ -334,8 +334,6 @@ JsonGet_Int(@j2,'qty')
 SELECT JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose');
 JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose')
 NULL
-Warnings:
-Warning	1105	Value not found
 SELECT JsonGet_Int(JsonGet_String(Json_Array(Json_Array(45,28),Json_Array(36,45,89)),'[1]:*'),'[+]') sum;
 sum
 170
@@ -381,8 +379,6 @@ JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','price
 SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose');
 JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose')
 NULL
-Warnings:
-Warning	1105	Value not found
 SELECT department, JsonGet_Real(Json_Object(department, Json_Array_Grp(salary) "Json_salaries"),'salaries:[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
 0021	28500.000000000000000

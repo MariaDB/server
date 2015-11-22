@@ -578,7 +578,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
 } // end of FindRow
 
 /***********************************************************************/
-/*  OpenDB: Data Base open routine for JSN access method.              */
+/*  OpenDB: Data Base open routine for JSN access method.              */									 
 /***********************************************************************/
 bool TDBJSN::OpenDB(PGLOBAL g)
   {
@@ -1107,7 +1107,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
     } else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key) {
-          // Expected Array was not there
+          // Expected Array was not there, wrap the value
           if (i < Nod-1)
             continue;
           else
@@ -1128,11 +1128,11 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
           else
             return CalculateArray(g, arp, i);
 
-        } else if (i < Nod-1) {
-          strcpy(g->Message, "Unexpected array");
-          val = NULL;          // Not an expected array
-        } else
-          val = arp->GetValue(0);
+				} else {
+					// Unexpected array, unwrap it as [0]
+					val = arp->GetValue(0);
+					i--;
+				}	// endif's
 
         break;
       case TYPE_JVAL:
@@ -1275,30 +1275,31 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
   PJAR  arp;
   PJSON nwr, row = Tjp->Row;
 
-  for (int i = 0; i < Nod-1 && row; i++) {
-    if (Nodes[i+1].Op == OP_XX)
+	for (int i = 0; i < Nod && row; i++) {
+		if (Nodes[i+1].Op == OP_XX)
       break;
     else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key)
-          // Expected Array was not there
+          // Expected Array was not there, wrap the value
           continue;
 
         val = ((PJOB)row)->GetValue(Nodes[i].Key);
         break;
       case TYPE_JAR:
-        if (!Nodes[i].Key) {
-          arp = (PJAR)row;
+				arp = (PJAR)row;
 
+				if (!Nodes[i].Key) {
           if (Nodes[i].Op == OP_EQ)
             val = arp->GetValue(Nodes[i].Rank);
           else
             val = arp->GetValue(Nodes[i].Rx);
 
         } else {
-          strcpy(g->Message, "Unexpected array");
-          val = NULL;          // Not an expected array
-        } // endif Nodes
+					// Unexpected array, unwrap it as [0]
+					val = arp->GetValue(0);
+					i--;
+				} // endif Nodes
 
         break;
       case TYPE_JVAL:
@@ -1370,7 +1371,6 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   PJAR  arp = NULL;
   PJVAL jvp = NULL;
   PJSON jsp, row = GetRow(g);
-  JTYP  type = row->GetType();
 
   switch (row->GetType()) {
     case TYPE_JOB:  objp = (PJOB)row;  break;

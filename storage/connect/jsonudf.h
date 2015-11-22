@@ -61,6 +61,10 @@ extern "C" {
 	DllExport char *json_object_nonull(UDF_EXEC_ARGS);
 	DllExport void json_object_nonull_deinit(UDF_INIT*);
 
+	DllExport my_bool json_object_key_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object_key(UDF_EXEC_ARGS);
+	DllExport void json_object_key_deinit(UDF_INIT*);
+
 	DllExport my_bool json_object_add_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_object_add(UDF_EXEC_ARGS);
 	DllExport void json_object_add_deinit(UDF_INIT*);
@@ -105,6 +109,10 @@ extern "C" {
 	DllExport double jsonget_real(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void jsonget_real_deinit(UDF_INIT*);
 
+	DllExport my_bool jsoncontains_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsoncontains(UDF_EXEC_ARGS);
+	DllExport void jsoncontains_deinit(UDF_INIT*);
+
 	DllExport my_bool jsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jsonlocate(UDF_EXEC_ARGS);
 	DllExport void jsonlocate_deinit(UDF_INIT*);
@@ -112,6 +120,22 @@ extern "C" {
 	DllExport my_bool json_locate_all_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_locate_all(UDF_EXEC_ARGS);
 	DllExport void json_locate_all_deinit(UDF_INIT*);
+
+	DllExport my_bool jsoncontains_path_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsoncontains_path(UDF_EXEC_ARGS);
+	DllExport void jsoncontains_path_deinit(UDF_INIT*);
+
+	DllExport my_bool json_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_set_item(UDF_EXEC_ARGS);
+	DllExport void json_set_item_deinit(UDF_INIT*);
+
+	DllExport my_bool json_insert_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_insert_item(UDF_EXEC_ARGS);
+	DllExport void json_insert_item_deinit(UDF_INIT*);
+
+	DllExport my_bool json_update_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_update_item(UDF_EXEC_ARGS);
+	DllExport void json_update_item_deinit(UDF_INIT*);
 
 	DllExport my_bool json_file_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_file(UDF_EXEC_ARGS);
@@ -145,6 +169,10 @@ extern "C" {
 	DllExport char *jbin_object_nonull(UDF_EXEC_ARGS);
 	DllExport void jbin_object_nonull_deinit(UDF_INIT*);
 
+	DllExport my_bool jbin_object_key_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object_key(UDF_EXEC_ARGS);
+	DllExport void jbin_object_key_deinit(UDF_INIT*);
+
 	DllExport my_bool jbin_object_add_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jbin_object_add(UDF_EXEC_ARGS);
 	DllExport void jbin_object_add_deinit(UDF_INIT*);
@@ -164,6 +192,18 @@ extern "C" {
 	DllExport my_bool jbin_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jbin_item_merge(UDF_EXEC_ARGS);
 	DllExport void jbin_item_merge_deinit(UDF_INIT*);
+
+	DllExport my_bool jbin_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_set_item(UDF_EXEC_ARGS);
+	DllExport void jbin_set_item_deinit(UDF_INIT*);
+
+	DllExport my_bool jbin_insert_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_insert_item(UDF_EXEC_ARGS);
+	DllExport void jbin_insert_item_deinit(UDF_INIT*);
+
+	DllExport my_bool jbin_update_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_update_item(UDF_EXEC_ARGS);
+	DllExport void jbin_update_item_deinit(UDF_INIT*);
 
 	DllExport my_bool jbin_file_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jbin_file(UDF_EXEC_ARGS);
@@ -189,7 +229,7 @@ typedef struct _jpn {
 class JSNX : public BLOCK {
 public:
 	// Constructors
-	JSNX(PGLOBAL g, PJSON row, int type, int len = 64, int prec = 0);
+	JSNX(PGLOBAL g, PJSON row, int type, int len = 64, int prec = 0, my_bool wr = false);
 
 	// Implementation
 	int     GetPrecision(void) {return Prec;}
@@ -201,6 +241,8 @@ public:
 	void    ReadValue(PGLOBAL g);
 	PJVAL   GetValue(PGLOBAL g, PJSON row, int i, my_bool b = true);
 	PJVAL   GetJson(PGLOBAL g);
+	my_bool CheckPath(PGLOBAL g);
+	my_bool WriteValue(PGLOBAL g, PJVAL jvalp);
 	char   *Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k = 1);
 	char   *LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx = 10);
 
@@ -211,6 +253,7 @@ protected:
 	PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+	PJSON   GetRow(PGLOBAL g);
 	my_bool LocateArray(PJAR jarp);
 	my_bool LocateObject(PJOB jobp);
 	my_bool LocateValue(PJVAL jvp);
@@ -244,4 +287,5 @@ protected:
 	my_bool  Xpd;                 // True for expandable column
 	my_bool  Parsed;              // True when parsed
 	my_bool  Found;								// Item found by locate
+	my_bool  Wr;			  					// Write mode
 }; // end of class JSNX

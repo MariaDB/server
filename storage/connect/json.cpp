@@ -1282,6 +1282,18 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
   return text;
 } // end of GetText
 
+void JVALUE::SetValue(PJSON jsp)
+{ 
+	if (jsp->GetType() == TYPE_JVAL) {
+		Jsp = jsp->GetJsp();
+		Value = jsp->GetValue();
+	} else {
+		Jsp = jsp;
+		Value = NULL;
+	} // endif Type
+
+}	// end of SetValue;
+
 /***********************************************************************/
 /* Set the Value's value as the given integer.                         */
 /***********************************************************************/

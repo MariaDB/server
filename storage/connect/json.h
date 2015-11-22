@@ -271,9 +271,9 @@ class JVALUE : public JSON {
 	virtual double GetFloat(void);
   virtual PSZ    GetString(void);
   virtual PSZ    GetText(PGLOBAL g, PSZ text);
-	virtual void   SetValue(PVAL valp) {Value = valp; Jsp = NULL;}
-	virtual void   SetValue(PJSON jsp) {Jsp = jsp; Value = NULL;}
-  virtual void   SetString(PGLOBAL g, PSZ s, short c = 0);
+	virtual void   SetValue(PJSON jsp);
+	virtual void   SetValue(PVAL valp) { Value = valp; Jsp = NULL; }
+	virtual void   SetString(PGLOBAL g, PSZ s, short c = 0);
   virtual void   SetInteger(PGLOBAL g, int n);
 	virtual void   SetBigint(PGLOBAL g, longlong ll);
 	virtual void   SetFloat(PGLOBAL g, double f);
