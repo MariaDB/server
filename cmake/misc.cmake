@@ -1,0 +1,6 @@
+FUNCTION(MESSAGE_ONCE id out)
+  IF(NOT __msg1_${id} STREQUAL "${out}")
+    MESSAGE(STATUS "${out}")
+  ENDIF()
+  SET(__msg1_${id} "${out}" CACHE INTERNAL "")
+ENDFUNCTION()

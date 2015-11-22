@@ -130,6 +130,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
