@@ -1001,7 +1001,7 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_init;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
@@ -1048,6 +1048,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
+  { &key_COND_rpl_thread_stop, "COND_rpl_thread_stop", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},

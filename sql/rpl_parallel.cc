@@ -352,6 +352,7 @@ do_ftwrl_wait(rpl_group_info *rgi,
   THD *thd= rgi->thd;
   rpl_parallel_entry *entry= rgi->parallel_entry;
   uint64 sub_id= rgi->gtid_sub_id;
+  DBUG_ENTER("do_ftwrl_wait");
 
   mysql_mutex_assert_owner(&entry->LOCK_parallel_entry);
 
@@ -391,6 +392,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
 
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
+
+  DBUG_VOID_RETURN;
 }
 
 
@@ -454,6 +457,7 @@ rpl_unpause_after_ftwrl(THD *thd)
 {
   uint32 i;
   rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
+  DBUG_ENTER("rpl_unpause_after_ftwrl");
 
   DBUG_ASSERT(pool->busy);
 
@@ -478,6 +482,7 @@ rpl_unpause_after_ftwrl(THD *thd)
   }
 
   pool_mark_not_busy(pool);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -492,6 +497,7 @@ rpl_pause_for_ftwrl(THD *thd)
   uint32 i;
   rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
   int err;
+  DBUG_ENTER("rpl_pause_for_ftwrl");
 
   /*
     While the count_pending_pause_for_ftwrl counter is non-zero, the pool
@@ -502,7 +508,7 @@ rpl_pause_for_ftwrl(THD *thd)
     as this can deadlock against release_thread()).
   */
   if ((err= pool_mark_busy(pool, thd)))
-    return err;
+    DBUG_RETURN(err);
 
   for (i= 0; i < pool->count; ++i)
   {
@@ -549,7 +555,7 @@ rpl_pause_for_ftwrl(THD *thd)
 
   if (err)
     rpl_unpause_after_ftwrl(thd);
-  return err;
+  DBUG_RETURN(err);
 }
 
 
@@ -1271,8 +1277,9 @@ handle_rpl_parallel_thread(void *arg)
       */
       mysql_mutex_lock(&rpt->current_entry->LOCK_parallel_entry);
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      mysql_cond_wait(&rpt->current_entry->COND_parallel_entry,
-                      &rpt->current_entry->LOCK_parallel_entry);
+      if (rpt->pause_for_ftwrl)
+        mysql_cond_wait(&rpt->current_entry->COND_parallel_entry,
+                        &rpt->current_entry->LOCK_parallel_entry);
       mysql_mutex_unlock(&rpt->current_entry->LOCK_parallel_entry);
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
       /*
@@ -1309,7 +1316,7 @@ handle_rpl_parallel_thread(void *arg)
       /* Tell wait_for_done() that we are done, if it is waiting. */
       if (likely(rpt->current_entry) &&
           unlikely(rpt->current_entry->force_abort))
-        mysql_cond_broadcast(&rpt->current_entry->COND_parallel_entry);
+        mysql_cond_broadcast(&rpt->COND_rpl_thread_stop);
       rpt->current_entry= NULL;
       if (!rpt->stop)
         rpt->pool->release_thread(rpt);
@@ -1389,6 +1396,8 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     mysql_cond_init(key_COND_rpl_thread, &new_list[i]->COND_rpl_thread, NULL);
     mysql_cond_init(key_COND_rpl_thread_queue,
                     &new_list[i]->COND_rpl_thread_queue, NULL);
+    mysql_cond_init(key_COND_rpl_thread_stop,
+                    &new_list[i]->COND_rpl_thread_stop, NULL);
     new_list[i]->pool= pool;
     if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
                             handle_rpl_parallel_thread, new_list[i]))
@@ -2099,7 +2108,7 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
       {
         mysql_mutex_lock(&rpt->LOCK_rpl_thread);
         while (rpt->current_owner == &e->rpl_threads[j])
-          mysql_cond_wait(&e->COND_parallel_entry, &rpt->LOCK_rpl_thread);
+          mysql_cond_wait(&rpt->COND_rpl_thread_stop, &rpt->LOCK_rpl_thread);
         mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       }
     }

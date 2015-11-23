@@ -306,7 +306,7 @@ extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
