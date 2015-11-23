@@ -122,7 +122,7 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
   int res;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
-  THD *thd;
+  THD *UNINIT_VAR(thd);
   Relay_log_info *rli= rgi->rli;
 
   mysql_mutex_lock(&LOCK_slave_state);

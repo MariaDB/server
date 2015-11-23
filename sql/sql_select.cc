@@ -23479,7 +23479,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                    bool need_order, bool distinct, 
                                    const char *message)
 {
-  Explain_node *explain_node;
+  Explain_node *UNINIT_VAR(explain_node);
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
   const CHARSET_INFO *cs= system_charset_info;

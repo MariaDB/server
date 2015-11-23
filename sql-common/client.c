@@ -129,10 +129,6 @@ static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
 
-#if !defined(__WIN__)
-static int wait_for_data(my_socket fd, uint timeout);
-#endif
-
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 
 /* Server error code and message */
