@@ -861,28 +861,26 @@ void LEX::init_last_field(Create_field *field, const char *field_name,
   field->field_name= field_name;
 
   /* reset LEX fields that are used in Create_field::set_and_check() */
-  length= 0;
-  dec= 0;
   charset= cs;
 }
 
-void LEX::set_last_field_type(enum enum_field_types field_type)
+void LEX::set_last_field_type(const Lex_field_type_st &type)
 {
-  last_field->sql_type= field_type;
+  last_field->sql_type= type.field_type();
   last_field->create_if_not_exists= check_exists;
   last_field->charset= charset;
 
-  if (length)
+  if (type.length())
   {
     int err;
-    last_field->length= my_strtoll10(length, NULL, &err);
+    last_field->length= my_strtoll10(type.length(), NULL, &err);
     if (err)
       last_field->length= ~0ULL; // safety
   }
   else
     last_field->length= 0;
 
-  last_field->decimals= dec ? (uint)atoi(dec) : 0;
+  last_field->decimals= type.dec() ? (uint)atoi(type.dec()) : 0;
 }
 
 bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
@@ -924,6 +922,10 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   LEX_SYMBOL symbol;
   struct sys_var_with_base variable;
   struct { int vars, conds, hndlrs, curs; } spblock;
+  Lex_length_and_dec_st Lex_length_and_dec;
+  Lex_cast_type_st Lex_cast_type;
+  Lex_field_type_st Lex_field_type;
+  Lex_dyncol_type_st Lex_dyncol_type;
 
   /* pointers */
   CHARSET_INFO *charset;
@@ -960,7 +962,6 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   udf_func *udf;
 
   /* enums */
-  enum Cast_target cast_type;
   enum Condition_information_item::Name cond_info_item_name;
   enum enum_diag_condition_item_name diag_condition_item_name;
   enum Diagnostics_information::Which_area diag_area;
@@ -1701,11 +1702,17 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <simple_string>
         remember_name remember_end opt_db remember_tok_start
         wild_and_where
+        field_length opt_field_length opt_field_length_default_1
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
 
-%type <field_type> type_with_opt_collate int_type real_type field_type
+%type <field_type> int_type real_type
+
+%type <Lex_field_type> type_with_opt_collate field_type
+
+%type <Lex_dyncol_type> opt_dyncol_type dyncol_type
+        numeric_dyncol_type temporal_dyncol_type string_dyncol_type
 
 %type <geom_type> spatial_type
 
@@ -1719,7 +1726,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
         ev_alter_on_schedule_completion opt_ev_rename_to opt_ev_sql_stmt
-        optional_flush_tables_arguments opt_dyncol_type dyncol_type
+        optional_flush_tables_arguments
         opt_time_precision kill_type kill_option int_num
         opt_default_time_precision
         case_stmt_body opt_bin_mod
@@ -1823,7 +1830,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <ha_rkey_mode> handler_rkey_mode
 
-%type <cast_type> cast_type
+%type <Lex_cast_type> cast_type cast_type_numeric cast_type_temporal
+
+%type <Lex_length_and_dec> precision opt_precision float_options
 
 %type <symbol> keyword keyword_sp
 
@@ -1877,7 +1886,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_limit_clause delete_limit_clause fields opt_values values
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
-        opt_precision opt_ignore opt_column opt_restrict
+        opt_ignore opt_column opt_restrict
         grant revoke set lock unlock string_list field_options field_option
         field_opt_list opt_binary table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
@@ -1896,9 +1905,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         handler_rkey_function handler_read_or_scan
         single_multi table_wild_list table_wild_one opt_wild
         union_clause union_list
-        precision subselect_start opt_and charset
+        subselect_start opt_and charset
         subselect_end select_var_list select_var_list_init help 
-        field_length opt_field_length
         opt_extended_describe shutdown
         opt_format_json
         prepare prepare_src execute deallocate
@@ -2929,8 +2937,8 @@ sp_param_name_and_type:
             LEX *lex= Lex;
             sp_variable *spvar= $<spvar>2;
 
-            spvar->type= $3;
-            if (lex->sphead->fill_field_definition(thd, lex, $3,
+            spvar->type= $3.field_type();
+            if (lex->sphead->fill_field_definition(thd, lex, $3.field_type(),
                                                    lex->last_field))
             {
               MYSQL_YYABORT;
@@ -3026,7 +3034,7 @@ sp_decl:
             LEX *lex= Lex;
             sp_pcontext *pctx= lex->spcont;
             uint num_vars= pctx->context_var_count();
-            enum enum_field_types var_type= $4;
+            enum enum_field_types var_type= $4.field_type();
             Item *dflt_value_item= $5;
             
             if (!dflt_value_item)
@@ -6229,15 +6237,15 @@ virtual_column_func:
         ;
 
 field_type:
-          int_type opt_field_length field_options { $$=$1; }
-        | real_type opt_precision field_options { $$=$1; }
+          int_type opt_field_length field_options { $$.set($1, $2); }
+        | real_type opt_precision field_options   { $$.set($1, $2); }
         | FLOAT_SYM float_options field_options
           {
-            $$=MYSQL_TYPE_FLOAT;
-            if (Lex->length && !Lex->dec)
+            $$.set(MYSQL_TYPE_FLOAT, $2);
+            if ($2.length() && !$2.dec())
             {
               int err;
-              ulonglong tmp_length= my_strtoll10(Lex->length, NULL, &err);
+              ulonglong tmp_length= my_strtoll10($2.length(), NULL, &err);
               if (err || tmp_length > PRECISION_FOR_DOUBLE)
               {
                 my_error(ER_WRONG_FIELD_SPEC, MYF(0),
@@ -6245,80 +6253,57 @@ field_type:
                 MYSQL_YYABORT;
               }
               else if (tmp_length > PRECISION_FOR_FLOAT)
-                $$= MYSQL_TYPE_DOUBLE;
-              Lex->length= 0;
+                $$.set(MYSQL_TYPE_DOUBLE);
+              else
+                $$.set(MYSQL_TYPE_FLOAT);
             }
           }
-        | BIT_SYM
+        | BIT_SYM opt_field_length_default_1
           {
-            Lex->length= (char*) "1";
-            $$=MYSQL_TYPE_BIT;
-          }
-        | BIT_SYM field_length
-          {
-            $$=MYSQL_TYPE_BIT;
+            $$.set(MYSQL_TYPE_BIT, $2);
           }
         | BOOL_SYM
           {
-            Lex->length= (char*) "1";
-            $$=MYSQL_TYPE_TINY;
+            $$.set(MYSQL_TYPE_TINY, "1");
           }
         | BOOLEAN_SYM
           {
-            Lex->length= (char*) "1";
-            $$=MYSQL_TYPE_TINY;
+            $$.set(MYSQL_TYPE_TINY, "1");
           }
-        | char field_length opt_binary
+        | char opt_field_length_default_1 opt_binary
           {
-            $$=MYSQL_TYPE_STRING;
+            $$.set(MYSQL_TYPE_STRING, $2);
           }
-        | char opt_binary
+        | nchar opt_field_length_default_1 opt_bin_mod
           {
-            Lex->length= (char*) "1";
-            $$=MYSQL_TYPE_STRING;
-          }
-        | nchar field_length opt_bin_mod
-          {
-            $$=MYSQL_TYPE_STRING;
+            $$.set(MYSQL_TYPE_STRING, $2);
             bincmp_collation(national_charset_info, $3);
           }
-        | nchar opt_bin_mod
-          {
-            Lex->length= (char*) "1";
-            $$=MYSQL_TYPE_STRING;
-            bincmp_collation(national_charset_info, $2);
-          }
-        | BINARY field_length
+        | BINARY opt_field_length_default_1
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_STRING;
-          }
-        | BINARY
-          {
-            Lex->length= (char*) "1";
-            Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_STRING;
+            $$.set(MYSQL_TYPE_STRING, $2);
           }
         | varchar field_length opt_binary
           {
-            $$= MYSQL_TYPE_VARCHAR;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
         | nvarchar field_length opt_bin_mod
           {
-            $$= MYSQL_TYPE_VARCHAR;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
             bincmp_collation(national_charset_info, $3);
           }
         | VARBINARY field_length
           {
             Lex->charset=&my_charset_bin;
-            $$= MYSQL_TYPE_VARCHAR;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
         | YEAR_SYM opt_field_length field_options
           {
-            if (Lex->length)
+            if ($2)
             {
               errno= 0;
-              ulong length= strtoul(Lex->length, NULL, 10);
+              ulong length= strtoul($2, NULL, 10);
               if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH && length != 4)
               {
                 char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
@@ -6329,18 +6314,18 @@ field_type:
                                     buff, "YEAR(4)");
               }
             }
-            $$=MYSQL_TYPE_YEAR;
+            $$.set(MYSQL_TYPE_YEAR, $2);
           }
         | DATE_SYM
-          { $$=MYSQL_TYPE_DATE; }
+          { $$.set(MYSQL_TYPE_DATE); }
         | TIME_SYM opt_field_length
-          { $$= opt_mysql56_temporal_format ?
-                MYSQL_TYPE_TIME2 : MYSQL_TYPE_TIME; }
+          { $$.set(opt_mysql56_temporal_format ?
+                   MYSQL_TYPE_TIME2 : MYSQL_TYPE_TIME, $2); }
         | TIMESTAMP opt_field_length
           {
             if (thd->variables.sql_mode & MODE_MAXDB)
-              $$= opt_mysql56_temporal_format ?
-                  MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME;
+              $$.set(opt_mysql56_temporal_format ?
+                     MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME, $2);
             else
             {
               /* 
@@ -6349,29 +6334,29 @@ field_type:
               */
               if (!opt_explicit_defaults_for_timestamp)
                 Lex->last_field->flags|= NOT_NULL_FLAG;
-              $$= opt_mysql56_temporal_format ? MYSQL_TYPE_TIMESTAMP2
-                                              : MYSQL_TYPE_TIMESTAMP;
+              $$.set(opt_mysql56_temporal_format ? MYSQL_TYPE_TIMESTAMP2
+                                                 : MYSQL_TYPE_TIMESTAMP, $2);
             }
           }
         | DATETIME opt_field_length
-          { $$= opt_mysql56_temporal_format ?
-                MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME; }
+          { $$.set(opt_mysql56_temporal_format ?
+                   MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME, $2); }
         | TINYBLOB
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_TINY_BLOB;
+            $$.set(MYSQL_TYPE_TINY_BLOB);
           }
         | BLOB_SYM opt_field_length
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_BLOB;
+            $$.set(MYSQL_TYPE_BLOB, $2);
           }
         | spatial_type float_options srid_option
           {
 #ifdef HAVE_SPATIAL
             Lex->charset=&my_charset_bin;
             Lex->last_field->geom_type= $1;
-            $$=MYSQL_TYPE_GEOMETRY;
+            $$.set(MYSQL_TYPE_GEOMETRY, $2);
 #else
             my_error(ER_FEATURE_DISABLED, MYF(0),
                      sym_group_geom.name, sym_group_geom.needed_define);
@@ -6381,43 +6366,43 @@ field_type:
         | MEDIUMBLOB
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_MEDIUM_BLOB;
+            $$.set(MYSQL_TYPE_MEDIUM_BLOB);
           }
         | LONGBLOB
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_LONG_BLOB;
+            $$.set(MYSQL_TYPE_LONG_BLOB);
           }
         | LONG_SYM VARBINARY
           {
             Lex->charset=&my_charset_bin;
-            $$=MYSQL_TYPE_MEDIUM_BLOB;
+            $$.set(MYSQL_TYPE_MEDIUM_BLOB);
           }
         | LONG_SYM varchar opt_binary
-          { $$=MYSQL_TYPE_MEDIUM_BLOB; }
+          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         | TINYTEXT opt_binary
-          { $$=MYSQL_TYPE_TINY_BLOB; }
+          { $$.set(MYSQL_TYPE_TINY_BLOB); }
         | TEXT_SYM opt_field_length opt_binary
-          { $$=MYSQL_TYPE_BLOB; }
+          { $$.set(MYSQL_TYPE_BLOB, $2); }
         | MEDIUMTEXT opt_binary
-          { $$=MYSQL_TYPE_MEDIUM_BLOB; }
+          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         | LONGTEXT opt_binary
-          { $$=MYSQL_TYPE_LONG_BLOB; }
+          { $$.set(MYSQL_TYPE_LONG_BLOB); }
         | DECIMAL_SYM float_options field_options
-          { $$=MYSQL_TYPE_NEWDECIMAL;}
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
         | NUMERIC_SYM float_options field_options
-          { $$=MYSQL_TYPE_NEWDECIMAL;}
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
         | FIXED_SYM float_options field_options
-          { $$=MYSQL_TYPE_NEWDECIMAL;}
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
         | ENUM '(' string_list ')' opt_binary
-          { $$=MYSQL_TYPE_ENUM; }
+          { $$.set(MYSQL_TYPE_ENUM); }
         | SET '(' string_list ')' opt_binary
-          { $$=MYSQL_TYPE_SET; }
+          { $$.set(MYSQL_TYPE_SET); }
         | LONG_SYM opt_binary
-          { $$=MYSQL_TYPE_MEDIUM_BLOB; }
+          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         | SERIAL_SYM
           {
-            $$=MYSQL_TYPE_LONGLONG;
+            $$.set(MYSQL_TYPE_LONGLONG);
             Lex->last_field->flags|= (AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG |
               UNIQUE_FLAG);
           }
@@ -6426,12 +6411,7 @@ field_type:
 spatial_type:
           GEOMETRY_SYM        { $$= Field::GEOM_GEOMETRY; }
         | GEOMETRYCOLLECTION  { $$= Field::GEOM_GEOMETRYCOLLECTION; }
-        | POINT_SYM
-          {
-            Lex->length= const_cast<char*>(STRINGIFY_ARG
-                                           (MAX_LEN_GEOM_POINT_FIELD));
-            $$= Field::GEOM_POINT;
-          }
+        | POINT_SYM           { $$= Field::GEOM_POINT; }
         | MULTIPOINT          { $$= Field::GEOM_MULTIPOINT; }
         | LINESTRING          { $$= Field::GEOM_LINESTRING; }
         | MULTILINESTRING     { $$= Field::GEOM_MULTILINESTRING; }
@@ -6492,21 +6472,13 @@ srid_option:
         ;
 
 float_options:
-          /* empty */
-          { Lex->dec=Lex->length= (char*)0; }
-        | field_length
-          { Lex->dec= (char*)0; }
-        | precision
-          {}
+          /* empty */  { $$.set(0, 0);  }
+        | field_length { $$.set($1, 0); }
+        | precision    { $$= $1; }
         ;
 
 precision:
-          '(' NUM ',' NUM ')'
-          {
-            LEX *lex=Lex;
-            lex->length=$2.str;
-            lex->dec=$4.str;
-          }
+          '(' NUM ',' NUM ')' { $$.set($2.str, $4.str); }
         ;
 
 field_options:
@@ -6526,19 +6498,22 @@ field_option:
         ;
 
 field_length:
-          '(' LONG_NUM ')'      { Lex->length= $2.str; }
-        | '(' ULONGLONG_NUM ')' { Lex->length= $2.str; }
-        | '(' DECIMAL_NUM ')'   { Lex->length= $2.str; }
-        | '(' NUM ')'           { Lex->length= $2.str; };
+          '(' LONG_NUM ')'      { $$= $2.str; }
+        | '(' ULONGLONG_NUM ')' { $$= $2.str; }
+        | '(' DECIMAL_NUM ')'   { $$= $2.str; }
+        | '(' NUM ')'           { $$= $2.str; };
 
 opt_field_length:
-          /* empty */  { Lex->length=(char*) 0; /* use default length */ }
-        | field_length { }
-        ;
+          /* empty */  { $$= (char*) 0; /* use default length */ }
+        | field_length { $$= $1; }
+
+opt_field_length_default_1:
+          /* empty */  { $$= (char*) "1"; }
+        | field_length { $$= $1; }
 
 opt_precision:
-          /* empty */ {}
-        | precision {}
+          /* empty */    { $$.set(0, 0); }
+        | precision      { $$= $1; }
         ;
 
 opt_attribute:
@@ -9139,92 +9114,44 @@ all_or_any:
 opt_dyncol_type:
           /* empty */ 
           {
-            LEX *lex= Lex;
-	    $$= DYN_COL_NULL; /* automatic type */
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
+            $$.set(DYN_COL_NULL); /* automatic type */
+            Lex->charset= NULL;
 	  }
         | AS dyncol_type { $$= $2; }
         ;
 
 dyncol_type:
-          INT_SYM
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_INT;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | UNSIGNED INT_SYM 
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_UINT;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | DOUBLE_SYM
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_DOUBLE;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | REAL
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_DOUBLE;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | FLOAT_SYM
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_DOUBLE;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | DECIMAL_SYM float_options
-          {
-            $$= DYN_COL_DECIMAL;
-            Lex->charset= NULL;
-          }
-        | char
+          numeric_dyncol_type             { $$= $1; Lex->charset= NULL; }
+        | temporal_dyncol_type            { $$= $1; Lex->charset= NULL; }
+        | string_dyncol_type              { $$= $1; }
+        ;
+
+numeric_dyncol_type:
+          INT_SYM                         { $$.set(DYN_COL_INT); }
+        | UNSIGNED INT_SYM                { $$.set(DYN_COL_UINT);  }
+        | DOUBLE_SYM                      { $$.set(DYN_COL_DOUBLE);  }
+        | REAL                            { $$.set(DYN_COL_DOUBLE); }
+        | FLOAT_SYM                       { $$.set(DYN_COL_DOUBLE); }
+        | DECIMAL_SYM float_options       { $$.set(DYN_COL_DECIMAL, $2); }
+        ;
+
+temporal_dyncol_type:
+          DATE_SYM                        { $$.set(DYN_COL_DATE); }
+        | TIME_SYM opt_field_length       { $$.set(DYN_COL_TIME, 0, $2); }
+        | DATETIME opt_field_length       { $$.set(DYN_COL_DATETIME, 0, $2); }
+        ;
+
+string_dyncol_type:
+          char
           { Lex->charset= thd->variables.collation_connection; }
           opt_binary
           {
-            LEX *lex= Lex;
-            $$= DYN_COL_STRING;
-            lex->length= lex->dec= 0;
+            $$.set(DYN_COL_STRING);
           }
         | nchar
           {
-            LEX *lex= Lex;
-            $$= DYN_COL_STRING;
-            lex->charset= national_charset_info;
-            lex->length= lex->dec= 0;
-          }
-        | DATE_SYM
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_DATE;
-            lex->charset= NULL;
-            lex->length= lex->dec= 0;
-          }
-        | TIME_SYM opt_field_length
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_TIME;
-            lex->charset= NULL;
-            lex->dec= lex->length;
-            lex->length= 0;
-          }
-        | DATETIME opt_field_length
-          {
-            LEX *lex= Lex;
-            $$= DYN_COL_DATETIME;
-            lex->charset= NULL;
-            lex->dec= lex->length;
-            lex->length= 0;
+            $$.set(DYN_COL_STRING);
+            Lex->charset= national_charset_info;
           }
         ;
 
@@ -9238,14 +9165,14 @@ dyncall_create_element:
        MYSQL_YYABORT;
      $$->key= $1;
      $$->value= $3;
-     $$->type= (DYNAMIC_COLUMN_TYPE)$4;
+     $$->type= (DYNAMIC_COLUMN_TYPE)$4.dyncol_type();
      $$->cs= lex->charset;
-     if (lex->length)
-       $$->len= strtoul(lex->length, NULL, 10);
+     if ($4.length())
+       $$->len= strtoul($4.length(), NULL, 10);
      else
        $$->len= 0;
-     if (lex->dec)
-       $$->frac= strtoul(lex->dec, NULL, 10);
+     if ($4.dec())
+       $$->frac= strtoul($4.dec(), NULL, 10);
      else
        $$->len= 0;
    }
@@ -9386,7 +9313,7 @@ simple_expr:
         | CAST_SYM '(' expr AS cast_type ')'
           {
             LEX *lex= Lex;
-            $$= create_func_cast(thd, $3, $5, lex->length, lex->dec,
+            $$= create_func_cast(thd, $3, $5.type(), $5.length(), $5.dec(),
                                  lex->charset);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -9399,7 +9326,7 @@ simple_expr:
           }
         | CONVERT_SYM '(' expr ',' cast_type ')'
           {
-            $$= create_func_cast(thd, $3, $5, Lex->length, Lex->dec,
+            $$= create_func_cast(thd, $3, $5.type(), $5.length(), $5.dec(),
                                  Lex->charset);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -9839,8 +9766,8 @@ function_call_nonkeyword:
           COLUMN_GET_SYM '(' expr ',' expr AS cast_type ')'
           {
             LEX *lex= Lex;
-            $$= create_func_dyncol_get(thd, $3, $5, $7,
-                                        lex->length, lex->dec,
+            $$= create_func_dyncol_get(thd, $3, $5, $7.type(),
+                                        $7.length(), $7.dec(),
                                         lex->charset);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -10529,43 +10456,35 @@ in_sum_expr:
 
 cast_type:
           BINARY opt_field_length
-          { $$=ITEM_CAST_CHAR; Lex->charset= &my_charset_bin; Lex->dec= 0; }
+          { $$.set(ITEM_CAST_CHAR, $2); Lex->charset= &my_charset_bin; }
         | CHAR_SYM opt_field_length
           { Lex->charset= thd->variables.collation_connection; }
           opt_binary
-          { $$=ITEM_CAST_CHAR; Lex->dec= 0; }
+          { $$.set(ITEM_CAST_CHAR, $2); }
         | NCHAR_SYM opt_field_length
-          { $$=ITEM_CAST_CHAR; Lex->charset= national_charset_info; Lex->dec=0; }
-        | INT_SYM
-          { $$=ITEM_CAST_SIGNED_INT; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | SIGNED_SYM
-          { $$=ITEM_CAST_SIGNED_INT; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | SIGNED_SYM INT_SYM
-          { $$=ITEM_CAST_SIGNED_INT; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | UNSIGNED
-          { $$=ITEM_CAST_UNSIGNED_INT; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | UNSIGNED INT_SYM
-          { $$=ITEM_CAST_UNSIGNED_INT; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | DATE_SYM
-          { $$=ITEM_CAST_DATE; Lex->charset= NULL; Lex->dec=Lex->length= (char*)0; }
-        | TIME_SYM opt_field_length
           {
-            $$=ITEM_CAST_TIME;
-            LEX *lex= Lex;
-            lex->charset= NULL; lex->dec= lex->length; lex->length= (char*)0;
-           }
-        | DATETIME opt_field_length
-          {
-            $$=ITEM_CAST_DATETIME;
-            LEX *lex= Lex;
-            lex->charset= NULL; lex->dec= lex->length; lex->length= (char*)0;
-           }
-        | DECIMAL_SYM float_options
-          { $$=ITEM_CAST_DECIMAL; Lex->charset= NULL; }
-        | DOUBLE_SYM
-          { Lex->charset= NULL; Lex->length= Lex->dec= 0;}
-          opt_precision
-          { $$=ITEM_CAST_DOUBLE; }
+            Lex->charset= national_charset_info;
+            $$.set(ITEM_CAST_CHAR, $2, 0);
+          }
+        | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
+        | cast_type_temporal { $$= $1; Lex->charset= NULL; }
+        ;
+
+cast_type_numeric:
+          INT_SYM                        { $$.set(ITEM_CAST_SIGNED_INT); }
+        | SIGNED_SYM                     { $$.set(ITEM_CAST_SIGNED_INT); }
+        | SIGNED_SYM INT_SYM             { $$.set(ITEM_CAST_SIGNED_INT); }
+        | UNSIGNED                       { $$.set(ITEM_CAST_UNSIGNED_INT); }
+        | UNSIGNED INT_SYM               { $$.set(ITEM_CAST_UNSIGNED_INT); }
+        | DECIMAL_SYM float_options      { $$.set(ITEM_CAST_DECIMAL, $2); }
+        | DOUBLE_SYM opt_precision       { $$.set(ITEM_CAST_DOUBLE, $2);  }
+        ;
+
+cast_type_temporal:
+          DATE_SYM                       { $$.set(ITEM_CAST_DATE); }
+        | TIME_SYM opt_field_length      { $$.set(ITEM_CAST_TIME, 0, $2); }
+        | DATETIME opt_field_length      { $$.set(ITEM_CAST_DATETIME, 0, $2); }
+        ;
 
 opt_expr_list:
           /* empty */ { $$= NULL; }
@@ -16408,7 +16327,7 @@ sf_tail:
           }
           type_with_opt_collate /* $11 */
           { /* $12 */
-            if (Lex->sphead->fill_field_definition(thd, Lex, $11,
+            if (Lex->sphead->fill_field_definition(thd, Lex, $11.field_type(),
                                                    Lex->last_field))
               MYSQL_YYABORT;
           }

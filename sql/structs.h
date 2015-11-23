@@ -550,4 +550,74 @@ public:
 };
 
 
+struct Lex_length_and_dec_st
+{
+private:
+  const char *m_length;
+  const char *m_dec;
+public:
+  void set(const char *length, const char *dec)
+  {
+    m_length= length;
+    m_dec= dec;
+  }
+  const char *length() const { return m_length; }
+  const char *dec() const { return m_dec; }
+};
+
+
+struct Lex_field_type_st: public Lex_length_and_dec_st
+{
+private:
+  enum_field_types m_type;
+  void set(enum_field_types type, const char *length, const char *dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::set(length, dec);
+  }
+public:
+  void set(enum_field_types type, Lex_length_and_dec_st length_and_dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::operator=(length_and_dec);
+  }
+  void set(enum_field_types type, const char *length)
+  {
+    set(type, length, 0);
+  }
+  void set(enum_field_types type)
+  {
+    set(type, 0, 0);
+  }
+  enum_field_types field_type() const { return m_type; }
+};
+
+
+struct Lex_dyncol_type_st: public Lex_length_and_dec_st
+{
+private:
+  int m_type; // enum_dynamic_column_type is not visible here, so use int
+public:
+  void set(int type, const char *length, const char *dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::set(length, dec);
+  }
+  void set(int type, Lex_length_and_dec_st length_and_dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::operator=(length_and_dec);
+  }
+  void set(int type, const char *length)
+  {
+    set(type, length, 0);
+  }
+  void set(int type)
+  {
+    set(type, 0, 0);
+  }
+  int dyncol_type() const { return m_type; }
+};
+
+
 #endif /* STRUCTS_INCLUDED */

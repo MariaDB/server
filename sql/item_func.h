@@ -2039,6 +2039,33 @@ enum Cast_target
 };
 
 
+struct Lex_cast_type_st: public Lex_length_and_dec_st
+{
+private:
+  Cast_target m_type;
+public:
+  void set(Cast_target type, const char *length, const char *dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::set(length, dec);
+  }
+  void set(Cast_target type, Lex_length_and_dec_st length_and_dec)
+  {
+    m_type= type;
+    Lex_length_and_dec_st::operator=(length_and_dec);
+  }
+  void set(Cast_target type, const char *length)
+  {
+    set(type, length, 0);
+  }
+  void set(Cast_target type)
+  {
+    set(type, 0, 0);
+  }
+  Cast_target type() const { return m_type; }
+};
+
+
 class Item_func_row_count :public Item_int_func
 {
 public:

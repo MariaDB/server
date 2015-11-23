@@ -2396,7 +2396,6 @@ struct LEX: public Query_tables_list
   Explain_query *explain;
 
   // type information
-  char *length,*dec;
   CHARSET_INFO *charset;
 
   LEX_STRING name;
@@ -2856,7 +2855,7 @@ public:
   void restore_set_statement_var();
 
   void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
-  void set_last_field_type(enum enum_field_types type);
+  void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)

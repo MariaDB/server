@@ -506,7 +506,6 @@ void lex_start(THD *thd)
   lex->parsing_options.reset();
   lex->empty_field_list_on_rset= 0;
   lex->select_lex.select_number= 1;
-  lex->length=0;
   lex->part_info= 0;
   lex->select_lex.in_sum_expr=0;
   lex->select_lex.ftfunc_list_alloc.empty();
