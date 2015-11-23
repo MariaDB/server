@@ -994,10 +994,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 160 shift/reduce conflicts.
+  Currently there are 142 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 160
+%expect 142
 
 /*
    Comments for TOKENS.
@@ -1926,6 +1926,7 @@ END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
+             sp_proc_stmt_in_returns_clause
 %type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
@@ -3652,18 +3653,31 @@ sp_opt_default:
         | DEFAULT expr { $$ = $2; }
         ;
 
-sp_proc_stmt:
-          sp_proc_stmt_statement
-        | sp_proc_stmt_return
+/*
+  ps_proc_stmt_in_returns_clause is a statement that is allowed
+  in the RETURNS clause of a stored function definition directly,
+  without the BEGIN..END  block.
+  It should not include any syntax structures starting with '(', to avoid
+  shift/reduce conflicts with the rule "field_type" and its sub-rules
+  that scan an optional length, like CHAR(1) or YEAR(4).
+  See MDEV-9166.
+*/
+sp_proc_stmt_in_returns_clause:
+          sp_proc_stmt_return
         | sp_labeled_block
         | sp_unlabeled_block
         | sp_labeled_control
+        | sp_proc_stmt_compound_ok
+        ;
+
+sp_proc_stmt:
+          sp_proc_stmt_in_returns_clause
+        | sp_proc_stmt_statement
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
         | sp_proc_stmt_open
         | sp_proc_stmt_fetch
         | sp_proc_stmt_close
-        | sp_proc_stmt_compound_ok
         ;
 
 sp_proc_stmt_compound_ok:
@@ -16405,7 +16419,7 @@ sf_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $15 */
+          sp_proc_stmt_in_returns_clause /* $15 */
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
