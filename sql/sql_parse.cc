@@ -7371,13 +7371,6 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
 #endif
 
 
-/** Store position for column in ALTER TABLE .. ADD column. */
-
-void store_position_for_column(const char *name)
-{
-  current_thd->lex->last_field->after=(char*) (name);
-}
-
 bool
 add_proc_to_list(THD* thd, Item *item)
 {

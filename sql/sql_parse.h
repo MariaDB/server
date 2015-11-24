@@ -115,7 +115,6 @@ bool add_proc_to_list(THD *thd, Item *item);
 bool push_new_name_resolution_context(THD *thd,
                                       TABLE_LIST *left_op,
                                       TABLE_LIST *right_op);
-void store_position_for_column(const char *name);
 void init_update_queries(void);
 bool check_simple_select();
 Item *normalize_cond(THD *thd, Item *cond);

@@ -949,6 +949,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   TABLE_LIST *table_list;
   Table_ident *table;
   char *simple_string;
+  const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
   class my_var *myvar;
   class sp_condition_value *spcondvalue;
@@ -1704,6 +1705,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
 
+%type <const_simple_string>
+        opt_place
+
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
 
@@ -1892,7 +1896,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
-        opt_place
         opt_attribute opt_attribute_list attribute column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
         object_privilege object_privilege_list user_list user_and_role_list
@@ -7561,6 +7564,7 @@ alter_list_item:
           add_column column_def opt_place
           {
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->last_field->after= $3;
           }
         | ADD key_def
           {
@@ -7578,6 +7582,7 @@ alter_list_item:
             Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
             Lex->last_field->change= $4.str;
+            Lex->last_field->after= $6;
           }
         | MODIFY_SYM opt_column opt_if_exists_table_element
           field_spec opt_place
@@ -7585,6 +7590,7 @@ alter_list_item:
             Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
             Lex->last_field->change= Lex->last_field->field_name;
+            Lex->last_field->after= $5;
           }
         | DROP opt_column opt_if_exists_table_element field_ident opt_restrict
           {
@@ -7797,15 +7803,15 @@ opt_restrict:
         ;
 
 opt_place:
-          /* empty */ {}
+          /* empty */ { $$= NULL; }
         | AFTER_SYM ident
           {
-            store_position_for_column($2.str);
+            $$= $2.str;
             Lex->alter_info.flags |= Alter_info::ALTER_COLUMN_ORDER;
           }
         | FIRST_SYM
           {
-            store_position_for_column(first_keyword);
+            $$= first_keyword;
             Lex->alter_info.flags |= Alter_info::ALTER_COLUMN_ORDER;
           }
         ;
