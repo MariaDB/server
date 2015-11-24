@@ -6148,7 +6148,7 @@ field_spec:
 
             if (f->flags & PRI_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
-            else if (f->flags & (UNIQUE_FLAG | UNIQUE_KEY_FLAG))
+            else if (f->flags & UNIQUE_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::UNIQUE, Lex->check_exists);
           }
         ;
@@ -6194,13 +6194,13 @@ vcol_attribute:
           UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_FLAG;
+            lex->last_field->flags|= UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_FLAG;
+            lex->last_field->flags|= UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
@@ -6407,7 +6407,7 @@ field_type:
           {
             $$.set(MYSQL_TYPE_LONGLONG);
             Lex->last_field->flags|= (AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG |
-              UNIQUE_FLAG);
+              UNIQUE_KEY_FLAG);
           }
         ;
 
@@ -6544,7 +6544,7 @@ attribute:
         | SERIAL_SYM DEFAULT VALUE_SYM
           { 
             LEX *lex=Lex;
-            lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_FLAG;
+            lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | opt_primary KEY_SYM
@@ -6556,7 +6556,7 @@ attribute:
         | UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_FLAG;
+            lex->last_field->flags|= UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM

@@ -139,7 +139,6 @@ enum enum_server_command
 #define NUM_FLAG	32768		/* Field is num (for clients) */
 #define PART_KEY_FLAG	16384		/* Intern; Part of some key */
 #define GROUP_FLAG	32768		/* Intern: Group field */
-#define UNIQUE_FLAG	65536		/* Intern: Used by sql_yacc */
 #define BINCMP_FLAG	131072		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1 << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1 << 19)/* Field part of partition func */
