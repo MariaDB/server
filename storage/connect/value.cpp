@@ -2666,7 +2666,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 bool DTVAL::SetValue_char(char *p, int n)
   {
-  bool rc;
+  bool rc= 0;
 
   if (Pdtp) {
     char *p2;

@@ -2483,6 +2483,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 				case MYSQL_TYPE_YEAR:
 				case MYSQL_TYPE_NEWDATE:
 					return NULL;
+                                default:
+                                  break;
 				} // endswitch type
 
 				if (trace) {

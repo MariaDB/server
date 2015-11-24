@@ -225,7 +225,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
      more:
       if (vp->atp) {
         strncpy(colname, vp->atp->GetName(g), sizeof(colname));
-        strncat(xcol->Name, colname, 64);
+        strncat(xcol->Name, colname, sizeof(xcol->Name)-1);
 
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
@@ -238,17 +238,17 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
           } // enswitch rc
 
         if (j)
-          strncat(fmt, colname, sizeof(fmt));
+          strncat(fmt, colname, sizeof(fmt)-1);
 
       } else {
         if (tdp->Usedom && node->GetType() != 1)
           continue;
 
         strncpy(colname, node->GetName(g), sizeof(colname));
-        strncat(xcol->Name, colname, 64);
+        strncat(xcol->Name, colname, sizeof(xcol->Name)-1);
 
         if (j)
-          strncat(fmt, colname, sizeof(fmt));
+          strncat(fmt, colname, sizeof(fmt)-1);
 
         if (j < lvl && ok) {
           vp = lvlp[j+1];

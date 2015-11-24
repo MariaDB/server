@@ -406,6 +406,7 @@
 #cmakedefine SIGNAL_RETURN_TYPE_IS_VOID 1
 #cmakedefine RETSIGTYPE @RETSIGTYPE@
 #cmakedefine VOID_SIGHANDLER 1
+#cmakedefine HAVE_SIGHANDLER_T 1
 #define STRUCT_RLIMIT struct rlimit
 
 #ifdef __APPLE__
