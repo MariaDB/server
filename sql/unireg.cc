@@ -874,7 +874,7 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
       {
         *buff++= (uchar) (1 + MY_TEST(field->interval));
         *buff++= (uchar) field->sql_type;
-        *buff++= (uchar) field->stored_in_db;
+        *buff++= (uchar) field->vcol_info->stored_in_db;
         if (field->interval)
           *buff++= (uchar) field->interval_id;
         memcpy(buff, field->vcol_info->expr_str.str, field->vcol_info->expr_str.length);

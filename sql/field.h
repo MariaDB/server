@@ -555,12 +555,12 @@ private:
     when a Create_field object is created/initialized.
   */
   enum_field_types field_type;   /* Real field type*/
-  /* Flag indicating  that the field is physically stored in the database */
-  bool stored_in_db;
   /* Flag indicating that the field used in a partitioning expression */
   bool in_partitioning_expr;
 
 public:
+  /* Flag indicating  that the field is physically stored in the database */
+  bool stored_in_db;
   /* The expression to compute the value of the virtual column */
   Item *expr_item;
   /* Text representation of the defining expression */
@@ -568,7 +568,7 @@ public:
 
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
-    stored_in_db(FALSE), in_partitioning_expr(FALSE), 
+    in_partitioning_expr(FALSE), stored_in_db(FALSE),
     expr_item(NULL)
   {
     expr_str.str= NULL;
@@ -713,12 +713,6 @@ public:
     can be computed from other fields.
   */
   Virtual_column_info *vcol_info;
-  /*
-    Flag indicating that the field is physically stored in tables
-    rather than just computed from other fields.
-    As of now, FALSE can be set only for computed virtual columns.
-  */
-  bool stored_in_db;
 
   Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
         uchar null_bit_arg, utype unireg_check_arg,
@@ -1047,6 +1041,8 @@ public:
     null_ptr= p_null_ptr;
     null_bit= p_null_bit;
   }
+
+  bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
 
   inline THD *get_thd() const
   { return likely(table) ? table->in_use : current_thd; }
@@ -3467,20 +3463,13 @@ public:
     can be computed from other fields.
   */
   Virtual_column_info *vcol_info;
-  /*
-    Flag indicating that the field is physically stored in tables
-    rather than just computed from other fields.
-    As of now, FALSE can be set only for computed virtual columns.
-  */
-  bool stored_in_db;
 
   Create_field() :change(0), after(0), comment(null_lex_str),
                   def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
                   flags(0), pack_length(0), key_length(0), interval(0),
                   srid(0), geom_type(Field::GEOM_GEOMETRY),
                   field(0), option_list(NULL), option_struct(NULL),
-                  create_if_not_exists(false), vcol_info(0),
-                  stored_in_db(true)
+                  create_if_not_exists(false), vcol_info(0)
   {
     interval_list.empty();
   }
@@ -3497,6 +3486,8 @@ public:
                           uint pack_length = ~0U);
 
   bool check(THD *thd);
+
+  bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
 
   ha_storage_media field_storage_type() const
   {

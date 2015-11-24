@@ -8789,7 +8789,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
-    if ((!rfield->vcol_info || rfield->stored_in_db) && 
+    if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
       my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));

@@ -1448,7 +1448,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Flags |= U_NULLS;
 
   // Mark virtual columns as such
-  if (fp->vcol_info && !fp->stored_in_db)
+  if (!fp->stored_in_db())
     pcf->Flags |= U_VIRTUAL;
 
   pcf->Key= 0;   // Not used when called from MySQL
@@ -1946,7 +1946,7 @@ int ha_connect::MakeRecord(char *buf)
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db)
+    if (!fp->stored_in_db())
       continue;            // This is a virtual column
 
     if (bitmap_is_set(map, fp->field_index) || alter) {
@@ -2067,8 +2067,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
   for (Field **field=table->field ; *field ; field++) {
     fp= *field;
 
-    if ((fp->vcol_info && !fp->stored_in_db) ||
-         fp->option_struct->special)
+    if (!fp->stored_in_db() || fp->option_struct->special)
       continue;            // Is a virtual column possible here ???
 
     if ((xmod == MODE_INSERT && tdbp->GetAmType() != TYPE_AM_MYSQL
@@ -5980,7 +5979,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   for (field= table_arg->field; *field; field++) {
     fp= *field;
 
-    if (fp->vcol_info && !fp->stored_in_db)
+    if (!fp->stored_in_db())
       continue;            // This is a virtual column
 
     if (fp->flags & AUTO_INCREMENT_FLAG) {

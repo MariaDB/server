@@ -15678,7 +15678,6 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
     else if (org_field->type() == FIELD_TYPE_DOUBLE)
       ((Field_double *) new_field)->not_fixed= TRUE;
     new_field->vcol_info= 0;
-    new_field->stored_in_db= TRUE;
     new_field->cond_selectivity= 1.0;
     new_field->next_equal_field= NULL;
     new_field->option_list= NULL;

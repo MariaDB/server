@@ -7914,7 +7914,7 @@ ha_innobase::build_template(
 		/* Push down an index condition or an end_range check. */
 		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 
-			while (!table->field[sql_idx]->stored_in_db) {
+			while (!table->field[sql_idx]->stored_in_db()) {
 				sql_idx++;
 			}
 
@@ -8033,7 +8033,7 @@ ha_innobase::build_template(
 		pushdown. */
 		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 
-			while (!table->field[sql_idx]->stored_in_db) {
+			while (!table->field[sql_idx]->stored_in_db()) {
 				sql_idx++;
 			}
 
@@ -8073,7 +8073,7 @@ ha_innobase::build_template(
                 for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 			const Field*	field;
 
-			while (!table->field[sql_idx]->stored_in_db) {
+			while (!table->field[sql_idx]->stored_in_db()) {
 				sql_idx++;
 			}
 
@@ -8671,7 +8671,7 @@ calc_row_difference(
 
 	for (sql_idx = 0; sql_idx < n_fields; sql_idx++) {
 		field = table->field[sql_idx];
-		if (!field->stored_in_db)
+		if (!field->stored_in_db())
 		  continue;
 
 		o_ptr = (const byte*) old_row + get_field_offset(table, field);
@@ -8809,7 +8809,7 @@ calc_row_difference(
 				}
 			}
 		}
-		if (field->stored_in_db)
+		if (field->stored_in_db())
 			innodb_idx++;
 	}
 
@@ -11072,7 +11072,7 @@ create_table_def(
 
 	for (i = 0; i < n_cols; i++) {
 		Field*	field = form->field[i];
-		if (!field->stored_in_db)
+		if (!field->stored_in_db())
 			continue;
 
 		col_type = get_innobase_type_from_mysql_type(&unsigned_type,

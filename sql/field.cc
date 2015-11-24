@@ -1648,9 +1648,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   part_of_key_not_clustered(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
-  read_stats(NULL), collected_stats(0),
-  vcol_info(0),
-  stored_in_db(TRUE)
+  read_stats(NULL), collected_stats(0), vcol_info(0)
 {
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
@@ -9759,7 +9757,6 @@ void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
                        f_packtype(pack_flag)));
   vcol_info= 0;
   create_if_not_exists= FALSE;
-  stored_in_db= TRUE;
 
   DBUG_VOID_RETURN;
 }
@@ -9778,10 +9775,21 @@ bool Create_field::check(THD *thd)
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
   DBUG_ENTER("Create_field::check");
 
+  /* Initialize data for a computed field */
   if (vcol_info)
   {
+    DBUG_ASSERT(vcol_info->expr_item);
+
     vcol_info->set_field_type(sql_type);
-    sql_type= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
+    /*
+      Walk through the Item tree checking if all items are valid
+      to be part of the virtual column
+    */
+    if (vcol_info->expr_item->walk(&Item::check_vcol_func_processor, 0, NULL))
+    {
+      my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), field_name);
+      DBUG_RETURN(TRUE);
+    }
   }
 
   if (length > MAX_FIELD_BLOBLENGTH)
@@ -9855,30 +9863,6 @@ bool Create_field::check(THD *thd)
   {
     my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
     DBUG_RETURN(1);
-  }
-
-  /* Initialize data for a computed field */
-  if (sql_type == MYSQL_TYPE_VIRTUAL)
-  {
-    DBUG_ASSERT(vcol_info && vcol_info->expr_item);
-    stored_in_db= vcol_info->is_stored();
-    /*
-      Walk through the Item tree checking if all items are valid
-      to be part of the virtual column
-    */
-    if (vcol_info->expr_item->walk(&Item::check_vcol_func_processor, 0, NULL))
-    {
-      my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), field_name);
-      DBUG_RETURN(TRUE);
-    }
-
-    /*
-      Make a field created for the real type.
-      Note that regular and computed fields differ from each other only by
-      Field::vcol_info. It is is always NULL for a column that is not
-      computed.
-    */
-    sql_type= vcol_info->get_real_type();
   }
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
@@ -10456,7 +10440,6 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
   create_if_not_exists= FALSE;
-  stored_in_db= old_field->stored_in_db;
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;
 

@@ -1501,7 +1501,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   {
     for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
     {
-      if ((*vfield_ptr)->stored_in_db)
+      if ((*vfield_ptr)->vcol_info->stored_in_db)
       {
         thd->lex->unit.insert_table_with_stored_vcol= table;
         break;

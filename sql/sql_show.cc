@@ -1844,7 +1844,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                      field->vcol_info->expr_str.length,
                      system_charset_info);
       packet->append(STRING_WITH_LEN(")"));
-      if (field->stored_in_db)
+      if (field->vcol_info->stored_in_db)
         packet->append(STRING_WITH_LEN(" PERSISTENT"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
@@ -5344,7 +5344,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[17]->store(type.ptr(), type.length(), cs);
     if (field->vcol_info)
     {
-      if (field->stored_in_db)
+      if (field->vcol_info->stored_in_db)
         table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
       else
         table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
