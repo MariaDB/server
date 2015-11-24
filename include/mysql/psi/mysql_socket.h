@@ -1013,7 +1013,9 @@ inline_mysql_socket_accept
 #endif
   MYSQL_SOCKET socket_listen, struct sockaddr *addr, socklen_t *addr_len)
 {
+#ifdef FD_CLOEXEC
   int flags;
+#endif
 
   MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;
   socklen_t addr_length= (addr_len != NULL) ? *addr_len : 0;
