@@ -8049,12 +8049,14 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_binlog_end_pos");
 
+  thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)
     mysql_cond_wait(&update_cond, get_binlog_end_pos_lock());
   else
     ret= mysql_cond_timedwait(&update_cond, get_binlog_end_pos_lock(),
                               timeout);
+  thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
 
