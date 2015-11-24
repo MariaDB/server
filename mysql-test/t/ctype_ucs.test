@@ -948,6 +948,11 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(c,0)='3 ' AND COALESCE(d,0)=COALESCE(c,0);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
+--echo #
+SET NAMES utf8;
+SELECT CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED);
 
 --echo #
 --echo # End of 10.1 tests

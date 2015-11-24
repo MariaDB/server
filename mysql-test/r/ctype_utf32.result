@@ -2226,5 +2226,14 @@ SELECT _utf32 0x10001=_utf32 0x10002;
 _utf32 0x10001=_utf32 0x10002
 1
 #
+# MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
+#
+SET NAMES utf8;
+SELECT CAST(CONVERT('1Ĳ3' USING utf32) AS SIGNED);
+CAST(CONVERT('1Ĳ3' USING utf32) AS SIGNED)
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
+#
 # End of 10.1 tests
 #
