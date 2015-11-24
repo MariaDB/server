@@ -3368,7 +3368,6 @@ static Sys_var_mybool Sys_timed_mutexes(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL), ON_UPDATE(NULL),
        DEPRECATED(""));
 
-static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
        READ_ONLY GLOBAL_VAR(server_version_ptr),

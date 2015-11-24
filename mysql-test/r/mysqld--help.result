@@ -1124,7 +1124,8 @@ The following options may be given as the first argument:
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
  tables in the INFORMATION_SCHEMA
  -v, --verbose       Used with --help option for detailed help.
- -V, --version       Output version information and exit.
+ -V, --version[=name] 
+ Output version information and exit.
  --wait-timeout=#    The number of seconds the server waits for activity on a
  connection before closing it
 

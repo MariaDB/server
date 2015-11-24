@@ -631,7 +631,7 @@ DATE_TIME_FORMAT global_date_format, global_datetime_format, global_time_format;
 Time_zone *default_tz;
 
 const char *mysql_real_data_home_ptr= mysql_real_data_home;
-char server_version[SERVER_VERSION_LENGTH];
+char server_version[SERVER_VERSION_LENGTH], *server_version_ptr;
 char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
@@ -7604,8 +7604,8 @@ struct my_option my_long_options[]=
    0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Used with --help option for detailed help.",
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
-   NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_STR,
+   OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load", OPT_PLUGIN_LOAD,
    "Semicolon-separated list of plugins to load, where each plugin is "
    "specified as ether a plugin_name=library_file pair or only a library_file. "
@@ -8947,8 +8947,16 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 #include <sslopt-case.h>
 #ifndef EMBEDDED_LIBRARY
   case 'V':
-    print_version();
-    opt_abort= 1;                    // Abort after parsing all options
+    if (argument)
+    {
+      strmake(server_version, argument, sizeof(server_version) - 1);
+      set_sys_var_value_origin(&server_version_ptr, sys_var::CONFIG);
+    }
+    else
+    {
+      print_version();
+      opt_abort= 1;                    // Abort after parsing all options
+    }
     break;
 #endif /*EMBEDDED_LIBRARY*/
   case 'W':
@@ -9641,6 +9649,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
 void set_server_version(void)
 {
+  if (!IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    return;
   char *end= strxmov(server_version, MYSQL_SERVER_VERSION,
                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
