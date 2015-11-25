@@ -20446,7 +20446,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
   if (have_pk_suffix && reverse == -1)
   {
     uint pk_parts= table->key_info[pk].user_defined_key_parts;
-    if (!table->file->index_flags(pk, pk_parts, 1) & HA_READ_PREV)
+    if (!(table->file->index_flags(pk, pk_parts, 1) & HA_READ_PREV))
       reverse= 0;                               // Index can't be used
   }
 
