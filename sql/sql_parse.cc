@@ -1804,7 +1804,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     DBUG_PRINT("quit",("Got shutdown command for level %u", level));
     general_log_print(thd, command, NullS);
     my_eof(thd);
-    kill_mysql();
+    kill_mysql(thd);
     error=TRUE;
     break;
   }
@@ -4907,7 +4907,7 @@ end_with_restore_list:
 #ifndef EMBEDDED_LIBRARY
     if (check_global_access(thd,SHUTDOWN_ACL))
       goto error;
-    kill_mysql();
+    kill_mysql(thd);
     my_ok(thd);
 #else
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "embedded server");

@@ -1806,9 +1806,34 @@ static void close_server_sock()
 #endif /*EMBEDDED_LIBRARY*/
 
 
-void kill_mysql(void)
+/**
+  Set shutdown user
+
+  @note this function may be called by multiple threads concurrently, thus
+  it performs safe update of shutdown_user (first thread wins).
+*/
+
+static volatile char *shutdown_user;
+static void set_shutdown_user(THD *thd)
+{
+  char user_host_buff[MAX_USER_HOST_SIZE + 1];
+  char *user, *expected_shutdown_user= 0;
+
+  make_user_name(thd, user_host_buff);
+
+  if ((user= my_strdup(user_host_buff, MYF(0))) &&
+      !my_atomic_casptr((void **) &shutdown_user,
+                        (void **) &expected_shutdown_user, user))
+    my_free(user);
+}
+
+
+void kill_mysql(THD *thd)
 {
   DBUG_ENTER("kill_mysql");
+
+  if (thd)
+    set_shutdown_user(thd);
 
 #if defined(SIGNALS_DONT_BREAK_READ) && !defined(EMBEDDED_LIBRARY)
   abort_loop=1;					// Break connection loops
@@ -1888,7 +1913,13 @@ static void __cdecl kill_server(int sig_ptr)
   if (sig != 0) // 0 is not a valid signal number
     my_sigset(sig, SIG_IGN);                    /* purify inspected */
   if (sig == MYSQL_KILL_SIGNAL || sig == 0)
-    sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN),my_progname);
+  {
+    char *user= (char *) my_atomic_loadptr((void**) &shutdown_user);
+    sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,
+                          user ? user : "unknown");
+    if (user)
+      my_free(user);
+  }
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
 

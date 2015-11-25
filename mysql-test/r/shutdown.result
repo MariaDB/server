@@ -5,3 +5,7 @@ create procedure try_shutdown() shutdown;
 drop procedure try_shutdown;
 shutdown;
 drop user user1@localhost;
+#
+# MDEV-8491 - On shutdown, report the user and the host executed that.
+#
+FOUND /mysqld \(root\[root\] @ localhost \[\]\): Normal shutdown/ in mysqld.1.err
