@@ -3440,20 +3440,15 @@ public:
   uint  decimals, flags, pack_length, key_length;
   Field::utype unireg_check;
   TYPELIB *interval;			// Which interval to use
-  TYPELIB *save_interval;               // Temporary copy for the above
-                                        // Used only for UCS2 intervals
   List<String> interval_list;
   CHARSET_INFO *charset;
   uint32 srid;
   Field::geometry_type geom_type;
-  Field *field;				// For alter table
   engine_option_value *option_list;
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
   ha_field_option_struct *option_struct;
 
-  uint8 interval_id;                    // For rea_create_table
-  uint	offset,pack_flag;
-  bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
+  uint pack_flag;
 
   /* 
     This is additinal data provided for any computed(virtual) field.
@@ -3467,8 +3462,8 @@ public:
     def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
     flags(0), pack_length(0), key_length(0), interval(0),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    field(0), option_list(NULL), option_struct(NULL),
-    create_if_not_exists(false), vcol_info(0)
+    option_list(NULL), option_struct(NULL),
+    vcol_info(0)
   {
     interval_list.empty();
   }
@@ -3518,12 +3513,21 @@ class Create_field :public Column_definition
 public:
   const char *change;			// If done with alter table
   const char *after;			// Put column after this one
+  Field *field;				// For alter table
+  TYPELIB *save_interval;               // Temporary copy for the above
+                                        // Used only for UCS2 intervals
+  uint	offset;
+  uint8 interval_id;                    // For rea_create_table
+  bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
+
   Create_field():
-    Column_definition(), change(0), after(0)
+    Column_definition(), change(0), after(0),
+    field(0), create_if_not_exists(false)
   { }
   Create_field(THD *thd, Field *old_field, Field *orig_field):
     Column_definition(thd, old_field, orig_field),
-    change(old_field->field_name), after(0)
+    change(old_field->field_name), after(0),
+    field(old_field), create_if_not_exists(false)
   { }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;

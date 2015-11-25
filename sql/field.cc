@@ -9757,7 +9757,6 @@ void Column_definition::init_for_tmp_table(enum_field_types sql_type_arg,
                        FLAGSTR(pack_flag, FIELDFLAG_DECIMAL),
                        f_packtype(pack_flag)));
   vcol_info= 0;
-  create_if_not_exists= FALSE;
 
   DBUG_VOID_RETURN;
 }
@@ -10429,7 +10428,6 @@ Field *make_field(TABLE_SHARE *share,
 Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
 {
-  field=      old_field;
   field_name= old_field->field_name;
   length=     old_field->field_length;
   flags=      old_field->flags;
@@ -10441,7 +10439,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
-  create_if_not_exists= FALSE;
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;
 

@@ -867,7 +867,6 @@ void LEX::init_last_field(Column_definition *field, const char *field_name,
 void LEX::set_last_field_type(const Lex_field_type_st &type)
 {
   last_field->sql_type= type.field_type();
-  last_field->create_if_not_exists= check_exists;
   last_field->charset= charset;
 
   if (type.length())
@@ -6150,6 +6149,7 @@ field_spec:
 
             lex->alter_info.create_list.push_back($$, thd->mem_root);
 
+            $$->create_if_not_exists= Lex->check_exists;
             if ($$->flags & PRI_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
             else if ($$->flags & UNIQUE_KEY_FLAG)
