@@ -410,7 +410,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
-  if (table->s->virtual_stored_fields)
+  if (table->s->has_virtual_stored_fields)
     thd->lex->unit.insert_table_with_stored_vcol= table;
 
   uint tot_length=0;
