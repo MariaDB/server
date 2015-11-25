@@ -7309,7 +7309,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       {
         double curr_eq_fld_sel;
         fld= fi.get_curr_field();
-        if (!fld->table->map & ~(table_bit | rem_tables))
+        if (!(fld->table->map & ~(table_bit | rem_tables)))
           continue;
         curr_eq_fld_sel= get_column_avg_frequency(fld) /
                          fld->table->stat_records();
