@@ -71,7 +71,7 @@ static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     Alter_info::enum_enable_or_disable keys_onoff,
                                     Alter_table_ctx *alter_ctx);
 
-static bool prepare_blob_field(THD *thd, Create_field *sql_field);
+static bool prepare_blob_field(THD *thd, Column_definition *sql_field);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -2875,7 +2875,7 @@ void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
    1	Error
 */
 
-int prepare_create_field(Create_field *sql_field, 
+int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns, 
 			 longlong table_flags)
 {
@@ -4235,7 +4235,7 @@ static void set_table_default_charset(THD *thd,
         In this case the error is given
 */
 
-static bool prepare_blob_field(THD *thd, Create_field *sql_field)
+static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
 {
   DBUG_ENTER("prepare_blob_field");
 
@@ -4294,7 +4294,7 @@ static bool prepare_blob_field(THD *thd, Create_field *sql_field)
 
 */
 
-void sp_prepare_create_field(THD *thd, Create_field *sql_field)
+void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
 {
   if (sql_field->sql_type == MYSQL_TYPE_SET ||
       sql_field->sql_type == MYSQL_TYPE_ENUM)

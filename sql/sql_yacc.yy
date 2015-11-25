@@ -853,7 +853,7 @@ static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
   lex->alter_info.key_list.push_back(key, mem_root);
 }
 
-void LEX::init_last_field(Create_field *field, const char *field_name,
+void LEX::init_last_field(Column_definition *field, const char *field_name,
          CHARSET_INFO *cs)
 {
   last_field= field;
@@ -928,6 +928,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   Lex_dyncol_type_st Lex_dyncol_type;
 
   /* pointers */
+  Create_field *create_field;
   CHARSET_INFO *charset;
   Condition_information_item *cond_info_item;
   DYNCALL_CREATE_DEF *dyncol_def;
@@ -1718,6 +1719,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
 
+%type <create_field> field_spec column_def
+
 %type <geom_type> spatial_type
 
 %type <num>
@@ -1882,7 +1885,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         persistent_column_stat_spec persistent_index_stat_spec
         table_column_list table_index_list table_index_name
         check start checksum
-        field_list field_list_item field_spec kill column_def key_def
+        field_list field_list_item kill key_def
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
         preload_list preload_list_or_parts preload_keys preload_keys_parts
@@ -6006,13 +6009,13 @@ field_list:
         ;
 
 field_list_item:
-          column_def
+          column_def { }
         | key_def
         ;
 
 column_def:
-          field_spec opt_check_constraint
-        | field_spec references
+          field_spec opt_check_constraint { $$= $1; }
+        | field_spec references           { $$= $1; }
         ;
 
 key_def:
@@ -6134,21 +6137,22 @@ field_spec:
               MYSQL_YYABORT;
 
             lex->init_last_field(f, $1.str, NULL);
+            $<create_field>$= f;
           }
           field_type  { Lex->set_last_field_type($3); }
           field_def
           {
             LEX *lex=Lex;
-            Create_field *f= lex->last_field;
+            $$= $<create_field>2;
 
-            if (f->check(thd))
+            if ($$->check(thd))
               MYSQL_YYABORT;
 
-            lex->alter_info.create_list.push_back(f, thd->mem_root);
+            lex->alter_info.create_list.push_back($$, thd->mem_root);
 
-            if (f->flags & PRI_KEY_FLAG)
+            if ($$->flags & PRI_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
-            else if (f->flags & UNIQUE_KEY_FLAG)
+            else if ($$->flags & UNIQUE_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::UNIQUE, Lex->check_exists);
           }
         ;
@@ -7564,7 +7568,7 @@ alter_list_item:
           add_column column_def opt_place
           {
             Lex->create_last_non_select_table= Lex->last_table();
-            Lex->last_field->after= $3;
+            $2->after= $3;
           }
         | ADD key_def
           {
@@ -7581,16 +7585,16 @@ alter_list_item:
           {
             Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
-            Lex->last_field->change= $4.str;
-            Lex->last_field->after= $6;
+            $5->change= $4.str;
+            $5->after= $6;
           }
         | MODIFY_SYM opt_column opt_if_exists_table_element
           field_spec opt_place
           {
             Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
-            Lex->last_field->change= Lex->last_field->field_name;
-            Lex->last_field->after= $5;
+            $4->change= $4->field_name;
+            $4->after= $5;
           }
         | DROP opt_column opt_if_exists_table_element field_ident opt_restrict
           {

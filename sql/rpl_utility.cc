@@ -937,7 +937,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
 {
   DBUG_ENTER("table_def::create_conversion_table");
 
-  List<Create_field> field_list;
+  List<Column_definition> field_list;
   TABLE *conv_table= NULL;
   Relay_log_info *rli= rgi->rli;
   /*
@@ -948,7 +948,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   uint const cols_to_create= MY_MIN(target_table->s->fields, size());
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
-    Create_field *field_def=
+    Column_definition *field_def=
       (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
     bool unsigned_flag= 0;
     if (field_list.push_back(field_def, thd->mem_root))

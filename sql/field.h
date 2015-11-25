@@ -3416,16 +3416,14 @@ public:
 
 
 extern const LEX_STRING null_lex_str;
+
 /*
   Create field class for CREATE TABLE
 */
-
-class Create_field :public Sql_alloc
+class Column_definition: public Sql_alloc
 {
 public:
   const char *field_name;
-  const char *change;			// If done with alter table
-  const char *after;			// Put column after this one
   LEX_STRING comment;			// Comment for field
   Item *def, *on_update;                // Default value
   enum	enum_field_types sql_type;
@@ -3464,19 +3462,18 @@ public:
   */
   Virtual_column_info *vcol_info;
 
-  Create_field() :change(0), after(0), comment(null_lex_str),
-                  def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
-                  flags(0), pack_length(0), key_length(0), interval(0),
-                  srid(0), geom_type(Field::GEOM_GEOMETRY),
-                  field(0), option_list(NULL), option_struct(NULL),
-                  create_if_not_exists(false), vcol_info(0)
+  Column_definition():
+    comment(null_lex_str),
+    def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
+    flags(0), pack_length(0), key_length(0), interval(0),
+    srid(0), geom_type(Field::GEOM_GEOMETRY),
+    field(0), option_list(NULL), option_struct(NULL),
+    create_if_not_exists(false), vcol_info(0)
   {
     interval_list.empty();
   }
 
-  Create_field(THD *thd, Field *field, Field *orig_field);
-  /* Used to make a clone of this object for ALTER/CREATE TABLE */
-  Create_field *clone(MEM_ROOT *mem_root) const;
+  Column_definition(THD *thd, Field *field, Field *orig_field);
   void create_length_to_internal_length(void);
 
   /* Init for a tmp table field. To be extended if need be. */
@@ -3513,6 +3510,23 @@ public:
             unireg_check == Field::TIMESTAMP_UN_FIELD ||
             unireg_check == Field::NEXT_NUMBER);
   }
+};
+
+
+class Create_field :public Column_definition
+{
+public:
+  const char *change;			// If done with alter table
+  const char *after;			// Put column after this one
+  Create_field():
+    Column_definition(), change(0), after(0)
+  { }
+  Create_field(THD *thd, Field *old_field, Field *orig_field):
+    Column_definition(thd, old_field, orig_field),
+    change(old_field->field_name), after(0)
+  { }
+  /* Used to make a clone of this object for ALTER/CREATE TABLE */
+  Create_field *clone(MEM_ROOT *mem_root) const;
 };
 
 

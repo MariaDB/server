@@ -886,8 +886,8 @@ bool Aggregator_distinct::setup(THD *thd)
   }
   else
   {
-    List<Create_field> field_list;
-    Create_field field_def;                              /* field definition */
+    List<Column_definition> field_list;
+    Column_definition field_def;                /* field definition */
     Item *arg;
     DBUG_ENTER("Aggregator_distinct::setup");
     /* It's legal to call setup() more than once when in a subquery */

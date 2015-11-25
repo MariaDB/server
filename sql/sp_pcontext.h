@@ -60,7 +60,7 @@ public:
   Item *default_value;
 
   /// Full type information (field meta-data) of the SP-variable.
-  Create_field field_def;
+  Column_definition field_def;
 
 public:
   sp_variable(LEX_STRING _name, uint _offset)
@@ -347,7 +347,7 @@ public:
   /// context and its children.
   ///
   /// @param field_def_lst[out] Container to store type information.
-  void retrieve_field_definitions(List<Create_field> *field_def_lst) const;
+  void retrieve_field_definitions(List<Column_definition> *field_def_lst) const;
 
   /// Find SP-variable by name.
   ///

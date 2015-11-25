@@ -764,7 +764,7 @@ sp_head::set_stmt_end(THD *thd)
 
 
 static TYPELIB *
-create_typelib(MEM_ROOT *mem_root, Create_field *field_def, List<String> *src)
+create_typelib(MEM_ROOT *mem_root, Column_definition *field_def, List<String> *src)
 {
   TYPELIB *result= NULL;
   CHARSET_INFO *cs= field_def->charset;
@@ -2327,8 +2327,8 @@ sp_head::backpatch(sp_label *lab)
 }
 
 /**
-  Prepare an instance of Create_field for field creation (fill all necessary
-  attributes).
+  Prepare an instance of Column_definition for field creation
+  (fill all necessary attributes).
 
   @param[in]  thd          Thread handle
   @param[in]  lex          Yacc parsing context
@@ -2344,7 +2344,7 @@ sp_head::backpatch(sp_label *lab)
 bool
 sp_head::fill_field_definition(THD *thd, LEX *lex,
                                enum enum_field_types field_type,
-                               Create_field *field_def)
+                               Column_definition *field_def)
 {
   uint unused1= 0;
 

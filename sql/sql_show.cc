@@ -5627,7 +5627,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   if (sp)
   {
     Field *field;
-    Create_field *field_def;
+    Column_definition *field_def;
     String tmp_string;
     if (routine_type == TYPE_ENUM_FUNCTION)
     {
@@ -5786,7 +5786,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           TABLE_SHARE share;
           TABLE tbl;
           Field *field;
-          Create_field *field_def= &sp->m_return_field_def;
+          Column_definition *field_def= &sp->m_return_field_def;
 
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);

@@ -9603,7 +9603,7 @@ void Field_bit_as_char::sql_type(String &res) const
   Convert create_field::length from number of characters to number of bytes.
 */
 
-void Create_field::create_length_to_internal_length(void)
+void Column_definition::create_length_to_internal_length(void)
 {
   switch (sql_type) {
   case MYSQL_TYPE_TINY_BLOB:
@@ -9654,10 +9654,11 @@ void Create_field::create_length_to_internal_length(void)
 /**
   Init for a tmp table field. To be extended if need be.
 */
-void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
-                                      uint32 length_arg, uint32 decimals_arg,
-                                      bool maybe_null, bool is_unsigned,
-                                      uint pack_length_arg)
+void Column_definition::init_for_tmp_table(enum_field_types sql_type_arg,
+                                           uint32 length_arg,
+                                           uint32 decimals_arg,
+                                           bool maybe_null, bool is_unsigned,
+                                           uint pack_length_arg)
 {
   DBUG_ENTER("Create_field::init_for_tmp_table");
 
@@ -9768,7 +9769,7 @@ static inline bool is_item_func(Item* x)
 }
 
 
-bool Create_field::check(THD *thd)
+bool Column_definition::check(THD *thd)
 {
   const uint conditional_type_modifiers= AUTO_INCREMENT_FLAG;
   uint sign_len, allowed_type_modifier= 0;
@@ -10425,10 +10426,11 @@ Field *make_field(TABLE_SHARE *share,
 
 /** Create a field suitable for create of table. */
 
-Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
+Column_definition::Column_definition(THD *thd, Field *old_field,
+                                               Field *orig_field)
 {
   field=      old_field;
-  field_name=change=old_field->field_name;
+  field_name= old_field->field_name;
   length=     old_field->field_length;
   flags=      old_field->flags;
   unireg_check=old_field->unireg_check;

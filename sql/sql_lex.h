@@ -2476,7 +2476,7 @@ public:
 
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
-  Create_field	      *last_field;
+  Column_definition *last_field;
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
@@ -2854,7 +2854,7 @@ public:
                     bool is_analyze, bool *printed_anything);
   void restore_set_statement_var();
 
-  void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context

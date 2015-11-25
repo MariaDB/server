@@ -1861,7 +1861,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   All methods presume that there is at least one field to change.
 */
 
-TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list);
+TABLE *create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list);
 
 int test_if_item_cache_changed(List<Cached_item> &list);
 int join_init_read_record(JOIN_TAB *tab);
