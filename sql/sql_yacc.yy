@@ -2943,8 +2943,7 @@ sp_param_name_and_type:
             sp_variable *spvar= $<spvar>2;
 
             spvar->type= $3.field_type();
-            if (lex->sphead->fill_field_definition(thd, lex, $3.field_type(),
-                                                   lex->last_field))
+            if (lex->sphead->fill_field_definition(thd, lex, lex->last_field))
             {
               MYSQL_YYABORT;
             }
@@ -3039,7 +3038,6 @@ sp_decl:
             LEX *lex= Lex;
             sp_pcontext *pctx= lex->spcont;
             uint num_vars= pctx->context_var_count();
-            enum enum_field_types var_type= $4.field_type();
             Item *dflt_value_item= $5;
             
             if (!dflt_value_item)
@@ -3062,11 +3060,11 @@ sp_decl:
               if (!last)
                 spvar->field_def= *lex->last_field;
 
-              spvar->type= var_type;
+              spvar->type= $4.field_type();
               spvar->default_value= dflt_value_item;
               spvar->field_def.field_name= spvar->name.str;
             
-              if (lex->sphead->fill_field_definition(thd, lex, var_type,
+              if (lex->sphead->fill_field_definition(thd, lex,
                                                      &spvar->field_def))
               {
                 MYSQL_YYABORT;
@@ -3081,7 +3079,7 @@ sp_decl:
                                                pctx,
                                                var_idx,
                                                dflt_value_item,
-                                               var_type,
+                                               $4.field_type(),
                                                lex,
                                                last));
               if (is == NULL ||
@@ -16337,8 +16335,7 @@ sf_tail:
           }
           type_with_opt_collate /* $11 */
           { /* $12 */
-            if (Lex->sphead->fill_field_definition(thd, Lex, $11.field_type(),
-                                                   Lex->last_field))
+            if (Lex->sphead->fill_field_definition(thd, Lex, Lex->last_field))
               MYSQL_YYABORT;
           }
           sp_c_chistics /* $13 */

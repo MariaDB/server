@@ -2332,7 +2332,6 @@ sp_head::backpatch(sp_label *lab)
 
   @param[in]  thd          Thread handle
   @param[in]  lex          Yacc parsing context
-  @param[in]  field_type   Field type
   @param[out] field_def    An instance of create_field to be filled
 
   @retval
@@ -2343,7 +2342,6 @@ sp_head::backpatch(sp_label *lab)
 
 bool
 sp_head::fill_field_definition(THD *thd, LEX *lex,
-                               enum enum_field_types field_type,
                                Column_definition *field_def)
 {
   uint unused1= 0;

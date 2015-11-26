@@ -418,7 +418,6 @@ public:
                              TABLE *table);
 
   bool fill_field_definition(THD *thd, LEX *lex,
-                             enum enum_field_types field_type,
                              Column_definition *field_def);
 
   void set_info(longlong created, longlong modified,
