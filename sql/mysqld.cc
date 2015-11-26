@@ -3839,6 +3839,7 @@ SHOW_VAR com_status_vars[]= {
   {"checksum",             STMT_STATUS(SQLCOM_CHECKSUM)},
   {"commit",               STMT_STATUS(SQLCOM_COMMIT)},
   {"compound_sql",         STMT_STATUS(SQLCOM_COMPOUND)},
+  {"com_multi",            COM_STATUS(com_multi)},
   {"create_db",            STMT_STATUS(SQLCOM_CREATE_DB)},
   {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
   {"create_function",      STMT_STATUS(SQLCOM_CREATE_SPFUNCTION)},
@@ -4316,7 +4317,7 @@ static int init_common_variables()
     of SQLCOM_ constants.
   */
   compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
-                     SQLCOM_END + 10);
+                     SQLCOM_END + 11);
 #endif
 
   if (get_options(&remaining_argc, &remaining_argv))

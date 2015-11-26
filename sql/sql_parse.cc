@@ -136,38 +136,263 @@ static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
-const LEX_STRING command_name[]={
-  { C_STRING_WITH_LEN("Sleep") },
-  { C_STRING_WITH_LEN("Quit") },
-  { C_STRING_WITH_LEN("Init DB") },
-  { C_STRING_WITH_LEN("Query") },
-  { C_STRING_WITH_LEN("Field List") },
-  { C_STRING_WITH_LEN("Create DB") },
-  { C_STRING_WITH_LEN("Drop DB") },
-  { C_STRING_WITH_LEN("Refresh") },
-  { C_STRING_WITH_LEN("Shutdown") },
-  { C_STRING_WITH_LEN("Statistics") },
-  { C_STRING_WITH_LEN("Processlist") },
-  { C_STRING_WITH_LEN("Connect") },
-  { C_STRING_WITH_LEN("Kill") },
-  { C_STRING_WITH_LEN("Debug") },
-  { C_STRING_WITH_LEN("Ping") },
-  { C_STRING_WITH_LEN("Time") },
-  { C_STRING_WITH_LEN("Delayed insert") },
-  { C_STRING_WITH_LEN("Change user") },
-  { C_STRING_WITH_LEN("Binlog Dump") },
-  { C_STRING_WITH_LEN("Table Dump") },
-  { C_STRING_WITH_LEN("Connect Out") },
-  { C_STRING_WITH_LEN("Register Slave") },
-  { C_STRING_WITH_LEN("Prepare") },
-  { C_STRING_WITH_LEN("Execute") },
-  { C_STRING_WITH_LEN("Long Data") },
-  { C_STRING_WITH_LEN("Close stmt") },
-  { C_STRING_WITH_LEN("Reset stmt") },
-  { C_STRING_WITH_LEN("Set option") },
-  { C_STRING_WITH_LEN("Fetch") },
-  { C_STRING_WITH_LEN("Daemon") },
-  { C_STRING_WITH_LEN("Error") }  // Last command number
+const LEX_STRING command_name[257]={
+  { C_STRING_WITH_LEN("Sleep") },           //0
+  { C_STRING_WITH_LEN("Quit") },            //1
+  { C_STRING_WITH_LEN("Init DB") },         //2
+  { C_STRING_WITH_LEN("Query") },           //3
+  { C_STRING_WITH_LEN("Field List") },      //4
+  { C_STRING_WITH_LEN("Create DB") },       //5
+  { C_STRING_WITH_LEN("Drop DB") },         //6
+  { C_STRING_WITH_LEN("Refresh") },         //7
+  { C_STRING_WITH_LEN("Shutdown") },        //8
+  { C_STRING_WITH_LEN("Statistics") },      //9
+  { C_STRING_WITH_LEN("Processlist") },     //10
+  { C_STRING_WITH_LEN("Connect") },         //11
+  { C_STRING_WITH_LEN("Kill") },            //12
+  { C_STRING_WITH_LEN("Debug") },           //13
+  { C_STRING_WITH_LEN("Ping") },            //14
+  { C_STRING_WITH_LEN("Time") },            //15
+  { C_STRING_WITH_LEN("Delayed insert") },  //16
+  { C_STRING_WITH_LEN("Change user") },     //17
+  { C_STRING_WITH_LEN("Binlog Dump") },     //18
+  { C_STRING_WITH_LEN("Table Dump") },      //19
+  { C_STRING_WITH_LEN("Connect Out") },     //20
+  { C_STRING_WITH_LEN("Register Slave") },  //21
+  { C_STRING_WITH_LEN("Prepare") },         //22
+  { C_STRING_WITH_LEN("Execute") },         //23
+  { C_STRING_WITH_LEN("Long Data") },       //24
+  { C_STRING_WITH_LEN("Close stmt") },      //25
+  { C_STRING_WITH_LEN("Reset stmt") },      //26
+  { C_STRING_WITH_LEN("Set option") },      //27
+  { C_STRING_WITH_LEN("Fetch") },           //28
+  { C_STRING_WITH_LEN("Daemon") },          //29
+  { 0, 0 }, //30
+  { 0, 0 }, //31
+  { 0, 0 }, //32
+  { 0, 0 }, //33
+  { 0, 0 }, //34
+  { 0, 0 }, //35
+  { 0, 0 }, //36
+  { 0, 0 }, //37
+  { 0, 0 }, //38
+  { 0, 0 }, //39
+  { 0, 0 }, //40
+  { 0, 0 }, //41
+  { 0, 0 }, //42
+  { 0, 0 }, //43
+  { 0, 0 }, //44
+  { 0, 0 }, //45
+  { 0, 0 }, //46
+  { 0, 0 }, //47
+  { 0, 0 }, //48
+  { 0, 0 }, //49
+  { 0, 0 }, //50
+  { 0, 0 }, //51
+  { 0, 0 }, //52
+  { 0, 0 }, //53
+  { 0, 0 }, //54
+  { 0, 0 }, //55
+  { 0, 0 }, //56
+  { 0, 0 }, //57
+  { 0, 0 }, //58
+  { 0, 0 }, //59
+  { 0, 0 }, //60
+  { 0, 0 }, //61
+  { 0, 0 }, //62
+  { 0, 0 }, //63
+  { 0, 0 }, //64
+  { 0, 0 }, //65
+  { 0, 0 }, //66
+  { 0, 0 }, //67
+  { 0, 0 }, //68
+  { 0, 0 }, //69
+  { 0, 0 }, //70
+  { 0, 0 }, //71
+  { 0, 0 }, //72
+  { 0, 0 }, //73
+  { 0, 0 }, //74
+  { 0, 0 }, //75
+  { 0, 0 }, //76
+  { 0, 0 }, //77
+  { 0, 0 }, //78
+  { 0, 0 }, //79
+  { 0, 0 }, //80
+  { 0, 0 }, //81
+  { 0, 0 }, //82
+  { 0, 0 }, //83
+  { 0, 0 }, //84
+  { 0, 0 }, //85
+  { 0, 0 }, //86
+  { 0, 0 }, //87
+  { 0, 0 }, //88
+  { 0, 0 }, //89
+  { 0, 0 }, //90
+  { 0, 0 }, //91
+  { 0, 0 }, //92
+  { 0, 0 }, //93
+  { 0, 0 }, //94
+  { 0, 0 }, //95
+  { 0, 0 }, //96
+  { 0, 0 }, //97
+  { 0, 0 }, //98
+  { 0, 0 }, //99
+  { 0, 0 }, //100
+  { 0, 0 }, //101
+  { 0, 0 }, //102
+  { 0, 0 }, //103
+  { 0, 0 }, //104
+  { 0, 0 }, //105
+  { 0, 0 }, //106
+  { 0, 0 }, //107
+  { 0, 0 }, //108
+  { 0, 0 }, //109
+  { 0, 0 }, //110
+  { 0, 0 }, //111
+  { 0, 0 }, //112
+  { 0, 0 }, //113
+  { 0, 0 }, //114
+  { 0, 0 }, //115
+  { 0, 0 }, //116
+  { 0, 0 }, //117
+  { 0, 0 }, //118
+  { 0, 0 }, //119
+  { 0, 0 }, //120
+  { 0, 0 }, //121
+  { 0, 0 }, //122
+  { 0, 0 }, //123
+  { 0, 0 }, //124
+  { 0, 0 }, //125
+  { 0, 0 }, //126
+  { 0, 0 }, //127
+  { 0, 0 }, //128
+  { 0, 0 }, //129
+  { 0, 0 }, //130
+  { 0, 0 }, //131
+  { 0, 0 }, //132
+  { 0, 0 }, //133
+  { 0, 0 }, //134
+  { 0, 0 }, //135
+  { 0, 0 }, //136
+  { 0, 0 }, //137
+  { 0, 0 }, //138
+  { 0, 0 }, //139
+  { 0, 0 }, //140
+  { 0, 0 }, //141
+  { 0, 0 }, //142
+  { 0, 0 }, //143
+  { 0, 0 }, //144
+  { 0, 0 }, //145
+  { 0, 0 }, //146
+  { 0, 0 }, //147
+  { 0, 0 }, //148
+  { 0, 0 }, //149
+  { 0, 0 }, //150
+  { 0, 0 }, //151
+  { 0, 0 }, //152
+  { 0, 0 }, //153
+  { 0, 0 }, //154
+  { 0, 0 }, //155
+  { 0, 0 }, //156
+  { 0, 0 }, //157
+  { 0, 0 }, //158
+  { 0, 0 }, //159
+  { 0, 0 }, //160
+  { 0, 0 }, //161
+  { 0, 0 }, //162
+  { 0, 0 }, //163
+  { 0, 0 }, //164
+  { 0, 0 }, //165
+  { 0, 0 }, //166
+  { 0, 0 }, //167
+  { 0, 0 }, //168
+  { 0, 0 }, //169
+  { 0, 0 }, //170
+  { 0, 0 }, //171
+  { 0, 0 }, //172
+  { 0, 0 }, //173
+  { 0, 0 }, //174
+  { 0, 0 }, //175
+  { 0, 0 }, //176
+  { 0, 0 }, //177
+  { 0, 0 }, //178
+  { 0, 0 }, //179
+  { 0, 0 }, //180
+  { 0, 0 }, //181
+  { 0, 0 }, //182
+  { 0, 0 }, //183
+  { 0, 0 }, //184
+  { 0, 0 }, //185
+  { 0, 0 }, //186
+  { 0, 0 }, //187
+  { 0, 0 }, //188
+  { 0, 0 }, //189
+  { 0, 0 }, //190
+  { 0, 0 }, //191
+  { 0, 0 }, //192
+  { 0, 0 }, //193
+  { 0, 0 }, //194
+  { 0, 0 }, //195
+  { 0, 0 }, //196
+  { 0, 0 }, //197
+  { 0, 0 }, //198
+  { 0, 0 }, //199
+  { 0, 0 }, //200
+  { 0, 0 }, //201
+  { 0, 0 }, //202
+  { 0, 0 }, //203
+  { 0, 0 }, //204
+  { 0, 0 }, //205
+  { 0, 0 }, //206
+  { 0, 0 }, //207
+  { 0, 0 }, //208
+  { 0, 0 }, //209
+  { 0, 0 }, //210
+  { 0, 0 }, //211
+  { 0, 0 }, //212
+  { 0, 0 }, //213
+  { 0, 0 }, //214
+  { 0, 0 }, //215
+  { 0, 0 }, //216
+  { 0, 0 }, //217
+  { 0, 0 }, //218
+  { 0, 0 }, //219
+  { 0, 0 }, //220
+  { 0, 0 }, //221
+  { 0, 0 }, //222
+  { 0, 0 }, //223
+  { 0, 0 }, //224
+  { 0, 0 }, //225
+  { 0, 0 }, //226
+  { 0, 0 }, //227
+  { 0, 0 }, //228
+  { 0, 0 }, //229
+  { 0, 0 }, //230
+  { 0, 0 }, //231
+  { 0, 0 }, //232
+  { 0, 0 }, //233
+  { 0, 0 }, //234
+  { 0, 0 }, //235
+  { 0, 0 }, //236
+  { 0, 0 }, //237
+  { 0, 0 }, //238
+  { 0, 0 }, //239
+  { 0, 0 }, //240
+  { 0, 0 }, //241
+  { 0, 0 }, //242
+  { 0, 0 }, //243
+  { 0, 0 }, //244
+  { 0, 0 }, //245
+  { 0, 0 }, //246
+  { 0, 0 }, //247
+  { 0, 0 }, //248
+  { 0, 0 }, //249
+  { 0, 0 }, //250
+  { 0, 0 }, //251
+  { 0, 0 }, //252
+  { 0, 0 }, //253
+  { C_STRING_WITH_LEN("Com_multi") }, //254
+  { C_STRING_WITH_LEN("Error") }  // Last command number 255
 };
 
 const char *xa_state_names[]={
@@ -278,6 +503,10 @@ void init_update_queries(void)
   server_command_flags[COM_SLEEP]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_TIME]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_END]= CF_SKIP_WSREP_CHECK;
+  for (uint i= COM_MDB_GAP_BEG; i <= COM_MDB_GAP_END; i++)
+  {
+    server_command_flags[i]= CF_SKIP_WSREP_CHECK;
+  }
 
   /*
     COM_QUERY, COM_SET_OPTION and COM_STMT_XXX are allowed to pass the early
@@ -290,6 +519,7 @@ void init_update_queries(void)
   server_command_flags[COM_STMT_RESET]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_EXECUTE]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_MULTI]= CF_SKIP_WSREP_CHECK;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -1079,7 +1309,8 @@ bool do_command(THD *thd)
 
   command= (enum enum_server_command) (uchar) packet[0];
 
-  if (command >= COM_END)
+  if (command >= COM_END ||
+      (command >= COM_MDB_GAP_BEG && command <= COM_MDB_GAP_END))
     command= COM_END;				// Wrong command
 
   DBUG_PRINT("info",("Command on %s = %d (%s)",
@@ -1250,6 +1481,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   DBUG_PRINT("info", ("command: %d", command));
 
   inc_thread_running();
+  /* keep it withing 1 byte */
+  compile_time_assert(COM_END == 255);
 
 #ifdef WITH_WSREP
   if (WSREP(thd))
