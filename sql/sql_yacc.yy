@@ -435,7 +435,8 @@ set_local_variable(THD *thd, sp_variable *spv, Item *val)
 
   sp_set= new (thd->mem_root)
          sp_instr_set(lex->sphead->instructions(), lex->spcont,
-                                   spv->offset, it, spv->type, lex, TRUE);
+                                   spv->offset, it, spv->sql_type(),
+                                   lex, TRUE);
 
   return (sp_set == NULL || lex->sphead->add_instr(sp_set));
 }
@@ -534,7 +535,8 @@ create_item_for_sp_var(THD *thd, LEX_STRING name, sp_variable *spvar,
   len_in_q= end_in_q - start_in_q;
 
   item= new (thd->mem_root)
-    Item_splocal(thd, name, spvar->offset, spvar->type, pos_in_q, len_in_q);
+    Item_splocal(thd, name, spvar->offset, spvar->sql_type(),
+                 pos_in_q, len_in_q);
 
 #ifndef DBUG_OFF
   if (item)
@@ -2942,7 +2944,6 @@ sp_param_name_and_type:
             LEX *lex= Lex;
             sp_variable *spvar= $<spvar>2;
 
-            spvar->type= $3.field_type();
             if (lex->sphead->fill_field_definition(thd, lex, lex->last_field))
             {
               MYSQL_YYABORT;
@@ -3060,7 +3061,6 @@ sp_decl:
               if (!last)
                 spvar->field_def= *lex->last_field;
 
-              spvar->type= $4.field_type();
               spvar->default_value= dflt_value_item;
               spvar->field_def.field_name= spvar->name.str;
             
@@ -11455,7 +11455,7 @@ limit_option:
           if (spc && (spv = spc->find_variable($1, false)))
           {
             splocal= new (thd->mem_root)
-              Item_splocal(thd, $1, spv->offset, spv->type,
+              Item_splocal(thd, $1, spv->offset, spv->sql_type(),
                   lip->get_tok_start() - lex->sphead->m_tmp_query,
                   lip->get_ptr() - lip->get_tok_start());
             if (splocal == NULL)
@@ -11695,7 +11695,7 @@ select_outvar:
               MYSQL_YYABORT;
             }
             $$ = Lex->result ? (new (thd->mem_root)
-                                my_var_sp($1, t->offset, t->type,
+                                my_var_sp($1, t->offset, t->sql_type(),
                                           Lex->sphead)) :
                                 NULL;
           }
@@ -13710,7 +13710,7 @@ simple_ident:
 
               Item_splocal *splocal;
               splocal= new (thd->mem_root)
-                         Item_splocal(thd, $1, spv->offset, spv->type,
+                         Item_splocal(thd, $1, spv->offset, spv->sql_type(),
                                       lip->get_tok_start_prev() - lex->sphead->m_tmp_query,
                                       lip->get_tok_end() - lip->get_tok_start_prev());
               if (splocal == NULL)
