@@ -5627,7 +5627,6 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   if (sp)
   {
     Field *field;
-    Column_definition *field_def;
     String tmp_string;
     if (routine_type == TYPE_ENUM_FUNCTION)
     {
@@ -5639,14 +5638,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       get_field(thd->mem_root, proc_table->field[MYSQL_PROC_MYSQL_TYPE],
                 &tmp_string);
       table->field[15]->store(tmp_string.ptr(), tmp_string.length(), cs);
-      field_def= &sp->m_return_field_def;
-      field= make_field(&share, thd->mem_root,
-                        (uchar*) 0, field_def->length,
-                        (uchar*) "", 0, field_def->pack_flag,
-                        field_def->sql_type, field_def->charset,
-                        field_def->geom_type, field_def->srid, Field::NONE,
-                        field_def->interval, "");
-
+      field= sp->m_return_field_def.make_field(&share, thd->mem_root, "");
       field->table= &tbl;
       tbl.in_use= thd;
       store_column_type(table, field, cs, 6);
@@ -5665,7 +5657,6 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     {
       const char *tmp_buff;
       sp_variable *spvar= spcont->find_variable(i);
-      field_def= &spvar->field_def;
       switch (spvar->mode) {
       case sp_variable::MODE_IN:
         tmp_buff= "IN";
@@ -5694,12 +5685,8 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                 &tmp_string);
       table->field[15]->store(tmp_string.ptr(), tmp_string.length(), cs);
 
-      field= make_field(&share, thd->mem_root, (uchar*) 0, field_def->length,
-                        (uchar*) "", 0, field_def->pack_flag,
-                        field_def->sql_type, field_def->charset,
-                        field_def->geom_type, field_def->srid, Field::NONE,
-                        field_def->interval, spvar->name.str);
-
+      field= spvar->field_def.make_field(&share, thd->mem_root,
+                                         spvar->name.str);
       field->table= &tbl;
       tbl.in_use= thd;
       store_column_type(table, field, cs, 6);
@@ -5786,18 +5773,11 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           TABLE_SHARE share;
           TABLE tbl;
           Field *field;
-          Column_definition *field_def= &sp->m_return_field_def;
 
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);
           init_tmp_table_share(thd, &share, "", 0, "", path);
-          field= make_field(&share, thd->mem_root, (uchar*) 0,
-                            field_def->length,
-                            (uchar*) "", 0, field_def->pack_flag,
-                            field_def->sql_type, field_def->charset,
-                            field_def->geom_type, field_def->srid, Field::NONE,
-                            field_def->interval, "");
-
+          field= sp->m_return_field_def.make_field(&share, thd->mem_root, "");
           field->table= &tbl;
           tbl.in_use= thd;
           store_column_type(table, field, cs, 5);

@@ -863,27 +863,17 @@ Field *
 sp_head::create_result_field(uint field_max_length, const char *field_name,
                              TABLE *table)
 {
-  uint field_length;
   Field *field;
 
   DBUG_ENTER("sp_head::create_result_field");
 
-  field_length= !m_return_field_def.length ?
-                field_max_length : m_return_field_def.length;
+  DBUG_ASSERT(field_max_length <= m_return_field_def.length);
 
-  field= ::make_field(table->s,                     /* TABLE_SHARE ptr */
-                      table->in_use->mem_root,
-                      (uchar*) 0,                   /* field ptr */
-                      field_length,                 /* field [max] length */
-                      (uchar*) "",                  /* null ptr */
-                      0,                            /* null bit */
-                      m_return_field_def.pack_flag,
-                      m_return_field_def.sql_type,
-                      m_return_field_def.charset,
-                      m_return_field_def.geom_type, m_return_field_def.srid,
-                      Field::NONE,                  /* unreg check */
-                      m_return_field_def.interval,
-                      field_name ? field_name : (const char *) m_name.str);
+  field= m_return_field_def.make_field(table->s, /* TABLE_SHARE ptr */
+                                       table->in_use->mem_root,
+                                       field_name ?
+                                       field_name :
+                                       (const char *) m_name.str);
 
   field->vcol_info= m_return_field_def.vcol_info;
   if (field)

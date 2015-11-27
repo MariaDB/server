@@ -16981,12 +16981,10 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
   List_iterator_fast<Column_definition> it(field_list);
   while ((cdef= it++))
   {
-    *field= make_field(share, thd->mem_root, 0, cdef->length,
-                       (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
-                       f_maybe_null(cdef->pack_flag) ? 1 : 0,
-                       cdef->pack_flag, cdef->sql_type, cdef->charset,
-                       cdef->geom_type, cdef->srid, cdef->unireg_check,
-                       cdef->interval, cdef->field_name);
+    *field= cdef->make_field(share, thd->mem_root, 0,
+                             (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
+                             f_maybe_null(cdef->pack_flag) ? 1 : 0,
+                             cdef->field_name);
     if (!*field)
       goto error;
     (*field)->init(table);

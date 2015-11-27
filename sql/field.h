@@ -3417,6 +3417,16 @@ public:
 
 extern const LEX_STRING null_lex_str;
 
+
+Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                  uchar *ptr, uint32 field_length,
+                  uchar *null_pos, uchar null_bit,
+                  uint pack_flag, enum_field_types field_type,
+                  CHARSET_INFO *cs,
+                  Field::geometry_type geom_type, uint srid,
+                  Field::utype unireg_check,
+                  TYPELIB *interval, const char *field_name);
+
 /*
   Create field class for CREATE TABLE
 */
@@ -3504,6 +3514,23 @@ public:
             unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
             unireg_check == Field::TIMESTAMP_UN_FIELD ||
             unireg_check == Field::NEXT_NUMBER);
+  }
+
+  Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                    uchar *ptr, uchar *null_pos, uchar null_bit,
+                    const char *field_name_arg) const
+  {
+    return ::make_field(share, mem_root, ptr,
+                        length, null_pos, null_bit,
+                        pack_flag, sql_type, charset,
+                        geom_type, srid, unireg_check, interval,
+                        field_name_arg);
+  }
+  Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                    const char *field_name_arg)
+  {
+    return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
+                      field_name_arg);
   }
 };
 
@@ -3596,14 +3623,6 @@ public:
 };
 
 
-Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                  uchar *ptr, uint32 field_length,
-		  uchar *null_pos, uchar null_bit,
-		  uint pack_flag, enum_field_types field_type,
-		  CHARSET_INFO *cs,
-		  Field::geometry_type geom_type, uint srid,
-		  Field::utype unireg_check,
-		  TYPELIB *interval, const char *field_name);
 uint pack_length_to_packflag(uint type);
 enum_field_types get_blob_type_from_length(ulong length);
 uint32 calc_pack_length(enum_field_types type,uint32 length);
