@@ -16,6 +16,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 --source ../../include/mroonga/skip_freebsd.inc
+--source ../../include/mroonga/skip_osx.inc
 --source ../../include/mroonga/have_64bit.inc
 --source ../../include/mroonga/have_mroonga.inc
 

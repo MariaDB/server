@@ -7,9 +7,16 @@ struct a {int b; int c; };
 struct a d = { .b=1, .c=2 };
 int main() { return 0; }
 " TOKUDB_OK)
+ELSE()
+  IF(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    MESSAGE(WARNING "Not Intel 64 bit CPU")
+  ELSE()
+    MESSAGE(WARNING "Too old CMAKE VERSION. 2.8.9 or higher is required by TokuDB")
+  ENDIF()
 ENDIF()
 
 IF(NOT TOKUDB_OK OR WITHOUT_TOKUDB OR WITHOUT_TOKUDB_STORAGE_ENGINE)
+  MESSAGE(STATUS "TokuDB disabled")
   RETURN()
 ENDIF()
 
