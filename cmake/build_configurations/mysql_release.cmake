@@ -154,6 +154,25 @@ IF(UNIX)
     SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_CXX_FLAGS}")
   ENDIF()
 
+  # IBM Z flags
+  IF(CMAKE_SYSTEM_PROCESSOR MATCHES "s390x")
+    IF(RPM MATCHES "(rhel|centos)6" OR RPM MATCHES "(suse|sles)11")
+      SET(z_flags "-funroll-loops -march=z9-109 -mtune=z10 ")
+    ELSEIF(RPM MATCHES "(rhel|centos)7" OR RPM MATCHES "(suse|sles)12")
+      SET(z_flags "-funroll-loops -march=z196 -mtune=zEC12 ")
+    ELSE()
+      SET(z_flags "")
+    ENDIF()
+
+    IF(CMAKE_COMPILER_IS_GNUCC)
+      SET(CMAKE_C_FLAGS_RELWITHDEBINFO "${z_flags}${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    ENDIF()
+    IF(CMAKE_COMPILER_IS_GNUCXX)
+      SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${z_flags}${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    ENDIF()
+    UNSET(z_flags)
+  ENDIF()
+
   # HPUX flags
   IF(CMAKE_SYSTEM_NAME MATCHES "HP-UX")
     IF(CMAKE_C_COMPILER_ID MATCHES "HP")
