@@ -1869,9 +1869,13 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"%s CPU crc32 instructions",
-		ut_crc32_sse2_enabled ? "Using" : "Not using");
+	if (ut_crc32_sse2_enabled) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using SSE crc32 instructions");
+	} else if (ut_crc32_power8_enabled) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using POWER8 crc32 instructions");
+	} else {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using generic crc32 instructions");
+	}
 
 	if (!srv_read_only_mode) {
 
