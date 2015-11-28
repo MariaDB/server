@@ -242,15 +242,6 @@ public:
   bool is_auto_partitioned;
   bool has_null_value;
   bool column_list;                          // COLUMNS PARTITIONING, 5.5+
-  /**
-    True if pruning has been completed and can not be pruned any further,
-    even if there are subqueries or stored programs in the condition.
-
-    Some times it is needed to run prune_partitions() a second time to prune
-    read partitions after tables are locked, when subquery and
-    stored functions might have been evaluated.
-  */
-  bool is_pruning_completed;
 
   partition_info()
   : get_partition_id(NULL), get_part_partition_id(NULL),
@@ -284,7 +275,7 @@ public:
     list_of_part_fields(FALSE), list_of_subpart_fields(FALSE),
     linear_hash_ind(FALSE), fixed(FALSE),
     is_auto_partitioned(FALSE),
-    has_null_value(FALSE), column_list(FALSE), is_pruning_completed(false)
+    has_null_value(FALSE), column_list(FALSE)
   {
     all_fields_in_PF.clear_all();
     all_fields_in_PPF.clear_all();
@@ -348,46 +339,8 @@ public:
                                    char *file_name,
                                    uint32 *part_id);
   void report_part_expr_error(bool use_subpart_expr);
-  bool set_used_partition(List<Item> &fields,
-                          List<Item> &values,
-                          COPY_INFO &info,
-                          bool copy_default_values,
-                          MY_BITMAP *used_partitions);
-  /**
-    PRUNE_NO - Unable to prune.
-    PRUNE_DEFAULTS - Partitioning field is only set to
-                     DEFAULT values, only need to check
-                     pruning for one row where the DEFAULTS
-                     values are set.
-    PRUNE_YES - Pruning is possible, calculate the used partition set
-                by evaluate the partition_id on row by row basis.
-  */
-  enum enum_can_prune {PRUNE_NO=0, PRUNE_DEFAULTS, PRUNE_YES};
-  bool can_prune_insert(THD *thd,
-                        enum_duplicates duplic,
-                        COPY_INFO &update,
-                        List<Item> &update_fields,
-                        List<Item> &fields,
-                        bool empty_values,
-                        enum_can_prune *can_prune_partitions,
-                        bool *prune_needs_default_values,
-                        MY_BITMAP *used_partitions);
   bool has_same_partitioning(partition_info *new_part_info);
 private:
-  bool is_fields_updated_in_triggers(trg_event_type event_type,
-                                     trg_action_time_type action_time_type)
-  {
-    if (table->triggers)
-    {
-      Trigger *t;
-      for (t= table->triggers->get_trigger(event_type, action_time_type);
-           t;
-           t= t->next)
-        if (t->is_fields_updated_in_trigger(&full_part_field_set))
-          return true;
-    }
-    return false;
-  }
   static int list_part_cmp(const void* a, const void* b);
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
                                  uint start_no);
@@ -399,8 +352,6 @@ private:
                                          const char *part_name);
   bool prune_partition_bitmaps(TABLE_LIST *table_list);
   bool add_named_partition(const char *part_name, uint length);
-  bool is_field_in_part_expr(List<Item> &fields);
-  bool is_full_part_expr_in_fields(List<Item> &fields);
 public:
   bool has_unique_name(partition_element *element);
 };
