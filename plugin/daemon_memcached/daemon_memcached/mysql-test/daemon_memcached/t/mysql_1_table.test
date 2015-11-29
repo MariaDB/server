@@ -1,0 +1,359 @@
+source include/not_valgrind.inc;
+source include/have_memcached_plugin.inc;
+source include/not_windows.inc;
+source include/have_innodb.inc;
+
+--disable_query_log
+CALL mtr.add_suppression("daemon-memcached-w-batch-size': unsigned");
+CALL mtr.add_suppression("Could not obtain server's UPN to be used as target service name");
+CALL mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop");
+--enable_query_log
+
+--enable_connect_log
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+# Create the memcached tables
+--disable_query_log
+source include/memcached_config.inc;
+call mtr.add_suppression("Plugin daemon_memcached");
+--enable_query_log
+
+# describe table for memcache
+--replace_result $DAEMON_MEMCACHED_PORT_0 DAEMON_MEMCACHED_PORT_0
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_0", "test", "t1",
+			       "c1", "c2,c21,c22,c23,c24,c25,c26,c27", "c3", "c4", "c5",
+				"PRIMARY", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_1 DAEMON_MEMCACHED_PORT_1
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_1", "test", "t1",
+			       "c2", "c1, c2", "c3", "c4", "c5", "i12", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_2 DAEMON_MEMCACHED_PORT_2
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_2", "test", "t1",
+			       "c2", "c1,c21", "c3", "c4", "c5", "i12", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_3 DAEMON_MEMCACHED_PORT_3
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_3", "test", "t1",
+			       "c21", "c1,c23,c22", "c3", "c4", "c5", "i14", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_4 DAEMON_MEMCACHED_PORT_4
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_4", "test", "t1",
+			       "c23", "c1,c21,c22,c24", "c3", "c4", "c5", "i15", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_5 DAEMON_MEMCACHED_PORT_5
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_5", "test", "t1",
+			       "c25", "c23,c24,c27,c1", "c3", "c4", "c5", "i16", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_6 DAEMON_MEMCACHED_PORT_6
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_6", "test", "t1",
+			       "c26", "c2, c1", "c3", "c4", "c5", "i17", "|");
+
+USE test;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+CREATE TABLE t1        (c1 VARCHAR(32),
+			c2  VARCHAR(512),
+			c21 VARCHAR(767),
+			c22 VARCHAR(512),
+			c23 VARCHAR(128),
+			c24 VARCHAR(24),
+			c25 VARCHAR(512),
+			c26 VARCHAR(128),
+			c27 VARCHAR(128),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+INSERT INTO t1 VALUES ('D','Duesseldorf','City','98765','Hafen','1','A','a','Z',0,0,0);
+INSERT INTO t1 VALUES ('O','Oldenburg','Mitte','87654','Deich','2','B','b','Y',0,0,0);
+INSERT INTO t1 VALUES ('K','Koeln','West','76543','Rhein','3','C','c','X',0,0,0);
+INSERT INTO t1 VALUES ('S','Stuttgart','Nord','65432','Fernsehturm','4','D','d','U',0,0,0);
+
+CREATE UNIQUE INDEX i12 ON t1(c2);
+CREATE UNIQUE INDEX i14 ON t1(c21);
+CREATE UNIQUE INDEX i15 ON t1(c23);
+CREATE UNIQUE INDEX i16 ON t1(c25);
+CREATE UNIQUE INDEX i17 ON t1(c26);
+
+# Tables must exist before plugin can be started!
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+
+# The following selects are writing all to  memcache otherwise memcache is empty.
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+SELECT SLEEP(2);
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with D,O,K,S of DAEMON_MEMCACHED_PORT_0:\n";
+$val = $memd->get("D");
+if ($val) { print "$val\n"; }
+$val = $memd->get("O");
+if ($val) { print "$val\n"; }
+$val = $memd->get("K");
+if ($val) { print "$val\n"; }
+$val = $memd->get("S");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c1 of DAEMON_MEMCACHED_PORT_0:\n";
+$val = $memd->get('D');
+if ($val) { print "$val\n"; }
+$val = $memd->get("O");
+if ($val) { print "$val\n"; }
+$val = $memd->get('K');
+if ($val) { print "$val\n"; }
+$val = $memd->get('S');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_2}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c2 of DAEMON_MEMCACHED_PORT_2:\n";
+$val = $memd->get('Duesseldorf');
+if ($val) { print "$val\n"; }
+$val = $memd->get("Oldenburg");
+if ($val) { print "$val\n"; }
+$val = $memd->get('Koeln');
+if ($val) { print "$val\n"; }
+$val = $memd->get('Stuttgart');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_1}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c2 of DAEMON_MEMCACHED_PORT_1:\n";
+$val = $memd->get('Duesseldorf');
+if ($val) { print "$val\n"; }
+$val = $memd->get("Oldenburg");
+if ($val) { print "$val\n"; }
+$val = $memd->get('Koeln');
+if ($val) { print "$val\n"; }
+$val = $memd->get('Stuttgart');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_3}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c2,c21,c22 of DAEMON_MEMCACHED_PORT_3:\n";
+$val = $memd->get('City');
+if ($val) { print "$val\n"; }
+$val = $memd->get("Mitte");
+if ($val) { print "$val\n"; }
+$val = $memd->get('West');
+if ($val) { print "$val\n"; }
+$val = $memd->get('Nord');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_4}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c2,c21,c22,c23 of DAEMON_MEMCACHED_PORT_4:\n";
+$val = $memd->get('Hafen');
+if ($val) { print "$val\n"; }
+$val = $memd->get("Deich");
+if ($val) { print "$val\n"; }
+$val = $memd->get('Rhein');
+if ($val) { print "$val\n"; }
+$val = $memd->get('Fernsehturm');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_5}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c23,c24,c25,c26 of DAEMON_MEMCACHED_PORT_5:\n";
+$val = $memd->get('A');
+if ($val) { print "$val\n"; }
+$val = $memd->get("C");
+if ($val) { print "$val\n"; }
+$val = $memd->get('D');
+if ($val) { print "$val\n"; }
+$val = $memd->get('B');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_6}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with c26 of DAEMON_MEMCACHED_PORT_6:\n";
+$val = $memd->get('c');
+if ($val) { print "$val\n"; }
+$val = $memd->get("b");
+if ($val) { print "$val\n"; }
+$val = $memd->get('a');
+if ($val) { print "$val\n"; }
+$val = $memd->get('d');
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_1}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_1:\n";
+$val = $memd->set("Essen","E|Essen");
+$val= $memd->get("Essen");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_2}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_2:\n";
+$val = $memd->set("Essen","E|Neustadt");
+$val = $memd->get("Essen");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_3}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_3:\n";
+$val = $memd->set("Altstadt","E|Hafen|111111");
+$val = $memd->get("Altstadt");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_4}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_4:\n";
+$val = $memd->set('Mahl',"E|Mitte|111111|E");
+$val = $memd->get("Mahl");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_5}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_5:\n";
+$val = $memd->set('E',"Mahlzeit|111111|T|E");
+$val = $memd->get("E");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_6}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in DAEMON_MEMCACHED_PORT_6:\n";
+$val = $memd->set("e","Essen|E");
+$val = $memd->get("e");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21,c22,c23,c24,c25,c26,c27 FROM t1;
+
+DROP TABLE t1;
+
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+
+SET @@global.tx_isolation= @tx_isolation;

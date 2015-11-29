@@ -1,0 +1,318 @@
+source include/not_valgrind.inc;
+source include/have_memcached_plugin.inc;
+source include/not_windows.inc;
+source include/have_innodb.inc;
+
+--disable_query_log
+CALL mtr.add_suppression("daemon-memcached-w-batch-size': unsigned");
+CALL mtr.add_suppression("Could not obtain server's UPN to be used as target service name");
+CALL mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop");
+--enable_query_log
+
+--enable_connect_log
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+# Create the memcached tables
+--disable_query_log
+source include/memcached_config.inc;
+call mtr.add_suppression("Plugin daemon_memcached");
+--enable_query_log
+
+# describe table for memcache
+--replace_result $DAEMON_MEMCACHED_PORT_0 DAEMON_MEMCACHED_PORT_0
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_0", "test", "t1",
+			       "c1", "c2,c21", "c3", "c4", "c5", "PRIMARY", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_1 DAEMON_MEMCACHED_PORT_1
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_1", "test", "t2",
+			       "c11", "c1,c2", "c3", "c4", "c5", "it2c11", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_2 DAEMON_MEMCACHED_PORT_2
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_2", "test", "t3",
+			       "c21", "c2,c1", "c3", "c4", "c5", "it3c21", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_3 DAEMON_MEMCACHED_PORT_3
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_3", "test", "t4",
+			       "c1", "c2,c21,c22", "c3", "c4", "c5", "PRIMARY", "|");
+--replace_result $DAEMON_MEMCACHED_PORT_4 DAEMON_MEMCACHED_PORT_4
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_4", "test", "t5",
+			       "c1", "c2,c21,c22,c23", "c3", "c4", "c5", "PRIMARY", "|");
+
+USE test;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+CREATE TABLE t1        (c1 VARCHAR(32),
+			c2 VARCHAR(1024),
+			c21 VARCHAR(1024),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+CREATE TABLE t2        (c1 VARCHAR(32),
+			c11 VARCHAR(32),
+			c2 VARCHAR(1024),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+CREATE TABLE t3        (c1 VARCHAR(32),
+			c2 VARCHAR(1024),
+			c21 VARCHAR(512),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+CREATE TABLE t4        (c1 VARCHAR(32),
+			c2 VARCHAR(1024),
+			c21 VARCHAR(1024),
+			c22 VARCHAR(1024),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+CREATE TABLE t5        (c1 VARCHAR(32),
+			c2 VARCHAR(1024),
+			c21 VARCHAR(1024),
+			c22 VARCHAR(1024),
+			c23 VARCHAR(1024),
+			c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+INSERT INTO t1 VALUES ('D', 'Darmstadt', 'City', 0, 0, 0);
+INSERT INTO t1 VALUES ('B', 'Berlin', 'Mitte', 0, 0, 0);
+INSERT INTO t1 VALUES ('C', 'Cottbus', 'West', 0, 0 ,0);
+INSERT INTO t1 VALUES ('H', 'Hamburg', 'Norderstedt', 0, 0, 0);
+
+INSERT INTO t2 VALUES ('D', 'Do', 'Dortmund', 0, 0, 0);
+INSERT INTO t2 VALUES ('B', 'Br', 'Bremen', 0, 0, 0);
+INSERT INTO t2 VALUES ('C', 'Ce', 'Celle', 0, 0 ,0);
+INSERT INTO t2 VALUES ('H', 'Ha', 'Hannover', 0, 0, 0);
+
+CREATE UNIQUE INDEX it2c11 ON t2(c11);
+
+INSERT INTO t3 VALUES ('D', 'Detmold', 'City', 0, 0, 0);
+INSERT INTO t3 VALUES ('B', 'Bonn', 'Mitte', 0, 0, 0);
+INSERT INTO t3 VALUES ('A', 'Aachen', 'West', 0, 0 ,0);
+INSERT INTO t3 VALUES ('H', 'Hameln', 'Nord', 0, 0, 0);
+
+CREATE UNIQUE INDEX it3c21 ON t3(c21);
+
+INSERT INTO t4 VALUES ('Z', 'Zossen', 'City', '12345', 0, 0, 0);
+INSERT INTO t4 VALUES ('B', 'Brandenburg', 'Mitte', '23456', 0, 0, 0);
+INSERT INTO t4 VALUES ('M', 'Muenchen', 'West', '34567', 0, 0 ,0);
+INSERT INTO t4 VALUES ('H', 'Husum', 'Nord', '45678', 0, 0, 0);
+
+INSERT INTO t5 VALUES ('D', 'Duesseldorf', 'City', '98765', 'Hafen', 0, 0, 0);
+INSERT INTO t5 VALUES ('O', 'Oldenburg', 'Mitte', '87654', 'Deich', 0, 0, 0);
+INSERT INTO t5 VALUES ('K', 'Koeln', 'West', '76543', 'Rhein', 0, 0 ,0);
+INSERT INTO t5 VALUES ('S', 'Stuttgart', 'Nord', '65432', 'Fernsehturm', 0, 0, 0);
+
+# Tables must exist before plugin can be started!
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+
+# The following selects are writing all to  memcache otherwise memcache is empty.
+--sorted_result
+SELECT c1,c2,c21 FROM t1;
+--sorted_result
+SELECT c1,c2 FROM t2;
+--sorted_result
+SELECT c1,c2,c21 FROM t3;
+--sorted_result
+SELECT c1,c2,c21,c22 FROM t4;
+--sorted_result
+SELECT c1,c2,c21,c22,c23 FROM t5;
+
+SELECT SLEEP(2);
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with D,B,H,C of default:\n";
+$val = $memd->get("D");
+if ($val) { print "$val\n"; }
+$val = $memd->get("B");
+if ($val) { print "$val\n"; }
+$val = $memd->get("H");
+if ($val) { print "$val\n"; }
+$val = $memd->get("C");
+if ($val) { print "$val\n"; }
+$memd->disconnect_all;
+EOF
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd0 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd1 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_1}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd2 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_2}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd3 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_3}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd4 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_4}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results with D,B,H,C of t1:\n";
+$val = $memd0->get('D');
+if ($val) { print "$val\n"; }
+$val = $memd0->get("B");
+if ($val) { print "$val\n"; }
+$val = $memd0->get(''.'H');
+if ($val) { print "$val\n"; }
+$val = $memd0->get('C');
+if ($val) { print "$val\n"; }
+print "Here the memcached results with D,B,H,C of t2:\n";
+$val = $memd1->get("Do");
+if ($val) { print "$val\n"; }
+$val = $memd1->get('Br');
+if ($val) { print "$val\n"; }
+$val = $memd1->get('Ha');
+if ($val) { print "$val\n"; }
+$val = $memd1->get('Ce');
+if ($val) { print "$val\n"; }
+print "Here the memcached results with D,B,H,A of t3:\n";
+$val = $memd2->get("City");
+if ($val) { print "$val\n"; }
+$val = $memd2->get('West');
+if ($val) { print "$val\n"; }
+$val = $memd2->get('Mitte');
+if ($val) { print "$val\n"; }
+$val = $memd2->get('Nord');
+if ($val) { print "$val\n"; }
+print "Here the memcached results with D,O,K,S of t5:\n";
+$val = $memd4->get("D");
+if ($val) { print "$val\n"; }
+$val = $memd4->get('O');
+if ($val) { print "$val\n"; }
+$val = $memd4->get('K');
+if ($val) { print "$val\n"; }
+$val = $memd4->get('S');
+if ($val) { print "$val\n"; }
+print "Here the memcached results with Z,B,H,M of t4:\n";
+$val = $memd3->get("Z");
+if ($val) { print "$val\n"; }
+$val = $memd3->get('B');
+if ($val) { print "$val\n"; }
+$val = $memd3->get('H');
+if ($val) { print "$val\n"; }
+$val = $memd3->get('M');
+if ($val) { print "$val\n"; }
+print "Here the memcached results with D,B,H,C of t2:\n";
+$val = $memd1->get("D");
+if ($val) { print "$val\n"; }
+$val = $memd1->get('B');
+if ($val) { print "$val\n"; }
+$val = $memd1->get('H');
+if ($val) { print "$val\n"; }
+$val = $memd1->get('C');
+if ($val) { print "$val\n"; }
+$memd0->disconnect_all;
+$memd1->disconnect_all;
+$memd2->disconnect_all;
+$memd3->disconnect_all;
+$memd4->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21 FROM t1;
+--sorted_result
+SELECT c1,c2 FROM t2;
+--sorted_result
+SELECT c1,c2,c21 FROM t3;
+--sorted_result
+SELECT c1,c2,c21,c22 FROM t4;
+--sorted_result
+SELECT c1,c2,c21,c22,c23 FROM t5;
+
+perl;
+use DBI;
+use Cache::Memcached;
+my $memd0 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd1 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_1}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd2 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_2}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd3 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_3}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my $memd4 = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_4}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+print "Here the memcached results after set in default:\n";
+$val = $memd0->set("E","Essen|Ost");
+$val = $memd0->get("E");
+if ($val) { print "$val\n"; }
+print "Here the memcached results after set in t2:\n";
+$val = $memd1->set("E","Es|Essen");
+$val = $memd1->get("E");
+if ($val) { print "$val\n"; }
+print "Here the memcached results after set in t5:\n";
+$val = $memd4->set("E","Essen|Mitte|111111|Mahlzeit");
+$val = $memd4->get("E");
+if ($val) { print "$val\n"; }
+print "Here the memcached results after set in t3:\n";
+$val = $memd2->set('E',"Essen|Ost");
+$val = $memd2->get("E");
+if ($val) { print "$val\n"; }
+print "Here the memcached results after set in t4:\n";
+$val = $memd3->set('E',"Essen|Mitte|111111");
+$val = $memd3->get('E');
+if ($val) { print "$val\n"; }
+print "Here the memcached results after set in t5:\n";
+$val = $memd4->set("E","Essen|Aussen|111111|Mahlzeit");
+$val = $memd4->get("E");
+if ($val) { print "$val\n"; }
+$memd0->disconnect_all;
+$memd1->disconnect_all;
+$memd2->disconnect_all;
+$memd3->disconnect_all;
+$memd4->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2,c21 FROM t1;
+--sorted_result
+SELECT c1,c2 FROM t2;
+--sorted_result
+SELECT c1,c2,c21 FROM t3;
+--sorted_result
+SELECT c1,c2,c21,c22 FROM t4;
+--sorted_result
+SELECT c1,c2,c21,c22,c23 FROM t5;
+
+DROP TABLE t1,t2,t3,t4,t5;
+
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+
+SET @@global.tx_isolation= @tx_isolation;

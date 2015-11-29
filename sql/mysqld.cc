@@ -2094,6 +2094,8 @@ void clean_up(bool print_message)
   stop_handle_manager();
   release_ddl_log();
 
+  memcached_shutdown();
+
   logger.cleanup_base();
 
   injector::free_instance();

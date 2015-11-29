@@ -1,0 +1,4 @@
+Created 2012-Feb-29.
+Author: Horst Hunger
+To run the memcached test you have to download and install the Memcached.pm module in Perl.
+It has to be installed in the Cache directory.

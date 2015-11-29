@@ -485,7 +485,7 @@ static PSI_file_info	all_innodb_files[] = {
 #endif /* __WIN__ */
 
 /** Set up InnoDB API callback function array */
-ib_cb_t innodb_api_cb[] = {
+__attribute__ ((visibility ("default"))) ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_cursor_open_table,
 	(ib_cb_t) ib_cursor_read_row,
 	(ib_cb_t) ib_cursor_insert_row,
@@ -546,6 +546,7 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_get_idx_field_name,
 	(ib_cb_t) ib_trx_get_start_time,
 	(ib_cb_t) ib_cfg_bk_commit_interval,
+	(ib_cb_t) ib_ut_strerr,
 	(ib_cb_t) ib_cursor_stmt_begin,
 	(ib_cb_t) ib_trx_read_only
 };

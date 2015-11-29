@@ -594,6 +594,16 @@ sub process_opts {
       # Fallthrough, add the --default-time-zone option
     }
 
+    # The --force-restart option forces a restart even if no special
+    # option is set. If the options are the same as next testcase
+    # there is no need to restart after the testcase
+    # has completed
+    if ( $opt eq "--force-restart" )
+    {
+      $tinfo->{'force_restart'}= 1;
+      next;
+    }
+
     # Ok, this was a real option, add it
     push(@{$tinfo->{$opt_name}}, $opt);
   }
