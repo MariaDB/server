@@ -68,10 +68,12 @@ int main(int argc, char **argv)
   my_bool first_argument_uses_wildcards=0;
   char *wild;
   MYSQL mysql;
+  static char **defaults_argv;
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   if (load_defaults("my",load_default_groups,&argc,&argv))
     exit(1);
+  defaults_argv=argv;
 
   get_options(&argc,&argv);
 
@@ -150,7 +152,8 @@ int main(int argc, char **argv)
 			   0)))
   {
     fprintf(stderr,"%s: %s\n",my_progname,mysql_error(&mysql));
-    exit(1);
+    error= 1;
+    goto error;
   }
   mysql.reconnect= 1;
 
@@ -169,11 +172,14 @@ int main(int argc, char **argv)
       error=list_fields(&mysql,argv[0],argv[1],wild);
     break;
   }
+error:
   mysql_close(&mysql);			/* Close & free connection */
   my_free(opt_password);
+  mysql_server_end();
 #ifdef HAVE_SMEM
   my_free(shared_memory_base_name);
 #endif
+  free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(error ? 1 : 0);
   return 0;				/* No compiler warnings */

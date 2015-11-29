@@ -4294,7 +4294,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           rgi->gtid_pending= false;
 
           gtid= rgi->current_gtid;
-          if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
+          if (rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id,
+                                                       true, false))
           {
             int errcode= thd->get_stmt_da()->sql_errno();
             if (!is_parallel_retry_error(rgi, errcode))
@@ -4513,7 +4514,7 @@ compare_errors:
 
 end:
   if (sub_id && !thd->is_slave_error)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
+    rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
@@ -6281,7 +6282,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
+    rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     flush_relay_log_info(rli);
     
     /*
@@ -6751,7 +6752,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
     for (i= 0; i < count; ++i)
     {
       if (!(sub_id_list[i]=
-            rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+            rpl_global_gtid_slave_state->next_sub_id(list[i].domain_id)))
       {
         my_free(list);
         my_free(sub_id_list);
@@ -6806,7 +6807,7 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
       for (i= 0; i < count; ++i)
       {
         if (!(sub_id_list[i]=
-              rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+              rpl_global_gtid_slave_state->next_sub_id(list[i].domain_id)))
         {
           my_free(list);
           my_free(sub_id_list);
@@ -6879,11 +6880,11 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     uint32 i;
     for (i= 0; i < count; ++i)
     {
-      if ((ret= rpl_global_gtid_slave_state.record_gtid(thd, &list[i],
+      if ((ret= rpl_global_gtid_slave_state->record_gtid(thd, &list[i],
                                                         sub_id_list[i],
                                                         false, false)))
         return ret;
-      rpl_global_gtid_slave_state.update_state_hash(sub_id_list[i], &list[i],
+      rpl_global_gtid_slave_state->update_state_hash(sub_id_list[i], &list[i],
                                                     NULL);
     }
   }
@@ -7383,7 +7384,8 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     rgi->gtid_pending= false;
 
     gtid= rgi->current_gtid;
-    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
+    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, true,
+                                                  false);
     if (err)
     {
       int ec= thd->get_stmt_da()->sql_errno();
@@ -7416,7 +7418,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->mdl_context.release_transactional_locks();
 
   if (!res && sub_id)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
+    rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Increment the global status commit count variable
@@ -8169,7 +8171,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     rgi->inc_event_relay_log_pos();
   else if (!rgi->is_parallel_exec)
   {
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
+    rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
     flush_relay_log_info(rli);
   }

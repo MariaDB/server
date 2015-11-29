@@ -1533,6 +1533,8 @@ static void cleanup()
   my_free(host);
   my_free(user);
   my_free(const_cast<char*>(dirname_for_local_load));
+  my_free(start_datetime_str);
+  my_free(stop_datetime_str);
 
   delete binlog_filter;
   delete glob_description_event;
@@ -1719,7 +1721,7 @@ static int parse_args(int *argc, char*** argv)
     exit(ho_error);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
-  if (debug_check_flag)
+  else if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
   return 0;
 }
@@ -2044,6 +2046,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
             if ((rev->ident_len != logname_len) ||
                 memcmp(rev->new_log_ident, logname, logname_len))
             {
+              delete ev;
               DBUG_RETURN(OK_CONTINUE);
             }
             /*
@@ -2052,6 +2055,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
               log. If we are running with to_last_remote_log, we print it,
               because it serves as a useful marker between binlogs then.
             */
+            delete ev;
             continue;
           }
           len= 1; // fake Rotate, so don't increment old_off
@@ -2082,7 +2086,9 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
       Exit_status retval;
 
       if ((file= load_processor.prepare_new_file_for_old_format(le,fname)) < 0)
+      {
         DBUG_RETURN(ERROR_STOP);
+      }
 
       retval= process_event(print_event_info, ev, old_off, logname);
       if (retval != OK_CONTINUE)
@@ -2450,23 +2456,23 @@ int main(int argc, char** argv)
   if (load_defaults("my", load_groups, &argc, &argv))
     exit(1);
 
+  defaults_argv= argv;
+
   if (!(binlog_filter= new Rpl_filter))
   {
     error("Failed to create Rpl_filter");
-    exit(1);
+    goto err;
   }
 
-  defaults_argv= argv;
   parse_args(&argc, (char***)&argv);
 
   if (!argc || opt_version)
   {
     if (!argc)
       usage();
-    cleanup();
-    free_defaults(defaults_argv);
-    my_end(my_end_arg);
-    exit(!opt_version);
+    if (!opt_version)
+      retval= ERROR_STOP;
+    goto err;
   }
 
   if (opt_base64_output_mode == BASE64_OUTPUT_UNSPEC)
@@ -2486,12 +2492,18 @@ int main(int argc, char** argv)
   if (!dirname_for_local_load)
   {
     if (init_tmpdir(&tmpdir, 0))
-      exit(1);
+    {
+      retval= ERROR_STOP;
+      goto err;
+    }
     dirname_for_local_load= my_strdup(my_tmpdir(&tmpdir), MY_WME);
   }
 
   if (load_processor.init())
-    exit(1);
+  {
+    retval= ERROR_STOP;
+    goto err;
+  }
   if (dirname_for_local_load)
     load_processor.init_by_dir_name(dirname_for_local_load);
   else
@@ -2561,11 +2573,19 @@ int main(int argc, char** argv)
   free_defaults(defaults_argv);
   my_free_open_file_info();
   load_processor.destroy();
+  mysql_server_end();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
 
   exit(retval == ERROR_STOP ? 1 : 0);
   /* Keep compilers happy. */
+  DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
+
+err:
+  cleanup();
+  free_defaults(defaults_argv);
+  my_end(my_end_arg);
+  exit(retval == ERROR_STOP ? 1 : 0);
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 

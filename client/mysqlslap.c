@@ -168,6 +168,7 @@ static ulonglong auto_generate_sql_number;
 const char *concurrency_str= NULL;
 static char *create_string;
 uint *concurrency;
+static char mysql_charsets_dir[FN_REFLEN+1];
 
 const char *default_dbug_option="d:t:o,/tmp/mysqlslap.trace";
 const char *opt_csv_str;
@@ -372,6 +373,7 @@ int main(int argc, char **argv)
     {
       fprintf(stderr,"%s: Error when connecting to server: %s\n",
               my_progname,mysql_error(&mysql));
+      mysql_close(&mysql);
       free_defaults(defaults_argv);
       my_end(0);
       exit(1);
@@ -417,8 +419,7 @@ int main(int argc, char **argv)
   pthread_mutex_destroy(&sleeper_mutex);
   pthread_cond_destroy(&sleep_threshhold);
 
-  if (!opt_only_print) 
-    mysql_close(&mysql); /* Close & free connection */
+  mysql_close(&mysql); /* Close & free connection */
 
   /* now free all the strings we created */
   my_free(opt_password);
@@ -585,6 +586,9 @@ static struct my_option my_long_options[] =
     "Number of row inserts to perform for each thread (default is 100).",
     &auto_generate_sql_number, &auto_generate_sql_number,
     0, GET_ULL, REQUIRED_ARG, 100, 0, 0, 0, 0, 0},
+  {"character-sets-dir", OPT_CHARSETS_DIR,
+   "Directory for character set files.", &charsets_dir,
+   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"commit", OPT_SLAP_COMMIT, "Commit records every X number of statements.",
     &commit_rate, &commit_rate, 0, GET_UINT, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
@@ -781,6 +785,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case '#':
     DBUG_PUSH(argument ? argument : default_dbug_option);
     debug_check_flag= 1;
+    break;
+  case OPT_CHARSETS_DIR:
+    strmake_buf(mysql_charsets_dir, argument);
+    charsets_dir = mysql_charsets_dir;
     break;
   case OPT_SLAP_CSV:
     if (!argument)
@@ -1863,20 +1871,20 @@ pthread_handler_t run_task(void *p)
   }
   pthread_mutex_unlock(&sleeper_mutex);
 
-  if (!(mysql= mysql_init(NULL)))
-  {
-    fprintf(stderr,"%s: mysql_init() failed ERROR : %s\n",
-            my_progname, mysql_error(mysql));
-    exit(0);
-  }
-  set_mysql_connect_options(mysql);
-
   if (mysql_thread_init())
   {
-    fprintf(stderr,"%s: mysql_thread_init() failed ERROR : %s\n",
-            my_progname, mysql_error(mysql));
+    fprintf(stderr,"%s: mysql_thread_init() failed\n", my_progname);
     exit(0);
   }
+
+  if (!(mysql= mysql_init(NULL)))
+  {
+    fprintf(stderr,"%s: mysql_init() failed\n", my_progname);
+    mysql_thread_end();
+    exit(0);
+  }
+
+  set_mysql_connect_options(mysql);
 
   DBUG_PRINT("info", ("trying to connect to host %s as user %s", host, user));
 
@@ -1995,8 +2003,7 @@ end:
   if (commit_rate)
     run_query(mysql, "COMMIT", strlen("COMMIT"));
 
-  if (!opt_only_print) 
-    mysql_close(mysql);
+  mysql_close(mysql);
 
   mysql_thread_end();
 

@@ -1112,7 +1112,7 @@ handle_rpl_parallel_thread(void *arg)
         if (opt_gtid_ignore_duplicates)
         {
           int res=
-            rpl_global_gtid_slave_state.check_duplicate_gtid(&rgi->current_gtid,
+            rpl_global_gtid_slave_state->check_duplicate_gtid(&rgi->current_gtid,
                                                              rgi);
           if (res < 0)
           {
