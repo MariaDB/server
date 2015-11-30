@@ -17,6 +17,7 @@
 
 --source ../../include/mroonga/have_64bit.inc
 --source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/skip_osx.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS ranges;
