@@ -715,6 +715,7 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; }
 };
@@ -747,6 +748,10 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return hybrid_type; }
+  enum_field_types field_type() const
+  {
+    return field_type_by_result_type();
+  }
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -1258,6 +1263,9 @@ class Item_sum_udf_float :public Item_udf_sum
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  enum Item_result result_type () const { return REAL_RESULT; }
+  enum Item_result cmp_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1278,6 +1286,7 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() { decimals=0; max_length=21; }
   Item *copy_or_same(THD* thd);
 };
@@ -1317,6 +1326,7 @@ public:
   }
   my_decimal *val_decimal(my_decimal *dec);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void fix_length_and_dec();
   Item *copy_or_same(THD* thd);
 };
@@ -1336,6 +1346,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1484,6 +1495,7 @@ public:
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
   const char *func_name() const { return "group_concat"; }
   virtual Item_result result_type () const { return STRING_RESULT; }
+  virtual Item_result cmp_type () const { return STRING_RESULT; }
   virtual Field *make_string_field(TABLE *table);
   enum_field_types field_type() const
   {

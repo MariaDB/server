@@ -378,6 +378,7 @@ public:
   void no_rows_in_result();
 
   enum Item_result result_type() const { return INT_RESULT;}
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   longlong val_int();
   double val_real();
   String *val_str(String*);

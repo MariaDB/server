@@ -28,6 +28,7 @@ class Type_handler
 protected:
   const Type_handler *string_type_handler(uint max_octet_length) const;
 public:
+  static const Type_handler *get_handler_by_field_type(enum_field_types type);
   virtual enum_field_types field_type() const= 0;
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
@@ -306,7 +307,6 @@ class Type_handler_hybrid_field_type: public Type_handler
 {
   const Type_handler *m_type_handler;
   const Type_handler *get_handler_by_result_type(Item_result type) const;
-  const Type_handler *get_handler_by_field_type(enum_field_types type) const;
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(enum_field_types type)

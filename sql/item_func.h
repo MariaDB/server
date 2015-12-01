@@ -376,6 +376,7 @@ public:
   longlong val_int()
     { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
   enum Item_result result_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
 };
@@ -595,6 +596,7 @@ public:
   double val_real();
   String *val_str(String*str);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() {}
 };
 
@@ -1115,6 +1117,7 @@ public:
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   Item_result result_type() const { return args[0]->result_type(); }
+  enum_field_types field_type() const { return args[0]->field_type(); }
   void fix_length_and_dec()
   {
     collation= args[0]->collation;
@@ -1473,6 +1476,7 @@ class Item_func_udf_float :public Item_udf_func
   }
   double val_real();
   String *val_str(String *str);
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
 };
 
@@ -1489,6 +1493,7 @@ public:
   double val_real() { return (double) Item_func_udf_int::val_int(); }
   String *val_str(String *str);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() { decimals= 0; max_length= 21; }
 };
 
@@ -1505,6 +1510,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String *str);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
 };
 
@@ -1542,6 +1548,7 @@ public:
     return dec_buf;
   }
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void fix_length_and_dec();
 };
 
@@ -1851,6 +1858,7 @@ public:
   void print_for_load(THD *thd, String *str);
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
 };
 
 

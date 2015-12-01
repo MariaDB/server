@@ -755,16 +755,20 @@ public:
   { return save_in_field(field, 1); }
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
+  const Type_handler  *type_handler() const
+  {
+    return get_handler_by_field_type(field_type());
+  }
   /* result_type() of an item specifies how the value should be returned */
-  Item_result result_type() const { return REAL_RESULT; }
+  Item_result result_type() const { return type_handler()->result_type(); }
   /* ... while cmp_type() specifies how it should be compared */
-  Item_result cmp_type() const;
+  Item_result cmp_type() const { return type_handler()->cmp_type(); }
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
   enum_field_types string_field_type() const
   {
     return Type_handler::string_type_handler(max_length)->field_type();
   }
-  enum_field_types field_type() const;
+  enum_field_types field_type_by_result_type() const;
   virtual enum Type type() const =0;
   /*
     real_type() is the type of base item.  This is same as type() for
@@ -2111,6 +2115,7 @@ public:
 
   inline enum Type type() const;
   inline Item_result result_type() const;
+  enum_field_types field_type() const { return this_item()->field_type(); }
 
 public:
   /*
@@ -2170,6 +2175,11 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool is_null();
   virtual void print(String *str, enum_query_type query_type);
+
+  enum_field_types field_type() const
+  {
+    return value_item->field_type();
+  }
 
   Item_result result_type() const
   {
@@ -2328,6 +2338,7 @@ public:
   void make_field(THD *thd, Send_field *tmp_field);
   CHARSET_INFO *charset_for_protocol(void) const
   { return field->charset_for_protocol(); }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
 };
 
 

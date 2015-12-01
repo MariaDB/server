@@ -165,6 +165,7 @@ public:
   }
   const char *func_name() const { return "month"; }
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() 
   { 
     decimals= 0;
@@ -379,6 +380,7 @@ public:
      return (odbc_type ? "dayofweek" : "weekday");
   }
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec()
   {
     decimals= 0;
@@ -401,6 +403,7 @@ class Item_func_dayname :public Item_func_weekday
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   void fix_length_and_dec();
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
   bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}

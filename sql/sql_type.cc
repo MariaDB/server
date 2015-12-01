@@ -111,8 +111,7 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 
 
 const Type_handler *
-Type_handler_hybrid_field_type::get_handler_by_field_type(enum_field_types type)
-                                                          const
+Type_handler::get_handler_by_field_type(enum_field_types type)
 {
   switch (type) {
   case MYSQL_TYPE_DECIMAL:     return &type_handler_olddecimal;
