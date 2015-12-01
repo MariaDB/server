@@ -768,7 +768,6 @@ public:
   {
     return Type_handler::string_type_handler(max_length)->field_type();
   }
-  enum_field_types field_type_by_result_type() const;
   virtual enum Type type() const =0;
   /*
     real_type() is the type of base item.  This is same as type() for

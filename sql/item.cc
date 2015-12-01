@@ -5350,22 +5350,6 @@ void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
 }
 
 
-enum_field_types Item::field_type_by_result_type() const
-{
-  switch (result_type()) {
-  case STRING_RESULT:  return string_field_type();
-  case INT_RESULT:     return MYSQL_TYPE_LONGLONG;
-  case DECIMAL_RESULT: return MYSQL_TYPE_NEWDECIMAL;
-  case REAL_RESULT:    return MYSQL_TYPE_DOUBLE;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-    return MYSQL_TYPE_VARCHAR;
-  }
-  return MYSQL_TYPE_VARCHAR;
-}
-
-
 /**
   Verifies that the input string is well-formed according to its character set.
   @param send_error   If true, call my_error if string is not well-formed.

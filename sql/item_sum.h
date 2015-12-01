@@ -721,10 +721,10 @@ public:
 };
 
 
-class Item_sum_sum :public Item_sum_num
+class Item_sum_sum :public Item_sum_num,
+                    public Type_handler_hybrid_field_type
 {
 protected:
-  Item_result hybrid_type;
   double sum;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
@@ -747,11 +747,12 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return hybrid_type; }
   enum_field_types field_type() const
-  {
-    return field_type_by_result_type();
-  }
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
