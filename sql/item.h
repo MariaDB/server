@@ -2031,13 +2031,12 @@ inline bool Item_sp_variable::send(Protocol *protocol, String *str)
 
 class Item_splocal :public Item_sp_variable,
                     private Settable_routine_parameter,
-                    public Rewritable_query_parameter
+                    public Rewritable_query_parameter,
+                    public Type_handler_hybrid_field_type
 {
   uint m_var_idx;
 
   Type m_type;
-  Item_result m_result_type;
-  enum_field_types m_field_type;
 public:
   Item_splocal(THD *thd, const LEX_STRING &sp_var_name, uint sp_var_idx,
                enum_field_types sp_var_type,
@@ -2055,8 +2054,12 @@ public:
   inline uint get_var_idx() const;
 
   inline enum Type type() const;
-  inline Item_result result_type() const;
-  inline enum_field_types field_type() const { return m_field_type; }
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
 
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
@@ -2091,12 +2094,6 @@ inline enum Item::Type Item_splocal::type() const
 {
   return m_type;
 }
-
-inline Item_result Item_splocal::result_type() const
-{
-  return m_result_type;
-}
-
 
 /*****************************************************************************
   A reference to case expression in SP, used in runtime.

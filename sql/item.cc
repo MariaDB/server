@@ -1437,8 +1437,7 @@ Item_splocal::Item_splocal(THD *thd, const LEX_STRING &sp_var_name,
 
   sp_var_type= real_type_to_type(sp_var_type);
   m_type= sp_map_item_type(sp_var_type);
-  m_field_type= sp_var_type;
-  m_result_type= sp_map_result_type(sp_var_type);
+  set_handler_by_field_type(sp_var_type);
 }
 
 
