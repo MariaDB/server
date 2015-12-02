@@ -2071,6 +2071,7 @@ static void mysqld_exit(int exit_code)
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   shutdown_performance_schema();        // we do it as late as possible
 #endif
+  set_malloc_size_cb(NULL);
   cleanup_tls();
   DBUG_LEAVE;
   sd_notify(0, "STATUS=MariaDB server is down");
