@@ -5843,7 +5843,7 @@ drop_create_field:
     Key *key;
     List_iterator<Key> key_it(alter_info->key_list);
     uint n_key;
-    const char *keyname;
+    const char *keyname= NULL;
     while ((key=key_it++))
     {
       if (!key->if_not_exists() && !key->or_replace())
