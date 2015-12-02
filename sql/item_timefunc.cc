@@ -1558,9 +1558,9 @@ String *Item_temporal_hybrid_func::val_str_ascii(String *str)
     return (String *) 0;
 
   /* Check that the returned timestamp type matches to the function type */
-  DBUG_ASSERT(cached_field_type == MYSQL_TYPE_STRING ||
+  DBUG_ASSERT(field_type() == MYSQL_TYPE_STRING ||
               ltime.time_type == MYSQL_TIMESTAMP_NONE ||
-              mysql_type_to_time_type(cached_field_type) == ltime.time_type);
+              mysql_type_to_time_type(field_type()) == ltime.time_type);
   return str;
 }
 
@@ -2081,7 +2081,7 @@ void Item_date_add_interval::fix_length_and_dec()
       (This is because you can't know if the string contains a DATE,
       MYSQL_TIME or DATETIME argument)
   */
-  cached_field_type= MYSQL_TYPE_STRING;
+  set_handler_by_field_type(MYSQL_TYPE_STRING);
   arg0_field_type= args[0]->field_type();
   uint interval_dec= 0;
   if (int_type == INTERVAL_MICROSECOND ||
@@ -2095,25 +2095,25 @@ void Item_date_add_interval::fix_length_and_dec()
       arg0_field_type == MYSQL_TYPE_TIMESTAMP)
   {
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME), interval_dec);
-    cached_field_type= MYSQL_TYPE_DATETIME;
+    set_handler_by_field_type(MYSQL_TYPE_DATETIME);
   }
   else if (arg0_field_type == MYSQL_TYPE_DATE)
   {
     if (int_type <= INTERVAL_DAY || int_type == INTERVAL_YEAR_MONTH)
-      cached_field_type= arg0_field_type;
+      set_handler_by_field_type(arg0_field_type);
     else
     {
       decimals= interval_dec;
-      cached_field_type= MYSQL_TYPE_DATETIME;
+      set_handler_by_field_type(MYSQL_TYPE_DATETIME);
     }
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME), interval_dec);
     if (int_type >= INTERVAL_DAY && int_type != INTERVAL_YEAR_MONTH)
-      cached_field_type= arg0_field_type;
+      set_handler_by_field_type(arg0_field_type);
     else
-      cached_field_type= MYSQL_TYPE_DATETIME;
+      set_handler_by_field_type(MYSQL_TYPE_DATETIME);
   }
   else
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME), interval_dec);
@@ -2126,7 +2126,7 @@ bool Item_date_add_interval::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   INTERVAL interval;
 
   if (args[0]->get_date(ltime,
-                        cached_field_type == MYSQL_TYPE_TIME ?
+                        field_type() == MYSQL_TYPE_TIME ?
                         TIME_TIME_ONLY : 0) ||
       get_interval_value(args[1], int_type, &interval))
     return (null_value=1);
@@ -2630,20 +2630,20 @@ void Item_func_add_time::fix_length_and_dec()
     - Otherwise the result is MYSQL_TYPE_STRING
   */
 
-  cached_field_type= MYSQL_TYPE_STRING;
+  set_handler_by_field_type(MYSQL_TYPE_STRING);
   arg0_field_type= args[0]->field_type();
   if (arg0_field_type == MYSQL_TYPE_DATE ||
       arg0_field_type == MYSQL_TYPE_DATETIME ||
       arg0_field_type == MYSQL_TYPE_TIMESTAMP ||
       is_date)
   {
-    cached_field_type= MYSQL_TYPE_DATETIME;
+    set_handler_by_field_type(MYSQL_TYPE_DATETIME);
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME),
                      args[1]->temporal_precision(MYSQL_TYPE_TIME));
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
-    cached_field_type= MYSQL_TYPE_TIME;
+    set_handler_by_field_type(MYSQL_TYPE_TIME);
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME),
                      args[1]->temporal_precision(MYSQL_TYPE_TIME));
   }
@@ -2669,7 +2669,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   longlong seconds;
   int l_sign= sign;
 
-  if (cached_field_type == MYSQL_TYPE_DATETIME)
+  if (Item_func_add_time::field_type() == MYSQL_TYPE_DATETIME)
   {
     // TIMESTAMP function OR the first argument is DATE/DATETIME/TIMESTAMP
     if (get_arg0_date(&l_time1, 0) || 
@@ -3149,7 +3149,7 @@ void Item_func_str_to_date::fix_length_and_dec()
 #endif
   }
 
-  cached_field_type= MYSQL_TYPE_DATETIME;
+  set_handler_by_field_type(MYSQL_TYPE_DATETIME);
   decimals= TIME_SECOND_PART_DIGITS;
   if ((const_item= args[1]->const_item()))
   {
@@ -3164,24 +3164,24 @@ void Item_func_str_to_date::fix_length_and_dec()
         get_date_time_result_type(format->ptr(), format->length());
       switch (cached_format_type) {
       case DATE_ONLY:
-        cached_field_type= MYSQL_TYPE_DATE; 
+        set_handler_by_field_type(MYSQL_TYPE_DATE);
         break;
       case TIME_MICROSECOND:
         decimals= 6;
         /* fall through */
       case TIME_ONLY:
-        cached_field_type= MYSQL_TYPE_TIME; 
+        set_handler_by_field_type(MYSQL_TYPE_TIME);
         break;
       case DATE_TIME_MICROSECOND:
         decimals= 6;
         /* fall through */
       case DATE_TIME:
-        cached_field_type= MYSQL_TYPE_DATETIME; 
+        set_handler_by_field_type(MYSQL_TYPE_DATETIME);
         break;
       }
     }
   }
-  cached_timestamp_type= mysql_type_to_time_type(cached_field_type);
+  cached_timestamp_type= mysql_type_to_time_type(field_type());
   Item_temporal_func::fix_length_and_dec();
 }
 

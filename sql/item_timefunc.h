@@ -495,7 +495,6 @@ public:
   Item_temporal_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
   Item_temporal_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c) {}
   enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   Item_result cmp_type() const { return TIME_RESULT; }
   String *val_str(String *str);
   longlong val_int() { return val_int_from_date(); }
@@ -515,20 +514,20 @@ public:
   Abstract class for functions returning TIME, DATE, DATETIME or string values,
   whose data type depends on parameters and is set at fix_fields time.
 */
-class Item_temporal_hybrid_func: public Item_temporal_func
+class Item_temporal_hybrid_func: public Item_temporal_func,
+                                 public Type_handler_hybrid_field_type
 {
 protected:
-  enum_field_types cached_field_type; // TIME, DATE, DATETIME or STRING
   String ascii_buf; // Conversion buffer
 public:
   Item_temporal_hybrid_func(THD *thd, Item *a, Item *b):
     Item_temporal_func(thd, a, b) {}
-  enum_field_types field_type() const { return cached_field_type; }
-  Item_result cmp_type() const
-  {
-    return cached_field_type == MYSQL_TYPE_STRING ?
-           STRING_RESULT : TIME_RESULT;
-  }
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
   CHARSET_INFO *charset_for_protocol() const
   {
     /*
@@ -538,7 +537,7 @@ public:
       (which is fixed from @@collation_connection in fix_length_and_dec).
     */
     DBUG_ASSERT(fixed == 1);
-    return cached_field_type == MYSQL_TYPE_STRING ?
+    return Item_temporal_hybrid_func::field_type() == MYSQL_TYPE_STRING ?
            collation.collation : &my_charset_bin;
   }
   /**
@@ -578,6 +577,17 @@ public:
   Item_timefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+};
+
+
+class Item_datetimefunc :public Item_temporal_func
+{
+public:
+  Item_datetimefunc(THD *thd): Item_temporal_func(thd) {}
+  Item_datetimefunc(THD *thd, Item *a): Item_temporal_func(thd, a) {}
+  Item_datetimefunc(THD *thd, Item *a, Item *b, Item *c):
+    Item_temporal_func(thd, a, b ,c) {}
+  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
 };
 
 
@@ -665,11 +675,11 @@ public:
 /* Abstract CURRENT_TIMESTAMP function. See also Item_func_curtime */
 
 
-class Item_func_now :public Item_temporal_func
+class Item_func_now :public Item_datetimefunc
 {
   MYSQL_TIME ltime;
 public:
-  Item_func_now(THD *thd, uint dec): Item_temporal_func(thd) { decimals= dec; }
+  Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd) { decimals= dec; }
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec()
   {
@@ -759,11 +769,11 @@ public:
 };
 
 
-class Item_func_from_unixtime :public Item_temporal_func
+class Item_func_from_unixtime :public Item_datetimefunc
 {
   Time_zone *tz;
  public:
-  Item_func_from_unixtime(THD *thd, Item *a): Item_temporal_func(thd, a) {}
+  Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
   const char *func_name() const { return "from_unixtime"; }
   void fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -784,7 +794,7 @@ class Time_zone;
   tables can be used during this function calculation for loading time zone
   descriptions.
 */
-class Item_func_convert_tz :public Item_temporal_func
+class Item_func_convert_tz :public Item_datetimefunc
 {
   /*
     If time zone parameters are constants we are caching objects that
@@ -796,7 +806,7 @@ class Item_func_convert_tz :public Item_temporal_func
   Time_zone *from_tz, *to_tz;
  public:
   Item_func_convert_tz(THD *thd, Item *a, Item *b, Item *c):
-    Item_temporal_func(thd, a, b, c), from_tz_cached(0), to_tz_cached(0) {}
+    Item_datetimefunc(thd, a, b, c), from_tz_cached(0), to_tz_cached(0) {}
   const char *func_name() const { return "convert_tz"; }
   void fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
