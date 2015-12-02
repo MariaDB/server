@@ -834,6 +834,16 @@ CHECK_C_SOURCE_COMPILES("
 )
 
 CHECK_CXX_SOURCE_COMPILES("
+    #include <new>
+    int main()
+    {
+     char *c = new char;
+     return 0;
+    }"
+    HAVE_CXX_NEW
+)
+
+CHECK_CXX_SOURCE_COMPILES("
     #undef inline
     #if !defined(SCO) && !defined(__osf__) && !defined(_REENTRANT)
     #define _REENTRANT
