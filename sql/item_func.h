@@ -447,8 +447,6 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
     DBUG_ASSERT((res != NULL) ^ null_value);
     return res;
   }
-protected:
-  Item_result cached_result_type;
 
 public:
   Item_func_hybrid_field_type(THD *thd):

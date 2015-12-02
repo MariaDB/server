@@ -70,28 +70,6 @@ static void reset_start_time_for_sp(THD *thd)
     thd->set_start_time();
 }
 
-Item_result
-sp_map_result_type(enum enum_field_types type)
-{
-  switch (type) {
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-    return INT_RESULT;
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    return DECIMAL_RESULT;
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    return REAL_RESULT;
-  default:
-    return STRING_RESULT;
-  }
-}
-
 
 Item::Type
 sp_map_item_type(enum enum_field_types type)

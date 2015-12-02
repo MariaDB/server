@@ -45,9 +45,6 @@
 //#define TYPE_ENUM_FUNCTION  1 #define TYPE_ENUM_PROCEDURE 2 #define
 //TYPE_ENUM_TRIGGER   3 #define TYPE_ENUM_PROXY     4
 
-Item_result
-sp_map_result_type(enum enum_field_types type);
-
 Item::Type
 sp_map_item_type(enum enum_field_types type);
 
