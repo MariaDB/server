@@ -2594,11 +2594,22 @@ public:
   }
 };
 
-/* Item represents one placeholder ('?') of prepared statement */
+/*
+  Item represents one placeholder ('?') of prepared statement
+
+  Notes:
+  Item_param::field_type() is used when this item is in a temporary table.
+  This is NOT placeholder metadata sent to client, as this value
+  is assigned after sending metadata (in setup_one_conversion_function).
+  For example in case of 'SELECT ?' you'll get MYSQL_TYPE_STRING both
+  in result set and placeholders metadata, no matter what type you will
+  supply for this placeholder in mysql_stmt_execute.
+*/
 
 class Item_param :public Item_basic_value,
                   private Settable_routine_parameter,
-                  public Rewritable_query_parameter
+                  public Rewritable_query_parameter,
+                  public Type_handler_hybrid_field_type
 {
 public:
   enum enum_item_param_state
@@ -2645,25 +2656,18 @@ public:
     MYSQL_TIME     time;
   } value;
 
-  /* Cached values for virtual methods to save us one switch.  */
-  enum Item_result item_result_type;
   enum Type item_type;
 
-  /*
-    Used when this item is used in a temporary table.
-    This is NOT placeholder metadata sent to client, as this value
-    is assigned after sending metadata (in setup_one_conversion_function).
-    For example in case of 'SELECT ?' you'll get MYSQL_TYPE_STRING both
-    in result set and placeholders metadata, no matter what type you will
-    supply for this placeholder in mysql_stmt_execute.
-  */
-  enum enum_field_types param_type;
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   Item_param(THD *thd, uint pos_in_query_arg);
 
-  enum Item_result result_type () const { return item_result_type; }
   enum Type type() const { return item_type; }
-  enum_field_types field_type() const { return param_type; }
 
   double val_real();
   longlong val_int();

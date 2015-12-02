@@ -318,6 +318,10 @@ public:
   enum_field_types field_type() const { return m_type_handler->field_type(); }
   Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
+  void set_handler(const Type_handler *other)
+  {
+    m_type_handler= other;
+  }
   const Type_handler *set_handler_by_result_type(Item_result type)
   {
     return (m_type_handler= get_handler_by_result_type(type));

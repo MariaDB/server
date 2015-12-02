@@ -2977,13 +2977,12 @@ default_set_param_func(Item_param *param,
 
 
 Item_param::Item_param(THD *thd, uint pos_in_query_arg):
+  Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, 1),
   state(NO_VALUE),
-  item_result_type(STRING_RESULT),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
-  param_type(MYSQL_TYPE_VARCHAR),
   set_param_func(default_set_param_func),
   m_out_param_info(NULL)
 {
@@ -3183,25 +3182,25 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
   DBUG_ENTER("Item_param::set_from_user_var");
   if (entry && entry->value)
   {
-    item_result_type= entry->type;
     unsigned_flag= entry->unsigned_flag;
     if (limit_clause_param)
     {
       bool unused;
       set_int(entry->val_int(&unused), MY_INT64_NUM_DECIMAL_DIGITS);
       item_type= Item::INT_ITEM;
+      set_handler_by_result_type(entry->type);
       DBUG_RETURN(!unsigned_flag && value.integer < 0 ? 1 : 0);
     }
-    switch (item_result_type) {
+    switch (entry->type) {
     case REAL_RESULT:
       set_double(*(double*)entry->value);
       item_type= Item::REAL_ITEM;
-      param_type= MYSQL_TYPE_DOUBLE;
+      set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
       break;
     case INT_RESULT:
       set_int(*(longlong*)entry->value, MY_INT64_NUM_DECIMAL_DIGITS);
       item_type= Item::INT_ITEM;
-      param_type= MYSQL_TYPE_LONGLONG;
+      set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
       break;
     case STRING_RESULT:
     {
@@ -3224,7 +3223,7 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
         charset of connection, so we have to set it later.
       */
       item_type= Item::STRING_ITEM;
-      param_type= MYSQL_TYPE_VARCHAR;
+      set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
 
       if (set_str((const char *)entry->value, entry->length))
         DBUG_RETURN(1);
@@ -3240,7 +3239,7 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
         my_decimal_precision_to_length_no_truncation(ent_value->precision(),
                                                      decimals, unsigned_flag);
       item_type= Item::DECIMAL_ITEM;
-      param_type= MYSQL_TYPE_NEWDECIMAL;
+      set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
       break;
     }
     case ROW_RESULT:
@@ -3665,10 +3664,9 @@ void
 Item_param::set_param_type_and_swap_value(Item_param *src)
 {
   Type_std_attributes::set(src);
-  param_type= src->param_type;
+  set_handler(src->type_handler());
   set_param_func= src->set_param_func;
   item_type= src->item_type;
-  item_result_type= src->item_result_type;
 
   maybe_null= src->maybe_null;
   null_value= src->null_value;
@@ -3756,7 +3754,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     return FALSE;
   }
 
-  item_result_type= arg->result_type();
+  set_handler_by_result_type(arg->result_type());
   item_type= arg->type();
   return FALSE;
 }
@@ -3775,7 +3773,7 @@ void
 Item_param::set_out_param_info(Send_field *info)
 {
   m_out_param_info= info;
-  param_type= m_out_param_info->type;
+  set_handler_by_field_type(m_out_param_info->type);
 }
 
 
