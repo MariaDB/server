@@ -5265,11 +5265,11 @@ public:
   Item_type_holder do not need cleanup() because its time of live limited by
   single SP/PS execution.
 */
-class Item_type_holder: public Item
+class Item_type_holder: public Item,
+                        public Type_handler_hybrid_real_field_type
 {
 protected:
   TYPELIB *enum_set_typelib;
-  enum_field_types fld_type;
   Field::geometry_type geometry_type;
 
   void get_full_info(Item *item);
@@ -5279,8 +5279,27 @@ protected:
 public:
   Item_type_holder(THD*, Item*);
 
-  Item_result result_type() const;
-  enum_field_types field_type() const { return fld_type; };
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_real_field_type::field_type(); }
+  enum_field_types real_field_type() const
+  { return Type_handler_hybrid_real_field_type::real_field_type(); }
+  enum Item_result result_type () const
+  {
+    /*
+      In 10.1 Item_type_holder::result_type() returned
+      Field::result_merge_type(field_type()), which returned STRING_RESULT
+      for the BIT data type. In 10.2 it returns INT_RESULT, similar
+      to what Field_bit::result_type() does. This should not be
+      important because Item_type_holder is a limited purpose Item
+      and its result_type() should not be called from outside of
+      Item_type_holder. It's called only internally from decimal_int_part()
+      from join_types(), to calculate "decimals" of the result data type.
+      As soon as we get BIT as one of the joined types, the result field
+      type cannot be numeric: it's either BIT, or VARBINARY.
+    */
+    return Type_handler_hybrid_real_field_type::result_type();
+  }
+
   enum Type type() const { return TYPE_HOLDER; }
   double val_real();
   longlong val_int();

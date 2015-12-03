@@ -27,9 +27,13 @@ static Type_handler_bit         type_handler_bit;
 static Type_handler_float       type_handler_float;
 static Type_handler_double      type_handler_double;
 static Type_handler_time        type_handler_time;
+static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
+static Type_handler_newdate     type_handler_newdate;
 static Type_handler_datetime    type_handler_datetime;
+static Type_handler_datetime2   type_handler_datetime2;
 static Type_handler_timestamp   type_handler_timestamp;
+static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
 static Type_handler_newdecimal  type_handler_newdecimal;
 static Type_handler_null        type_handler_null;
@@ -39,7 +43,11 @@ static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
 static Type_handler_blob        type_handler_blob;
+#ifdef HAVE_SPATIAL
 static Type_handler_geometry    type_handler_geometry;
+#endif
+static Type_handler_enum        type_handler_enum;
+static Type_handler_set         type_handler_set;
 
 
 /**
@@ -126,7 +134,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_FLOAT:       return &type_handler_float;
   case MYSQL_TYPE_DOUBLE:      return &type_handler_double;
   case MYSQL_TYPE_NULL:        return &type_handler_null;
-  case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;     
+  case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;
   case MYSQL_TYPE_TINY_BLOB:   return &type_handler_tiny_blob;
   case MYSQL_TYPE_MEDIUM_BLOB: return &type_handler_medium_blob;
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
@@ -135,15 +143,78 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_SET:         return &type_handler_varchar; // Map to VARCHAR
-  case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
+  case MYSQL_TYPE_GEOMETRY:
+#ifdef HAVE_SPATIAL
+    return &type_handler_geometry;
+#else
+    return NULL;
+#endif
+  case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp2;// Map to timestamp2
+  case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
+  case MYSQL_TYPE_DATE:        return &type_handler_newdate;   // Map to newdate
+  case MYSQL_TYPE_TIME:        return &type_handler_time2;     // Map to time2
+  case MYSQL_TYPE_TIME2:       return &type_handler_time2;
+  case MYSQL_TYPE_DATETIME:    return &type_handler_datetime2; // Map to datetime2
+  case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
+  case MYSQL_TYPE_NEWDATE:
+    /*
+      NEWDATE is actually a real_type(), not a field_type(),
+      but it's used around the code in field_type() context.
+      We should probably clean up the code not to use MYSQL_TYPE_NEWDATE
+      in field_type() context and add DBUG_ASSERT(0) here.
+    */
+    return &type_handler_newdate;
+  };
+  DBUG_ASSERT(0);
+  return &type_handler_string;
+}
+
+
+const Type_handler *
+Type_handler::get_handler_by_real_type(enum_field_types type)
+{
+  switch (type) {
+  case MYSQL_TYPE_DECIMAL:     return &type_handler_olddecimal;
+  case MYSQL_TYPE_NEWDECIMAL:  return &type_handler_newdecimal;
+  case MYSQL_TYPE_TINY:        return &type_handler_tiny;
+  case MYSQL_TYPE_SHORT:       return &type_handler_short;
+  case MYSQL_TYPE_LONG:        return &type_handler_long;
+  case MYSQL_TYPE_LONGLONG:    return &type_handler_longlong;
+  case MYSQL_TYPE_INT24:       return &type_handler_int24;
+  case MYSQL_TYPE_YEAR:        return &type_handler_year;
+  case MYSQL_TYPE_BIT:         return &type_handler_bit;
+  case MYSQL_TYPE_FLOAT:       return &type_handler_float;
+  case MYSQL_TYPE_DOUBLE:      return &type_handler_double;
+  case MYSQL_TYPE_NULL:        return &type_handler_null;
+  case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;
+  case MYSQL_TYPE_TINY_BLOB:   return &type_handler_tiny_blob;
+  case MYSQL_TYPE_MEDIUM_BLOB: return &type_handler_medium_blob;
+  case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
+  case MYSQL_TYPE_BLOB:        return &type_handler_blob;
+  case MYSQL_TYPE_VAR_STRING:
+    /*
+      VAR_STRING is actually a field_type(), not a real_type(),
+      but it's used around the code in real_type() context.
+      We should clean up the code and add DBUG_ASSERT(0) here.
+    */
+    return &type_handler_string;
+  case MYSQL_TYPE_STRING:      return &type_handler_string;
+  case MYSQL_TYPE_ENUM:        return &type_handler_enum;
+  case MYSQL_TYPE_SET:         return &type_handler_set;
+  case MYSQL_TYPE_GEOMETRY:
+#ifdef HAVE_SPATIAL
+    return &type_handler_geometry;
+#else
+    return NULL;
+#endif
   case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp;
-  case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp;
+  case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
   case MYSQL_TYPE_DATE:        return &type_handler_date;
   case MYSQL_TYPE_TIME:        return &type_handler_time;
-  case MYSQL_TYPE_TIME2:       return &type_handler_time;
+  case MYSQL_TYPE_TIME2:       return &type_handler_time2;
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime;
-  case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime;
-  case MYSQL_TYPE_NEWDATE:     return &type_handler_date;
+  case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
+  case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
   };
   DBUG_ASSERT(0);
   return &type_handler_string;

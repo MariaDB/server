@@ -2977,9 +2977,9 @@ default_set_param_func(Item_param *param,
 
 
 Item_param::Item_param(THD *thd, uint pos_in_query_arg):
-  Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   Item_basic_value(thd),
   Rewritable_query_parameter(pos_in_query_arg, 1),
+  Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
@@ -9188,33 +9188,34 @@ void Item_cache_row::set_null()
 
 
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
-  :Item(thd, item), enum_set_typelib(0), fld_type(get_real_type(item))
+  :Item(thd, item),
+   Type_handler_hybrid_real_field_type(get_real_type(item)),
+   enum_set_typelib(0)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
   collation.set(item->collation);
   get_full_info(item);
+  /**
+    Field::result_merge_type(real_field_type()) should be equal to
+    result_type(), with one exception when "this" is a Item_field for
+    a BIT field:
+    - Field_bit::result_type() returns INT_RESULT, so does its Item_field.
+    - Field::result_merge_type(MYSQL_TYPE_BIT) returns STRING_RESULT.
+    Perhaps we need a new method in Type_handler to cover these type
+    merging rules for UNION.
+  */
+  DBUG_ASSERT(real_field_type() == MYSQL_TYPE_BIT ||
+              Item_type_holder::result_type()  ==
+              Field::result_merge_type(Item_type_holder::real_field_type()));
   /* fix variable decimals which always is NOT_FIXED_DEC */
-  if (Field::result_merge_type(fld_type) == INT_RESULT)
+  if (Field::result_merge_type(real_field_type()) == INT_RESULT)
     decimals= 0;
   prev_decimal_int_part= item->decimal_int_part();
 #ifdef HAVE_SPATIAL
   if (item->field_type() == MYSQL_TYPE_GEOMETRY)
     geometry_type= item->get_geometry_type();
 #endif /* HAVE_SPATIAL */
-}
-
-
-/**
-  Return expression type of Item_type_holder.
-
-  @return
-    Item_result (type of internal MySQL expression result)
-*/
-
-Item_result Item_type_holder::result_type() const
-{
-  return Field::result_merge_type(fld_type);
 }
 
 
@@ -9268,7 +9269,7 @@ enum_field_types Item_type_holder::get_real_type(Item *item)
       */
       switch (item->result_type()) {
       case STRING_RESULT:
-        return MYSQL_TYPE_VAR_STRING;
+        return MYSQL_TYPE_VARCHAR;
       case INT_RESULT:
         return MYSQL_TYPE_LONGLONG;
       case REAL_RESULT:
@@ -9278,10 +9279,21 @@ enum_field_types Item_type_holder::get_real_type(Item *item)
       case ROW_RESULT:
       case TIME_RESULT:
         DBUG_ASSERT(0);
-        return MYSQL_TYPE_VAR_STRING;
+        return MYSQL_TYPE_VARCHAR;
       }
     }
     break;
+  case TYPE_HOLDER:
+    /*
+      Item_type_holder and Item_blob should not appear in this context.
+      In case they for some reasons do, returning field_type() is wrong anyway.
+      They must return Item_type_holder::real_field_type() instead, to make
+      the code in sql_type.cc and sql_type.h happy, as it expectes
+      Field::real_type()-compatible rather than Field::field_type()-compatible
+      valies in some places, and may in the future add some asserts preventing
+      use of field_type() instead of real_type() and the other way around.
+    */
+    DBUG_ASSERT(0);
   default:
     break;
   }
@@ -9307,25 +9319,26 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   uint decimals_orig= decimals;
   DBUG_ENTER("Item_type_holder::join_types");
   DBUG_PRINT("info:", ("was type %d len %d, dec %d name %s",
-                       fld_type, max_length, decimals,
+                       real_field_type(), max_length, decimals,
                        (name ? name : "<NULL>")));
   DBUG_PRINT("info:", ("in type %d len %d, dec %d",
                        get_real_type(item),
                        item->max_length, item->decimals));
-  fld_type= Field::field_type_merge(fld_type, get_real_type(item));
+  set_handler_by_real_type(Field::field_type_merge(real_field_type(),
+                                                   get_real_type(item)));
   {
     uint item_decimals= item->decimals;
     /* fix variable decimals which always is NOT_FIXED_DEC */
-    if (Field::result_merge_type(fld_type) == INT_RESULT)
+    if (Field::result_merge_type(real_field_type()) == INT_RESULT)
       item_decimals= 0;
     decimals= MY_MAX(decimals, item_decimals);
   }
 
-  if (fld_type == FIELD_TYPE_GEOMETRY)
+  if (Item_type_holder::field_type() == FIELD_TYPE_GEOMETRY)
     geometry_type=
       Field_geom::geometry_type_merge(geometry_type, item->get_geometry_type());
 
-  if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
+  if (Field::result_merge_type(real_field_type()) == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
@@ -9337,7 +9350,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                                                              unsigned_flag);
   }
 
-  switch (Field::result_merge_type(fld_type))
+  switch (Field::result_merge_type(real_field_type()))
   {
   case STRING_RESULT:
   {
@@ -9384,12 +9397,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
         int delta1= max_length_orig - decimals_orig;
         int delta2= item->max_length - item->decimals;
         max_length= MY_MAX(delta1, delta2) + decimals;
-        if (fld_type == MYSQL_TYPE_FLOAT && max_length > FLT_DIG + 2)
+        if (Item_type_holder::real_field_type() == MYSQL_TYPE_FLOAT &&
+            max_length > FLT_DIG + 2)
         {
           max_length= MAX_FLOAT_STR_LENGTH;
           decimals= NOT_FIXED_DEC;
         } 
-        else if (fld_type == MYSQL_TYPE_DOUBLE && max_length > DBL_DIG + 2)
+        else if (Item_type_holder::real_field_type() == MYSQL_TYPE_DOUBLE &&
+                 max_length > DBL_DIG + 2)
         {
           max_length= MAX_DOUBLE_STR_LENGTH;
           decimals= NOT_FIXED_DEC;
@@ -9397,7 +9412,8 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
       }
     }
     else
-      max_length= (fld_type == MYSQL_TYPE_FLOAT) ? FLT_DIG+6 : DBL_DIG+7;
+      max_length= (Item_type_holder::field_type() == MYSQL_TYPE_FLOAT) ?
+                  FLT_DIG+6 : DBL_DIG+7;
     break;
   }
   default:
@@ -9409,7 +9425,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   /* Remember decimal integer part to be used in DECIMAL_RESULT handleng */
   prev_decimal_int_part= decimal_int_part();
   DBUG_PRINT("info", ("become type: %d  len: %u  dec: %u",
-                      (int) fld_type, max_length, (uint) decimals));
+                      (int) real_field_type(), max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
 }
 
@@ -9490,7 +9506,7 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
   uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
   Field *field;
 
-  switch (fld_type) {
+  switch (Item_type_holder::real_field_type()) {
   case MYSQL_TYPE_ENUM:
     DBUG_ASSERT(enum_set_typelib);
     field= new Field_enum((uchar *) 0, max_length, null_ptr, 0,
@@ -9526,8 +9542,8 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
 */
 void Item_type_holder::get_full_info(Item *item)
 {
-  if (fld_type == MYSQL_TYPE_ENUM ||
-      fld_type == MYSQL_TYPE_SET)
+  if (Item_type_holder::real_field_type() == MYSQL_TYPE_ENUM ||
+      Item_type_holder::real_field_type() == MYSQL_TYPE_SET)
   {
     if (item->type() == Item::SUM_FUNC_ITEM &&
         (((Item_sum*)item)->sum_func() == Item_sum::MAX_FUNC ||

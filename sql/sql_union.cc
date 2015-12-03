@@ -534,7 +534,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
     while ((type= tp++))
     {
-      if (type->result_type() == STRING_RESULT &&
+      if (type->cmp_type() == STRING_RESULT &&
           type->collation.derivation == DERIVATION_NONE)
       {
         my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");

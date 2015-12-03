@@ -29,7 +29,9 @@ protected:
   const Type_handler *string_type_handler(uint max_octet_length) const;
 public:
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
+  static const Type_handler *get_handler_by_real_type(enum_field_types type);
   virtual enum_field_types field_type() const= 0;
+  virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
   virtual const Type_handler*
@@ -190,11 +192,29 @@ public:
 };
 
 
+class Type_handler_time2: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_time2() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
+};
+
+
 class Type_handler_date: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_date() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+};
+
+
+class Type_handler_newdate: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_newdate() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_NEWDATE; }
 };
 
 
@@ -206,11 +226,29 @@ public:
 };
 
 
+class Type_handler_datetime2: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_datetime2() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
+};
+
+
 class Type_handler_timestamp: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_timestamp() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+};
+
+
+class Type_handler_timestamp2: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_timestamp2() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
 };
 
 
@@ -294,6 +332,24 @@ public:
 };
 
 
+class Type_handler_enum: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_enum() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+};
+
+
+class Type_handler_set: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_set() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+};
+
+
 /**
   A handler for hybrid type functions, e.g.
   COALESCE(), IF(), IFNULL(), NULLIF(), CASE,
@@ -309,6 +365,9 @@ class Type_handler_hybrid_field_type: public Type_handler
   const Type_handler *get_handler_by_result_type(Item_result type) const;
 public:
   Type_handler_hybrid_field_type();
+  Type_handler_hybrid_field_type(const Type_handler *handler)
+   :m_type_handler(handler)
+  { }
   Type_handler_hybrid_field_type(enum_field_types type)
     :m_type_handler(get_handler_by_field_type(type))
   { }
@@ -316,6 +375,10 @@ public:
     :m_type_handler(other->m_type_handler)
   { }
   enum_field_types field_type() const { return m_type_handler->field_type(); }
+  enum_field_types real_field_type() const
+  {
+    return m_type_handler->real_field_type();
+  }
   Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
   void set_handler(const Type_handler *other)
@@ -339,6 +402,10 @@ public:
   {
     return (m_type_handler= get_handler_by_field_type(type));
   }
+  const Type_handler *set_handler_by_real_type(enum_field_types type)
+  {
+    return (m_type_handler= get_handler_by_real_type(type));
+  }
   const Type_handler *
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
@@ -348,5 +415,19 @@ public:
                                                                 cs);
   }
 };
+
+
+/**
+  This class is used for Item_type_holder, which preserves real_type.
+*/
+class Type_handler_hybrid_real_field_type:
+  public Type_handler_hybrid_field_type
+{
+public:
+  Type_handler_hybrid_real_field_type(enum_field_types type)
+    :Type_handler_hybrid_field_type(get_handler_by_real_type(type))
+  { }
+};
+
 
 #endif /* SQL_TYPE_H_INCLUDED */
