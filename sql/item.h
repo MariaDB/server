@@ -4978,7 +4978,8 @@ public:
   for any value.
 */
 
-class Item_cache: public Item_basic_constant
+class Item_cache: public Item_basic_constant,
+                  public Type_handler_hybrid_field_type
 {
 protected:
   Item *example;
@@ -4988,7 +4989,6 @@ protected:
     by IN->EXISTS transformation.
   */  
   Field *cached_field;
-  enum enum_field_types cached_field_type;
   /*
     TRUE <=> cache holds value of the last stored item (i.e actual value).
     store() stores item to be cached and sets this flag to FALSE.
@@ -5000,18 +5000,19 @@ protected:
 public:
   Item_cache(THD *thd):
     Item_basic_constant(thd),
+    Type_handler_hybrid_field_type(MYSQL_TYPE_STRING),
     example(0), cached_field(0),
-    cached_field_type(MYSQL_TYPE_STRING),
     value_cached(0)
   {
     fixed= 1;
     maybe_null= 1;
     null_value= 1;
   }
+protected:
   Item_cache(THD *thd, enum_field_types field_type_arg):
     Item_basic_constant(thd),
+    Type_handler_hybrid_field_type(field_type_arg),
     example(0), cached_field(0),
-    cached_field_type(field_type_arg),
     value_cached(0)
   {
     fixed= 1;
@@ -5019,6 +5020,7 @@ public:
     null_value= 1;
   }
 
+public:
   virtual bool allocate(THD *thd, uint i) { return 0; }
   virtual bool setup(THD *thd, Item *item)
   {
@@ -5029,7 +5031,14 @@ public:
     return 0;
   };
   enum Type type() const { return CACHE_ITEM; }
-  enum_field_types field_type() const { return cached_field_type; }
+
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
+
   static Item_cache* get_cache(THD *thd, const Item *item);
   static Item_cache* get_cache(THD *thd, const Item* item, const Item_result type);
   virtual void keep_array() {}
@@ -5172,7 +5181,7 @@ public:
   Item_cache_str(THD *thd, const Item *item):
     Item_cache(thd, item->field_type()), value(0),
     is_varbinary(item->type() == FIELD_ITEM &&
-                 cached_field_type == MYSQL_TYPE_VARCHAR &&
+                 Item_cache_str::field_type() == MYSQL_TYPE_VARCHAR &&
                  !((const Item_field *) item)->field->has_charset())
   {
     collation.set(const_cast<DTCollation&>(item->collation));
