@@ -4539,24 +4539,19 @@ public:
   from Item_).
 */
 
-class Item_copy :public Item
+class Item_copy :public Item,
+                 public Type_handler_hybrid_field_type
 {
 protected:  
 
   /**
-    Stores the type of the resulting field that would be used to store the data
+    Type_handler_hybrid_field_type is used to
+    store the type of the resulting field that would be used to store the data
     in the cache. This is to avoid calls to the original item.
   */
-  enum enum_field_types cached_field_type;
 
   /** The original item that is copied */
   Item *item;
-
-  /**
-    Stores the result type of the original item, so it can be returned
-    without calling the original item's method
-  */
-  Item_result cached_result_type;
 
   /**
     Constructor of the Item_copy class
@@ -4570,8 +4565,7 @@ protected:
     null_value=maybe_null=item->maybe_null;
     Type_std_attributes::set(item);
     name=item->name;
-    cached_field_type= item->field_type();
-    cached_result_type= item->result_type();
+    set_handler_by_field_type(item->field_type());
     fixed= item->fixed;
   }
 
@@ -4596,8 +4590,13 @@ public:
   Item *get_item() { return item; }
   /** All of the subclasses should have the same type tag */
   enum Type type() const { return COPY_STR_ITEM; }
-  enum_field_types field_type() const { return cached_field_type; }
-  enum Item_result result_type () const { return cached_result_type; }
+
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
