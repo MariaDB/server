@@ -845,7 +845,44 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
 
   DBUG_ENTER("sp_head::create_result_field");
 
-  DBUG_ASSERT(field_max_length <= m_return_field_def.length);
+  /*
+    m_return_field_def.length is always set to the field length calculated
+    by the parser, according to the RETURNS clause. See prepare_create_field()
+    in sql_table.cc. Value examples, depending on data type:
+    - 11 for INT                          (character representation length)
+    - 20 for BIGINT                       (character representation length)
+    - 22 for DOUBLE                       (character representation length)
+    - N for CHAR(N) CHARACTER SET latin1  (octet length)
+    - 3*N for CHAR(N) CHARACTER SET utf8  (octet length)
+    - 8 for blob-alike data types         (packed length !!!)
+
+    field_max_length is also set according to the data type in the RETURNS
+    clause but can have different values depending on the execution stage:
+
+    1. During direct execution:
+    field_max_length is 0, because Item_func_sp::fix_length_and_dec() has
+    not been called yet, so Item_func_sp::max_length is 0 by default.
+
+    2a. During PREPARE:
+    field_max_length is 0, because Item_func_sp::fix_length_and_dec()
+    has not been called yet. It's called after create_result_field().
+
+    2b. During EXEC:
+    field_max_length is set to the maximum possible octet length of the
+    RETURNS data type.
+    - N for CHAR(N) CHARACTER SET latin1  (octet length)
+    - 3*N for CHAR(N) CHARACTER SET utf8  (octet length)
+    - 255 for TINYBLOB                    (octet length, not packed length !!!)
+
+    Perhaps we should refactor prepare_create_field() to set
+    Create_field::length to maximum octet length for BLOBs,
+    instead of packed length).
+  */
+  DBUG_ASSERT(field_max_length <= m_return_field_def.length ||
+              (current_thd->stmt_arena->is_stmt_execute() &&
+               m_return_field_def.length == 8 &&
+               (m_return_field_def.pack_flag &
+                (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
   field= m_return_field_def.make_field(table->s, /* TABLE_SHARE ptr */
                                        table->in_use->mem_root,
