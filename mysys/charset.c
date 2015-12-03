@@ -1022,9 +1022,10 @@ CHARSET_INFO *fs_character_set()
     to_length           Length of destination buffer, or 0
     from                The string to escape
     length              The length of the string to escape
+    quote_char          The character to double-up (probably ', ", or `)
 
   DESCRIPTION
-    This escapes the contents of a string by doubling up any apostrophes that
+    This escapes the contents of a string by doubling up any "quote_char"'s that
     it contains. This is used when the NO_BACKSLASH_ESCAPES SQL_MODE is in
     effect on the server.
 
@@ -1039,7 +1040,8 @@ CHARSET_INFO *fs_character_set()
 
 size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                char *to, size_t to_length,
-                               const char *from, size_t length)
+                               const char *from, size_t length,
+                               const char quote_char)
 {
   const char *to_start= to;
   const char *end, *to_end=to_start + (to_length ? to_length-1 : 2*length);
@@ -1069,15 +1071,15 @@ size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
       character, because we are only escaping the ' character with itself.
      */
 #endif
-    if (*from == '\'')
+    if (*from == quote_char)
     {
       if (to + 2 > to_end)
       {
         overflow= TRUE;
         break;
       }
-      *to++= '\'';
-      *to++= '\'';
+      *to++= quote_char;
+      *to++= quote_char;
     }
     else
     {

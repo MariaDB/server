@@ -2179,7 +2179,7 @@ after_set_capability:
 
     query.append("SELECT binlog_gtid_pos('");
     escape_quotes_for_mysql(&my_charset_bin, quote_buf, sizeof(quote_buf),
-                            mi->master_log_name, strlen(mi->master_log_name));
+                            mi->master_log_name, strlen(mi->master_log_name), '\'');
     query.append(quote_buf);
     query.append("',");
     query.append_ulonglong(mi->master_log_pos);

@@ -3782,7 +3782,7 @@ size_t spider_db_oracle_util::escape_string(
   DBUG_ENTER("spider_db_oracle::escape_string");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(escape_quotes_for_mysql(access_charset, to, 0,
-    from, from_length));
+    from, from_length, '\''));
 }
 
 int spider_db_oracle_util::append_escaped_util(

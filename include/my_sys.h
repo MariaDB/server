@@ -1027,7 +1027,8 @@ extern CHARSET_INFO *fs_character_set(void);
 #endif
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
-                                      const char *from, size_t length);
+                                      const char *from, size_t length,
+                                      const char quote_char);
 
 extern void thd_increment_bytes_sent(void *thd, ulong length);
 extern void thd_increment_bytes_received(void *thd, ulong length);
