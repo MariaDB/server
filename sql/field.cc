@@ -10329,7 +10329,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
-  option_struct= old_field->option_struct;
 
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:

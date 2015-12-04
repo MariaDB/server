@@ -3455,8 +3455,6 @@ public:
   uint32 srid;
   Field::geometry_type geom_type;
   engine_option_value *option_list;
-  /** structure with parsed options (for comparing fields in ALTER TABLE) */
-  ha_field_option_struct *option_struct;
 
   uint pack_flag;
 
@@ -3472,7 +3470,7 @@ public:
     def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
     flags(0), pack_length(0), key_length(0), interval(0),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), option_struct(NULL),
+    option_list(NULL),
     vcol_info(0)
   {
     interval_list.empty();
@@ -3537,18 +3535,23 @@ public:
   Field *field;				// For alter table
   TYPELIB *save_interval;               // Temporary copy for the above
                                         // Used only for UCS2 intervals
+
+  /** structure with parsed options (for comparing fields in ALTER TABLE) */
+  ha_field_option_struct *option_struct;
   uint	offset;
   uint8 interval_id;                    // For rea_create_table
   bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
 
   Create_field():
     Column_definition(), change(0), after(0),
-    field(0), create_if_not_exists(false)
+    field(0), option_struct(NULL),
+    create_if_not_exists(false)
   { }
   Create_field(THD *thd, Field *old_field, Field *orig_field):
     Column_definition(thd, old_field, orig_field),
     change(old_field->field_name), after(0),
-    field(old_field), create_if_not_exists(false)
+    field(old_field), option_struct(old_field->option_struct),
+    create_if_not_exists(false)
   { }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
