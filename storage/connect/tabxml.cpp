@@ -60,7 +60,7 @@ extern "C" char version[];
 #endif  // !__WIN__
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
-#define XSTR(M)  sizeof(M) - strlen(M) - 1	       /* To avoid overflow*/
+#define XLEN(M)  sizeof(M) - strlen(M) - 1	       /* To avoid overflow*/
 
 /***********************************************************************/
 /* Class and structure used by XMLColumns.                             */
@@ -226,30 +226,30 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
      more:
       if (vp->atp) {
         strncpy(colname, vp->atp->GetName(g), sizeof(colname));
-				strncat(xcol->Name, colname, XSTR(xcol->Name));
+				strncat(xcol->Name, colname, XLEN(xcol->Name));
 
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
             PushWarning(g, txmp);
           case RC_OK:
-            strncat(fmt, "@", XSTR(fmt));
+            strncat(fmt, "@", XLEN(fmt));
             break;
           default:
             goto err;
           } // enswitch rc
 
         if (j)
-					strncat(fmt, colname, XSTR(fmt));
+          strncat(fmt, colname, XLEN(fmt));
 
       } else {
         if (tdp->Usedom && node->GetType() != 1)
           continue;
 
         strncpy(colname, node->GetName(g), sizeof(colname));
-				strncat(xcol->Name, colname, XSTR(xcol->Name));
+				strncat(xcol->Name, colname, XLEN(xcol->Name));
 
         if (j)
-					strncat(fmt, colname, XSTR(fmt));
+          strncat(fmt, colname, XLEN(fmt));
 
         if (j < lvl && ok) {
           vp = lvlp[j+1];
@@ -267,10 +267,10 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
             if (!vp->atp)
               node = vp->nl->GetItem(g, vp->k++, node);
 
-            strncat(fmt, colname, XSTR(fmt));
-						strncat(fmt, "/", XSTR(fmt));
-						strncat(xcol->Name, "_", XSTR(xcol->Name));
-            j++;
+						strncat(fmt, colname, XLEN(fmt));
+						strncat(fmt, "/", XLEN(fmt));
+						strncat(xcol->Name, "_", XLEN(xcol->Name));
+						j++;
             vp->n = (int)strlen(xcol->Name);
             vp->m = (int)strlen(fmt);
             goto more;

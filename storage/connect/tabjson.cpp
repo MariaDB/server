@@ -578,7 +578,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
 } // end of FindRow
 
 /***********************************************************************/
-/*  OpenDB: Data Base open routine for JSN access method.              */
+/*  OpenDB: Data Base open routine for JSN access method.              */									 
 /***********************************************************************/
 bool TDBJSN::OpenDB(PGLOBAL g)
   {
@@ -659,7 +659,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
       // Deferred reading failed
     } else if (!(Row = ParseJson(g, To_Line, 
-                             strlen(To_Line), Pretty, &Comma))) {
+                             strlen(To_Line), &Pretty, &Comma))) {
       rc = (Pretty == 1 && !strcmp(To_Line, "]")) ? RC_EF : RC_FX;
     } else {
       Row = FindRow(g);
@@ -755,7 +755,6 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
     } else
       strcpy(To_Line, s);
 
-//  Row->Clear();
     return false;
   } else
     return true;
@@ -980,7 +979,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
         Nod = colp->Nod;
         Nodes = colp->Nodes;
 				Xpd = colp->Xpd;
-				goto fin;
+        goto fin;
         } // endif Name
 
     sprintf(g->Message, "Cannot parse updated column %s", Name);
@@ -1046,7 +1045,8 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
     switch (val->GetValType()) {
       case TYPE_STRG:
       case TYPE_INTG:
-      case TYPE_DBL:
+			case TYPE_BINT:
+			case TYPE_DBL:
         vp->SetValue_pval(val->GetValue());
         break;
       case TYPE_BOOL:
@@ -1107,7 +1107,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
     } else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key) {
-          // Expected Array was not there
+          // Expected Array was not there, wrap the value
           if (i < Nod-1)
             continue;
           else
@@ -1128,11 +1128,11 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
           else
             return CalculateArray(g, arp, i);
 
-        } else if (i < Nod-1) {
-          strcpy(g->Message, "Unexpected array");
-          val = NULL;          // Not an expected array
-        } else
-          val = arp->GetValue(0);
+				} else {
+					// Unexpected array, unwrap it as [0]
+					val = arp->GetValue(0);
+					i--;
+				}	// endif's
 
         break;
       case TYPE_JVAL:
@@ -1275,30 +1275,31 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
   PJAR  arp;
   PJSON nwr, row = Tjp->Row;
 
-  for (int i = 0; i < Nod-1 && row; i++) {
-    if (Nodes[i+1].Op == OP_XX)
+	for (int i = 0; i < Nod && row; i++) {
+		if (Nodes[i+1].Op == OP_XX)
       break;
     else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key)
-          // Expected Array was not there
+          // Expected Array was not there, wrap the value
           continue;
 
         val = ((PJOB)row)->GetValue(Nodes[i].Key);
         break;
       case TYPE_JAR:
-        if (!Nodes[i].Key) {
-          arp = (PJAR)row;
+				arp = (PJAR)row;
 
+				if (!Nodes[i].Key) {
           if (Nodes[i].Op == OP_EQ)
             val = arp->GetValue(Nodes[i].Rank);
           else
             val = arp->GetValue(Nodes[i].Rx);
 
         } else {
-          strcpy(g->Message, "Unexpected array");
-          val = NULL;          // Not an expected array
-        } // endif Nodes
+					// Unexpected array, unwrap it as [0]
+					val = arp->GetValue(0);
+					i--;
+				} // endif Nodes
 
         break;
       case TYPE_JVAL:
@@ -1353,7 +1354,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 		longjmp(g->jumper[g->jump_level], 666);
 	  }	// endif Xpd
 
-	/*********************************************************************/
+  /*********************************************************************/
   /*  Check whether this node must be written.                         */
   /*********************************************************************/
   if (Value != To_Val)
@@ -1370,7 +1371,6 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   PJAR  arp = NULL;
   PJVAL jvp = NULL;
   PJSON jsp, row = GetRow(g);
-  JTYP  type = row->GetType();
 
   switch (row->GetType()) {
     case TYPE_JOB:  objp = (PJOB)row;  break;
@@ -1384,7 +1384,7 @@ void JSONCOL::WriteColumn(PGLOBAL g)
       if (Nodes[Nod-1].Op == OP_XX) {
         s = Value->GetCharValue();
 
-        if (!(jsp = ParseJson(g, s, (int)strlen(s), 0))) {
+        if (!(jsp = ParseJson(g, s, (int)strlen(s)))) {
           strcpy(g->Message, s);
           longjmp(g->jumper[g->jump_level], 666);
           } // endif jsp
@@ -1522,7 +1522,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   /*  Parse the json file and allocate its tree structure.             */
   /*********************************************************************/
   g->Message[0] = 0;
-  jsp = Top = ParseJson(g, memory, len, Pretty);
+  jsp = Top = ParseJson(g, memory, len, &Pretty);
   Txfp->CloseTableFile(g, false);
   Mode = mode;             // Restore saved Mode
 
@@ -1540,7 +1540,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
     if (*objpath != '[') {         // objpass is a key
       if (jsp->GetType() != TYPE_JOB) {
-        strcpy(g->Message, "Table path does no match json file");
+        strcpy(g->Message, "Table path does not match the json file");
         return RC_FX;
         } // endif Type
 
@@ -1556,7 +1556,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
     } else if (objpath[strlen(objpath)-1] == ']') {
       if (jsp->GetType() != TYPE_JAR) {
-        strcpy(g->Message, "Table path does no match json file");
+        strcpy(g->Message, "Table path does not match the json file");
         return RC_FX;
         } // endif Type
 
@@ -1837,7 +1837,6 @@ void TDBJSON::CloseDB(PGLOBAL g)
   // Save the modified document
   char  filename[_MAX_PATH];
   PSZ   msg;
-  FILE *fop;
 
   Doc->InitArray(g);
 
@@ -1845,11 +1844,7 @@ void TDBJSON::CloseDB(PGLOBAL g)
   PlugSetPath(filename, ((PJDEF)To_Def)->Fn, GetPath());
 
   // Serialize the modified table
-  if (!(fop = fopen(filename, "wb"))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            "w", (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
-  } else if ((msg = Serialize(g, Top, fop, Pretty)))
+  if ((msg = Serialize(g, Top, filename, Pretty)))
     puts(msg);
 
   } // end of CloseDB
