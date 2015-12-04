@@ -3481,12 +3481,6 @@ public:
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void create_length_to_internal_length(void);
 
-  /* Init for a tmp table field. To be extended if need be. */
-  void init_for_tmp_table(enum_field_types sql_type_arg,
-                          uint32 max_length, uint32 decimals,
-                          bool maybe_null, bool is_unsigned,
-                          uint pack_length = ~0U);
-
   bool check(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }

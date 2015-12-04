@@ -684,32 +684,6 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 }
 
 
-static enum enum_field_types 
-calc_tmp_field_type(enum enum_field_types table_field_type, 
-                    Item_result result_type)
-{
-  /* Adjust tmp table type according to the chosen aggregation type */
-  switch (result_type) {
-  case STRING_RESULT:
-  case REAL_RESULT:
-    if (table_field_type != MYSQL_TYPE_FLOAT)
-      table_field_type= MYSQL_TYPE_DOUBLE;
-    break;
-  case INT_RESULT:
-    table_field_type= MYSQL_TYPE_LONGLONG;
-    /* fallthrough */
-  case DECIMAL_RESULT:
-    if (table_field_type != MYSQL_TYPE_LONGLONG)
-      table_field_type= MYSQL_TYPE_NEWDECIMAL;
-    break;
-  case ROW_RESULT:
-  default:
-    DBUG_ASSERT(0);
-  }
-  return table_field_type;
-}
-
-
 /***************************************************************************/
 
 C_MODE_START
@@ -886,8 +860,6 @@ bool Aggregator_distinct::setup(THD *thd)
   }
   else
   {
-    List<Column_definition> field_list;
-    Column_definition field_def;                /* field definition */
     Item *arg;
     DBUG_ENTER("Aggregator_distinct::setup");
     /* It's legal to call setup() more than once when in a subquery */
@@ -899,8 +871,6 @@ bool Aggregator_distinct::setup(THD *thd)
       PS/SP. Hence all further allocations are performed in the runtime
       mem_root.
     */
-    if (field_list.push_back(&field_def, thd->mem_root))
-      DBUG_RETURN(TRUE);
 
     item_sum->null_value= item_sum->maybe_null= 1;
     item_sum->quick_group= 0;
@@ -918,17 +888,8 @@ bool Aggregator_distinct::setup(THD *thd)
     if (always_null)
       DBUG_RETURN(FALSE);
 
-    enum enum_field_types field_type;
-
-    field_type= calc_tmp_field_type(arg->field_type(),
-                              arg->result_type());
-    field_def.init_for_tmp_table(field_type, 
-                                 arg->max_length,
-                                 arg->decimals, 
-                                 arg->maybe_null,
-                                 arg->unsigned_flag);
-
-    if (! (table= create_virtual_tmp_table(thd, field_list)))
+    Field *field= arg->make_num_distinct_aggregator_field(thd->mem_root, arg);
+    if (!field || !(table= create_virtual_tmp_table(thd, field)))
       DBUG_RETURN(TRUE);
 
     /* XXX: check that the case of CHAR(0) works OK */

@@ -759,6 +759,17 @@ public:
   {
     return get_handler_by_field_type(field_type());
   }
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
+                                            const Item *item) const
+  {
+    return type_handler()->make_num_distinct_aggregator_field(mem_root, this);
+  }
+  Field *make_conversion_table_field(TABLE *table,
+                                     uint metadata, const Field *target) const
+  {
+    DBUG_ASSERT(0); // Should not be called in Item context
+    return NULL;
+  }
   /* result_type() of an item specifies how the value should be returned */
   Item_result result_type() const { return type_handler()->result_type(); }
   /* ... while cmp_type() specifies how it should be compared */

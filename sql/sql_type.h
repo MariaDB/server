@@ -23,6 +23,10 @@
 
 #include "mysqld.h"
 
+class Field;
+class Item;
+struct TABLE;
+
 class Type_handler
 {
 protected:
@@ -39,6 +43,42 @@ public:
                                             CHARSET_INFO *cs) const
   { return this; }
   virtual ~Type_handler() {}
+  /**
+    Makes a temporary table Field to handle numeric aggregate functions,
+    e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
+  */
+  virtual Field *make_num_distinct_aggregator_field(MEM_ROOT *,
+                                                    const Item *) const;
+  /**
+    Makes a temporary table Field to handle RBR replication type conversion.
+    @param TABLE    - The conversion table the field is going to be added to.
+                      It's used to access to table->in_use->mem_root,
+                      to create the new field on the table memory root,
+                      as well as to increment statistics in table->share
+                      (e.g. table->s->blob_count).
+    @param metadata - Metadata from the binary log.
+    @param target   - The field in the target table on the slave.
+
+    Note, the data types of "target" and of "this" are not necessarily
+    always the same, in general case it's possible that:
+            this->field_type() != target->field_type()
+    and/or
+            this->real_type( ) != target->real_type()
+
+    This method decodes metadata according to this->real_type()
+    and creates a new field also according to this->real_type().
+
+    In some cases it lurks into "target", to get some extra information, e.g.:
+    - unsigned_flag for numeric fields
+    - charset() for string fields
+    - typelib and field_length for SET and ENUM
+    - geom_type and srid for GEOMETRY
+    This information is not available in the binary log, so
+    we assume that these fields are the same on the master and on the slave.
+  */
+  virtual Field *make_conversion_table_field(TABLE *TABLE,
+                                             uint metadata,
+                                             const Field *target) const= 0;
 };
 
 
@@ -59,6 +99,7 @@ public:
   Item_result result_type() const { return DECIMAL_RESULT; }
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
 };
 
 
@@ -68,6 +109,7 @@ public:
   Item_result result_type() const { return INT_RESULT; }
   Item_result cmp_type() const { return INT_RESULT; }
   virtual ~Type_handler_int_result() {}
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
 };
 
 
@@ -117,6 +159,8 @@ class Type_handler_tiny: public Type_handler_int_result
 public:
   virtual ~Type_handler_tiny() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
+  Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -125,6 +169,8 @@ class Type_handler_short: public Type_handler_int_result
 public:
   virtual ~Type_handler_short() {}
   enum_field_types field_type() const { return MYSQL_TYPE_SHORT; }
+  Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -133,6 +179,8 @@ class Type_handler_long: public Type_handler_int_result
 public:
   virtual ~Type_handler_long() {}
   enum_field_types field_type() const { return MYSQL_TYPE_LONG; }
+  Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -141,6 +189,8 @@ class Type_handler_longlong: public Type_handler_int_result
 public:
   virtual ~Type_handler_longlong() {}
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -149,6 +199,8 @@ class Type_handler_int24: public Type_handler_int_result
 public:
   virtual ~Type_handler_int24() {}
   enum_field_types field_type() const { return MYSQL_TYPE_INT24; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -157,6 +209,8 @@ class Type_handler_year: public Type_handler_int_result
 public:
   virtual ~Type_handler_year() {}
   enum_field_types field_type() const { return MYSQL_TYPE_YEAR; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -165,6 +219,8 @@ class Type_handler_bit: public Type_handler_int_result
 public:
   virtual ~Type_handler_bit() {}
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -173,6 +229,9 @@ class Type_handler_float: public Type_handler_real_result
 public:
   virtual ~Type_handler_float() {}
   enum_field_types field_type() const { return MYSQL_TYPE_FLOAT; }
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -181,6 +240,8 @@ class Type_handler_double: public Type_handler_real_result
 public:
   virtual ~Type_handler_double() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -189,6 +250,8 @@ class Type_handler_time: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_time() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -198,6 +261,8 @@ public:
   virtual ~Type_handler_time2() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -206,6 +271,8 @@ class Type_handler_date: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_date() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -214,7 +281,8 @@ class Type_handler_newdate: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_newdate() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
-  enum_field_types real_field_type() const { return MYSQL_TYPE_NEWDATE; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -223,6 +291,8 @@ class Type_handler_datetime: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_datetime() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -232,6 +302,8 @@ public:
   virtual ~Type_handler_datetime2() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -240,6 +312,8 @@ class Type_handler_timestamp: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_timestamp() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -249,6 +323,8 @@ public:
   virtual ~Type_handler_timestamp2() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -257,6 +333,8 @@ class Type_handler_olddecimal: public Type_handler_decimal_result
 public:
   virtual ~Type_handler_olddecimal() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -265,6 +343,8 @@ class Type_handler_newdecimal: public Type_handler_decimal_result
 public:
   virtual ~Type_handler_newdecimal() {}
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -273,6 +353,8 @@ class Type_handler_null: public Type_handler_string_result
 public:
   virtual ~Type_handler_null() {}
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -281,6 +363,8 @@ class Type_handler_string: public Type_handler_string_result
 public:
   virtual ~Type_handler_string() {}
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -289,6 +373,8 @@ class Type_handler_varchar: public Type_handler_string_result
 public:
   virtual ~Type_handler_varchar() {}
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -297,6 +383,8 @@ class Type_handler_tiny_blob: public Type_handler_string_result
 public:
   virtual ~Type_handler_tiny_blob() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -305,6 +393,8 @@ class Type_handler_medium_blob: public Type_handler_string_result
 public:
   virtual ~Type_handler_medium_blob() {}
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -313,6 +403,8 @@ class Type_handler_long_blob: public Type_handler_string_result
 public:
   virtual ~Type_handler_long_blob() {}
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -321,15 +413,21 @@ class Type_handler_blob: public Type_handler_string_result
 public:
   virtual ~Type_handler_blob() {}
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
+#ifdef HAVE_SPATIAL
 class Type_handler_geometry: public Type_handler_string_result
 {
 public:
   virtual ~Type_handler_geometry() {}
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
+#endif
 
 
 class Type_handler_enum: public Type_handler_string_result
@@ -338,6 +436,8 @@ public:
   virtual ~Type_handler_enum() {}
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -347,6 +447,8 @@ public:
   virtual ~Type_handler_set() {}
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 
@@ -413,6 +515,16 @@ public:
     return
       m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
                                                                 cs);
+  }
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
+                                            const Item *item) const
+  {
+    return m_type_handler->make_num_distinct_aggregator_field(mem_root, item);
+  }
+  Field *make_conversion_table_field(TABLE *table, uint metadata,
+                                     const Field *target) const
+  {
+    return m_type_handler->make_conversion_table_field(table, metadata, target);
   }
 };
 

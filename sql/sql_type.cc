@@ -16,6 +16,9 @@
 
 #include "sql_type.h"
 #include "sql_const.h"
+#include "sql_class.h"
+#include "item.h"
+#include "log.h"
 
 static Type_handler_tiny        type_handler_tiny;
 static Type_handler_short       type_handler_short;
@@ -220,3 +223,424 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   return &type_handler_string;
 }
 
+
+/**
+  Create a DOUBLE field by default.
+*/
+Field *
+Type_handler::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
+                                                 const Item *item) const
+{
+  return new(mem_root)
+         Field_double(NULL, item->max_length,
+                      (uchar *) (item->maybe_null ? "" : 0),
+                      item->maybe_null ? 1 : 0, Field::NONE,
+                      item->name, item->decimals, 0, item->unsigned_flag);
+}
+
+
+Field *
+Type_handler_float::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
+                                                       const Item *item)
+                                                       const
+{
+  return new(mem_root)
+         Field_float(NULL, item->max_length,
+                     (uchar *) (item->maybe_null ? "" : 0),
+                     item->maybe_null ? 1 : 0, Field::NONE,
+                     item->name, item->decimals, 0, item->unsigned_flag);
+}
+
+
+Field *
+Type_handler_decimal_result::make_num_distinct_aggregator_field(
+                                                            MEM_ROOT *mem_root,
+                                                            const Item *item)
+                                                            const
+{
+  DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
+  return new (mem_root)
+         Field_new_decimal(NULL, item->max_length,
+                           (uchar *) (item->maybe_null ? "" : 0),
+                           item->maybe_null ? 1 : 0, Field::NONE,
+                           item->name, item->decimals, 0, item->unsigned_flag);
+}
+
+
+Field *
+Type_handler_int_result::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
+                                                            const Item *item)
+                                                            const
+{
+  /**
+    Make a longlong field for all INT-alike types. It could create
+    smaller fields for TINYINT, SMALLINT, MEDIUMINT, INT though.
+  */
+  return new(mem_root)
+         Field_longlong(NULL, item->max_length,
+                        (uchar *) (item->maybe_null ? "" : 0),
+                        item->maybe_null ? 1 : 0, Field::NONE,
+                        item->name, 0, item->unsigned_flag);
+}
+
+
+/***********************************************************************/
+
+#define TMPNAME ""
+
+Field *Type_handler_tiny::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  /*
+    As we don't know if the integer was signed or not on the master,
+    assume we have same sign on master and slave.  This is true when not
+    using conversions so it should be true also when using conversions.
+  */
+  bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
+  return new (table->in_use->mem_root)
+         Field_tiny(NULL, 4 /*max_length*/, (uchar *) "", 1, Field::NONE,
+                    TMPNAME, 0/*zerofill*/, unsigned_flag);
+}
+
+
+Field *Type_handler_short::make_conversion_table_field(TABLE *table,
+                                                       uint metadata,
+                                                       const Field *target)
+                                                       const
+{
+  bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
+  return new (table->in_use->mem_root)
+         Field_short(NULL, 6 /*max_length*/, (uchar *) "", 1, Field::NONE,
+                     TMPNAME, 0/*zerofill*/, unsigned_flag);
+}
+
+
+Field *Type_handler_int24::make_conversion_table_field(TABLE *table,
+                                                       uint metadata,
+                                                       const Field *target)
+                                                       const
+{
+  bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
+  return new (table->in_use->mem_root)
+         Field_medium(NULL, 9 /*max_length*/, (uchar *) "", 1, Field::NONE,
+                      TMPNAME, 0/*zerofill*/, unsigned_flag);
+}
+
+
+Field *Type_handler_long::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
+  return new (table->in_use->mem_root)
+         Field_long(NULL, 11 /*max_length*/, (uchar *) "", 1, Field::NONE,
+         TMPNAME, 0/*zerofill*/, unsigned_flag);
+}
+
+
+Field *Type_handler_longlong::make_conversion_table_field(TABLE *table,
+                                                          uint metadata,
+                                                          const Field *target)
+                                                          const
+{
+  bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
+  return new (table->in_use->mem_root)
+         Field_longlong(NULL, 20 /*max_length*/,(uchar *) "", 1, Field::NONE,
+                        TMPNAME, 0/*zerofill*/, unsigned_flag);
+}
+
+
+
+Field *Type_handler_float::make_conversion_table_field(TABLE *table,
+                                                       uint metadata,
+                                                       const Field *target)
+                                                       const
+{
+  return new (table->in_use->mem_root)
+         Field_float(NULL, 12 /*max_length*/, (uchar *) "", 1, Field::NONE,
+                     TMPNAME, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
+}
+
+
+Field *Type_handler_double::make_conversion_table_field(TABLE *table,
+                                                        uint metadata,
+                                                        const Field *target)
+                                                        const
+{
+  return new (table->in_use->mem_root)
+         Field_double(NULL, 22 /*max_length*/, (uchar *) "", 1, Field::NONE,
+                      TMPNAME, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
+}
+
+
+Field *Type_handler_newdecimal::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  int  precision= metadata >> 8;
+  uint decimals= metadata & 0x00ff;
+  uint32 max_length= my_decimal_precision_to_length(precision, decimals, false);
+  DBUG_ASSERT(decimals <= DECIMAL_MAX_SCALE);
+  return new (table->in_use->mem_root)
+         Field_new_decimal(NULL, max_length, (uchar *) "", 1, Field::NONE,
+                           TMPNAME, decimals, 0/*zerofill*/, 0/*unsigned*/);
+}
+
+
+Field *Type_handler_olddecimal::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  sql_print_error("In RBR mode, Slave received incompatible DECIMAL field "
+                  "(old-style decimal field) from Master while creating "
+                  "conversion table. Please consider changing datatype on "
+                  "Master to new style decimal by executing ALTER command for"
+                  " column Name: %s.%s.%s.",
+                  target->table->s->db.str,
+                  target->table->s->table_name.str,
+                  target->field_name);
+  return NULL;
+}
+
+
+Field *Type_handler_year::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_year(NULL, 4, (uchar *) "", 1, Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_null::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_null(NULL, 0, Field::NONE, TMPNAME, target->charset());
+}
+
+
+Field *Type_handler_timestamp::make_conversion_table_field(TABLE *table,
+                                                           uint metadata,
+                                                           const Field *target)
+                                                           const
+{
+  // We assume TIMESTAMP(0)
+  return new(table->in_use->mem_root)
+         Field_timestamp(NULL, MAX_DATETIME_WIDTH, (uchar *) "", 1,
+                         Field::NONE, TMPNAME, table->s);
+}
+
+
+Field *Type_handler_timestamp2::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  return new(table->in_use->mem_root)
+         Field_timestampf(NULL, (uchar *) "", 1, Field::NONE,
+                          TMPNAME, table->s, metadata);
+}
+
+
+Field *Type_handler_newdate::make_conversion_table_field(TABLE *table,
+                                                         uint metadata,
+                                                         const Field *target)
+                                                         const
+{
+  return new(table->in_use->mem_root)
+         Field_newdate(NULL, (uchar *) "", 1, Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_date::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_date(NULL, (uchar *) "", 1, Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_time::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_time(NULL, MAX_TIME_WIDTH, (uchar *) "", 1,
+                    Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_time2::make_conversion_table_field(TABLE *table,
+                                                       uint metadata,
+                                                       const Field *target)
+                                                       const
+{
+  return new(table->in_use->mem_root)
+         Field_timef(NULL, (uchar *) "", 1, Field::NONE, TMPNAME, metadata);
+}
+
+
+Field *Type_handler_datetime::make_conversion_table_field(TABLE *table,
+                                                          uint metadata,
+                                                          const Field *target)
+                                                          const
+{
+  return new(table->in_use->mem_root)
+         Field_datetime(NULL, MAX_DATETIME_WIDTH, (uchar *) "", 1,
+                        Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_datetime2::make_conversion_table_field(TABLE *table,
+                                                           uint metadata,
+                                                           const Field *target)
+                                                           const
+{
+  return new(table->in_use->mem_root)
+         Field_datetimef(NULL, (uchar *) "", 1,
+                         Field::NONE, TMPNAME, metadata);
+}
+
+
+Field *Type_handler_bit::make_conversion_table_field(TABLE *table,
+                                                     uint metadata,
+                                                     const Field *target)
+                                                     const
+{
+  DBUG_ASSERT((metadata & 0xff) <= 7);
+  uint32 max_length= 8 * (metadata >> 8U) + (metadata & 0x00ff);
+  return new(table->in_use->mem_root)
+         Field_bit_as_char(NULL, max_length, (uchar *) "", 1,
+                           Field::NONE, TMPNAME);
+}
+
+
+Field *Type_handler_string::make_conversion_table_field(TABLE *table,
+                                                        uint metadata,
+                                                        const Field *target)
+                                                        const
+{
+  /* This is taken from Field_string::unpack. */
+  uint32 max_length= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
+  return new(table->in_use->mem_root)
+         Field_string(NULL, max_length, (uchar *) "", 1,
+                      Field::NONE, TMPNAME, target->charset());
+}
+
+
+Field *Type_handler_varchar::make_conversion_table_field(TABLE *table,
+                                                         uint metadata,
+                                                         const Field *target)
+                                                         const
+{
+  return new(table->in_use->mem_root)
+         Field_varstring(NULL, metadata, HA_VARCHAR_PACKLENGTH(metadata),
+                         (uchar *) "", 1, Field::NONE, TMPNAME,
+                         table->s, target->charset());
+}
+
+
+Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
+                                                           uint metadata,
+                                                           const Field *target)
+                                                           const
+{
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+                    table->s, 1, target->charset());
+}
+
+
+Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+                    table->s, 2, target->charset());
+}
+
+
+Field *Type_handler_medium_blob::make_conversion_table_field(TABLE *table,
+                                                           uint metadata,
+                                                           const Field *target)
+                                                           const
+{
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+                    table->s, 3, target->charset());
+}
+
+
+Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
+                                                           uint metadata,
+                                                           const Field *target)
+                                                           const
+{
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+                    table->s, 4, target->charset());
+}
+
+
+#ifdef HAVE_SPATIAL
+Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
+                                                          uint metadata,
+                                                          const Field *target)
+                                                          const
+{
+  DBUG_ASSERT(target->type() == MYSQL_TYPE_GEOMETRY);
+  /*
+    We do not do not update feature_gis statistics here:
+    status_var_increment(target->table->in_use->status_var.feature_gis);
+    as this is only a temporary field.
+    The statistics was already incremented when "target" was created.
+  */
+  return new(table->in_use->mem_root)
+         Field_geom(NULL, (uchar *) "", 1, Field::NONE, TMPNAME, table->s, 4,
+                    ((const Field_geom*) target)->geom_type,
+                    ((const Field_geom*) target)->srid);
+}
+#endif
+
+Field *Type_handler_enum::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  DBUG_ASSERT(target->type() == MYSQL_TYPE_STRING);
+  DBUG_ASSERT(target->real_type() == MYSQL_TYPE_ENUM);
+  return new(table->in_use->mem_root)
+         Field_enum(NULL, target->field_length,
+                    (uchar *) "", 1, Field::NONE, TMPNAME,
+                    metadata & 0x00ff/*pack_length()*/,
+                    ((const Field_enum*) target)->typelib, target->charset());
+}
+
+
+Field *Type_handler_set::make_conversion_table_field(TABLE *table,
+                                                     uint metadata,
+                                                     const Field *target)
+                                                     const
+{
+  DBUG_ASSERT(target->type() == MYSQL_TYPE_STRING);
+  DBUG_ASSERT(target->real_type() == MYSQL_TYPE_SET);
+  return new(table->in_use->mem_root)
+         Field_set(NULL, target->field_length,
+                   (uchar *) "", 1, Field::NONE, TMPNAME,
+                   metadata & 0x00ff/*pack_length()*/,
+                   ((const Field_enum*) target)->typelib, target->charset());
+}

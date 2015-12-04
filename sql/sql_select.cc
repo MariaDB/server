@@ -16016,9 +16016,9 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     a tmp_set bitmap to be used by things like filesort.
 */
 
-void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
+void
+setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
 {
-  uint field_count= table->s->fields;
   uint bitmap_size= bitmap_buffer_size(field_count);
 
   DBUG_ASSERT(table->s->vfields == 0 && table->def_vcol_set == 0);
@@ -16039,6 +16039,13 @@ void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
   table->s->all_set= table->def_read_set;
   bitmap_set_all(&table->s->all_set);
   table->default_column_bitmaps();
+}
+
+
+void
+setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
+{
+  setup_tmp_table_column_bitmaps(table, bitmaps, table->s->fields);
 }
 
 
@@ -16926,139 +16933,108 @@ err:
 
 /****************************************************************************/
 
-/**
-  Create a reduced TABLE object with properly set up Field list from a
-  list of field definitions.
-
-    The created table doesn't have a table handler associated with
-    it, has no keys, no group/distinct, no copy_funcs array.
-    The sole purpose of this TABLE object is to use the power of Field
-    class to read/write data to/from table->record[0]. Then one can store
-    the record in any container (RB tree, hash, etc).
-    The table is created in THD mem_root, so are the table's fields.
-    Consequently, if you don't BLOB fields, you don't need to free it.
-
-  @param thd         connection handle
-  @param field_list  list of column definitions
-
-  @return
-    0 if out of memory, TABLE object in case of success
-*/
-
-TABLE *create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
+void *Virtual_tmp_table::operator new(size_t size, THD *thd) throw()
 {
-  uint field_count= field_list.elements;
-  uint blob_count= 0;
-  Field **field;
-  Column_definition *cdef;            /* column definition */
-  uint record_length= 0;
-  uint null_count= 0;                 /* number of columns which may be null */
-  uint null_pack_length;              /* NULL representation array length */
+  return (Virtual_tmp_table *) alloc_root(thd->mem_root, size);
+}
+
+
+bool Virtual_tmp_table::init(uint field_count)
+{
   uint *blob_field;
   uchar *bitmaps;
-  TABLE *table;
-  TABLE_SHARE *share;
-
-  if (!multi_alloc_root(thd->mem_root,
-                        &table, sizeof(*table),
-                        &share, sizeof(*share),
+  if (!multi_alloc_root(in_use->mem_root,
+                        &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
-                        &blob_field, (field_count+1) *sizeof(uint),
-                        &bitmaps, bitmap_buffer_size(field_count)*5,
+                        &blob_field, (field_count + 1) * sizeof(uint),
+                        &bitmaps, bitmap_buffer_size(field_count) * 5,
                         NullS))
-    return 0;
+    return true;
+  bzero(s, sizeof(*s));
+  s->blob_field= blob_field;
+  setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
+  m_alloced_field_count= field_count;
+  return false;
+};
 
-  bzero(table, sizeof(*table));
-  bzero(share, sizeof(*share));
-  table->field= field;
-  table->s= share;
-  table->temp_pool_slot= MY_BIT_NONE;
-  share->blob_field= blob_field;
-  share->fields= field_count;
-  setup_tmp_table_column_bitmaps(table, bitmaps);
 
+bool Virtual_tmp_table::add(List<Column_definition> &field_list)
+{
   /* Create all fields and calculate the total length of record */
+  Column_definition *cdef;            /* column definition */
   List_iterator_fast<Column_definition> it(field_list);
-  while ((cdef= it++))
+  for ( ; (cdef= it++); )
   {
-    *field= cdef->make_field(share, thd->mem_root, 0,
+    Field *tmp;
+    if (!(tmp= cdef->make_field(s, in_use->mem_root, 0,
                              (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                              f_maybe_null(cdef->pack_flag) ? 1 : 0,
-                             cdef->field_name);
-    if (!*field)
-      goto error;
-    (*field)->init(table);
-    record_length+= (*field)->pack_length();
-    if (! ((*field)->flags & NOT_NULL_FLAG))
-      null_count++;
-
-    if ((*field)->flags & BLOB_FLAG)
-      share->blob_field[blob_count++]= (uint) (field - table->field);
-
-    field++;
+                             cdef->field_name)))
+      return true;
+    add(tmp);
   }
-  *field= NULL;                             /* mark the end of the list */
-  share->blob_field[blob_count]= 0;            /* mark the end of the list */
-  share->blob_fields= blob_count;
+  return false;
+}
 
-  null_pack_length= (null_count + 7)/8;
-  share->reclength= record_length + null_pack_length;
-  share->rec_buff_length= ALIGN_SIZE(share->reclength + 1);
-  table->record[0]= (uchar*) thd->alloc(share->rec_buff_length);
-  if (!table->record[0])
-    goto error;
 
+void Virtual_tmp_table::setup_field_pointers()
+{
+  uchar *null_pos= record[0];
+  uchar *field_pos= null_pos + s->null_bytes;
+  uint null_bit= 1;
+
+  for (Field **cur_ptr= field; *cur_ptr; ++cur_ptr)
+  {
+    Field *cur_field= *cur_ptr;
+    if ((cur_field->flags & NOT_NULL_FLAG))
+      cur_field->move_field(field_pos);
+    else
+    {
+      cur_field->move_field(field_pos, (uchar*) null_pos, null_bit);
+      null_bit<<= 1;
+      if (null_bit == (uint)1 << 8)
+      {
+        ++null_pos;
+        null_bit= 1;
+      }
+    }
+    if (cur_field->type() == MYSQL_TYPE_BIT &&
+        cur_field->key_type() == HA_KEYTYPE_BIT)
+    {
+      /* This is a Field_bit since key_type is HA_KEYTYPE_BIT */
+      static_cast<Field_bit*>(cur_field)->set_bit_ptr(null_pos, null_bit);
+      null_bit+= cur_field->field_length & 7;
+      if (null_bit > 7)
+      {
+        null_pos++;
+        null_bit-= 8;
+      }
+    }
+    cur_field->reset();
+    field_pos+= cur_field->pack_length();
+  }
+}
+
+
+bool Virtual_tmp_table::open()
+{
+  // Make sure that we added all the fields we planned to:
+  DBUG_ASSERT(s->fields == m_alloced_field_count);
+  field[s->fields]= NULL;            // mark the end of the list
+  s->blob_field[s->blob_fields]= 0;  // mark the end of the list
+
+  uint null_pack_length= (s->null_fields + 7) / 8; // NULL-bit array length
+  s->reclength+= null_pack_length;
+  s->rec_buff_length= ALIGN_SIZE(s->reclength + 1);
+  if (!(record[0]= (uchar*) in_use->alloc(s->rec_buff_length)))
+    return true;
   if (null_pack_length)
   {
-    table->null_flags= (uchar*) table->record[0];
-    share->null_fields= null_count;
-    share->null_bytes= share->null_bytes_for_compare= null_pack_length;
+    null_flags= (uchar*) record[0];
+    s->null_bytes= s->null_bytes_for_compare= null_pack_length;
   }
-
-  table->in_use= thd;           /* field->reset() may access table->in_use */
-  {
-    /* Set up field pointers */
-    uchar *null_pos= table->record[0];
-    uchar *field_pos= null_pos + share->null_bytes;
-    uint null_bit= 1;
-
-    for (field= table->field; *field; ++field)
-    {
-      Field *cur_field= *field;
-      if ((cur_field->flags & NOT_NULL_FLAG))
-        cur_field->move_field(field_pos);
-      else
-      {
-        cur_field->move_field(field_pos, (uchar*) null_pos, null_bit);
-        null_bit<<= 1;
-        if (null_bit == (uint)1 << 8)
-        {
-          ++null_pos;
-          null_bit= 1;
-        }
-      }
-      if (cur_field->type() == MYSQL_TYPE_BIT &&
-          cur_field->key_type() == HA_KEYTYPE_BIT)
-      {
-        /* This is a Field_bit since key_type is HA_KEYTYPE_BIT */
-        static_cast<Field_bit*>(cur_field)->set_bit_ptr(null_pos, null_bit);
-        null_bit+= cur_field->field_length & 7;
-        if (null_bit > 7)
-        {
-          null_pos++;
-          null_bit-= 8;
-        }
-      }
-      cur_field->reset();
-
-      field_pos+= cur_field->pack_length();
-    }
-  }
-  return table;
-error:
-  for (field= table->field; *field; ++field)
-    delete *field;                         /* just invokes field destructor */
-  return 0;
+  setup_field_pointers();
+  return false;
 }
 
 
