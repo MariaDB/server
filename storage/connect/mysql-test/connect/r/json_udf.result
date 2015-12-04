@@ -2,11 +2,14 @@ CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=5;
 #
 # Test UDF's with constant arguments
 #
-SELECT JsonValue(56,3.1416,'foo',NULL);
+SELECT JsonValue(56, 3.1416, 'foo', NULL);
 ERROR HY000: Can't initialize function 'jsonvalue'; Cannot accept more than 1 argument
 SELECT JsonValue(3.1416);
 JsonValue(3.1416)
 3.141600
+SELECT JsonValue(-80);
+JsonValue(-80)
+-80
 SELECT JsonValue('foo');
 JsonValue('foo')
 "foo"
@@ -25,8 +28,8 @@ false
 SELECT JsonValue();
 JsonValue()
 null
-SELECT JsonValue('[11,22,33]' json_) FROM t1;
-JsonValue('[11,22,33]' json_)
+SELECT JsonValue('[11, 22, 33]' json_) FROM t1;
+JsonValue('[11, 22, 33]' json_)
 [11,22,33]
 [11,22,33]
 [11,22,33]
@@ -35,27 +38,29 @@ JsonValue('[11,22,33]' json_)
 SELECT Json_Array();
 Json_Array()
 []
-SELECT Json_Array(56,3.1416,'My name is "Foo"',NULL);
-Json_Array(56,3.1416,'My name is "Foo"',NULL)
+SELECT Json_Array(56, 3.1416, 'My name is "Foo"', NULL);
+Json_Array(56, 3.1416, 'My name is "Foo"', NULL)
 [56,3.141600,"My name is \"Foo\"",null]
-SELECT Json_Array(Json_Array(56,3.1416,'foo'),NULL);
-Json_Array(Json_Array(56,3.1416,'foo'),NULL)
-[[56,3.141600,"foo"],null]
-SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL)) Array;
+SELECT Json_Array(Json_Array(56, 3.1416, 'foo'), TRUE);
+Json_Array(Json_Array(56, 3.1416, 'foo'), TRUE)
+[[56,3.141600,"foo"],true]
+SELECT Json_Array_Add(Json_Array(56, 3.1416, 'foo', NULL)) Array;
 ERROR HY000: Can't initialize function 'json_array_add'; This function must have at least 2 arguments
-SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL),'One more') Array;
+SELECT Json_Array_Add(Json_Array(56, 3.1416, 'foo', NULL), 'One more') Array;
 Array
 [56,3.141600,"foo",null,"One more"]
-SELECT Json_Array_Add(JsonValue('one value'),'One more');
+SELECT Json_Array_Add(JsonValue('one value'), 'One more');
 ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
-SELECT Json_Array_Add('one value','One more');
+SELECT Json_Array_Add('one value', 'One more');
 ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
-SELECT Json_Array_Add('one value' json_,'One more');
-Json_Array_Add('one value' json_,'One more')
+SELECT Json_Array_Add('one value' json_, 'One more');
+Json_Array_Add('one value' json_, 'One more')
 one value
 Warnings:
 Warning	1105	Error 2 opening one value
 Warning	1105	First argument target is not an array
+SELECT Json_Array_Add(5 json_, 'One more');
+ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
 SELECT Json_Array_Add('[5,3,8,7,9]' json_, 4, 0);
 Json_Array_Add('[5,3,8,7,9]' json_, 4, 0)
 [4,5,3,8,7,9]
@@ -65,6 +70,15 @@ Array
 SELECT Json_Array_Add('[5,3,8,7,9]' json_, 4, 9);
 Json_Array_Add('[5,3,8,7,9]' json_, 4, 9)
 [5,3,8,7,9,4]
+SELECT Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), '[2]', 33, 1);
+Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), '[2]', 33, 1)
+[1,2,[11,22],"[2]"]
+SELECT Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), 33, '[2]', 1);
+Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), 33, '[2]', 1)
+[1,2,[11,33,22]]
+SELECT Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), 33, 1, '[2]');
+Json_Array_Add(Json_Array(1, 2, Json_Array(11, 22)), 33, 1, '[2]')
+[1,2,[11,33,22]]
 SELECT Json_Array_Add_Values(Json_Array(56, 3.1416, 'machin', NULL), 'One more', 'Two more') Array;
 Array
 [56,3.141600,"machin",null,"One more","Two more"]
@@ -92,19 +106,24 @@ Array
 SELECT Json_Array_Add_Values('[56]', 3.1416, 'machin') Array;
 Array
 [56,3.141600,"machin"]
-SELECT Json_Array_Delete(Json_Array(56,3.1416,'My name is "Foo"',NULL),0);
-Json_Array_Delete(Json_Array(56,3.1416,'My name is "Foo"',NULL),0)
+SELECT Json_Array_Delete(Json_Array(56, 3.1416, 'My name is "Foo"', NULL), 0);
+Json_Array_Delete(Json_Array(56, 3.1416, 'My name is "Foo"', NULL), 0)
 [3.141600,"My name is \"Foo\"",null]
-SELECT Json_Array_Delete(Json_Object(56,3.1416,'My name is Foo',NULL),2);
-Json_Array_Delete(Json_Object(56,3.1416,'My name is Foo',NULL),2)
+SELECT Json_Array_Delete(Json_Object(56, 3.1416, 'My name is Foo', NULL), 2);
+Json_Array_Delete(Json_Object(56, 3.1416, 'My name is Foo', NULL), 2)
 {"56":56,"3.1416":3.141600,"My name is Foo":"My name is Foo","NULL":null}
 Warnings:
 Warning	1105	First argument target is not an array
-SELECT Json_Array_Delete(Json_Array(56,3.1416,'My name is "Foo"',NULL),'2');
-Json_Array_Delete(Json_Array(56,3.1416,'My name is "Foo"',NULL),'2')
+SELECT Json_Array_Delete(Json_Array(56, 3.1416, 'My name is "Foo"', NULL), '2');
+Json_Array_Delete(Json_Array(56, 3.1416, 'My name is "Foo"', NULL), '2')
 [56,3.141600,"My name is \"Foo\"",null]
 Warnings:
 Warning	1105	Missing or null array index
+SELECT Json_Array_Delete(json_array(56, 3.1416, 'My name is "Foo"', NULL), '2', 2);
+Json_Array_Delete(json_array(56, 3.1416, 'My name is "Foo"', NULL), '2', 2)
+[56,3.141600,"My name is \"Foo\"",null]
+Warnings:
+Warning	1105	No sub-item at '2'
 SELECT Json_Object(56, 3.1416, 'foo', NULL);
 Json_Object(56, 3.1416, 'foo', NULL)
 {"56":56,"3.1416":3.141600,"foo":"foo","NULL":null}
@@ -120,19 +139,30 @@ Json_Object(Json_Array(56, 3.1416, 'foo'), NULL)
 SELECT Json_Array(Json_Object(56 "qty", 3.1416 "price", 'foo') ,NULL);
 Json_Array(Json_Object(56 "qty", 3.1416 "price", 'foo') ,NULL)
 [{"qty":56,"price":3.141600,"foo":"foo"},null]
-SELECT Json_Object_Add(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'blue' color);
-Json_Object_Add(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'blue' color)
-{"qty":56,"price":3.141600,"truc":"machin","garanty":null,"color":"blue"}
-SELECT Json_Object_Add(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 45.99 price);
-Json_Object_Add(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 45.99 price)
-{"qty":56,"price":45.990000,"truc":"machin","garanty":null}
-SELECT Json_Object_Delete(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'truc');
-Json_Object_Delete(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'truc')
-{"qty":56,"price":3.141600,"garanty":null}
-SELECT Json_Object_Delete(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'chose');
-Json_Object_Delete(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty), 'chose')
+SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL);
+Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL)
 {"qty":56,"price":3.141600,"truc":"machin","garanty":null}
-SELECT Json_Object_List(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty)) "Key List";
+SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');
+ERROR HY000: Can't initialize function 'json_object_key'; This function must have an even number of arguments
+SELECT Json_Object_Add(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'blue' color);
+Json_Object_Add(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'blue' color)
+{"qty":56,"price":3.141600,"truc":"machin","garanty":null,"color":"blue"}
+SELECT Json_Object_Add(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  45.99 price);
+Json_Object_Add(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  45.99 price)
+{"qty":56,"price":45.990000,"truc":"machin","garanty":null}
+SELECT Json_Object_Add(Json_File('notexist.json'), 'cheese' item, '[1]', 1);
+Json_Object_Add(Json_File('notexist.json'), 'cheese' item, '[1]', 1)
+NULL
+Warnings:
+Warning	1105	Error 2 opening notexist.json
+Warning	1105	First argument target is not an object
+SELECT Json_Object_Delete(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'truc');
+Json_Object_Delete(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'truc')
+{"qty":56,"price":3.141600,"garanty":null}
+SELECT Json_Object_Delete(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'chose');
+Json_Object_Delete(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'chose')
+{"qty":56,"price":3.141600,"truc":"machin","garanty":null}
+SELECT Json_Object_List(Json_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty)) "Key List";
 Key List
 ["qty","price","truc","garanty"]
 SELECT Json_Object_List('{"qty":56, "price":3.1416, "truc":"machin", "garanty":null}') "Key List";
@@ -188,6 +218,16 @@ DEPARTMENT	Json_Array_Grp(NAME)
 Warnings:
 Warning	1105	Result truncated to json_grp_size values
 SET connect_json_grp_size=30;
+SELECT Json_Object(title, Json_Array_Grp(name) `json_names`) from t3 GROUP BY title;
+Json_Object(title, Json_Array_Grp(name) `json_names`)
+{"title":"ADMINISTRATOR","names":["GOOSEPEN","FUNNIGUY","SHRINKY"]}
+{"title":"DIRECTOR","names":["QUINN","WERTHER","STRONG"]}
+{"title":"ENGINEER","names":["BROWNY","ORELLY","MARTIN","TONGHO","WALTER","SMITH"]}
+{"title":"PROGRAMMER","names":["BUGHAPPY"]}
+{"title":"SALESMAN","names":["WHEELFOR","MERCHANT","BULLOZER","BANCROFT","FODDERMAN"]}
+{"title":"SCIENTIST","names":["BIGHEAD","BIGHORN"]}
+{"title":"SECRETARY","names":["MESSIFUL","HONEY","SHORTSIGHT","CHERRY","MONAPENNY"]}
+{"title":"TYPIST","names":["KITTY","PLUMHEAD"]}
 SELECT Json_Array(DEPARTMENT, Json_Array_Grp(NAME)) FROM t3 GROUP BY DEPARTMENT;
 Json_Array(DEPARTMENT, Json_Array_Grp(NAME))
 ["0021",["STRONG","SHORTSIGHT"]]
@@ -227,12 +267,12 @@ Json_Object(DEPARTMENT, TITLE, Json_Array_Grp(Json_Object(SERIALNO, NAME, SALARY
 {"DEPARTMENT":"2452","TITLE":"SCIENTIST","EMPLOYES":[{"SERIALNO":"34567","NAME":"BIGHEAD","SALARY":8000.000000},{"SERIALNO":"36666","NAME":"BIGHORN","SALARY":11000.000000}]}
 {"DEPARTMENT":"2452","TITLE":"SECRETARY","EMPLOYES":[{"SERIALNO":"11111","NAME":"CHERRY","SALARY":4500.000000}]}
 SELECT Json_Object_Grp(SALARY) FROM t3;
-ERROR HY000: Can't initialize function 'json_object_grp'; This function requires 2 arguments (value, key)
-SELECT Json_Object_Grp(SALARY, NAME) FROM t3;
-Json_Object_Grp(SALARY, NAME)
+ERROR HY000: Can't initialize function 'json_object_grp'; This function requires 2 arguments (key, value)
+SELECT Json_Object_Grp(NAME, SALARY) FROM t3;
+Json_Object_Grp(NAME, SALARY)
 {"BANCROFT":9600.000000,"SMITH":9000.000000,"MERCHANT":8700.000000,"FUNNIGUY":8500.000000,"BUGHAPPY":8500.000000,"BIGHEAD":8000.000000,"SHRINKY":7500.000000,"WALTER":7400.000000,"FODDERMAN":7000.000000,"TONGHO":6800.000000,"SHORTSIGHT":5500.000000,"MESSIFUL":5000.500000,"HONEY":4900.000000,"GOOSEPEN":4700.000000,"CHERRY":4500.000000,"MONAPENNY":3800.000000,"KITTY":3000.450000,"PLUMHEAD":2800.000000,"STRONG":23000.000000,"BULLOZER":14800.000000,"WERTHER":14500.000000,"QUINN":14000.000000,"ORELLY":13400.000000,"BIGHORN":11000.000000,"BROWNY":10500.000000,"WHEELFOR":10030.000000,"MARTIN":10000.000000}
-SELECT Json_Object(DEPARTMENT, Json_Object_Grp(SALARY, NAME) "Json_SALARIES") FROM t3 GROUP BY DEPARTMENT;
-Json_Object(DEPARTMENT, Json_Object_Grp(SALARY, NAME) "Json_SALARIES")
+SELECT Json_Object(DEPARTMENT, Json_Object_Grp(NAME, SALARY) "Json_SALARIES") FROM t3 GROUP BY DEPARTMENT;
+Json_Object(DEPARTMENT, Json_Object_Grp(NAME, SALARY) "Json_SALARIES")
 {"DEPARTMENT":"0021","SALARIES":{"STRONG":23000.000000,"SHORTSIGHT":5500.000000}}
 {"DEPARTMENT":"0318","SALARIES":{"BANCROFT":9600.000000,"PLUMHEAD":2800.000000,"HONEY":4900.000000,"TONGHO":6800.000000,"WALTER":7400.000000,"SHRINKY":7500.000000,"WERTHER":14500.000000,"MERCHANT":8700.000000,"WHEELFOR":10030.000000}}
 {"DEPARTMENT":"0319","SALARIES":{"BULLOZER":14800.000000,"QUINN":14000.000000,"BROWNY":10500.000000,"KITTY":3000.450000,"MONAPENNY":3800.000000,"MARTIN":10000.000000,"FUNNIGUY":8500.000000,"BUGHAPPY":8500.000000,"FODDERMAN":7000.000000,"MESSIFUL":5000.500000,"GOOSEPEN":4700.000000}}
@@ -240,6 +280,20 @@ Json_Object(DEPARTMENT, Json_Object_Grp(SALARY, NAME) "Json_SALARIES")
 SELECT Json_Array_Grp(NAME) FROM t3;
 Json_Array_Grp(NAME)
 ["BANCROFT","SMITH","MERCHANT","FUNNIGUY","BUGHAPPY","BIGHEAD","SHRINKY","WALTER","FODDERMAN","TONGHO","SHORTSIGHT","MESSIFUL","HONEY","GOOSEPEN","CHERRY","MONAPENNY","KITTY","PLUMHEAD","STRONG","BULLOZER","WERTHER","QUINN","ORELLY","BIGHORN","BROWNY","WHEELFOR","MARTIN"]
+SELECT Json_Object_Key(name, title) FROM t3 WHERE DEPARTMENT = 318;
+Json_Object_Key(name, title)
+{"BANCROFT":"SALESMAN"}
+{"MERCHANT":"SALESMAN"}
+{"SHRINKY":"ADMINISTRATOR"}
+{"WALTER":"ENGINEER"}
+{"TONGHO":"ENGINEER"}
+{"HONEY":"SECRETARY"}
+{"PLUMHEAD":"TYPIST"}
+{"WERTHER":"DIRECTOR"}
+{"WHEELFOR":"SALESMAN"}
+SELECT Json_Object_Grp(name, title) FROM t3 WHERE DEPARTMENT = 318;
+Json_Object_Grp(name, title)
+{"BANCROFT":"SALESMAN","MERCHANT":"SALESMAN","SHRINKY":"ADMINISTRATOR","WALTER":"ENGINEER","TONGHO":"ENGINEER","HONEY":"SECRETARY","PLUMHEAD":"TYPIST","WERTHER":"DIRECTOR","WHEELFOR":"SALESMAN"}
 #
 # Test value getting UDF's
 #
@@ -304,40 +358,40 @@ JsonGet_Int(@j1, '[#]')
 SELECT JsonGet_Int(@j1, '[+]');
 JsonGet_Int(@j1, '[+]')
 243
-SELECT JsonGet_Int(@j1 json_,'[3]');
-JsonGet_Int(@j1 json_,'[3]')
+SELECT JsonGet_Int(@j1 json_, '[3]');
+JsonGet_Int(@j1 json_, '[3]')
 45
-SELECT JsonGet_Int(Json_Array(45,28,36,45,89),'[3]');
-JsonGet_Int(Json_Array(45,28,36,45,89),'[3]')
+SELECT JsonGet_Int(Json_Array(45,28,36,45,89), '[3]');
+JsonGet_Int(Json_Array(45,28,36,45,89), '[3]')
 45
-SELECT JsonGet_Int(Json_Array(45,28,36,45,89),'["+"]');
-JsonGet_Int(Json_Array(45,28,36,45,89),'["+"]')
+SELECT JsonGet_Int(Json_Array(45,28,36,45,89), '["+"]');
+JsonGet_Int(Json_Array(45,28,36,45,89), '["+"]')
 45
-SELECT JsonGet_Int(Json_Array(45,28,36,45,89),'[+]');
-JsonGet_Int(Json_Array(45,28,36,45,89),'[+]')
+SELECT JsonGet_Int(Json_Array(45,28,36,45,89), '[+]');
+JsonGet_Int(Json_Array(45,28,36,45,89), '[+]')
 243
-SELECT JsonGet_Int(Json_Array(json_array(45,28),json_array(36,45,89)),'[1]:[0]');
-JsonGet_Int(Json_Array(json_array(45,28),json_array(36,45,89)),'[1]:[0]')
+SELECT JsonGet_Int(Json_Array(json_array(45,28), json_array(36,45,89)), '[1]:[0]');
+JsonGet_Int(Json_Array(json_array(45,28), json_array(36,45,89)), '[1]:[0]')
 36
-SELECT JsonGet_Int(Json_Array(json_array(45,28),json_array(36,45,89)),'[0]:[1]');
-JsonGet_Int(Json_Array(json_array(45,28),json_array(36,45,89)),'[0]:[1]')
+SELECT JsonGet_Int(Json_Array(json_array(45,28), json_array(36,45,89)), '[0]:[1]');
+JsonGet_Int(Json_Array(json_array(45,28), json_array(36,45,89)), '[0]:[1]')
 28
-SELECT JsonGet_Int(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'qty');
-JsonGet_Int(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'qty')
+SELECT JsonGet_Int(Json_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'qty');
+JsonGet_Int(Json_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'qty')
 56
-SELECT JsonGet_Int(@j2 json_,'price');
-JsonGet_Int(@j2 json_,'price')
+SELECT JsonGet_Int(@j2 json_, 'price');
+JsonGet_Int(@j2 json_, 'price')
 3
-SELECT JsonGet_Int(@j2,'qty');
-JsonGet_Int(@j2,'qty')
+SELECT JsonGet_Int(@j2, 'qty');
+JsonGet_Int(@j2, 'qty')
 56
-SELECT JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose');
-JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose')
+SELECT JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose');
+JsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose')
 NULL
-SELECT JsonGet_Int(JsonGet_String(Json_Array(Json_Array(45,28),Json_Array(36,45,89)),'[1]:*'),'[+]') sum;
+SELECT JsonGet_Int(JsonGet_String(Json_Array(Json_Array(45,28),Json_Array(36,45,89)), '[1]:*'), '[+]') sum;
 sum
 170
-SELECT department, JsonGet_Int(Json_Object(department, Json_Array_Grp(salary) "Json_salaries"),'salaries:[+]') Sumsal FROM t3 GROUP BY department;
+SELECT department, JsonGet_Int(Json_Object(department, Json_Array_Grp(salary) "Json_salaries"), 'salaries:[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
 0021	28500
 0318	72230
@@ -346,38 +400,38 @@ department	Sumsal
 SELECT JsonGet_Real(@j1, '[2]');
 JsonGet_Real(@j1, '[2]')
 36.000000000000000
-SELECT JsonGet_Real(@j1 json_,'[3]',2);
-JsonGet_Real(@j1 json_,'[3]',2)
+SELECT JsonGet_Real(@j1 json_, '[3]', 2);
+JsonGet_Real(@j1 json_, '[3]', 2)
 45.00
-SELECT JsonGet_Real(Json_Array(45,28,36,45,89),'[3]');
-JsonGet_Real(Json_Array(45,28,36,45,89),'[3]')
+SELECT JsonGet_Real(Json_Array(45,28,36,45,89), '[3]');
+JsonGet_Real(Json_Array(45,28,36,45,89), '[3]')
 45.000000000000000
-SELECT JsonGet_Real(Json_Array(45,28,36,45,89),'["+"]');
-JsonGet_Real(Json_Array(45,28,36,45,89),'["+"]')
+SELECT JsonGet_Real(Json_Array(45,28,36,45,89), '["+"]');
+JsonGet_Real(Json_Array(45,28,36,45,89), '["+"]')
 45.000000000000000
-SELECT JsonGet_Real(Json_Array(45,28,36,45,89),'[+]');
-JsonGet_Real(Json_Array(45,28,36,45,89),'[+]')
+SELECT JsonGet_Real(Json_Array(45,28,36,45,89), '[+]');
+JsonGet_Real(Json_Array(45,28,36,45,89), '[+]')
 243.000000000000000
-SELECT JsonGet_Real(Json_Array(45,28,36,45,89),'[!]');
-JsonGet_Real(Json_Array(45,28,36,45,89),'[!]')
+SELECT JsonGet_Real(Json_Array(45,28,36,45,89), '[!]');
+JsonGet_Real(Json_Array(45,28,36,45,89), '[!]')
 48.600000000000000
-SELECT JsonGet_Real(Json_Array(json_array(45,28),json_array(36,45,89)),'[1]:[0]');
-JsonGet_Real(Json_Array(json_array(45,28),json_array(36,45,89)),'[1]:[0]')
+SELECT JsonGet_Real(Json_Array(json_array(45,28), json_array(36,45,89)), '[1]:[0]');
+JsonGet_Real(Json_Array(json_array(45,28), json_array(36,45,89)), '[1]:[0]')
 36.000000000000000
-SELECT JsonGet_Real(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'price');
-JsonGet_Real(Json_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'price')
+SELECT JsonGet_Real(Json_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'price');
+JsonGet_Real(Json_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'price')
 3.141600000000000
-SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}' json_,'qty');
-JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}' json_,'qty')
+SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}' json_, 'qty');
+JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}' json_, 'qty')
 56.000000000000000
-SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','price');
-JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','price')
+SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price');
+JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price')
 3.141600000000000
-SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','price', 4);
-JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','price', 4)
+SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price', 4);
+JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price', 4)
 3.1416
-SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose');
-JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}','chose')
+SELECT JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose');
+JsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose')
 NULL
 SELECT department, JsonGet_Real(Json_Object(department, Json_Array_Grp(salary) "Json_salaries"),'salaries:[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
@@ -397,12 +451,12 @@ JsonGet_Real(Json_Array(45,28,36,45,89), '[!]', 2) "Avg";
 Rank	Number	Concat	Sum	Avg
 89	5	45,28,36,45,89	243	48.60
 SELECT
-JsonGet_String('{"qty":7,"price":29.50,"garanty":null}','price') "String",
-JsonGet_Int('{"qty":7,"price":29.50,"garanty":null}','price') "Int",
-JsonGet_Real('{"qty":7,"price":29.50,"garanty":null}','price') "Real";
+JsonGet_String('{"qty":7,"price":29.50,"garanty":null}', 'price') "String",
+JsonGet_Int('{"qty":7,"price":29.50,"garanty":null}', 'price') "Int",
+JsonGet_Real('{"qty":7,"price":29.50,"garanty":null}', 'price') "Real";
 String	Int	Real
 29.50	29	29.500000000000000
-SELECT JsonGet_Real('{"qty":7,"price":29.50,"garanty":null}','price',3) "Real";
+SELECT JsonGet_Real('{"qty":7,"price":29.50,"garanty":null}', 'price', 3) "Real";
 Real
 29.500
 #
@@ -511,7 +565,7 @@ Json_Locate_All('test/biblio.json' jfile_, 'Knab')
 #
 # Testing json files
 #
-select Jfile_Make('[{"_id":5,"type":"food","item":"beer","taste":"light","price":5.65,"ratings":[5,8,9]},
+SELECT Jfile_Make('[{"_id":5,"type":"food","item":"beer","taste":"light","price":5.65,"ratings":[5,8,9]},
 {"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]},
 {"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,4]},
 {"_id":8,"type":"furniture","item":"table","size":{"W":60,"L":80,"H":40},"ratings":[5,8,7]}]', 'test/fx.json', 0) AS NewFile;

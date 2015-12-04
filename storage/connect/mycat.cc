@@ -89,6 +89,7 @@
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
+#include "mycat.h"
 
 /***********************************************************************/
 /*  Extern static variables.                                           */

@@ -1096,10 +1096,12 @@ PJVAL JARRAY::AddValue(PGLOBAL g, PJVAL jvp, int *x)
 			Last = jvp;
 
 	} else {
-		if (Last)
-			Last->Next = jvp;
-		else
+		if (!First)
 			First = jvp;
+		else if (Last == First)
+			First->Next = Last = jvp;
+		else
+			Last->Next = jvp;
 
 		Last = jvp;
 	} // endif x
@@ -1284,7 +1286,7 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
 
 void JVALUE::SetValue(PJSON jsp)
 { 
-	if (jsp->GetType() == TYPE_JVAL) {
+	if (jsp && jsp->GetType() == TYPE_JVAL) {
 		Jsp = jsp->GetJsp();
 		Value = jsp->GetValue();
 	} else {

@@ -239,7 +239,7 @@ public:
 	my_bool SetJpath(PGLOBAL g, char *path, my_bool jb = false);
 	my_bool ParseJpath(PGLOBAL g);
 	void    ReadValue(PGLOBAL g);
-	PJVAL   GetValue(PGLOBAL g, PJSON row, int i, my_bool b = true);
+	PJVAL   GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b = true);
 	PJVAL   GetJson(PGLOBAL g);
 	my_bool CheckPath(PGLOBAL g);
 	my_bool WriteValue(PGLOBAL g, PJVAL jvalp);
@@ -288,4 +288,5 @@ protected:
 	my_bool  Parsed;              // True when parsed
 	my_bool  Found;								// Item found by locate
 	my_bool  Wr;			  					// Write mode
+	my_bool  Jb;			  					// Must return json item
 }; // end of class JSNX

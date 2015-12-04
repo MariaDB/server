@@ -149,7 +149,7 @@ class JSON : public BLOCK {
   virtual JTYP   GetType(void) {return TYPE_JSON;}
   virtual JTYP   GetValType(void) {X return TYPE_JSON;}
   virtual void   InitArray(PGLOBAL g) {X}
-  virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
+//virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
   virtual PJPR   AddPair(PGLOBAL g, PSZ key) {X return NULL;}
 	virtual PJAR   GetKeyList(PGLOBAL g) {X return NULL;}
 	virtual PJVAL  GetValue(const char *key) {X return NULL;}
@@ -223,7 +223,7 @@ class JARRAY : public JSON {
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
-  virtual PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
+          PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
   virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
