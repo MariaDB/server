@@ -1414,15 +1414,23 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 	unsigned long rl, ml;
 	my_bool       b = false;
 
-	n = MY_MIN(n, args->arg_count);
+	n = MY_MIN(n, args->arg_count);																					  
 
 	for (uint i = 0; i < n; i++)
 		if (IsJson(args, i) == 2 ||
-			 (b == (m && !i && args->arg_type[0] == STRING_RESULT && !IsJson(args, 0)))) {
+			 (b = (m && !i && args->arg_type[0] == STRING_RESULT && !IsJson(args, 0)))) {
 			if (CalcLen(args, obj, rl, ml, mod))
 				return true;
-			else if (b)
-				ml += args->lengths[0] * M;	 // Was not done in CalcLen
+			else if (b) {
+				ulong len;
+				char *p = args->args[0];
+
+				// Is this a file name?
+				if (strchr("[{ \t\r\n", *p) || !(len = GetFileLength(p)))
+					len = args->lengths[0];
+
+				ml += len * M;	 // Was not done in CalcLen
+			}	// endif b
 
 			if (ml > g->Sarea_Size) {
 				free(g->Sarea);
@@ -3812,8 +3820,6 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		goto fin;
 	} else if (initid->const_item)
 		g->N = 1;
-
-	PlugSubSet(g, g->Sarea, g->Sarea_Size);
 
 	if ((n = IsJson(args, 0)) == 3) {
 		// Get default file name and pretty
