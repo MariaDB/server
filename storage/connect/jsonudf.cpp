@@ -1426,10 +1426,11 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				char *p = args->args[0];
 
 				// Is this a file name?
-				if (strchr("[{ \t\r\n", *p) || !(len = GetFileLength(p)))
-					len = args->lengths[0];
+				if (!strchr("[{ \t\r\n", *p) && (len = GetFileLength(p)))
+					ml += len * (M + 1);
+				else
+					ml += args->lengths[0] * M;
 
-				ml += len * M;	 // Was not done in CalcLen
 			}	// endif b
 
 			if (ml > g->Sarea_Size) {
