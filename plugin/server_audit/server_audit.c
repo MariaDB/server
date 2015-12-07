@@ -246,7 +246,7 @@ static TYPELIB events_typelib=
   array_elements(event_names) - 1, "", event_names, NULL
 };
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
-       "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE, QUERY_DDL, QUERY_DML.",
+       "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE, QUERY_DDL, QUERY_DML, QUERY_DCL.",
        NULL, NULL, 0, &events_typelib);
 #define OUTPUT_SYSLOG 0
 #define OUTPUT_FILE 1
