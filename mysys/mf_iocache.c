@@ -663,7 +663,11 @@ int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
       info->error= (int) left_length;
       DBUG_RETURN(1);
     }
-    length=0;				/* Didn't read any chars */
+    else
+    {
+      info->error= 0;
+      DBUG_RETURN(0);                           /* EOF */
+    }
   }
   else if ((length= mysql_file_read(info->file,info->buffer, max_length,
                             info->myflags)) < Count ||
