@@ -1133,8 +1133,7 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 
 	if (IsJson(args, 0) == 2) {
 		// Make the change in the json file
-		char *msg;
-		int   pretty = 2;
+		int pretty = 2;
 
 		for (uint i = n; i < args->arg_count; i++)
 			if (args->arg_type[i] == INT_RESULT) {
@@ -1142,8 +1141,8 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 				break;
 			} // endif type
 
-		if ((msg = Serialize(g, top, MakePSZ(g, args, 0), pretty)))
-			PUSH_WARNING(msg);
+		if (!Serialize(g, top, MakePSZ(g, args, 0), pretty))
+			PUSH_WARNING(g->Message);
 
 		str = NULL;
 	} else if (IsJson(args, 0) == 3) {
@@ -1151,10 +1150,8 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 
 		if (bsp->Filename) {
 			// Make the change in the json file
-			char *msg;
-
-			if ((msg = Serialize(g, top, bsp->Filename, bsp->Pretty)))
-				PUSH_WARNING(msg);
+			if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
+				PUSH_WARNING(g->Message);
 
 			str = bsp->Filename;
 		} else if (!(str = Serialize(g, top, NULL, 0)))
@@ -3810,7 +3807,7 @@ my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
-	char   *p, *msg, *str = NULL, *fn = NULL;
+	char   *p, *str = NULL, *fn = NULL;
 	int     n, pretty = 2;
 	PJSON   jsp;
 	PJVAL   jvp;
@@ -3878,9 +3875,9 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			}	// endswitch arg_type
 
 	if (fn) {
-		if ((msg = Serialize(g, jvp->GetJson(), fn, pretty)))
-			PUSH_WARNING(msg);
-	}	else
+		if (!Serialize(g, jvp->GetJson(), fn, pretty))
+			PUSH_WARNING(g->Message);
+	} else
 		PUSH_WARNING("Missing file name");
 
 	str= fn;
