@@ -534,15 +534,27 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
 /***********************************************************************/
 PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 {
+	PSZ   str = NULL;
   bool  b = false, err = true;
   JOUT *jp;
 	FILE *fs = NULL;
 
 	g->Message[0] = 0;
 
-  if (!jsp) {
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
+
+	if (setjmp(g->jumper[++g->jump_level])) {
+		str = NULL;
+		goto fin;
+	} // endif jmp
+
+	if (!jsp) {
     strcpy(g->Message, "Null json tree");
-    return NULL;
+    goto fin;
   } else if (!fn) {
     // Serialize to a string
     jp = new(g) JOUTSTR(g);
@@ -552,7 +564,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 			sprintf(g->Message, MSG(OPEN_MODE_ERROR),
 				"w", (int)errno, fn);
 			strcat(strcat(g->Message, ": "), strerror(errno));
-			return g->Message;
+			goto fin;;
 		} else if (pretty >= 2) {
 			// Serialize to a pretty file
 			jp = new(g)JOUTPRT(g, fs);
@@ -582,20 +594,20 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
   if (fs) {
 		fputs(EL, fs);
     fclose(fs);
-    return (err) ? g->Message : NULL;
+		str = (err) ? NULL : "Ok";
   } else if (!err) {
-    PSZ str = ((JOUTSTR*)jp)->Strp;
-
+    str = ((JOUTSTR*)jp)->Strp;
     jp->WriteChr('\0');
     PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
-    return str;
   } else {
     if (!g->Message[0])
       strcpy(g->Message, "Error in Serialize");
 
-    return NULL;
   } // endif's
 
+fin:
+	g->jump_level--;
+	return str;
 } // end of Serialize
 
 /***********************************************************************/
