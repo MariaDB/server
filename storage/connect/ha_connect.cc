@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0007 October 20, 2015";
+       char version[]= "Version 1.04.0005 November 20, 2015";
 #if defined(__WIN__)
-       char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -1114,7 +1114,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL) {
+  if (opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -1134,10 +1134,10 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 {
   TABLE_SHARE *tsp= (tshp) ? tshp : (s) ? s : table_share;
 
-	return (tsp && (!tsp->db_plugin ||
-		!stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
-		!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
-		? tsp->option_struct : NULL;
+	return (tsp && (!tsp->db_plugin || 
+		              !stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
+									!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
+									? tsp->option_struct : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -2191,99 +2191,159 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 /***********************************************************************/
 int ha_connect::CheckRecord(PGLOBAL g, const uchar *, uchar *newbuf)
 {
-  return ScanRecord(g, newbuf);
+	return ScanRecord(g, newbuf);
 } // end of dummy CheckRecord
+
+
+/***********************************************************************/
+/*  Return true if this field is used in current indexing.             */
+/***********************************************************************/
+bool ha_connect::IsIndexed(Field *fp)
+{
+	if (active_index < MAX_KEY) {
+		KEY_PART_INFO *kpart;
+		KEY           *kfp= &table->key_info[active_index];
+		uint           rem= kfp->user_defined_key_parts;
+
+		for (kpart= kfp->key_part; rem; rem--, kpart++)
+			if (kpart->field == fp)
+				return true;
+
+	} // endif active_index
+
+	return false;
+} // end of IsIndexed
 
 
 /***********************************************************************/
 /*  Return the where clause for remote indexed read.                   */
 /***********************************************************************/
-bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q, 
-                                         const void *key, int klen)
+bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
+	                            const key_range *kr)
 {
-  const uchar   *ptr;
-  uint           rem, len, stlen; //, prtlen;
-  bool           nq, oom, b= false;
-  Field         *fp;
-  KEY           *kfp;
-  KEY_PART_INFO *kpart;
+	const uchar     *ptr;
+//uint             i, rem, len, klen, stlen;
+	uint             i, rem, len, stlen;
+	bool             nq, both, oom= false;
+	OPVAL            op;
+	Field           *fp;
+	const key_range *ranges[2];
+	my_bitmap_map   *old_map;
+	KEY             *kfp;
+  KEY_PART_INFO   *kpart;
 
   if (active_index == MAX_KEY)
     return false;
-  else if (!key) {
-    strcpy(g->Message, "MakeKeyWhere: No key");
-    return true;
-  } // endif key
 
-  oom= qry->Append(" WHERE (");
-  kfp= &table->key_info[active_index];
-  rem= kfp->user_defined_key_parts,
-  len= klen,
-  ptr= (const uchar *)key;
+	ranges[0]= kr;
+	ranges[1]= (end_range && !eq_range) ? &save_end_range : NULL;
 
-  for (kpart= kfp->key_part; rem; rem--, kpart++) {
-    fp= kpart->field;
-    stlen= kpart->store_length;
-//  prtlen= MY_MIN(stlen, len);
-    nq= fp->str_needs_quotes();
+	if (!ranges[0] && !ranges[1]) {
+		strcpy(g->Message, "MakeKeyWhere: No key");
+	  return true;
+	}	else
+		both= ranges[0] && ranges[1];
 
-    if (b)
-      oom|= qry->Append(" AND ");
-    else
-      b= true;
+	kfp= &table->key_info[active_index];
+	old_map= dbug_tmp_use_all_columns(table, table->write_set);
 
-    oom|= qry->Append(q);
-    oom|= qry->Append((PSZ)fp->field_name);
-    oom|= qry->Append(q);
+	for (i = 0; i <= 1; i++) {
+		if (ranges[i] == NULL)
+			continue;
 
-    switch (op) {
-      case OP_EQ:
-      case OP_GT:
-      case OP_GE:
-			case OP_LT:
-			case OP_LE:
-				oom |= qry->Append((PSZ)GetValStr(op, false));
-        break;
-      default:
-        oom|= qry->Append(" ??? ");
-      } // endwitch op
+		if (both && i > 0)
+			oom|= qry->Append(") AND (");
+		else
+			oom|= qry->Append(" WHERE (");
 
-    if (nq)
-      oom|= qry->Append('\'');
+//	klen= len= ranges[i]->length;
+		len= ranges[i]->length;
+		rem= kfp->user_defined_key_parts;
+		ptr= ranges[i]->key;
 
-    if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
-      String varchar;
-      uint   var_length= uint2korr(ptr);
+		for (kpart= kfp->key_part; rem; rem--, kpart++) {
+			fp= kpart->field;
+			stlen= kpart->store_length;
+			nq= fp->str_needs_quotes();
 
-      varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                      var_length, &my_charset_bin);
-      oom|= qry->Append(varchar.ptr(), varchar.length());
-    } else {
-      char   strbuff[MAX_FIELD_WIDTH];
-      String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
+			if (kpart != kfp->key_part)
+				oom|= qry->Append(" AND ");
 
-      res= fp->val_str(&str, ptr);
-      oom|= qry->Append(res->ptr(), res->length());
-    } // endif flag
+			if (q) {
+				oom|= qry->Append(q);
+				oom|= qry->Append((PSZ)fp->field_name);
+				oom|= qry->Append(q);
+			}	else
+				oom|= qry->Append((PSZ)fp->field_name);
 
-    if (nq)
-      oom|= qry->Append('\'');
+			switch (ranges[i]->flag) {
+			case HA_READ_KEY_EXACT:
+//			op= (stlen >= len || !nq || fp->result_type() != STRING_RESULT)
+//				? OP_EQ : OP_LIKE;
+				op= OP_EQ;
+				break;
+			case HA_READ_AFTER_KEY:	  
+				op= (stlen >= len) ? (!i ? OP_GT : OP_LE) : OP_GE;
+				break;
+			case HA_READ_KEY_OR_NEXT:
+				op= OP_GE;
+				break;
+			case HA_READ_BEFORE_KEY:	
+				op= (stlen >= len) ? OP_LT : OP_LE;
+				break;
+			case HA_READ_KEY_OR_PREV:
+				op= OP_LE;
+				break;
+			default:
+				sprintf(g->Message, "cannot handle flag %d", ranges[i]->flag);
+				goto err;
+			}	// endswitch flag
 
-    if (stlen >= len)
-      break;
+			oom|= qry->Append((PSZ)GetValStr(op, false));
 
-    len-= stlen;
+			if (nq)
+				oom|= qry->Append('\'');
 
-    /* For nullable columns, null-byte is already skipped before, that is
-      ptr was incremented by 1. Since store_length still counts null-byte,
-      we need to subtract 1 from store_length. */
-    ptr+= stlen - MY_TEST(kpart->null_bit);
-    } // endfor kpart
+			if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
+				String varchar;
+				uint   var_length= uint2korr(ptr);
+
+				varchar.set_quick((char*)ptr + HA_KEY_BLOB_LENGTH,
+					var_length, &my_charset_bin);
+				oom|= qry->Append(varchar.ptr(), varchar.length(), nq);
+			}	else {
+				char   strbuff[MAX_FIELD_WIDTH];
+				String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
+
+				res= fp->val_str(&str, ptr);
+				oom|= qry->Append(res->ptr(), res->length(), nq);
+			} // endif flag
+
+			if (nq)
+				oom |= qry->Append('\'');
+
+			if (stlen >= len)
+				break;
+
+			len-= stlen;
+
+			/* For nullable columns, null-byte is already skipped before, that is
+			ptr was incremented by 1. Since store_length still counts null-byte,
+			we need to subtract 1 from store_length. */
+			ptr+= stlen - MY_TEST(kpart->null_bit);
+		} // endfor kpart
+
+		} // endfor i
 
   if ((oom|= qry->Append(")")))
     strcpy(g->Message, "Out of memory");
 
-  return oom;
+	dbug_tmp_restore_column_map(table->write_set, old_map);
+	return oom;
+
+err:
+	dbug_tmp_restore_column_map(table->write_set, old_map);
+	return true;
 } // end of MakeKeyWhere
 
 
@@ -2483,9 +2543,11 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 				case MYSQL_TYPE_YEAR:
 				case MYSQL_TYPE_NEWDATE:
 					return NULL;
+				default:
+					break;
 				} // endswitch type
 
-				if (trace) {
+        if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
           htrc("Field name=%s\n", pField->field->field_name);
           } // endif trace
@@ -2562,8 +2624,9 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 /***********************************************************************/
 /*  Check the WHERE condition and return a MYSQL/ODBC/WQL filter.      */
 /***********************************************************************/
-PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
+PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 {
+	AMT   tty = filp->Type;
   char *body= filp->Body;
   unsigned int i;
   bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
@@ -2596,7 +2659,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
     List<Item>* arglist= cond_item->argument_list();
     List_iterator<Item> li(*arglist);
-    Item *subitem;
+    const Item *subitem;
 
     p1= body + strlen(body);
     strcpy(p1, "(");
@@ -2604,7 +2667,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
     for (i= 0; i < arglist->elements; i++)
       if ((subitem= li++)) {
-        if (!CheckCond(g, filp, tty, subitem)) {
+        if (!CheckCond(g, filp, subitem)) {
           if (vop == OP_OR || nonul)
             return NULL;
           else
@@ -2626,26 +2689,27 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
   } else if (cond->type() == COND::FUNC_ITEM) {
     unsigned int i;
-//  int   n;
     bool       iscol, neg= FALSE;
     Item_func *condf= (Item_func *)cond;
     Item*     *args= condf->arguments();
 
     if (trace)
       htrc("Func type=%d argnum=%d\n", condf->functype(),
-                                         condf->argument_count());
-
-//  neg= condf->
+                                       condf->argument_count());
 
     switch (condf->functype()) {
       case Item_func::EQUAL_FUNC:
-      case Item_func::EQ_FUNC: vop= OP_EQ;  break;
-      case Item_func::NE_FUNC: vop= OP_NE;  break;
-      case Item_func::LT_FUNC: vop= OP_LT;  break;
-      case Item_func::LE_FUNC: vop= OP_LE;  break;
-      case Item_func::GE_FUNC: vop= OP_GE;  break;
-      case Item_func::GT_FUNC: vop= OP_GT;  break;
-      case Item_func::IN_FUNC: vop= OP_IN;
+			case Item_func::EQ_FUNC:     vop= OP_EQ;   break;
+			case Item_func::NE_FUNC:     vop= OP_NE;   break;
+			case Item_func::LT_FUNC:     vop= OP_LT;   break;
+			case Item_func::LE_FUNC:     vop= OP_LE;   break;
+			case Item_func::GE_FUNC:     vop= OP_GE;   break;
+			case Item_func::GT_FUNC:     vop= OP_GT;   break;
+			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
+			case Item_func::ISNOTNULL_FUNC:
+				neg = true;
+			case Item_func::ISNULL_FUNC: vop= OP_NULL; break;
+			case Item_func::IN_FUNC:     vop= OP_IN;
       case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
@@ -2658,7 +2722,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
     else if (ismul && tty == TYPE_AM_WMI)
       return NULL;        // Not supported by WQL
 
-    if (x && (neg || !(vop == OP_EQ || vop == OP_IN)))
+    if (x && (neg || !(vop == OP_EQ || vop == OP_IN || vop == OP_NULL)))
       return NULL;
 
     for (i= 0; i < condf->argument_count(); i++) {
@@ -2679,9 +2743,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
         if (x && i)
           return NULL;
-
-        if (pField->field->table != table)
-          return NULL;  // Field does not belong to this table
+				else if (pField->field->table != table)
+					return NULL;  // Field does not belong to this table
+				else if (tty != TYPE_AM_WMI && IsIndexed(pField->field))
+					return NULL;  // Will be handled by ReadKey
         else
           fop= GetFieldOptionStruct(pField->field);
 
@@ -2712,7 +2777,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         strcat(body, fnm);
       } else if (args[i]->type() == COND::FUNC_ITEM) {
         if (tty == TYPE_AM_MYSQL) {
-          if (!CheckCond(g, filp, tty, args[i]))
+          if (!CheckCond(g, filp, args[i]))
             return NULL;
 
         } else
@@ -2901,14 +2966,17 @@ const COND *ha_connect::cond_push(const COND *cond)
       goto fin;
 
     if (b) {
-      PCFIL    filp= (PCFIL)PlugSubAlloc(g, NULL, sizeof(CONDFIL));
+			PCFIL filp;
 
+			if ((filp= tdbp->GetCondFil()) &&	filp->Cond == cond && 
+				   filp->Idx == active_index && filp->Type == tty)
+				goto fin;   // Already done
+
+      filp= new(g) CONDFIL(cond, active_index, tty);
       filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
       *filp->Body= 0;
-      filp->Op= OP_XX;
-      filp->Cmds= NULL;
 
-      if (CheckCond(g, filp, tty, (Item *)cond)) {
+      if (CheckCond(g, filp, cond)) {
         if (trace)
           htrc("cond_push: %s\n", filp->Body);
 
@@ -3372,13 +3440,13 @@ int ha_connect::index_end()
 /****************************************************************************/
 /*  This is internally called by all indexed reading functions.             */
 /****************************************************************************/
-int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len)
+int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const key_range *kr) 
 {
   int rc;
 
 //statistic_increment(ha_read_key_count, &LOCK_status);
 
-  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len, mrr)) {
+  switch (CntIndexRead(xp->g, tdbp, op, kr, mrr)) {
     case RC_OK:
       xp->fnd++;
       rc= MakeRecord((char*)buf);
@@ -3444,7 +3512,12 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
     htrc("%p index_read: op=%d\n", this, op);
 
   if (indexing > 0) {
-    rc= ReadIndexed(buf, op, key, key_len);
+		start_key.key= key;
+		start_key.length= key_len;
+		start_key.flag= find_flag;
+		start_key.keypart_map= 0;
+
+    rc= ReadIndexed(buf, op, &start_key);
 
     if (rc == HA_ERR_INTERNAL_ERROR) {
       nox= true;                  // To block making indexes
@@ -3750,7 +3823,7 @@ void ha_connect::position(const uchar *)
 //if (((PTDBASE)tdbp)->GetDef()->Indexable())
     my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
 
-  if (trace)
+  if (trace > 1)
     htrc("position: pos=%d\n", ((PTDBASE)tdbp)->GetRecpos());
 
   DBUG_VOID_RETURN;
@@ -4034,7 +4107,27 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
+      return false;
+#endif
+      /*
+        If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
+        if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
+        insert step of CREATE ... SELECT.
+
+        Otherwise it's a DML, the table was normally opened, locked,
+        privilege were already checked, and table->grant.privilege is set.
+        With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+      */
+      if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
+        return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+      if (table->grant.privilege & FILE_ACL)
+        return false;
+      status_var_increment(thd->status_var.access_denied_errors);
+      my_error(access_denied_error_code(thd->password), MYF(0),
+               thd->security_ctx->priv_user, thd->security_ctx->priv_host,
+               (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+      return true;
 
     // This is temporary until a solution is found
     case TAB_TBL:
@@ -4421,14 +4514,15 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
     } // endif MODE_ANY
-
-  DBUG_ASSERT(table && table->s);
-
+  else
   if (check_privileges(thd, options, table->s->db.str)) {
     strcpy(g->Message, "This operation requires the FILE privilege");
     htrc("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     } // endif check_privileges
+
+
+  DBUG_ASSERT(table && table->s);
 
   // Table mode depends on the query type
   newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
@@ -5068,7 +5162,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
-  lrecl= (int)topt->lrecl;
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
@@ -5684,6 +5777,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+  /*
+    This assignment fixes test failures if some
+    "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR
+    (e.g. on missing FILE_ACL). All following "CREATE TABLE" failed with
+    "ERROR 1105: CONNECT index modification should be in-place"
+    TODO: check with Olivier.
+  */
+  g->Xchk= NULL;
   int  sqlcom= thd_sql_command(table_arg->in_use);
   PTOS options= GetTableOptionStruct(table_arg->s);
 
@@ -6173,10 +6274,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     int   n;
     struct stat info;
 
-    if (check_access(ha_thd(), FILE_ACL, table->s->db.str,
-                     NULL, NULL, 0, 0))
-      return true;
-
 #if defined(__WIN__)
     s= "\\";
 #else   // !__WIN__
@@ -6662,10 +6759,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0103,                                       /* version number (1.03) */
+  0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.03.0007",                                  /* string version */
-	MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
+  "1.04.0003",                                  /* string version */
+  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

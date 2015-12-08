@@ -241,11 +241,12 @@ public:
   int      MakeRecord(char *buf);
   int      ScanRecord(PGLOBAL g, uchar *buf);
   int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
-  int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
-                                             uint key_len= 0);
+	int      ReadIndexed(uchar *buf, OPVAL op, const key_range *kr= NULL);
+	bool     IsIndexed(Field *fp);
   bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
-                                   const void *key, int klen);
-  inline char *Strz(LEX_STRING &ls); 
+                                   const key_range *kr);
+  inline char *Strz(LEX_STRING &ls);
+	key_range start_key;
 
 
   /** @brief
@@ -374,7 +375,7 @@ public:
    condition stack.
  */
 virtual const COND *cond_push(const COND *cond);
-PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
+PCFIL CheckCond(PGLOBAL g, PCFIL filp, const Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);

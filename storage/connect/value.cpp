@@ -340,7 +340,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type, short prec)
 
   switch (type) {
     case TYPE_STRING:
-      valp = new(g) TYPVAL<PSZ>((PSZ)value);
+      valp = new(g) TYPVAL<PSZ>((PSZ)value, prec);
       break;
     case TYPE_SHORT:
       valp = new(g) TYPVAL<short>(*(short*)value, TYPE_SHORT);
@@ -1209,12 +1209,12 @@ void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
 /***********************************************************************/
 /*  STRING  public constructor from a constant string.                 */
 /***********************************************************************/
-TYPVAL<PSZ>::TYPVAL(PSZ s) : VALUE(TYPE_STRING)
+TYPVAL<PSZ>::TYPVAL(PSZ s, short c) : VALUE(TYPE_STRING)
   {
   Strp = s;
   Len = strlen(s);
   Clen = Len;
-  Ci = false;
+  Ci = (c == 1);
   } // end of STRING constructor
 
 /***********************************************************************/

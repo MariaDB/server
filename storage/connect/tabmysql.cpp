@@ -1054,32 +1054,14 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base indexed read routine for MYSQL access method.            */
 /***********************************************************************/
-bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
+bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 {
-  bool oom;
   int  oldlen = Query->GetLength();
 	PHC  hc = To_Def->GetHandler();
 
-  if (op == OP_FIRST && hc->end_range) {
-#ifdef _DEBUG
-		assert(!key);
-#endif
-		key_range *end_key = &hc->save_end_range;
-
-		key = end_key->key;
-		len = end_key->length;
-
-		switch (end_key->flag) {
-		  case HA_READ_BEFORE_KEY: op = OP_LT; break;
-		  case HA_READ_AFTER_KEY:  op = OP_LE; break;
-		  default: key = NULL;
-		  } // endswitch flag
-
-		} // endif OP_FIRST
-
-  if (!key || op == OP_NEXT ||
-        Mode == MODE_UPDATE || Mode == MODE_DELETE) {
-    if (!key && Mode == MODE_READX) {
+	if (!(kr || hc->end_range) || op == OP_NEXT ||
+         Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    if (!kr && Mode == MODE_READX) {
       // This is a false indexed read
       m_Rc = Myc.ExecSQL(g, Query->GetStr());
       Mode = MODE_READ;
@@ -1091,23 +1073,35 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
     if (Myc.m_Res)
       Myc.FreeResult();
 
-		if (hc->MakeKeyWhere(g, Query, op, '`', key, len))
+		if (hc->MakeKeyWhere(g, Query, op, '`', kr))
 			return true;
 
     if (To_CondFil) {
-      oom = Query->Append(" AND (");
-      oom |= Query->Append(To_CondFil->Body);
+			if (To_CondFil->Idx != hc->active_index) {
+				To_CondFil->Idx = hc->active_index;
+				To_CondFil->Body= (char*)PlugSubAlloc(g, NULL, 0);
+				*To_CondFil->Body= 0;
 
-      if ((oom |= Query->Append(')'))) {
-        strcpy(g->Message, "Readkey: Out of memory");
-        return true;
-        } // endif oom
+				if ((To_CondFil = hc->CheckCond(g, To_CondFil, To_CondFil->Cond)))
+					PlugSubAlloc(g, NULL, strlen(To_CondFil->Body) + 1);
 
-      } // endif To_Condfil
+				} // endif active_index
 
-  } // endif's op
+			if (To_CondFil)
+				if (Query->Append(" AND ") || Query->Append(To_CondFil->Body)) {
+				  strcpy(g->Message, "Readkey: Out of memory");
+					return true;
+					} // endif Append
 
-  m_Rc = Myc.ExecSQL(g, Query->GetStr());
+			} // endif To_Condfil
+
+		Mode = MODE_READ;
+	} // endif's op
+
+	if (trace)
+		htrc("MYSQL ReadKey: Query=%s\n", Query->GetStr());
+
+	m_Rc = Myc.ExecSQL(g, Query->GetStr());
   Query->Truncate(oldlen);
   return (m_Rc == RC_FX) ? true : false;
 } // end of ReadKey

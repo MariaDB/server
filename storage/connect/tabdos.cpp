@@ -2019,7 +2019,7 @@ int TDBDOS::EstimatedLength(void)
     dep = 1 + cdp->GetLong() / 20;           // Why 20 ?????
   } else for (; cdp; cdp = cdp->GetNext())
 		if (!(cdp->Flags & (U_VIRTUAL|U_SPECIAL)))
-			dep = MY_MAX(dep, cdp->GetOffset());
+      dep = MY_MAX(dep, cdp->GetOffset());
 
   return (int)dep;
   } // end of Estimated Length
@@ -2204,7 +2204,7 @@ bool TDBDOS::PrepareWriting(PGLOBAL)
     } // endif Mode
 
   return false;
-  } // end of WriteDB
+  } // end of PrepareWriting
 
 /***********************************************************************/
 /*  WriteDB: Data Base write routine for DOS access method.            */
@@ -2216,7 +2216,7 @@ int TDBDOS::WriteDB(PGLOBAL g)
 
   // Make the line to write
   if (PrepareWriting(g))
-    return true;
+    return RC_FX;
 
   if (trace > 1)
     htrc("Write: line is='%s'\n", To_Line);

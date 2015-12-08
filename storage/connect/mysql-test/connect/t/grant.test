@@ -1,4 +1,5 @@
 -- source include/not_embedded.inc
+set sql_mode="";
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -49,7 +50,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 --echo # Testing a VIEW created with FILE privileges but accessed with no FILE
 --connection default
 SELECT user();
-CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
 --connection user
 SELECT user();
 --error ER_ACCESS_DENIED_ERROR
@@ -92,4 +93,4 @@ let $TABLE_OPTIONS=TABLE_TYPE=VEC MAX_ROWS=100;
 let $FILE_EXT=VEC;
 --source grant.inc
 
-
+set sql_mode=default;
