@@ -1,0 +1,51 @@
+#set these variables in cmd
+#export PROXY_IP=127.0.0.1
+#export PROXY_PORT=3306
+#export ORA_BACKEND1_IP=192.168.226.1/orcl
+#export ORA_BACKEND1_PORT=1521
+#export ORA_DATABASE=SYSTEM
+#export ORA_USER=system
+#export ORA_PWD=orcl123456
+
+--connect (PROXY, $PROXY_IP, root, , , $PROXY_PORT, $PROXY_PORT)
+--connection PROXY
+
+--echo drop and create server on proxy
+--disable_warnings
+--disable_query_log
+--disable_result_log
+
+if (`select count(*) from mysql.servers where server_name='ora_backend1'`)
+{
+	DROP SERVER ora_backend1;
+}
+
+eval CREATE SERVER ora_backend1
+  FOREIGN DATA WRAPPER oracle 
+OPTIONS( 
+  HOST '$ORA_BACKEND1_IP',
+  PORT $ORA_BACKEND1_PORT,   
+  DATABASE '$ORA_DATABASE',
+  USER '$ORA_USER',
+  PASSWORD '$ORA_PWD'
+);
+
+--enable_warnings
+--enable_query_log
+--enable_result_log
+
+--echo create remote table on backend1
+SELECT SPIDER_DIRECT_SQL('begin execute immediate \'DROP TABLE "FED_HA1"\'; exception when others then null; end;', '', 'srv "ora_backend1"');
+SELECT SPIDER_DIRECT_SQL('create table fed_ha1(a int , b float, c varchar(10), d char(10), e date)', '', 'srv "ora_backend1"');
+
+SELECT SPIDER_DIRECT_SQL('begin execute immediate \'DROP TABLE "FED_HA2"\'; exception when others then null; end;', '', 'srv "ora_backend1"');
+SELECT SPIDER_DIRECT_SQL('create table fed_ha2(a int , b float, c varchar(10), d char(10), e date)', '', 'srv "ora_backend1"');
+
+--echo create spider table on proxy
+drop table if exists ora_fed_ha;
+create table ora_fed_ha(A int, B float, C varchar(10), D char(10), E date) ENGINE = SPIDER CONNECTION='wrapper "oracle", table "FED_HA1 FED_HA2", srv "ora_backend1 ora_backend1"';
+
+insert into ora_fed_ha values(1, 1.1, 'aaaa1', 'bbbbbb1', null);
+insert into ora_fed_ha values(21, 2, 'aaaa2', 'bbbbbb2', '2011-1-1');
+Select * from ora_fed_ha;
+truncate ora_fed_ha;
