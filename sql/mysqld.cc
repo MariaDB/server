@@ -1939,14 +1939,9 @@ void clean_up(bool print_message)
   item_user_lock_free();
   lex_free();				/* Free some memory */
   item_create_cleanup();
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_free();
-#endif
-  }
   table_def_start_shutdown();
   plugin_shutdown();
+  udf_free();
   ha_end();
   if (tc_log)
     tc_log->close();
@@ -5747,12 +5742,7 @@ int mysqld_main(int argc, char **argv)
   if (!opt_bootstrap)
     servers_init(0);
 
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_init();
-#endif
-  }
+  udf_init();
 
   init_status_vars();
   if (opt_bootstrap) /* If running with bootstrap, do not start replication. */

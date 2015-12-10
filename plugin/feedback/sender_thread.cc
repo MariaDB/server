@@ -25,9 +25,9 @@ static my_thread_id thd_thread_id; ///< its thread_id
 
 static size_t needed_size= 20480;
 
-static const time_t startup_interval= 60*5;     ///< in seconds (5 minutes)
-static const time_t first_interval= 60*60*24;   ///< in seconds (one day)
-static const time_t interval= 60*60*24*7;       ///< in seconds (one week)
+ulong startup_interval= 60*5;     ///< in seconds (5 minutes)
+ulong first_interval= 60*60*24;   ///< in seconds (one day)
+ulong interval= 60*60*24*7;       ///< in seconds (one week)
 
 /**
   reads the rows from a table and puts them, concatenated, in a String
@@ -124,6 +124,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   if (!tables->table)
     return 1;
 
+  tables->select_lex= thd->lex->current_select;
   tables->table->pos_in_table_list= tables;
 
   return 0;
@@ -253,6 +254,7 @@ ret:
   {
     if (tables.table)
       free_tmp_table(thd, tables.table);
+    thd->cleanup_after_query();
     /*
       clean up, free the thd.
       reset all thread local status variables to minimize
