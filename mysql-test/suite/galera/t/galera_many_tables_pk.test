@@ -2,17 +2,23 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+if (!`SELECT @@open_files_limit >= 1024`){
+  skip Need at least an open file limit of 1024;
+}
+
 #
-# This test forces 1K tables with a PK to participate in a single transaction
+# This test forces 900 tables with a PK to participate in a single
+# transaction. The reason for 900 is that some linux system has by default
+# a limit of 1024 open files / process
 #
 
 #
-# First, create 1K tables and make sure the DDLs are all propagated
+# First, create 900 tables and make sure the DDLs are all propagated
 #
 
 --connection node_1
 
---let $count = 1000
+--let $count = 900
 while ($count)
 {
   --disable_query_log
@@ -23,7 +29,7 @@ while ($count)
 }
 
 --connection node_2
-SELECT COUNT(*) = 1000 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't%';
+SELECT COUNT(*) = 900 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't%';
 
 #
 # Second, create a transaction that uses all those tables
@@ -33,7 +39,7 @@ SELECT COUNT(*) = 1000 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
---let $count = 1000
+--let $count = 900
 while ($count)
 {
   --disable_query_log
@@ -52,7 +58,7 @@ COMMIT;
 --connection node_2
 CREATE TABLE sum_table (f1 INTEGER);
 
---let $count = 1000
+--let $count = 900
 while ($count)
 {
   --disable_query_log
@@ -62,7 +68,7 @@ while ($count)
   --dec $count
 }
 
-SELECT SUM(f1) = 1000 FROM sum_table;
+SELECT SUM(f1) = 900 FROM sum_table;
 
 #
 # Fourth, create a deadlock
@@ -72,7 +78,7 @@ SELECT SUM(f1) = 1000 FROM sum_table;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
---let $count = 1000
+--let $count = 900
 while ($count)
 {
   --disable_query_log
@@ -85,7 +91,7 @@ while ($count)
 --connection node_2
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
-UPDATE t1000 SET f1 = 3;
+UPDATE t900 SET f1 = 3;
 
 --connection node_1
 COMMIT;

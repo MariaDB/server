@@ -587,6 +587,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
 
   bitmap_set_all(table->write_set);
+  table->rpl_write_set= table->write_set;
 
   table->field[0]->store((ulonglong)gtid->domain_id, true);
   table->field[1]->store(sub_id, true);
