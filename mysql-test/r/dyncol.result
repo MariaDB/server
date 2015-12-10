@@ -1693,10 +1693,10 @@ ERROR 22007: Illegal value used as argument of dynamic column function
 #
 select column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" AS datetime, "date", "2011-04-05" AS date));
 column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" 
-{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":"1.2e50","string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
+{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":1.2e50,"string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
 select column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date));
 column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date))
-{"1":-1212,"2":12334,"3":23.344,"4":"1.2e50","5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
+{"1":-1212,"2":12334,"3":23.344,"4":1.2e50,"5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
 #
 # CHECK test
 #
@@ -1819,6 +1819,22 @@ COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'))
 SELECT COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'));
 COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'))
 {"a":1,"b":"1"}
+#
+# MDEV-8401: COLUMN_CREATE(name, value as DOUBLE) results in string
+#
+SELECT COLUMN_JSON(
+COLUMN_CREATE(
+'one', 123.456,
+'two', 123.456 as DOUBLE
+)
+);
+COLUMN_JSON(
+COLUMN_CREATE(
+'one', 123.456,
+'two', 123.456 as DOUBLE
+)
+)
+{"one":123.456,"two":123.46}
 #
 # end of 10.0 tests
 #

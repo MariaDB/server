@@ -884,5 +884,16 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'));
 SELECT COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'));
 
 --echo #
+--echo # MDEV-8401: COLUMN_CREATE(name, value as DOUBLE) results in string
+--echo #
+SELECT COLUMN_JSON(
+    COLUMN_CREATE(
+        'one', 123.456,
+        'two', 123.456 as DOUBLE
+    )
+);
+
+
+--echo #
 --echo # end of 10.0 tests
 --echo #

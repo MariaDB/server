@@ -3840,11 +3840,7 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
       len= my_snprintf(buff, sizeof(buff), "%g", val->x.double_value);
       if (dynstr_realloc(str, len + (quote ? 2 : 0)))
         return ER_DYNCOL_RESOURCE;
-      if (quote)
-        str->str[str->length++]= quote;
       dynstr_append_mem(str, buff, len);
-      if (quote)
-        str->str[str->length++]= quote;
       break;
     case DYN_COL_DYNCOL:
     case DYN_COL_STRING:
