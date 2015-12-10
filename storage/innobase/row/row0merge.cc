@@ -2327,7 +2327,10 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	thd_progress_init(trx->mysql_thd, 1);
+	/* Progress report only for "normal" indexes. */
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_init(trx->mysql_thd, 1);
+	}
 
 	/* Merge the runs until we have one big run */
 	do {
@@ -2335,8 +2338,11 @@ row_merge_sort(
 				  &num_runs, run_offset);
 
 		/* Report progress of merge sort to MySQL for
-		show processlist progress field */
-		thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
+		show processlist progress field only for
+		"normal" indexes. */
+		if (!(dup->index->type & DICT_FTS)) {
+			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
+		}
 
 		if (error != DB_SUCCESS) {
 			break;
@@ -2347,7 +2353,9 @@ row_merge_sort(
 
 	mem_free(run_offset);
 
-	thd_progress_end(trx->mysql_thd);
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_end(trx->mysql_thd);
+	}
 
 	DBUG_RETURN(error);
 }
