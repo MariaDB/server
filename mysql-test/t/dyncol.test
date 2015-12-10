@@ -893,6 +893,13 @@ SELECT COLUMN_JSON(
     )
 );
 
+--echo #
+--echo # MDEV-8521: Drastic loss of precision in COLUMN_JSON() on DOUBLEs
+--echo #
+
+select column_get(column_create('float', 1.23456789012345E+100 as double), 'float' as double); 
+select column_json(column_create('float', 1.23456789012345E+100 as double)); 
+select column_json(column_create('float', 1.23456789012345E+10 as double));
 
 --echo #
 --echo # end of 10.0 tests
