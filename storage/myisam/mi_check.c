@@ -1930,7 +1930,7 @@ int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
                                    fn_format(param->temp_filename,
                                              param->temp_filename,
                                              "", INDEX_TMP_EXT, 2+4),
-                                   0, param->tmpfile_createflag, MYF(0))) <= 0)
+                                   0, param->tmpfile_createflag, MYF(0))) < 0)
   {
     mi_check_print_error(param,"Can't create new tempfile: '%s'",
 			 param->temp_filename);
