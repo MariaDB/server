@@ -1829,8 +1829,9 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       /*
 	For string types dump collation name only if
 	collation is not primary for the given charset
+	virtual column collation is after the collation defination
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY))
+      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -1848,6 +1849,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" PERSISTENT"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
+      if (!(field->charset()->state & MY_CS_PRIMARY))
+      {
+	packet->append(STRING_WITH_LEN(" COLLATE "));
+	packet->append(field->charset()->name);
+      }
     }
     else
     {

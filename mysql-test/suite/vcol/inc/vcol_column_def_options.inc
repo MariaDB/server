@@ -111,3 +111,12 @@ create table t1 (a int, b int as (a % 2));
 alter table t1 modify b int as (a % 2) persistent references t2(a);
 show create table t1;
 drop table t1;
+
+# MDEV-7655 add collation
+create table t1 (col1 varchar(50) COLLATE latin1_general_ci DEFAULT NULL,  v_col1 varchar(50) as (col1) persistent COLLATE latin1_general_cs);
+show create table t1;
+describe t1;
+insert into t1(col1) values ('A'),('a'),('B'),('b'),('C');
+select * from t1 where v_col1='a';
+select * from t1 where col1='a';
+drop table t1;

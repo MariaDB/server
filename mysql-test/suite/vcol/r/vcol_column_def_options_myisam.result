@@ -144,3 +144,23 @@ t1	CREATE TABLE `t1` (
   `b` int(11) AS (a % 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+create table t1 (col1 varchar(50) COLLATE latin1_general_ci DEFAULT NULL,  v_col1 varchar(50) as (col1) persistent COLLATE latin1_general_cs);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `col1` varchar(50) CHARACTER SET latin1 COLLATE latin1_general_ci DEFAULT NULL,
+  `v_col1` varchar(50) CHARACTER SET latin1 AS (col1) PERSISTENT COLLATE latin1_general_cs
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+col1	varchar(50)	YES		NULL	
+v_col1	varchar(50)	YES		NULL	PERSISTENT
+insert into t1(col1) values ('A'),('a'),('B'),('b'),('C');
+select * from t1 where v_col1='a';
+col1	v_col1
+a	a
+select * from t1 where col1='a';
+col1	v_col1
+A	A
+a	a
+drop table t1;
