@@ -3249,11 +3249,6 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
     {
       if (select_lex->linkage != GLOBAL_OPTIONS_TYPE)
       {
-	//here is EXPLAIN of subselect or derived table
-	if (join->change_result(result))
-	{
-	  DBUG_RETURN(TRUE);
-	}
         /*
           Original join tabs might be overwritten at first
           subselect execution. So we need to restore them.
