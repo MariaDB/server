@@ -39,10 +39,14 @@ case "${CODENAME}" in
   *)  LIBREADLINE_DEV=libreadline-gplv2-dev ;;
 esac
 
+sed -i -e "s/\\\${LIBREADLINE_DEV}/${LIBREADLINE_DEV}/g" debian/control
+
 case "${CODENAME}" in
   etch|lenny|hardy|intrepid|jaunty|karmic) CMAKE_DEP='' ;;
   *) CMAKE_DEP='cmake (>= 2.7), ' ;;
 esac
+
+sed -i -e "s/\\\${CMAKE_DEP}/${CMAKE_DEP}/g" debian/control
 
 # Clean up build file symlinks that are distro-specific. First remove all, then set
 # new links.
@@ -60,9 +64,7 @@ echo "Copying distribution specific build files for ${DISTRO}"
 DISTROFILES="$(ls ./debian/dist/${DISTRO})"
 for distrofile in ${DISTROFILES}; do
   rm -f "./debian/${distrofile}"
-  sed -e "s/\\\${LIBREADLINE_DEV}/${LIBREADLINE_DEV}/g" \
-      -e "s/\\\${CMAKE_DEP}/${CMAKE_DEP}/g"             \
-    < "./debian/dist/${DISTRO}/${distrofile}" > "./debian/${distrofile}"
+  cat "./debian/dist/${DISTRO}/${distrofile}" > "./debian/${distrofile}"
   chmod --reference="./debian/dist/${DISTRO}/${distrofile}" "./debian/${distrofile}"
 done;
 
@@ -75,8 +77,9 @@ dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTR
 echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
 
 # Build the package.
-#
-fakeroot dpkg-buildpackage -us -uc
+# Pass -I so that .git and other unnecessary temporary and source control files
+# will be ignored by dpkg-source when createing the tar.gz source package
+fakeroot dpkg-buildpackage -us -uc -I
 
 [ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
 
