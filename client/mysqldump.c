@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2015, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1144,16 +1144,14 @@ static int fetch_db_collation(const char *db_name,
                               int db_cl_size)
 {
   my_bool err_status= FALSE;
-  char query[QUERY_LENGTH];
   MYSQL_RES *db_cl_res;
   MYSQL_ROW db_cl_row;
-  char quoted_database_buf[NAME_LEN*2+3];
-  char *qdatabase= quote_name(db_name, quoted_database_buf, 1);
 
-  my_snprintf(query, sizeof (query), "use %s", qdatabase);
-
-  if (mysql_query_with_error_report(mysql, NULL, query))
-    return 1;
+  if (mysql_select_db(mysql, db_name))
+  {
+    DB_error(mysql, "when selecting the database");
+    return 1;                   /* If --force */
+  }
 
   if (mysql_query_with_error_report(mysql, &db_cl_res,
                                     "select @@collation_database"))
@@ -2450,7 +2448,7 @@ static uint dump_routines_for_db(char *db)
 
   /* Get database collation. */
 
-  if (fetch_db_collation(db_name_buff, db_cl_name, sizeof (db_cl_name)))
+  if (fetch_db_collation(db, db_cl_name, sizeof (db_cl_name)))
     DBUG_RETURN(1);
 
   if (switch_character_set_results(mysql, "binary"))
@@ -2524,7 +2522,7 @@ static uint dump_routines_for_db(char *db)
 
             if (mysql_num_fields(routine_res) >= 6)
             {
-              if (switch_db_collation(sql_file, db_name_buff, ";",
+              if (switch_db_collation(sql_file, db, ";",
                                       db_cl_name, row[5], &db_cl_altered))
               {
                 mysql_free_result(routine_res);
@@ -2574,8 +2572,7 @@ static uint dump_routines_for_db(char *db)
 
               if (db_cl_altered)
               {
-                if (restore_db_collation(sql_file, db_name_buff, ";",
-                                         db_cl_name))
+                if (restore_db_collation(sql_file, db, ";", db_cl_name))
                 {
                   mysql_free_result(routine_res);
                   mysql_free_result(routine_list_res);

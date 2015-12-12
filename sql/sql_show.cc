@@ -1718,7 +1718,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 	For string types dump collation name only if
 	collation is not primary for the given charset
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY))
+      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -7738,11 +7738,12 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->field_count= field_count;
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= thd->lex->current_select;
+  bool keep_row_order= sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND;
   if (!(table= create_tmp_table(thd, tmp_table_param,
                                 field_list, (ORDER*) 0, 0, 0, 
                                 (select_lex->options | thd->variables.option_bits |
-                                 TMP_TABLE_ALL_COLUMNS),
-                                HA_POS_ERROR, table_list->alias)))
+                                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
+                                table_list->alias, false, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));

@@ -2326,10 +2326,11 @@ innobase_next_autoinc(
 	if (next_value == 0) {
 		ulonglong	next;
 
-		if (current > offset) {
+		if (current >= offset) {
 			next = (current - offset) / step;
 		} else {
-			next = (offset - current) / step;
+			next = 0;
+			block -= step;
 		}
 
 		ut_a(max_value > next);
@@ -5825,6 +5826,10 @@ ha_innobase::open(
 						  "current file system\n",
 						  norm_name);
 #endif
+				/* We allow use of table if it is found.
+				this is consistent to current behavior
+				to innodb_plugin */
+				share->ib_table = ib_table;
 				goto table_opened;
 			}
 		}
@@ -14438,15 +14443,12 @@ ha_innobase::get_auto_increment(
 
 		current = *first_value;
 
-		/* If the increment step of the auto increment column
-		decreases then it is not affecting the immediate
-		next value in the series. */
-		if (prebuilt->autoinc_increment > increment) {
+		if (prebuilt->autoinc_increment != increment) {
 
 			current = autoinc - prebuilt->autoinc_increment;
 
 			current = innobase_next_autoinc(
-				current, 1, increment, 1, col_max_value);
+				current, 1, increment, offset, col_max_value);
 
 			dict_table_autoinc_initialize(prebuilt->table, current);
 

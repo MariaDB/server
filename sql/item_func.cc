@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -717,7 +717,7 @@ void Item_func::count_real_length()
 bool Item_func::count_string_result_length(enum_field_types field_type,
                                            Item **items, uint nitems)
 {
-  if (agg_arg_charsets(collation, items, nitems, MY_COLL_ALLOW_CONV, 1))
+  if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
     return true;
   if (is_temporal_type(field_type))
     count_datetime_length(items, nitems);
@@ -6216,9 +6216,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   table= 0;
   for (uint i=1 ; i < arg_count ; i++)
   {
-    item=args[i];
-    if (item->type() == Item::REF_ITEM)
-      args[i]= item= *((Item_ref *)item)->ref;
+    item= args[i]= args[i]->real_item();
     /*
       When running in PS mode, some Item_field's can already be replaced
       to Item_func_conv_charset during PREPARE time. This is possible
@@ -6231,7 +6229,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     if (!thd->stmt_arena->is_stmt_execute() &&
         item->type() != Item::FIELD_ITEM)
     {
-      my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), "MATCH");
       return TRUE;
     }
     /*
