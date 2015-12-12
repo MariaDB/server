@@ -1411,6 +1411,14 @@ static bool myismagic ( char c )
 	return c=='@';
 }
 
+static bool myisjson ( char c )
+{
+	return
+		c=='.' ||
+		c=='[' ||
+		c==']';
+}
+
 
 bool CSphSEQuery::ParseField ( char * sField )
 {
@@ -1622,7 +1630,7 @@ bool CSphSEQuery::ParseField ( char * sField )
 				break;
 
 			tFilter.m_sAttrName = sValue;
-			while ( (*sValue) && ( myisattr(*sValue) || myismagic(*sValue) ) )
+			while ( (*sValue) && ( myisattr(*sValue) || myismagic(*sValue) || myisjson(*sValue) ) )
 				sValue++;
 			if ( !*sValue )
 				break;
