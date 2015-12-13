@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -738,6 +738,7 @@ public:
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
+  void set_searched_bitmap_from_item_list();
   void set_select_column_mode();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   void check_select_column(bool rnd);

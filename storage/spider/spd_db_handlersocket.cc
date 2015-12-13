@@ -2786,7 +2786,11 @@ int spider_db_handlersocket_util::open_item_func(
       {
         if (
           !strncasecmp("rand", func_name, func_name_length) &&
+#ifdef SPIDER_Item_args_arg_count_IS_PROTECTED
+          !item_func->argument_count()
+#else
           !item_func->arg_count
+#endif
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
@@ -2946,13 +2950,99 @@ int spider_db_handlersocket_util::open_item_func(
           last_str_length = SPIDER_SQL_AS_TIME_LEN;
           break;
         }
-      } else if (func_name_length == 13 &&
-        !strncasecmp("utc_timestamp", func_name, func_name_length)
-      ) {
-        if (str)
-          str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-        DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
-          alias, alias_length, dbton_id));
+      } else if (func_name_length == 13)
+      {
+        if (!strncasecmp("utc_timestamp", func_name, func_name_length))
+        {
+          if (str)
+            str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
+          DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
+            alias, alias_length, dbton_id));
+        } else if (!strncasecmp("timestampdiff", func_name, func_name_length))
+        {
+#ifdef ITEM_FUNC_TIMESTAMPDIFF_ARE_PUBLIC
+          Item_func_timestamp_diff *item_func_timestamp_diff =
+            (Item_func_timestamp_diff *) item_func;
+          if (str)
+          {
+            const char *interval_str;
+            uint interval_len;
+            switch (item_func_timestamp_diff->int_type)
+            {
+              case INTERVAL_YEAR:
+                interval_str = SPIDER_SQL_YEAR_STR;
+                interval_len = SPIDER_SQL_YEAR_LEN;
+                break;
+              case INTERVAL_QUARTER:
+                interval_str = SPIDER_SQL_QUARTER_STR;
+                interval_len = SPIDER_SQL_QUARTER_LEN;
+                break;
+              case INTERVAL_MONTH:
+                interval_str = SPIDER_SQL_MONTH_STR;
+                interval_len = SPIDER_SQL_MONTH_LEN;
+                break;
+              case INTERVAL_WEEK:
+                interval_str = SPIDER_SQL_WEEK_STR;
+                interval_len = SPIDER_SQL_WEEK_LEN;
+                break;
+              case INTERVAL_DAY:
+                interval_str = SPIDER_SQL_DAY_STR;
+                interval_len = SPIDER_SQL_DAY_LEN;
+                break;
+              case INTERVAL_HOUR:
+                interval_str = SPIDER_SQL_HOUR_STR;
+                interval_len = SPIDER_SQL_HOUR_LEN;
+                break;
+              case INTERVAL_MINUTE:
+                interval_str = SPIDER_SQL_MINUTE_STR;
+                interval_len = SPIDER_SQL_MINUTE_LEN;
+                break;
+              case INTERVAL_SECOND:
+                interval_str = SPIDER_SQL_SECOND_STR;
+                interval_len = SPIDER_SQL_SECOND_LEN;
+                break;
+              case INTERVAL_MICROSECOND:
+                interval_str = SPIDER_SQL_MICROSECOND_STR;
+                interval_len = SPIDER_SQL_MICROSECOND_LEN;
+                break;
+              default:
+                interval_str = "";
+                interval_len = 0;
+                break;
+            }
+            str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
+            if (str->reserve(func_name_length + SPIDER_SQL_OPEN_PAREN_LEN +
+              interval_len + SPIDER_SQL_COMMA_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(func_name, func_name_length);
+            str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+            str->q_append(interval_str, interval_len);
+            str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+          }
+          if ((error_num = spider_db_print_item_type(item_list[0], spider,
+            str, alias, alias_length, dbton_id)))
+            DBUG_RETURN(error_num);
+          if (str)
+          {
+            if (str->reserve(SPIDER_SQL_COMMA_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+          }
+          if ((error_num = spider_db_print_item_type(item_list[1], spider,
+            str, alias, alias_length, dbton_id)))
+            DBUG_RETURN(error_num);
+          if (str)
+          {
+            if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+              SPIDER_SQL_CLOSE_PAREN_LEN);
+          }
+          DBUG_RETURN(0);
+#else
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
+        }
       } else if (func_name_length == 14)
       {
         if (!strncasecmp("cast_as_binary", func_name, func_name_length))
@@ -3142,6 +3232,54 @@ int spider_db_handlersocket_util::open_item_func(
       }
       break;
     case Item_func::NOT_FUNC:
+      DBUG_PRINT("info",("spider NOT_FUNC"));
+      if (item_list[0]->type() == Item::COND_ITEM)
+      {
+        DBUG_PRINT("info",("spider item_list[0] is COND_ITEM"));
+        Item_cond *item_cond = (Item_cond *) item_list[0];
+        if (item_cond->functype() == Item_func::COND_AND_FUNC)
+        {
+          DBUG_PRINT("info",("spider item_cond is COND_AND_FUNC"));
+          List_iterator_fast<Item> lif(*(item_cond->argument_list()));
+          bool has_expr_cache_item = FALSE;
+          bool has_isnotnull_func = FALSE;
+          bool has_other_item = FALSE;
+          while((item = lif++))
+          {
+            if (
+              item->type() == Item::EXPR_CACHE_ITEM
+            ) {
+              DBUG_PRINT("info",("spider EXPR_CACHE_ITEM"));
+              has_expr_cache_item = TRUE;
+            } else if (
+              item->type() == Item::FUNC_ITEM &&
+              ((Item_func *) item)->functype() == Item_func::ISNOTNULL_FUNC
+            ) {
+              DBUG_PRINT("info",("spider ISNOTNULL_FUNC"));
+              has_isnotnull_func = TRUE;
+            } else {
+              DBUG_PRINT("info",("spider has other item"));
+              DBUG_PRINT("info",("spider COND type=%d", item->type()));
+              has_other_item = TRUE;
+            }
+          }
+          if (has_expr_cache_item && has_isnotnull_func && !has_other_item)
+          {
+            DBUG_PRINT("info",("spider NOT EXISTS skip"));
+            DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+          }
+        }
+      }
+      if (str)
+      {
+        func_name = (char*) item_func->func_name();
+        func_name_length = strlen(func_name);
+        if (str->reserve(func_name_length + SPIDER_SQL_SPACE_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(func_name, func_name_length);
+        str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+      }
+      break;
     case Item_func::NEG_FUNC:
       if (str)
       {
@@ -3494,8 +3632,7 @@ int spider_db_handlersocket_util::append_escaped_util(
 ) {
   DBUG_ENTER("spider_db_handlersocket_util::append_escaped_util");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (to->append_for_single_quote(from))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  to->append_escape_string(from->ptr(), from->length());
   DBUG_RETURN(0);
 }
 

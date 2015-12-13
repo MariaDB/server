@@ -25,6 +25,7 @@
 #define SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
 #define SPIDER_HAS_SHOW_SIMPLE_FUNC
 #define SPIDER_HAS_JT_HASH_INDEX_MERGE
+#define SPIDER_HAS_EXPR_CACHE_ITEM
 #else
 #define SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
 #endif
@@ -41,6 +42,9 @@
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100014
 #define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100100
+#define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
+#endif
 #endif
 
 #if defined(MARIADB_BASE_VERSION)
@@ -500,6 +504,10 @@ public:
     const char *s,
     uint32 arg_length,
     uint32 step_alloc
+  );
+  void append_escape_string(
+    const char *st,
+    uint len
   );
   bool append_for_single_quote(
     const char *st,

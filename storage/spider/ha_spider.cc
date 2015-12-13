@@ -1315,6 +1315,7 @@ int ha_spider::external_lock(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -1367,6 +1368,7 @@ int ha_spider::external_lock(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -1398,6 +1400,7 @@ int ha_spider::external_lock(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -1432,6 +1435,7 @@ int ha_spider::external_lock(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -1586,6 +1590,13 @@ int ha_spider::reset()
     {
       delete direct_aggregate_item_current->item;
       direct_aggregate_item_current->item = NULL;
+#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
+      if (direct_aggregate_item_current->init_mem_root)
+      {
+        free_root(&direct_aggregate_item_current->mem_root, MYF(0));
+        direct_aggregate_item_current->init_mem_root = FALSE;
+      }
+#endif
     }
     direct_aggregate_item_current = direct_aggregate_item_current->next;
   }
@@ -1681,6 +1692,7 @@ int ha_spider::reset()
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -2215,6 +2227,7 @@ int ha_spider::index_read_map_internal(
               0,
               share->monitoring_kind[roop_count],
               share->monitoring_limit[roop_count],
+              share->monitoring_flag[roop_count],
               TRUE
             );
         }
@@ -2297,6 +2310,7 @@ int ha_spider::index_read_map_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -2329,6 +2343,7 @@ int ha_spider::index_read_map_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -2358,6 +2373,7 @@ int ha_spider::index_read_map_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -2702,6 +2718,7 @@ int ha_spider::index_read_last_map_internal(
               0,
               share->monitoring_kind[roop_count],
               share->monitoring_limit[roop_count],
+              share->monitoring_flag[roop_count],
               TRUE
             );
         }
@@ -2781,6 +2798,7 @@ int ha_spider::index_read_last_map_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -2813,6 +2831,7 @@ int ha_spider::index_read_last_map_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -2842,6 +2861,7 @@ int ha_spider::index_read_last_map_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -3163,6 +3183,7 @@ int ha_spider::index_first_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -3243,6 +3264,7 @@ int ha_spider::index_first_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -3275,6 +3297,7 @@ int ha_spider::index_first_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -3304,6 +3327,7 @@ int ha_spider::index_first_internal(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -3542,6 +3566,7 @@ int ha_spider::index_last_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -3622,6 +3647,7 @@ int ha_spider::index_last_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -3654,6 +3680,7 @@ int ha_spider::index_last_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -3683,6 +3710,7 @@ int ha_spider::index_last_internal(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -3981,6 +4009,7 @@ int ha_spider::read_range_first_internal(
               0,
               share->monitoring_kind[roop_count],
               share->monitoring_limit[roop_count],
+              share->monitoring_flag[roop_count],
               TRUE
             );
         }
@@ -4060,6 +4089,7 @@ int ha_spider::read_range_first_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -4092,6 +4122,7 @@ int ha_spider::read_range_first_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -4121,6 +4152,7 @@ int ha_spider::read_range_first_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -4605,6 +4637,7 @@ int ha_spider::read_multi_range_first_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -4689,6 +4722,7 @@ int ha_spider::read_multi_range_first_internal(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -4722,6 +4756,7 @@ int ha_spider::read_multi_range_first_internal(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -4753,6 +4788,7 @@ int ha_spider::read_multi_range_first_internal(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -4787,6 +4823,8 @@ int ha_spider::read_multi_range_first_internal(
           DBUG_PRINT("info",
             ("spider result_list.current->finish_flg = FALSE"));
           result_list.current->finish_flg = FALSE;
+          spider_db_free_one_result(&result_list,
+            (SPIDER_RESULT *) result_list.current);
           if (result_list.current == result_list.first)
             result_list.current = NULL;
           else
@@ -4821,6 +4859,8 @@ int ha_spider::read_multi_range_first_internal(
           DBUG_PRINT("info",
             ("spider result_list.current->finish_flg = FALSE"));
           result_list.current->finish_flg = FALSE;
+          spider_db_free_one_result(&result_list,
+            (SPIDER_RESULT *) result_list.current);
           if (result_list.current == result_list.first)
             result_list.current = NULL;
           else
@@ -5388,6 +5428,7 @@ int ha_spider::read_multi_range_first_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -5475,6 +5516,7 @@ int ha_spider::read_multi_range_first_internal(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -5514,6 +5556,7 @@ int ha_spider::read_multi_range_first_internal(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -5548,6 +5591,7 @@ int ha_spider::read_multi_range_first_internal(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -5577,6 +5621,7 @@ int ha_spider::read_multi_range_first_internal(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -5632,6 +5677,8 @@ int ha_spider::read_multi_range_first_internal(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             if (result_list.current == result_list.first)
               result_list.current = NULL;
             else
@@ -5691,6 +5738,8 @@ int ha_spider::read_multi_range_first_internal(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             if (result_list.current == result_list.first)
               result_list.current = NULL;
             else
@@ -6028,6 +6077,7 @@ int ha_spider::read_multi_range_next(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -6112,6 +6162,7 @@ int ha_spider::read_multi_range_next(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -6145,6 +6196,7 @@ int ha_spider::read_multi_range_next(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -6176,6 +6228,7 @@ int ha_spider::read_multi_range_next(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -6212,6 +6265,8 @@ int ha_spider::read_multi_range_next(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             result_list.current = result_list.current->prev;
           }
         } else
@@ -6241,6 +6296,8 @@ int ha_spider::read_multi_range_next(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             result_list.current = result_list.current->prev;
           }
         } else
@@ -6815,6 +6872,7 @@ int ha_spider::read_multi_range_next(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -6902,6 +6960,7 @@ int ha_spider::read_multi_range_next(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -6941,6 +7000,7 @@ int ha_spider::read_multi_range_next(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -6975,6 +7035,7 @@ int ha_spider::read_multi_range_next(
                     0,
                     share->monitoring_kind[roop_count],
                     share->monitoring_limit[roop_count],
+                    share->monitoring_flag[roop_count],
                     TRUE
                   );
               }
@@ -7004,6 +7065,7 @@ int ha_spider::read_multi_range_next(
                       0,
                       share->monitoring_kind[roop_count],
                       share->monitoring_limit[roop_count],
+                      share->monitoring_flag[roop_count],
                       TRUE
                     );
                 }
@@ -7059,6 +7121,8 @@ int ha_spider::read_multi_range_next(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             if (result_list.current == result_list.first)
               result_list.current = NULL;
             else
@@ -7112,6 +7176,8 @@ int ha_spider::read_multi_range_next(
             DBUG_PRINT("info",
               ("spider result_list.current->finish_flg = FALSE"));
             result_list.current->finish_flg = FALSE;
+            spider_db_free_one_result(&result_list,
+              (SPIDER_RESULT *) result_list.current);
             if (result_list.current == result_list.first)
               result_list.current = NULL;
             else
@@ -7436,6 +7502,7 @@ int ha_spider::rnd_next_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -7494,6 +7561,7 @@ int ha_spider::rnd_next_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -7526,6 +7594,7 @@ int ha_spider::rnd_next_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -7555,6 +7624,7 @@ int ha_spider::rnd_next_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -7663,6 +7733,15 @@ int ha_spider::rnd_pos(
 ) {
   DBUG_ENTER("ha_spider::rnd_pos");
   DBUG_PRINT("info",("spider this=%p", this));
+#ifndef DBUG_OFF
+  for (uint roop_count = 0; roop_count < ((table->s->fields + 7) / 8);
+    roop_count++)
+  {
+    DBUG_PRINT("info",("spider roop_count=%d", roop_count));
+    DBUG_PRINT("info",("spider read_set=%d",
+      ((uchar *) table->read_set->bitmap)[roop_count]));
+  }
+#endif
   if (trx->thd->killed)
   {
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
@@ -8021,6 +8100,7 @@ int ha_spider::ft_read_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -8073,6 +8153,7 @@ int ha_spider::ft_read_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -8104,6 +8185,7 @@ int ha_spider::ft_read_internal(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -8133,6 +8215,7 @@ int ha_spider::ft_read_internal(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -8337,6 +8420,7 @@ int ha_spider::info(
             if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this,
               FALSE)))
             {
+              pthread_mutex_unlock(&share->sts_mutex);
               if (!share->sts_init)
               {
                 if (
@@ -8391,6 +8475,7 @@ int ha_spider::info(
                     0,
                     share->monitoring_kind[search_link_idx],
                     share->monitoring_limit[search_link_idx],
+                    share->monitoring_flag[search_link_idx],
                     TRUE
                   );
               }
@@ -8660,6 +8745,7 @@ ha_rows ha_spider::records_in_range(
                     0,
                     share->monitoring_kind[search_link_idx],
                     share->monitoring_limit[search_link_idx],
+                    share->monitoring_flag[search_link_idx],
                     TRUE
                   );
               }
@@ -8950,6 +9036,7 @@ int ha_spider::check_crd()
                   0,
                   share->monitoring_kind[search_link_idx],
                   share->monitoring_limit[search_link_idx],
+                  share->monitoring_flag[search_link_idx],
                   TRUE
                 );
             }
@@ -9100,6 +9187,9 @@ ulonglong ha_spider::table_flags() const
     HA_BINLOG_ROW_CAPABLE |
     HA_BINLOG_STMT_CAPABLE |
     HA_PARTIAL_COLUMN_READ |
+#ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
+    HA_CAN_TABLE_CONDITION_PUSHDOWN |
+#endif
 #ifdef HA_CAN_BULK_ACCESS
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     (support_bulk_access_hs() ? HA_CAN_BULK_ACCESS : 0) |
@@ -9535,7 +9625,12 @@ int ha_spider::write_row(
       DBUG_RETURN(check_error_mode(error_num));
     if (bulk_insert)
       bulk_size =
-        insert_with_update || (!direct_dup_insert && ignore_dup_key) ?
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+        (insert_with_update && !result_list.insert_dup_update_pushdown) ||
+#else
+        insert_with_update ||
+#endif
+        (!direct_dup_insert && ignore_dup_key) ?
         0 : spider_param_bulk_size(trx->thd, share->bulk_size);
     else
       bulk_size = 0;
@@ -9809,8 +9904,11 @@ int ha_spider::direct_update_rows_init(
 #if MYSQL_VERSION_ID < 50500
       !thd->variables.engine_condition_pushdown ||
 #else
+#ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
+#else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
+#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10101,8 +10199,11 @@ int ha_spider::direct_delete_rows_init(
 #if MYSQL_VERSION_ID < 50500
       !thd->variables.engine_condition_pushdown ||
 #else
+#ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
+#else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
+#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10769,8 +10870,15 @@ int ha_spider::rename_table(
       {
         if (alter_table_from->tmp_link_statuses[roop_count] <=
           SPIDER_LINK_STATUS_NO_CHANGE)
+        {
+          DBUG_PRINT("info",("spider copy %d", roop_count));
           alter_table_from->tmp_link_statuses[roop_count] =
             alter_table_to->tmp_link_statuses[roop_count];
+        }
+        DBUG_PRINT("info",("spider link_status_from[%d]=%ld", roop_count,
+          alter_table_from->tmp_link_statuses[roop_count]));
+        DBUG_PRINT("info",("spider link_status_to[%d]=%ld", roop_count,
+          alter_table_to->tmp_link_statuses[roop_count]));
       }
     }
 
@@ -11668,6 +11776,38 @@ void ha_spider::set_clone_searched_bitmap()
   DBUG_VOID_RETURN;
 }
 
+void ha_spider::set_searched_bitmap_from_item_list()
+{
+  DBUG_ENTER("ha_spider::set_searched_bitmap_from_item_list");
+  Field *field;
+  Item *item, *item_next;
+  THD *thd = ha_thd();
+  Statement *stmt = thd->stmt_map.find(thd->id);
+  if (stmt && stmt->free_list)
+  {
+    DBUG_PRINT("info",("spider item from stmt"));
+    item_next = stmt->free_list;
+  } else {
+    DBUG_PRINT("info",("spider item from thd"));
+    item_next = thd->free_list;
+  }
+  while ((item = item_next))
+  {
+    DBUG_PRINT("info",("spider item=%p", item));
+    DBUG_PRINT("info",("spider itemtype=%u", item->type()));
+    item_next = item->next;
+    if (item->type() != Item::FIELD_ITEM)
+      continue;
+    field = ((Item_field *) item)->field;
+    DBUG_PRINT("info",("spider field=%p", field));
+    if (!field || !(field = field_exchange(field)))
+      continue;
+    DBUG_PRINT("info",("spider field_index=%u", field->field_index));
+    spider_set_bit(searched_bitmap, field->field_index);
+  }
+  DBUG_VOID_RETURN;
+}
+
 void ha_spider::set_select_column_mode()
 {
   int roop_count;
@@ -11687,6 +11827,7 @@ void ha_spider::set_select_column_mode()
     share->select_column_mode);
   if (select_column_mode)
   {
+    DBUG_PRINT("info",("spider searched_bitmap=%p", searched_bitmap));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (
       partition_handler_share &&
@@ -11704,6 +11845,7 @@ void ha_spider::set_select_column_mode()
     } else {
 #endif
       set_searched_bitmap();
+      set_searched_bitmap_from_item_list();
       if (result_list.lock_type == F_WRLCK && sql_command != SQLCOM_SELECT)
       {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -12040,6 +12182,7 @@ int ha_spider::drop_tmp_tables()
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -12074,6 +12217,7 @@ int ha_spider::drop_tmp_tables()
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
             }
@@ -12192,6 +12336,7 @@ int ha_spider::close_opened_handler(
           0,
           share->monitoring_kind[link_idx],
           share->monitoring_limit[link_idx],
+          share->monitoring_flag[link_idx],
           TRUE
         );
       }
@@ -12226,6 +12371,7 @@ int ha_spider::close_opened_handler(
           0,
           share->monitoring_kind[link_idx],
           share->monitoring_limit[link_idx],
+          share->monitoring_flag[link_idx],
           TRUE
         );
       }
@@ -12266,6 +12412,7 @@ int ha_spider::close_opened_handler(
           0,
           share->monitoring_kind[link_idx],
           share->monitoring_limit[link_idx],
+          share->monitoring_flag[link_idx],
           TRUE
         );
       }
@@ -12366,6 +12513,7 @@ int ha_spider::index_handler_init()
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
@@ -12471,6 +12619,7 @@ int ha_spider::rnd_handler_init()
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
           }
