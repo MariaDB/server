@@ -764,9 +764,9 @@ required. For details, please see this web site:
 
   http://www.zaconsultants.net
 
-There is also a mirror here:
-
-  http://www.vsoft-software.com/downloads.html
+You may download PCRE from WWW.CBTTAPE.ORG, file 882.  Everything, source and
+executable, is in EBCDIC and native z/OS file formats and this is the
+recommended download site.
 
 ==========================
-Last Updated: 10 February 2015
+Last Updated: 25 June 2015
