@@ -4621,9 +4621,9 @@ while (!done)
 
       else switch ((c = *p++))
         {
-        case 'a': c =    7; break;
+        case 'a': c =  CHAR_BEL; break;
         case 'b': c = '\b'; break;
-        case 'e': c =   27; break;
+        case 'e': c =  CHAR_ESC; break;
         case 'f': c = '\f'; break;
         case 'n': c = '\n'; break;
         case 'r': c = '\r'; break;

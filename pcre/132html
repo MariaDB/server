@@ -148,7 +148,7 @@ while (<STDIN>)
         printf("<li><a name=\"TOC%d\" href=\"#SEC%d\">$title</a>\n",
           $ref, $ref);
         printf TEMP ("<br><a name=\"SEC%d\" href=\"#TOC1\">$title</a><br>\n",
-          $ref, $ref);
+          $ref);
         $ref++;
         }
       else
