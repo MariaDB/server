@@ -261,7 +261,13 @@ row_ins_sec_index_entry_by_modify(
 	update = row_upd_build_sec_rec_difference_binary(
 		rec, cursor->index, *offsets, entry, heap);
 
-	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
+	/* If operating in fake_change mode then flow will not mark the record
+	deleted but will still assume it and take delete-mark path. Condition
+	below has a different path if record is not marked deleted but we need
+	to still by-pass it given that original flow has taken this path for
+	fake_change mode execution assuming record is delete-marked. */
+	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
+	    && UNIV_UNLIKELY(!thr_get_trx(thr)->fake_changes)) {
 		/* We should never insert in place of a record that
 		has not been delete-marked. The only exception is when
 		online CREATE INDEX copied the changes that we already
@@ -2482,9 +2488,14 @@ err_exit:
 			effectively "roll back" the operation. */
 			ut_a(err == DB_SUCCESS);
 			dtuple_big_rec_free(big_rec);
+		} else if (big_rec != NULL
+			   && UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
+			dtuple_big_rec_free(big_rec);
 		}
 
-		if (err == DB_SUCCESS && dict_index_is_online_ddl(index)) {
+		if (err == DB_SUCCESS
+		    && dict_index_is_online_ddl(index)
+		    && UNIV_LIKELY(!thr_get_trx(thr)->fake_changes)) {
 			row_log_table_insert(rec, index, offsets);
 		}
 
@@ -2528,8 +2539,8 @@ err_exit:
 
 			if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 
-				/* skip store extern */
-				mem_heap_free(big_rec->heap);
+				dtuple_convert_back_big_rec(
+					index, entry, big_rec);
 				goto func_exit;
 			}
 
@@ -2549,7 +2560,8 @@ err_exit:
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
-			    && dict_index_is_online_ddl(index)) {
+			    && dict_index_is_online_ddl(index)
+			    && !UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 				row_log_table_insert(
 					insert_rec, index, offsets);
 			}

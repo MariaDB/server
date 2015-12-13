@@ -546,7 +546,7 @@ log_online_start_bitmap_file(void)
 							innodb_file_bmp_key,
 							log_bmp_sys->out.name,
 							OS_FILE_CREATE,
-							OS_FILE_READ_WRITE,
+							OS_FILE_READ_WRITE_CACHED,
 							&success);
 	}
 	if (UNIV_UNLIKELY(!success)) {
@@ -707,7 +707,7 @@ log_online_read_init(void)
 	log_bmp_sys->out.file
 		= os_file_create_simple_no_error_handling
 		(innodb_file_bmp_key, log_bmp_sys->out.name, OS_FILE_OPEN,
-		 OS_FILE_READ_WRITE, &success);
+		 OS_FILE_READ_WRITE_CACHED, &success);
 
 	if (!success) {
 
@@ -1490,10 +1490,20 @@ log_online_open_bitmap_file_read_only(
 							file */
 {
 	ibool	success	= FALSE;
+	size_t  srv_data_home_len;
 
 	ut_ad(name[0] != '\0');
 
-	ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s", srv_data_home, name);
+	srv_data_home_len = strlen(srv_data_home);
+	if (srv_data_home_len
+			&& srv_data_home[srv_data_home_len-1]
+			!= SRV_PATH_SEPARATOR) {
+		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%c%s",
+				srv_data_home, SRV_PATH_SEPARATOR, name);
+	} else {
+		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s",
+				srv_data_home, name);
+	}
 	bitmap_file->file
 		= os_file_create_simple_no_error_handling(innodb_file_bmp_key,
 							  bitmap_file->name,

@@ -1308,6 +1308,31 @@ os_file_create_simple_func(
 	return(file);
 }
 
+/** Disable OS I/O caching on the file if the file type and server
+configuration requires it.
+@param file handle to the file
+@param name name of the file, for diagnostics
+@param mode_str operation on the file, for diagnostics
+@param type OS_LOG_FILE or OS_DATA_FILE
+@param access_type if OS_FILE_READ_WRITE_CACHED, then caching will be disabled
+unconditionally, ignored otherwise */
+static
+void
+os_file_set_nocache_if_needed(os_file_t file, const char* name,
+			      const char *mode_str, ulint type,
+			      ulint access_type)
+{
+	if (srv_read_only_mode || access_type == OS_FILE_READ_WRITE_CACHED)
+		return;
+
+	if (srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT
+	    || (type != OS_LOG_FILE
+		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
+		    || (srv_unix_file_flush_method
+			== SRV_UNIX_O_DIRECT_NO_FSYNC))))
+		os_file_set_nocache(file, name, mode_str);
+}
+
 /****************************************************************//**
 NOTE! Use the corresponding macro
 os_file_create_simple_no_error_handling(), not directly this function!
@@ -1322,9 +1347,11 @@ os_file_create_simple_no_error_handling_func(
 				null-terminated string */
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY,
-				OS_FILE_READ_WRITE, or
-				OS_FILE_READ_ALLOW_DELETE; the last option is
-				used by a backup program reading the file */
+				OS_FILE_READ_WRITE,
+				OS_FILE_READ_ALLOW_DELETE (used by a backup
+				program reading the file), or
+				OS_FILE_READ_WRITE_CACHED (disable O_DIRECT
+				if it would be enabled otherwise) */
 	ibool*		success)/*!< out: TRUE if succeed, FALSE if error */
 {
 	os_file_t	file;
@@ -1360,7 +1387,8 @@ os_file_create_simple_no_error_handling_func(
 		access = GENERIC_READ;
 	} else if (srv_read_only_mode) {
 		access = GENERIC_READ;
-	} else if (access_type == OS_FILE_READ_WRITE) {
+	} else if (access_type == OS_FILE_READ_WRITE
+		   || access_type == OS_FILE_READ_WRITE_CACHED) {
 		access = GENERIC_READ | GENERIC_WRITE;
 	} else if (access_type == OS_FILE_READ_ALLOW_DELETE) {
 
@@ -1413,7 +1441,8 @@ os_file_create_simple_no_error_handling_func(
 		} else {
 
 			ut_a(access_type == OS_FILE_READ_WRITE
-			     || access_type == OS_FILE_READ_ALLOW_DELETE);
+			     || access_type == OS_FILE_READ_ALLOW_DELETE
+			     || access_type == OS_FILE_READ_WRITE_CACHED);
 
 			create_flag = O_RDWR;
 		}
@@ -1445,18 +1474,16 @@ os_file_create_simple_no_error_handling_func(
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
-	if (!srv_read_only_mode
-	    && *success
-	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
-
-		os_file_set_nocache(file, name, mode_str);
+	if (*success) {
+		os_file_set_nocache_if_needed(file, name, mode_str,
+					      OS_DATA_FILE, access_type);
 	}
 
 #ifdef USE_FILE_LOCK
 	if (!srv_read_only_mode
 	    && *success
-	    && access_type == OS_FILE_READ_WRITE
+	    && (access_type == OS_FILE_READ_WRITE
+		|| access_type == OS_FILE_READ_WRITE_CACHED)
 	    && os_file_lock(file, name)) {
 
 		*success = FALSE;
@@ -1816,17 +1843,9 @@ os_file_create_func(
 
 	} while (retry);
 
-	if (!srv_read_only_mode
-	    && *success
-	    && type != OS_LOG_FILE
-	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	if (*success) {
 
-		os_file_set_nocache(file, name, mode_str);
-	} else if (!srv_read_only_mode
-	    && *success
-	    && srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT) {
-		os_file_set_nocache(file, name, mode_str);
+		os_file_set_nocache_if_needed(file, name, mode_str, type, 0);
 	}
 
 #ifdef USE_FILE_LOCK
