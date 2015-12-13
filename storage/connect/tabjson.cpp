@@ -688,8 +688,13 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			Fpos++;
 			M = 1;
 			rc = RC_OK;
+		} else if (Pretty != 1 || strcmp(To_Line, "]")) {
+#if USE_G
+			strcpy(g->Message, G->Message);
+#endif
+			rc = RC_FX;
 		} else
-			rc = (Pretty == 1 && !strcmp(To_Line, "]")) ? RC_EF : RC_FX;
+			rc = RC_EF;
 
 	} // endif ReadDB
 
@@ -793,6 +798,9 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
 	int rc = TDBDOS::WriteDB(g);
 
 #if USE_G
+	if (rc == RC_FX)
+		strcpy(g->Message, G->Message);
+
 	PlugSubSet(G, G->Sarea, G->Sarea_Size);
 #endif
 	Row->Clear();
