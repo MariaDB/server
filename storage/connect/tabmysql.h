@@ -99,7 +99,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
-  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len);
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
 
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);

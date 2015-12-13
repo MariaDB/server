@@ -4,6 +4,7 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 --copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
+--copy_file $MTR_SUITE_DIR/std_data/bib0.json $MYSQLD_DATADIR/test/bib0.json
 --copy_file $MTR_SUITE_DIR/std_data/expense.json $MYSQLD_DATADIR/test/expense.json
 --copy_file $MTR_SUITE_DIR/std_data/mulexp3.json $MYSQLD_DATADIR/test/mulexp3.json
 --copy_file $MTR_SUITE_DIR/std_data/mulexp4.json $MYSQLD_DATADIR/test/mulexp4.json
@@ -113,6 +114,33 @@ CREATE TABLE t1
 )
 ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='biblio.json';
 SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing a pretty=0 file
+--echo #
+CREATE TABLE t1
+(
+  ISBN CHAR(15) NOT NULL,
+  Language CHAR(2) FIELD_FORMAT='LANG',
+  Subject CHAR(32) FIELD_FORMAT='SUBJECT',
+  AuthorFN CHAR(128) FIELD_FORMAT='AUTHOR:[X]:FIRSTNAME',
+  AuthorLN CHAR(128) FIELD_FORMAT='AUTHOR:[X]:LASTNAME',
+  Title CHAR(32) FIELD_FORMAT='TITLE',
+  Translation CHAR(32) FIELD_FORMAT='TRANSLATED:PREFIX',
+  TranslatorFN CHAR(80) FIELD_FORMAT='TRANSLATED:TRANSLATOR:FIRSTNAME',
+  TranslatorLN CHAR(80) FIELD_FORMAT='TRANSLATED:TRANSLATOR:LASTNAME',
+  Publisher CHAR(20) FIELD_FORMAT='PUBLISHER:NAME',
+  Location CHAR(16) FIELD_FORMAT='PUBLISHER:PLACE',
+  Year int(4) FIELD_FORMAT='DATEPUB',
+  INDEX IX(ISBN)
+)
+ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bib0.json' LRECL=320 OPTION_LIST='Pretty=0';
+SHOW INDEX FROM t1;
+SELECT * FROM t1;
+DESCRIBE SELECT * FROM t1 WHERE ISBN = '9782212090819';
+--error ER_GET_ERRMSG
+UPDATE t1 SET AuthorFN = 'Philippe' WHERE ISBN = '9782212090819';
 DROP TABLE t1;
 
 --echo #
@@ -258,6 +286,8 @@ DROP TABLE t1, t2, t3, t4;
 # Clean up
 #
 --remove_file $MYSQLD_DATADIR/test/biblio.json
+--remove_file $MYSQLD_DATADIR/test/bib0.dnx
+--remove_file $MYSQLD_DATADIR/test/bib0.json
 --remove_file $MYSQLD_DATADIR/test/expense.json
 --remove_file $MYSQLD_DATADIR/test/mulexp3.json
 --remove_file $MYSQLD_DATADIR/test/mulexp4.json

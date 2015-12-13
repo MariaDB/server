@@ -1,4 +1,5 @@
 -- source include/not_embedded.inc
+set sql_mode="";
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -92,4 +93,4 @@ let $TABLE_OPTIONS=TABLE_TYPE=VEC MAX_ROWS=100;
 let $FILE_EXT=VEC;
 --source grant.inc
 
-
+set sql_mode=default;

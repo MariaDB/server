@@ -1,8 +1,10 @@
 #
 # Testing FILE privilege
 #
+set sql_mode="";
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
+set sql_mode=default;
 SELECT user();
 user()
 user@localhost

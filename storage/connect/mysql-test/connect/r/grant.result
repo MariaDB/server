@@ -1,3 +1,4 @@
+set sql_mode="";
 #
 # Testing FILE privilege
 #
@@ -70,6 +71,7 @@ DROP USER user@localhost;
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
@@ -164,6 +166,7 @@ DROP USER user@localhost;
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
@@ -258,6 +261,7 @@ DROP USER user@localhost;
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
@@ -352,6 +356,7 @@ DROP USER user@localhost;
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
@@ -446,6 +451,7 @@ DROP USER user@localhost;
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
@@ -537,3 +543,4 @@ DROP USER user@localhost;
 #
 # End of grant.inc
 #
+set sql_mode=default;

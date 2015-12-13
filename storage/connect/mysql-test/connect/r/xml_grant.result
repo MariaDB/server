@@ -3,6 +3,7 @@ Warning	1105	No file name. Table will use t1.xml
 #
 # Beginning of grant.inc
 #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
