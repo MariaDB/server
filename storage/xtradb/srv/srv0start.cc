@@ -1613,9 +1613,8 @@ innobase_start_or_create_for_mysql(void)
 	size_t		dirnamelen;
 	bool		sys_datafiles_created = false;
 
-	if (srv_force_recovery > SRV_FORCE_NO_TRX_UNDO) {
-		srv_read_only_mode = true;
-	}
+	high_level_read_only = srv_read_only_mode
+		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
 	if (srv_read_only_mode) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Started in read only mode");
@@ -2067,8 +2066,7 @@ innobase_start_or_create_for_mysql(void)
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Initializing buffer pool, size = %.1f%c", size, unit);
 
-	err = buf_pool_init(srv_buf_pool_size, (ibool) srv_buf_pool_populate,
-			    srv_buf_pool_instances);
+	err = buf_pool_init(srv_buf_pool_size, srv_buf_pool_instances);
 
 	if (err != DB_SUCCESS) {
 		ib_logf(IB_LOG_LEVEL_ERROR,

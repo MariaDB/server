@@ -1389,7 +1389,8 @@ error_exit:
 		return(err);
 	}
 
-	if (dict_table_has_fts_index(table)) {
+	if (dict_table_has_fts_index(table)
+	    && UNIV_LIKELY(!thr_get_trx(thr)->fake_changes)) {
 		doc_id_t        doc_id;
 
 		/* Extract the doc id from the hidden FTS column */

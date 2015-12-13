@@ -132,6 +132,10 @@ enum os_file_create_t {
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
 #define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
+#define OS_FILE_READ_WRITE_CACHED	666	/* OS_FILE_READ_WRITE but never
+						O_DIRECT. Only for
+						os_file_create_simple_no_error_handling
+						currently. */
 
 /* Options for file_create */
 #define	OS_FILE_AIO			61
@@ -541,9 +545,11 @@ os_file_create_simple_no_error_handling_func(
 				null-terminated string */
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY,
-				OS_FILE_READ_WRITE, or
-				OS_FILE_READ_ALLOW_DELETE; the last option is
-				used by a backup program reading the file */
+				OS_FILE_READ_WRITE,
+				OS_FILE_READ_ALLOW_DELETE (used by a backup
+				program reading the file), or
+				OS_FILE_READ_WRITE_CACHED (disable O_DIRECT
+				if it would be enabled otherwise) */
 	ibool*		success)/*!< out: TRUE if succeed, FALSE if error */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
