@@ -902,5 +902,12 @@ select column_json(column_create('float', 1.23456789012345E+100 as double));
 select column_json(column_create('float', 1.23456789012345E+10 as double));
 
 --echo #
+--echo # MDEV-9147: Character set is ignored in Dynamic Column for saved string
+--echo #
+SET NAMES utf8;
+SELECT COLUMN_GET(COLUMN_CREATE(1, 0xC2A2 AS CHAR CHARACTER SET latin1), 1 AS CHAR CHARACTER SET utf8) AS a;
+SELECT COLUMN_GET(COLUMN_CREATE(1, 0xC2A2 AS CHAR CHARACTER SET utf8), 1 AS CHAR CHARACTER SET utf8) AS a; 
+
+--echo #
 --echo # end of 10.0 tests
 --echo #
