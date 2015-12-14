@@ -1729,8 +1729,10 @@ wsrep_kill_victim(
 				}
 			}
 
+			lock->trx->wsrep_abort = TRUE;
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
 				(const trx_t*) trx, lock->trx, TRUE);
+			lock->trx->wsrep_abort = FALSE;
 		}
 	}
 }
@@ -4399,9 +4401,7 @@ lock_report_waiters_to_mysql(
 				innobase_kill_query. We mark this by setting
 				current_lock_mutex_owner, so we can avoid trying
 				to recursively take lock_sys->mutex. */
-				w_trx->current_lock_mutex_owner = mysql_thd;
 				thd_report_wait_for(mysql_thd, w_trx->mysql_thd);
-				w_trx->current_lock_mutex_owner = NULL;
 			}
 			++i;
 		}
@@ -6769,7 +6769,7 @@ lock_clust_rec_modify_check_and_lock(
 
 	lock_mutex_enter();
 	trx_t*		trx = thr_get_trx(thr);
-	trx->current_lock_mutex_owner = trx->mysql_thd;
+
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
@@ -6777,7 +6777,6 @@ lock_clust_rec_modify_check_and_lock(
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
-	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -6831,7 +6830,6 @@ lock_sec_rec_modify_check_and_lock(
 
 	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
-	trx->current_lock_mutex_owner = trx->mysql_thd;
 
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
@@ -6840,7 +6838,6 @@ lock_sec_rec_modify_check_and_lock(
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
-	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 #ifdef UNIV_DEBUG
@@ -6933,7 +6930,6 @@ lock_sec_rec_read_check_and_lock(
 
 	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
-	trx->current_lock_mutex_owner = trx->mysql_thd;
 
 	ut_ad(mode != LOCK_X
 	      || lock_table_has(trx, index->table, LOCK_IX));
@@ -6945,7 +6941,6 @@ lock_sec_rec_read_check_and_lock(
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
-	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -7008,7 +7003,6 @@ lock_clust_rec_read_check_and_lock(
 
 	lock_mutex_enter();
 	trx_t* trx = thr_get_trx(thr);
-	trx->current_lock_mutex_owner = trx->mysql_thd;
 
 	ut_ad(mode != LOCK_X
 	      || lock_table_has(trx, index->table, LOCK_IX));
@@ -7020,7 +7014,6 @@ lock_clust_rec_read_check_and_lock(
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
 
-	trx->current_lock_mutex_owner = NULL;
 	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -7164,6 +7157,19 @@ lock_get_type(
 	const lock_t*	lock)	/*!< in: lock */
 {
 	return(lock_get_type_low(lock));
+}
+
+/*******************************************************************//**
+Gets the trx of the lock. Non-inline version for using outside of the
+lock module.
+@return	trx_t* */
+UNIV_INTERN
+trx_t*
+lock_get_trx(
+/*=========*/
+	const lock_t*	lock)	/*!< in: lock */
+{
+	return (lock->trx);
 }
 
 /*******************************************************************//**

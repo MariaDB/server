@@ -848,6 +848,8 @@ struct trx_t{
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
+	ibool		wsrep_abort;	/*!< Transaction is aborted from
+					wsrep functions. */
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
 					contains a pointer to the latest file
@@ -991,11 +993,6 @@ struct trx_t{
 	ulint		flush_tables;	/*!< if "covering" the FLUSH TABLES",
 					count of tables being flushed. */
 
-	/*------------------------------*/
-	THD*		current_lock_mutex_owner;
-					/*!< If this is equal to current_thd,
-					then in innobase_kill_query() we know we
-					already hold the lock_sys->mutex. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	ulint		start_line;	/*!< Track where it was started from */

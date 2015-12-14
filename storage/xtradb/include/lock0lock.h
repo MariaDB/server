@@ -666,6 +666,16 @@ lock_get_type(
 	const lock_t*	lock);	/*!< in: lock */
 
 /*******************************************************************//**
+Gets the trx of the lock. Non-inline version for using outside of the
+lock module.
+@return	trx_t* */
+UNIV_INTERN
+trx_t*
+lock_get_trx(
+/*=========*/
+	const lock_t*	lock);	/*!< in: lock */
+
+/*******************************************************************//**
 Gets the id of the transaction owning a lock.
 @return	transaction id */
 UNIV_INTERN

@@ -4982,7 +4982,6 @@ innobase_kill_connection(
         thd_kill_levels)
 {
 	trx_t*	trx;
-	bool	took_lock_sys = false;
 
 	DBUG_ENTER("innobase_kill_connection");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -5005,28 +5004,24 @@ innobase_kill_connection(
 	trx = thd_to_trx(thd);
 
 	if (trx) {
-		THD *cur = current_thd;
-		THD *owner = trx->current_lock_mutex_owner;
+		/* In wsrep BF we have already took lock_sys and trx
+		mutex either on wsrep_abort_transaction() or
+		before wsrep_kill_victim() */
 
-		if (owner != cur) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_ad(!lock_mutex_own());
+			ut_ad(!trx_mutex_own(trx));
 			lock_mutex_enter();
-			took_lock_sys = true;
+			trx_mutex_enter(trx);
 		}
-
-		ut_ad(!trx_mutex_own(trx));
-		trx_mutex_enter(trx);
-
-		/* Cancel a pending lock request. */
-		if (trx->lock.wait_lock)
-			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
 		ut_ad(lock_mutex_own());
 		ut_ad(trx_mutex_own(trx));
 
-		trx_mutex_exit(trx);
+		lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
-		if (took_lock_sys) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+			trx_mutex_exit(trx);
 			lock_mutex_exit();
 		}
 	}
@@ -18642,13 +18637,13 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 
 	if (victim_trx) {
 		lock_mutex_enter();
-		victim_trx->current_lock_mutex_owner = victim_thd;
 		trx_mutex_enter(victim_trx);
+		victim_trx->wsrep_abort = TRUE;
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
 		trx_mutex_exit(victim_trx);
-		victim_trx->current_lock_mutex_owner = NULL;
 		lock_mutex_exit();
+		victim_trx->wsrep_abort = FALSE;
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
