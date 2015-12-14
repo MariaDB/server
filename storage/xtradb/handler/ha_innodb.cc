@@ -116,6 +116,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "i_s.h"
 #include "xtradb_i_s.h"
 
+#include <string>
+#include <sstream>
+
 # ifndef MYSQL_PLUGIN_IMPORT
 #  define MYSQL_PLUGIN_IMPORT /* nothing */
 # endif /* MYSQL_PLUGIN_IMPORT */
@@ -12712,8 +12715,9 @@ ha_innobase::update_table_comment(
 	const char*	comment)/*!< in: table comment defined by user */
 {
 	uint	length = (uint) strlen(comment);
-	char*	str;
+	char*	str=0;
 	long	flen;
+	std::string fk_str;
 
 	/* We do not know if MySQL can call this function before calling
 	external_lock(). To be safe, update the thd of the current table
@@ -12731,50 +12735,40 @@ ha_innobase::update_table_comment(
 	possible adaptive hash latch to avoid deadlocks of threads */
 
 	trx_search_latch_release_if_reserved(prebuilt->trx);
-	str = NULL;
 
-	/* output the data to a temporary file */
+#define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
+        ( std::ostringstream() << std::dec << x ) ).str()
 
-	if (!srv_read_only_mode) {
+	fk_str.append("InnoDB free: ");
+	fk_str.append(SSTR(fsp_get_available_space_in_free_extents(
+				prebuilt->table->space)));
 
-		mutex_enter(&srv_dict_tmpfile_mutex);
+	fk_str.append(dict_print_info_on_foreign_keys(
+			FALSE, prebuilt->trx,
+			prebuilt->table));
 
-		rewind(srv_dict_tmpfile);
+	flen = fk_str.length();
 
-		fprintf(srv_dict_tmpfile, "InnoDB free: %llu kB",
-			fsp_get_available_space_in_free_extents(
-				prebuilt->table->space));
+	if (flen < 0) {
+		flen = 0;
+	} else if (length + flen + 3 > 64000) {
+		flen = 64000 - 3 - length;
+	}
 
-		dict_print_info_on_foreign_keys(
-			FALSE, srv_dict_tmpfile, prebuilt->trx,
-			prebuilt->table);
+	/* allocate buffer for the full string */
 
-		flen = ftell(srv_dict_tmpfile);
+	str = (char*) my_malloc(length + flen + 3, MYF(0));
 
-		if (flen < 0) {
-			flen = 0;
-		} else if (length + flen + 3 > 64000) {
-			flen = 64000 - 3 - length;
+	if (str) {
+		char* pos	= str + length;
+		if (length) {
+			memcpy(str, comment, length);
+			*pos++ = ';';
+			*pos++ = ' ';
 		}
 
-		/* allocate buffer for the full string, and
-		read the contents of the temporary file */
-
-		str = (char*) my_malloc(length + flen + 3, MYF(0));
-
-		if (str) {
-			char* pos	= str + length;
-			if (length) {
-				memcpy(str, comment, length);
-				*pos++ = ';';
-				*pos++ = ' ';
-			}
-			rewind(srv_dict_tmpfile);
-			flen = (uint) fread(pos, 1, flen, srv_dict_tmpfile);
-			pos[flen] = 0;
-		}
-
-		mutex_exit(&srv_dict_tmpfile_mutex);
+		memcpy(pos, fk_str.c_str(), flen);
+		pos[flen] = 0;
 	}
 
 	prebuilt->trx->op_info = (char*)"";
@@ -12792,8 +12786,7 @@ char*
 ha_innobase::get_foreign_key_create_info(void)
 /*==========================================*/
 {
-	long	flen;
-	char*	str	= 0;
+	char*	fk_str	= 0;
 
 	ut_a(prebuilt != NULL);
 
@@ -12811,38 +12804,22 @@ ha_innobase::get_foreign_key_create_info(void)
 
 	trx_search_latch_release_if_reserved(prebuilt->trx);
 
-	if (!srv_read_only_mode) {
-		mutex_enter(&srv_dict_tmpfile_mutex);
-		rewind(srv_dict_tmpfile);
-
-		/* Output the data to a temporary file */
-		dict_print_info_on_foreign_keys(
-			TRUE, srv_dict_tmpfile, prebuilt->trx,
+	/* Output the data to a temporary file */
+	std::string str = dict_print_info_on_foreign_keys(
+		TRUE, prebuilt->trx,
 			prebuilt->table);
 
-		prebuilt->trx->op_info = (char*)"";
+	prebuilt->trx->op_info = (char*)"";
 
-		flen = ftell(srv_dict_tmpfile);
+	/* Allocate buffer for the string */
+	fk_str = (char*) my_malloc(str.length() + 1, MYF(0));
 
-		if (flen < 0) {
-			flen = 0;
-		}
-
-		/* Allocate buffer for the string, and
-		read the contents of the temporary file */
-
-		str = (char*) my_malloc(flen + 1, MYF(0));
-
-		if (str) {
-			rewind(srv_dict_tmpfile);
-			flen = (uint) fread(str, 1, flen, srv_dict_tmpfile);
-			str[flen] = 0;
-		}
-
-		mutex_exit(&srv_dict_tmpfile_mutex);
+	if (fk_str) {
+		memcpy(fk_str, str.c_str(), str.length());
+		fk_str[str.length()]='\0';
 	}
 
-	return(str);
+	return(fk_str);
 }
 
 
