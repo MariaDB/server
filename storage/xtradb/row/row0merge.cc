@@ -3126,7 +3126,7 @@ row_merge_file_create(
 
 	if (merge_file->fd >= 0) {
 		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
+			os_file_set_nocache(OS_FILE_FROM_FD(merge_file->fd),
 				"row0merge.cc", "sort");
 		}
 	}

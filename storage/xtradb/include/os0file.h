@@ -558,7 +558,7 @@ UNIV_INTERN
 void
 os_file_set_nocache(
 /*================*/
-	int		fd,		/*!< in: file descriptor to alter */
+	os_file_t	fd,		/*!< in: file descriptor to alter */
 	const char*	file_name,	/*!< in: file name, used in the
 					diagnostic message */
 	const char*	operation_name);/*!< in: "open" or "create"; used in the
