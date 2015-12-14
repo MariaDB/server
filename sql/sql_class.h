@@ -3863,6 +3863,7 @@ public:
 #endif /*  GTID_SUPPORT */
   void*                     wsrep_apply_format;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
+  bool                      wsrep_skip_append_keys;
 #endif /* WITH_WSREP */
 };
 

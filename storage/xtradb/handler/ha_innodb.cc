@@ -8381,7 +8381,8 @@ report_error:
 	if (!error_result                                &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
 	    wsrep_on(user_thd)                           &&
-	    !wsrep_consistency_check(user_thd))
+	    !wsrep_consistency_check(user_thd)           &&
+	    !wsrep_thd_skip_append_keys(user_thd))
 	{
 		if (wsrep_append_keys(user_thd, false, record, NULL))
 		{
@@ -8911,10 +8912,11 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                          && 
+	if (error == DB_SUCCESS                          &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-            wsrep_on(user_thd)) {
-
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_thd_skip_append_keys(user_thd))
+        {
 		DBUG_PRINT("wsrep", ("update row key"));
 
 		if (wsrep_append_keys(user_thd, false, old_row, new_row)) {
@@ -8990,9 +8992,11 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-            wsrep_on(user_thd)) {
-
+	if (error == DB_SUCCESS                          &&
+            wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+            wsrep_on(user_thd)                           &&
+            !wsrep_thd_skip_append_keys(user_thd))
+        {
 		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
 			error = DB_ERROR;

@@ -962,6 +962,10 @@ extern "C" int wsrep_thd_retry_counter(THD *thd)
 {
   return(thd->wsrep_retry_counter);
 }
+extern "C" bool wsrep_thd_skip_append_keys(THD *thd)
+{
+  return thd->wsrep_skip_append_keys;
+}
 
 extern int
 wsrep_trx_order_before(void *thd1, void *thd2)
@@ -1083,7 +1087,8 @@ THD::THD()
    wsrep_po_cnt(0),
    wsrep_po_in_trans(FALSE),
    wsrep_apply_format(0),
-   wsrep_apply_toi(false)
+   wsrep_apply_toi(false),
+   wsrep_skip_append_keys(false)
 #endif
 {
   ulong tmp;

@@ -574,6 +574,14 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
 
+#ifdef WITH_WSREP
+  /*
+    Updates in slave state table should not be appended to galera transaction
+    writeset.
+  */
+  thd->wsrep_skip_append_keys= true;
+#endif
+
   if (!in_transaction)
   {
     DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
@@ -686,6 +694,10 @@ IF_DBUG(dbug_break:, )
   table->file->ha_index_end();
 
 end:
+
+#ifdef WITH_WSREP
+  thd->wsrep_skip_append_keys= false;
+#endif
 
   if (table_opened)
   {

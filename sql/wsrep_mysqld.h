@@ -180,7 +180,7 @@ extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 extern "C" void wsrep_thd_awake(THD *thd, my_bool signal);
 extern "C" int wsrep_thd_retry_counter(THD *thd);
-
+extern "C" bool wsrep_thd_skip_append_keys(THD *thd);
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern int  wsrep_wait_committing_connections_close(int wait_time);
@@ -195,7 +195,6 @@ extern bool wsrep_start_replication();
 extern bool wsrep_sync_wait (THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
 extern int  wsrep_check_opts (int argc, char* const* argv);
 extern void wsrep_prepend_PATH (const char* path);
-/* some inline functions are defined in wsrep_mysqld_inl.h */
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
