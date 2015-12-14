@@ -8,10 +8,12 @@ partition pa3 max_rows=30 min_rows=4,
 partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 insert into t1 values (repeat('a',767)), ('b'), (repeat('a',500)), (repeat('b',64));
+--sorted_result
 select * from t1;
 select * from t1 where a='b';
 update t1 set a='bb' where a='b';
 delete from t1 where a='bb';
+--sorted_result
 select * from t1;
 drop table t1;
 
@@ -32,6 +34,7 @@ inc $letter;
 commit;
 --enable_query_log
 select count(*) from t2;
+--sorted_result
 select * from t2;
 drop table t2;
 

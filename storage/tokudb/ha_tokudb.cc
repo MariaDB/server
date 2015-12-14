@@ -5786,9 +5786,6 @@ int ha_tokudb::info(uint flag) {
     if (flag & HA_STATUS_VARIABLE) {
         // Just to get optimizations right
         stats.records = share->rows + share->rows_from_locked_table;
-        if (stats.records == 0) {
-            stats.records++;
-        }
         stats.deleted = 0;
         if (!(flag & HA_STATUS_NO_LOCK)) {
             uint64_t num_rows = 0;
@@ -5805,9 +5802,6 @@ int ha_tokudb::info(uint flag) {
             if (error == 0) {
                 share->rows = num_rows;
                 stats.records = num_rows;
-                if (stats.records == 0) {
-                    stats.records++;
-                }
             }
             else {
                 goto cleanup;
@@ -7197,7 +7191,7 @@ double ha_tokudb::read_time(
     //
     total_scan = scan_time();
 
-    if (stats.records < rows) {
+    if (stats.records <= rows) {
         ret_val = is_clustering ? total_scan + 0.00001 : total_scan;
         goto cleanup;
     }

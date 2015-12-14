@@ -20013,6 +20013,7 @@ uint find_shortest_key(TABLE *table, const key_map *usable_keys)
           min_cost= cost;
           best=nr;
         }
+        DBUG_ASSERT(best < MAX_KEY);
       }
     }
   }
