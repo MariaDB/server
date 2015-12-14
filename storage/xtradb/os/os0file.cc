@@ -1598,7 +1598,7 @@ UNIV_INTERN
 void
 os_file_set_nocache(
 /*================*/
-	int		fd		/*!< in: file descriptor to alter */
+	os_file_t fd		/*!< in: file descriptor to alter */
 					__attribute__((unused)),
 	const char*	file_name	/*!< in: used in the diagnostic
 					message */
@@ -5041,53 +5041,25 @@ os_aio_windows_handle(
 	}
 
 	if (retry) {
-		/* retry failed read/write operation synchronously.
-		No need to hold array->mutex. */
-
-#ifdef UNIV_PFS_IO
-		/* This read/write does not go through os_file_read
-		and os_file_write APIs, need to register with
-		performance schema explicitly here. */
-		struct PSI_file_locker* locker = NULL;
-		register_pfs_file_io_begin(locker, slot->file, slot->len,
-					   (slot->type == OS_FILE_WRITE)
-						? PSI_FILE_WRITE
-						: PSI_FILE_READ,
-					    __FILE__, __LINE__);
-#endif
+		LARGE_INTEGER li;
+		li.LowPart = slot->control.Offset;
+		li.HighPart = slot->control.OffsetHigh;
 
 		ut_a((slot->len & 0xFFFFFFFFUL) == slot->len);
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
 			ret_val = os_file_write(slot->name, slot->file, slot->buf, 
-				slot->control.Offset, slot->control.OffsetHigh, slot->len);
+				li.QuadPart, slot->len);
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf, 
-				 slot->control.Offset, slot->control.OffsetHigh, slot->len);
+				 li.QuadPart, slot->len);
 			break;
 		default:
 			ut_error;
 		}
 
-#ifdef UNIV_PFS_IO
-		register_pfs_file_io_end(locker, len);
-#endif
-
-		if (!ret && GetLastError() == ERROR_IO_PENDING) {
-			/* aio was queued successfully!
-			We want a synchronous i/o operation on a
-			file where we also use async i/o: in Windows
-			we must use the same wait mechanism as for
-			async i/o */
-
-			ret = GetOverlappedResult(slot->file,
-						  &(slot->control),
-						  &len, TRUE);
-		}
-
-		ret_val = ret && len == slot->len;
 	}
 
 	os_aio_array_free_slot((os_aio_array_t *)slot->arr, slot);
