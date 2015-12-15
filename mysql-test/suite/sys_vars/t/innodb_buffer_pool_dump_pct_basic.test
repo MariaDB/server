@@ -1,0 +1,34 @@
+#
+# Basic test for innodb_buffer_pool_dump_pct
+#
+
+-- source include/have_innodb.inc
+
+# Check the default value
+SET @orig = @@global.innodb_buffer_pool_dump_pct;
+SELECT @orig;
+
+# Do the dump
+SET GLOBAL innodb_buffer_pool_dump_pct=3, GLOBAL innodb_buffer_pool_dump_now = ON;
+
+# Wait for the dump to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
+  FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
+-- source include/wait_condition.inc
+
+# Confirm that the dump file has been created
+-- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
+-- file_exists $file
+
+--disable_warnings
+SET GLOBAL innodb_buffer_pool_dump_pct=0;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+SHOW WARNINGS;
+SET GLOBAL innodb_buffer_pool_dump_pct=101;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+SHOW WARNINGS;
+--enable_warnings
+
+SET GLOBAL innodb_buffer_pool_dump_pct=@orig;
