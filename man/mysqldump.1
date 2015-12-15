@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLDUMP\FR" "1" "04/08/2015" "MariaDB 10\&.0" "MariaDB Database System"
+.TH "\FBMYSQLDUMP\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1093,6 +1093,22 @@ Use \fB--skip-lock-tables\fR to disable\&.
 \fB\-\-log\-error=\fR\fB\fIfile_name\fR\fR
 .sp
 Log warnings and errors by appending them to the named file\&. The default is to do no logging\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqldump: log-queries option
+.\" log-queries option: mysqldump
+\fB\-\-log\-queries\fR\fR
+.sp
+When restoring the dump, the server will, if logging is turned on, log the queries to the general and slow query log\&. 
+Defaults to on; use \fB--skip-log-queries\fR to disable\&.
 .RE
 .sp
 .RS 4
