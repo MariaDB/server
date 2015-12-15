@@ -1911,7 +1911,8 @@ struct charset_info_st my_charset_utf16le_bin=
 
 #define IS_MB4_CHAR(b0,b1,b2,b3)   (IS_UTF32_MBHEAD4(b0,b1))
 
-#define MY_UTF32_WC4(b0,b1,b2,b3)  ((b0 << 24) + (b1 << 16) + (b2 << 8) + (b3))
+#define MY_UTF32_WC4(b0,b1,b2,b3)  ((((my_wc_t)b0) << 24) + (b1 << 16) + \
+                                                (b2 << 8) + (b3))
 
 static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
                                              uchar b2, uchar b3)
