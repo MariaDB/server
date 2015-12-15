@@ -1,7 +1,4 @@
 include/master-slave.inc
-Warnings:
-Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
-Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
 [connection master]
 CREATE TABLE t4 (
 id INT(5) unsigned NOT NULL auto_increment,
@@ -47,13 +44,11 @@ SHOW CREATE TABLE mysqltest1.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 /* `compression`='tokudb_zlib' */
 -------- switch to master --------
 INSERT INTO mysqltest1.t1 SET f1= 1;
 DROP TEMPORARY TABLE mysqltest1.tmp;
 ROLLBACK;
-Warnings:
-Warning	#	Some temporary tables were dropped, but these operations could not be rolled back.
 SHOW CREATE TABLE mysqltest1.tmp;
 ERROR 42S02: Table 'mysqltest1.tmp' doesn't exist
 ######### Must return no rows here #########
@@ -63,8 +58,6 @@ COUNT(*)
 INSERT INTO mysqltest1.t1 SET f1= 2;
 CREATE TEMPORARY TABLE mysqltest1.tmp2(a INT) ENGINE=InnoDB;
 ROLLBACK;
-Warnings:
-Warning	#	The creation of some temporary tables could not be rolled back.
 SHOW CREATE TABLE mysqltest1.tmp2;
 Table	Create Table
 tmp2	CREATE TEMPORARY TABLE `tmp2` (
@@ -79,8 +72,7 @@ SHOW CREATE TABLE mysqltest1.tmp;
 ERROR 42S02: Table 'mysqltest1.tmp' doesn't exist
 SHOW CREATE TABLE mysqltest1.tmp2;
 ERROR 42S02: Table 'mysqltest1.tmp2' doesn't exist
-######### for SBR, t1 has two rows here: the transaction not rolled back since t1 uses MyISAM  #########
-######### for MBR, t1 has one row here: the transaction not rolled back since t1 uses MyISAM  #########
+######### t1 has two rows here: the transaction not rolled back since t1 uses MyISAM  #########
 SELECT COUNT(*) FROM mysqltest1.t1;
 COUNT(*)
 2

@@ -30,8 +30,8 @@ insert into t values (4);
 sync_slave_with_master;
 # source include/sync_slave_sql_with_master.inc;
 
-connection master;
-select unix_timestamp()-@tstart <= 10; 
+#connection master;
+#select unix_timestamp()-@tstart;
 
 connection slave;
 # insert into t values (5); # test read-only

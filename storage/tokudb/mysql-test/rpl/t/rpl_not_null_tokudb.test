@@ -15,6 +15,6 @@
 --source include/have_tokudb.inc
 --source include/have_binlog_format_row.inc
 
-let $engine=Innodb;
+let $engine=TokuDB;
 --source extra/rpl_tests/rpl_not_null.test
 --source include/rpl_end.inc
