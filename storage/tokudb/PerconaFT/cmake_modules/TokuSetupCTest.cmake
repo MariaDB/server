@@ -9,6 +9,7 @@ macro(real_executable_name filename_input out)
     execute_process(
       COMMAND which ${filename}
       RESULT_VARIABLE res
+      ERROR_QUIET
       OUTPUT_VARIABLE full_filename
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT(res))
@@ -59,7 +60,7 @@ macro(hostname out)
     COMMAND hostname
     OUTPUT_VARIABLE fullhostname
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  string(REGEX REPLACE "\\.tokutek\\.com$" "" ${out} ${fullhostname})
+  string(REGEX REPLACE "\\.tokutek\\.com$" "" ${out} "${fullhostname}")
 endmacro(hostname)
 
 ## gather machine info
@@ -150,5 +151,5 @@ if (BUILD_TESTING OR BUILD_FT_TESTS OR BUILD_SRC_TESTS)
   option(RUN_STRESS_TESTS "If set, run the stress tests." OFF)
   option(RUN_PERF_TESTS "If set, run the perf tests." OFF)
 
-  configure_file(CTestCustom.cmake . @ONLY)
+  configure_file(CTestCustom.cmake.in CTestCustom.cmake @ONLY)
 endif (BUILD_TESTING OR BUILD_FT_TESTS OR BUILD_SRC_TESTS)

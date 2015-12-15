@@ -49,15 +49,15 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
 
   ## #5138 only reproduces when using the static library.
   list(REMOVE_ITEM tdb_bins test-5138.tdb)
-  add_executable(test-5138.tdb test-5138)
+  add_executable(test-5138.tdb test-5138.cc)
   target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static z ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
   add_space_separated_property(TARGET test-5138.tdb COMPILE_FLAGS -fvisibility=hidden)
   add_ydb_test(test-5138.tdb)
-
+  add_ydb_test(rollback-inconsistency.tdb)
   foreach(bin ${tdb_bins})
     get_filename_component(base ${bin} NAME_WE)
 
-    add_executable(${base}.tdb ${base})
+    add_executable(${base}.tdb ${base}.cc)
     # Some of the symbols in util may not be exported properly by
     # libtokudb.so.
     # We link the test with util directly so that the test code itself can use

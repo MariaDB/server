@@ -11,3 +11,6 @@ checkpoint_lock_2: test can not work when the checkpoint_safe_lock is a fair rwl
 6053: tokudb is not the default storage engine
 1883: tokutek's auto inc singleton patch missing
 3083: no patch to find_shortest_key to prefer PK over CK
+db768 : https://tokutek.atlassian.net/browse/DB-768
+dict_leak_3518 : https://tokutek.atlassian.net/browse/DB-635
+1872 : https://tokutek.atlassian.net/browse/DB-750

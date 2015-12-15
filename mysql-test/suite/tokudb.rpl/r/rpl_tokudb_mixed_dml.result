@@ -1,3 +1,4 @@
+SET SESSION tokudb_pk_insert_mode = 2;
 include/master-slave.inc
 Warnings:
 Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.

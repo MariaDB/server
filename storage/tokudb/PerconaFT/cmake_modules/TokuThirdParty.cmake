@@ -41,7 +41,7 @@ if (APPLE)
   list(APPEND xz_configure_opts --disable-assembler)
 endif ()
 
-list(APPEND xz_configure_opts CC=${CMAKE_C_COMPILER})
+list(APPEND xz_configure_opts "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}")
 if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_BUILD_TYPE STREQUAL drd)
   list(APPEND xz_configure_opts --enable-debug)
 endif ()
@@ -68,6 +68,7 @@ ExternalProject_Add(build_lzma
     CONFIGURE_COMMAND
         "<SOURCE_DIR>/configure" ${xz_configure_opts}
         "--prefix=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz"
+        "--libdir=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz/lib"
     BUILD_COMMAND
         ${SUBMAKE_COMMAND} -C src/liblzma
     INSTALL_COMMAND

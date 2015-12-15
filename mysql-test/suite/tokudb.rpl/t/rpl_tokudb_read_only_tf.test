@@ -14,7 +14,7 @@ enable_warnings;
 
 connection slave;
 # show variables like 'read_only';
-# show variables like 'tokudb_rpl_unique_checks%';
+show variables like 'tokudb_rpl%';
 
 # insert some rows
 connection master;

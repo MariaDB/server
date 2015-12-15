@@ -1,0 +1,61 @@
+SET @orig_global = @@global.tokudb_auto_analyze;
+SELECT @orig_global;
+@orig_global
+0
+SET @orig_session = @@session.tokudb_auto_analyze;
+SELECT @orig_session;
+@orig_session
+0
+SET GLOBAL tokudb_auto_analyze = 10;
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+10
+SET GLOBAL tokudb_auto_analyze = 0;
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+0
+SET GLOBAL tokudb_auto_analyze = DEFAULT;
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+0
+SET GLOBAL tokudb_auto_analyze = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_auto_analyze'
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+0
+SET SESSION tokudb_auto_analyze = 10;
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+10
+SET SESSION tokudb_auto_analyze = 0;
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+0
+SET SESSION tokudb_auto_analyze = DEFAULT;
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+0
+SET SESSION tokudb_auto_analyze = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_auto_analyze'
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+0
+SET GLOBAL tokudb_auto_analyze = 12;
+SET SESSION tokudb_auto_analyze = 13;
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+12
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+13
+SHOW VARIABLES LIKE 'tokudb_auto_analyze';
+Variable_name	Value
+tokudb_auto_analyze	13
+SET SESSION tokudb_auto_analyze = @orig_session;
+SELECT @@session.tokudb_auto_analyze;
+@@session.tokudb_auto_analyze
+0
+SET GLOBAL tokudb_auto_analyze = @orig_global;
+SELECT @@global.tokudb_auto_analyze;
+@@global.tokudb_auto_analyze
+0
