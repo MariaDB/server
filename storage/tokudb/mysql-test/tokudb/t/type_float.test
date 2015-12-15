@@ -1,4 +1,5 @@
-set default_storage_engine='TokuDB';
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
 # Description
 # -----------
 # Numeric floating point.
@@ -49,6 +50,7 @@ create table t2 select c1 + c1 * (c2 / 100) as col1, round(c1, 5) as col2, round
 --disable_ps_protocol
 select * from t2;
 --enable_ps_protocol
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t2;
 drop table t1,t2;
 
@@ -153,6 +155,7 @@ insert into t1 values ("100000000.0");
 insert into t2 values ("1.23456780");
 create table t3 select * from t2 union select * from t1;
 select * from t3;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t3;
 drop table t1, t2, t3;
 
@@ -332,3 +335,15 @@ eval select concat((truncate((-1.7976931348623157E+307),(0x1e))),
 --echo #
 
 select format(truncate('1.7976931348623157E+308',-12),1,'fr_BE') as foo;
+
+--echo #
+--echo # Bug #13500371 63704: CONVERSION OF '1.' TO A NUMBER GIVES ERROR 1265
+--echo # (WARN_DATA_TRUNCATED)
+--echo #
+
+CREATE TABLE t1 (f FLOAT);
+INSERT INTO t1 VALUES ('1.');
+INSERT INTO t1 VALUES ('2.0.');
+INSERT INTO t1 VALUES ('.');
+SELECT * FROM t1 ORDER BY f;
+DROP TABLE t1;

@@ -1,0 +1,6 @@
+SELECT @@global.default_storage_engine;
+@@global.default_storage_engine
+TokuDB
+SELECT @@session.default_storage_engine;
+@@session.default_storage_engine
+TokuDB

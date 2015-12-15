@@ -1,0 +1,2 @@
+--read-only=ON --tokudb-rpl-unique-checks-delay=5000 --tokudb-rpl-unique-checks=OFF --slave-parallel-workers=2
+
