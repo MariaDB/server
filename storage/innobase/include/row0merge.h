@@ -41,6 +41,9 @@ Created 13/06/2005 Jan Lindstrom
 #include "lock0types.h"
 #include "srv0srv.h"
 
+/* Reserve free space from every block for key_version */
+#define ROW_MERGE_RESERVE_SIZE 4
+
 /* Cluster index read task is mandatory */
 #define COST_READ_CLUSTERED_INDEX            1.0
 
