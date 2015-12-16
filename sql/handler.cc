@@ -532,10 +532,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
       hton->discover_table_existence= full_discover_for_existence;
   }
 
-  /*
-    the switch below and hton->state should be removed when
-    command-line options for plugins will be implemented
-  */
   switch (hton->state) {
   case SHOW_OPTION_NO:
     break;

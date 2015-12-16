@@ -197,8 +197,6 @@ public:
             bodies[TRG_EVENT_DELETE][TRG_ACTION_AFTER]);
   }
 
-  void set_table(TABLE *new_table);
-
   void mark_fields_used(trg_event_type event);
 
   void set_parse_error_message(char *error_message);

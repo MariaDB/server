@@ -1101,20 +1101,6 @@ bool Table_triggers_list::prepare_record1_accessors(TABLE *table)
 
 
 /**
-  Adjust Table_triggers_list with new TABLE pointer.
-
-  @param new_table   new pointer to TABLE instance
-*/
-
-void Table_triggers_list::set_table(TABLE *new_table)
-{
-  trigger_table= new_table;
-  for (Field **field= new_table->triggers->record1_field ; *field ; field++)
-    (*field)->init(new_table);
-}
-
-
-/**
   Check whenever .TRG file for table exist and load all triggers it contains.
 
   @param thd          current thread context
@@ -2125,6 +2111,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
   }
   else
   {
+    DBUG_ASSERT(event == TRG_EVENT_DELETE);
     new_field= record1_field;
     old_field= trigger_table->field;
   }

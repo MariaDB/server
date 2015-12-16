@@ -44,8 +44,7 @@
 
 const String my_null_string("NULL", 4, default_charset_info);
 
-static int save_field_in_field(Field *from, bool *null_value,
-                               Field *to, bool no_conversions);
+static int save_field_in_field(Field *, bool *, Field *, bool);
 
 
 /**
@@ -8159,7 +8158,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
   if (!arg)
   {
-    THD *thd= field_arg->table->in_use;
+    TABLE *table= field_arg->table;
+    THD *thd= table->in_use;
 
     if (field_arg->flags & NO_DEFAULT_VALUE_FLAG &&
         field_arg->real_type() != MYSQL_TYPE_ENUM)
@@ -8173,9 +8173,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
       if (context->error_processor == &view_error_processor)
       {
-        TABLE_LIST *view= field_arg->table->pos_in_table_list->top_table();
-        push_warning_printf(thd,
-                            Sql_condition::WARN_LEVEL_WARN,
+        TABLE_LIST *view= table->pos_in_table_list->top_table();
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             view->view_db.str,
@@ -8183,8 +8182,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       }
       else
       {
-        push_warning_printf(thd,
-                            Sql_condition::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                             field_arg->field_name);

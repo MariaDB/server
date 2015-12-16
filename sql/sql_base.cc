@@ -8853,7 +8853,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers && table)
+  if (!result && triggers)
   {
     List_iterator_fast<Item> f(fields);
     Item *fld;

@@ -116,8 +116,25 @@ static void do_outer_field_to_null_str(Copy_field *copy)
 }
 
 
-int
-set_field_to_null(Field *field)
+static int set_bad_null_error(Field *field, int err)
+{
+  switch (field->table->in_use->count_cuted_fields) {
+  case CHECK_FIELD_WARN:
+    field->set_warning(Sql_condition::WARN_LEVEL_WARN, err, 1);
+    /* fall through */
+  case CHECK_FIELD_IGNORE:
+    return 0;
+  case CHECK_FIELD_ERROR_FOR_NULL:
+    if (!field->table->in_use->no_errors)
+      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name);
+    return -1;
+  }
+  DBUG_ASSERT(0); // impossible
+  return -1;
+}
+
+
+int set_field_to_null(Field *field)
 {
   if (field->table->null_catch_flags & CHECK_ROW_FOR_NULLS_TO_REJECT)
   {
@@ -131,19 +148,7 @@ set_field_to_null(Field *field)
     return 0;
   }
   field->reset();
-  switch (field->table->in_use->count_cuted_fields) {
-  case CHECK_FIELD_WARN:
-    field->set_warning(Sql_condition::WARN_LEVEL_WARN, WARN_DATA_TRUNCATED, 1);
-    /* fall through */
-  case CHECK_FIELD_IGNORE:
-    return 0;
-  case CHECK_FIELD_ERROR_FOR_NULL:
-    if (!field->table->in_use->no_errors)
-      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name);
-    return -1;
-  }
-  DBUG_ASSERT(0); // impossible
-  return -1;
+  return set_bad_null_error(field, WARN_DATA_TRUNCATED);
 }
 
 
@@ -200,19 +205,7 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
     field->table->auto_increment_field_not_null= FALSE;
     return 0;				  // field is set in fill_record()
   }
-  switch (field->table->in_use->count_cuted_fields) {
-  case CHECK_FIELD_WARN:
-    field->set_warning(Sql_condition::WARN_LEVEL_WARN, ER_BAD_NULL_ERROR, 1);
-    /* fall through */
-  case CHECK_FIELD_IGNORE:
-    return 0;
-  case CHECK_FIELD_ERROR_FOR_NULL:
-    if (!field->table->in_use->no_errors)
-      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name);
-    return -1;
-  }
-  DBUG_ASSERT(0); // impossible
-  return -1;
+  return set_bad_null_error(field, ER_BAD_NULL_ERROR);
 }
 
 
