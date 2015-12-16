@@ -345,6 +345,8 @@ IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 				    PROPERTIES COMPILE_FLAGS -Od)
 ENDIF()
 
+enable_language(ASM)
+
 SET(INNOBASE_SOURCES
 	api/api0api.cc
 	api/api0misc.cc
@@ -462,6 +464,8 @@ SET(INNOBASE_SOURCES
 	ut/ut0bh.cc
 	ut/ut0byte.cc
 	ut/ut0crc32.cc
+		 ut/crc32_power8/crc32.S
+		 ut/crc32_power8/crc32_wrapper.c
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc
