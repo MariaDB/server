@@ -55,8 +55,8 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysqldatadir ${INSTALL_MYSQLDATADIR}
 %define mysqld_user  mysql
 %define mysqld_group mysql
-%define _bindir     ${CMAKE_INSTALL_PREFIX}/${INSTALL_BINDIR}
-%define _sbindir    ${CMAKE_INSTALL_PREFIX}/${INSTALL_SBINDIR}
+%define _bindir     ${INSTALL_BINDIRABS}
+%define _sbindir    ${INSTALL_SBINDIRABS}
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
 ")
 
