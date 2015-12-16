@@ -1,3 +1,9 @@
+#ifndef CRC32_CONSTANTS_H
+#define CRC32_CONSTANTS_H
+
+#ifdef __powerpc__
+
+
 #define CRC 0x1edc6f41
 #define CRC_XOR
 #define REFLECT
@@ -898,4 +904,8 @@ static const unsigned int crc_table[] = {
 		 .octa 0x000000000000000000000000dea713f1		 /* x^64 div p(x)` */
 		 /* 33 bit reflected Barrett constant n */
 		 .octa 0x00000000000000000000000105ec76f1
+#endif
+
+#endif /* __powerpc__ */
+
 #endif

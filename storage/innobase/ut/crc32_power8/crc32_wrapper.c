@@ -1,4 +1,4 @@
-#include <stdio.h>
+#ifdef __powerpc__
 
 #define CRC_TABLE
 #include "crc32_constants.h"
@@ -64,3 +64,5 @@ out:
 
 		 return crc;
 }
+
+#endif /* __powerpc__ */

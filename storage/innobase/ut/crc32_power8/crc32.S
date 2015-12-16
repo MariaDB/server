@@ -23,6 +23,9 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  */
+
+#ifdef __powerpc__
+
 #include <ppc-asm.h>
 #include "ppc-opcode.h"
 
@@ -737,3 +740,5 @@ FUNC_START(__crc32_vpmsum)
 		 mr		 r3,r10
 		 blr
 FUNC_END(__crc32_vpmsum)
+
+#endif /* __powerpc__ */
