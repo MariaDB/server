@@ -3,6 +3,7 @@ INSERT INTO t1 VALUES (unhex('3E0D0A4141414142334E7A6143317963324541414141424977
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
 test.t1	analyze	status	OK
 SELECT * FROM mysql.index_stats WHERE index_name='a' AND table_name='t1';
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -13,6 +14,7 @@ INSERT INTO t1 VALUES (unhex('3E0D0A4141414142334E7A6143317963324541414141424977
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
 test.t1	analyze	status	OK
 SELECT * FROM mysql.index_stats WHERE index_name='a' AND table_name='t1';
 db_name	table_name	index_name	prefix_arity	avg_frequency

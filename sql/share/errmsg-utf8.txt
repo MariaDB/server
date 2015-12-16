@@ -7136,3 +7136,6 @@ ER_KILL_QUERY_DENIED_ERROR
         eng "You are not owner of query %lu"
         ger "Sie sind nicht Eigentümer von Abfrage %lu"
         rus "Вы не являетесь владельцем запроса %lu"
+ER_NO_EIS_FOR_FIELD
+        eng "Engine-independent statistics are not collected for column '%s'"
+        ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"

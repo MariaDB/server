@@ -36,6 +36,7 @@ count
 2
 ANALYZE TABLE articles;
 Table	Op	Msg_type	Msg_text
+test.articles	analyze	Warning	Engine-independent statistics are not collected for column 'body'
 test.articles	analyze	status	OK
 SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('+MySQL -YourSQL' IN BOOLEAN MODE);
