@@ -1,3 +1,8 @@
+if (`select @@tokudb_version < "5.6.27"`)
+{
+  --skip Race condition in the test in TokuDB below 5.6.27
+}
+
 # verify that information_schema.tokudb_locks gets populated with locks, information_schema.tokudb_lock_waits gets
 # populated with 1 lock_wait and all transactions are present in information_schema.tokudb_trx for 2 clients
 

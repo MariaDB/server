@@ -1,3 +1,8 @@
+if (`select @@tokudb_version < "5.6.27"`)
+{
+  --skip Race condition in the test in TokuDB below 5.6.27
+}
+
 # verify that information_schema.tokudb_locks gets populated with locks for 2 clients
 
 source include/have_tokudb.inc;
