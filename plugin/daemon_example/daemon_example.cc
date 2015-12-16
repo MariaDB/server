@@ -129,7 +129,7 @@ static int daemon_example_plugin_init(void *p __attribute__ ((unused)))
                      (void *)con) != 0)
   {
     fprintf(stderr,"Could not create heartbeat thread!\n");
-    exit(0);
+    DBUG_RETURN(1);
   }
   plugin->data= (void *)con;
 
