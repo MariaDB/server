@@ -236,6 +236,41 @@ buf_block_get_state(
 {
 	return(buf_page_get_state(&block->page));
 }
+
+/*********************************************************************//**
+Gets the state name for state of a block
+@return	name or "CORRUPTED" */
+UNIV_INLINE
+const char*
+buf_get_state_name(
+/*===============*/
+	const buf_block_t*	block)	/*!< in: pointer to the control
+					block */
+{
+	enum buf_page_state	state = buf_page_get_state(&block->page);
+
+	switch (state) {
+	case BUF_BLOCK_POOL_WATCH:
+		return (const char *) "BUF_BLOCK_POOL_WATCH";
+	case BUF_BLOCK_ZIP_PAGE:
+		return (const char *) "BUF_BLOCK_ZIP_PAGE";
+	case BUF_BLOCK_ZIP_DIRTY:
+		return (const char *) "BUF_BLOCK_ZIP_DIRTY";
+	case BUF_BLOCK_NOT_USED:
+		return (const char *) "BUF_BLOCK_NOT_USED";
+	case BUF_BLOCK_READY_FOR_USE:
+		return (const char *) "BUF_BLOCK_NOT_USED";
+	case BUF_BLOCK_FILE_PAGE:
+		return (const char *) "BUF_BLOCK_FILE_PAGE";
+	case BUF_BLOCK_MEMORY:
+		return (const char *) "BUF_BLOCK_MEMORY";
+	case BUF_BLOCK_REMOVE_HASH:
+		return (const char *) "BUF_BLOCK_REMOVE_HASH";
+	default:
+		return (const char *) "CORRUPTED";
+	}
+}
+
 /*********************************************************************//**
 Sets the state of a block. */
 UNIV_INLINE
