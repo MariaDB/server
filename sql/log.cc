@@ -9173,12 +9173,10 @@ int TC_LOG_MMAP::recover()
     the first byte after magic signature is set to current
     number of storage engines on startup
   */
-  if (data[sizeof(tc_log_magic)] != total_ha_2pc)
+  if (data[sizeof(tc_log_magic)] > total_ha_2pc)
   {
     sql_print_error("Recovery failed! You must enable "
-                    "exactly %d storage engines that support "
-                    "two-phase commit protocol",
-                    data[sizeof(tc_log_magic)]);
+                    "all engines that were enabled at the moment of the crash");
     goto err1;
   }
 
