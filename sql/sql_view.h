@@ -60,4 +60,6 @@ bool mysql_rename_view(THD *thd, const char *new_db, const char *new_name,
 
 extern const LEX_STRING view_type;
 
+void make_valid_column_names(List<Item> &item_list);
+
 #endif /* SQL_VIEW_INCLUDED */

@@ -48,6 +48,7 @@ class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
 class Table_statistics;
+class With_element;
 class TDC_element;
 
 /*
@@ -1839,6 +1840,7 @@ struct TABLE_LIST
      derived tables. Use TABLE_LIST::is_anonymous_derived_table().
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
+  With_element *with;                   /* With element of with_table */
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2203,6 +2205,7 @@ struct TABLE_LIST
   {
     return (derived_type & DTYPE_TABLE);
   }
+  bool is_with_table();
   inline void set_view()
   {
     derived_type= DTYPE_VIEW;
@@ -2243,6 +2246,7 @@ struct TABLE_LIST
   {
     derived_type|= DTYPE_MULTITABLE;
   }
+  bool set_as_with_table(THD *thd, With_element *with_elem);
   void reset_const_table();
   bool handle_derived(LEX *lex, uint phases);
 

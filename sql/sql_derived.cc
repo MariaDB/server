@@ -30,6 +30,7 @@
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
+#include "sql_cte.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 
@@ -670,6 +671,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   // st_select_lex_unit::prepare correctly work for single select
   if ((res= unit->prepare(thd, derived->derived_result, 0)))
     goto exit;
+  if (derived->with &&
+      (res= derived->with->process_column_list()))
+    goto exit; 
   lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
   if ((res= check_duplicate_names(thd, unit->types, 0)))
     goto exit;

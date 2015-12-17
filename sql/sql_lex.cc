@@ -29,6 +29,7 @@
 #include "sp_head.h"
 #include "sp.h"
 #include "sql_select.h"
+#include "sql_cte.h"
 
 static int lex_one_token(YYSTYPE *yylval, THD *thd);
 
@@ -471,11 +472,15 @@ void lex_start(THD *thd)
   /* 'parent_lex' is used in init_query() so it must be before it. */
   lex->select_lex.parent_lex= lex;
   lex->select_lex.init_query();
+  lex->curr_with_clause= 0;
+  lex->with_clauses_list= 0;
+  lex->with_clauses_list_last_next= &lex->with_clauses_list;
   lex->value_list.empty();
   lex->update_list.empty();
   lex->set_var_list.empty();
   lex->param_list.empty();
   lex->view_list.empty();
+  lex->with_column_list.empty();
   lex->with_persistent_for_clause= FALSE;
   lex->column_list= NULL;
   lex->index_list= NULL;
@@ -1875,6 +1880,8 @@ void st_select_lex_unit::init_query()
   found_rows_for_union= 0;
   insert_table_with_stored_vcol= 0;
   derived= 0;
+  with_clause= 0;
+  with_element= 0;
 }
 
 void st_select_lex::init_query()
@@ -2057,6 +2064,37 @@ void st_select_lex_node::fast_exclude()
   
 }
 
+
+/**
+  @brief
+    Insert a new chain of nodes into another chain before a particular link
+
+  @param in/out
+    ptr_pos_to_insert  the address of the chain pointer pointing to the link
+                       before which the subchain has to be inserted
+  @param   
+    end_chain_node     the last link of the subchain to be inserted
+
+  @details
+    The method inserts the chain of nodes starting from this node and ending
+    with the node nd_chain_node into another chain of nodes before the node
+    pointed to by *ptr_pos_to_insert.
+    It is assumed that ptr_pos_to_insert belongs to the chain where we insert.
+    So it must be updated.
+
+  @retval
+    The method returns the pointer to the first link of the inserted chain
+*/
+
+st_select_lex_node *st_select_lex_node:: insert_chain_before(
+				         st_select_lex_node **ptr_pos_to_insert,
+                                         st_select_lex_node *end_chain_node)
+{
+  end_chain_node->link_next= *ptr_pos_to_insert;
+  (*ptr_pos_to_insert)->link_prev= &end_chain_node->link_next;
+  this->link_prev= ptr_pos_to_insert;
+  return this;
+}
 
 /*
   Exclude a node from the tree lex structure, but leave it in the global
@@ -2447,6 +2485,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
   bool union_all= !union_distinct;
+  if (with_clause)
+    with_clause->print(str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
   {
     if (sl != first_select())

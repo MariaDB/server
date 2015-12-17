@@ -54,6 +54,7 @@
 #include "sql_handler.h"                       // Sql_cmd_handler_*
 #include "sql_signal.h"
 #include "sql_get_diagnostics.h"               // Sql_cmd_get_diagnostics
+#include "sql_cte.h"
 #include "event_parse_data.h"
 #include "create_options.h"
 #include <myisam.h>
@@ -62,6 +63,7 @@
 #include "set_var.h"
 #include "rpl_mi.h"
 #include "lex_token.h"
+
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -959,6 +961,8 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   class sp_label *splabel;
   class sp_name *spname;
   class sp_variable *spvar;
+  class With_clause *with_clause;
+
   handlerton *db_type;
   st_select_lex *select_lex;
   struct p_elem_val *p_elem_value;
@@ -1456,6 +1460,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  REAL                          /* SQL-2003-R */
 %token  REBUILD_SYM
 %token  RECOVER_SYM
+%token  RECURSIVE_SYM
 %token  REDOFILE_SYM
 %token  REDO_BUFFER_SIZE_SYM
 %token  REDUNDANT_SYM
@@ -1740,6 +1745,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         case_stmt_body opt_bin_mod
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_into opt_procedure_clause
+	opt_recursive
 
 %type <object_ddl_options>
         create_or_replace 
@@ -1980,6 +1986,10 @@ END_OF_INPUT
         ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM OR_OR_SYM BETWEEN_SYM CASE_SYM
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
         ROLE_SYM
+
+%type <with_clause> opt_with_clause with_clause
+
+%type <lex_str_ptr> query_name
 
 %%
 
@@ -8387,10 +8397,11 @@ opt_ignore_leaves:
 
 
 select:
-          select_init
+          opt_with_clause select_init
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SELECT;
+            lex->current_select->set_with_clause($1);
           }
         ;
 
@@ -10816,20 +10827,20 @@ table_factor:
             and our parser. Possibly this rule could be replaced by our
             query_expression_body.
           */
-        | '(' get_select_lex select_derived_union ')' opt_table_alias
+        | '('opt_with_clause get_select_lex select_derived_union ')' opt_table_alias
           {
-            /* Use $2 instead of Lex->current_select as derived table will
+            /* Use $3 instead of Lex->current_select as derived table will
                alter value of Lex->current_select. */
-            if (!($3 || $5) && $2->embedding &&
-                !$2->embedding->nested_join->join_list.elements)
+            if (!($4 || $6) && $3->embedding &&
+                !$3->embedding->nested_join->join_list.elements)
             {
-              /* we have a derived table ($3 == NULL) but no alias,
+              /* we have a derived table ($4 == NULL) but no alias,
                  Since we are nested in further parentheses so we
                  can pass NULL to the outer level parentheses
                  Permits parsing of "((((select ...))) as xyz)" */
               $$= 0;
             }
-            else if (!$3)
+            else if (!$4)
             {
               /* Handle case of derived table, alias may be NULL if there
                  are no outer parentheses, add_table_to_list() will throw
@@ -10837,12 +10848,13 @@ table_factor:
               LEX *lex=Lex;
               SELECT_LEX *sel= lex->current_select;
               SELECT_LEX_UNIT *unit= sel->master_unit();
+              unit->set_with_clause($2);
               lex->current_select= sel= unit->outer_select();
               Table_ident *ti= new (thd->mem_root) Table_ident(unit);
               if (ti == NULL)
                 MYSQL_YYABORT;
               if (!($$= sel->add_table_to_list(lex->thd,
-                                               ti, $5, 0,
+                                               ti, $6, 0,
                                                TL_READ, MDL_SHARED_READ)))
 
                 MYSQL_YYABORT;
@@ -10859,11 +10871,11 @@ table_factor:
                 $2->select_n_where_fields+=
                   sel->select_n_where_fields;
             }
-            /*else if (($3->select_lex &&
-                      $3->select_lex->master_unit()->is_union() &&
-                      ($3->select_lex->master_unit()->first_select() ==
-                       $3->select_lex || !$3->lifted)) || $5)*/
-            else if ($5 != NULL)
+            /*else if (($4->select_lex &&
+                      $4->select_lex->master_unit()->is_union() &&
+                      ($4->select_lex->master_unit()->first_select() ==
+                       $4->select_lex || !$4->lifted)) || $6)*/
+            else if ($6 != NULL)
             {
               /*
                 Tables with or without joins within parentheses cannot
@@ -10876,7 +10888,7 @@ table_factor:
             {
               /* nested join: FROM (t1 JOIN t2 ...),
                  nest_level is the same as in the outer query */
-              $$= $3;
+              $$= $4;
             }
           }
         ;
@@ -13653,8 +13665,93 @@ temporal_literal:
         ;
 
 
+opt_with_clause:
+	  /*empty */ { $$= 0; }
+	| with_clause
+          {
+            $$= $1;
+            Lex->derived_tables|= DERIVED_WITH;
+          }
+	;
 
 
+with_clause:
+        WITH opt_recursive
+          {
+             With_clause *with_clause=
+             new With_clause($2, Lex->curr_with_clause);
+             if (with_clause == NULL)
+               MYSQL_YYABORT;
+             Lex->curr_with_clause= with_clause;
+             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+          }
+        with_list
+          {
+            $$= Lex->curr_with_clause;
+            Lex->curr_with_clause= Lex->curr_with_clause->pop();
+          } 
+        ;
+
+
+opt_recursive:
+ 	  /*empty*/ { $$= 0; }
+	| RECURSIVE_SYM { $$= 1; }
+	;
+
+
+with_list:
+	  with_list_element 	
+	| with_list ',' with_list_element
+	;
+
+
+with_list_element:
+	  query_name
+	  opt_with_column_list 
+          AS '(' remember_name subselect remember_end ')'
+ 	  {
+            With_element *elem= new With_element($1, Lex->with_column_list, $6->master_unit());
+	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
+	      MYSQL_YYABORT;
+	    Lex->with_column_list.empty();
+	    if (elem->set_unparsed_spec(thd, $5+1, $7))
+              MYSQL_YYABORT;
+	  }
+	;
+
+
+opt_with_column_list:
+          /* empty */
+          {}
+        | '(' with_column_list ')'
+        ;
+
+
+with_column_list:
+          ident 
+          {
+            Lex->with_column_list.push_back((LEX_STRING*)
+                    thd->memdup(&$1, sizeof(LEX_STRING)));
+	  }
+        | with_column_list ',' ident
+          {
+            Lex->with_column_list.push_back((LEX_STRING*)
+                    thd->memdup(&$3, sizeof(LEX_STRING)));
+          }
+        ;
+
+
+query_name: 
+          ident
+          {
+            $$= (LEX_STRING *) thd->memdup(&$1, sizeof(LEX_STRING));
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+	
 /**********************************************************************
 ** Creating different items.
 **********************************************************************/
@@ -15929,9 +16026,10 @@ query_expression_body:
 
 /* Corresponds to <query expression> in the SQL:2003 standard. */
 subselect:
-          subselect_start query_expression_body subselect_end
+          subselect_start opt_with_clause query_expression_body subselect_end
           { 
-            $$= $2;
+	    $3->set_with_clause($2);
+            $$= $3;
           }
         ;
 
@@ -16158,7 +16256,7 @@ view_select:
             lex->parsing_options.allows_derived= FALSE;
             lex->create_view_select.str= (char *) YYLIP->get_cpp_ptr();
           }
-          view_select_aux view_check_option
+          opt_with_clause view_select_aux view_check_option
           {
             LEX *lex= Lex;
             uint len= YYLIP->get_cpp_ptr() - lex->create_view_select.str;
@@ -16170,6 +16268,7 @@ view_select:
             lex->parsing_options.allows_select_into= TRUE;
             lex->parsing_options.allows_select_procedure= TRUE;
             lex->parsing_options.allows_derived= TRUE;
+            lex->current_select->set_with_clause($2);
           }
         ;
 
