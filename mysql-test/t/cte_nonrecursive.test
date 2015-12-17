@@ -1,0 +1,376 @@
+create table t1 (a int, b  varchar(32));
+insert into t1 values
+  (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  
+insert into t1 values
+  (3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
+create table t2 (c int);
+insert into t2 values
+  (2), (4), (5), (3);  
+
+--echo # select certain field in the specification of t
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+select * from t2, (select a from t1 where b >= 'c') as t
+   where t2.c=t.a;
+explain 
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select a from t1 where b >= 'c') as t
+   where t2.c=t.a;
+
+--echo # select '*' in the specification of t
+with t as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+select * from t2, (select * from t1 where b >= 'c') as t
+   where t2.c=t.a;
+explain
+with t as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select * from t1 where b >= 'c') as t
+   where t2.c=t.a;
+
+--echo # rename fields returned by the specication when defining t
+with t(f1,f2) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+explain
+with t(f1,f2) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--echo # materialized query specifying t
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
+ where t2.c=t.a;
+explain
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
+  where t2.c=t.a;
+
+--echo # t is used in a subquery
+with t as (select a from t1 where a<5)
+  select * from t2 where c in (select a from t);
+select * from t2 
+  where c in (select a from (select a from t1 where a<5) as t);
+explain
+with t as (select a from t1 where a<5)
+  select * from t2 where c in (select a from t);
+explain
+select * from t2 
+  where c in (select a from (select a from t1 where a<5) as t);
+
+--echo # materialized t is used in a subquery
+with t as (select count(*) as c from t1 where b >= 'c' group by a)
+  select * from t2 where c in (select c from t);
+select * from t2
+  where c in (select c from (select count(*) as c from t1
+                               where b >= 'c' group by a) as t);
+explain
+with t as (select count(*) as c from t1 where b >= 'c' group by a)
+  select * from t2 where c in (select c from t);
+explain
+select * from t2
+  where c in (select c from (select count(*) as c from t1
+                               where b >= 'c' group by a) as t);
+
+--echo # two references to t specified by a query
+--echo # selecting a field:  both in main query
+with t as (select a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select a from t1 where b >= 'c') as r1,
+              (select a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+explain
+with t as (select a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select a from t1 where b >= 'c') as r1,
+              (select a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+
+--echo # two references to materialized t: both in main query
+with t as (select distinct a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select distinct a from t1 where b >= 'c') as r1,
+              (select distinct a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+explain
+with t as (select distinct a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select distinct a from t1 where b >= 'c') as r1,
+              (select distinct a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+
+--echo # two references to t specified by a query
+--echo # selecting all fields:  both in main query
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select * from t1 where b >= 'c') as r1,
+              (select * from t1 where b >= 'c') as r2
+  where r1.a=r2.a;
+explain
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select * from t1 where b >= 'c') as r1,
+              (select * from t1 where b >= 'c') as r2
+  where r1.a=r2.a;
+
+--echo # specification of t contains union
+with t as (select a from t1 where b >= 'f' 
+           union
+           select c as a from t2 where c < 4) 
+  select * from t2,t where t2.c=t.a;
+select * from t2, 
+              (select a from t1 where b >= 'f' 
+               union
+               select c as a from t2 where c < 4) as t 
+ where t2.c=t.a;
+explain
+with t as (select a from t1 where b >= 'f' 
+           union
+           select c as a from t2 where c < 4) 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, 
+              (select a from t1 where b >= 'f' 
+               union
+               select c as a from t2 where c < 4) as t 
+ where t2.c=t.a;
+
+--echo # t is defined in the with clause of a subquery
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (with t as (select * from t1 where t1.a<5)
+                   select t2.c from t2,t where t2.c=t.a);
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (select t2.c
+                   from t2,(select * from t1 where t1.a<5) as t
+                   where t2.c=t.a);
+explain
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (with t as (select * from t1 where t1.a<5)
+                   select t2.c from t2,t where t2.c=t.a);
+explain
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (select t2.c
+                   from t2,(select * from t1 where t1.a<5) as t
+                   where t2.c=t.a);
+
+--echo # two different definitions of t: one in the with clause of the main query,
+--echo # the other in the with clause of a subquery 
+with t as (select c from t2 where c >= 4)
+  select t1.a,t1.b from t1,t
+    where t1.a=t.c and
+          t.c in (with t as (select * from t1 where t1.a<5)
+                    select t2.c from t2,t where t2.c=t.a);
+select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
+  where t1.a=t.c and
+        t.c in (select t2.c from t2,  (select * from t1 where t1.a<5) as t
+                 where t2.c=t.a);
+explain
+with t as (select c from t2 where c >= 4)
+  select t1.a,t1.b from t1,t
+    where t1.a=t.c and
+          t.c in (with t as (select * from t1 where t1.a<5)
+                    select t2.c from t2,t where t2.c=t.a);
+explain
+select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
+  where t1.a=t.c and
+        t.c in (select t2.c from t2,  (select * from t1 where t1.a<5) as t
+                 where t2.c=t.a);
+
+--echo # another with table tt is defined in the with clause of a subquery
+--echo # from the specification of t
+with t as (select * from t1
+              where a>2 and
+                    b in (with tt as (select * from t2 where t2.c<5)
+                           select t1.b from t1,tt where t1.a=tt.c))
+  select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
+select t.a, count(*)
+  from t1,
+       (select * from t1
+          where a>2 and
+                b in (select t1.b
+                        from t1,
+                             (select * from t2 where t2.c<5) as tt
+                          where t1.a=tt.c)) as t
+    where t1.a=t.a  group by t.a;
+explain
+with t as (select * from t1
+              where a>2 and
+                    b in (with tt as (select * from t2 where t2.c<5)
+                           select t1.b from t1,tt where t1.a=tt.c))
+  select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
+explain
+select t.a, count(*)
+  from t1,
+       (select * from t1
+          where a>2 and
+                b in (select t1.b
+                        from t1,
+                             (select * from t2 where t2.c<5) as tt
+                          where t1.a=tt.c)) as t
+    where t1.a=t.a  group by t.a;
+
+--echo # with clause in the specification of a derived table
+select *
+  from t1, 
+       (with t as (select a from t1 where b >= 'c') 
+          select * from t2,t where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+select *
+  from t1, 
+       (select * from t2,
+                     (select a from t1 where b >= 'c') as t
+          where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+explain
+select *
+  from t1, 
+       (with t as (select a from t1 where b >= 'c') 
+          select * from t2,t where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+explain
+select *
+  from t1, 
+       (select * from t2,
+                     (select a from t1 where b >= 'c') as t
+          where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+
+--echo # with claused in the specification of a view
+create view v1 as 
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+show create view v1;
+select * from v1;
+explain
+select * from v1;
+
+--echo # with claused in the specification of a materialized view
+create view v2 as 
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+  select * from t2,t where t2.c=t.a;
+show create view v2;
+select * from v2;
+explain
+select * from v2;
+
+drop view v1,v2;
+
+--echo # prepare of a query containing a definition of a with table t
+prepare stmt1 from "
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare of a query containing a definition of a materialized t
+prepare stmt1 from "
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare of a query containing two references to with table t
+prepare stmt1 from "
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--ERROR ER_WITH_COL_WRONG_LIST
+with t(f) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--ERROR ER_DUP_FIELDNAME
+with t(f1,f1) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--ERROR ER_DUP_QUERY_NAME
+with t as (select * from t2 where c>3),
+     t as (select a from t1 where a>2)
+ select * from t,t1 where t1.a=t.c;
+
+--ERROR ER_WRONG_ORDER_IN_WITH_CLAUSE
+with t as (select a from s where a<5),
+     s as (select a from t1 where b>='d')
+  select * from t,s where t.a=s.a;
+
+with recursive
+     t as (select a from s where a<5),
+     s as (select a from t1 where b>='d')
+  select * from t,s where t.a=s.a;
+
+--ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+with recursive t as (select * from s where a>2),
+               s as (select a from t1,r where t1.a>r.c), 
+               r as (select c from t,t2 where t.a=t2.c) 
+  select * from r where r.c<7;
+
+--ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+with t as (select * from s where a>2),
+     s as (select a from t1,r where t1.a>r.c), 
+     r as (select c from t,t2 where t.a=t2.c) 
+  select * from r where r.c<7;
+
+--ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+with t as (select * from t1
+             where a in (select c from s where b<='ccc') and  b>'b'),
+     s as (select * from t1,t2
+             where t1.a=t2.c and t1.c in (select a from t where a<5))
+ select * from s where s.b>'aaa';
+
+--ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+with t as (select * from t1 where b>'aaa' and b <='d') 
+  select t.b from t,t2
+    where t.a=t2.c and
+          t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+                     select * from s);
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_BAD_FIELD_ERROR
+with t as (select count(*) from t1 where d>='f' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+with t as (select count(*) from t1 where b>='f' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo #erroneous definition of s referring to unreferenced t
+--ERROR ER_BAD_FIELD_ERROR
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.d from t2,t where t2.c=t.d))
+  select t1.b from t1,t2 where t1.a=t2.c;
+--ERROR ER_BAD_FIELD_ERROR
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.c))
+  select t1.b from t1,t2 where t1.a=t2.c;
+
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.d))
+  select t1.b from t1,t2 where t1.a=t2.c;
+
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_WITH_COL_WRONG_LIST
+with t(f) as (select * from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_DUP_FIELDNAME
+with t(f1,f1) as (select * from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+drop table t1,t2;

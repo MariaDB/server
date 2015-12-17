@@ -167,7 +167,7 @@ err:
   @param item_list  List of Items which should be checked
 */
 
-static void make_valid_column_names(List<Item> &item_list)
+void make_valid_column_names(List<Item> &item_list)
 {
   Item *item;
   uint name_len;

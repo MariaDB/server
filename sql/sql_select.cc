@@ -53,6 +53,7 @@
 #include "log_slow.h"
 #include "sql_derived.h"
 #include "sql_statistics.h"
+#include "sql_cte.h"
 
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
@@ -820,6 +821,10 @@ JOIN::prepare(Item ***rref_pointer_array,
       DBUG_RETURN(-1);				/* purecov: inspected */
     thd->lex->allow_sum_func= save_allow_sum_func;
   }
+
+  With_clause *with_clause=select_lex->get_with_clause();
+  if (with_clause && with_clause->prepare_unreferenced_elements(thd))
+    DBUG_RETURN(1);
   
   int res= check_and_do_in_subquery_rewrites(this);
 
@@ -24106,9 +24111,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 
   /* There should be no attempts to save query plans for merged selects */
   DBUG_ASSERT(!join->select_lex->master_unit()->derived ||
-              join->select_lex->master_unit()->derived->is_materialized_derived());
-
-  explain= NULL;
+              join->select_lex->master_unit()->derived->is_materialized_derived() ||
+              join->select_lex->master_unit()->derived->is_with_table());
 
   /* Don't log this into the slow query log */
 
@@ -24594,11 +24598,14 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
     }
     else if (derived)
     {
-      // A derived table
-      str->append('(');
-      derived->print(str, query_type);
-      str->append(')');
-      cmp_name= "";                               // Force printing of alias
+      if (!derived->derived->is_with_table())
+      {
+        // A derived table
+        str->append('(');
+        derived->print(str, query_type);
+        str->append(')');
+        cmp_name= "";                               // Force printing of alias
+      }
     }
     else
     {

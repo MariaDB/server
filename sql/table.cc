@@ -7224,7 +7224,9 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   */
   if (is_merged_derived())
   {
-    if (is_view() || unit->prepared)
+    if (is_view() ||
+        (unit->prepared &&
+	!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
       create_field_translation(thd);
   }
 
@@ -7364,6 +7366,11 @@ void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
       table->set_lock_type(thd, lock);
     }
   }
+}
+
+bool TABLE_LIST::is_with_table()
+{
+  return derived && derived->with_element;
 }
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)

@@ -102,6 +102,7 @@ When one supplies long data for a placeholder:
 #include "sql_acl.h"    // *_ACL
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
+#include "sql_cte.h"
 #include "sql_cursor.h"
 #include "sp_head.h"
 #include "sp.h"
@@ -1508,6 +1509,8 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
