@@ -959,8 +959,6 @@ my_bool acl_init(bool dont_read_acl_tables)
   */
   return_val= acl_reload(thd);
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 
@@ -6371,8 +6369,6 @@ my_bool grant_init()
   thd->store_globals();
   return_val=  grant_reload(thd);
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 

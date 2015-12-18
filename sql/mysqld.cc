@@ -6334,7 +6334,6 @@ void handle_connections_sockets()
 	(void) mysql_socket_close(new_sock);
       }
       delete thd;
-      set_current_thd(0);
       statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
@@ -6449,7 +6448,6 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
-      set_current_thd(0);
       continue;
     }
     /* Host is unknown */

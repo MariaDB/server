@@ -1645,7 +1645,7 @@ THD::~THD()
     DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
   }
 
-  set_current_thd(orig_thd);
+  set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
 
