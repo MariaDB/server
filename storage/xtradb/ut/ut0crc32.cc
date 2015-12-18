@@ -194,7 +194,7 @@ ut_crc32_power8(
 		 const byte*		 buf,		 /*!< in: data over which to calculate CRC32 */
 		 ulint		 		 len)		 /*!< in: data length */
 {
-#if defined(__powerpc__)
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
   return crc32_vpmsum(0, buf, len);
 #else
 		 ut_error;
@@ -338,7 +338,8 @@ ut_crc32_init()
 
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
-#if defined(__linux__) && defined(__powerpc__) && defined(AT_HWCAP2)
+#if defined(__linux__) && defined(__powerpc__) && defined(AT_HWCAP2) \
+        && !defined(WORDS_BIGENDIAN)
 	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07)
 		 ut_crc32_power8_enabled = true;
 #endif /* defined(__linux__) && defined(__powerpc__) */
