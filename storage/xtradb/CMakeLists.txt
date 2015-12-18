@@ -345,8 +345,6 @@ IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 				    PROPERTIES COMPILE_FLAGS -Od)
 ENDIF()
 
-enable_language(ASM)
-
 SET(INNOBASE_SOURCES
 	api/api0api.cc
 	api/api0misc.cc
@@ -464,8 +462,6 @@ SET(INNOBASE_SOURCES
 	ut/ut0bh.cc
 	ut/ut0byte.cc
 	ut/ut0crc32.cc
-		 ut/crc32_power8/crc32.S
-		 ut/crc32_power8/crc32_wrapper.c
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc
@@ -475,6 +471,14 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc
 	ut/ut0timer.cc)
+
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
+    enable_language(ASM)
+    LIST(APPEND INNOBASE_SOURCES
+       ut/crc32_power8/crc32.S
+       ut/crc32_power8/crc32_wrapper.c
+       )
+ENDIF()
 
 MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT RECOMPILE_FOR_EMBEDDED
