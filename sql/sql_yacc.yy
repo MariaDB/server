@@ -12696,7 +12696,7 @@ show_param:
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user_and_current_role;
           }
-        | GRANTS FOR_SYM user_or_role
+        | GRANTS FOR_SYM user_or_role clear_privileges
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_SHOW_GRANTS;
