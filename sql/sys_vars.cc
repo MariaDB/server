@@ -1625,7 +1625,7 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
     But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
     then the slave state must be empty anyway.
   */
-  if ((rpl_global_gtid_slave_state.loaded &&
+  if ((rpl_global_gtid_slave_state->loaded &&
        rpl_append_gtid_state(&str, false)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
@@ -3312,7 +3312,7 @@ static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
        READ_ONLY SHOW_VALUE_IN_HELP
        GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
-       IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
+       IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(

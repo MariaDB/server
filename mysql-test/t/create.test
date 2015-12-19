@@ -2055,6 +2055,14 @@ show create table t1;
 drop table t1;
 
 #
+# MDEV-7050: MySQL#74603 - Assertion `comma_length > 0' failed in mysql_prepare_create_table
+#
+set @@session.collation_server=filename;
+create table t1(a enum('',''));
+drop table t1;
+set @@session.collation_server=default;
+
+#
 # MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
 #
 --error ER_TABLE_MUST_HAVE_COLUMNS

@@ -481,6 +481,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     if (ref_pointer_array && !ref->found_in_select_list)
     {
       int el= all_fields.elements;
+      DBUG_ASSERT(all_fields.elements <= select->ref_pointer_array_size);
       ref_pointer_array[el]= item;
       /* Add the field item to the select list of the current select. */
       all_fields.push_front(item);
@@ -895,6 +896,7 @@ JOIN::prepare(Item ***rref_pointer_array,
       {
         Item_field *field= new Item_field(thd, *(Item_field**)ord->item);
         int el= all_fields.elements;
+        DBUG_ASSERT(all_fields.elements <= select_lex->ref_pointer_array_size);
         ref_pointer_array[el]= field;
         all_fields.push_front(field);
         ord->item= ref_pointer_array + el;
@@ -3247,11 +3249,6 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
     {
       if (select_lex->linkage != GLOBAL_OPTIONS_TYPE)
       {
-	//here is EXPLAIN of subselect or derived table
-	if (join->change_result(result))
-	{
-	  DBUG_RETURN(TRUE);
-	}
         /*
           Original join tabs might be overwritten at first
           subselect execution. So we need to restore them.
@@ -7307,7 +7304,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       {
         double curr_eq_fld_sel;
         fld= fi.get_curr_field();
-        if (!fld->table->map & ~(table_bit | rem_tables))
+        if (!(fld->table->map & ~(table_bit | rem_tables)))
           continue;
         curr_eq_fld_sel= get_column_avg_frequency(fld) /
                          fld->table->stat_records();
@@ -15804,8 +15801,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   uint  temp_pool_slot=MY_BIT_NONE;
   uint fieldnr= 0;
   ulong reclength, string_total_length;
-  bool  using_unique_constraint= 0;
-  bool  use_packed_rows= 0;
+  bool  using_unique_constraint= false;
+  bool  use_packed_rows= false;
   bool  not_all_columns= !(select_options & TMP_TABLE_ALL_COLUMNS);
   char  *tmpname,path[FN_REFLEN];
   uchar	*pos, *group_buff, *bitmaps;
@@ -15878,10 +15875,10 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       */
       (*tmp->item)->marker=4;			// Store null in key
       if ((*tmp->item)->too_big_for_varchar())
-	using_unique_constraint=1;
+	using_unique_constraint= true;
     }
     if (param->group_length >= MAX_BLOB_WIDTH)
-      using_unique_constraint=1;
+      using_unique_constraint= true;
     if (group)
       distinct=0;				// Can't use distinct
   }
@@ -16134,12 +16131,14 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
         *blob_field++= fieldnr;
 	blob_count++;
       }
+
       if (new_field->real_type() == MYSQL_TYPE_STRING ||
           new_field->real_type() == MYSQL_TYPE_VARCHAR)
       {
         string_count++;
         string_total_length+= new_field->pack_length();
       }
+
       if (item->marker == 4 && item->maybe_null)
       {
 	group_null_items++;
@@ -16192,7 +16191,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     if (group &&
 	(param->group_parts > table->file->max_key_parts() ||
 	 param->group_length > table->file->max_key_length()))
-      using_unique_constraint=1;
+      using_unique_constraint= true;
   }
   else
   {
@@ -17105,7 +17104,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 		       start_recinfo,
 		       share->uniques, &uniquedef,
 		       &create_info,
-		       HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
+		       HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE |
+                       ((share->db_create_options & HA_OPTION_PACK_RECORD) ?
+                        HA_PACK_RECORD : 0)
+                      )))
   {
     table->file->print_error(error,MYF(0));	/* purecov: inspected */
     table->db_stat=0;
@@ -20011,6 +20013,7 @@ uint find_shortest_key(TABLE *table, const key_map *usable_keys)
           min_cost= cost;
           best=nr;
         }
+        DBUG_ASSERT(best < MAX_KEY);
       }
     }
   }
@@ -21443,6 +21446,8 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     return TRUE; /* Wrong field. */
 
   uint el= all_fields.elements;
+  DBUG_ASSERT(all_fields.elements <=
+              thd->lex->current_select->ref_pointer_array_size);
   all_fields.push_front(order_item); /* Add new field to field list. */
   ref_pointer_array[el]= order_item;
   /*
@@ -21702,6 +21707,8 @@ create_distinct_group(THD *thd, Item **ref_pointer_array,
         */
         Item_field *new_item= new Item_field(thd, (Item_field*)item);
         int el= all_fields.elements;
+        DBUG_ASSERT(all_fields.elements <=
+                    thd->lex->current_select->ref_pointer_array_size);
         orig_ref_pointer_array[el]= new_item;
         all_fields.push_front(new_item);
         ord->item= orig_ref_pointer_array + el;
@@ -23473,7 +23480,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                    bool need_order, bool distinct, 
                                    const char *message)
 {
-  Explain_node *explain_node;
+  Explain_node *UNINIT_VAR(explain_node);
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
   const CHARSET_INFO *cs= system_charset_info;

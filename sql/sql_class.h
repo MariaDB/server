@@ -27,6 +27,7 @@
 #include "log.h"
 #include "rpl_tblmap.h"
 #include "mdl.h"
+#include "field.h"                              // Create_field
 #include "probes_mysql.h"
 #include "sql_locale.h"                         /* my_locale_st */
 #include "sql_profile.h"                   /* PROFILING */

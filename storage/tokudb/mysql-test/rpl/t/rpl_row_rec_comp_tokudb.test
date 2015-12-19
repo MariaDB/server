@@ -1,0 +1,11 @@
+-- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
+-- source include/have_tokudb.inc
+
+#
+# BUG#52868 Wrong handling of NULL value during update, replication out of sync
+#
+
+-- let $engine= TokuDB
+-- source extra/rpl_tests/rpl_record_compare.test
+--source include/rpl_end.inc

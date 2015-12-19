@@ -214,7 +214,6 @@ dberr_t
 buf_pool_init(
 /*=========*/
 	ulint	size,		/*!< in: Size of the total pool in bytes */
-	ibool	populate,	/*!< in: Force virtual page preallocation */
 	ulint	n_instances);	/*!< in: Number of instances */
 /********************************************************************//**
 Frees the buffer pool at shutdown.  This must not be invoked before

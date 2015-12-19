@@ -3557,9 +3557,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 	    break; 
           bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
         }
-        double selectivity_mult;
         if (i)
         {
+          double UNINIT_VAR(selectivity_mult);
           /* 
             There is at least 1-column prefix of columns whose selectivity has
             not yet been accounted for.

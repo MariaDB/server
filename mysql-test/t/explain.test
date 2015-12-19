@@ -317,3 +317,19 @@ SELECT * FROM ( SELECT t1.a FROM t1,t2 WHERE t2.a = t1.a ) AS t;
 set optimizer_switch=@tmp_optimizer_switch;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-7215: EXPLAIN REPLACE produces an error:
+--echo # Column count doesn't match value count 
+--echo #
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (b int, c int);
+
+replace into t2 select 100, (select a from t1);
+explain replace into t2 select 100, (select a from t1);
+#analyze replace into t2 select 100, (select a from t1);
+
+drop table t1, t2;
+
+--echo # End of 10.1 tests

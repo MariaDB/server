@@ -47,7 +47,7 @@ Created 1/20/1994 Heikki Tuuri
 #define INNODB_VERSION_BUGFIX	26
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 74.0
+#define PERCONA_INNODB_VERSION 76.0
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */

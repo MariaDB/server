@@ -136,4 +136,6 @@ is required for these tests. --/
 
 /((?+1)(\1))/B
 
+/.((?2)(?R)\1)()/B
+
 /-- End of testinput11 --/

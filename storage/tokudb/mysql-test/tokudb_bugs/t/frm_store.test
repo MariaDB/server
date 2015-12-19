@@ -11,8 +11,6 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 create table foo (a int, b int);
 create table bar (a int, key(a));
-show create table foo;
-show create table bar;
 
 # Write file to make mysql-test-run.pl expect the "crash", but don't start
 # it until it's told to

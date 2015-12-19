@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.21"
+#define SPIDER_DETAIL_VERSION "3.2.37"
 #define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
@@ -117,6 +117,18 @@
 #define SPIDER_TEST(A) test(A)
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100100
+#define SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
+#define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
+#define SPIDER_XID_USES_xid_cache_iterate
+#else
+#define SPIDER_XID_STATE_HAS_in_thd
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+#define SPIDER_Item_args_arg_count_IS_PROTECTED
+#endif
+
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
 #endif
@@ -141,7 +153,7 @@
 
 #define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     19
 #define SPIDER_TMP_SHARE_UINT_COUNT         17
-#define SPIDER_TMP_SHARE_LONG_COUNT         16
+#define SPIDER_TMP_SHARE_LONG_COUNT         18
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
 #define SPIDER_MEM_CALC_LIST_NUM           247
@@ -436,6 +448,13 @@ typedef struct st_spider_conn
   int                bulk_access_error_num;
   st_spider_conn     *bulk_access_next;
 #endif
+
+  bool               connect_error_with_message;
+  char               connect_error_msg[MYSQL_ERRMSG_SIZE];
+  int                connect_error;
+  THD                *connect_error_thd;
+  query_id_t         connect_error_query_id;
+  time_t             connect_error_time;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -656,6 +675,7 @@ typedef struct st_spider_share
   volatile bool      init_error;
   volatile time_t    init_error_time;
   volatile bool      link_status_init;
+  uchar              *table_mon_mutex_bitmap;
   volatile bool      sts_init;
   volatile time_t    sts_get_time;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -844,8 +864,10 @@ typedef struct st_spider_share
   long               *tgt_ssl_vscs;
   long               *link_statuses;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
+  long               *monitoring_bg_flag;
   long               *monitoring_bg_kind;
 #endif
+  long               *monitoring_flag;
   long               *monitoring_kind;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   longlong           *monitoring_bg_interval;
@@ -948,8 +970,10 @@ typedef struct st_spider_share
   uint               tgt_ssl_vscs_length;
   uint               link_statuses_length;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
+  uint               monitoring_bg_flag_length;
   uint               monitoring_bg_kind_length;
 #endif
+  uint               monitoring_flag_length;
   uint               monitoring_kind_length;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   uint               monitoring_bg_interval_length;
@@ -1239,8 +1263,12 @@ typedef struct st_spider_int_hld
 
 typedef struct st_spider_item_hld
 {
-  uint tgt_num;
-  Item *item;
+  uint               tgt_num;
+  Item               *item;
+#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
+  bool               init_mem_root;
+  MEM_ROOT           mem_root;
+#endif
   st_spider_item_hld *next;
 } SPIDER_ITEM_HLD;
 

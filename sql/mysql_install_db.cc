@@ -563,6 +563,10 @@ static int create_db_instance()
   if (!in)
     goto end;
 
+  if (setvbuf(in, NULL, _IONBF, 0))
+  {
+    verbose("WARNING: Cannot disable buffering on mysqld's stdin");
+  }
   if (fwrite("use mysql;\n",11,1, in) != 1)
   {
     verbose("ERROR: Cannot write to mysqld's stdin");

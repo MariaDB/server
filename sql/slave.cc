@@ -297,6 +297,7 @@ handle_slave_init(void *arg __attribute__((unused)))
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->system_thread = SYSTEM_THREAD_SLAVE_INIT;
+  thread_safe_increment32(&service_thread_count, &thread_count_lock);
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -312,6 +313,8 @@ handle_slave_init(void *arg __attribute__((unused)))
   mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
   my_thread_end();
 
   mysql_mutex_lock(&LOCK_slave_init);
@@ -2184,8 +2187,8 @@ after_set_capability:
         (master_row= mysql_fetch_row(master_res)) &&
         (master_row[0] != NULL))
     {
-      rpl_global_gtid_slave_state.load(mi->io_thd, master_row[0],
-                                       strlen(master_row[0]), false, false);
+      rpl_global_gtid_slave_state->load(mi->io_thd, master_row[0],
+                                        strlen(master_row[0]), false, false);
     }
     else if (check_io_slave_killed(mi, NULL))
       goto slave_killed_err;
@@ -2495,7 +2498,7 @@ bool show_master_info(THD *thd, Master_info *mi, bool full)
   DBUG_ENTER("show_master_info");
   String gtid_pos;
 
-  if (full && rpl_global_gtid_slave_state.tostring(&gtid_pos, NULL, 0))
+  if (full && rpl_global_gtid_slave_state->tostring(&gtid_pos, NULL, 0))
     DBUG_RETURN(TRUE);
   if (send_show_master_info_header(thd, full, gtid_pos.length()))
     DBUG_RETURN(TRUE);
@@ -2955,6 +2958,11 @@ static int init_slave_thread(THD* thd, Master_info *mi,
                   simulate_error|= (1 << SLAVE_THD_IO););
   DBUG_EXECUTE_IF("simulate_sql_slave_error_on_init",
                   simulate_error|= (1 << SLAVE_THD_SQL););
+
+  thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
+    SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
+  thread_safe_increment32(&service_thread_count, &thread_count_lock);
+
   /* We must call store_globals() before doing my_net_init() */
   if (init_thr_lock() || thd->store_globals() ||
       my_net_init(&thd->net, 0, MYF(MY_THREAD_SPECIFIC)) ||
@@ -2964,8 +2972,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
     DBUG_RETURN(-1);
   }
 
-  thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
-    SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
   thd->security_ctx->skip_grants();
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
@@ -3513,8 +3519,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       If it is an artificial event, or a relay log event (IO thread generated
       event) or ev->when is set to 0, we don't update the
       last_master_timestamp.
+
+      In parallel replication, we might queue a large number of events, and
+      the user might be surprised to see a claim that the slave is up to date
+      long before those queued events are actually executed.
      */
-    if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+    if (opt_slave_parallel_threads == 0 &&
+        !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
       DBUG_ASSERT(rli->last_master_timestamp >= 0);
@@ -3595,7 +3606,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
       if (opt_gtid_ignore_duplicates)
       {
-        int res= rpl_global_gtid_slave_state.check_duplicate_gtid
+        int res= rpl_global_gtid_slave_state->check_duplicate_gtid
           (&serial_rgi->current_gtid, serial_rgi);
         if (res < 0)
         {
@@ -4257,11 +4268,14 @@ err_during_init:
   mi->rli.relay_log.description_event_for_queue= 0;
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
+
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   delete thd;
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
+
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
   mi->io_thd= 0;
@@ -4569,7 +4583,7 @@ pthread_handler_t handle_slave_sql(void *arg)
       It will then be updated as required by GTID and GTID_LIST events found
       while applying events read from relay logs.
     */
-    rli->relay_log_state.load(&rpl_global_gtid_slave_state);
+    rli->relay_log_state.load(rpl_global_gtid_slave_state);
   }
   rli->gtid_skip_flag = GTID_SKIP_NOT;
   if (init_relay_log_pos(rli,
@@ -4822,9 +4836,9 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
         To handle this when we restart the SQL thread, mark the current
         per-domain position in the Relay_log_info.
       */
-      mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
-      domain_count= rpl_global_gtid_slave_state.count();
-      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+      domain_count= rpl_global_gtid_slave_state->count();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
       if (domain_count > 1)
       {
         inuse_relaylog *ir;
@@ -4835,7 +4849,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
           the relay log back to a known safe place to start (prior to any not
           yet applied transaction in any domain).
         */
-        rli->restart_gtid_pos.load(&rpl_global_gtid_slave_state, NULL, 0);
+        rli->restart_gtid_pos.load(rpl_global_gtid_slave_state, NULL, 0);
         if ((ir= rli->inuse_relaylog_list))
         {
           rpl_gtid *gtid= ir->relay_log_state;
@@ -4932,9 +4946,10 @@ err_during_init:
   mysql_mutex_unlock(&LOCK_active_mi);
 
   mysql_mutex_lock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thread_safe_decrement32(&service_thread_count, &thread_count_lock);
+  signal_thd_deleted();
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();

@@ -2312,7 +2312,6 @@ row_merge_sort(
 {
 	const ulint	half	= file->offset / 2;
 	ulint		num_runs;
-	ulint		cur_run = 0;
 	ulint*		run_offset;
 	dberr_t		error	= DB_SUCCESS;
 	DBUG_ENTER("row_merge_sort");
@@ -2336,18 +2335,23 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	thd_progress_init(trx->mysql_thd, num_runs);
+	/* Progress report only for "normal" indexes. */
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_init(trx->mysql_thd, 1);
+	}
 
 	/* Merge the runs until we have one big run */
 	do {
-		cur_run++;
-
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset);
 
 		/* Report progress of merge sort to MySQL for
-		show processlist progress field */
-		thd_progress_report(trx->mysql_thd, cur_run, num_runs);
+		show processlist progress field only for
+		"normal" indexes. */
+		if (!(dup->index->type & DICT_FTS)) {
+			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
+
+		}
 
 		if (error != DB_SUCCESS) {
 			break;
@@ -2358,7 +2362,9 @@ row_merge_sort(
 
 	mem_free(run_offset);
 
-	thd_progress_end(trx->mysql_thd);
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_end(trx->mysql_thd);
+	}
 
 	DBUG_RETURN(error);
 }
@@ -3120,7 +3126,7 @@ row_merge_file_create(
 
 	if (merge_file->fd >= 0) {
 		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
+			os_file_set_nocache(OS_FILE_FROM_FD(merge_file->fd),
 				"row0merge.cc", "sort");
 		}
 	}
@@ -3614,7 +3620,7 @@ row_merge_build_indexes(
 
 	block_size = 3 * srv_sort_buf_size;
 	block = static_cast<row_merge_block_t*>(
-		os_mem_alloc_large(&block_size, FALSE));
+		os_mem_alloc_large(&block_size));
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);

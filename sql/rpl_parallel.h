@@ -70,9 +70,11 @@ struct rpl_parallel_thread {
   bool delay_start;
   bool running;
   bool stop;
+  bool pause_for_ftwrl;
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   mysql_cond_t COND_rpl_thread_queue;
+  mysql_cond_t COND_rpl_thread_stop;
   struct rpl_parallel_thread *next;             /* For free list. */
   struct rpl_parallel_thread_pool *pool;
   THD *thd;
@@ -199,12 +201,18 @@ struct rpl_parallel_thread {
 
 
 struct rpl_parallel_thread_pool {
-  uint32 count;
   struct rpl_parallel_thread **threads;
   struct rpl_parallel_thread *free_list;
   mysql_mutex_t LOCK_rpl_thread_pool;
   mysql_cond_t COND_rpl_thread_pool;
+  uint32 count;
   bool inited;
+  /*
+    While FTWRL runs, this counter is incremented to make SQL thread or
+    STOP/START slave not try to start new activity while that operation
+    is in progress.
+  */
+  bool busy;
 
   rpl_parallel_thread_pool();
   int init(uint32 size);
@@ -219,6 +227,12 @@ struct rpl_parallel_entry {
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
   uint32 domain_id;
+  /*
+    Incremented by wait_for_workers_idle() and rpl_pause_for_ftwrl() to show
+    that they are waiting, so that finish_event_group knows to signal them
+    when last_committed_sub_id is increased.
+  */
+  uint32 need_sub_id_signal;
   uint64 last_commit_id;
   bool active;
   /*
@@ -227,12 +241,6 @@ struct rpl_parallel_entry {
     waiting for event groups to complete.
   */
   bool force_abort;
-  /*
-    Set in wait_for_workers_idle() to show that it is waiting, so that
-    finish_event_group knows to signal it when last_committed_sub_id is
-    increased.
-  */
-  bool need_sub_id_signal;
   /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
@@ -273,6 +281,15 @@ struct rpl_parallel_entry {
     queued for execution by a worker thread.
   */
   uint64 current_sub_id;
+  /*
+    The largest sub_id that has started its transaction. Protected by
+    LOCK_parallel_entry.
+
+    (Transactions can start out-of-order, so this value signifies that no
+    transactions with larger sub_id have started, but not necessarily that all
+    transactions with smaller sub_id have started).
+  */
+  uint64 largest_started_sub_id;
   rpl_group_info *current_group_info;
   /*
     If we get an error in some event group, we set the sub_id of that event
@@ -282,6 +299,12 @@ struct rpl_parallel_entry {
     The value is ULONGLONG_MAX when no error occured.
   */
   uint64 stop_on_error_sub_id;
+  /*
+    During FLUSH TABLES WITH READ LOCK, transactions with sub_id larger than
+    this value must not start, but wait until the global read lock is released.
+    The value is set to ULONGLONG_MAX when no FTWRL is pending.
+  */
+  uint64 pause_sub_id;
   /* Total count of event groups queued so far. */
   uint64 count_queued_event_groups;
   /*
@@ -322,5 +345,7 @@ extern struct rpl_parallel_thread_pool global_rpl_thread_pool;
 extern int rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool);
 extern int rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool);
 extern bool process_gtid_for_restart_pos(Relay_log_info *rli, rpl_gtid *gtid);
+extern int rpl_pause_for_ftwrl(THD *thd);
+extern void rpl_unpause_after_ftwrl(THD *thd);
 
 #endif  /* RPL_PARALLEL_H */

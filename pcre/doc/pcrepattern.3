@@ -1,4 +1,4 @@
-.TH PCREPATTERN 3 "08 January 2014" "PCRE 8.35"
+.TH PCREPATTERN 3 "14 June 2015" "PCRE 8.38"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE REGULAR EXPRESSION DETAILS"
@@ -308,7 +308,8 @@ A second use of backslash provides a way of encoding non-printing characters
 in patterns in a visible manner. There is no restriction on the appearance of
 non-printing characters, apart from the binary zero that terminates a pattern,
 but when a pattern is being prepared by text editing, it is often easier to use
-one of the following escape sequences than the binary character it represents:
+one of the following escape sequences than the binary character it represents.
+In an ASCII or Unicode environment, these escapes are as follows:
 .sp
   \ea        alarm, that is, the BEL character (hex 07)
   \ecx       "control-x", where x is any ASCII character
@@ -331,18 +332,30 @@ but \ec{ becomes hex 3B ({ is 7B), and \ec; becomes hex 7B (; is 3B). If the
 data item (byte or 16-bit value) following \ec has a value greater than 127, a
 compile-time error occurs. This locks out non-ASCII characters in all modes.
 .P
-The \ec facility was designed for use with ASCII characters, but with the
-extension to Unicode it is even less useful than it once was. It is, however,
-recognized when PCRE is compiled in EBCDIC mode, where data items are always
-bytes. In this mode, all values are valid after \ec. If the next character is a
-lower case letter, it is converted to upper case. Then the 0xc0 bits of the
-byte are inverted. Thus \ecA becomes hex 01, as in ASCII (A is C1), but because
-the EBCDIC letters are disjoint, \ecZ becomes hex 29 (Z is E9), and other
-characters also generate different values.
+When PCRE is compiled in EBCDIC mode, \ea, \ee, \ef, \en, \er, and \et
+generate the appropriate EBCDIC code values. The \ec escape is processed
+as specified for Perl in the \fBperlebcdic\fP document. The only characters
+that are allowed after \ec are A-Z, a-z, or one of @, [, \e, ], ^, _, or ?. Any
+other character provokes a compile-time error. The sequence \e@ encodes
+character code 0; the letters (in either case) encode characters 1-26 (hex 01
+to hex 1A); [, \e, ], ^, and _ encode characters 27-31 (hex 1B to hex 1F), and
+\e? becomes either 255 (hex FF) or 95 (hex 5F).
+.P
+Thus, apart from \e?, these escapes generate the same character code values as
+they do in an ASCII environment, though the meanings of the values mostly
+differ. For example, \eG always generates code value 7, which is BEL in ASCII
+but DEL in EBCDIC.
+.P
+The sequence \e? generates DEL (127, hex 7F) in an ASCII environment, but
+because 127 is not a control character in EBCDIC, Perl makes it generate the
+APC character. Unfortunately, there are several variants of EBCDIC. In most of
+them the APC character has the value 255 (hex FF), but in the one Perl calls
+POSIX-BC its value is 95 (hex 5F). If certain other characters have POSIX-BC
+values, PCRE makes \e? generate 95; otherwise it generates 255.
 .P
 After \e0 up to two further octal digits are read. If there are fewer than two
-digits, just those that are present are used. Thus the sequence \e0\ex\e07
-specifies two binary zeros followed by a BEL character (code value 7). Make
+digits, just those that are present are used. Thus the sequence \e0\ex\e015
+specifies two binary zeros followed by a CR character (code value 13). Make
 sure you supply two digits after the initial zero if the pattern character that
 follows is itself an octal digit.
 .P
@@ -3283,6 +3296,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 08 January 2014
-Copyright (c) 1997-2014 University of Cambridge.
+Last updated: 14 June 2015
+Copyright (c) 1997-2015 University of Cambridge.
 .fi

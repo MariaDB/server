@@ -1,6 +1,7 @@
 --echo #
 --echo # Beginning of grant.inc
 --echo #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 --connect(user,localhost,user,,)

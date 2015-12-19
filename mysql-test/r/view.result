@@ -5477,6 +5477,39 @@ UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM v3 );
 EXECUTE stmt;
 DROP TABLE t1, t2, t3;
 DROP VIEW v3;
+#
+# MDEV-8632: Segmentation fault on INSERT
+#
+CREATE TABLE `t1` (
+`id` int(10) unsigned NOT NULL,
+`r` float NOT NULL,
+PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+create view v1 as select id, if(r=r,1,2) as d from t1;
+create view v2 as
+select id, 
+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+from v1;
+insert into t1 (id, r)
+select id,p from
+(
+select id, 
+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+from (
+select id, if(r=r,1,2) as d
+from t1
+) a
+) b
+on duplicate key update r=p;
+insert into t1 (id, r)
+select id,p from v2 
+on duplicate key update r=p;
+prepare stmt from "insert into t1 (id, r) select id,p from v2 on duplicate key update r=p";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+drop view v1,v2;
+drop table `t1`;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -5699,6 +5732,47 @@ idAlbum	strAlbum	strMusicBrainzAlbumID	strArtists	strGenres	iYear	strMoods	strSt
 1	strAlbum1	strMusicBrainzAlbumID1	strArtists1	strGenres1	2000	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	0	album	1	1	strArtist1	strMusicBrainzArtistID	0		0
 drop view v1,v2;
 drop table t1,t2,t3,t4;
+#
+# MDEV-8913: Derived queries with same column names as final
+# projection causes issues when using Order By
+#
+create table t1 (field int);
+insert into t1 values (10),(5),(3),(8),(20);
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM ( SELECT field AS f1, 1 AS f2 FROM t1) AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+create view v1 as SELECT field AS f1, 1 AS f2 FROM t1;
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM v1 AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+drop view v1;
+create table t2 SELECT field AS f1, 1 AS f2 FROM t1;
+SELECT
+sq.f2 AS f1,
+sq.f1 AS f2
+FROM t2 AS sq
+ORDER BY sq.f1;
+f1	f2
+1	3
+1	5
+1	8
+1	10
+1	20
+drop table t1, t2;
+SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1;
+ERROR 42S22: Unknown column 'SOME_GARBAGE.b.a' in 'field list'
 # -----------------------------------------------------------------
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------

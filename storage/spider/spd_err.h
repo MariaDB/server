@@ -63,6 +63,8 @@
 #define ER_SPIDER_REQUEST_KEY_STR "Request key not found"
 #define ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM 12524
 #define ER_SPIDER_CANT_OPEN_SYS_TABLE_STR "Can't open system table %s.%s"
+#define ER_SPIDER_LINK_MON_JUST_NG_NUM 12525
+#define ER_SPIDER_LINK_MON_JUST_NG_STR "Table '%s.%s' just got a problem"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"

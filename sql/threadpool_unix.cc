@@ -1255,7 +1255,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Allocation failed */
-    threadpool_remove_connection(thd);
+    threadpool_cleanup_connection(thd);
   } 
   DBUG_VOID_RETURN;
 }

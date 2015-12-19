@@ -1,3 +1,4 @@
+--source include/have_tokudb.inc
 --source include/load_sysvars.inc
 let $engine=TokuDB;
 

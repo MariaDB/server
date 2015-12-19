@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+/* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1420,7 +1420,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, 0, stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0))
+  if (setup_fields(thd, 0, stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0) ||
+      check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
@@ -3842,8 +3843,8 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   swap_variables(LEX_STRING, name, copy->name);
   /* Ditto */
   swap_variables(char *, db, copy->db);
+  swap_variables(size_t, db_length, copy->db_length);
 
-  DBUG_ASSERT(db_length == copy->db_length);
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
   last_error[0]= '\0';

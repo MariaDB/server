@@ -1054,7 +1054,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
       error= 1;
       goto end2;
     }
-    /* We can't do parallell repair with BLOCK_RECORD yet */
+    /* We can't do parallel repair with BLOCK_RECORD yet */
     if (param->testflag & T_REP_PARALLEL)
     {
       param->testflag&= ~T_REP_PARALLEL;

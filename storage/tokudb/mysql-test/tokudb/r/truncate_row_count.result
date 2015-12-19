@@ -14,5 +14,5 @@ select * from t;
 a	b
 select TABLE_ROWS from information_schema.tables where table_schema='test' and table_name='t';
 TABLE_ROWS
-1
+0
 drop table t;

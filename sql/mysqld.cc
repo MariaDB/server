@@ -494,7 +494,7 @@ ulong delay_key_write_options;
 uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
-int32 thread_count;
+int32 thread_count, service_thread_count;
 int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
@@ -1060,7 +1060,7 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_init;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
@@ -1115,6 +1115,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
+  { &key_COND_rpl_thread_stop, "COND_rpl_thread_stop", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
@@ -1809,7 +1810,7 @@ static void close_connections(void)
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   mysql_mutex_lock(&LOCK_thread_count);
-  while (thread_count)
+  while (thread_count || service_thread_count)
   {
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)",thread_count));
@@ -2147,14 +2148,9 @@ void clean_up(bool print_message)
   item_func_sleep_free();
   lex_free();				/* Free some memory */
   item_create_cleanup();
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_free();
-#endif
-  }
   tdc_start_shutdown();
   plugin_shutdown();
+  udf_free();
   ha_end();
   if (tc_log)
     tc_log->close();
@@ -2889,8 +2885,27 @@ void delete_running_thd(THD *thd)
   delete thd;
   dec_thread_running();
   thread_safe_decrement32(&thread_count, &thread_count_lock);
-  if (!thread_count)
+  signal_thd_deleted();
+}
+
+
+/*
+  Send a signal to unblock close_conneciton() if there is no more
+  threads running with a THD attached
+
+  It's safe to check for thread_count and service_thread_count outside
+  of a mutex as we are only interested to see if they where decremented
+  to 0 by a previous unlink_thd() call.
+
+  We should only signal COND_thread_count if both variables are 0,
+  false positives are ok.
+*/
+
+void signal_thd_deleted()
+{
+  if (!thread_count && ! service_thread_count)
   {
+    /* Signal close_connections() that all THD's are freed */
     mysql_mutex_lock(&LOCK_thread_count);
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -3055,19 +3070,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 #endif /* WITH_WSREP */
     DBUG_RETURN(0);                             // Thread is reused
 
-  /*
-    It's safe to check for thread_count outside of the mutex
-    as we are only interested to see if it was counted to 0 by the
-    above unlink_thd() call. We should only signal COND_thread_count if
-    thread_count is likely to be 0. (false positives are ok)
-  */
-  if (!thread_count)
-  {
-    mysql_mutex_lock(&LOCK_thread_count);
-    DBUG_PRINT("signal", ("Broadcasting COND_thread_count"));
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
+  signal_thd_deleted();
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   ERR_remove_state(0);
@@ -6231,12 +6234,7 @@ int mysqld_main(int argc, char **argv)
   if (!opt_noacl)
     (void) grant_init();
 
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_init();
-#endif
-  }
+  udf_init();
 
   if (opt_bootstrap) /* If running with bootstrap, do not start replication. */
     opt_skip_slave_start= 1;
@@ -8994,7 +8992,8 @@ static int mysql_init_variables(void)
   cleanup_done= 0;
   server_id_supplied= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= thread_running= kill_cached_threads= wake_thread=0;
+  thread_count= thread_running= kill_cached_threads= wake_thread= 0;
+  service_thread_count= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
   opt_endinfo= using_udf_functions= 0;
@@ -10392,6 +10391,9 @@ PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 PSI_stage_info stage_waiting_for_workers_idle= { 0, "Waiting for worker threads to be idle", 0};
+PSI_stage_info stage_waiting_for_ftwrl= { 0, "Waiting due to global read lock", 0};
+PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause= { 0, "Waiting for worker threads to pause for global read lock", 0};
+PSI_stage_info stage_waiting_for_rpl_thread_pool= { 0, "Waiting while replication worker thread pool is busy", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
