@@ -5140,10 +5140,20 @@ static int init_server_components()
         THD *current_thd_saved= current_thd;
         set_current_thd(tmp);
 
+        /*
+          Also save/restore server_status and variables.option_bits and they
+          get altered during init_for_queries().
+        */
+        unsigned int server_status_saved= tmp->server_status;
+        ulonglong option_bits_saved= tmp->variables.option_bits;
+
         tmp->init_for_queries();
 
         /* Restore current_thd. */
         set_current_thd(current_thd_saved);
+
+        tmp->server_status= server_status_saved;
+        tmp->variables.option_bits= option_bits_saved;
       }
     }
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -5511,7 +5521,7 @@ error:
   WSREP_ERROR("Failed to create/initialize system thread");
 
   /* Abort if its the first applier/rollbacker thread. */
-  if (wsrep_creating_startup_threads < 2)
+  if (wsrep_creating_startup_threads == 1)
     unireg_abort(1);
   else
     return NULL;
