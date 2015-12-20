@@ -2983,9 +2983,6 @@ files_checked:
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
-		/* Init data for datafile scrub threads */
-		btr_scrub_init();
-
 		/* Create thread(s) that handles key rotation */
 		fil_crypt_threads_init();
 
@@ -2993,6 +2990,9 @@ files_checked:
 		if (srv_scrub_log)
 			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
+
+	/* Init data for datafile scrub threads */
+	btr_scrub_init();
 
 	/* Initialize online defragmentation. */
 	btr_defragment_init();
@@ -3177,10 +3177,10 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		fil_crypt_threads_cleanup();
-
-		/* Cleanup data for datafile scrubbing */
-		btr_scrub_cleanup();
 	}
+
+	/* Cleanup data for datafile scrubbing */
+	btr_scrub_cleanup();
 
 #ifdef __WIN__
 	/* MDEV-361: ha_innodb.dll leaks handles on Windows
