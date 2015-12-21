@@ -5398,25 +5398,65 @@ static int init_server_components()
     (void) mi_log(1);
 
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
-  if (locked_in_memory && !getuid())
+  if (locked_in_memory)
   {
-    if (setreuid((uid_t)-1, 0) == -1)
-    {                        // this should never happen
-      sql_perror("setreuid");
-      unireg_abort(1);
-    }
+    /* Try without priv user first, CAP_IPC_LOCK may be set or sufficient
+       resource limits MEMLOCK */
     if (mlockall(MCL_CURRENT))
     {
+      int mlockall_err= errno;
       if (global_system_variables.log_warnings)
-	sql_print_warning("Failed to lock memory. Errno: %d\n",errno);
-      locked_in_memory= 0;
+        sql_print_warning("Failed to lock memory as current user "
+                            "(Errno: %d)", mlockall_err);
+      /* ok, denied. Try to gain effective uid=0 to mlockall */
+      if (setreuid((uid_t)-1, 0) != -1)
+      {
+        if (mlockall(MCL_CURRENT)) {
+          if (global_system_variables.log_warnings)
+            sql_print_warning("Failed to lock memory as effective uid=0. "
+                              "Errno: %d\n",errno);
+          locked_in_memory= 0;
+        }
+        else
+          if (global_system_variables.log_warnings)
+            sql_print_information("Succeed at locking memory as effective uid=0.");
+        if (user_info)
+          set_user(mysqld_user, user_info);
+      }
+      else
+      {
+        if (errno != EPERM)
+        {
+          sql_perror("setreuid");
+          unireg_abort(1);
+        }
+        if (global_system_variables.log_warnings)
+          sql_print_warning("Failed setreuid to effective uid=0 while "
+                            "attempting to lock memory, (Errno: %d)\n"
+                            , errno);
+        locked_in_memory= 0;
+      }
     }
-    if (user_info)
-      set_user(mysqld_user, user_info);
+    else
+    {
+      if (global_system_variables.log_warnings)
+        sql_print_information("Succeed at locking memory as current user.");
+      if (user_info)
+      {
+        if (setreuid((uid_t)-1, 0) != -1)
+          set_user(mysqld_user, user_info);
+        else if (errno != EPERM)
+        {
+          /* setreuid failing for permission reasons - i.e. we didn't start as
+             as root is acceptable. For any other reason we still have
+             effective user id 0 which isn't acceptable */
+          sql_perror("setreuid");
+          unireg_abort(1);
+        }
+      }
+    }
   }
-  else
 #endif
-    locked_in_memory=0;
 
   ft_init_stopwords();
 
