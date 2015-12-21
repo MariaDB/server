@@ -1,16 +1,16 @@
-SET DEFAULT_STORAGE_ENGINE='tokudb';
+set default_storage_engine='tokudb';
 DROP TABLE IF EXISTS t1, t2;
 SET SQL_WARNINGS=1;
 CREATE TABLE t1 (
 id int(11) NOT NULL auto_increment,
 datatype_id int(11) DEFAULT '0' NOT NULL,
-my_min_value decimal(20,10) DEFAULT '0.0000000000' NOT NULL,
-my_max_value decimal(20,10) DEFAULT '0.0000000000' NOT NULL,
+min_value decimal(20,10) DEFAULT '0.0000000000' NOT NULL,
+max_value decimal(20,10) DEFAULT '0.0000000000' NOT NULL,
 valuename varchar(20),
 forecolor int(11),
 backcolor int(11),
 PRIMARY KEY (id),
-UNIQUE datatype_id (datatype_id, my_min_value, my_max_value)
+UNIQUE datatype_id (datatype_id, min_value, max_value)
 );
 INSERT INTO t1 VALUES ( '1', '4', '0.0000000000', '0.0000000000', 'Ei saja', '0', '16776960');
 INSERT INTO t1 VALUES ( '2', '4', '1.0000000000', '1.0000000000', 'Sajab', '16777215', '255');
@@ -144,12 +144,12 @@ INSERT INTO t1 VALUES ( '139', '21', '326.0000000000', '326.0000000000', 'Lumine
 INSERT INTO t1 VALUES ( '143', '16', '-4.9000000000', '-0.1000000000', '', NULL, '15774720');
 INSERT INTO t1 VALUES ( '145', '15', '0.0000000000', '1.9000000000', '', '0', '16769024');
 INSERT INTO t1 VALUES ( '146', '16', '0.0000000000', '1.9000000000', '', '0', '16769024');
-select * from t1 where my_min_value<=1 and my_max_value>=-1 and datatype_id=16;
-id	datatype_id	my_min_value	my_max_value	valuename	forecolor	backcolor
+select * from t1 where min_value<=1 and max_value>=-1 and datatype_id=16;
+id	datatype_id	min_value	max_value	valuename	forecolor	backcolor
 143	16	-4.9000000000	-0.1000000000		NULL	15774720
 146	16	0.0000000000	1.9000000000		0	16769024
-select * from t1 where my_min_value<=-1 and my_max_value>=-1 and datatype_id=16;
-id	datatype_id	my_min_value	my_max_value	valuename	forecolor	backcolor
+select * from t1 where min_value<=-1 and max_value>=-1 and datatype_id=16;
+id	datatype_id	min_value	max_value	valuename	forecolor	backcolor
 143	16	-4.9000000000	-0.1000000000		NULL	15774720
 drop table t1;
 create table t1 (a decimal(10,2));
@@ -715,14 +715,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` decimal(5,0) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (d decimal);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` decimal(10,0) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (d decimal(66,0));
 ERROR 42000: Too big precision 66 specified for 'd'. Maximum is 65.
@@ -800,6 +800,18 @@ SELECT ROUND(qty,3), dps, ROUND(qty,dps) FROM t1;
 ROUND(qty,3)	dps	ROUND(qty,dps)
 1.133	3	1.133000
 DROP TABLE t1;
+create table t1 (c1 decimal(10,6));
+insert into t1 (c1) values (9.99e-4);
+insert into t1 (c1) values (9.98e-4);
+insert into t1 (c1) values (0.000999);
+insert into t1 (c1) values (cast(9.99e-4 as decimal(10,6)));
+select * from t1;
+c1
+0.000999
+0.000998
+0.000999
+0.000999
+drop table t1;
 SELECT 1 % .123456789123456789123456789123456789123456789123456789123456789123456789123456789 AS '%';
 %
 0.012345687012345687012345687012
@@ -883,10 +895,106 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(10,0) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 select round(a,b) as c from t1 order by c;
 c
 1000
 1234567890
 DROP TABLE t1, t2, t3, t4;
+CREATE TABLE t1( a DECIMAL(4, 3), b INT );
+INSERT INTO t1 VALUES ( 1, 5 ), ( 2, 4 ), ( 3, 3 ), ( 4, 2 ), ( 5, 1 );
+SELECT a, b, ROUND( a, b ) AS c FROM t1 ORDER BY c;
+a	b	c
+1.000	5	1.000
+2.000	4	2.000
+3.000	3	3.000
+4.000	2	4.000
+5.000	1	5.000
+SELECT a, b, ROUND( a, b ) AS c FROM t1 ORDER BY c DESC;
+a	b	c
+5.000	1	5.000
+4.000	2	4.000
+3.000	3	3.000
+2.000	4	2.000
+1.000	5	1.000
+CREATE TABLE t2 ( a INT, b INT, c DECIMAL(5, 4) );
+INSERT INTO t2 VALUES ( 0, 1, 1.2345 ), ( 1, 2, 1.2345 ),
+( 3, 3, 1.2345 ), ( 2, 4, 1.2345 );
+SELECT a, b, MAX(ROUND(c, a)) 
+FROM t2 
+GROUP BY a, b 
+ORDER BY b;
+a	b	MAX(ROUND(c, a))
+0	1	1.0000
+1	2	1.2000
+3	3	1.2350
+2	4	1.2300
+SELECT a, b, ROUND(c, a) 
+FROM t2;
+a	b	ROUND(c, a)
+0	1	1.0000
+1	2	1.2000
+3	3	1.2350
+2	4	1.2300
+CREATE TABLE t3( a INT, b DECIMAL(6, 3) );
+INSERT INTO t3 VALUES( 0, 1.5 );
+SELECT ROUND( b, a ) FROM t3;
+ROUND( b, a )
+2.000
+CREATE TABLE t4( a INT, b DECIMAL( 12, 0) );
+INSERT INTO t4 VALUES( -9, 1.5e9 );
+SELECT ROUND( b, a ) FROM t4;
+ROUND( b, a )
+2000000000
+CREATE TABLE t5( a INT, b DECIMAL( 13, 12 ) );
+INSERT INTO t5 VALUES( 0, 1.5 );
+INSERT INTO t5 VALUES( 9, 1.5e-9 );
+SELECT ROUND( b, a ) FROM t5;
+ROUND( b, a )
+2.000000000000
+0.000000002000
+CREATE TABLE t6( a INT );
+INSERT INTO t6 VALUES( 6 / 8 );
+SELECT * FROM t6;
+a
+1
+SELECT ROUND(20061108085411.000002);
+ROUND(20061108085411.000002)
+20061108085411
+DROP TABLE t1, t2, t3, t4, t5, t6;
+create table t1(`c` decimal(9,2));
+insert into t1 values (300),(201.11);
+select max(case 1 when 1 then c else null end) from t1 group by c;
+max(case 1 when 1 then c else null end)
+201.11
+300.00
+drop table t1;
 End of 5.0 tests
+CREATE TABLE t1 (a INTEGER);
+INSERT INTO t1 VALUES (NULL);
+CREATE TABLE t2 (b INTEGER);
+INSERT INTO t2 VALUES (NULL), (NULL);
+SELECT b FROM t1 JOIN t2 WHERE CONVERT(a, DECIMAL)|CONVERT(b, DECIMAL);
+b
+DROP TABLE t1, t2;
+CREATE TABLE t1 (col0 INTEGER, col1 REAL);
+CREATE TABLE t2 (col0 INTEGER);
+INSERT INTO t1 VALUES (0, 0.0), (NULL, NULL);
+INSERT INTO t2 VALUES (1);
+SELECT 1 FROM t1 
+JOIN
+( 
+SELECT t2.col0 FROM t2 RIGHT JOIN t1 USING(col0) 
+GROUP BY t2.col0
+) AS subq  
+WHERE t1.col1 + CAST(subq.col0 AS DECIMAL);
+1
+SELECT 1 FROM t1 
+JOIN
+( 
+SELECT t2.col0 FROM t2 RIGHT JOIN t1 USING(col0) 
+GROUP BY t2.col0
+) AS subq  
+WHERE CONCAT(t1.col1, CAST(subq.col0 AS DECIMAL));
+1
+DROP TABLE t1, t2;

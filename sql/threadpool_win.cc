@@ -667,7 +667,7 @@ void tp_add_connection(THD *thd)
   if(!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    threadpool_remove_connection(thd);
+    threadpool_cleanup_connection(thd);
     return;
   }
 
@@ -685,7 +685,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Likely memory pressure */
-    login_callback(NULL, con, NULL); /* deletes connection if something goes wrong */
+    threadpool_cleanup_connection(thd);
   }
 }
 

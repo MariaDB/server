@@ -5730,4 +5730,7 @@ AbcdCBefgBhiBqz
 "(?1)(?#?'){8}(a)"
     baaaaaaaaac
 
+"(?|(\k'Pm')|(?'Pm'))"
+    abcd
+
 /-- End of testinput1 --/

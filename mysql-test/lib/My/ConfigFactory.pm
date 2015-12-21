@@ -274,6 +274,7 @@ if (IS_WINDOWS)
 #
 my @client_rules=
 (
+ { 'character-sets-dir' => \&fix_charset_dir },
 );
 
 
@@ -296,7 +297,6 @@ my @mysqltest_rules=
 #
 my @mysqlbinlog_rules=
 (
- { 'character-sets-dir' => \&fix_charset_dir },
 );
 
 

@@ -245,7 +245,7 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		ha_alter_info->unsupported_reason =
 			innobase_get_err_msg(ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -2730,14 +2730,9 @@ prepare_inplace_alter_table_dict(
 	/* Create a background transaction for the operations on
 	the data dictionary tables. */
 	ctx->trx = innobase_trx_allocate(ctx->prebuilt->trx->mysql_thd);
-
-	if (UNIV_UNLIKELY(ctx->trx->fake_changes)) {
-		trx_rollback_to_savepoint(ctx->trx, NULL);
-		trx_free_for_mysql(ctx->trx);
-		DBUG_RETURN(true);
-	}
-
 	trx_start_for_ddl(ctx->trx, TRX_DICT_OP_INDEX);
+
+	DBUG_ASSERT(!ctx->trx->fake_changes);
 
 	/* Create table containing all indexes to be built in this
 	ALTER TABLE ADD INDEX so that they are in the correct order

@@ -2541,7 +2541,6 @@ row_merge_sort(
 {
 	const ulint	half	= file->offset / 2;
 	ulint		num_runs;
-	ulint		cur_run = 0;
 	ulint*		run_offset;
 	dberr_t		error	= DB_SUCCESS;
 	ulint		merge_count = 0;
@@ -2578,22 +2577,19 @@ row_merge_sort(
 
 	/* Progress report only for "normal" indexes. */
 	if (!(dup->index->type & DICT_FTS)) {
-		thd_progress_init(trx->mysql_thd, num_runs);
+		thd_progress_init(trx->mysql_thd, 1);
 	}
 
 	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
 
 	/* Merge the runs until we have one big run */
 	do {
-		cur_run++;
-
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
 		/* Progress report only for "normal" indexes. */
 		if (!(dup->index->type & DICT_FTS)) {
-			thd_progress_report(trx->mysql_thd, cur_run, num_runs);
+			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
 		}
-		sql_print_information("InnoDB: Online DDL : merge-sorting current run %lu estimated %lu runs", cur_run, num_runs);
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset,
@@ -3406,7 +3402,7 @@ row_merge_file_create(
 
 	if (merge_file->fd >= 0) {
 		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
+			os_file_set_nocache(OS_FILE_FROM_FD(merge_file->fd),
 				"row0merge.cc", "sort");
 		}
 	}
@@ -3909,7 +3905,7 @@ row_merge_build_indexes(
 
 	block_size = 3 * srv_sort_buf_size;
 	block = static_cast<row_merge_block_t*>(
-		os_mem_alloc_large(&block_size, FALSE));
+		os_mem_alloc_large(&block_size));
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
@@ -3926,7 +3922,7 @@ row_merge_build_indexes(
 			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 
 		crypt_block = static_cast<row_merge_block_t*>(
-			os_mem_alloc_large(&block_size, FALSE));
+			os_mem_alloc_large(&block_size));
 
 		if (crypt_block == NULL) {
 			DBUG_RETURN(DB_OUT_OF_MEMORY);

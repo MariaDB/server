@@ -43,6 +43,7 @@ Created 5/11/1994 Heikki Tuuri
 # include "trx0trx.h"
 # include "ha_prototypes.h"
 # include "mysql_com.h" /* NAME_LEN */
+# include <string>
 #endif /* UNIV_HOTBACKUP */
 
 /** A constant to prevent the compiler from optimizing ut_delay() away. */
@@ -560,6 +561,35 @@ ut_print_namel(
 				       table_id);
 
 	(void) fwrite(buf, 1, bufend - buf, f);
+}
+
+/**********************************************************************//**
+Outputs a fixed-length string, quoted as an SQL identifier.
+If the string contains a slash '/', the string will be
+output as two identifiers separated by a period (.),
+as in SQL database_name.identifier. */
+UNIV_INTERN
+std::string
+ut_get_name(
+/*=========*/
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
+	ibool		table_id,/*!< in: TRUE=print a table name,
+				FALSE=print other identifier */
+	const char*	name)	/*!< in: name to print */
+{
+	/* 2 * NAME_LEN for database and table name,
+	and some slack for the #mysql50# prefix and quotes */
+	char		buf[3 * NAME_LEN];
+	const char*	bufend;
+	ulint		namelen = strlen(name);
+
+	bufend = innobase_convert_name(buf, sizeof buf,
+				       name, namelen,
+				       trx ? trx->mysql_thd : NULL,
+				       table_id);
+	buf[bufend-buf]='\0';
+	std::string str(buf);
+	return str;
 }
 
 /**********************************************************************//**

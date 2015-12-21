@@ -208,7 +208,8 @@ my_bool dynstr_append_quoted(DYNAMIC_STRING *str,
 
 void dynstr_free(DYNAMIC_STRING *str)
 {
-  my_free(str->str);
+  if (str->str)                             /* Safety to allow double free */
+    my_free(str->str);
   str->str= NULL;
 }
 

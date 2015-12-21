@@ -1,0 +1,35 @@
+################################################################################
+# t/partition_auto_increment_tokudb.test                                       #
+#                                                                              #
+# Purpose:                                                                     #
+#  Tests around auto increment column                                          #
+#        TokuDB branch                                                         #
+#                                                                              #
+#------------------------------------------------------------------------------#
+# Original Author: MattiasJ                                                    #
+# Original Date: 2008-02-12                                                    #
+# Change Author:                                                               #
+# Change Date:                                                                 #
+# Change:                                                                      #
+################################################################################
+
+#
+# NOTE: PLEASE DO NOT ADD NOT MYISAM SPECIFIC TESTCASES HERE !
+#       TESTCASES WHICH MUST BE APPLIED TO ALL STORAGE ENGINES MUST BE ADDED IN
+#       THE SOURCED FILES ONLY.
+#
+
+# The server must support partitioning.
+--source include/have_partition.inc
+
+#------------------------------------------------------------------------------#
+# Engine specific settings and requirements
+
+##### Storage engine to be tested
+let $engine= 'TokuDB';
+--source include/have_tokudb.inc
+
+#------------------------------------------------------------------------------#
+# Execute the tests to be applied to all storage engines
+--source suite/parts/inc/partition_auto_increment.inc
+

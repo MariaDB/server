@@ -135,7 +135,7 @@ void one_thread_per_connection_scheduler(scheduler_functions *func,
 #endif
 
 /*
-  Initailize scheduler for --thread-handling=no-threads
+  Initialize scheduler for --thread-handling=no-threads
 */
 
 void one_thread_scheduler(scheduler_functions *func)

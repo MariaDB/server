@@ -53,5 +53,12 @@ if(`select TIMESTAMPDIFF(SECOND,@time_after_kill, @time_before_kill) > 60`)
 
 START SLAVE IO_THREAD;
 
+# Ensure that the slave io thread started properly
+connection master;
+create table t1 (a int primary key);
+sync_slave_with_master;
+connection master;
+drop table t1;
+
 # End of test
 --source include/rpl_end.inc

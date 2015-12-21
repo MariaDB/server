@@ -1886,7 +1886,7 @@ loop:
 		goto loop;
 	}
 
-	ut_ad((!allow_ibuf) == mutex_own(&log_sys->mutex));
+	ut_ad((allow_ibuf == 0) == (mutex_own(&log_sys->mutex) != 0));
 
 	if (!allow_ibuf) {
 		recv_no_ibuf_operations = TRUE;
@@ -3101,7 +3101,7 @@ recv_recovery_from_checkpoint_start_func(
 #endif /* UNIV_LOG_ARCHIVE */
 	byte*		buf;
 	byte*		log_hdr_buf;
-	byte*		log_hdr_buf_base = static_cast<byte *>
+	byte*		log_hdr_buf_base = reinterpret_cast<byte *>
 		(alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE));
 	dberr_t		err;
 	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);

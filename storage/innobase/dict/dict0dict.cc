@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +29,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fil0fil.h"
 #include <algorithm>
+#include <string>
 
 #ifdef UNIV_NONINL
 #include "dict0dict.ic"
@@ -1658,10 +1659,13 @@ dict_table_rename_in_cache(
 					to preserve the original table name
 					in constraints which reference it */
 {
+	dberr_t		err;
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
 	ulint		fold;
 	char		old_name[MAX_FULL_NAME_LEN + 1];
+	os_file_type_t	ftype;
+	ibool		exists;
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
@@ -1699,8 +1703,6 @@ dict_table_rename_in_cache(
 	.ibd file and rebuild the .isl file if needed. */
 
 	if (dict_table_is_discarded(table)) {
-		os_file_type_t	type;
-		ibool		exists;
 		char*		filepath;
 
 		ut_ad(table->space != TRX_SYS_SPACE);
@@ -1719,7 +1721,7 @@ dict_table_rename_in_cache(
 		fil_delete_tablespace(table->space, BUF_REMOVE_ALL_NO_WRITE);
 
 		/* Delete any temp file hanging around. */
-		if (os_file_status(filepath, &exists, &type)
+		if (os_file_status(filepath, &exists, &ftype)
 		    && exists
 		    && !os_file_delete_if_exists(innodb_file_temp_key,
 						 filepath)) {
@@ -1731,8 +1733,6 @@ dict_table_rename_in_cache(
 		mem_free(filepath);
 
 	} else if (table->space != TRX_SYS_SPACE) {
-		char*	new_path = NULL;
-
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			ut_print_timestamp(stderr);
 			fputs("  InnoDB: Error: trying to rename a"
@@ -1746,34 +1746,43 @@ dict_table_rename_in_cache(
 			}
 
 			return(DB_ERROR);
+		}
 
-		} else if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			char*		old_path;
+		char*	new_path = NULL;
+		char*	old_path = fil_space_get_first_path(table->space);
 
-			old_path = fil_space_get_first_path(table->space);
-
+		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			new_path = os_file_make_new_pathname(
 				old_path, new_name);
 
-			mem_free(old_path);
-
-			dberr_t	err = fil_create_link_file(
-				new_name, new_path);
-
+			err = fil_create_link_file(new_name, new_path);
 			if (err != DB_SUCCESS) {
 				mem_free(new_path);
+				mem_free(old_path);
 				return(DB_TABLESPACE_EXISTS);
 			}
+		} else {
+			new_path = fil_make_ibd_name(new_name, false);
+		}
+
+		/* New filepath must not exist. */
+		err = fil_rename_tablespace_check(
+			table->space, old_path, new_path, false);
+		if (err != DB_SUCCESS) {
+			mem_free(old_path);
+			mem_free(new_path);
+			return(err);
 		}
 
 		ibool	success = fil_rename_tablespace(
 			old_name, table->space, new_name, new_path);
 
+		mem_free(old_path);
+		mem_free(new_path);
+
 		/* If the tablespace is remote, a new .isl file was created
 		If success, delete the old one. If not, delete the new one.  */
-		if (new_path) {
-
-			mem_free(new_path);
+		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			fil_delete_link_file(success ? old_name : new_name);
 		}
 
@@ -2847,7 +2856,7 @@ dict_index_find_cols(
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
 
 		for (j = 0; j < table->n_cols; j++) {
-			if (!strcmp(dict_table_get_col_name(table, j),
+			if (!innobase_strcasecmp(dict_table_get_col_name(table, j),
 				    field->name)) {
 				field->col = dict_table_get_nth_col(table, j);
 
@@ -3519,11 +3528,13 @@ dict_foreign_error_report(
 	dict_foreign_t*	fk,	/*!< in: foreign key constraint */
 	const char*	msg)	/*!< in: the error message */
 {
+	std::string fk_str;
 	mutex_enter(&dict_foreign_err_mutex);
 	dict_foreign_error_report_low(file, fk->foreign_table_name);
 	fputs(msg, file);
 	fputs(" Constraint:\n", file);
-	dict_print_info_on_foreign_key_in_create_format(file, NULL, fk, TRUE);
+	fk_str = dict_print_info_on_foreign_key_in_create_format(NULL, fk, TRUE);
+	fputs(fk_str.c_str(), file);
 	putc('\n', file);
 	if (fk->foreign_index) {
 		fputs("The index in the foreign key in table is ", file);
@@ -5912,16 +5923,16 @@ dict_field_print_low(
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_key_in_create_format(
 /*============================================*/
-	FILE*		file,		/*!< in: file where to print */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	ibool		add_newline)	/*!< in: whether to add a newline */
 {
 	const char*	stripped_id;
 	ulint	i;
+	std::string	str;
 
 	if (strchr(foreign->id, '/')) {
 		/* Strip the preceding database name from the constraint id */
@@ -5931,96 +5942,99 @@ dict_print_info_on_foreign_key_in_create_format(
 		stripped_id = foreign->id;
 	}
 
-	putc(',', file);
+	str.append(",");
 
 	if (add_newline) {
 		/* SHOW CREATE TABLE wants constraints each printed nicely
 		on its own line, while error messages want no newlines
 		inserted. */
-		fputs("\n ", file);
+		str.append("\n ");
 	}
 
-	fputs(" CONSTRAINT ", file);
-	ut_print_name(file, trx, FALSE, stripped_id);
-	fputs(" FOREIGN KEY (", file);
+	str.append(" CONSTRAINT ");
+
+	str.append(ut_get_name(trx, FALSE, stripped_id));
+	str.append(" FOREIGN KEY (");
 
 	for (i = 0;;) {
-		ut_print_name(file, trx, FALSE, foreign->foreign_col_names[i]);
+		str.append(ut_get_name(trx, FALSE, foreign->foreign_col_names[i]));
 		if (++i < foreign->n_fields) {
-			fputs(", ", file);
+			str.append(", ");
 		} else {
 			break;
 		}
 	}
 
-	fputs(") REFERENCES ", file);
+	str.append(") REFERENCES ");
 
 	if (dict_tables_have_same_db(foreign->foreign_table_name_lookup,
 				     foreign->referenced_table_name_lookup)) {
 		/* Do not print the database name of the referenced table */
-		ut_print_name(file, trx, TRUE,
+		str.append(ut_get_name(trx, TRUE,
 			      dict_remove_db_name(
-				      foreign->referenced_table_name));
+				      foreign->referenced_table_name)));
 	} else {
-		ut_print_name(file, trx, TRUE,
-			      foreign->referenced_table_name);
+		str.append(ut_get_name(trx, TRUE,
+				foreign->referenced_table_name));
 	}
 
-	putc(' ', file);
-	putc('(', file);
+	str.append(" (");
 
 	for (i = 0;;) {
-		ut_print_name(file, trx, FALSE,
-			      foreign->referenced_col_names[i]);
+		str.append(ut_get_name(trx, FALSE,
+				foreign->referenced_col_names[i]));
+
 		if (++i < foreign->n_fields) {
-			fputs(", ", file);
+			str.append(", ");
 		} else {
 			break;
 		}
 	}
 
-	putc(')', file);
+	str.append(")");
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
-		fputs(" ON DELETE CASCADE", file);
+		str.append(" ON DELETE CASCADE");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
-		fputs(" ON DELETE SET NULL", file);
+		str.append(" ON DELETE SET NULL");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
-		fputs(" ON DELETE NO ACTION", file);
+		str.append(" ON DELETE NO ACTION");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
-		fputs(" ON UPDATE CASCADE", file);
+		str.append(" ON UPDATE CASCADE");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
-		fputs(" ON UPDATE SET NULL", file);
+		str.append(" ON UPDATE SET NULL");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
-		fputs(" ON UPDATE NO ACTION", file);
+		str.append(" ON UPDATE NO ACTION");
 	}
+
+	return str;
 }
 
 /**********************************************************************//**
 Outputs info on foreign keys of a table. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_keys(
 /*============================*/
 	ibool		create_table_format, /*!< in: if TRUE then print in
 				a format suitable to be inserted into
 				a CREATE TABLE, otherwise in the format
 				of SHOW TABLE STATUS */
-	FILE*		file,	/*!< in: file where to print */
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table)	/*!< in: table */
 {
 	dict_foreign_t*	foreign;
+	std::string 	str;
 
 	mutex_enter(&(dict_sys->mutex));
 
@@ -6031,64 +6045,67 @@ dict_print_info_on_foreign_keys(
 		foreign = *it;
 
 		if (create_table_format) {
-			dict_print_info_on_foreign_key_in_create_format(
-				file, trx, foreign, TRUE);
+			str.append(
+				dict_print_info_on_foreign_key_in_create_format(
+					trx, foreign, TRUE));
 		} else {
 			ulint	i;
-			fputs("; (", file);
+			str.append("; (");
 
 			for (i = 0; i < foreign->n_fields; i++) {
 				if (i) {
-					putc(' ', file);
+					str.append(" ");
 				}
 
-				ut_print_name(file, trx, FALSE,
-					      foreign->foreign_col_names[i]);
+				str.append(ut_get_name(trx, FALSE,
+						foreign->foreign_col_names[i]));
 			}
 
-			fputs(") REFER ", file);
-			ut_print_name(file, trx, TRUE,
-				      foreign->referenced_table_name);
-			putc('(', file);
+			str.append(") REFER ");
+			str.append(ut_get_name(trx, TRUE,
+					foreign->referenced_table_name));
+			str.append(")");
 
 			for (i = 0; i < foreign->n_fields; i++) {
 				if (i) {
-					putc(' ', file);
+					str.append(" ");
 				}
-				ut_print_name(
-					file, trx, FALSE,
-					foreign->referenced_col_names[i]);
+				str.append(ut_get_name(
+						trx, FALSE,
+						foreign->referenced_col_names[i]));
 			}
 
-			putc(')', file);
+			str.append(")");
 
 			if (foreign->type == DICT_FOREIGN_ON_DELETE_CASCADE) {
-				fputs(" ON DELETE CASCADE", file);
+				str.append(" ON DELETE CASCADE");
 			}
 
 			if (foreign->type == DICT_FOREIGN_ON_DELETE_SET_NULL) {
-				fputs(" ON DELETE SET NULL", file);
+				str.append(" ON DELETE SET NULL");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
-				fputs(" ON DELETE NO ACTION", file);
+				str.append(" ON DELETE NO ACTION");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
-				fputs(" ON UPDATE CASCADE", file);
+				str.append(" ON UPDATE CASCADE");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
-				fputs(" ON UPDATE SET NULL", file);
+				str.append(" ON UPDATE SET NULL");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
-				fputs(" ON UPDATE NO ACTION", file);
+				str.append(" ON UPDATE NO ACTION");
 			}
 		}
 	}
 
 	mutex_exit(&(dict_sys->mutex));
+
+	return str;
 }
 
 /********************************************************************//**

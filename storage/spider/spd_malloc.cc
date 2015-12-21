@@ -1222,6 +1222,20 @@ bool spider_string::append(
   DBUG_RETURN(res);
 }
 
+void spider_string::append_escape_string(
+  const char *st,
+  uint len
+) {
+  DBUG_ENTER("spider_string::append_escape_string");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(mem_calc_inited);
+  DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
+    current_alloc_mem == str.alloced_length());
+  str.length(str.length() + escape_string_for_mysql(
+    str.charset(), (char *) str.ptr() + str.length(), 0, st, len));
+  DBUG_VOID_RETURN;
+}
+
 bool spider_string::append_for_single_quote(
   const char *st,
   uint len

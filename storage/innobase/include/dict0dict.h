@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -641,29 +641,25 @@ dict_table_print(
 /**********************************************************************//**
 Outputs info on foreign keys of a table. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_keys(
 /*============================*/
 	ibool		create_table_format, /*!< in: if TRUE then print in
 				a format suitable to be inserted into
 				a CREATE TABLE, otherwise in the format
 				of SHOW TABLE STATUS */
-	FILE*		file,	/*!< in: file where to print */
 	trx_t*		trx,	/*!< in: transaction */
-	dict_table_t*	table)	/*!< in: table */
-	__attribute__((nonnull));
+	dict_table_t*	table);	/*!< in: table */
 /**********************************************************************//**
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_key_in_create_format(
 /*============================================*/
-	FILE*		file,		/*!< in: file where to print */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline)	/*!< in: whether to add a newline */
-	__attribute__((nonnull(1,3)));
+	ibool		add_newline);	/*!< in: whether to add a newline */
 /********************************************************************//**
 Displays the names of the index and the table. */
 UNIV_INTERN

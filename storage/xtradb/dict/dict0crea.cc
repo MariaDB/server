@@ -1187,7 +1187,7 @@ dict_create_index_step(
 			>= UNIV_FORMAT_B);
 
 		node->index = dict_index_get_if_in_cache_low(index_id);
-		ut_a(!node->index == (err != DB_SUCCESS));
+		ut_a((node->index == 0) == (err != DB_SUCCESS));
 
 		if (err != DB_SUCCESS) {
 

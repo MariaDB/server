@@ -1359,7 +1359,7 @@ time_to_datetime_with_warn(THD *thd,
     only in the old mode.
   */
   if (time_to_datetime(thd, from, to) ||
-      ((thd->variables.old_behavior && OLD_MODE_ZERO_DATE_TIME_CAST) &&
+      ((thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) &&
         check_date(to, fuzzydate, &warn)))
   {
     ErrConvTime str(from);

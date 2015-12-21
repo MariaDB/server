@@ -250,13 +250,14 @@ int main(int argc __attribute__((unused)), char *argv[])
   {
     plan(1);
     ok(1, "skipped as big test");
+    my_end(0);
     return 0;
   }
 #endif
 
   load_defaults("my", load_default_groups, &argc, &argv);
-  get_options(&argc, &argv);
   default_argv= argv;
+  get_options(&argc, &argv);
 
   bzero(&pagecache, sizeof(pagecache));
   maria_data_root= create_tmpdir(progname);
@@ -757,6 +758,9 @@ err:
   if (maria_log_remove(maria_data_root))
     exit(1);
 
+  my_uuid_end();
+  my_free_open_file_info();
+  my_end(0);
   return (MY_TEST(exit_status()));
 }
 

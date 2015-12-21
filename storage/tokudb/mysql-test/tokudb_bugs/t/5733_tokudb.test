@@ -11,14 +11,12 @@ set default_storage_engine='tokudb';
 
 create table t (id bigint primary key, x bigint not null);
 
-begin;
 let $i=0;
 let $n=10000;
 while ($i < $n) {
       eval insert into t values ($i,0);
       inc $i;
 }
-commit;
 
 # the plan for the following query should be a range scan.  about 1 of 10 times,
 # the plan is an index scan.  the different scan type occurs because the query optimizer

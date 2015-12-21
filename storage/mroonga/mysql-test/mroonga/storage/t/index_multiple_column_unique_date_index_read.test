@@ -18,6 +18,7 @@
 
 --source ../../include/mroonga/have_64bit.inc
 --source ../../include/mroonga/skip_freebsd.inc
+--source ../../include/mroonga/skip_osx.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings

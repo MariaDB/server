@@ -20,6 +20,8 @@ drop table com1;
 create table `clock$` (a int);
 drop table `clock$`;
 
+select convert(convert(',' using filename) using binary);
+
 --echo #
 --echo # MDEV-7677 my_charset_handler_filename has a wrong "ismbchar" member
 --echo #

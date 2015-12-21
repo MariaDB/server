@@ -8,6 +8,7 @@ SET GLOBAL innodb_file_per_table=0;
 create table bug56947(a int not null) engine = innodb;
 
 SET DEBUG_DBUG='+d,ib_rebuild_cannot_rename';
+--replace_regex /"[^"]*"/"xxx"/
 --error ER_GET_ERRNO
 alter table bug56947 add unique index (a);
 SET DEBUG_DBUG='-d,ib_rebuild_cannot_rename';

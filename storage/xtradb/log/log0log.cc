@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -260,7 +260,7 @@ log_buffer_extend(
 {
 	ulint	move_start;
 	ulint	move_end;
-	byte*	tmp_buf = static_cast<byte *>(alloca(OS_FILE_LOG_BLOCK_SIZE));
+	byte*	tmp_buf = reinterpret_cast<byte *>(alloca(OS_FILE_LOG_BLOCK_SIZE));
 
 	mutex_enter(&(log_sys->mutex));
 
@@ -3756,12 +3756,7 @@ loop:
 
 	lsn = log_sys->lsn;
 
-	ut_ad(srv_force_recovery != SRV_FORCE_NO_LOG_REDO
-	      || lsn == log_sys->last_checkpoint_lsn + LOG_BLOCK_HDR_SIZE);
-
-
-	if ((srv_force_recovery != SRV_FORCE_NO_LOG_REDO
-	     && lsn != log_sys->last_checkpoint_lsn)
+	if (lsn != log_sys->last_checkpoint_lsn
 	    || (srv_track_changed_pages
 		&& (tracked_lsn != log_sys->last_checkpoint_lsn))
 #ifdef UNIV_LOG_ARCHIVE

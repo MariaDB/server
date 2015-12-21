@@ -178,11 +178,19 @@ jemalloc/src/jemalloc\.c: set but not used
 #
 # Connect engine
 #
-storage/connect/ha_connect\.cc: might be clobbered by
-storage/connect/connect\.cc: might be clobbered by
+storage/connect/ha_connect\.cc: might be clobbered by ~longjmp~
+storage/connect/connect\.cc: might be clobbered by ~longjmp~
 storage/connect/filamvct\.cpp: ignoring return value of
 storage/connect/filamvct\.cpp: might be clobbered by
 storage/connect/xindex\.cpp: ignoring return value of
+storage/connect/value\.cpp: always false
+
+#
+# mroonga
+#
+groonga/lib/expr\.c: propagation disabled
+groonga/lib/expr\.c: PRE disabled
+groonga/lib/expr\.c: always false
 
 #
 # Mroonga
@@ -214,6 +222,15 @@ ctype-simple\.c : .*unary minus operator applied to unsigned type, result still 
 sql/sys_vars\.cc : invalid access to non-static data member
 string3\.h : memset used with constant zero length parameter
 
+#
+# Ignorable errors on mac
+#
+my_aes\.c: deprecated
+my_sha1\.cc: deprecated
+my_md5\.cc: deprecated
+my_rnd\.cc: deprecated
+mdl\.cc: invalid access
+mdl\.cc: offsetoff
 
 # Wrong warning due to GCC bug: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29478
 regexec\.c : passing argument 3 of.*matcher.* discards qualifiers from pointer target type

@@ -1399,7 +1399,8 @@ error_exit:
 		return(err);
 	}
 
-	if (dict_table_has_fts_index(table)) {
+	if (dict_table_has_fts_index(table)
+	    && UNIV_LIKELY(!thr_get_trx(thr)->fake_changes)) {
 		doc_id_t        doc_id;
 
 		/* Extract the doc id from the hidden FTS column */
@@ -1886,6 +1887,12 @@ run_again:
 	columns would not affect statistics. */
 	if (node->is_delete || !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		row_update_statistics_if_needed(prebuilt->table);
+	} else {
+		/* Update the table modification counter even when
+		non-indexed columns change if statistics is initialized. */
+		if (prebuilt->table->stat_initialized) {
+			prebuilt->table->stat_modified_counter++;
+		}
 	}
 
 	trx->op_info = "";

@@ -43,7 +43,7 @@ static my_bool opt_alldbs = 0, opt_check_only_changed = 0, opt_extended = 0,
                opt_silent = 0, opt_auto_repair = 0, ignore_errors = 0,
                tty_password= 0, opt_frm= 0, debug_info_flag= 0, debug_check_flag= 0,
                opt_fix_table_names= 0, opt_fix_db_names= 0, opt_upgrade= 0,
-               opt_do_tables= 1;
+               opt_persistent_all= 0, opt_do_tables= 1;
 static my_bool opt_write_binlog= 1, opt_flush_tables= 0;
 static uint verbose = 0, opt_mysql_port=0;
 static int my_end_arg;
@@ -160,6 +160,10 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given, it's solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"persistent", 'Z',
+   "When using ANALYZE TABLE use the PERSISTENT FOR ALL option.",
+   &opt_persistent_all, &opt_persistent_all, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
 #ifdef __WIN__
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -910,6 +914,7 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
   case DO_ANALYZE:
     DBUG_ASSERT(!view);
     op= (opt_write_binlog) ? "ANALYZE" : "ANALYZE NO_WRITE_TO_BINLOG";
+    if (opt_persistent_all) end = strmov(end, " PERSISTENT FOR ALL");
     break;
   case DO_OPTIMIZE:
     DBUG_ASSERT(!view);

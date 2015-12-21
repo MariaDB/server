@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,6 +62,9 @@ IF(UNIX)
       LINK_LIBRARIES(${AIO_LIBRARY})
     ENDIF()
     ADD_DEFINITIONS("-DUNIV_LINUX -D_GNU_SOURCE=1")
+    IF(HAVE_LIBNUMA)
+      LINK_LIBRARIES(numa)
+    ENDIF()
   ELSEIF(CMAKE_SYSTEM_NAME MATCHES "HP*")
     ADD_DEFINITIONS("-DUNIV_HPUX")
   ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "AIX")
@@ -183,6 +186,18 @@ IF(NOT MSVC)
   }"
   HAVE_IB_GCC_ATOMIC_THREAD_FENCE
   )
+  CHECK_C_SOURCE(
+  "#include<stdint.h>
+  int main()
+  {
+    unsigned char	c;
+
+    __atomic_test_and_set(&c, __ATOMIC_ACQUIRE);
+    __atomic_clear(&c, __ATOMIC_RELEASE);
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_TEST_AND_SET
+  )
 
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS=1)
@@ -203,6 +218,10 @@ ENDIF()
 
 IF(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_THREAD_FENCE=1)
+ENDIF()
+
+IF(HAVE_IB_GCC_ATOMIC_TEST_AND_SET)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_TEST_AND_SET=1)
 ENDIF()
 
 # either define HAVE_IB_ATOMIC_PTHREAD_T_GCC or not

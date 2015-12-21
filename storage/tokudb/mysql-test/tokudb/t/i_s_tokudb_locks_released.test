@@ -1,3 +1,8 @@
+if (`select @@tokudb_version < "5.6.27"`)
+{
+  --skip Race condition in the test in TokuDB below 5.6.27
+}
+
 # verify that information_schema.tokudb_locks gets populated with locks for 2 clients
 
 source include/have_tokudb.inc;
@@ -32,14 +37,12 @@ source include/wait_condition.inc;
 real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
 
 replace_column 1 TRX_ID 2 MYSQL_ID;
-replace_result $datadir ./;
 eval select * from information_schema.tokudb_locks; 
 
 connection conn_a;
 commit;
 # verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
 replace_column 1 TRX_ID 2 MYSQL_ID;
-replace_result $datadir ./;
 select * from information_schema.tokudb_locks;
 
 connection conn_b;
