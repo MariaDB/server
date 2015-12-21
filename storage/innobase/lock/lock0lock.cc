@@ -57,6 +57,10 @@ extern my_bool wsrep_debug;
 extern my_bool wsrep_log_conflicts;
 #include "ha_prototypes.h"
 #endif
+
+#include <string>
+#include <sstream>
+
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
 #define LOCK_MAX_N_STEPS_IN_DEADLOCK_CHECK 1000000
@@ -1729,10 +1733,10 @@ wsrep_kill_victim(
 				}
 			}
 
-			lock->trx->wsrep_abort = TRUE;
+			lock->trx->abort_type = TRX_WSREP_ABORT;
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
 				(const trx_t*) trx, lock->trx, TRUE);
-			lock->trx->wsrep_abort = FALSE;
+			lock->trx->abort_type = TRX_SERVER_ABORT;
 		}
 	}
 }
@@ -4401,7 +4405,9 @@ lock_report_waiters_to_mysql(
 				innobase_kill_query. We mark this by setting
 				current_lock_mutex_owner, so we can avoid trying
 				to recursively take lock_sys->mutex. */
+				w_trx->abort_type = TRX_REPLICATION_ABORT;
 				thd_report_wait_for(mysql_thd, w_trx->mysql_thd);
+				w_trx->abort_type = TRX_SERVER_ABORT;
 			}
 			++i;
 		}
@@ -7741,3 +7747,32 @@ lock_trx_has_rec_x_lock(
 	return(true);
 }
 #endif /* UNIV_DEBUG */
+
+/*******************************************************************//**
+Get lock mode and table/index name
+@return	string containing lock info */
+std::string
+lock_get_info(
+	const lock_t* lock)
+{
+	std::string info;
+	std::string mode("mode ");
+	std::string index("index ");
+	std::string table("table ");
+	std::string n_uniq(" n_uniq");
+	std::string n_user(" n_user");
+	std::string lock_mode((lock_get_mode_str(lock)));
+	std::string iname(lock->index->name);
+	std::string tname(lock->index->table_name);
+
+#define SSTR( x ) reinterpret_cast< std::ostringstream & >(	\
+        ( std::ostringstream() << std::dec << x ) ).str()
+
+	info = mode + lock_mode
+		+ index + iname
+		+ table + tname
+		+ n_uniq + SSTR(lock->index->n_uniq)
+		+ n_user + SSTR(lock->index->n_user_defined_cols);
+
+	return info;
+}

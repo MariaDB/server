@@ -991,6 +991,14 @@ void
 lock_cancel_waiting_and_release(
 /*============================*/
 	lock_t*	lock);	/*!< in/out: waiting lock request */
+
+/*******************************************************************//**
+Get lock mode and table/index name
+@return	string containing lock info */
+std::string
+lock_get_info(
+	const lock_t*);
+
 #endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"

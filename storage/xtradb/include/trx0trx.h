@@ -705,6 +705,12 @@ lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
 lock_sys->mutex and sometimes by trx->mutex. */
 
+typedef enum {
+	TRX_SERVER_ABORT = 0,
+	TRX_WSREP_ABORT  = 1,
+	TRX_REPLICATION_ABORT = 2
+} trx_abort_t;
+
 struct trx_t{
 	ulint		magic_n;
 
@@ -881,8 +887,8 @@ struct trx_t{
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
-	ibool		wsrep_abort;	/*!< Transaction is aborted from
-					wsrep functions. */
+	trx_abort_t	abort_type;	/*!< Transaction abort type */
+
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
 					contains a pointer to the latest file
