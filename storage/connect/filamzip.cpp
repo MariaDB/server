@@ -1404,8 +1404,13 @@ void ZLBFAM::Rewind(void)
   // We must be positioned after the header block
   if (CurBlk >= 0) {   // Nothing to do if no block read yet
     if (!Optimized) {  // If optimized, fseek will be done in ReadBuffer
+			size_t st;
+
       rewind(Stream);
-      (void) fread(Zlenp, sizeof(int), 1, Stream);
+
+			if (!(st = fread(Zlenp, sizeof(int), 1, Stream)) && trace)
+				htrc("fread error %d in Rewind", errno);
+
       fseek(Stream, *Zlenp + sizeof(int), SEEK_SET);
       OldBlk = -1;
       } // endif Optimized

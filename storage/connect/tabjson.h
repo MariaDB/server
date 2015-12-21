@@ -68,7 +68,8 @@ class JSONDEF : public DOSDEF {                   /* Table description */
 /***********************************************************************/
 class TDBJSN : public TDBDOS {
   friend class JSONCOL;
- public:
+	friend class JSONDEF;
+public:
   // Constructor
    TDBJSN(PJDEF tdp, PTXF txfp);
    TDBJSN(TDBJSN *tdbp);
@@ -90,32 +91,34 @@ class TDBJSN : public TDBDOS {
   virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
-  virtual bool  PrepareWriting(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
+	virtual bool  PrepareWriting(PGLOBAL g);
+	virtual int   WriteDB(PGLOBAL g);
 
  protected:
           PJSON FindRow(PGLOBAL g);
           int   MakeTopTree(PGLOBAL g, PJSON jsp);
 
   // Members
-  PJSON Top;                       // The top JSON tree
-  PJSON Row;                       // The current row
-  PJSON Val;                       // The value of the current row
-  PJCOL Colp;                      // The multiple column
-  JMODE Jmode;                     // MODE_OBJECT by default
-  char *Objname;                   // The table object name
-  char *Xcol;                      // Name of expandable column
-  int   Fpos;                      // The current row index
-  int   N;                         // The current Rownum
-  int   M;                         // Index of multiple value
-	int   Limit;		    				     // Limit of multiple values
-  int   Pretty;                    // Depends on file structure
-  int   NextSame;                  // Same next row
-  int   SameRow;                   // Same row nb
-  int   Xval;                      // Index of expandable array
-  int   B;                         // Array index base
-  bool  Strict;                    // Strict syntax checking
-  bool  Comma;                     // Row has final comma
+	PGLOBAL G;											 // Support of parse memory
+	PJSON   Top;                     // The top JSON tree
+	PJSON   Row;                     // The current row
+	PJSON   Val;                     // The value of the current row
+	PJCOL   Colp;                    // The multiple column
+	JMODE   Jmode;                   // MODE_OBJECT by default
+  char   *Objname;                 // The table object name
+  char   *Xcol;                    // Name of expandable column
+	int     Fpos;                    // The current row index
+	int     N;                       // The current Rownum
+	int     M;                       // Index of multiple value
+	int     Limit;		    				   // Limit of multiple values
+	int     Pretty;                  // Depends on file structure
+	int     NextSame;                // Same next row
+	int     SameRow;                 // Same row nb
+	int     Xval;                    // Index of expandable array
+	int     B;                       // Array index base
+	bool    Strict;                  // Strict syntax checking
+	bool    Comma;                   // Row has final comma
   }; // end of class TDBJSN
 
 /* -------------------------- JSONCOL class -------------------------- */
@@ -154,7 +157,8 @@ class JSONCOL : public DOSCOL {
   JSONCOL(void) {}
 
   // Members
-  TDBJSN *Tjp;                  // To the JSN table block
+	PGLOBAL G;										// Support of parse memory
+	TDBJSN *Tjp;                  // To the JSN table block
   PVAL    MulVal;               // To value used by multiple column
   char   *Jpath;                // The json path
   JNODE  *Nodes;                // The intermediate objects
@@ -170,7 +174,8 @@ class JSONCOL : public DOSCOL {
 /*  This is the JSON Access Method class declaration.                  */
 /***********************************************************************/
 class TDBJSON : public TDBJSN {
-  friend class JSONCOL;
+	friend class JSONDEF;
+	friend class JSONCOL;
  public:
   // Constructor
    TDBJSON(PJDEF tdp, PTXF txfp);
