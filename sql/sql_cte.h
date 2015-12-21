@@ -85,7 +85,7 @@ public:
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
 
-  bool process_column_list();
+  bool process_column_list(THD *thd);
 
   bool is_referenced() { return references != 0; }
 

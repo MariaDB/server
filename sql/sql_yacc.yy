@@ -10868,7 +10868,7 @@ table_factor:
                 also do not merge them
               */
               if (!sel->next_select())
-                $2->select_n_where_fields+=
+                $3->select_n_where_fields+=
                   sel->select_n_where_fields;
             }
             /*else if (($4->select_lex &&
