@@ -1877,7 +1877,7 @@ error:
   WSREP_ERROR("Failed to create/initialize system thread");
 
   /* Abort if its the first applier/rollbacker thread. */
-  if (wsrep_creating_startup_threads < 2)
+  if (wsrep_creating_startup_threads == 1)
     unireg_abort(1);
   else
     return NULL;
@@ -2378,6 +2378,12 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 int wsrep_thd_retry_counter(THD *thd)
 {
   return(thd->wsrep_retry_counter);
+}
+
+
+extern "C" bool wsrep_thd_skip_append_keys(THD *thd)
+{
+  return thd->wsrep_skip_append_keys;
 }
 
 

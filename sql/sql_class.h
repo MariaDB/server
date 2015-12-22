@@ -3989,6 +3989,7 @@ public:
 #endif /*  GTID_SUPPORT */
   void                      *wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
+  bool                      wsrep_skip_append_keys;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

@@ -5165,7 +5165,6 @@ innobase_kill_connection(
         thd_kill_levels)
 {
 	trx_t*	trx;
-	bool	took_lock_sys = false;
 
 	DBUG_ENTER("innobase_kill_connection");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -5186,30 +5185,46 @@ innobase_kill_connection(
 #endif /* WITH_WSREP */
 	trx = thd_to_trx(thd);
 
-	if (trx) {
-		THD *cur = current_thd;
-		THD *owner = trx->current_lock_mutex_owner;
+	if (trx && trx->lock.wait_lock) {
+		/* In wsrep BF we have already took lock_sys and trx
+		mutex either on wsrep_abort_transaction() or
+		before wsrep_kill_victim(). In replication we
+		could own lock_sys mutex taken in
+		lock_deadlock_check_and_resolve().*/
 
-		if (!owner || owner != cur) {
+		WSREP_DEBUG("Killing victim trx %p BF %d trx BF %d trx_id " TRX_ID_FMT " ABORT %d thd %p"
+			" current_thd %p BF %d wait_lock_modes: %s\n",
+			trx, wsrep_thd_is_BF(trx->mysql_thd, FALSE),
+			wsrep_thd_is_BF(thd, FALSE),
+			trx->id, trx->abort_type,
+			trx->mysql_thd,
+			current_thd,
+			wsrep_thd_is_BF(current_thd, FALSE),
+			lock_get_info(trx->lock.wait_lock).c_str());
+
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
+		    trx->abort_type == TRX_SERVER_ABORT) {
 			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
-			took_lock_sys = true;
 		}
 
-		ut_ad(!trx_mutex_own(trx));
-		trx_mutex_enter(trx);
-
-		/* Cancel a pending lock request. */
-		if (trx->lock.wait_lock) {
-			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+		if (trx->abort_type != TRX_WSREP_ABORT) {
+			trx_mutex_enter(trx);
 		}
 
 		ut_ad(lock_mutex_own());
 		ut_ad(trx_mutex_own(trx));
 
-		trx_mutex_exit(trx);
+		if (trx->lock.wait_lock) {
+			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+		}
 
-		if (took_lock_sys) {
+		if (trx->abort_type != TRX_WSREP_ABORT) {
+			trx_mutex_exit(trx);
+		}
+
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
+		    trx->abort_type == TRX_SERVER_ABORT) {
 			lock_mutex_exit();
 		}
 	}
@@ -8635,7 +8650,8 @@ report_error:
 	if (!error_result                                &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
 	    wsrep_on(user_thd)                           &&
-	    !wsrep_consistency_check(user_thd))
+	    !wsrep_consistency_check(user_thd)           &&
+	    !wsrep_thd_skip_append_keys(user_thd))
 	{
 		if (wsrep_append_keys(user_thd, false, record, NULL))
 		{
@@ -9166,10 +9182,11 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                          && 
+	if (error == DB_SUCCESS                          &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-            wsrep_on(user_thd)) {
-
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_thd_skip_append_keys(user_thd))
+        {
 		DBUG_PRINT("wsrep", ("update row key"));
 
 		if (wsrep_append_keys(user_thd, false, old_row, new_row)) {
@@ -9246,9 +9263,10 @@ ha_innobase::delete_row(
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS                          &&
-	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd)) {
-
+            wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+            wsrep_on(user_thd)                           &&
+            !wsrep_thd_skip_append_keys(user_thd))
+        {
 		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
 			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
@@ -19359,13 +19377,13 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 
 	if (victim_trx) {
 		lock_mutex_enter();
-		victim_trx->current_lock_mutex_owner = victim_thd;
 		trx_mutex_enter(victim_trx);
+		victim_trx->abort_type = TRX_WSREP_ABORT;
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
 		trx_mutex_exit(victim_trx);
-		victim_trx->current_lock_mutex_owner = NULL;
 		lock_mutex_exit();
+		victim_trx->abort_type = TRX_SERVER_ABORT;
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {

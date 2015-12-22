@@ -133,6 +133,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_query_state_str,
   wsrep_thd_retry_counter,
   wsrep_thd_set_conflict_state,
+  wsrep_thd_skip_append_keys,
   wsrep_thd_trx_seqno,
   wsrep_thd_ws_handle,
   wsrep_trx_is_aborting,
