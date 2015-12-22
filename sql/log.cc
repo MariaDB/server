@@ -2250,13 +2250,15 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
 
+  if (wsrep_emulate_bin_log)
+    DBUG_RETURN(0);
+
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
     non-transactional table. Otherwise, truncate the binlog cache starting
     from the SAVEPOINT command.
   */
-  if (!wsrep_emulate_bin_log &&
-      unlikely(trans_has_updated_non_trans_table(thd) ||
+  if (unlikely(trans_has_updated_non_trans_table(thd) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
   {
     char buf[1024];
