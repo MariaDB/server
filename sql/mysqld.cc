@@ -5134,18 +5134,18 @@ static int init_server_components()
       if (tmp->wsrep_applier == true)
       {
         /*
-          Set THR_THD to temporally point to this THD to register all the
+          Save/restore server_status and variables.option_bits and they get
+          altered during init_for_queries().
+        */
+        unsigned int server_status_saved= tmp->server_status;
+        ulonglong option_bits_saved= tmp->variables.option_bits;
+
+        /*
+          Set THR_THD to temporarily point to this THD to register all the
           variables that allocates memory for this THD.
         */
         THD *current_thd_saved= current_thd;
         set_current_thd(tmp);
-
-        /*
-          Also save/restore server_status and variables.option_bits and they
-          get altered during init_for_queries().
-        */
-        unsigned int server_status_saved= tmp->server_status;
-        ulonglong option_bits_saved= tmp->variables.option_bits;
 
         tmp->init_for_queries();
 
