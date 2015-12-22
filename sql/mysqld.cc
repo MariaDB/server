@@ -5404,25 +5404,33 @@ static int init_server_components()
     (void) mi_log(1);
 
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
-  if (locked_in_memory && !getuid())
+  if (locked_in_memory)
   {
-    if (setreuid((uid_t)-1, 0) == -1)
-    {                        // this should never happen
-      sql_perror("setreuid");
-      unireg_abort(1);
+    int error;
+    if (user_info)
+    {
+      DBUG_ASSERT(!getuid());
+      if (setreuid((uid_t) -1, 0) == -1)
+      {
+        sql_perror("setreuid");
+        unireg_abort(1);
+      }
+      error= mlockall(MCL_CURRENT);
+      set_user(mysqld_user, user_info);
     }
-    if (mlockall(MCL_CURRENT))
+    else
+      error= mlockall(MCL_CURRENT);
+
+    if (error)
     {
       if (global_system_variables.log_warnings)
 	sql_print_warning("Failed to lock memory. Errno: %d\n",errno);
       locked_in_memory= 0;
     }
-    if (user_info)
-      set_user(mysqld_user, user_info);
   }
-  else
+#else
+  locked_in_memory= 0;
 #endif
-    locked_in_memory=0;
 
   ft_init_stopwords();
 

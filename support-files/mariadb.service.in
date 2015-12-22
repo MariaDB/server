@@ -42,6 +42,9 @@ PrivateNetwork=false
 User=mysql
 Group=mysql
 
+# To allow memlock to be used as non-root user if set in configuration
+CapabilityBoundingSet=CAP_IPC_LOCK
+
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
