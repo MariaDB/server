@@ -344,14 +344,21 @@ static int fill_spatial_ref_sys(THD *thd, TABLE_LIST *tables, COND *cond)
   table->field[0]->store(-1, FALSE); /*SRID*/
   table->field[1]->store(STRING_WITH_LEN("Not defined"), cs); /*AUTH_NAME*/
   table->field[2]->store(-1, FALSE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  table->field[3]->store(STRING_WITH_LEN(
+        "LOCAL_CS[\"Spatial reference wasn't specified\","
+        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0]," "AXIS[\"x\",EAST],"
+        "AXIS[\"y\",NORTH]]"), cs);/*SRTEXT*/
   if (schema_table_store_record(thd, table))
     goto exit;
 
   table->field[0]->store(0, TRUE); /*SRID*/
-  table->field[1]->store(STRING_WITH_LEN("Cartesian plane"), cs); /*AUTH_NAME*/
-  table->field[2]->store(0, TRUE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  table->field[1]->store(STRING_WITH_LEN("EPSG"), cs); /*AUTH_NAME*/
+  table->field[2]->store(404000, TRUE); /*AUTH_SRID*/
+  table->field[3]->store(STRING_WITH_LEN(
+        "LOCAL_CS[\"Wildcard 2D cartesian plane in metric unit\","
+        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0],"
+        "AXIS[\"x\",EAST]," "AXIS[\"y\",NORTH],"
+        "AUTHORITY[\"EPSG\",\"404000\"]]"), cs);/*SRTEXT*/
   if (schema_table_store_record(thd, table))
     goto exit;
 
@@ -8978,7 +8985,7 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 {
   {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
   {"AUTH_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"AUTH_SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"AUTH_SRID", 5, MYSQL_TYPE_LONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {"SRTEXT", 2048, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
