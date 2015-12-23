@@ -503,8 +503,7 @@ enum ha_base_keytype {
 #define HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE 191 /* Too many words in a phrase */
 #define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but
 						decypt failed */
-#define HA_ERR_INFO		  193    /* Information, not critical */
-#define HA_ERR_LAST               193    /* Copy of last error nr */
+#define HA_ERR_LAST               192    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

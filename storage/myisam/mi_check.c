@@ -51,6 +51,7 @@
 #include <sys/mman.h>
 #endif
 #include "rt_index.h"
+#include <mysqld_error.h>
 
 	/* Functions defined in this file */
 
@@ -4767,7 +4768,7 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info,
   {
     char buff[MY_BACKUP_NAME_EXTRA_LENGTH+1];
     my_create_backup_name(buff, "", param->backup_time);
-    my_printf_error(HA_ERR_INFO,             /* No error, just info */
+    my_printf_error(ER_GET_ERRMSG,
                     "Making backup of data file %s with extension '%s'",
                     MYF(ME_JUST_INFO | ME_NOREFRESH), share->data_file_name,
                     buff);
