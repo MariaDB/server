@@ -427,7 +427,7 @@ mysqld_install_cmd_line()
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
@@ -460,26 +460,6 @@ else
   echo "at http://mariadb.org/jira"
   echo
   exit 1
-fi
-
-s_echo "Filling help tables..."
-if { echo "use mysql;"; cat "$fill_help_tables"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: HELP FILES ARE NOT COMPLETELY INSTALLED!"
-  echo "The \"HELP\" command might not work properly."
-fi
-
-s_echo "Creating OpenGIS required SP-s..."
-if { echo "use test;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: OPENGIS REQUIRED SP-S WERE NOT COMPLETELY INSTALLED!"
-  echo "GIS extentions might not work properly."
 fi
 
 
