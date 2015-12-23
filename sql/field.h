@@ -280,6 +280,16 @@ protected:
     return decimal_value;
   }
 
+  longlong longlong_from_hex_hybrid(const char *str, uint32 length)
+  {
+    const char *end= str + length;
+    const char *ptr= end - MY_MIN(length, sizeof(longlong));
+    ulonglong value= 0;
+    for ( ; ptr != end ; ptr++)
+      value= (value << 8) + (ulonglong) (uchar) *ptr;
+    return (longlong) value;
+  }
+
   longlong longlong_from_string_with_check(const String *str) const
   {
     return longlong_from_string_with_check(str->charset(),
@@ -720,6 +730,7 @@ public:
   virtual ~Field() {}
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store(const char *to, uint length,CHARSET_INFO *cs)=0;
+  virtual int  store_hex_hybrid(const char *str, uint length);
   virtual int  store(double nr)=0;
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
@@ -1527,6 +1538,10 @@ public:
   int  store(longlong nr, bool unsigned_val)=0;
   int  store_decimal(const my_decimal *);
   int  store(const char *to,uint length,CHARSET_INFO *cs)=0;
+  int  store_hex_hybrid(const char *str, uint length)
+  {
+    return store(str, length, &my_charset_bin);
+  }
   uint repertoire(void) const
   {
     return my_charset_repertoire(field_charset);
@@ -2068,6 +2083,10 @@ public:
                field_name_arg)
     { flags|= BINARY_FLAG; }
   Item_result result_type () const { return STRING_RESULT; }   
+  int  store_hex_hybrid(const char *str, uint length)
+  {
+    return store(str, length, &my_charset_bin);
+  }
   uint32 max_display_length() { return field_length; }
   bool str_needs_quotes() { return TRUE; }
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }

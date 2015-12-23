@@ -1322,6 +1322,31 @@ bool Field::can_optimize_range(const Item_bool_func *cond,
 }
 
 
+int Field::store_hex_hybrid(const char *str, uint length)
+{
+  DBUG_ASSERT(result_type() != STRING_RESULT);
+  ulonglong nr;
+
+  if (length > 8)
+  {
+    nr= flags & UNSIGNED_FLAG ? ULONGLONG_MAX : LONGLONG_MAX;
+    goto warn;
+  }
+  nr= (ulonglong) longlong_from_hex_hybrid(str, length);
+  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
+  {
+    nr= LONGLONG_MAX;
+    goto warn;
+  }
+  return store((longlong) nr, true);  // Assume hex numbers are unsigned
+
+warn:
+  if (!store((longlong) nr, true))
+    set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
+  return 1;
+}
+
+
 /**
   Numeric fields base class constructor.
 */

@@ -3312,7 +3312,12 @@ public:
     DBUG_ASSERT(fixed == 1); 
     return (double) (ulonglong) Item_hex_hybrid::val_int();
   }
-  longlong val_int();
+  longlong val_int()
+  {
+    // following assert is redundant, because fixed=1 assigned in constructor
+    DBUG_ASSERT(fixed == 1);
+    return longlong_from_hex_hybrid(str_value.ptr(), str_value.length());
+  }
   my_decimal *val_decimal(my_decimal *decimal_value)
   {
     // following assert is redundant, because fixed=1 assigned in constructor
@@ -3321,7 +3326,11 @@ public:
     int2my_decimal(E_DEC_FATAL_ERROR, value, TRUE, decimal_value);
     return decimal_value;
   }
-  int save_in_field(Field *field, bool no_conversions);
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    field->set_notnull();
+    return field->store_hex_hybrid(str_value.ptr(), str_value.length());
+  }
   enum Item_result cast_to_int_type() const { return INT_RESULT; }
   void print(String *str, enum_query_type query_type);
 };

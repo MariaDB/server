@@ -6079,50 +6079,6 @@ void Item_hex_constant::hex_string_init(THD *thd, const char *str,
   unsigned_flag= 1;
 }
 
-longlong Item_hex_hybrid::val_int()
-{
-  // following assert is redundant, because fixed=1 assigned in constructor
-  DBUG_ASSERT(fixed == 1);
-  char *end=(char*) str_value.ptr()+str_value.length(),
-       *ptr=end-MY_MIN(str_value.length(),sizeof(longlong));
-
-  ulonglong value=0;
-  for (; ptr != end ; ptr++)
-    value=(value << 8)+ (ulonglong) (uchar) *ptr;
-  return (longlong) value;
-}
-
-
-int Item_hex_hybrid::save_in_field(Field *field, bool no_conversions)
-{
-  field->set_notnull();
-  if (field->result_type() == STRING_RESULT)
-    return field->store(str_value.ptr(), str_value.length(), 
-                        collation.collation);
-
-  ulonglong nr;
-  uint32 length= str_value.length();
-
-  if (length > 8)
-  {
-    nr= field->flags & UNSIGNED_FLAG ? ULONGLONG_MAX : LONGLONG_MAX;
-    goto warn;
-  }
-  nr= (ulonglong) val_int();
-  if ((length == 8) && !(field->flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
-  {
-    nr= LONGLONG_MAX;
-    goto warn;
-  }
-  return field->store((longlong) nr, TRUE);  // Assume hex numbers are unsigned
-
-warn:
-  if (!field->store((longlong) nr, TRUE))
-    field->set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
-                       1);
-  return 1;
-}
-
 
 void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
