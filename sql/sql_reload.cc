@@ -314,7 +314,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
 
 #ifdef WITH_WSREP
-      if (thd->wsrep_applier)
+      if (thd && thd->wsrep_applier)
       {
         /*
           In case of applier thread, do not wait for table share(s) to be
