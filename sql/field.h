@@ -775,7 +775,7 @@ public:
     return (ptr == field->ptr && null_ptr == field->null_ptr &&
             null_bit == field->null_bit && field->type() == type());
   }
-  virtual bool eq_def(Field *field);
+  virtual bool eq_def(const Field *field);
   
   /*
     pack_length() returns size (in bytes) used to store field data in memory
@@ -1501,7 +1501,7 @@ public:
   void make_field(Send_field *);
   uint decimals() const { return (uint) dec; }
   uint size_of() const { return sizeof(*this); }
-  bool eq_def(Field *field);
+  bool eq_def(const Field *field);
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -2097,7 +2097,7 @@ public:
   enum Item_result cmp_type () const { return TIME_RESULT; }
   bool val_bool() { return val_real() != 0e0; }
   uint is_equal(Create_field *new_field);
-  bool eq_def(Field *field)
+  bool eq_def(const Field *field)
   {
     return (Field::eq_def(field) && decimals() == field->decimals());
   }
@@ -3211,7 +3211,7 @@ public:
   uint row_pack_length() const { return pack_length(); }
   virtual bool zero_pack() const { return 0; }
   bool optimize_range(uint idx, uint part) { return 0; }
-  bool eq_def(Field *field);
+  bool eq_def(const Field *field);
   bool has_charset(void) const { return TRUE; }
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }

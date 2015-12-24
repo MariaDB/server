@@ -5062,7 +5062,7 @@ public:
   static Item_cache* get_cache(THD *thd, const Item* item, const Item_result type);
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
-  bool eq_def(Field *field) 
+  bool eq_def(const Field *field) 
   { 
     return cached_field ? cached_field->eq_def (field) : FALSE;
   }

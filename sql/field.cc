@@ -8863,7 +8863,7 @@ void Field_set::sql_type(String &res) const
     0  if the fields are unequally defined
 */
 
-bool Field::eq_def(Field *field)
+bool Field::eq_def(const Field *field)
 {
   if (real_type() != field->real_type() || charset() != field->charset() ||
       pack_length() != field->pack_length())
@@ -8895,7 +8895,7 @@ static bool compare_type_names(CHARSET_INFO *charset, TYPELIB *t1, TYPELIB *t2)
   returns 1 if the fields are equally defined
 */
 
-bool Field_enum::eq_def(Field *field)
+bool Field_enum::eq_def(const Field *field)
 {
   TYPELIB *values;
 
@@ -8972,7 +8972,7 @@ const uchar *Field_enum::unpack(uchar *to, const uchar *from,
   @return
   returns 1 if the fields are equally defined
 */
-bool Field_num::eq_def(Field *field)
+bool Field_num::eq_def(const Field *field)
 {
   if (!Field::eq_def(field))
     return 0;
