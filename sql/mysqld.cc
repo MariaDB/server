@@ -8946,20 +8946,20 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     binlog_format_used= true;
     break;
 #include <sslopt-case.h>
-#ifndef EMBEDDED_LIBRARY
   case 'V':
     if (argument)
     {
       strmake(server_version, argument, sizeof(server_version) - 1);
       set_sys_var_value_origin(&server_version_ptr, sys_var::CONFIG);
     }
+#ifndef EMBEDDED_LIBRARY
     else
     {
       print_version();
       opt_abort= 1;                    // Abort after parsing all options
     }
-    break;
 #endif /*EMBEDDED_LIBRARY*/
+    break;
   case 'W':
     if (!argument)
       global_system_variables.log_warnings++;
