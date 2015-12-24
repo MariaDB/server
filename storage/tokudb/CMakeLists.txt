@@ -9,10 +9,9 @@ struct a d = { .b=1, .c=2 };
 int main() { return 0; }
 " TOKUDB_OK)
 ELSE()
-  IF(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    MESSAGE(WARNING "Not Intel 64 bit CPU")
-  ELSE()
-    MESSAGE(WARNING "Too old CMAKE VERSION. 2.8.9 or higher is required by TokuDB")
+  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"  AND
+     CMAKE_VERSION VERSION_LESS "2.8.9")
+    MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
   ENDIF()
 ENDIF()
 
