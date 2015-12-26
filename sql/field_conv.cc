@@ -837,7 +837,7 @@ Copy_field::get_copy_func(Field *to,Field *from)
   @retval FALSE - conversion is needed
 */
 
-bool memcpy_field_possible(Field *to,Field *from)
+static bool memcpy_field_possible(Field *to, const Field *from)
 {
   const enum_field_types to_real_type= to->real_type();
   const enum_field_types from_real_type= from->real_type();
@@ -866,22 +866,16 @@ bool memcpy_field_possible(Field *to,Field *from)
 }
 
 
-/** Simple quick field convert that is called on insert. */
-
-int field_conv(Field *to,Field *from)
+static int field_conv_memcpy(Field *to, Field *from)
 {
-  if (memcpy_field_possible(to, from))
-  {						// Identical fields
-    /*
-      This may happen if one does 'UPDATE ... SET x=x'
-      The test is here mostly for valgrind, but can also be relevant
-      if memcpy() is implemented with prefetch-write
-    */
-    if (to->ptr != from->ptr)
-      memcpy(to->ptr, from->ptr, to->pack_length());
-    return 0;
-  }
-  return field_conv_incompatible(to, from);
+  /*
+    This may happen if one does 'UPDATE ... SET x=x'
+    The test is here mostly for valgrind, but can also be relevant
+    if memcpy() is implemented with prefetch-write
+  */
+  if (to->ptr != from->ptr)
+    memcpy(to->ptr,from->ptr, to->pack_length());
+  return 0;
 }
 
 
@@ -891,65 +885,34 @@ int field_conv(Field *to,Field *from)
   @note Impossibility of simple copy should be checked before this call.
 
   @param to              The field to copy to
-  @param from            The field to copy from
 
   @retval TRUE ERROR
   @retval FALSE OK
+
+*/
+static int field_conv_incompatible(Field *to, Field *from)
+{
+  return to->store_field(from);
+}
+
+
+/**
+  Simple quick field converter that is called on insert, e.g.:
+    INSERT INTO t1 (field1) SELECT field2 FROM t2;
 */
 
-int field_conv_incompatible(Field *to, Field *from)
+int field_conv(Field *to,Field *from)
 {
-  const enum_field_types to_real_type= to->real_type();
-  const enum_field_types from_real_type= from->real_type();
-  if (to->flags & BLOB_FLAG)
-  {						// Be sure the value is stored
-    Field_blob *blob=(Field_blob*) to;
-    from->val_str(&blob->value);
+  return memcpy_field_possible(to, from) ?
+         field_conv_memcpy(to, from) :
+         field_conv_incompatible(to, from);
+}
 
-    if (!blob->value.is_alloced() && from->is_updatable())
-      blob->value.copy();
 
-    return blob->store(blob->value.ptr(),blob->value.length(),from->charset());
-  }
-  if (from_real_type == MYSQL_TYPE_ENUM &&
-      to_real_type == MYSQL_TYPE_ENUM &&
-      from->val_int() == 0)
-  {
-    ((Field_enum *)(to))->store_type(0);
-    return 0;
-  }
-  Item_result from_result_type= from->result_type();
-  if (from_result_type == REAL_RESULT)
-    return to->store(from->val_real());
-  if (from_result_type == DECIMAL_RESULT)
-  {
-    my_decimal buff;
-    return to->store_decimal(from->val_decimal(&buff));
-  }
-  if (from->cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME ltime;
-    if (from->get_date(&ltime, 0))
-      return to->reset();
-    else
-      return to->store_time_dec(&ltime, from->decimals());
-  }
-  if ((from_result_type == STRING_RESULT &&
-            (to->result_type() == STRING_RESULT ||
-             (from_real_type != MYSQL_TYPE_ENUM &&
-              from_real_type != MYSQL_TYPE_SET))) ||
-           to->type() == MYSQL_TYPE_DECIMAL)
-  {
-    char buff[MAX_FIELD_WIDTH];
-    String result(buff,sizeof(buff),from->charset());
-    from->val_str(&result);
-    /*
-      We use c_ptr_quick() here to make it easier if to is a float/double
-      as the conversion routines will do a copy of the result doesn't
-      end with \0. Can be replaced with .ptr() when we have our own
-      string->double conversion.
-    */
-    return to->store(result.c_ptr_quick(),result.length(),from->charset());
-  }
-  return to->store(from->val_int(), MY_TEST(from->flags & UNSIGNED_FLAG));
+fast_field_copier Field::get_fast_field_copier(const Field *from)
+{
+  DBUG_ENTER("Field::get_fast_field_copier");
+  DBUG_RETURN(memcpy_field_possible(this, from) ?
+              &field_conv_memcpy :
+              &field_conv_incompatible);
 }

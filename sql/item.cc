@@ -5709,19 +5709,9 @@ static int save_field_in_field(Field *from, bool *null_value,
 }
 
 
-static int memcpy_field_value(Field *to, Field *from)
-{
-  if (to->ptr != from->ptr)
-    memcpy(to->ptr,from->ptr, to->pack_length());
-  return 0;
-}
-
 fast_field_copier Item_field::setup_fast_field_copier(Field *to)
 {
-  DBUG_ENTER("Item_field::setup_fast_field_copier");
-  DBUG_RETURN(memcpy_field_possible(to, field) ?
-              &memcpy_field_value :
-              &field_conv_incompatible);
+  return to->get_fast_field_copier(field);
 }
 
 

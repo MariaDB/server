@@ -402,8 +402,6 @@ struct ha_field_option_struct;
 
 struct st_cache_field;
 int field_conv(Field *to,Field *from);
-int field_conv_incompatible(Field *to,Field *from);
-bool memcpy_field_possible(Field *to, Field *from);
 int truncate_double(double *nr, uint field_length, uint dec,
                     bool unsigned_flag, double max_value);
 longlong double_to_longlong(double nr, bool unsigned_flag, bool *error);
@@ -616,6 +614,13 @@ class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
+protected:
+  int save_in_field_str(Field *to)
+  {
+    StringBuffer<MAX_FIELD_WIDTH> result(charset());
+    val_str(&result);
+    return to->store(result.ptr(), result.length(), charset());
+  }
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
@@ -729,6 +734,8 @@ public:
         const char *field_name_arg);
   virtual ~Field() {}
   /* Store functions returns 1 on overflow and -1 on fatal error */
+  virtual int  store_field(Field *from) { return from->save_in_field(this); }
+  virtual int  save_in_field(Field *to)= 0;
   virtual int  store(const char *to, uint length,CHARSET_INFO *cs)=0;
   virtual int  store_hex_hybrid(const char *str, uint length);
   virtual int  store(double nr)=0;
@@ -760,6 +767,7 @@ public:
   */
   virtual String *val_str(String*,String *)=0;
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
+  fast_field_copier get_fast_field_copier(const Field *from);
   /*
    str_needs_quotes() returns TRUE if the value returned by val_str() needs
    to be quoted when used in constructing an SQL query.
@@ -1502,6 +1510,10 @@ public:
   uint decimals() const { return (uint) dec; }
   uint size_of() const { return sizeof(*this); }
   bool eq_def(const Field *field);
+  int save_in_field(Field *to)
+  {
+    return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
+  }
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -1534,6 +1546,7 @@ public:
 	    const char *field_name_arg, CHARSET_INFO *charset);
   Item_result result_type () const { return STRING_RESULT; }
   uint decimals() const { return NOT_FIXED_DEC; }
+  int  save_in_field(Field *to) { return save_in_field_str(to); }
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val)=0;
   int  store_decimal(const my_decimal *);
@@ -1634,6 +1647,7 @@ public:
     not_fixed(dec_arg >= NOT_FIXED_DEC)
     {}
   Item_result result_type () const { return REAL_RESULT; }
+  int save_in_field(Field *to) { return to->store(val_real()); }
   int store_decimal(const my_decimal *);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -1701,6 +1715,11 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_NEWDECIMAL;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   Item_result result_type () const { return DECIMAL_RESULT; }
+  int save_in_field(Field *to)
+  {
+    my_decimal buff;
+    return to->store_decimal(val_decimal(&buff));
+  }
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
   void set_value_on_overflow(my_decimal *decimal_value, bool sign);
@@ -2086,6 +2105,13 @@ public:
   int  store_hex_hybrid(const char *str, uint length)
   {
     return store(str, length, &my_charset_bin);
+  }
+  int save_in_field(Field *to)
+  {
+    MYSQL_TIME ltime;
+    if (get_date(&ltime, 0))
+      return to->reset();
+    return to->store_time_dec(&ltime, decimals());
   }
   uint32 max_display_length() { return field_length; }
   bool str_needs_quotes() { return TRUE; }
@@ -2999,6 +3025,13 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  int  store_field(Field *from)
+  {                                             // Be sure the value is stored
+    from->val_str(&value);
+    if (!value.is_alloced() && from->is_updatable())
+      value.copy();
+    return store(value.ptr(), value.length(), from->charset());
+  }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3101,7 +3134,6 @@ public:
   uint max_packed_col_length(uint max_length);
   void free() { value.free(); }
   inline void clear_temporary() { bzero((uchar*) &value,sizeof(value)); }
-  friend int field_conv_incompatible(Field *to,Field *from);
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
@@ -3193,6 +3225,21 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
   enum ha_base_keytype key_type() const;
+  int store_field(Field *from)
+  {
+    if (from->real_type() == MYSQL_TYPE_ENUM && from->val_int() == 0)
+    {
+      store_type(0);
+      return 0;
+    }
+    return from->save_in_field(this);
+  }
+  int save_in_field(Field *to)
+  {
+    if (to->result_type() != STRING_RESULT)
+      return to->store(val_int(), 0);
+    return save_in_field_str(to);
+  }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3256,6 +3303,7 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
+  int  store_field(Field *from) { return from->save_in_field(this); }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr) { return Field_set::store((longlong) nr, FALSE); }
   int  store(longlong nr, bool unsigned_val);
@@ -3307,6 +3355,7 @@ public:
       clr_rec_bits(bit_ptr, bit_ofs, bit_len);
     return 0; 
   }
+  int save_in_field(Field *to) { return to->store(val_int(), true); }
   int store(const char *to, uint length, CHARSET_INFO *charset);
   int store(double nr);
   int store(longlong nr, bool unsigned_val);
