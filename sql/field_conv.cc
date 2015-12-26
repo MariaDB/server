@@ -827,42 +827,12 @@ Copy_field::get_copy_func(Field *to,Field *from)
   return do_field_eq;
 }
 
-/**
-  Check if it is possible just copy value of the fields
 
-  @param to              The field to copy to
-  @param from            The field to copy from
-
-  @retval TRUE - it is possible to just copy value of 'from' to 'to'.
-  @retval FALSE - conversion is needed
-*/
-
-static bool memcpy_field_possible(Field *to, const Field *from)
+bool Field_temporal::memcpy_field_possible(const Field *from) const
 {
-  const enum_field_types to_real_type= to->real_type();
-  const enum_field_types from_real_type= from->real_type();
-  /*
-    Warning: Calling from->type() may be unsafe in some (unclear) circumstances
-    related to SPs. See MDEV-6799.
-  */
-  return (to_real_type == from_real_type &&
-          !(to->flags & BLOB_FLAG && to->table->copy_blobs) &&
-          to->pack_length() == from->pack_length() &&
-          !(to->flags & UNSIGNED_FLAG && !(from->flags & UNSIGNED_FLAG)) &&
-          to->decimals() == from->decimals() &&
-          to_real_type != MYSQL_TYPE_ENUM &&
-          to_real_type != MYSQL_TYPE_SET &&
-          to_real_type != MYSQL_TYPE_BIT &&
-          (to_real_type != MYSQL_TYPE_NEWDECIMAL ||
-           to->field_length == from->field_length) &&
-          from->charset() == to->charset() &&
-          (!sql_mode_for_dates(to->table->in_use) ||
-           (from->type()!= MYSQL_TYPE_DATE &&
-            from->type()!= MYSQL_TYPE_DATETIME &&
-            from->type()!= MYSQL_TYPE_TIMESTAMP)) &&
-          (from_real_type != MYSQL_TYPE_VARCHAR ||
-           ((Field_varstring*)from)->length_bytes ==
-           ((Field_varstring*)to)->length_bytes));
+  return real_type() == from->real_type() &&
+         decimals() == from->decimals() &&
+         !sql_mode_for_dates(table->in_use);
 }
 
 
@@ -903,7 +873,7 @@ static int field_conv_incompatible(Field *to, Field *from)
 
 int field_conv(Field *to,Field *from)
 {
-  return memcpy_field_possible(to, from) ?
+  return to->memcpy_field_possible(from) ?
          field_conv_memcpy(to, from) :
          field_conv_incompatible(to, from);
 }
@@ -912,7 +882,7 @@ int field_conv(Field *to,Field *from)
 fast_field_copier Field::get_fast_field_copier(const Field *from)
 {
   DBUG_ENTER("Field::get_fast_field_copier");
-  DBUG_RETURN(memcpy_field_possible(this, from) ?
+  DBUG_RETURN(memcpy_field_possible(from) ?
               &field_conv_memcpy :
               &field_conv_incompatible);
 }

@@ -736,6 +736,15 @@ public:
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store_field(Field *from) { return from->save_in_field(this); }
   virtual int  save_in_field(Field *to)= 0;
+  /**
+    Check if it is possible just copy the value
+    of the field 'from' to the field 'this', e.g. for
+      INSERT INTO t1 (field1) SELECT field2 FROM t2;
+    @param from   - The field to copy from
+    @retval true  - it is possible to just copy value of 'from' to 'this'
+    @retval false - conversion is needed
+  */
+  virtual bool memcpy_field_possible(const Field *from) const= 0;
   virtual int  store(const char *to, uint length,CHARSET_INFO *cs)=0;
   virtual int  store_hex_hybrid(const char *str, uint length);
   virtual int  store(double nr)=0;
@@ -1514,6 +1523,13 @@ public:
   {
     return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
   }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return real_type() == from->real_type() &&
+           pack_length() == from->pack_length() &&
+           !((flags & UNSIGNED_FLAG) && !(from->flags & UNSIGNED_FLAG)) &&
+           decimals() == from->decimals();
+  }
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -1547,6 +1563,12 @@ public:
   Item_result result_type () const { return STRING_RESULT; }
   uint decimals() const { return NOT_FIXED_DEC; }
   int  save_in_field(Field *to) { return save_in_field_str(to); }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return real_type() == from->real_type() &&
+           pack_length() == from->pack_length() &&
+           charset() == from->charset();
+  }
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val)=0;
   int  store_decimal(const my_decimal *);
@@ -1719,6 +1741,11 @@ public:
   {
     my_decimal buff;
     return to->store_decimal(val_decimal(&buff));
+  }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return Field_num::memcpy_field_possible(from) &&
+           field_length == from->field_length;
   }
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
@@ -2113,6 +2140,7 @@ public:
       return to->reset();
     return to->store_time_dec(&ltime, decimals());
   }
+  bool memcpy_field_possible(const Field *from) const;
   uint32 max_display_length() { return field_length; }
   bool str_needs_quotes() { return TRUE; }
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
@@ -2474,6 +2502,11 @@ public:
     {}
   enum_field_types type() const { return MYSQL_TYPE_TIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return real_type() == from->real_type() &&
+           decimals() == from->decimals();
+  }
   int store_time_dec(MYSQL_TIME *ltime, uint dec);
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
@@ -2938,6 +2971,11 @@ public:
     return (uint32) field_length + (field_charset == &my_charset_bin ?
                                     length_bytes : 0);
   }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return Field_str::memcpy_field_possible(from) &&
+           length_bytes == ((Field_varstring*) from)->length_bytes;
+  }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(longlong nr, bool unsigned_val);
   int  store(double nr) { return Field_str::store(nr); } /* QQ: To be deleted */
@@ -3031,6 +3069,11 @@ public:
     if (!value.is_alloced() && from->is_updatable())
       value.copy();
     return store(value.ptr(), value.length(), from->charset());
+  }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return Field_str::memcpy_field_possible(from) &&
+           !table->copy_blobs;
   }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -3240,6 +3283,7 @@ public:
       return to->store(val_int(), 0);
     return save_in_field_str(to);
   }
+  bool memcpy_field_possible(const Field *from) const { return false; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3356,6 +3400,7 @@ public:
     return 0; 
   }
   int save_in_field(Field *to) { return to->store(val_int(), true); }
+  bool memcpy_field_possible(const Field *from) const { return false; }
   int store(const char *to, uint length, CHARSET_INFO *charset);
   int store(double nr);
   int store(longlong nr, bool unsigned_val);
