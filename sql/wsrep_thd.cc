@@ -369,6 +369,14 @@ static void wsrep_replication_process(THD *thd)
   DBUG_VOID_RETURN;
 }
 
+static bool create_wsrep_THD(wsrep_thd_processor_fun processor)
+{
+  pthread_t unused;
+  bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
+                           (void*)processor);
+  return res;
+}
+
 void wsrep_create_appliers(long threads)
 {
   if (!wsrep_connected)
@@ -385,11 +393,8 @@ void wsrep_create_appliers(long threads)
   }
 
   long wsrep_threads=0;
-  pthread_t hThread;
   while (wsrep_threads++ < threads) {
-    if (pthread_create(
-      &hThread, &connection_attrib,
-      start_wsrep_THD, (void*)wsrep_replication_process))
+    if (create_wsrep_THD(wsrep_replication_process))
       WSREP_WARN("Can't create thread to manage wsrep replication");
   }
 }
@@ -476,10 +481,8 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
   {
-    pthread_t hThread;
     /* create rollbacker */
-    if (pthread_create( &hThread, &connection_attrib,
-                        start_wsrep_THD, (void*)wsrep_rollback_process))
+    if (create_wsrep_THD(wsrep_rollback_process))
       WSREP_WARN("Can't create thread to manage wsrep rollback");
   }
 }
