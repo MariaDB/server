@@ -6,6 +6,7 @@ usr/lib/mysql/plugin/ha_blackhole.so
 usr/lib/mysql/plugin/ha_federated.so
 usr/lib/mysql/plugin/ha_federatedx.so
 usr/lib/mysql/plugin/ha_innodb.so
+usr/lib/mysql/plugin/ha_mroonga.so
 usr/lib/mysql/plugin/ha_sphinx.so
 usr/lib/mysql/plugin/handlersocket.so
 usr/lib/mysql/plugin/locales.so
@@ -85,6 +86,8 @@ usr/share/mysql/echo_stderr
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql
+usr/share/mysql/mroonga/install.sql
+usr/share/mysql/mroonga/uninstall.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_performance_tables.sql
