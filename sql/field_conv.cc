@@ -703,7 +703,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
 
 
 Copy_field::Copy_func *
-Copy_field::get_copy_func(Field *to,Field *from)
+Copy_field::get_copy_func(const Field *to, const Field *from)
 {
   if (to->flags & BLOB_FLAG)
   {
