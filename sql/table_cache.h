@@ -220,7 +220,6 @@ extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     ulong refresh_version= ULONG_MAX);
 extern ulong tdc_refresh_version(void);
 extern ulong tdc_increment_refresh_version(void);
-extern void tdc_assign_new_table_id(TABLE_SHARE *share);
 extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 

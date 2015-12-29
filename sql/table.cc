@@ -63,6 +63,8 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
 */
 LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
+static int64 last_table_id;
+
 	/* Functions defined in this file */
 
 static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
@@ -327,7 +329,16 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
-    tdc_assign_new_table_id(share);
+
+    /*
+      There is one reserved number that cannot be used. Remember to
+      change this when 6-byte global table id's are introduced.
+    */
+    do
+    {
+      share->table_map_id= my_atomic_add64_explicit(&last_table_id, 1,
+                                                    MY_MEMORY_ORDER_RELAXED);
+    } while (unlikely(share->table_map_id == ~0UL));
   }
   DBUG_RETURN(share);
 }
