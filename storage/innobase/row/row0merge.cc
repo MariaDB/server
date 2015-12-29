@@ -78,8 +78,6 @@ UNIV_INTERN char	srv_disable_sort_file_cache;
 /* Maximum pending doc memory limit in bytes for a fts tokenization thread */
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
-/* Reserve free space from every block for key_version */
-#define ROW_MERGE_RESERVE_SIZE 4
 
 /******************************************************//**
 Encrypt a merge block. */
@@ -2536,7 +2534,6 @@ row_merge_sort(
 {
 	const ulint	half	= file->offset / 2;
 	ulint		num_runs;
-	ulint		cur_run = 0;
 	ulint*		run_offset;
 	dberr_t		error	= DB_SUCCESS;
 	ulint		merge_count = 0;
@@ -2571,17 +2568,21 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	thd_progress_init(trx->mysql_thd, num_runs);
+	/* Progress report only for "normal" indexes. */
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_init(trx->mysql_thd, 1);
+	}
+
 	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
 
 	/* Merge the runs until we have one big run */
 	do {
-		cur_run++;
-
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
-		thd_progress_report(trx->mysql_thd, cur_run, num_runs);
-		sql_print_information("InnoDB: Online DDL : merge-sorting current run %lu estimated %lu runs", cur_run, num_runs);
+		/* Progress report only for "normal" indexes. */
+		if (!(dup->index->type & DICT_FTS)) {
+			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
+		}
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset,
@@ -2605,7 +2606,10 @@ row_merge_sort(
 
 	mem_free(run_offset);
 
-	thd_progress_end(trx->mysql_thd);
+	/* Progress report only for "normal" indexes. */
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_end(trx->mysql_thd);
+	}
 
 	DBUG_RETURN(error);
 }

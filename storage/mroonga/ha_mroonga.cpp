@@ -8742,7 +8742,7 @@ void ha_mroonga::remove_related_files(const char *base_path)
       if (stat(entry->d_name, &file_status) != 0) {
         continue;
       }
-      if (!((file_status.st_mode & S_IFMT) && S_IFREG)) {
+      if (!((file_status.st_mode & S_IFMT) & S_IFREG)) {
         continue;
       }
       if (strncmp(entry->d_name, base_path, base_path_length) == 0) {

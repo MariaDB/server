@@ -1619,6 +1619,8 @@ public:
 
   virtual bool check_inner_refs_processor(uchar *arg) { return FALSE; }
 
+  virtual bool switch_to_nullable_fields_processor(uchar *arg) { return FALSE; }
+
   /*
     For SP local variable returns pointer to Item representing its
     current value and pointer to current Item otherwise.
@@ -2482,6 +2484,7 @@ public:
   bool vcol_in_partition_func_processor(uchar *bool_arg);
   bool enumerate_field_refs_processor(uchar *arg);
   bool update_table_bitmaps_processor(uchar *arg);
+  bool switch_to_nullable_fields_processor(uchar *arg);
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }

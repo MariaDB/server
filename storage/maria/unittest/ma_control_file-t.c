@@ -181,6 +181,8 @@ int main(int argc,char *argv[])
   delete_file(0);
   rmdir(maria_data_root);
 
+  my_uuid_end();
+  my_end(0);
   return exit_status();
 }
 

@@ -1,5 +1,5 @@
 set default_storage_engine='tokudb';
-drop table if exists t,t1,t2,t3,t4,t5,t6,t7;
+drop table if exists t1,t2,t3,t4,t5,t6,t7;
 CREATE TABLE t1 (a blob, b text, c blob(250), d text(70000), e text(70000000));
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
@@ -26,12 +26,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` mediumtext,
   `b` mediumblob
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
   `c` mediumtext CHARACTER SET utf8 NOT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
@@ -357,15 +357,15 @@ HELLO MY	1
 a	1
 hello	1
 drop table t1;
-create table t1 (a text, unique (a(2100)));
-drop table t1;
+create table t1 (a text, unique (a(21000)));
+ERROR 42000: Specified key was too long; max key length is 3072 bytes
 create table t1 (a text, key (a(2100)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text,
   KEY `a` (`a`(2100))
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
 CREATE TABLE t1 (
 t1_id bigint(21) NOT NULL auto_increment,
@@ -501,11 +501,42 @@ select foobar, boggle from t1 where foobar = 'fish' and boggle = 10;
 foobar	boggle
 fish	10
 drop table t1;
+create table t1 (id integer auto_increment unique,imagem LONGBLOB not null default '');
+Warnings:
+Warning	1101	BLOB/TEXT column 'imagem' can't have a default value
+insert into t1 (id) values (1);
+Warnings:
+Warning	1364	Field 'imagem' doesn't have a default value
+select
+charset(load_file('../../std_data/words.dat')),
+collation(load_file('../../std_data/words.dat')),
+coercibility(load_file('../../std_data/words.dat'));
+charset(load_file('../../std_data/words.dat'))	collation(load_file('../../std_data/words.dat'))	coercibility(load_file('../../std_data/words.dat'))
+binary	binary	4
+explain extended select
+charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
+collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
+coercibility(load_file('MYSQLTEST_VARDIR/std_data/words.dat'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat')) AS `charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat'))`,collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat')) AS `collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat'))`,coercibility(load_file('MYSQLTEST_VARDIR/std_data/words.dat')) AS `coercibility(load_file('MYSQLTEST_VARDIR/std_data/words.dat'))`
+update t1 set imagem=load_file('MYSQLTEST_VARDIR/std_data/words.dat') where id=1;
+select if(imagem is null, "ERROR", "OK"),length(imagem) from t1 where id = 1;
+if(imagem is null, "ERROR", "OK")	length(imagem)
+OK	581
+drop table t1;
+create table t1 select load_file('MYSQLTEST_VARDIR/std_data/words.dat') l;
+show full fields from t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+l	longblob	NULL	YES		NULL		#	
+drop table t1;
 create table t1 (id integer primary key auto_increment, txt text not null, unique index txt_index (txt (20)));
 insert into t1 (txt) values ('Chevy'), ('Chevy ');
 ERROR 23000: Duplicate entry 'Chevy' for key 'txt_index'
 insert into t1 (txt) values ('Chevy'), ('CHEVY');
 ERROR 23000: Duplicate entry 'Chevy' for key 'txt_index'
+alter table t1 drop index txt_index, add index txt_index (txt(20));
 insert into t1 (txt) values ('Chevy ');
 select * from t1 where txt='Chevy';
 id	txt
@@ -672,7 +703,7 @@ t1	CREATE TABLE `t1` (
   `e` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`(255),`d`),
   KEY `a` (`a`,`b`,`d`,`e`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
 CREATE table t1 (a blob);
 insert into t1 values ('b'),('a\0'),('a'),('a '),('aa'),(NULL);
@@ -751,7 +782,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1
 insert into t1 values (default);
 select * from t1;
 a
@@ -847,24 +878,12 @@ Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Pleas
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
-CREATE TABLE b15776 (a timestamp(4294967294));
-Got one of the listed errors
-CREATE TABLE b15776 (a timestamp(4294967295));
-Got one of the listed errors
-CREATE TABLE b15776 (a timestamp(4294967296));
-Got one of the listed errors
-CREATE TABLE b15776 (a timestamp(-1));
-Got one of the listed errors
-CREATE TABLE b15776 (a timestamp(-2));
-Got one of the listed errors
 CREATE TABLE b15776 (a int(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Display width out of range for 'a' (max = 4294967295)
 CREATE TABLE b15776 (a char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Display width out of range for 'a' (max = 4294967295)
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Display width out of range for 'a' (max = 4294967295)
-CREATE TABLE b15776 (a timestamp(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-Got one of the listed errors
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
 Field	Type	Null	Key	Default	Extra
@@ -928,3 +947,31 @@ ERROR 42000: Display width out of range for '1' (max = 4294967295)
 explain select convert(1, binary(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Display width out of range for '1' (max = 4294967295)
 End of 5.0 tests
+CREATE TABLE t1(id INT NOT NULL);
+CREATE TABLE t2(id INT NOT NULL, c TEXT NOT NULL);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1, '');
+UPDATE t2 SET c = REPEAT('1', 70000);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT LENGTH(c) FROM t2;
+LENGTH(c)
+65535
+UPDATE t1 LEFT JOIN t2 USING(id) SET t2.c = REPEAT('1', 70000) WHERE t1.id = 1;
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT LENGTH(c) FROM t2;
+LENGTH(c)
+65535
+DROP TABLE t1, t2;
+# Bug #52160: crash and inconsistent results when grouping
+#             by a function and column
+CREATE FUNCTION f1() RETURNS TINYBLOB RETURN 1;
+CREATE TABLE t1(a CHAR(1));
+INSERT INTO t1 VALUES ('0'), ('0');
+SELECT COUNT(*) FROM t1 GROUP BY f1(), a;
+COUNT(*)
+2
+DROP FUNCTION f1;
+DROP TABLE t1;
+End of 5.1 tests

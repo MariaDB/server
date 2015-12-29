@@ -2440,7 +2440,6 @@ void DTVAL::SetTimeShift(void)
 
   } // end of SetTimeShift
 
-#if defined(connect_EXPORTS)
 // Added by Alexander Barkov
 static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
 {
@@ -2462,9 +2461,6 @@ static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
   TIME_to_localtime(tm, &ltime);
   return tm;
 } // end of gmtime_mysql
-#else
-#define gmtime_mysql(T,B)			gmtime((const time_t *)T)
-#endif
 
 /***********************************************************************/
 /*  GetGmTime: returns a pointer to a static tm structure obtained     */
@@ -2493,7 +2489,6 @@ struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   return datm;
   } // end of GetGmTime
 
-#if defined(connect_EXPORTS)
 // Added by Alexander Barkov
 static time_t mktime_mysql(struct tm *ptm)
 {
@@ -2504,9 +2499,6 @@ static time_t mktime_mysql(struct tm *ptm)
   time_t t= TIME_to_timestamp(current_thd, &ltime, &error_code);
   return error_code ? (time_t) -1 : t;
 }
-#else
-#define mktime_mysql   mktime
-#endif
 
 /***********************************************************************/
 /*  MakeTime: calculates a date value from a tm structures using the   */
@@ -2674,7 +2666,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 bool DTVAL::SetValue_char(char *p, int n)
   {
-  bool rc;
+  bool rc= 0;
 
   if (Pdtp) {
     char *p2;

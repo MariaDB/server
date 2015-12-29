@@ -1,4 +1,5 @@
-SET DEFAULT_STORAGE_ENGINE='tokudb';
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
 #
 # testing of the BIT column type
 #
@@ -24,6 +25,7 @@ drop table if exists t1,t2;
 create table t1 (a bit(65));
 
 create table t1 (a bit(0));
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
@@ -40,7 +42,7 @@ drop table t1;
 create table t1 (a bit);
 insert into t1 values (b'0'), (b'1'), (b'000'), (b'100'), (b'001');
 select hex(a) from t1;
---error ER_DUP_KEY
+--error ER_DUP_ENTRY,ER_DUP_KEY
 alter table t1 add unique (a);
 drop table t1;
 
@@ -66,8 +68,10 @@ explain select b+0 from t1;
 select b+0 from t1;
 explain select a+0, b+0 from t1;
 select a+0, b+0 from t1;
+replace_column 9 NA;
 explain select a+0, b+0 from t1 where a > 40 and b > 200 order by 1;
 select a+0, b+0 from t1 where a > 40 and b > 200 order by 1;
+replace_column 9 NA;
 explain select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 set @@max_length_for_sort_data=0;
@@ -184,6 +188,7 @@ select a+0 from t1 union select NULL;
 select NULL union select a+0 from t1;
 create table t2 select a from t1 union select a from t1;
 select a+0 from t2;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t2;
 drop table t1, t2;
 
@@ -263,6 +268,17 @@ select hex(a), b from t1;
 drop table t1;
 
 #
+# type was not properly initalized, which caused key_copy to fail
+#
+
+create table t1(bit_field bit(2), int_field int, key a(bit_field));
+insert into t1 values (1,2);
+#handler t1 open as t1;
+#handler t1 read a=(1);
+#handler t1 close;
+drop table t1;
+
+#
 # Bug #30219: GROUP BY a column of the BIT type
 #
 
@@ -323,6 +339,90 @@ SELECT 1 FROM t1 GROUP BY a;
 
 DROP TABLE t1;
 
+#
+# Bug#37799 SELECT with a BIT column in WHERE clause returns unexpected result
+#
+
+CREATE TABLE t1 (b BIT NOT NULL, i2 INTEGER NOT NULL, s VARCHAR(255) NOT NULL);
+INSERT INTO t1 VALUES(0x01,100,''), (0x00,300,''), (0x01,200,''), (0x00,100,'');
+SELECT HEX(b), i2 FROM t1 WHERE (i2>=100 AND i2<201) AND b=TRUE;
+
+CREATE TABLE t2 (b1 BIT NOT NULL, b2 BIT NOT NULL, i2 INTEGER NOT NULL,
+                 s VARCHAR(255) NOT NULL);
+INSERT INTO t2 VALUES (0x01,0x00,100,''), (0x00,0x01,300,''),
+                      (0x01,0x00,200,''), (0x00,0x01,100,'');
+SELECT HEX(b1), i2 FROM t2 WHERE (i2>=100 AND i2<201) AND b1=TRUE;
+SELECT HEX(b2), i2 FROM t2 WHERE (i2>=100 AND i2<201) AND b2=FALSE;
+SELECT HEX(b1), HEX(b2), i2 FROM t2
+       WHERE (i2>=100 AND i2<201) AND b1=TRUE AND b2=FALSE;
+
+DROP TABLE t1, t2;
+
+#
+# Bug #35796 SHOW CREATE TABLE and default value for BIT field
+#
+CREATE TABLE IF NOT EXISTS t1 (
+f1 bit(2) NOT NULL default b'10',
+f2 bit(14) NOT NULL default b'11110000111100'
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
+SHOW CREATE TABLE t1;
+
+# Should store the defaults
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+# Should store 0's, not the default
+INSERT INTO t1 VALUES (b'', b''); 
+
+SELECT HEX(f1), HEX(f2) FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE IF NOT EXISTS t1 (
+f1 bit(2) NOT NULL default b''
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+DROP TABLE t1;
+
+
+#
+# Bug#31399 Wrong query result when doing join buffering over BIT fields 
+#
+create table t1bit7 (a1 bit(7) not null);
+create table t2bit7 (b1 bit(7));
+
+insert into t1bit7 values (b'1100000'); 
+insert into t1bit7 values (b'1100001'); 
+insert into t1bit7 values (b'1100010'); 
+insert into t2bit7 values (b'1100001'); 
+insert into t2bit7 values (b'1100010'); 
+insert into t2bit7 values (b'1100110'); 
+
+select bin(a1) from t1bit7, t2bit7 where t1bit7.a1=t2bit7.b1; 
+drop table t1bit7, t2bit7; 
+
+create table t1bit7 (a1 bit(15) not null);
+create table t2bit7 (b1 bit(15));
+
+insert into t1bit7 values (b'110000011111111'); 
+insert into t1bit7 values (b'110000111111111'); 
+insert into t1bit7 values (b'110001011111111'); 
+insert into t2bit7 values (b'110000111111111'); 
+insert into t2bit7 values (b'110001011111111'); 
+insert into t2bit7 values (b'110011011111111'); 
+
+select bin(a1) from t1bit7, t2bit7 where t1bit7.a1=t2bit7.b1; 
+drop table t1bit7, t2bit7; 
+
+
+--echo #
+--echo # Bug42803: Field_bit does not have unsigned_flag field, 
+--echo # can lead to bad memory access
+--echo #
+CREATE TABLE t1 (a BIT(7), b BIT(9), KEY(a, b));
+INSERT INTO t1 VALUES(0, 0), (5, 3), (5, 6), (6, 4), (7, 0);
+EXPLAIN SELECT a+0, b+0 FROM t1 WHERE a > 4 and b < 7 ORDER BY 2;
+DROP TABLE t1;
+
+
 --echo End of 5.0 tests
 
 #
@@ -337,7 +437,33 @@ select hex(a) from t1;
 create index a on t1(a);
 insert into t1 values(0x81);
 select hex(a) from t1;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # Bug#50591 bit(31) causes Duplicate entry '1-NULL' for key 'group_key'
+--echo #
+CREATE TABLE t1(a INT, b BIT(7) NOT NULL);
+INSERT INTO t1 VALUES (NULL, 0),(NULL, 0);
+SELECT SUM(a) FROM t1 GROUP BY b, a;
+DROP TABLE t1;
+
+CREATE TABLE t1(a INT, b BIT(7) NOT NULL, c BIT(8) NOT NULL);
+INSERT INTO t1 VALUES (NULL, 0, 0),(NULL, 0, 0);
+SELECT SUM(a) FROM t1 GROUP BY c, b, a;
+DROP TABLE t1;
+
 --echo End of 5.1 tests
+
+--echo #
+--echo # Test insert of no bits. Should be treated as 0.
+--echo #
+
+CREATE TABLE IF NOT EXISTS t1 (
+f1 bit(2) NOT NULL
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+INSERT INTO t1 VALUES (b'');
+SELECT bin(f1) FROM t1;
+DROP TABLE t1;
+

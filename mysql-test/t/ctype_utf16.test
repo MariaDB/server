@@ -886,5 +886,12 @@ SELECT COUNT(DISTINCT a) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING utf16) AS SIGNED)
+--echo #
+SET NAMES utf8;
+SELECT CAST(CONVERT('1Ĳ3' USING utf16) AS SIGNED);
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

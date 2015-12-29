@@ -971,5 +971,11 @@ DROP TABLE t1;
 SELECT _utf32 0x10001=_utf32 0x10002;
 
 --echo #
+--echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
+--echo #
+SET NAMES utf8;
+SELECT CAST(CONVERT('1Ĳ3' USING utf32) AS SIGNED);
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

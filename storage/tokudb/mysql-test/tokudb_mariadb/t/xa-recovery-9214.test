@@ -1,0 +1,16 @@
+#
+# MDEV-9214 Server miscalculates the number of XA-capable engines
+#
+--source include/have_xtradb.inc
+
+select 1;
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server 0
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart:--enable-tokudb" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+select 1;

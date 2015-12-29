@@ -146,6 +146,10 @@ typedef my_socket YASSL_SOCKET_T;
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#ifdef HAVE_ERR_remove_thread_state
+#define ERR_remove_state(X) ERR_remove_thread_state(NULL)
+#endif
+
 enum enum_ssl_init_error
 {
   SSL_INITERR_NOERROR= 0, SSL_INITERR_CERT, SSL_INITERR_KEY, 

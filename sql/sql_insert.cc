@@ -113,9 +113,9 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
   @returns false if success.
 */
 
-bool check_view_single_update(List<Item> &fields, List<Item> *values,
-                              TABLE_LIST *view, table_map *map,
-                              bool insert)
+static bool check_view_single_update(List<Item> &fields, List<Item> *values,
+                                     TABLE_LIST *view, table_map *map,
+                                     bool insert)
 {
   /* it is join view => we need to find the table for update */
   List_iterator_fast<Item> it(fields);
@@ -761,6 +761,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   */
   table_list->next_local= 0;
   context->resolve_in_table_list_only(table_list);
+  switch_to_nullable_trigger_fields(*values, table);
 
   while ((values= its++))
   {
@@ -772,6 +773,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     }
     if (setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0))
       goto abort;
+    switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
  
@@ -870,6 +872,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     error= 1;
 
   table->reset_default_fields();
+  switch_to_nullable_trigger_fields(fields, table);
+  switch_to_nullable_trigger_fields(update_fields, table);
+  switch_to_nullable_trigger_fields(update_values, table);
 
   if (fields.elements || !value_count)
   {
@@ -943,8 +948,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
             share->default_values[share->null_bytes - 1];
         }
       }
-      if (fill_record_n_invoke_before_triggers(thd, table, table->field, *values, 0,
-                                               TRG_EVENT_INSERT))
+      if (fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
+                                               *values, 0, TRG_EVENT_INSERT))
       {
 	if (values_list.elements != 1 && ! thd->is_error())
 	{
@@ -1476,8 +1481,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
       thd->abort_on_warning= saved_abort_on_warning;
     }
 
-   if (!res)
-     res= setup_fields(thd, 0, update_values, MARK_COLUMNS_READ, 0, 0);
+    if (!res)
+      res= setup_fields(thd, 0, update_values, MARK_COLUMNS_READ, 0, 0);
 
     if (!res && duplic == DUP_UPDATE)
     {
@@ -2031,7 +2036,7 @@ public:
   */
   MDL_request grl_protection;
 
-  Delayed_insert()
+  Delayed_insert(SELECT_LEX *current_select)
     :locks_in_memory(0), table(0),tables_in_use(0),stacked_inserts(0),
      status(0), handler_thread_initialized(FALSE), group_count(0)
   {
@@ -2041,7 +2046,7 @@ public:
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     thd.set_command(COM_DELAYED_INSERT);
-    thd.lex->current_select= 0; 		// for my_message_sql
+    thd.lex->current_select= current_select;
     thd.lex->sql_command= SQLCOM_INSERT;        // For innodb::store_lock()
     /*
       Prevent changes to global.lock_wait_timeout from affecting
@@ -2218,7 +2223,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     */
     if (! (di= find_handler(thd, table_list)))
     {
-      if (!(di= new Delayed_insert()))
+      if (!(di= new Delayed_insert(thd->lex->current_select)))
         goto end_create;
 
       thread_safe_increment32(&thread_count);
@@ -2869,6 +2874,16 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
     if (di->open_and_lock_table())
       goto err;
+
+    /*
+      INSERT DELAYED generally expects thd->lex->current_select to be NULL,
+      since this is not an attribute of the current thread. This can lead to
+      problems if the thread that spawned the current one disconnects.
+      current_select will then point to freed memory. But current_select is
+      required to resolve the partition function. So, after fulfilling that
+      requirement, we set the current_select to 0.
+    */
+    thd->lex->current_select= NULL;
 
     /* Tell client that the thread is initialized */
     mysql_cond_signal(&di->cond_client);
@@ -3694,8 +3709,8 @@ void select_insert::store_values(List<Item> &values)
     fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
                                          TRG_EVENT_INSERT);
   else
-    fill_record_n_invoke_before_triggers(thd, table, table->field, values, 1,
-                                         TRG_EVENT_INSERT);
+    fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
+                                         values, 1, TRG_EVENT_INSERT);
 }
 
 bool select_insert::prepare_eof()

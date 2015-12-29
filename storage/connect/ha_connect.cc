@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0003 October 25, 2015";
+       char version[]= "Version 1.04.0005 December 11, 2015";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0003 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -6761,7 +6761,7 @@ maria_declare_plugin(connect)
   0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.04.0003",                                  /* string version */
+  "1.04.0005",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

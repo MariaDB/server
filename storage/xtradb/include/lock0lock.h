@@ -39,6 +39,8 @@ Created 5/7/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "ut0vec.h"
 
+#include <string>
+
 #ifdef UNIV_DEBUG
 extern ibool	lock_print_waits;
 #endif /* UNIV_DEBUG */
@@ -676,6 +678,16 @@ lock_get_type(
 	const lock_t*	lock);	/*!< in: lock */
 
 /*******************************************************************//**
+Gets the trx of the lock. Non-inline version for using outside of the
+lock module.
+@return	trx_t* */
+UNIV_INTERN
+trx_t*
+lock_get_trx(
+/*=========*/
+	const lock_t*	lock);	/*!< in: lock */
+
+/*******************************************************************//**
 Gets the id of the transaction owning a lock.
 @return	transaction id */
 UNIV_INTERN
@@ -994,6 +1006,13 @@ extern lock_sys_t*	lock_sys;
 #define lock_wait_mutex_exit() do {		\
 	mutex_exit(&lock_sys->wait_mutex);	\
 } while (0)
+
+/*******************************************************************//**
+Get lock mode and table/index name
+@return	string containing lock info */
+std::string
+lock_get_info(
+	const lock_t*);
 
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"

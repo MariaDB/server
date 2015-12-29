@@ -1452,6 +1452,9 @@ buf_pool_init_instance(
 
 	buf_pool_mutex_exit(buf_pool);
 
+	DBUG_EXECUTE_IF("buf_pool_init_instance_force_oom",
+		return(DB_ERROR); );
+
 	return(DB_SUCCESS);
 }
 

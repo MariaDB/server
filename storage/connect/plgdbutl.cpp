@@ -679,7 +679,8 @@ void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
 /*  non quoted blanks are not included in the output format.           */
 /***********************************************************************/
 PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
-  {
+{
+	int  rc;
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
 
   if (trace)
@@ -708,7 +709,7 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
   pthread_mutex_lock(&parmut);
 #endif  // !__WIN__
 #endif  //  THREAD
-  /*int rc =*/ fmdflex(pdp);
+  rc = fmdflex(pdp);
 #if defined(THREAD)
 #if defined(__WIN__)
   LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
@@ -718,9 +719,10 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
 #endif  //  THREAD
 
   if (trace)
-    htrc("Done:  in=%s out=%s\n", SVP(pdp->InFmt), SVP(pdp->OutFmt));           
+    htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
+
   return pdp;
-  } // end of MakeDateFormat
+} // end of MakeDateFormat
 
 /***********************************************************************/
 /* Extract the date from a formatted string according to format.       */

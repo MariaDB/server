@@ -863,7 +863,17 @@ UNIV_INLINE
 enum buf_page_state
 buf_page_get_state(
 /*===============*/
-	const buf_page_t*	bpage);	/*!< in: pointer to the control block */
+	const buf_page_t*	bpage);	/*!< in: pointer to the control
+					block */
+/*********************************************************************//**
+Gets the state name for state of a block
+@return	name or "CORRUPTED" */
+UNIV_INLINE
+const char*
+buf_get_state_name(
+/*===============*/
+	const buf_block_t*	block);	/*!< in: pointer to the control
+					block */
 /*********************************************************************//**
 Gets the state of a block.
 @return	state */

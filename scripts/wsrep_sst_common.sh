@@ -48,6 +48,7 @@ case "$1" in
     '--defaults-extra-file')
         readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
         shift
+        ;;
     '--defaults-group-suffix')
         WSREP_SST_OPT_CONF_SUFFIX="$2"
         shift

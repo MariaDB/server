@@ -47,7 +47,6 @@ else
   sed -i -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g" debian/control
 fi
 
-
 # Adjust changelog, add new version.
 #
 echo "Incrementing changelog and starting build scripts"

@@ -267,8 +267,7 @@ extern myf      my_global_flags;        /* Set to MY_WME for more error messages
 					/* Point to current my_message() */
 extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
-	    (*my_sigtstp_restart)(void),
-	    (*my_abort_hook)(int);
+	    (*my_sigtstp_restart)(void);
 					/* Executed when comming from shell */
 extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
 extern int my_umask_dir,

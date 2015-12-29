@@ -98,5 +98,6 @@ int spider_ping_table_mon_from_table(
   uint where_clause_length,
   long monitoring_kind,
   longlong monitoring_limit,
+  long monitoring_flag,
   bool need_lock
 );

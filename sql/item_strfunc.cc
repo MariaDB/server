@@ -4484,6 +4484,8 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
     case DYN_COL_DYNCOL:
     case DYN_COL_STRING:
       res= args[valpos]->val_str(&tmp);
+      if (res && defs[i].cs)
+        res->set_charset(defs[i].cs);
       if (res &&
           (vals[i].x.string.value.str= thd->strmake(res->ptr(), res->length())))
       {

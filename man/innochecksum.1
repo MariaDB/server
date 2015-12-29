@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBINNOCHECKSUM\FR" "1" "04/08/2015" "MariaDB 10\&.0" "MariaDB Database System"
+.TH "\FBINNOCHECKSUM\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -62,6 +62,19 @@ supports the following options\&. For options that refer to page numbers, the nu
 .sp -1
 .IP \(bu 2.3
 .\}
+\fB\-?, --help\fR
+.sp
+Displays help and exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 \fB\-c, --count\fR
 .sp
 Print a count of the number of pages in the file\&.
@@ -91,6 +104,58 @@ Debug mode; prints checksums for each page\&.
 \fB\-e \fR\fB\fInum\fB, --end-page=#\fR\fR
 .sp
 End at this page number\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-i, --per-page-details\fR
+.sp
+Print out per-page detail information\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-I, --info\fR
+.sp
+Synonym for \fB--help\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-l, --leaf\fR
+.sp
+Examine leaf index pages\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-m \fR\fB\fInum\fB, --merge=#\fR\fR
+.sp
+Leaf page count if merge given number of consecutive pages\&.
 .RE
 .sp
 .RS 4
@@ -143,6 +208,19 @@ Skip corrupt pages\&.
 \fB\-v, --verbose\fR
 .sp
 Verbose mode; print a progress indicator every five seconds\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fB\-V, --version\fR
+.sp
+Displays version information and exits\&.
 .RE
 .SH "COPYRIGHT"
 .br

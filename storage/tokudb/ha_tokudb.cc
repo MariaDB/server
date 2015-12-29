@@ -1,99 +1,33 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
 #ident "$Id$"
-/*
-COPYING CONDITIONS NOTICE:
+/*======
+This file is part of TokuDB
 
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of version 2 of the GNU General Public License as
-  published by the Free Software Foundation, and provided that the
-  following conditions are met:
 
-      * Redistributions of source code must retain this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below).
+Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
-      * Redistributions in binary form must reproduce this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below) in the documentation and/or other materials
-        provided with the distribution.
+    TokuDBis is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License, version 2,
+    as published by the Free Software Foundation.
 
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-  02110-1301, USA.
+    TokuDB is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-COPYRIGHT NOTICE:
+    You should have received a copy of the GNU General Public License
+    along with TokuDB.  If not, see <http://www.gnu.org/licenses/>.
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
-  Copyright (C) 2007-2013 Tokutek, Inc.
+======= */
 
-DISCLAIMER:
+#ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-UNIVERSITY PATENT NOTICE:
-
-  The technology is licensed by the Massachusetts Institute of
-  Technology, Rutgers State University of New Jersey, and the Research
-  Foundation of State University of New York at Stony Brook under
-  United States of America Serial No. 11/760379 and to the patents
-  and/or patent applications resulting from it.
-
-PATENT MARKING NOTICE:
-
-  This software is covered by US Patent No. 8,185,551.
-  This software is covered by US Patent No. 8,489,638.
-
-PATENT RIGHTS GRANT:
-
-  "THIS IMPLEMENTATION" means the copyrightable works distributed by
-  Tokutek as part of the Fractal Tree project.
-
-  "PATENT CLAIMS" means the claims of patents that are owned or
-  licensable by Tokutek, both currently or in the future; and that in
-  the absence of this license would be infringed by THIS
-  IMPLEMENTATION or by using or running THIS IMPLEMENTATION.
-
-  "PATENT CHALLENGE" shall mean a challenge to the validity,
-  patentability, enforceability and/or non-infringement of any of the
-  PATENT CLAIMS or otherwise opposing any of the PATENT CLAIMS.
-
-  Tokutek hereby grants to you, for the term and geographical scope of
-  the PATENT CLAIMS, a non-exclusive, no-charge, royalty-free,
-  irrevocable (except as stated in this section) patent license to
-  make, have made, use, offer to sell, sell, import, transfer, and
-  otherwise run, modify, and propagate the contents of THIS
-  IMPLEMENTATION, where such license applies only to the PATENT
-  CLAIMS.  This grant does not include claims that would be infringed
-  only as a consequence of further modifications of THIS
-  IMPLEMENTATION.  If you or your agent or licensee institute or order
-  or agree to the institution of patent litigation against any entity
-  (including a cross-claim or counterclaim in a lawsuit) alleging that
-  THIS IMPLEMENTATION constitutes direct or contributory patent
-  infringement, or inducement of patent infringement, then any rights
-  granted to you under this License shall terminate as of the date
-  such litigation is filed.  If you or your agent or exclusive
-  licensee institute or order or agree to the institution of a PATENT
-  CHALLENGE, then Tokutek may terminate any rights granted to you
-  under this License.
-*/
-
-#ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
-#ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation          // gcc: Class implementation
 #endif
 
-#include <my_global.h> //  must be first!
-
+#include <my_config.h>
 extern "C" {
 #include "stdint.h"
 #define __STDC_FORMAT_MACROS
@@ -171,33 +105,6 @@ static inline uint32_t get_len_of_offsets(KEY_AND_COL_INFO* kc_info, TABLE_SHARE
     return len;
 }
 
-
-#ifdef NOT_USED
-static int get_thread_query_string(my_thread_id id, String &qs) {
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-  THD* tmp;
-  while ((tmp= it++))
-  {
-    /* ID */
-    if (tmp->thread_id == id)
-    {
-      /* Lock THD mutex that protects its data when looking at it. */
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
-
-      /* INFO */
-      if (tmp->query())
-      {
-        qs = String(tmp->query(), tmp->query_length(), system_charset_info);
-      }
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return 0;
-}
-#endif
 
 static int allocate_key_and_col_info ( TABLE_SHARE* table_share, KEY_AND_COL_INFO* kc_info) {
     int error;
@@ -381,7 +288,7 @@ static int free_share(TOKUDB_SHARE * share) {
     }
 
 const char *ha_tokudb::table_type() const {
-    extern const char * const tokudb_hton_name;
+    extern const char *tokudb_hton_name;
     return tokudb_hton_name;
 } 
 
@@ -1649,16 +1556,6 @@ int ha_tokudb::initialize_share(const char* name, int mode) {
         goto exit;
     }
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100004
-    // a hack to support frm-only ALTER TABLE in MariaDB 5.5
-    // in 10.0 there's a proper fix with the new discovery and online alter
-    if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
-        error = remove_frm_data(share->status_block, txn);
-        if (error)
-            goto exit;
-    }
-#endif
-
 #if WITH_PARTITION_STORAGE_ENGINE
     // verify frm data for non-partitioned tables
     if (TOKU_PARTITION_WRITE_FRM_DATA || table->part_info == NULL) {
@@ -2085,7 +1982,7 @@ int ha_tokudb::write_frm_data(DB* db, DB_TXN* txn, const char* frm_name) {
 
     error = 0;
 cleanup:
-    table_share->free_frm_image(frm_data);
+    tokudb_my_free(frm_data);
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
 
@@ -2149,7 +2046,7 @@ int ha_tokudb::verify_frm_data(const char* frm_name, DB_TXN* txn) {
 
     error = 0;
 cleanup:
-    table_share->free_frm_image(mysql_frm_data);
+    tokudb_my_free(mysql_frm_data);
     tokudb_my_free(stored_frm.data);
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
@@ -4519,7 +4416,7 @@ int ha_tokudb::index_init(uint keynr, bool sorted) {
         keynr = primary_key;
     }
     tokudb_active_index = keynr;
-    
+
 #if TOKU_CLUSTERING_IS_COVERING
     if (keynr < table->s->keys && table->key_info[keynr].option_struct->clustering)
         key_read = false;
@@ -5888,9 +5785,6 @@ int ha_tokudb::info(uint flag) {
     if (flag & HA_STATUS_VARIABLE) {
         // Just to get optimizations right
         stats.records = share->rows + share->rows_from_locked_table;
-        if (stats.records == 0) {
-            stats.records++;
-        }
         stats.deleted = 0;
         if (!(flag & HA_STATUS_NO_LOCK)) {
             uint64_t num_rows = 0;
@@ -5907,9 +5801,6 @@ int ha_tokudb::info(uint flag) {
             if (error == 0) {
                 share->rows = num_rows;
                 stats.records = num_rows;
-                if (stats.records == 0) {
-                    stats.records++;
-                }
             }
             else {
                 goto cleanup;
@@ -6435,7 +6326,8 @@ static int create_sub_table(
     uint32_t block_size, 
     uint32_t read_block_size,
     toku_compression_method compression_method,
-    bool is_hot_index
+    bool is_hot_index,
+    uint32_t fanout 
     ) 
 {
     TOKUDB_DBUG_ENTER("");
@@ -6463,6 +6355,14 @@ static int create_sub_table(
         error = file->set_readpagesize(file, read_block_size);
         if (error != 0) {
             DBUG_PRINT("error", ("Got error: %d when setting read block size %u for table '%s'", error, read_block_size, table_name));
+            goto exit;
+        }
+    }
+    if (fanout != 0) {
+        error = file->set_fanout(file, fanout);
+        if (error != 0) {
+            DBUG_PRINT("error", ("Got error: %d when setting fanout %u for table '%s'",
+                       error, fanout, table_name));
             goto exit;
         }
     }
@@ -6502,6 +6402,16 @@ void ha_tokudb::update_create_info(HA_CREATE_INFO* create_info) {
             create_info->auto_increment_value = stats.auto_increment_value;
         }
     }
+#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+    if (!(create_info->used_fields & HA_CREATE_USED_ROW_FORMAT)) {
+        // show create table asks us to update this create_info, this makes it
+        // so we'll always show what compression type we're using
+        create_info->row_type = get_row_type();
+        if (create_info->row_type == ROW_TYPE_TOKU_ZLIB && THDVAR(ha_thd(), hide_default_row_format) != 0) {
+            create_info->row_type = ROW_TYPE_DEFAULT;
+        }
+    }
+#endif
 }
 
 //
@@ -6663,6 +6573,7 @@ int ha_tokudb::create_secondary_dictionary(
     uint hpk= (form->s->primary_key >= MAX_KEY) ? TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH : 0;
     uint32_t block_size;
     uint32_t read_block_size;
+    uint32_t fanout;
     THD* thd = ha_thd();
 
     memset(&row_descriptor, 0, sizeof(row_descriptor));
@@ -6701,8 +6612,11 @@ int ha_tokudb::create_secondary_dictionary(
 
     block_size = get_tokudb_block_size(thd);
     read_block_size = get_tokudb_read_block_size(thd);
+    fanout = get_tokudb_fanout(thd);
 
-    error = create_sub_table(newname, &row_descriptor, txn, block_size, read_block_size, compression_method, is_hot_index);
+    error = create_sub_table(newname, &row_descriptor, txn, block_size,
+                             read_block_size, compression_method, is_hot_index,
+                             fanout);
 cleanup:    
     tokudb_my_free(newname);
     tokudb_my_free(row_desc_buff);
@@ -6757,6 +6671,7 @@ int ha_tokudb::create_main_dictionary(const char* name, TABLE* form, DB_TXN* txn
     uint hpk= (form->s->primary_key >= MAX_KEY) ? TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH : 0;
     uint32_t block_size;
     uint32_t read_block_size;
+    uint32_t fanout;
     THD* thd = ha_thd();
 
     memset(&row_descriptor, 0, sizeof(row_descriptor));
@@ -6791,9 +6706,12 @@ int ha_tokudb::create_main_dictionary(const char* name, TABLE* form, DB_TXN* txn
 
     block_size = get_tokudb_block_size(thd);
     read_block_size = get_tokudb_read_block_size(thd);
+    fanout = get_tokudb_fanout(thd);
 
     /* Create the main table that will hold the real rows */
-    error = create_sub_table(newname, &row_descriptor, txn, block_size, read_block_size, compression_method, false);
+    error = create_sub_table(newname, &row_descriptor, txn, block_size,
+                             read_block_size, compression_method, false,
+                             fanout);
 cleanup:    
     tokudb_my_free(newname);
     tokudb_my_free(row_desc_buff);
@@ -7272,7 +7190,7 @@ double ha_tokudb::read_time(
     //
     total_scan = scan_time();
 
-    if (stats.records < rows) {
+    if (stats.records <= rows) {
         ret_val = is_clustering ? total_scan + 0.00001 : total_scan;
         goto cleanup;
     }

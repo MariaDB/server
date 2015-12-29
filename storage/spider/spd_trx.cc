@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -38,7 +38,8 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
-#if MYSQL_VERSION_ID < 100103
+#ifdef SPIDER_XID_USES_xid_cache_iterate
+#else
 #ifdef XID_CACHE_IS_SPLITTED
 extern uint *spd_db_att_xid_cache_split_num;
 #endif
@@ -1643,12 +1644,7 @@ int spider_xa_lock(
   int error_num;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_lock");
-#if MYSQL_VERSION_ID >= 100103
-  old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
-  error_num= 0;
-  if (xid_cache_insert(thd, xid_state))
-    error_num= thd->get_stmt_da()->sql_errno() == ER_XAER_DUPID ?
-               ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM;
+#ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
@@ -1657,7 +1653,15 @@ int spider_xa_lock(
   uint idx = hash_value % *spd_db_att_xid_cache_split_num;
 #endif
 #endif
+#endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
+#ifdef SPIDER_XID_USES_xid_cache_iterate
+  if (xid_cache_insert(thd, xid_state))
+  {
+    error_num = my_errno;
+    goto error;
+  }
+#else
 #ifdef XID_CACHE_IS_SPLITTED
   pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
@@ -1699,10 +1703,13 @@ int spider_xa_lock(
 #else
   pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
 #endif
+#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
 
 error:
+#ifdef SPIDER_XID_USES_xid_cache_iterate
+#else
 #ifdef XID_CACHE_IS_SPLITTED
   pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
@@ -1719,9 +1726,7 @@ int spider_xa_unlock(
   THD *thd = current_thd;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_unlock");
-#if MYSQL_VERSION_ID >= 100103
-  old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
-  xid_cache_delete(thd, xid_state);
+#ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
@@ -1730,7 +1735,11 @@ int spider_xa_unlock(
   uint idx = hash_value % *spd_db_att_xid_cache_split_num;
 #endif
 #endif
+#endif
   old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
+#ifdef SPIDER_XID_USES_xid_cache_iterate
+  xid_cache_delete(thd, xid_state);
+#else
 #ifdef XID_CACHE_IS_SPLITTED
   pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
@@ -1872,6 +1881,9 @@ int spider_internal_start_trx(
 
       trx->internal_xid_state.xa_state = XA_ACTIVE;
       trx->internal_xid_state.xid.set(&trx->xid);
+#ifdef SPIDER_XID_STATE_HAS_in_thd
+      trx->internal_xid_state.in_thd = 1;
+#endif
       if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
       {
         if (error_num == ER_SPIDER_XA_LOCKED_NUM)
@@ -3743,6 +3755,7 @@ int spider_check_trx_and_get_conn(
           spider->hs_w_conns[roop_count] = NULL;
 #endif
       }
+      bool search_link_idx_is_checked = FALSE;
       for (
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
@@ -3754,6 +3767,8 @@ int spider_check_trx_and_get_conn(
       ) {
         uint tgt_conn_kind = (use_conn_kind ? spider->conn_kind[roop_count] :
           SPIDER_CONN_KIND_MYSQL);
+        if (roop_count == spider->search_link_idx)
+          search_link_idx_is_checked = TRUE;
         if (
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           (
@@ -3794,6 +3809,7 @@ int spider_check_trx_and_get_conn(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
             }
@@ -3835,6 +3851,7 @@ int spider_check_trx_and_get_conn(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
             }
@@ -3848,9 +3865,41 @@ int spider_check_trx_and_get_conn(
 #endif
 #endif
       }
+      if (!search_link_idx_is_checked)
+      {
+        TABLE *table = spider->get_table();
+        TABLE_SHARE *table_share = table->s;
+#ifdef _MSC_VER
+        char *db, *table_name;
+        if (!(db = (char *)
+          spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
+            &db, table_share->db.length + 1,
+            &table_name, table_share->table_name.length + 1,
+            NullS))
+        ) {
+          my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+#else
+        char db[table_share->db.length + 1],
+          table_name[table_share->table_name.length + 1];
+#endif
+        memcpy(db, table_share->db.str, table_share->db.length);
+        db[table_share->db.length] = '\0';
+        memcpy(table_name, table_share->table_name.str,
+          table_share->table_name.length);
+        table_name[table_share->table_name.length] = '\0';
+        my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
+          ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
+#ifdef _MSC_VER
+        spider_free(trx, db, MYF(MY_WME));
+#endif
+        DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
+      }
     } else {
       DBUG_PRINT("info",("spider link_status = %ld",
         share->link_statuses[spider->conn_link_idx[spider->search_link_idx]]));
+      bool search_link_idx_is_checked = FALSE;
       for (
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
@@ -3860,6 +3909,8 @@ int spider_check_trx_and_get_conn(
           spider->conn_link_idx, roop_count, share->link_count,
           SPIDER_LINK_STATUS_RECOVERY)
       ) {
+        if (roop_count == spider->search_link_idx)
+          search_link_idx_is_checked = TRUE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         if (
           !use_conn_kind ||
@@ -3904,6 +3955,7 @@ int spider_check_trx_and_get_conn(
                 0,
                 share->monitoring_kind[roop_count],
                 share->monitoring_limit[roop_count],
+                share->monitoring_flag[roop_count],
                 TRUE
               );
             }
@@ -3946,6 +3998,7 @@ int spider_check_trx_and_get_conn(
                   0,
                   share->monitoring_kind[roop_count],
                   share->monitoring_limit[roop_count],
+                  share->monitoring_flag[roop_count],
                   TRUE
                 );
               }
@@ -3957,6 +4010,37 @@ int spider_check_trx_and_get_conn(
         conn->error_mode &= spider->error_mode;
 #endif
 #endif
+      }
+      if (!search_link_idx_is_checked)
+      {
+        TABLE *table = spider->get_table();
+        TABLE_SHARE *table_share = table->s;
+#ifdef _MSC_VER
+        char *db, *table_name;
+        if (!(db = (char *)
+          spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
+            &db, table_share->db.length + 1,
+            &table_name, table_share->table_name.length + 1,
+            NullS))
+        ) {
+          my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+#else
+        char db[table_share->db.length + 1],
+          table_name[table_share->table_name.length + 1];
+#endif
+        memcpy(db, table_share->db.str, table_share->db.length);
+        db[table_share->db.length] = '\0';
+        memcpy(table_name, table_share->table_name.str,
+          table_share->table_name.length);
+        table_name[table_share->table_name.length] = '\0';
+        my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
+          ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
+#ifdef _MSC_VER
+        spider_free(trx, db, MYF(MY_WME));
+#endif
+        DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
       }
     }
     spider->set_first_link_idx();

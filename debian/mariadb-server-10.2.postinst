@@ -157,7 +157,9 @@ EOF
     else
 	pass=`perl -e 'print map{("a".."z","A".."Z",0..9)[int(rand(62))]}(1..16)'`;
         if [ ! -d "$mysql_cfgdir" ]; then install -o 0 -g 0 -m 0755 -d $mysql_cfgdir; fi
+        umask 066
         cat /dev/null > $dc
+        umask 022
         echo "# Automatically generated for Debian scripts. DO NOT TOUCH!" >>$dc
         echo "[client]"                                                    >>$dc
         echo "host     = localhost"                                        >>$dc

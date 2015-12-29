@@ -189,7 +189,7 @@ Location CHAR(16) FIELD_FORMAT='PUBLISHER:PLACE',
 Year int(4) FIELD_FORMAT='DATEPUB',
 INDEX IX(ISBN)
 )
-ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bib0.json' LRECL=350 OPTION_LIST='Pretty=0';
+ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bib0.json' LRECL=320 OPTION_LIST='Pretty=0';
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	IX	1	ISBN	A	NULL	NULL	NULL		XINDEX		

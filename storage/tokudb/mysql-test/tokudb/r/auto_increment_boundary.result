@@ -102,22 +102,155 @@ select last_insert_id() from t limit 1;
 last_insert_id()
 255
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
 select last_insert_id() from t limit 1;
 last_insert_id()
 255
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
 select last_insert_id() from t limit 1;
 last_insert_id()
 255
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
 select last_insert_id() from t limit 1;
 last_insert_id()
 255
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
+select last_insert_id() from t limit 1;
+last_insert_id()
+255
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
+select last_insert_id() from t limit 1;
+last_insert_id()
+255
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
+select last_insert_id() from t limit 1;
+last_insert_id()
+255
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
+select last_insert_id() from t limit 1;
+last_insert_id()
+255
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
+select last_insert_id() from t limit 1;
+last_insert_id()
+255
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+248
+249
+250
+251
+252
+253
+254
+255
 select last_insert_id() from t limit 1;
 last_insert_id()
 255
@@ -224,22 +357,155 @@ select last_insert_id() from t limit 1;
 last_insert_id()
 65535
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
 select last_insert_id() from t limit 1;
 last_insert_id()
 65535
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
 select last_insert_id() from t limit 1;
 last_insert_id()
 65535
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
 select last_insert_id() from t limit 1;
 last_insert_id()
 65535
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
+select last_insert_id() from t limit 1;
+last_insert_id()
+65535
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
+select last_insert_id() from t limit 1;
+last_insert_id()
+65535
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
+select last_insert_id() from t limit 1;
+last_insert_id()
+65535
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
+select last_insert_id() from t limit 1;
+last_insert_id()
+65535
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
+select last_insert_id() from t limit 1;
+last_insert_id()
+65535
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+65528
+65529
+65530
+65531
+65532
+65533
+65534
+65535
 select last_insert_id() from t limit 1;
 last_insert_id()
 65535
@@ -346,22 +612,155 @@ select last_insert_id() from t limit 1;
 last_insert_id()
 4294967295
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
 select last_insert_id() from t limit 1;
 last_insert_id()
 4294967295
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
 select last_insert_id() from t limit 1;
 last_insert_id()
 4294967295
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
 select last_insert_id() from t limit 1;
 last_insert_id()
 4294967295
 insert into t set id=null;
-ERROR 22003: Out of range value for column 'id' at row 1
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
+select last_insert_id() from t limit 1;
+last_insert_id()
+4294967295
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
+select last_insert_id() from t limit 1;
+last_insert_id()
+4294967295
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
+select last_insert_id() from t limit 1;
+last_insert_id()
+4294967295
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
+select last_insert_id() from t limit 1;
+last_insert_id()
+4294967295
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
+select last_insert_id() from t limit 1;
+last_insert_id()
+4294967295
+insert into t set id=null;
+show warnings;
+Level	Code	Message
+Error	167	Out of range value for column 'id' at row 1
+select * from t;
+id
+4294967288
+4294967289
+4294967290
+4294967291
+4294967292
+4294967293
+4294967294
+4294967295
 select last_insert_id() from t limit 1;
 last_insert_id()
 4294967295
@@ -446,22 +845,22 @@ select last_insert_id() from t limit 1;
 last_insert_id()
 18446744073709551614
 insert into t set id=null;
-ERROR HY000: Failed to read auto-increment value from storage engine
+Got one of the listed errors
 select last_insert_id() from t limit 1;
 last_insert_id()
 18446744073709551614
 insert into t set id=null;
-ERROR HY000: Failed to read auto-increment value from storage engine
+Got one of the listed errors
 select last_insert_id() from t limit 1;
 last_insert_id()
 18446744073709551614
 insert into t set id=null;
-ERROR HY000: Failed to read auto-increment value from storage engine
+Got one of the listed errors
 select last_insert_id() from t limit 1;
 last_insert_id()
 18446744073709551614
 insert into t set id=null;
-ERROR HY000: Failed to read auto-increment value from storage engine
+Got one of the listed errors
 select last_insert_id() from t limit 1;
 last_insert_id()
 18446744073709551614

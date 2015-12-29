@@ -1540,6 +1540,31 @@ os_file_create_simple_func(
 	return(file);
 }
 
+/** Disable OS I/O caching on the file if the file type and server
+configuration requires it.
+@param file handle to the file
+@param name name of the file, for diagnostics
+@param mode_str operation on the file, for diagnostics
+@param type OS_LOG_FILE or OS_DATA_FILE
+@param access_type if OS_FILE_READ_WRITE_CACHED, then caching will be disabled
+unconditionally, ignored otherwise */
+static
+void
+os_file_set_nocache_if_needed(os_file_t file, const char* name,
+			      const char *mode_str, ulint type,
+			      ulint access_type)
+{
+	if (srv_read_only_mode || access_type == OS_FILE_READ_WRITE_CACHED)
+		return;
+
+	if (srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT
+	    || (type != OS_LOG_FILE
+		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
+		    || (srv_unix_file_flush_method
+			== SRV_UNIX_O_DIRECT_NO_FSYNC))))
+		os_file_set_nocache(file, name, mode_str);
+}
+
 /****************************************************************//**
 NOTE! Use the corresponding macro
 os_file_create_simple_no_error_handling(), not directly this function!
@@ -1554,9 +1579,11 @@ os_file_create_simple_no_error_handling_func(
 				null-terminated string */
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY,
-				OS_FILE_READ_WRITE, or
-				OS_FILE_READ_ALLOW_DELETE; the last option is
-				used by a backup program reading the file */
+				OS_FILE_READ_WRITE,
+				OS_FILE_READ_ALLOW_DELETE (used by a backup
+				program reading the file), or
+				OS_FILE_READ_WRITE_CACHED (disable O_DIRECT
+				if it would be enabled otherwise) */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
 	ulint           atomic_writes) /*! in: atomic writes table option
 				       value */
@@ -1595,7 +1622,8 @@ os_file_create_simple_no_error_handling_func(
 		access = GENERIC_READ;
 	} else if (srv_read_only_mode) {
 		access = GENERIC_READ;
-	} else if (access_type == OS_FILE_READ_WRITE) {
+	} else if (access_type == OS_FILE_READ_WRITE
+		   || access_type == OS_FILE_READ_WRITE_CACHED) {
 		access = GENERIC_READ | GENERIC_WRITE;
 	} else if (access_type == OS_FILE_READ_ALLOW_DELETE) {
 
@@ -1667,7 +1695,8 @@ os_file_create_simple_no_error_handling_func(
 		} else {
 
 			ut_a(access_type == OS_FILE_READ_WRITE
-			     || access_type == OS_FILE_READ_ALLOW_DELETE);
+			     || access_type == OS_FILE_READ_ALLOW_DELETE
+			     || access_type == OS_FILE_READ_WRITE_CACHED);
 
 			create_flag = O_RDWR;
 		}
@@ -1699,18 +1728,16 @@ os_file_create_simple_no_error_handling_func(
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
-	if (!srv_read_only_mode
-	    && *success
-	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
-
-		os_file_set_nocache(file, name, mode_str);
+	if (*success) {
+		os_file_set_nocache_if_needed(file, name, mode_str,
+					      OS_DATA_FILE, access_type);
 	}
 
 #ifdef USE_FILE_LOCK
 	if (!srv_read_only_mode
 	    && *success
-	    && access_type == OS_FILE_READ_WRITE
+	    && (access_type == OS_FILE_READ_WRITE
+		|| access_type == OS_FILE_READ_WRITE_CACHED)
 	    && os_file_lock(file, name)) {
 
 		*success = FALSE;
@@ -1748,7 +1775,7 @@ UNIV_INTERN
 void
 os_file_set_nocache(
 /*================*/
-	int		fd		/*!< in: file descriptor to alter */
+	os_file_t fd		/*!< in: file descriptor to alter */
 					__attribute__((unused)),
 	const char*	file_name	/*!< in: used in the diagnostic
 					message */
@@ -2127,17 +2154,9 @@ os_file_create_func(
 
 	} while (retry);
 
-	if (!srv_read_only_mode
-	    && *success
-	    && type != OS_LOG_FILE
-	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	if (*success) {
 
-		os_file_set_nocache(file, name, mode_str);
-	} else if (!srv_read_only_mode
-	    && *success
-	    && srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT) {
-		os_file_set_nocache(file, name, mode_str);
+		os_file_set_nocache_if_needed(file, name, mode_str, type, 0);
 	}
 
 #ifdef USE_FILE_LOCK
@@ -5267,20 +5286,6 @@ os_aio_windows_handle(
 	}
 
 	if (retry) {
-		/* retry failed read/write operation synchronously.
-		No need to hold array->mutex. */
-
-#ifdef UNIV_PFS_IO
-		/* This read/write does not go through os_file_read
-		and os_file_write APIs, need to register with
-		performance schema explicitly here. */
-		struct PSI_file_locker* locker = NULL;
-		register_pfs_file_io_begin(locker, slot->file, slot->len,
-					   (slot->type == OS_FILE_WRITE)
-						? PSI_FILE_WRITE
-						: PSI_FILE_READ,
-					    __FILE__, __LINE__);
-#endif
 
 		ut_a((slot->len & 0xFFFFFFFFUL) == slot->len);
 
@@ -5297,23 +5302,6 @@ os_aio_windows_handle(
 			ut_error;
 		}
 
-#ifdef UNIV_PFS_IO
-		register_pfs_file_io_end(locker, len);
-#endif
-
-		if (!ret && GetLastError() == ERROR_IO_PENDING) {
-			/* aio was queued successfully!
-			We want a synchronous i/o operation on a
-			file where we also use async i/o: in Windows
-			we must use the same wait mechanism as for
-			async i/o */
-
-			ret = GetOverlappedResult(slot->file,
-						  &(slot->control),
-						  &len, TRUE);
-		}
-
-		ret_val = ret && len == slot->len;
 	}
 
 	if (slot->type == OS_FILE_WRITE) {
@@ -6511,19 +6499,13 @@ os_file_get_block_size(
 	}
 #endif /* __WIN__*/
 
-	if (fblock_size > UNIV_PAGE_SIZE/2 || fblock_size < 512) {
-		fprintf(stderr, "InnoDB: Note: File system for file %s has "
-			"file block size %lu not supported for page_size %lu\n",
-			name, fblock_size, UNIV_PAGE_SIZE);
-
+	/* Currently we support file block size up to 4Kb */
+	if (fblock_size > 4096 || fblock_size < 512) {
 		if (fblock_size < 512) {
 			fblock_size = 512;
 		} else {
-			fblock_size = UNIV_PAGE_SIZE/2;
+			fblock_size = 4096;
 		}
-
-		fprintf(stderr, "InnoDB: Note: Using file block size %ld for file %s\n",
-			fblock_size, name);
 	}
 
 	return fblock_size;

@@ -22,7 +22,7 @@ file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 # It should have created a file in the MySQL Servers datadir
 file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
---echo Force should run it regardless of wether it's been run before
+--echo Force should run it regardless of whether it has been run before
 --exec $MYSQL_UPGRADE --force 2>&1
 
 # It should have created a file in the MySQL Servers datadir
@@ -131,6 +131,14 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 # mysql_upgrade must have created mysql_upgrade_info file,
 # so the following command should never fail.
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
+--echo #
+
+--echo Run mysql_upgrade with unauthorized access
+--error 1
+--exec $MYSQL_UPGRADE --skip-verbose --user=root --password=wrong_password 2>&1
 
 --echo #
 --echo # MDEV-4332 Increase username length from 16 characters

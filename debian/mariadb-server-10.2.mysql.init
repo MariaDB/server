@@ -17,9 +17,6 @@ set -e
 set -u
 ${DEBIAN_SCRIPT_DEBUG:+ set -v -x}
 
-# Prevent Debian's init scripts from calling systemctl
-_SYSTEMCTL_SKIP_REDIRECT=true
-
 test -x /usr/sbin/mysqld || exit 0
 
 . /lib/lsb/init-functions

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +29,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fil0fil.h"
 #include <algorithm>
+#include <string>
 
 #ifdef UNIV_NONINL
 #include "dict0dict.ic"
@@ -213,14 +214,6 @@ dict_index_remove_from_cache_low(
 	dict_index_t*	index,		/*!< in, own: index */
 	ibool		lru_evict);	/*!< in: TRUE if page being evicted
 					to make room in the table LRU list */
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-static
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict);	/*!< in: TRUE if evicting from LRU */
 #ifdef UNIV_DEBUG
 /**********************************************************************//**
 Validate the dictionary table LRU list.
@@ -788,6 +781,45 @@ dict_table_get_all_fts_indexes(
 	return(ib_vector_size(indexes));
 }
 
+/** Store autoinc value when the table is evicted.
+@param[in]	table	table evicted */
+UNIV_INTERN
+void
+dict_table_autoinc_store(
+	const dict_table_t*	table)
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	if (table->autoinc != 0) {
+		ut_ad(dict_sys->autoinc_map->find(table->id)
+		      == dict_sys->autoinc_map->end());
+
+		dict_sys->autoinc_map->insert(
+			std::pair<table_id_t, ib_uint64_t>(
+			table->id, table->autoinc));
+	}
+}
+
+/** Restore autoinc value when the table is loaded.
+@param[in]	table	table loaded */
+UNIV_INTERN
+void
+dict_table_autoinc_restore(
+	dict_table_t*	table)
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	autoinc_map_t::iterator	it;
+	it = dict_sys->autoinc_map->find(table->id);
+
+	if (it != dict_sys->autoinc_map->end()) {
+		table->autoinc = it->second;
+		ut_ad(table->autoinc != 0);
+
+		dict_sys->autoinc_map->erase(it);
+	}
+}
+
 /********************************************************************//**
 Reads the next autoinc value (== autoinc counter value), 0 if not yet
 initialized.
@@ -1090,6 +1122,8 @@ dict_init(void)
 		mutex_create(dict_foreign_err_mutex_key,
 			     &dict_foreign_err_mutex, SYNC_NO_ORDER_CHECK);
 	}
+
+	dict_sys->autoinc_map = new autoinc_map_t();
 }
 
 /**********************************************************************//**
@@ -1356,6 +1390,8 @@ dict_table_add_to_cache(
 	} else {
 		UT_LIST_ADD_FIRST(table_LRU, dict_sys->table_non_LRU, table);
 	}
+
+	dict_table_autoinc_restore(table);
 
 	ut_ad(dict_lru_validate());
 
@@ -2046,7 +2082,6 @@ dict_table_change_id_in_cache(
 
 /**********************************************************************//**
 Removes a table object from the dictionary cache. */
-static
 void
 dict_table_remove_from_cache_low(
 /*=============================*/
@@ -2107,6 +2142,10 @@ dict_table_remove_from_cache_low(
 	}
 
 	ut_ad(dict_lru_validate());
+
+	if (lru_evict) {
+		dict_table_autoinc_store(table);
+	}
 
 	if (lru_evict && table->drop_aborted) {
 		/* Do as dict_table_try_drop_aborted() does. */
@@ -2810,7 +2849,7 @@ dict_index_find_cols(
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
 
 		for (j = 0; j < table->n_cols; j++) {
-			if (!strcmp(dict_table_get_col_name(table, j),
+			if (!innobase_strcasecmp(dict_table_get_col_name(table, j),
 				    field->name)) {
 				field->col = dict_table_get_nth_col(table, j);
 
@@ -3485,11 +3524,13 @@ dict_foreign_error_report(
 	dict_foreign_t*	fk,	/*!< in: foreign key constraint */
 	const char*	msg)	/*!< in: the error message */
 {
+	std::string fk_str;
 	mutex_enter(&dict_foreign_err_mutex);
 	dict_foreign_error_report_low(file, fk->foreign_table_name);
 	fputs(msg, file);
 	fputs(" Constraint:\n", file);
-	dict_print_info_on_foreign_key_in_create_format(file, NULL, fk, TRUE);
+	fk_str = dict_print_info_on_foreign_key_in_create_format(NULL, fk, TRUE);
+	fputs(fk_str.c_str(), file);
 	putc('\n', file);
 	if (fk->foreign_index) {
 		fputs("The index in the foreign key in table is ", file);
@@ -5874,16 +5915,16 @@ dict_field_print_low(
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_key_in_create_format(
 /*============================================*/
-	FILE*		file,		/*!< in: file where to print */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	ibool		add_newline)	/*!< in: whether to add a newline */
 {
 	const char*	stripped_id;
 	ulint	i;
+	std::string	str;
 
 	if (strchr(foreign->id, '/')) {
 		/* Strip the preceding database name from the constraint id */
@@ -5893,96 +5934,99 @@ dict_print_info_on_foreign_key_in_create_format(
 		stripped_id = foreign->id;
 	}
 
-	putc(',', file);
+	str.append(",");
 
 	if (add_newline) {
 		/* SHOW CREATE TABLE wants constraints each printed nicely
 		on its own line, while error messages want no newlines
 		inserted. */
-		fputs("\n ", file);
+		str.append("\n ");
 	}
 
-	fputs(" CONSTRAINT ", file);
-	ut_print_name(file, trx, FALSE, stripped_id);
-	fputs(" FOREIGN KEY (", file);
+	str.append(" CONSTRAINT ");
+
+	str.append(ut_get_name(trx, FALSE, stripped_id));
+	str.append(" FOREIGN KEY (");
 
 	for (i = 0;;) {
-		ut_print_name(file, trx, FALSE, foreign->foreign_col_names[i]);
+		str.append(ut_get_name(trx, FALSE, foreign->foreign_col_names[i]));
 		if (++i < foreign->n_fields) {
-			fputs(", ", file);
+			str.append(", ");
 		} else {
 			break;
 		}
 	}
 
-	fputs(") REFERENCES ", file);
+	str.append(") REFERENCES ");
 
 	if (dict_tables_have_same_db(foreign->foreign_table_name_lookup,
 				     foreign->referenced_table_name_lookup)) {
 		/* Do not print the database name of the referenced table */
-		ut_print_name(file, trx, TRUE,
+		str.append(ut_get_name(trx, TRUE,
 			      dict_remove_db_name(
-				      foreign->referenced_table_name));
+				      foreign->referenced_table_name)));
 	} else {
-		ut_print_name(file, trx, TRUE,
-			      foreign->referenced_table_name);
+		str.append(ut_get_name(trx, TRUE,
+				foreign->referenced_table_name));
 	}
 
-	putc(' ', file);
-	putc('(', file);
+	str.append(" (");
 
 	for (i = 0;;) {
-		ut_print_name(file, trx, FALSE,
-			      foreign->referenced_col_names[i]);
+		str.append(ut_get_name(trx, FALSE,
+				foreign->referenced_col_names[i]));
+
 		if (++i < foreign->n_fields) {
-			fputs(", ", file);
+			str.append(", ");
 		} else {
 			break;
 		}
 	}
 
-	putc(')', file);
+	str.append(")");
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
-		fputs(" ON DELETE CASCADE", file);
+		str.append(" ON DELETE CASCADE");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
-		fputs(" ON DELETE SET NULL", file);
+		str.append(" ON DELETE SET NULL");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
-		fputs(" ON DELETE NO ACTION", file);
+		str.append(" ON DELETE NO ACTION");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
-		fputs(" ON UPDATE CASCADE", file);
+		str.append(" ON UPDATE CASCADE");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
-		fputs(" ON UPDATE SET NULL", file);
+		str.append(" ON UPDATE SET NULL");
 	}
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
-		fputs(" ON UPDATE NO ACTION", file);
+		str.append(" ON UPDATE NO ACTION");
 	}
+
+	return str;
 }
 
 /**********************************************************************//**
 Outputs info on foreign keys of a table. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_keys(
 /*============================*/
 	ibool		create_table_format, /*!< in: if TRUE then print in
 				a format suitable to be inserted into
 				a CREATE TABLE, otherwise in the format
 				of SHOW TABLE STATUS */
-	FILE*		file,	/*!< in: file where to print */
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table)	/*!< in: table */
 {
 	dict_foreign_t*	foreign;
+	std::string 	str;
 
 	mutex_enter(&(dict_sys->mutex));
 
@@ -5993,64 +6037,67 @@ dict_print_info_on_foreign_keys(
 		foreign = *it;
 
 		if (create_table_format) {
-			dict_print_info_on_foreign_key_in_create_format(
-				file, trx, foreign, TRUE);
+			str.append(
+				dict_print_info_on_foreign_key_in_create_format(
+					trx, foreign, TRUE));
 		} else {
 			ulint	i;
-			fputs("; (", file);
+			str.append("; (");
 
 			for (i = 0; i < foreign->n_fields; i++) {
 				if (i) {
-					putc(' ', file);
+					str.append(" ");
 				}
 
-				ut_print_name(file, trx, FALSE,
-					      foreign->foreign_col_names[i]);
+				str.append(ut_get_name(trx, FALSE,
+						foreign->foreign_col_names[i]));
 			}
 
-			fputs(") REFER ", file);
-			ut_print_name(file, trx, TRUE,
-				      foreign->referenced_table_name);
-			putc('(', file);
+			str.append(") REFER ");
+			str.append(ut_get_name(trx, TRUE,
+					foreign->referenced_table_name));
+			str.append(")");
 
 			for (i = 0; i < foreign->n_fields; i++) {
 				if (i) {
-					putc(' ', file);
+					str.append(" ");
 				}
-				ut_print_name(
-					file, trx, FALSE,
-					foreign->referenced_col_names[i]);
+				str.append(ut_get_name(
+						trx, FALSE,
+						foreign->referenced_col_names[i]));
 			}
 
-			putc(')', file);
+			str.append(")");
 
 			if (foreign->type == DICT_FOREIGN_ON_DELETE_CASCADE) {
-				fputs(" ON DELETE CASCADE", file);
+				str.append(" ON DELETE CASCADE");
 			}
 
 			if (foreign->type == DICT_FOREIGN_ON_DELETE_SET_NULL) {
-				fputs(" ON DELETE SET NULL", file);
+				str.append(" ON DELETE SET NULL");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
-				fputs(" ON DELETE NO ACTION", file);
+				str.append(" ON DELETE NO ACTION");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
-				fputs(" ON UPDATE CASCADE", file);
+				str.append(" ON UPDATE CASCADE");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
-				fputs(" ON UPDATE SET NULL", file);
+				str.append(" ON UPDATE SET NULL");
 			}
 
 			if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
-				fputs(" ON UPDATE NO ACTION", file);
+				str.append(" ON UPDATE NO ACTION");
 			}
 		}
 	}
 
 	mutex_exit(&(dict_sys->mutex));
+
+	return str;
 }
 
 /********************************************************************//**
@@ -6906,6 +6953,8 @@ dict_close(void)
 	if (!srv_read_only_mode) {
 		mutex_free(&dict_foreign_err_mutex);
 	}
+
+	delete dict_sys->autoinc_map;
 
 	mem_free(dict_sys);
 	dict_sys = NULL;

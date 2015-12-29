@@ -214,12 +214,14 @@ end if;
 end|
 insert into t3 values (1);
 insert into t1 values (4, "four", 1), (5, "five", 2);
-ERROR 23000: Column 'id' cannot be null
+Warnings:
+Warning	1048	Column 'id' cannot be null
 select * from t1;
 id	data	fk
 1	one	NULL
 2	two	NULL
 4	four	1
+0	five	2
 select * from t2;
 event
 INSERT INTO t1 id=1 data='one'

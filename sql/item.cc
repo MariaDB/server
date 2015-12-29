@@ -44,8 +44,7 @@
 
 const String my_null_string("NULL", 4, default_charset_info);
 
-static int save_field_in_field(Field *from, bool *null_value,
-                               Field *to, bool no_conversions);
+static int save_field_in_field(Field *, bool *, Field *, bool);
 
 
 /**
@@ -2336,6 +2335,24 @@ bool Item_field::update_table_bitmaps_processor(uchar *arg)
 {
   update_table_bitmaps();
   return FALSE;
+}
+
+static inline void set_field_to_new_field(Field **field, Field **new_field)
+{
+  if (*field)
+  {
+    Field *newf= new_field[(*field)->field_index];
+    if ((*field)->ptr == newf->ptr)
+      *field= newf;
+  }
+}
+
+bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
+{
+  Field **new_fields= (Field **)arg;
+  set_field_to_new_field(&field, new_fields);
+  set_field_to_new_field(&result_field, new_fields);
+  return 0;
 }
 
 const char *Item_ident::full_name() const
@@ -8045,7 +8062,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
   if (!arg)
   {
-    THD *thd= field_arg->table->in_use;
+    TABLE *table= field_arg->table;
+    THD *thd= table->in_use;
 
     if (field_arg->flags & NO_DEFAULT_VALUE_FLAG &&
         field_arg->real_type() != MYSQL_TYPE_ENUM)
@@ -8059,9 +8077,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
       if (context->error_processor == &view_error_processor)
       {
-        TABLE_LIST *view= field_arg->table->pos_in_table_list->top_table();
-        push_warning_printf(thd,
-                            Sql_condition::WARN_LEVEL_WARN,
+        TABLE_LIST *view= table->pos_in_table_list->top_table();
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             view->view_db.str,
@@ -8069,8 +8086,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       }
       else
       {
-        push_warning_printf(thd,
-                            Sql_condition::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                             field_arg->field_name);
@@ -8079,9 +8095,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     }
     field_arg->set_default();
     return
-      !field_arg->is_null_in_record(field_arg->table->s->default_values) &&
-       field_arg->validate_value_in_record_with_warn(thd,
-                                       field_arg->table->s->default_values) &&
+      !field_arg->is_null() &&
+       field_arg->validate_value_in_record_with_warn(thd, table->record[0]) &&
        thd->is_error() ? -1 : 0;
   }
   return Item_field::save_in_field(field_arg, no_conversions);
@@ -8275,6 +8290,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
+  field->set_explicit_default(item);
 
   return err_code < 0;
 }

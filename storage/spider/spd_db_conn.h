@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@
 #define SPIDER_SQL_LIMIT_LEN (sizeof(SPIDER_SQL_LIMIT_STR) - 1)
 #define SPIDER_SQL_INTO_STR "into "
 #define SPIDER_SQL_INTO_LEN (sizeof(SPIDER_SQL_INTO_STR) - 1)
-#define SPIDER_SQL_VALUES_STR ")values"
+#define SPIDER_SQL_VALUES_STR "values"
 #define SPIDER_SQL_VALUES_LEN (sizeof(SPIDER_SQL_VALUES_STR) - 1)
 #define SPIDER_SQL_SHARED_LOCK_STR " lock in share mode"
 #define SPIDER_SQL_SHARED_LOCK_LEN (sizeof(SPIDER_SQL_SHARED_LOCK_STR) - 1)
@@ -197,6 +197,25 @@
 #define SPIDER_SQL_MINUS_STR " - "
 #define SPIDER_SQL_MINUS_LEN (sizeof(SPIDER_SQL_MINUS_STR) - 1)
 
+#define SPIDER_SQL_YEAR_STR "year"
+#define SPIDER_SQL_YEAR_LEN (sizeof(SPIDER_SQL_YEAR_STR) - 1)
+#define SPIDER_SQL_QUARTER_STR "quarter"
+#define SPIDER_SQL_QUARTER_LEN (sizeof(SPIDER_SQL_QUARTER_STR) - 1)
+#define SPIDER_SQL_MONTH_STR "month"
+#define SPIDER_SQL_MONTH_LEN (sizeof(SPIDER_SQL_MONTH_STR) - 1)
+#define SPIDER_SQL_WEEK_STR "week"
+#define SPIDER_SQL_WEEK_LEN (sizeof(SPIDER_SQL_WEEK_STR) - 1)
+#define SPIDER_SQL_DAY_STR "day"
+#define SPIDER_SQL_DAY_LEN (sizeof(SPIDER_SQL_DAY_STR) - 1)
+#define SPIDER_SQL_HOUR_STR "hour"
+#define SPIDER_SQL_HOUR_LEN (sizeof(SPIDER_SQL_HOUR_STR) - 1)
+#define SPIDER_SQL_MINUTE_STR "minute"
+#define SPIDER_SQL_MINUTE_LEN (sizeof(SPIDER_SQL_MINUTE_STR) - 1)
+#define SPIDER_SQL_SECOND_STR "second"
+#define SPIDER_SQL_SECOND_LEN (sizeof(SPIDER_SQL_SECOND_STR) - 1)
+#define SPIDER_SQL_MICROSECOND_STR "microsecond"
+#define SPIDER_SQL_MICROSECOND_LEN (sizeof(SPIDER_SQL_MICROSECOND_STR) - 1)
+
 #define SPIDER_SQL_SHOW_RECORDS_STR "select count(*) from "
 #define SPIDER_SQL_SHOW_RECORDS_LEN sizeof(SPIDER_SQL_SHOW_RECORDS_STR) - 1
 #define SPIDER_SQL_SHOW_INDEX_STR "show index from "
@@ -234,8 +253,9 @@
 #define SPIDER_SQL_INT_LEN 20
 #define SPIDER_SQL_HANDLER_CID_LEN 6
 #define SPIDER_SQL_HANDLER_CID_FORMAT "t%05u"
-#define SPIDER_UDF_PING_TABLE_PING_ONLY (1 << 0)
-#define SPIDER_UDF_PING_TABLE_USE_WHERE (1 << 1)
+#define SPIDER_UDF_PING_TABLE_PING_ONLY                (1 << 0)
+#define SPIDER_UDF_PING_TABLE_USE_WHERE                (1 << 1)
+#define SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES (1 << 2)
 
 int spider_db_connect(
   const SPIDER_SHARE *share,
@@ -880,6 +900,15 @@ int spider_db_open_item_int(
 
 int spider_db_open_item_cache(
   Item_cache *item_cache,
+  ha_spider *spider,
+  spider_string *str,
+  const char *alias,
+  uint alias_length,
+  uint dbton_id
+);
+
+int spider_db_open_item_insert_value(
+  Item_insert_value *item_insert_value,
   ha_spider *spider,
   spider_string *str,
   const char *alias,

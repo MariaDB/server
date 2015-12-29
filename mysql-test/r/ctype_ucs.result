@@ -5640,5 +5640,14 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where ((coalesce(`test`.`t1`.`c`,0) = '3 ') and (coalesce(`test`.`t1`.`d`,0) = '3 '))
 DROP TABLE t1;
 #
+# MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
+#
+SET NAMES utf8;
+SELECT CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED);
+CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
+#
 # End of 10.1 tests
 #

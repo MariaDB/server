@@ -97,6 +97,7 @@ struct rpl_parallel_thread {
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   mysql_cond_t COND_rpl_thread_queue;
+  mysql_cond_t COND_rpl_thread_stop;
   struct rpl_parallel_thread *next;             /* For free list. */
   struct rpl_parallel_thread_pool *pool;
   THD *thd;

@@ -347,6 +347,9 @@ CREATE TABLE test.`t.1` (id int);
 mysqlcheck test t.1
 test.t.1                                           OK
 drop table test.`t.1`;
+#
+# MDEV-8123 mysqlcheck: new --process-views option conflicts with --quick, --extended and such
+#
 create view v1 as select 1;
 mysqlcheck --process-views test
 test.v1                                            OK
@@ -361,6 +364,9 @@ test.v1                                            OK
 mysqlcheck --process-views --check-upgrade test
 test.v1                                            OK
 drop view v1;
+#
+# MDEV-8124 mysqlcheck: --auto-repair runs REPAIR TABLE instead of REPAIR VIEW on views
+#
 create table t1(a int);
 mysqlcheck --process-views --check-upgrade --auto-repair test
 test.t1                                            OK
@@ -369,4 +375,17 @@ test.v1                                            Needs upgrade
 Repairing views
 test.v1                                            OK
 drop view v1;
+drop table t1;
+#
+#MDEV-7384 [PATCH] add PERSISENT FOR ALL option to mysqlanalyze/mysqlcheck
+#
+create table t1(a int);
+insert into t1 (a) values (1), (2), (3);
+select * from mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test.t1                                            Engine-independent statistics collected
+status   : OK
+select * from mysql.column_stats where db_name = 'test' and table_name = 't1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	1	3	0.0000	4.0000	1.0000	0	NULL	NULL
 drop table t1;

@@ -1,7 +1,7 @@
 select * from information_schema.engines where engine='tokudb';
 ENGINE	TokuDB
 SUPPORT	YES
-COMMENT	Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology
+COMMENT	Percona TokuDB Storage Engine with Fractal Tree(tm) Technology
 TRANSACTIONS	YES
 XA	YES
 SAVEPOINTS	YES

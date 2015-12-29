@@ -43,6 +43,8 @@ Created 1/20/1994 Heikki Tuuri
 
 #include <stdarg.h> /* for va_list */
 
+#include <string>
+
 /** Index name prefix in fast index creation */
 #define	TEMP_INDEX_PREFIX	'\377'
 /** Index name prefix in fast index creation, as a string constant */
@@ -390,7 +392,19 @@ ut_print_namel(
 				FALSE=print other identifier */
 	const char*	name,	/*!< in: name to print */
 	ulint		namelen);/*!< in: length of name */
-
+/**********************************************************************//**
+Outputs a fixed-length string, quoted as an SQL identifier.
+If the string contains a slash '/', the string will be
+output as two identifiers separated by a period (.),
+as in SQL database_name.identifier. */
+UNIV_INTERN
+std::string
+ut_get_name(
+/*=========*/
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
+	ibool		table_id,/*!< in: TRUE=print a table name,
+				FALSE=print other identifier */
+	const char*	name);	/*!< in: name to print */
 /**********************************************************************//**
 Formats a table or index name, quoted as an SQL identifier. If the name
 contains a slash '/', the result will contain two identifiers separated by

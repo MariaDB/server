@@ -241,7 +241,6 @@ begin
 end|
 delimiter ;|
 insert into t3 values (1);
---error ER_BAD_NULL_ERROR
 insert into t1 values (4, "four", 1), (5, "five", 2);
 select * from t1;
 select * from t2;

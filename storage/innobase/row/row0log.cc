@@ -1462,6 +1462,7 @@ row_log_table_apply_insert_low(
 	dtuple_t*	entry;
 	const row_log_t*log	= dup->index->online_log;
 	dict_index_t*	index	= dict_table_get_first_index(log->table);
+	ulint		n_index = 0;
 
 	ut_ad(dtuple_validate(row));
 	ut_ad(trx_id);
@@ -1497,6 +1498,8 @@ row_log_table_apply_insert_low(
 	}
 
 	do {
+		n_index++;
+
 		if (!(index = dict_table_get_next_index(index))) {
 			break;
 		}
@@ -1509,6 +1512,12 @@ row_log_table_apply_insert_low(
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx_id, thr);
+
+		/* Report correct index name for duplicate key error. */
+		if (error == DB_DUPLICATE_KEY) {
+			thr_get_trx(thr)->error_key_num = n_index;
+		}
+
 	} while (error == DB_SUCCESS);
 
 	return(error);
@@ -1816,6 +1825,7 @@ row_log_table_apply_update(
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
 	dberr_t		error;
+	ulint		n_index = 0;
 
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
@@ -2091,6 +2101,8 @@ func_exit_committed:
 			break;
 		}
 
+		n_index++;
+
 		if (index->type & DICT_FTS) {
 			continue;
 		}
@@ -2133,6 +2145,11 @@ func_exit_committed:
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
 			entry, trx_id, thr);
+
+		/* Report correct index name for duplicate key error. */
+		if (error == DB_DUPLICATE_KEY) {
+			thr_get_trx(thr)->error_key_num = n_index;
+		}
 
 		mtr_start(&mtr);
 	}

@@ -2250,13 +2250,15 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
 
+  if (wsrep_emulate_bin_log)
+    DBUG_RETURN(0);
+
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
     non-transactional table. Otherwise, truncate the binlog cache starting
     from the SAVEPOINT command.
   */
-  if (!wsrep_emulate_bin_log &&
-      unlikely(trans_has_updated_non_trans_table(thd) ||
+  if (unlikely(trans_has_updated_non_trans_table(thd) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
   {
     char buf[1024];
@@ -8049,12 +8051,14 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_binlog_end_pos");
 
+  thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)
     mysql_cond_wait(&update_cond, get_binlog_end_pos_lock());
   else
     ret= mysql_cond_timedwait(&update_cond, get_binlog_end_pos_lock(),
                               timeout);
+  thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
 
@@ -9171,12 +9175,10 @@ int TC_LOG_MMAP::recover()
     the first byte after magic signature is set to current
     number of storage engines on startup
   */
-  if (data[sizeof(tc_log_magic)] != total_ha_2pc)
+  if (data[sizeof(tc_log_magic)] > total_ha_2pc)
   {
     sql_print_error("Recovery failed! You must enable "
-                    "exactly %d storage engines that support "
-                    "two-phase commit protocol",
-                    data[sizeof(tc_log_magic)]);
+                    "all engines that were enabled at the moment of the crash");
     goto err1;
   }
 

@@ -28,7 +28,13 @@
 #include <my_global.h>
 #include <my_getopt.h>
 #include <mysys_err.h>
+#include <stdarg.h>
 #include <tap.h>
+
+ulonglong opt_ull;
+ulong opt_ul;
+int arg_c, res;
+char **arg_v, *arg_s[100];
 
 ulong mopts_num;
 char *mopts_str;
@@ -47,8 +53,29 @@ static struct my_option mopts_options[]=
    "Something numeric.",
    &mopts_num, &mopts_num, 0, GET_ULONG,
    REQUIRED_ARG, 1000000L, 1, ULONG_MAX, 0, 2, 0},
+  {"ull", 0, "ull", &opt_ull, &opt_ull,
+   0, GET_ULL, REQUIRED_ARG, 1, 0, ~0ULL, 0, 0, 0},
+  {"ul", 0, "ul", &opt_ul, &opt_ul,
+   0, GET_ULONG, REQUIRED_ARG, 1, 0, 0xFFFFFFFF, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
+
+void run(const char *arg, ...)
+{
+  va_list ap;
+  va_start(ap, arg);
+  arg_v= arg_s;
+  *arg_v++= (char*)"<skipped>";
+  while (arg)
+  {
+    *arg_v++= (char*)arg;
+    arg= va_arg(ap, char*);
+  }
+  va_end(ap);
+  arg_c= arg_v - arg_s;
+  arg_v= arg_s;
+  res= handle_options(&arg_c, &arg_v, mopts_options, 0);
+}
 
 int mopts1_argc= 4;
 const char *mopts1_argv[]= {"mopts1", "--num=123", "--str=str", "--bool"};
@@ -324,7 +351,7 @@ void test_max2()
 int main(int argc __attribute__((unused)), char **argv)
 {
   MY_INIT(argv[0]);
-  plan(4*8 + 1*4 + 3*4 + 3*2);
+  plan(4*8 + 1*4 + 3*4 + 3*2 + 3);
 
   /* gcc 4.1.2 doesn't want it in the initializer, we have to do it run-time */
   mopts_options[0].def_value= (intptr)"ddd";
@@ -350,6 +377,22 @@ int main(int argc __attribute__((unused)), char **argv)
 
   test_max1();
   test_max2();
+
+  run("--ull=100", NULL);
+  ok(res==0 && arg_c==0 && opt_ull==100,
+     "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
+
+  /*
+    negative numbers are wrapped. this is kinda questionable,
+    we might want to fix it eventually. but it'd be a change in behavior,
+    users might've got used to "-1" meaning "max possible value"
+  */
+  run("--ull=-100", NULL);
+  ok(res==0 && arg_c==0 && opt_ull==18446744073709551516ULL,
+     "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
+  run("--ul=-100", NULL);
+  ok(res==0 && arg_c==0 && opt_ul==4294967295UL,
+     "res:%d, argc:%d, opt_ul:%lu", res, arg_c, opt_ul);
 
   my_end(0);
   return exit_status();

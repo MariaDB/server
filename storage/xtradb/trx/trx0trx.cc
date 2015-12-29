@@ -1074,6 +1074,12 @@ trx_start_low(
 
 	trx->id = trx_sys_get_new_trx_id();
 
+	/* Cache the state of fake_changes that transaction will use for
+	lifetime. Any change in session/global fake_changes configuration during
+	lifetime of transaction will not be honored by already started
+	transaction. */
+	trx->fake_changes = thd_fake_changes(trx->mysql_thd);
+
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx->in_ro_trx_list);
 

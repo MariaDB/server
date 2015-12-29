@@ -256,6 +256,10 @@ fi
 # (http://samba.org/ccache) is installed, use it.
 # We use 'grep' and hope 'grep' will work as expected
 # (returns 0 if finds lines)
+
+# As cmake doesn't like CC and CXX with a space, use symlinks from
+# /usr/lib64/ccache if they exits.
+
 if test "$USING_GCOV" != "1"
 then
   # Not using gcov; Safe to use ccache
@@ -264,8 +268,14 @@ fi
 
 if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1"
 then
-  echo "$CC" | grep "ccache" > /dev/null || CC="ccache $CC"
-  echo "$CXX" | grep "ccache" > /dev/null || CXX="ccache $CXX"
+    if test -x /usr/lib64/ccache/gcc
+    then
+        CC=/usr/lib64/ccache/gcc
+    fi
+    if test -x /usr/lib64/ccache/g++
+    then
+        CXX=/usr/lib64/ccache/g++
+    fi
 fi
 
 # gcov

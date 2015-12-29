@@ -1073,44 +1073,72 @@ Table_triggers_list::~Table_triggers_list()
   @retval
     True    error
 */
-bool Table_triggers_list::prepare_record1_accessors(TABLE *table)
+bool Table_triggers_list::prepare_record_accessors(TABLE *table)
 {
-  Field **fld, **old_fld;
+  Field **fld, **trg_fld;
 
-  if (!(record1_field= (Field **)alloc_root(&table->mem_root,
-                                            (table->s->fields + 1) *
-                                            sizeof(Field*))))
-    return 1;
+  if ((bodies[TRG_EVENT_INSERT][TRG_ACTION_BEFORE] ||
+       bodies[TRG_EVENT_UPDATE][TRG_ACTION_BEFORE])
+      && (table->s->stored_fields != table->s->null_fields))
 
-  for (fld= table->field, old_fld= record1_field; *fld; fld++, old_fld++)
   {
-    /*
-      QQ: it is supposed that it is ok to use this function for field
-      cloning...
-    */
-    if (!(*old_fld= (*fld)->make_new_field(&table->mem_root, table,
-                                           table == (*fld)->table)))
+    int null_bytes= (table->s->stored_fields - table->s->null_fields + 7)/8;
+    if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, null_bytes)))
       return 1;
-    (*old_fld)->move_field_offset((my_ptrdiff_t)(table->record[1] -
-                                                 table->record[0]));
+    if (!(record0_field= (Field **)alloc_root(&table->mem_root,
+                                              (table->s->fields + 1) *
+                                              sizeof(Field*))))
+      return 1;
+
+    uchar *null_ptr= extra_null_bitmap;
+    uchar null_bit= 1;
+    for (fld= table->field, trg_fld= record0_field; *fld; fld++, trg_fld++)
+    {
+      if (!(*fld)->null_ptr && !(*fld)->vcol_info)
+      {
+        Field *f;
+        if (!(f= *trg_fld= (*fld)->make_new_field(&table->mem_root, table,
+                                                  table == (*fld)->table)))
+          return 1;
+
+        f->null_ptr= null_ptr;
+        f->null_bit= null_bit;
+        if (null_bit == 128)
+          null_ptr++, null_bit= 1;
+        else
+          null_bit*= 2;
+      }
+      else
+        *trg_fld= *fld;
+    }
+    *trg_fld= 0;
+    DBUG_ASSERT(null_ptr <= extra_null_bitmap + null_bytes);
+    bzero(extra_null_bitmap, null_bytes);
   }
-  *old_fld= 0;
+  else
+    record0_field= table->field;
 
+  if (bodies[TRG_EVENT_UPDATE][TRG_ACTION_BEFORE] ||
+      bodies[TRG_EVENT_UPDATE][TRG_ACTION_AFTER] ||
+      bodies[TRG_EVENT_DELETE][TRG_ACTION_BEFORE] ||
+      bodies[TRG_EVENT_DELETE][TRG_ACTION_AFTER])
+  {
+    if (!(record1_field= (Field **)alloc_root(&table->mem_root,
+                                              (table->s->fields + 1) *
+                                              sizeof(Field*))))
+      return 1;
+
+    for (fld= table->field, trg_fld= record1_field; *fld; fld++, trg_fld++)
+    {
+      if (!(*trg_fld= (*fld)->make_new_field(&table->mem_root, table,
+                                             table == (*fld)->table)))
+        return 1;
+      (*trg_fld)->move_field_offset((my_ptrdiff_t)(table->record[1] -
+                                                   table->record[0]));
+    }
+    *trg_fld= 0;
+  }
   return 0;
-}
-
-
-/**
-  Adjust Table_triggers_list with new TABLE pointer.
-
-  @param new_table   new pointer to TABLE instance
-*/
-
-void Table_triggers_list::set_table(TABLE *new_table)
-{
-  trigger_table= new_table;
-  for (Field **field= new_table->triggers->record1_field ; *field ; field++)
-    (*field)->init(new_table);
 }
 
 
@@ -1334,13 +1362,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       table->triggers= triggers;
       status_var_increment(thd->status_var.feature_trigger);
 
-      /*
-        TODO: This could be avoided if there is no triggers
-              for UPDATE and DELETE.
-      */
-      if (!names_only && triggers->prepare_record1_accessors(table))
-        DBUG_RETURN(1);
-
       List_iterator_fast<ulonglong> itm(triggers->definition_modes_list);
       List_iterator_fast<LEX_STRING> it_definer(triggers->definers_list);
       List_iterator_fast<LEX_STRING> it_client_cs_name(triggers->client_cs_names);
@@ -1552,6 +1573,9 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       thd->lex= old_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
+
+      if (!names_only && triggers->prepare_record_accessors(table))
+        DBUG_RETURN(1);
 
       DBUG_RETURN(0);
 
@@ -2121,12 +2145,13 @@ bool Table_triggers_list::process_triggers(THD *thd,
   if (old_row_is_record1)
   {
     old_field= record1_field;
-    new_field= trigger_table->field;
+    new_field= record0_field;
   }
   else
   {
+    DBUG_ASSERT(event == TRG_EVENT_DELETE);
     new_field= record1_field;
-    old_field= trigger_table->field;
+    old_field= record0_field;
   }
   /*
     This trigger must have been processed by the pre-locking

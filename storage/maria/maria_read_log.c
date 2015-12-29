@@ -46,6 +46,7 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
 
   maria_data_root= (char *)".";
+  sf_leaking_memory=1; /* don't report memory leaks on early exits */
   load_defaults("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc, &argv);
@@ -151,6 +152,7 @@ end:
   free_tmpdir(&maria_chk_tmpdir);
   free_defaults(default_argv);
   my_end(0);
+  sf_leaking_memory=0;
   exit(0);
   return 0;				/* No compiler warning */
 

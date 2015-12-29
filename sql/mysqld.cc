@@ -1020,7 +1020,7 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_init;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
@@ -1067,6 +1067,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
+  { &key_COND_rpl_thread_stop, "COND_rpl_thread_stop", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
@@ -2144,14 +2145,9 @@ void clean_up(bool print_message)
   item_func_sleep_free();
   lex_free();				/* Free some memory */
   item_create_cleanup();
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_free();
-#endif
-  }
   tdc_start_shutdown();
   plugin_shutdown();
+  udf_free();
   ha_end();
   if (tc_log)
     tc_log->close();
@@ -4139,10 +4135,6 @@ static int init_common_variables()
     return 1;
   }
 
-#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
-  SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
-#endif
-
   if (init_thread_environment() ||
       mysql_init_variables())
     return 1;
@@ -4371,6 +4363,11 @@ static int init_common_variables()
   }
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
+
+#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+  if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
+    SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
+#endif
 
   /* Fix host_cache_size. */
   if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
@@ -5255,7 +5252,14 @@ static int init_server_components()
       if (tmp->wsrep_applier == true)
       {
         /*
-          Set THR_THD to temporally point to this THD to register all the
+          Save/restore server_status and variables.option_bits and they get
+          altered during init_for_queries().
+        */
+        unsigned int server_status_saved= tmp->server_status;
+        ulonglong option_bits_saved= tmp->variables.option_bits;
+
+        /*
+          Set THR_THD to temporarily point to this THD to register all the
           variables that allocates memory for this THD.
         */
         THD *current_thd_saved= current_thd;
@@ -5265,6 +5269,9 @@ static int init_server_components()
 
         /* Restore current_thd. */
         set_current_thd(current_thd_saved);
+
+        tmp->server_status= server_status_saved;
+        tmp->variables.option_bits= option_bits_saved;
       }
     }
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -5425,25 +5432,33 @@ static int init_server_components()
     (void) mi_log(1);
 
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
-  if (locked_in_memory && !getuid())
+  if (locked_in_memory)
   {
-    if (setreuid((uid_t)-1, 0) == -1)
-    {                        // this should never happen
-      sql_perror("setreuid");
-      unireg_abort(1);
+    int error;
+    if (user_info)
+    {
+      DBUG_ASSERT(!getuid());
+      if (setreuid((uid_t) -1, 0) == -1)
+      {
+        sql_perror("setreuid");
+        unireg_abort(1);
+      }
+      error= mlockall(MCL_CURRENT);
+      set_user(mysqld_user, user_info);
     }
-    if (mlockall(MCL_CURRENT))
+    else
+      error= mlockall(MCL_CURRENT);
+
+    if (error)
     {
       if (global_system_variables.log_warnings)
 	sql_print_warning("Failed to lock memory. Errno: %d\n",errno);
       locked_in_memory= 0;
     }
-    if (user_info)
-      set_user(mysqld_user, user_info);
   }
-  else
+#else
+  locked_in_memory= 0;
 #endif
-    locked_in_memory=0;
 
   ft_init_stopwords();
 
@@ -5884,12 +5899,7 @@ int mysqld_main(int argc, char **argv)
   if (!opt_noacl)
     (void) grant_init();
 
-  if (!opt_noacl)
-  {
-#ifdef HAVE_DLOPEN
-    udf_init();
-#endif
-  }
+  udf_init();
 
   if (opt_bootstrap) /* If running with bootstrap, do not start replication. */
     opt_skip_slave_start= 1;

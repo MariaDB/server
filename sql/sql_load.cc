@@ -295,6 +295,9 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
   }
+  switch_to_nullable_trigger_fields(fields_vars, table);
+  switch_to_nullable_trigger_fields(set_fields, table);
+  switch_to_nullable_trigger_fields(set_values, table);
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
@@ -767,7 +770,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item_field *sql_field;
   TABLE *table= table_list->table;
-  bool err, progress_reports;
+  bool err, progress_reports, auto_increment_field_not_null=false;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_fixed_length");
 
@@ -776,6 +779,12 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  while ((sql_field= (Item_field*) it++))
+  {
+    if (table->field[sql_field->field->field_index] == table->next_number_field)
+      auto_increment_field_not_null= true;
+  }
 
   while (!read_info.read_fixed_length())
   {
@@ -819,8 +828,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     while ((sql_field= (Item_field*) it++))
     {
       Field *field= sql_field->field;                  
-      if (field == table->next_number_field)
-        table->auto_increment_field_not_null= TRUE;
+      table->auto_increment_field_not_null= auto_increment_field_not_null;
       /*
         No fields specified in fields_vars list can be null in this format.
         Mark field as not null, we should do this for each row because of
@@ -874,8 +882,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         (table->default_field && table->update_default_fields()))
       DBUG_RETURN(1);
 
-    switch (table_list->view_check_option(thd,
-                                          ignore_check_option_errors)) {
+    switch (table_list->view_check_option(thd, ignore_check_option_errors)) {
     case VIEW_CHECK_SKIP:
       read_info.next_line();
       goto continue_loop;

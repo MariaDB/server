@@ -168,7 +168,7 @@ a	b	c	g
 5	50	500	NULL
 explain select * from foo where b > 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	foo	range	b	b	5	NULL	4	Using where; Using index
+1	SIMPLE	foo	index	b	b	5	NULL	5	Using where; Using index
 select * from foo where b > 10;
 a	b	c	g
 2	20	200	NULL

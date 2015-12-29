@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Kentoku Shiba
+/* Copyright (C) 2009-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -626,6 +626,17 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
     *error_num = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
     goto error;
   }
+#ifndef DBUG_OFF
+  if (trx == spider_global_trx)
+  {
+    DBUG_ASSERT(!conn->thd);
+  }
+  DBUG_PRINT("info",("spider conn->thd=%p", conn->thd));
+  if (conn->thd)
+  {
+    DBUG_PRINT("info",("spider query_id=%lld", conn->thd->query_id));
+  }
+#endif
   conn->error_mode = 0;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (trx == spider_global_trx)
@@ -992,37 +1003,56 @@ long long spider_ping_table_body(
       limit
     ))
   ) {
+    DBUG_PRINT("info",("spider table_mon_list->mon_status == SPIDER_LINK_MON_NG:%s",
+      table_mon_list->mon_status == SPIDER_LINK_MON_NG ? "TRUE" : "FALSE"));
+    DBUG_PRINT("info",("spider error_num=%d", error_num));
+    DBUG_PRINT("info",("spider tmp_error_num=%d", tmp_error_num));
     if (tmp_error_num == HA_ERR_OUT_OF_MEM)
       goto error_with_free_table_mon_list;
     else if(tmp_error_num)
       thd->clear_error();
-    fault_count++;
-    error_num = 0;
-    if (fault_count > full_mon_count / 2)
+    if (tmp_error_num != ER_CON_COUNT_ERROR)
     {
-      mon_table_result->result_status = SPIDER_LINK_MON_NG;
-      DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_NG 2"));
-      if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
-      {
-        pthread_mutex_lock(&table_mon_list->update_status_mutex);
+      fault_count++;
+      error_num = 0;
+      if (
+        !(flags & SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES) &&
+        fault_count > full_mon_count / 2
+      ) {
+        mon_table_result->result_status = SPIDER_LINK_MON_NG;
+        DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_NG 2"));
         if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
         {
-          table_mon_list->mon_status = SPIDER_LINK_MON_NG;
-          table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
-          spider_sys_update_tables_link_status(trx->thd,
-            conv_name.c_ptr(), conv_name_length, link_idx,
-            SPIDER_LINK_STATUS_NG, TRUE);
-          spider_sys_log_tables_link_failed(trx->thd,
-            conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+/*
+          pthread_mutex_lock(&table_mon_list->update_status_mutex);
+*/
+          pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
+          if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
+          {
+            table_mon_list->mon_status = SPIDER_LINK_MON_NG;
+            table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
+            spider_update_link_status_for_share(conv_name.c_ptr(),
+              conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
+            spider_sys_update_tables_link_status(trx->thd,
+              conv_name.c_ptr(), conv_name_length, link_idx,
+              SPIDER_LINK_STATUS_NG, TRUE);
+            spider_sys_log_tables_link_failed(trx->thd,
+              conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+          }
+/*
+          pthread_mutex_unlock(&table_mon_list->update_status_mutex);
+*/
+          pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
         }
-        pthread_mutex_unlock(&table_mon_list->update_status_mutex);
+        goto end;
       }
-      goto end;
     }
   } else {
     success_count++;
-    if (success_count > full_mon_count / 2)
-    {
+    if (
+      !(flags & SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES) &&
+      success_count > full_mon_count / 2
+    ) {
       mon_table_result->result_status = SPIDER_LINK_MON_OK;
       DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_OK 1"));
       goto end;
@@ -1048,7 +1078,42 @@ long long spider_ping_table_body(
         table_mon->server_id == first_sid ||
         current_mon_count > full_mon_count
       ) {
-        if (success_count + fault_count > full_mon_count / 2)
+        if (
+          (flags & SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES) &&
+          fault_count > full_mon_count / 2
+        ) {
+          mon_table_result->result_status = SPIDER_LINK_MON_NG;
+          DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_NG 3"));
+          if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
+          {
+/*
+            pthread_mutex_lock(&table_mon_list->update_status_mutex);
+*/
+            pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
+            if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
+            {
+              table_mon_list->mon_status = SPIDER_LINK_MON_NG;
+              table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
+              spider_update_link_status_for_share(conv_name.c_ptr(),
+                conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
+              spider_sys_update_tables_link_status(trx->thd,
+                conv_name.c_ptr(), conv_name_length, link_idx,
+                SPIDER_LINK_STATUS_NG, TRUE);
+              spider_sys_log_tables_link_failed(trx->thd,
+                conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+            }
+/*
+            pthread_mutex_unlock(&table_mon_list->update_status_mutex);
+*/
+            pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
+          }
+        } else if (
+          (flags & SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES) &&
+          success_count > full_mon_count / 2
+        ) {
+          mon_table_result->result_status = SPIDER_LINK_MON_OK;
+          DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_OK 2"));
+        } else if (success_count + fault_count > full_mon_count / 2)
         {
           mon_table_result->result_status = SPIDER_LINK_MON_DRAW;
           DBUG_PRINT("info",(
@@ -1074,18 +1139,26 @@ long long spider_ping_table_body(
             mon_table_result->result_status == SPIDER_LINK_MON_NG &&
             table_mon_list->mon_status != SPIDER_LINK_MON_NG
           ) {
+/*
             pthread_mutex_lock(&table_mon_list->update_status_mutex);
+*/
+            pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
             {
               table_mon_list->mon_status = SPIDER_LINK_MON_NG;
               table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
+              spider_update_link_status_for_share(conv_name.c_ptr(),
+                conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
               spider_sys_update_tables_link_status(trx->thd,
                 conv_name.c_ptr(), conv_name_length, link_idx,
                 SPIDER_LINK_STATUS_NG, TRUE);
               spider_sys_log_tables_link_failed(trx->thd,
                 conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
             }
+/*
             pthread_mutex_unlock(&table_mon_list->update_status_mutex);
+*/
+            pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
           }
           table_mon_list->last_receptor_result =
             mon_table_result->result_status;
@@ -1245,6 +1318,7 @@ int spider_ping_table_mon_from_table(
   uint where_clause_length,
   long monitoring_kind,
   longlong monitoring_limit,
+  long monitoring_flag,
   bool need_lock
 ) {
   int error_num = 0, current_mon_count, flags;
@@ -1312,6 +1386,9 @@ int spider_ping_table_mon_from_table(
   else
     flags = 0;
 
+  if (monitoring_flag & 1)
+    flags |= SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES;
+
   if (!(table_mon_list = spider_get_ping_table_mon_list(trx, thd,
     &conv_name_str, conv_name_length, link_idx, server_id, need_lock,
     &error_num)))
@@ -1321,7 +1398,9 @@ int spider_ping_table_mon_from_table(
   {
     DBUG_PRINT("info",
       ("spider share->link_statuses[%d]=SPIDER_LINK_STATUS_NG", link_idx));
+    pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
     share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
+    pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
     error_num = ER_SPIDER_LINK_MON_NG_NUM;
     my_printf_error(error_num,
       ER_SPIDER_LINK_MON_NG_STR, MYF(0),
@@ -1386,7 +1465,10 @@ int spider_ping_table_mon_from_table(
               mon_table_result.result_status == SPIDER_LINK_MON_NG &&
               table_mon_list->mon_status != SPIDER_LINK_MON_NG
             ) {
+/*
               pthread_mutex_lock(&table_mon_list->update_status_mutex);
+*/
+              pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
               if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
               {
                 table_mon_list->mon_status = SPIDER_LINK_MON_NG;
@@ -1400,7 +1482,10 @@ int spider_ping_table_mon_from_table(
                 spider_sys_log_tables_link_failed(thd, conv_name,
                   conv_name_length, link_idx, need_lock);
               }
+/*
               pthread_mutex_unlock(&table_mon_list->update_status_mutex);
+*/
+              pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             }
             table_mon_list->last_caller_result = mon_table_result.result_status;
             if (mon_table_result.result_status == SPIDER_LINK_MON_OK)

@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLDUMP\FR" "1" "04/08/2015" "MariaDB 10\&.0" "MariaDB Database System"
+.TH "\FBMYSQLDUMP\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1103,6 +1103,22 @@ Log warnings and errors by appending them to the named file\&. The default is to
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqldump: log-queries option
+.\" log-queries option: mysqldump
+\fB\-\-log\-queries\fR\fR
+.sp
+When restoring the dump, the server will, if logging is turned on, log the queries to the general and slow query log\&. 
+Defaults to on; use \fB--skip-log-queries\fR to disable\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: master-data option
 .\" master-data option: mysqldump
 \fB\-\-master\-data[=\fR\fB\fIvalue\fR\fR\fB]\fR
@@ -1275,7 +1291,7 @@ to point the slave to the correct master server host\&. Add any such parameters 
 .\" max-allowed-packet option: mysqldump
 \fB\-\-max\-allowed\-packet=\fR\fB\fIlength\fR\fR
 .sp
-Sets the maximum packet length to send to or recieve from server\&.
+Sets the maximum packet length to send to or receive from server\&.
 .RE
 .sp
 .RS 4

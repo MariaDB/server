@@ -1,93 +1,28 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
 #ident "$Id$"
-/*
-COPYING CONDITIONS NOTICE:
+/*======
+This file is part of TokuDB
 
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of version 2 of the GNU General Public License as
-  published by the Free Software Foundation, and provided that the
-  following conditions are met:
 
-      * Redistributions of source code must retain this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below).
+Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
-      * Redistributions in binary form must reproduce this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below) in the documentation and/or other materials
-        provided with the distribution.
+    TokuDBis is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License, version 2,
+    as published by the Free Software Foundation.
 
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-  02110-1301, USA.
+    TokuDB is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-COPYRIGHT NOTICE:
+    You should have received a copy of the GNU General Public License
+    along with TokuDB.  If not, see <http://www.gnu.org/licenses/>.
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
-  Copyright (C) 2007-2013 Tokutek, Inc.
+======= */
 
-DISCLAIMER:
+#ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-UNIVERSITY PATENT NOTICE:
-
-  The technology is licensed by the Massachusetts Institute of
-  Technology, Rutgers State University of New Jersey, and the Research
-  Foundation of State University of New York at Stony Brook under
-  United States of America Serial No. 11/760379 and to the patents
-  and/or patent applications resulting from it.
-
-PATENT MARKING NOTICE:
-
-  This software is covered by US Patent No. 8,185,551.
-  This software is covered by US Patent No. 8,489,638.
-
-PATENT RIGHTS GRANT:
-
-  "THIS IMPLEMENTATION" means the copyrightable works distributed by
-  Tokutek as part of the Fractal Tree project.
-
-  "PATENT CLAIMS" means the claims of patents that are owned or
-  licensable by Tokutek, both currently or in the future; and that in
-  the absence of this license would be infringed by THIS
-  IMPLEMENTATION or by using or running THIS IMPLEMENTATION.
-
-  "PATENT CHALLENGE" shall mean a challenge to the validity,
-  patentability, enforceability and/or non-infringement of any of the
-  PATENT CLAIMS or otherwise opposing any of the PATENT CLAIMS.
-
-  Tokutek hereby grants to you, for the term and geographical scope of
-  the PATENT CLAIMS, a non-exclusive, no-charge, royalty-free,
-  irrevocable (except as stated in this section) patent license to
-  make, have made, use, offer to sell, sell, import, transfer, and
-  otherwise run, modify, and propagate the contents of THIS
-  IMPLEMENTATION, where such license applies only to the PATENT
-  CLAIMS.  This grant does not include claims that would be infringed
-  only as a consequence of further modifications of THIS
-  IMPLEMENTATION.  If you or your agent or licensee institute or order
-  or agree to the institution of patent litigation against any entity
-  (including a cross-claim or counterclaim in a lawsuit) alleging that
-  THIS IMPLEMENTATION constitutes direct or contributory patent
-  infringement, or inducement of patent infringement, then any rights
-  granted to you under this License shall terminate as of the date
-  such litigation is filed.  If you or your agent or exclusive
-  licensee institute or order or agree to the institution of a PATENT
-  CHALLENGE, then Tokutek may terminate any rights granted to you
-  under this License.
-*/
-
-#ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
-#ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 #ifndef _HATOKU_HTON_H
 #define _HATOKU_HTON_H
 
@@ -100,11 +35,12 @@ extern DB_ENV *db_env;
 enum srv_row_format_enum {
     SRV_ROW_FORMAT_UNCOMPRESSED = 0,
     SRV_ROW_FORMAT_ZLIB = 1,
-    SRV_ROW_FORMAT_QUICKLZ = 2,
-    SRV_ROW_FORMAT_LZMA = 3,
-    SRV_ROW_FORMAT_FAST = 4,
-    SRV_ROW_FORMAT_SMALL = 5,
-    SRV_ROW_FORMAT_DEFAULT = 6
+    SRV_ROW_FORMAT_SNAPPY = 2,
+    SRV_ROW_FORMAT_QUICKLZ = 3,
+    SRV_ROW_FORMAT_LZMA = 4,
+    SRV_ROW_FORMAT_FAST = 5,
+    SRV_ROW_FORMAT_SMALL = 6,
+    SRV_ROW_FORMAT_DEFAULT = 7
 };
 typedef enum srv_row_format_enum srv_row_format_t;
 
@@ -115,6 +51,8 @@ static inline srv_row_format_t toku_compression_method_to_row_format(toku_compre
     case TOKU_ZLIB_WITHOUT_CHECKSUM_METHOD:
     case TOKU_ZLIB_METHOD:
         return SRV_ROW_FORMAT_ZLIB;
+    case TOKU_SNAPPY_METHOD:
+        return SRV_ROW_FORMAT_SNAPPY;
     case TOKU_QUICKLZ_METHOD:
         return SRV_ROW_FORMAT_QUICKLZ;
     case TOKU_LZMA_METHOD:
@@ -137,6 +75,8 @@ static inline toku_compression_method row_format_to_toku_compression_method(srv_
     case SRV_ROW_FORMAT_QUICKLZ:
     case SRV_ROW_FORMAT_FAST:
         return TOKU_QUICKLZ_METHOD;
+    case SRV_ROW_FORMAT_SNAPPY:
+        return TOKU_SNAPPY_METHOD;
     case SRV_ROW_FORMAT_ZLIB:
     case SRV_ROW_FORMAT_DEFAULT:
         return TOKU_ZLIB_WITHOUT_CHECKSUM_METHOD;
@@ -316,6 +256,21 @@ static MYSQL_THDVAR_BOOL(disable_slow_upsert,
 );
 #endif
 
+static MYSQL_THDVAR_UINT(fanout,
+    0,
+    "fractal tree fanout",
+    NULL, 
+    NULL, 
+    16,    // default
+    2,     // min
+    16*1024,  // max
+    1      // blocksize???
+);
+
+static uint get_tokudb_fanout(THD* thd) {
+    return THDVAR(thd, fanout);
+}
+
 static MYSQL_THDVAR_UINT(analyze_time, 0, "analyze time (seconds)", NULL /*check*/, NULL /*update*/, 5 /*default*/, 0 /*min*/, ~0U /*max*/, 1 /*blocksize*/);
 
 static MYSQL_THDVAR_DOUBLE(analyze_delete_fraction, 0, "fraction of rows allowed to be deleted", NULL /*check*/, NULL /*update*/, 1.0 /*def*/, 0 /*min*/, 1.0 /*max*/, 1);
@@ -350,6 +305,7 @@ static MYSQL_THDVAR_BOOL(checkpoint_lock,
 static const char *tokudb_row_format_names[] = {
     "tokudb_uncompressed",
     "tokudb_zlib",
+    "tokudb_snappy",
     "tokudb_quicklz",
     "tokudb_lzma",
     "tokudb_fast",
@@ -367,8 +323,8 @@ static TYPELIB tokudb_row_format_typelib = {
 
 static MYSQL_THDVAR_ENUM(row_format, PLUGIN_VAR_OPCMDARG,
                          "Specifies the compression method for a table during this session. "
-                         "Possible values are TOKUDB_UNCOMPRESSED, TOKUDB_ZLIB, TOKUDB_QUICKLZ, "
-                         "TOKUDB_LZMA, TOKUDB_FAST, TOKUDB_SMALL and TOKUDB_DEFAULT",
+                         "Possible values are TOKUDB_UNCOMPRESSED, TOKUDB_ZLIB, TOKUDB_SNAPPY, "
+                         "TOKUDB_QUICKLZ, TOKUDB_LZMA, TOKUDB_FAST, TOKUDB_SMALL and TOKUDB_DEFAULT",
                          NULL, NULL, SRV_ROW_FORMAT_ZLIB, &tokudb_row_format_typelib);
 
 static inline srv_row_format_t get_row_format(THD *thd) {

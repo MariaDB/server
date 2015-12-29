@@ -2816,8 +2816,8 @@ try_to_extend:
 		if (rounds > 50) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Space id %lu trying to reserve %lu extents actually reserved %lu "
-				" reserve %lu free %lu size %lu rounds %lu total_reserved %lu",
-				space, n_ext, n_pages_added, reserve, n_free, size, rounds, total_reserved);
+				" reserve %lu free %lu size %lu rounds %lu total_reserved %llu",
+				space, n_ext, n_pages_added, reserve, n_free, size, rounds, (ullint) total_reserved);
 		}
 
 		goto try_again;
