@@ -205,11 +205,8 @@ extern void tdc_purge(bool all);
 extern TDC_element *tdc_lock_share(THD *thd, const char *db,
                                    const char *table_name);
 extern void tdc_unlock_share(TDC_element *element);
-extern TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db,
-                                      const char *table_name,
-                                      const char *key, uint key_length,
-                                      my_hash_value_type hash_value,
-                                      uint flags, TABLE **out_table);
+extern TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
+                                      TABLE **out_table= 0);
 extern void tdc_release_share(TABLE_SHARE *share);
 extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                              const char *db, const char *table_name,
@@ -247,51 +244,4 @@ inline uint tdc_create_key(char *key, const char *db, const char *table_name)
   */
   return (uint) (strmake(strmake(key, db, NAME_LEN) + 1, table_name,
                          NAME_LEN) - key + 1);
-}
-
-/**
-  Convenience helper: call tdc_acquire_share() without out_table.
-*/
-
-static inline TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db,
-                                             const char *table_name,
-                                             const char *key,
-                                             uint key_length, uint flags)
-{
-  return tdc_acquire_share(thd, db, table_name, key, key_length,
-                           my_hash_sort(&my_charset_bin, (uchar*) key,
-                                        key_length), flags, 0);
-}
-
-
-/**
-  Convenience helper: call tdc_acquire_share() without precomputed cache key.
-*/
-
-static inline TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db,
-                                             const char *table_name, uint flags)
-{
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
-  key_length= tdc_create_key(key, db, table_name);
-  return tdc_acquire_share(thd, db, table_name, key, key_length, flags);
-}
-
-
-/**
-  Convenience helper: call tdc_acquire_share() reusing the MDL cache key.
-
-  @note lifetime of the returned TABLE_SHARE is limited by the
-        lifetime of the TABLE_LIST object!!!
-*/
-
-uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
-
-static inline TABLE_SHARE *tdc_acquire_share_shortlived(THD *thd, TABLE_LIST *tl,
-                                                        uint flags)
-{
-  const char *key;
-  uint        key_length= get_table_def_key(tl, &key);
-  return tdc_acquire_share(thd, tl->db, tl->table_name, key, key_length,
-                           tl->mdl_request.key.tc_hash_value(), flags, 0);
 }

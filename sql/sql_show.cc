@@ -4489,7 +4489,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     goto end;
   }
 
-  share= tdc_acquire_share_shortlived(thd, &table_list, GTS_TABLE | GTS_VIEW);
+  share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
     res= 0;

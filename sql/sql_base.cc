@@ -2419,10 +2419,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
 retry_share:
 
-  share= tdc_acquire_share(thd, table_list->db, table_list->table_name,
-                           key, key_length,
-                           table_list->mdl_request.key.tc_hash_value(),
-                           gts_flags, &table);
+  share= tdc_acquire_share(thd, table_list, gts_flags, &table);
 
   if (!share)
   {
@@ -3291,8 +3288,7 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
   TABLE_SHARE *share;
   bool err= TRUE;
 
-  if (!(share= tdc_acquire_share(thd, table_list->db, table_list->table_name,
-                                 cache_key, cache_key_length, GTS_VIEW)))
+  if (!(share= tdc_acquire_share(thd, table_list, GTS_VIEW)))
     return TRUE;
 
   DBUG_ASSERT(share->is_view);
@@ -3379,7 +3375,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
     return result;
 
-  if (!(share= tdc_acquire_share_shortlived(thd, table_list, GTS_TABLE)))
+  if (!(share= tdc_acquire_share(thd, table_list, GTS_TABLE)))
     goto end_free;
 
   DBUG_ASSERT(! share->is_view);
@@ -3598,8 +3594,7 @@ Open_table_context::recover_from_failed_open()
         if (open_if_exists)
           m_thd->push_internal_handler(&no_such_table_handler);
         
-        result= !tdc_acquire_share(m_thd, m_failed_table->db,
-                                   m_failed_table->table_name,
+        result= !tdc_acquire_share(m_thd, m_failed_table,
                                    GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
         if (open_if_exists)
         {

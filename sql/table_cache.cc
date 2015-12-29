@@ -598,13 +598,14 @@ void tdc_unlock_share(TDC_element *element)
    #  Share for table
 */
 
-TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db, const char *table_name,
-                               const char *key, uint key_length,
-                               my_hash_value_type hash_value, uint flags,
+TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
                                TABLE **out_table)
 {
   TABLE_SHARE *share;
   TDC_element *element;
+  const char *key;
+  uint key_length= get_table_def_key(tl, &key);
+  my_hash_value_type hash_value= tl->mdl_request.key.tc_hash_value();
   bool was_unused;
   DBUG_ENTER("tdc_acquire_share");
 
@@ -628,7 +629,7 @@ retry:
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 
-    if (!(share= alloc_table_share(db, table_name, key, key_length)))
+    if (!(share= alloc_table_share(tl->db, tl->table_name, key, key_length)))
     {
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);
