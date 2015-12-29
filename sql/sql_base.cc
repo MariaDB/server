@@ -2300,8 +2300,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
           DBUG_RETURN(true);
         }
 
-        if (!tdc_open_view(thd, table_list, alias, key, key_length,
-                           CHECK_METADATA_VERSION))
+        if (!tdc_open_view(thd, table_list, CHECK_METADATA_VERSION))
         {
           DBUG_ASSERT(table_list->view != 0);
           DBUG_RETURN(FALSE); // VIEW
@@ -3269,9 +3268,6 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
 
    @param thd               Thread handle
    @param table_list        TABLE_LIST with db, table_name & belong_to_view
-   @param alias             Alias name
-   @param cache_key         Key for table definition cache
-   @param cache_key_length  Length of cache_key
    @param flags             Flags which modify how we open the view
 
    @todo This function is needed for special handling of views under
@@ -3280,9 +3276,7 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
    @return FALSE if success, TRUE - otherwise.
 */
 
-bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
-                   const char *cache_key, uint cache_key_length,
-                   uint flags)
+bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
 {
   TABLE not_used;
   TABLE_SHARE *share;

@@ -215,7 +215,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  if (tdc_open_view(thd, &decoy, decoy.alias, OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)

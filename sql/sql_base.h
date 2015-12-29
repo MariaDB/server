@@ -305,16 +305,7 @@ void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
                                TABLE *skip_table);
 OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild);
-bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
-                   const char *cache_key, uint cache_key_length, uint flags);
-
-static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
-                                 const char *alias, uint flags)
-{
-  const char *key;
-  uint key_length= get_table_def_key(table_list, &key);
-  return tdc_open_view(thd, table_list, alias, key, key_length, flags);
-}
+bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags);
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
