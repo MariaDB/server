@@ -333,9 +333,7 @@ static void do_copy_next_number(Copy_field *copy)
 
 static void do_copy_blob(Copy_field *copy)
 {
-  ulong length=((Field_blob*) copy->from_field)->get_length();
-  ((Field_blob*) copy->to_field)->store_length(length);
-  memcpy(copy->to_ptr, copy->from_ptr, sizeof(char*));
+  ((Field_blob*) copy->to_field)->copy_value(((Field_blob*) copy->from_field));
 }
 
 static void do_conv_blob(Copy_field *copy)
@@ -710,12 +708,7 @@ Copy_field::get_copy_func(Field *to,Field *from)
     if (!(from->flags & BLOB_FLAG) || from->charset() != to->charset())
       return do_conv_blob;
     if (from_length != to_length)
-    {
-      // Correct pointer to point at char pointer
-      to_ptr+=   to_length - portable_sizeof_char_ptr;
-      from_ptr+= from_length - portable_sizeof_char_ptr;
       return do_copy_blob;
-    }
   }
   else
   {

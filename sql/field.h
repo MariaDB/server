@@ -2440,6 +2440,11 @@ protected:
   */
   String value;
   
+  void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number);
+  inline void store_length(uint32 number)
+  {
+    store_length(ptr, packlength, number);
+  }
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const char *field_name_arg,
@@ -2517,11 +2522,6 @@ public:
   int reset(void) { bzero(ptr, packlength+sizeof(uchar*)); return 0; }
   void reset_fields() { bzero((uchar*) &value,sizeof(value)); }
   uint32 get_field_buffer_size(void) { return value.alloced_length(); }
-  void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number);
-  inline void store_length(uint32 number)
-  {
-    store_length(ptr, packlength, number);
-  }
   inline uint32 get_length(uint row_offset= 0)
   { return get_length(ptr+row_offset, this->packlength); }
   uint32 get_length(const uchar *ptr, uint packlength);
@@ -2550,6 +2550,7 @@ public:
   {
     set_ptr_offset(0, length, data);
   }
+  int copy_value(Field_blob *from);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
