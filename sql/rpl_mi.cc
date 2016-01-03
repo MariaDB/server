@@ -1321,7 +1321,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
       Try to start all slaves that are configured (host is defined)
       and are not already running
     */
-    if ((mi->slave_running != MYSQL_SLAVE_RUN_CONNECT ||
+    if ((mi->slave_running == MYSQL_SLAVE_NOT_RUN ||
          !mi->rli.slave_running) && *mi->host)
     {
       if ((error= start_slave(thd, mi, 1)))
