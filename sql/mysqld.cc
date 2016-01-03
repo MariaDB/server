@@ -7299,6 +7299,38 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
+/* How many slaves are connected to this master */
+
+static int show_slaves_connected(THD *thd, SHOW_VAR *var, char *buff)
+{
+
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_slave_list);
+
+  *((longlong *)buff)= slave_list.records;
+
+  mysql_mutex_unlock(&LOCK_slave_list);
+  return 0;
+}
+
+
+/* How many masters this slave is connected to */
+
+
+static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  return 0;
+}
+
+
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi= NULL;
@@ -7950,6 +7982,9 @@ SHOW_VAR status_vars[]= {
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
 #ifdef HAVE_REPLICATION
+  {"Slaves_connected",        (char*) &show_slaves_connected, SHOW_SIMPLE_FUNC },
+  {"Slaves_running",          (char*) &show_slaves_running, SHOW_SIMPLE_FUNC },
+  {"Slave_connections",       (char*) offsetof(STATUS_VAR, com_register_slave), SHOW_LONG_STATUS},
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
   {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
   {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},

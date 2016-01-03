@@ -1177,6 +1177,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #ifdef HAVE_REPLICATION
   case COM_REGISTER_SLAVE:
   {
+    status_var_increment(thd->status_var.com_register_slave);
     if (!register_slave(thd, (uchar*)packet, packet_length))
       my_ok(thd);
     break;

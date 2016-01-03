@@ -656,6 +656,7 @@ typedef struct system_status_var
 {
   ulong com_other;
   ulong com_stat[(uint) SQLCOM_END];
+  ulong com_register_slave;
   ulong created_tmp_disk_tables_;
   ulong created_tmp_tables_;
   ulong ha_commit_count;
