@@ -3365,7 +3365,7 @@ my_bool jsoncontains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
-	char         *p, res[256];
+	char         *p __attribute__((unused)), res[256];
 	long long     n;
 	unsigned long reslen;
 
