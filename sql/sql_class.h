@@ -5365,6 +5365,10 @@ public:
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
+/**
+  Do not allow it for COM_MULTI batch
+*/
+#define CF_NO_COM_MULTI         (1U << 3)
 
 /* Inline functions */
 

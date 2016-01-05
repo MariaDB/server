@@ -7139,3 +7139,10 @@ ER_KILL_QUERY_DENIED_ERROR
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
+ER_COMMULTI_BADCONTEXT 0A000
+        eng "COM_MULTI can't return a result set in the given context"
+        ger "COM_MULTI kann im gegebenen Kontext keine Ergebnismenge zurückgeben"
+        ukr "COM_MULTI не може повернути результати у цьому контексті"
+ER_BAD_COMMAND_IN_MULTI
+        eng "Command '%s' is not allowed for COM_MULTI"
+        ukr "Команда '%s' не дозволена для COM_MULTI"
