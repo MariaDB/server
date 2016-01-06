@@ -58,7 +58,7 @@ static char* get_default_principal_name()
   }
 
   /* Check for entry in keytab */
-  if (krb5_kt_read_service_key(context, NULL, principal, 0, 0, &key))
+  if (krb5_kt_read_service_key(context, NULL, principal, 0, (krb5_enctype)0, &key))
   {
     sql_print_warning("GSSAPI plugin : default principal '%s' not found in keytab", unparsed_name);
     goto cleanup;
