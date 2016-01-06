@@ -19,6 +19,8 @@
 #include <pfs_global.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 #include "stub_pfs_global.h"
 
 void test_oom()

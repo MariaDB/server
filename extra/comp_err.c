@@ -160,6 +160,7 @@ static int create_header_files(struct errors *error_head);
 static int create_sys_files(struct languages *lang_head,
 			    struct errors *error_head, uint row_count);
 
+struct encryption_service_st encryption_handler;
 
 int main(int argc, char *argv[])
 {

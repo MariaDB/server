@@ -245,7 +245,8 @@ void spider_release_ping_table_mon_list(
   spider_string conv_name_str(conv_name_length + link_idx_str_length + 1);
   conv_name_str.set_charset(system_charset_info);
 #else
-  char buf[conv_name_length + link_idx_str_length + 1];
+  char *buf;
+  buf  = (char *)alloca((conv_name_length + link_idx_str_length + 1) * sizeof(char));
   spider_string conv_name_str(buf, conv_name_length + link_idx_str_length + 1,
     system_charset_info);
 #endif
@@ -1368,7 +1369,8 @@ int spider_ping_table_mon_from_table(
   *((char *)(conv_name_str.ptr() + conv_name_length + link_idx_str_length)) =
     '\0';
 #else
-  char buf[conv_name_length + link_idx_str_length + 1];
+  char *buf;
+  buf = (char *)alloca((conv_name_length + link_idx_str_length + 1) * sizeof(char));
   buf[conv_name_length + link_idx_str_length] = '\0';
   spider_string conv_name_str(buf, conv_name_length + link_idx_str_length + 1,
     system_charset_info);

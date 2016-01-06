@@ -19,6 +19,8 @@
 
 char buf[1024]; /* let's hope that's enough */
 
+struct encryption_service_st encryption_handler;
+
 static void test_w_len(const char *res, size_t buflen, const char *fmt, ...)
 {
   va_list args;

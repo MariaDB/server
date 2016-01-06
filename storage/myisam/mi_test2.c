@@ -23,6 +23,8 @@
 #include <m_ctype.h>
 #include <my_bit.h>
 
+struct encryption_service_st encryption_handler;
+
 #define STANDARD_LENGTH 37
 #define MYISAM_KEYS 6
 #define MAX_PARTS 4

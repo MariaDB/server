@@ -21,6 +21,8 @@
 #include <my_getopt.h>
 #include <my_dir.h>
 
+struct encryption_service_st encryption_handler;
+
 #define SHOW_VERSION "1.0.0"
 #define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \
                         my_progname, SHOW_VERSION, MYSQL_SERVER_VERSION);    \

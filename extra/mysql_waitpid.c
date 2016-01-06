@@ -23,6 +23,8 @@
 #include <signal.h>
 #include <errno.h>
 
+struct encryption_service_st encryption_handler;
+
 static const char *VER= "1.1";
 static char *progname;
 static my_bool verbose;

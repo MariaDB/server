@@ -26,6 +26,8 @@
 #include <errno.h>
 #include <my_getopt.h>
 
+struct encryption_service_st encryption_handler;
+
 #define INIT_SYM_TABLE  4096
 #define INC_SYM_TABLE  4096
 #define MAX_SYM_SIZE   128

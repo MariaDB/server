@@ -23,6 +23,8 @@
 
 #include "rt_index.h"
 
+struct encryption_service_st encryption_handler;
+
 #define MAX_REC_LENGTH 1024
 #define ndims 2
 #define KEYALG HA_KEY_ALG_RTREE

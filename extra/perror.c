@@ -25,6 +25,8 @@
 #include <my_getopt.h>
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
+struct encryption_service_st encryption_handler;
+
 static my_bool verbose, print_all_codes;
 
 #include <my_base.h>

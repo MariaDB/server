@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 int has_feature() {
   return 0;
 }

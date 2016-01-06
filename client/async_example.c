@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <mysql.h>
 
+int encryption_handler;  /* dummy declaration */
+
 #define SL(s) (s), sizeof(s)
 
 static const char *my_groups[]= { "client", NULL };

@@ -34,6 +34,8 @@
 
 #include "mysql_client_fw.c"
 
+struct encryption_service_st encryption_handler;
+
 /* Query processing */
 
 static void client_query()

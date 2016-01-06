@@ -311,6 +311,8 @@ static void *timer_handler(void *arg __attribute__((unused)))
 
 #ifdef MAIN
 
+struct encryption_service_st encryption_handler;
+
 static mysql_cond_t COND_thread_count;
 static mysql_mutex_t LOCK_thread_count;
 static uint thread_count, benchmark_runs, test_to_run= 1;

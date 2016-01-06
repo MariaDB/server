@@ -20,6 +20,8 @@
 #include <sslopt-vars.h>
 #include "../scripts/mysql_fix_privilege_tables_sql.c"
 
+struct encryption_service_st encryption_handler;
+
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 #define VER "1.4"

@@ -22,6 +22,8 @@
 
 #include <memory.h>
 
+struct encryption_service_st encryption_handler;
+
 void test_digest_length_overflow()
 {
   if (sizeof(size_t) != 4)

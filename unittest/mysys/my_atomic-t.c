@@ -18,6 +18,8 @@
 volatile uint32 b32;
 volatile int32  c32;
 
+struct encryption_service_st encryption_handler;
+
 /* add and sub a random number in a loop. Must get 0 at the end */
 pthread_handler_t test_atomic_add(void *arg)
 {

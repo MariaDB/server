@@ -17,6 +17,7 @@
 #include <my_global.h>
 #include <my_sys.h>
 
+struct encryption_service_st encryption_handler;
 
 /*
   Test that like_range() returns well-formed results.

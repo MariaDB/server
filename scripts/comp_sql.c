@@ -28,6 +28,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+struct encryption_service_st encryption_handler;
+
 /*
   This is an internal tool used during the build process only,
   - do not make a library just for this,

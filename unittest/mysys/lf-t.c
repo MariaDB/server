@@ -23,6 +23,8 @@
 
 #include <lf.h>
 
+struct encryption_service_st encryption_handler;
+
 int32 inserts= 0, N;
 LF_ALLOCATOR lf_allocator;
 LF_HASH lf_hash;

@@ -24,19 +24,19 @@ Format_description_log_event* wsrep_get_apply_format(THD* thd);
 
 /* wsrep callback prototypes */
 
-wsrep_cb_status_t wsrep_apply_cb(void *ctx,
-                                 const void* buf, size_t buf_len,
-                                 uint32_t flags,
+wsrep_cb_status_t wsrep_apply_cb(void* const ctx,
+                                 const void* const buf, size_t const buf_len,
+                                 uint32_t const flags,
                                  const wsrep_trx_meta_t* meta);
 
-wsrep_cb_status_t wsrep_commit_cb(void *ctx,
-                                  uint32_t flags,
+wsrep_cb_status_t wsrep_commit_cb(void* const ctx,
+                                  uint32_t const flags,
                                   const wsrep_trx_meta_t* meta,
-                                  wsrep_bool_t* exit,
-                                  bool commit);
+                                  wsrep_bool_t* const exit,
+                                  bool const commit);
 
-wsrep_cb_status_t wsrep_unordered_cb(void*       ctx,
-                                     const void* data,
-                                     size_t      size);
+wsrep_cb_status_t wsrep_unordered_cb(void*       const ctx,
+                                     const void* const data,
+                                     size_t      const size);
 
 #endif /* WSREP_APPLIER_H */

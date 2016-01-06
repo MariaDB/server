@@ -24,6 +24,8 @@
 #include <string.h>
 #include <memory.h>
 
+struct encryption_service_st encryption_handler;
+
 #include "stub_print_error.h"
 #include "stub_pfs_defaults.h"
 

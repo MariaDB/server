@@ -21,6 +21,8 @@
 #include <pfs_global.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 void test_no_registration()
 {
   int rc;

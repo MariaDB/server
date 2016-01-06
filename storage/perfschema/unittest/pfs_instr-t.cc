@@ -21,6 +21,8 @@
 #include <pfs_instr_class.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 #include <memory.h>
 
 void test_no_instruments()
