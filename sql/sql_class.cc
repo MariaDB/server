@@ -1426,6 +1426,7 @@ void THD::init(void)
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
   last_commit_gtid.seq_no= 0;
+  last_stmt= NULL;
   status_in_global= 0;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;

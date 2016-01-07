@@ -326,8 +326,14 @@ find_prepared_statement(THD *thd, ulong id)
     To strictly separate namespaces of SQL prepared statements and C API
     prepared statements find() will return 0 if there is a named prepared
     statement with such id.
+
+    LAST_STMT_ID is special value which mean last prepared statement ID
+    (it was made for COM_MULTI to allow prepare and execute a statement
+    in the same command but usage is not limited by COM_MULTI only).
   */
-  Statement *stmt= thd->stmt_map.find(id);
+  Statement *stmt= ((id == LAST_STMT_ID) ?
+                    thd->last_stmt :
+                    thd->stmt_map.find(id));
 
   if (stmt == 0 || stmt->type() != Query_arena::PREPARED_STATEMENT)
     return NULL;
@@ -2569,7 +2575,10 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   {
     /* Statement map deletes statement on erase */
     thd->stmt_map.erase(stmt);
+    thd->clear_last_stmt();
   }
+  else
+    thd->set_last_stmt(stmt);
 
   thd->protocol= save_protocol;
 
@@ -3155,6 +3164,9 @@ void mysqld_stmt_close(THD *thd, char *packet)
   stmt->deallocate();
   general_log_print(thd, thd->get_command(), NullS);
 
+  if (thd->last_stmt == stmt)
+    thd->clear_last_stmt();
+
   DBUG_VOID_RETURN;
 }
 
@@ -3417,7 +3429,8 @@ end:
 
 Prepared_statement::Prepared_statement(THD *thd_arg)
   :Statement(NULL, &main_mem_root,
-             STMT_INITIALIZED, ++thd_arg->statement_id_counter),
+             STMT_INITIALIZED,
+             ((++thd_arg->statement_id_counter) & STMT_ID_MASK)),
   thd(thd_arg),
   result(thd_arg),
   param_array(0),
