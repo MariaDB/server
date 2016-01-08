@@ -284,8 +284,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
   }
 
-  int2store(fileinfo+59,db_file->extra_rec_buf_length());
-
   memcpy(frm_ptr, fileinfo, FRM_HEADER_SIZE);
 
   pos+= key_buff_length;

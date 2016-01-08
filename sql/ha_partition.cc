@@ -8440,18 +8440,6 @@ uint ha_partition::max_supported_keys() const
 }
 
 
-uint ha_partition::extra_rec_buf_length() const
-{
-  handler **file;
-  uint max= (*m_file)->extra_rec_buf_length();
-
-  for (file= m_file, file++; *file; file++)
-    if (max < (*file)->extra_rec_buf_length())
-      max= (*file)->extra_rec_buf_length();
-  return max;
-}
-
-
 uint ha_partition::min_record_length(uint options) const
 {
   handler **file;

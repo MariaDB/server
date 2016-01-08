@@ -932,7 +932,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     if ((strpos[10] & MYSQL57_GENERATED_FIELD))
     {
       /* Skip virtual (not stored) generated field */
-      bool stored_in_db= (bool) (uint) (vcol_screen_pos[3]);
+      bool stored_in_db= vcol_screen_pos[3];
       vcol_screen_pos+= (uint2korr(vcol_screen_pos + 1) +
                          MYSQL57_GCOL_HEADER_SIZE);
       if (! stored_in_db)
@@ -982,7 +982,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
   uint com_length, null_bit_pos, mysql57_vcol_null_bit_pos, bitmap_count;
-  uint extra_rec_buf_length;
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
@@ -1400,8 +1399,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
     goto err; // wrong engine (someone changed the frm under our feet?)
 
-  extra_rec_buf_length= uint2korr(frm_image+59);
-  rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
+  rec_buff_length= ALIGN_SIZE(share->reclength + 1);
   share->rec_buff_length= rec_buff_length;
   if (!(record= (uchar *) alloc_root(&share->mem_root,
                                      rec_buff_length)))
@@ -1638,7 +1636,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         vcol_info= new (&share->mem_root) Virtual_column_info();
         vcol_info_length= uint2korr(vcol_screen_pos + 1);
         DBUG_ASSERT(vcol_info_length);
-        vcol_info->stored_in_db= (bool) (uint) vcol_screen_pos[3];
+        vcol_info->stored_in_db= vcol_screen_pos[3];
         if (!(vcol_info->expr_str.str=
               (char *)memdup_root(&share->mem_root,
                                   vcol_screen_pos + MYSQL57_GCOL_HEADER_SIZE,
@@ -1673,7 +1671,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         else if ((uint)vcol_screen_pos[0] != 1)
           goto err;
 
-        vcol_info->stored_in_db= (bool) (uint) vcol_screen_pos[2];
+        vcol_info->stored_in_db= vcol_screen_pos[2];
         vcol_expr_length= vcol_info_length -
                           (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
         if (!(vcol_info->expr_str.str=
@@ -3731,7 +3729,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   int4store(fileinfo+51, tmp);
   int4store(fileinfo+55, create_info->extra_size);
   /*
-    59-60 is reserved for extra_rec_buf_length,
+    59-60 is unused since 10.2.4
     61 for default_part_db_type
   */
   int2store(fileinfo+62, create_info->key_block_size);

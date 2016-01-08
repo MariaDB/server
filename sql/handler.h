@@ -2951,7 +2951,6 @@ public:
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
   bool has_transactions()
   { return (ha_table_flags() & HA_NO_TRANSACTIONS) == 0; }
-  virtual uint extra_rec_buf_length() const { return 0; }
 
   /**
     This method is used to analyse the error to see whether the error
