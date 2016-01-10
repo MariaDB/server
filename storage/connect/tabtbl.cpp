@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2008-2015    */
+/*  (C) Copyright to PlugDB Software Development          2008-2016    */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
@@ -130,10 +130,10 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR, int)
 
       // Allocate the TBLIST block for that table
       tbl = new(g) XTAB(pn, def);
-      tbl->SetQualifier(pdb);
+      tbl->SetSchema(pdb);
       
       if (trace)
-        htrc("TBL: Name=%s db=%s\n", tbl->GetName(), tbl->GetQualifier());
+        htrc("TBL: Name=%s db=%s\n", tbl->GetName(), tbl->GetSchema());
 
       // Link the blocks
       if (Tablep)
