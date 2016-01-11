@@ -134,7 +134,7 @@ if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth"
 then
     if wsrep_auth_not_set
     then
-        WSREP_SST_OPT_AUTH=$(MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+        WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
 readonly WSREP_SST_OPT_AUTH
@@ -176,7 +176,7 @@ wsrep_log_info()
 
 wsrep_cleanup_progress_file()
 {
-    [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null
+    [ -n "${SST_PROGRESS_FILE:-}" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
 }
 
 wsrep_check_program()
