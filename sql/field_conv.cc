@@ -335,12 +335,12 @@ static void do_copy_next_number(Copy_field *copy)
 }
 
 
-static void do_copy_blob(Copy_field *copy)
+void Field_blob::do_copy_blob(Copy_field *copy)
 {
   ((Field_blob*) copy->to_field)->copy_value(((Field_blob*) copy->from_field));
 }
 
-static void do_conv_blob(Copy_field *copy)
+void Field_blob::do_conv_blob(Copy_field *copy)
 {
   copy->from_field->val_str(&copy->tmp);
   ((Field_blob *) copy->to_field)->store(copy->tmp.ptr(),
@@ -362,7 +362,7 @@ static void do_save_blob(Copy_field *copy)
 }
 
 
-static void do_field_string(Copy_field *copy)
+void Field::do_field_string(Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
   String res(buff, sizeof(buff), copy->from_field->charset());
@@ -373,7 +373,7 @@ static void do_field_string(Copy_field *copy)
 }
 
 
-static void do_field_enum(Copy_field *copy)
+void Field_enum::do_field_enum(Copy_field *copy)
 {
   if (copy->from_field->val_int() == 0)
     ((Field_enum *) copy->to_field)->store_type((ulonglong) 0);
@@ -397,32 +397,45 @@ static void do_field_varbinary_pre50(Copy_field *copy)
 }
 
 
-static void do_field_int(Copy_field *copy)
+void Field::do_field_int(Copy_field *copy)
 {
   longlong value= copy->from_field->val_int();
   copy->to_field->store(value,
                         MY_TEST(copy->from_field->flags & UNSIGNED_FLAG));
 }
 
-static void do_field_real(Copy_field *copy)
+void Field::do_field_real(Copy_field *copy)
 {
   double value=copy->from_field->val_real();
   copy->to_field->store(value);
 }
 
 
-static void do_field_decimal(Copy_field *copy)
+void Field::do_field_decimal(Copy_field *copy)
 {
   my_decimal value;
   copy->to_field->store_decimal(copy->from_field->val_decimal(&value));
 }
 
 
-static void do_field_temporal(Copy_field *copy)
+void Field::do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
-  copy->from_field->get_date(&ltime, 0);
-  copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
+  // TODO: we now need to check result
+  if (copy->from_field->get_date(&ltime, 0))
+    copy->to_field->reset();
+  else
+    copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
+}
+
+
+void Field_time::do_field_time(Copy_field *copy)
+{
+  MYSQL_TIME ltime;
+  if (copy->from_field->get_date(&ltime, TIME_TIME_ONLY))
+    copy->to_field->reset();
+  else
+    copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
 }
 
 
@@ -698,122 +711,72 @@ void Copy_field::set(Field *to,Field *from,bool save)
   if ((to->flags & BLOB_FLAG) && save)
     do_copy2= do_save_blob;
   else
-    do_copy2= get_copy_func(to,from);
+    do_copy2= to->get_copy_func(from);
   if (!do_copy)					// Not null
     do_copy=do_copy2;
 }
 
 
-Copy_field::Copy_func *
-Copy_field::get_copy_func(const Field *to, const Field *from)
+Field::Copy_func *Field_temporal::get_copy_func(const Field *from) const
 {
-  if (to->flags & BLOB_FLAG)
-  {
-    if (!(from->flags & BLOB_FLAG) || from->charset() != to->charset())
-      return do_conv_blob;
-    if (from_length != to_length)
-      return do_copy_blob;
-  }
-  else
-  {
-    if (to->real_type() == MYSQL_TYPE_BIT ||
-        from->real_type() == MYSQL_TYPE_BIT)
-      return do_field_int;
-    if (to->result_type() == DECIMAL_RESULT)
-      return do_field_decimal;
-    if (from->cmp_type() == TIME_RESULT)
-    {
-      /* If types are not 100 % identical then convert trough get_date() */
-      if (!to->eq_def(from) ||
-          ((to->table->in_use->variables.sql_mode &
-            (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE)) &&
-             mysql_type_to_time_type(to->type()) != MYSQL_TIMESTAMP_TIME))
-        return do_field_temporal;
-      /* Do binary copy */
-    }
-    // Check if identical fields
-    if (from->result_type() == STRING_RESULT)
-    {
-      /*
-        Detect copy from pre 5.0 varbinary to varbinary as of 5.0 and
-        use special copy function that removes trailing spaces and thus
-        repairs data.
-      */
-      if (from->type() == MYSQL_TYPE_VAR_STRING && !from->has_charset() &&
-          to->type() == MYSQL_TYPE_VARCHAR && !to->has_charset())
-        return do_field_varbinary_pre50;
+  /* If types are not 100 % identical then convert trough get_date() */
+  if (from->cmp_type() == REAL_RESULT)
+    return do_field_string; // TODO: MDEV-9344
+  if (from->type() == MYSQL_TYPE_YEAR)
+    return do_field_string; // TODO: MDEV-9343
+  if (from->type() == MYSQL_TYPE_BIT)
+    return do_field_int;
+  if (!eq_def(from) ||
+      (table->in_use->variables.sql_mode &
+       (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE)))
+    return do_field_temporal;
+  return get_identical_copy_func();
+}
 
-      if (to->real_type() != from->real_type())
-      {
-	if (from->real_type() == MYSQL_TYPE_ENUM ||
-	    from->real_type() == MYSQL_TYPE_SET)
-	  if (to->result_type() != STRING_RESULT)
-	    return do_field_int;		// Convert SET to number
-	return do_field_string;
-      }
-      if (to->real_type() == MYSQL_TYPE_ENUM ||
-	  to->real_type() == MYSQL_TYPE_SET)
-      {
-	if (!to->eq_def(from))
-        {
-          if (from->real_type() == MYSQL_TYPE_ENUM &&
-              to->real_type() == MYSQL_TYPE_ENUM)
-            return do_field_enum;
-          return do_field_string;
-        }
-      }
-      else if (to->charset() != from->charset())
-	return do_field_string;
-      else if (to->real_type() == MYSQL_TYPE_VARCHAR)
-      {
-        if (((Field_varstring*) to)->length_bytes !=
-            ((Field_varstring*) from)->length_bytes)
-          return do_field_string;
-        return (((Field_varstring*) to)->length_bytes == 1 ?
-                (from->charset()->mbmaxlen == 1 ? do_varstring1 :
-                 do_varstring1_mb) :
-                (from->charset()->mbmaxlen == 1 ? do_varstring2 :
-                 do_varstring2_mb));
-      }
-      else if (to_length < from_length)
-	return (from->charset()->mbmaxlen == 1 ?
-                do_cut_string : do_cut_string_complex);
-      else if (to_length > from_length)
-      {
-        if (to->charset() == &my_charset_bin)
-          return do_expand_binary;
-        return do_expand_string;
-      }
-    }
-    else if (to->real_type() != from->real_type() ||
-	     to_length != from_length)
-    {
-      if ((to->real_type() == MYSQL_TYPE_ENUM ||
-           to->real_type() == MYSQL_TYPE_SET) &&
-          from->real_type() == MYSQL_TYPE_NEWDECIMAL)
-        return do_field_decimal;
-      if (to->real_type() == MYSQL_TYPE_DECIMAL ||
-	  to->result_type() == STRING_RESULT)
-	return do_field_string;
-      if (to->result_type() == INT_RESULT)
-	return do_field_int;
-      return do_field_real;
-    }
-    else
-    {
-      if (!to->eq_def(from))
-      {
-	if (to->real_type() == MYSQL_TYPE_DECIMAL)
-	  return do_field_string;
-	if (to->result_type() == INT_RESULT)
-	  return do_field_int;
-	else
-	  return do_field_real;
-      }
-    }
-  }
+
+Field::Copy_func *Field_varstring::get_copy_func(const Field *from) const
+{
+  if (from->type() == MYSQL_TYPE_BIT)
+    return do_field_int;
+  /*
+    Detect copy from pre 5.0 varbinary to varbinary as of 5.0 and
+    use special copy function that removes trailing spaces and thus
+    repairs data.
+  */
+  if (from->type() == MYSQL_TYPE_VAR_STRING && !from->has_charset() &&
+      !Field_varstring::has_charset())
+    return do_field_varbinary_pre50;
+  if (Field_varstring::real_type() != from->real_type() ||
+      Field_varstring::charset() != from->charset() ||
+      length_bytes != ((const Field_varstring*) from)->length_bytes)
+    return do_field_string;
+  return length_bytes == 1 ?
+         (from->charset()->mbmaxlen == 1 ? do_varstring1 : do_varstring1_mb) :
+         (from->charset()->mbmaxlen == 1 ? do_varstring2 : do_varstring2_mb);
+}
+
+
+Field::Copy_func *Field_string::get_copy_func(const Field *from) const
+{
+  if (from->type() == MYSQL_TYPE_BIT)
+    return do_field_int;
+  if (Field_string::real_type() != from->real_type() ||
+      Field_string::charset() != from->charset())
+    return do_field_string;
+  if (Field_string::pack_length() < from->pack_length())
+    return (Field_string::charset()->mbmaxlen == 1 ?
+            do_cut_string : do_cut_string_complex);
+  if (Field_string::pack_length() > from->pack_length())
+    return Field_string::charset() == &my_charset_bin ? do_expand_binary :
+                                                        do_expand_string;
+  return get_identical_copy_func();
+}
+
+
+Field::Copy_func *Field::get_identical_copy_func() const
+{
   /* Identical field types */
-  switch (to_length) {
+  switch (pack_length()) {
   case 1: return do_field_1;
   case 2: return do_field_2;
   case 3: return do_field_3;

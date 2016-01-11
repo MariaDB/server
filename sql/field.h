@@ -33,6 +33,7 @@
 #include "compat56.h"
 
 class Send_field;
+class Copy_field;
 class Protocol;
 class Create_field;
 class Relay_log_info;
@@ -621,6 +622,11 @@ protected:
     val_str(&result);
     return to->store(result.ptr(), result.length(), charset());
   }
+  static void do_field_int(Copy_field *copy);
+  static void do_field_real(Copy_field *copy);
+  static void do_field_string(Copy_field *copy);
+  static void do_field_temporal(Copy_field *copy);
+  static void do_field_decimal(Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
@@ -733,6 +739,12 @@ public:
         uchar null_bit_arg, utype unireg_check_arg,
         const char *field_name_arg);
   virtual ~Field() {}
+  /**
+    Convenience definition of a copy function returned by
+    Field::get_copy_func()
+  */
+  typedef void Copy_func(Copy_field*);
+  virtual Copy_func *get_copy_func(const Field *from) const= 0;
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store_field(Field *from) { return from->save_in_field(this); }
   virtual int  save_in_field(Field *to)= 0;
@@ -1265,6 +1277,7 @@ protected:
     return (op_result == E_DEC_OVERFLOW);
   }
   int warn_if_overflow(int op_result);
+  Copy_func *get_identical_copy_func() const;
 public:
   void set_table_name(String *alias)
   {
@@ -1528,6 +1541,10 @@ public:
   uint decimals() const { return (uint) dec; }
   uint size_of() const { return sizeof(*this); }
   bool eq_def(const Field *field) const;
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return do_field_int;
+  }
   int save_in_field(Field *to)
   {
     return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
@@ -1678,6 +1695,10 @@ public:
     not_fixed(dec_arg >= NOT_FIXED_DEC)
     {}
   Item_result result_type () const { return REAL_RESULT; }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return do_field_real;
+  }
   int save_in_field(Field *to) { return to->store(val_real()); }
   int store_decimal(const my_decimal *);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
@@ -1703,6 +1724,10 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_DECIMAL;}
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return eq_def(from) ? get_identical_copy_func() : do_field_string;
+  }
   int reset(void);
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
@@ -1746,6 +1771,12 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_NEWDECIMAL;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   Item_result result_type () const { return DECIMAL_RESULT; }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    //  if (from->real_type() == MYSQL_TYPE_BIT) // QQ: why?
+    //    return do_field_int;
+    return do_field_decimal;
+  }
   int save_in_field(Field *to)
   {
     my_decimal buff;
@@ -2092,6 +2123,10 @@ public:
 	       unireg_check_arg, field_name_arg, cs)
     {}
   enum_field_types type() const { return MYSQL_TYPE_NULL;}
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return do_field_string;
+  }
   int  store(const char *to, uint length, CHARSET_INFO *cs)
   { null[0]=1; return 0; }
   int store(double nr)   { null[0]=1; return 0; }
@@ -2142,6 +2177,7 @@ public:
   {
     return store(str, length, &my_charset_bin);
   }
+  Copy_func *get_copy_func(const Field *from) const;
   int save_in_field(Field *to)
   {
     MYSQL_TIME ltime;
@@ -2413,6 +2449,28 @@ public:
 		unireg_check_arg, field_name_arg, 1, 1)
     {}
   enum_field_types type() const { return MYSQL_TYPE_YEAR;}
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    if (eq_def(from))
+      return get_identical_copy_func();
+    switch (from->cmp_type()) {
+    case STRING_RESULT:
+      return do_field_string;
+    case TIME_RESULT:
+      return do_field_temporal;
+    case DECIMAL_RESULT:
+      return do_field_decimal;
+    case REAL_RESULT:
+      return do_field_real;
+    case INT_RESULT:
+      break;
+    case ROW_RESULT:
+    default:
+      DBUG_ASSERT(0);
+      break;
+    }
+    return do_field_int;
+  }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -2502,6 +2560,7 @@ protected:
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
   bool check_zero_in_date_with_warn(ulonglong fuzzydate);
+  static void do_field_time(Copy_field *copy);
 public:
   Field_time(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
              uchar null_bit_arg, enum utype unireg_check_arg,
@@ -2511,6 +2570,14 @@ public:
     {}
   enum_field_types type() const { return MYSQL_TYPE_TIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return from->cmp_type() == REAL_RESULT ? do_field_string : // MDEV-9344
+           from->type() == MYSQL_TYPE_YEAR ? do_field_int :
+           from->type() == MYSQL_TYPE_BIT  ? do_field_int :
+           eq_def(from)                    ? get_identical_copy_func() :
+                                             do_field_time;
+  }
   bool memcpy_field_possible(const Field *from) const
   {
     return real_type() == from->real_type() &&
@@ -2884,6 +2951,7 @@ public:
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
   bool zero_pack() const { return 0; }
+  Copy_func *get_copy_func(const Field *from) const;
   int reset(void)
   {
     charset()->cset->fill(charset(),(char*) ptr, field_length,
@@ -2980,6 +3048,7 @@ public:
     return (uint32) field_length + (field_charset == &my_charset_bin ?
                                     length_bytes : 0);
   }
+  Copy_func *get_copy_func(const Field *from) const;
   bool memcpy_field_possible(const Field *from) const
   {
     return Field_str::memcpy_field_possible(from) &&
@@ -3037,7 +3106,9 @@ protected:
     The 'value'-object is a cache fronting the storage engine.
   */
   String value;
-  
+
+  static void do_copy_blob(Copy_field *copy);
+  static void do_conv_blob(Copy_field *copy);
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const char *field_name_arg,
@@ -3072,6 +3143,19 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    /*
+    TODO: MDEV-9331
+    if (from->type() == MYSQL_TYPE_BIT)
+      return do_field_int;
+    */
+    if (!(from->flags & BLOB_FLAG) || from->charset() != charset())
+      return do_conv_blob;
+    if (from->pack_length() != Field_blob::pack_length())
+      return do_copy_blob;
+    return get_identical_copy_func();
+  }
   int  store_field(Field *from)
   {                                             // Be sure the value is stored
     from->val_str(&value);
@@ -3258,6 +3342,7 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
 
 
 class Field_enum :public Field_str {
+  static void do_field_enum(Copy_field *copy_field);
 protected:
   uint packlength;
 public:
@@ -3278,6 +3363,17 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
   enum ha_base_keytype key_type() const;
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    if (eq_def(from))
+      return get_identical_copy_func();
+    if (real_type() == MYSQL_TYPE_ENUM &&
+        from->real_type() == MYSQL_TYPE_ENUM)
+      return do_field_enum;
+    if (from->result_type() == STRING_RESULT)
+      return do_field_string;
+    return do_field_int;
+  }
   int store_field(Field *from)
   {
     if (from->real_type() == MYSQL_TYPE_ENUM && from->val_int() == 0)
@@ -3408,6 +3504,10 @@ public:
     if (bit_ptr && (bit_len > 0))  // reset odd bits among null bits
       clr_rec_bits(bit_ptr, bit_ofs, bit_len);
     return 0; 
+  }
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    return do_field_int;
   }
   int save_in_field(Field *to) { return to->store(val_int(), true); }
   bool memcpy_field_possible(const Field *from) const { return false; }
@@ -3702,12 +3802,6 @@ class Send_field :public Sql_alloc {
 */
 
 class Copy_field :public Sql_alloc {
-  /**
-    Convenience definition of a copy function returned by
-    get_copy_func.
-  */
-  typedef void Copy_func(Copy_field*);
-  Copy_func *get_copy_func(const Field *to, const Field *from);
 public:
   uchar *from_ptr,*to_ptr;
   uchar *from_null_ptr,*to_null_ptr;
@@ -3728,7 +3822,7 @@ public:
 
     Note that for VARCHARs, do_copy() will be do_varstring*() which
     only copies the length-bytes (1 or 2) + the actual length of the
-    text instead of from/to_length bytes. @see get_copy_func()
+    text instead of from/to_length bytes.
   */
   uint from_length,to_length;
   Field *from_field,*to_field;
