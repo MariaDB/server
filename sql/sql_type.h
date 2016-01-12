@@ -25,12 +25,19 @@
 
 class Field;
 class Item;
+class Type_std_attributes;
+class Sort_param;
 struct TABLE;
+struct SORT_FIELD_ATTR;
 
 class Type_handler
 {
 protected:
   const Type_handler *string_type_handler(uint max_octet_length) const;
+  void make_sort_key_longlong(uchar *to,
+                              bool maybe_null, bool null_value,
+                              bool unsigned_flag,
+                              longlong value) const;
 public:
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
@@ -79,6 +86,12 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  virtual void make_sort_key(uchar *to, Item *item,
+                             const SORT_FIELD_ATTR *sort_field,
+                             Sort_param *param) const= 0;
+  virtual void sortlength(THD *thd,
+                          const Type_std_attributes *item,
+                          SORT_FIELD_ATTR *attr) const= 0;
 };
 
 
@@ -90,6 +103,11 @@ public:
   Item_result result_type() const { return REAL_RESULT; }
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
 };
 
 
@@ -100,6 +118,11 @@ public:
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
 };
 
 
@@ -110,6 +133,11 @@ public:
   Item_result cmp_type() const { return INT_RESULT; }
   virtual ~Type_handler_int_result() {}
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
 };
 
 
@@ -119,6 +147,11 @@ public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return TIME_RESULT; }
   virtual ~Type_handler_temporal_result() {}
+  void make_sort_key(uchar *to, Item *item,  const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
 };
 
 
@@ -131,6 +164,11 @@ public:
   const Type_handler *
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const;
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
 };
 
 
@@ -526,6 +564,18 @@ public:
   {
     return m_type_handler->make_conversion_table_field(table, metadata, target);
   }
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const
+  {
+    m_type_handler->make_sort_key(to, item, sort_field, param);
+  }
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const
+  {
+    m_type_handler->sortlength(thd, item, attr);
+  }
+
 };
 
 

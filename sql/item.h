@@ -774,6 +774,17 @@ public:
   Item_result result_type() const { return type_handler()->result_type(); }
   /* ... while cmp_type() specifies how it should be compared */
   Item_result cmp_type() const { return type_handler()->cmp_type(); }
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const
+  {
+    type_handler()->make_sort_key(to, item, sort_field, param);
+  }
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const
+  {
+    type_handler()->sortlength(thd, item, attr);
+  }
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
   enum_field_types string_field_type() const
   {

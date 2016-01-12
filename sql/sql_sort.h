@@ -23,8 +23,8 @@
 #include "queues.h"
 
 typedef struct st_buffpek BUFFPEK;
-typedef struct st_sort_field SORT_FIELD;
 
+struct SORT_FIELD;
 class Field;
 struct TABLE;
 

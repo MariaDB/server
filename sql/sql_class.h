@@ -4883,16 +4883,19 @@ public:
 
 
 /* Structs used when sorting */
+struct SORT_FIELD_ATTR
+{
+  uint length;          /* Length of sort field */
+  uint suffix_length;   /* Length suffix (0-4) */
+};
 
-typedef struct st_sort_field {
+
+struct SORT_FIELD: public SORT_FIELD_ATTR
+{
   Field *field;				/* Field to sort */
   Item	*item;				/* Item if not sorting fields */
-  uint	 length;			/* Length of sort field */
-  uint   suffix_length;                 /* Length suffix (0-4) */
-  Item_result result_type;		/* Type of item */
   bool reverse;				/* if descending sort */
-  bool need_strxnfrm;			/* If we have to use strxnfrm() */
-} SORT_FIELD;
+};
 
 
 typedef struct st_sort_buffer {

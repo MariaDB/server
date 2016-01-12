@@ -24,10 +24,10 @@ class SQL_SELECT;
 class SQL_SELECT;
 class THD;
 struct TABLE;
-typedef struct st_sort_field SORT_FIELD;
+struct SORT_FIELD;
 class Filesort_tracker;
 
-ha_rows filesort(THD *thd, TABLE *table, st_sort_field *sortorder,
+ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder,
                  uint s_length, SQL_SELECT *select,
                  ha_rows max_rows, bool sort_positions,
                  ha_rows *examined_rows, ha_rows *found_rows,
