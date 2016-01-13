@@ -6186,7 +6186,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
         Check if the first and only indexed column contains NULL in the curent
         row, and add the row number to the corresponding key.
       */
-      if (tmp_table->field[merge_keys[i]->get_field_idx(0)]->is_null())
+      if (merge_keys[i]->get_field(0)->is_null())
         merge_keys[i]->set_null(cur_rownum);
       else
         merge_keys[i]->add_key(cur_rownum);

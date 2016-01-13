@@ -881,7 +881,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 
   while ((sql_field= (Item_field*) it++))
   {
-    if (table->field[sql_field->field->field_index] == table->next_number_field)
+    if (sql_field->field == table->next_number_field)
       auto_increment_field_not_null= true;
   }
 

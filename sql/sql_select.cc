@@ -7490,7 +7490,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
    if (!s->keyuse)
     return sel;
 
- Item_equal *item_equal;
+  Item_equal *item_equal;
   List_iterator_fast<Item_equal> it(cond_equal->current_level);
   TABLE *table= s->table;
   table_map table_bit= table->map;
