@@ -1393,7 +1393,7 @@ public:
            - If field is char/varchar/.. and is not part of write set.
     TRUE   - If field is char/varchar/.. and is part of write set.
 */
-  virtual bool is_updatable() const { return FALSE; }
+  virtual bool is_varchar_and_in_write_set() const { return FALSE; }
 
   /* Check whether the field can be used as a join attribute in hash join */
   virtual bool hash_join_is_possible() { return TRUE; }
@@ -1702,7 +1702,7 @@ public:
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
 
-  bool is_updatable() const
+  bool is_varchar_and_in_write_set() const
   {
     DBUG_ASSERT(table && table->write_set);
     return bitmap_is_set(table->write_set, field_index);
@@ -3204,7 +3204,8 @@ public:
   int  store_field(Field *from)
   {                                             // Be sure the value is stored
     from->val_str(&value);
-    if (table->copy_blobs || (!value.is_alloced() && from->is_updatable()))
+    if (table->copy_blobs ||
+        (!value.is_alloced() && from->is_varchar_and_in_write_set()))
       value.copy();
     return store(value.ptr(), value.length(), from->charset());
   }
