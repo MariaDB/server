@@ -4736,9 +4736,11 @@ commit_get_autoinc(
 
 		Field*	autoinc_field =
 			old_table->found_next_number_field;
+		KEY*	autoinc_key =
+			old_table->key_info + old_table->s->next_number_index;
 
-		dict_index_t*	index = dict_table_get_index_on_first_col(
-			ctx->old_table, autoinc_field->field_index);
+		dict_index_t*	index = dict_table_get_index_on_name(
+			ctx->old_table, autoinc_key->name);
 
 		max_autoinc = ha_alter_info->create_info->auto_increment_value;
 
