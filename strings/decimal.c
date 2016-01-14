@@ -283,7 +283,7 @@ static dec1 *remove_leading_zeroes(const decimal_t *from, int *intg_result)
     from    number for processing
 */
 
-int decimal_actual_fraction(decimal_t *from)
+int decimal_actual_fraction(const decimal_t *from)
 {
   int frac= from->frac, i;
   dec1 *buf0= from->buf + ROUND_UP(from->intg) + ROUND_UP(frac) - 1;
