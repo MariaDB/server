@@ -1,0 +1,1 @@
+--loose-gssapi-keytab-path=$GSSAPI_KEYTAB_PATH --loose-gssapi-principal-name=$GSSAPI_PRINCIPAL_NAME
