@@ -4489,6 +4489,29 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
              mi->connection_name.str);
     return true;
   }
+  if (mi->using_gtid != Master_info::USE_GTID_NO &&
+      opt_slave_parallel_threads > 0)
+  {
+    ulong domain_count;
+    mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    domain_count= rpl_global_gtid_slave_state->count();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    if (domain_count > 1)
+    {
+      /*
+        With domain-based parallel replication, the slave position is
+        multi-dimensional, so the relay log position is not very meaningful.
+        It might not even correspond to the next GTID to execute in _any_
+        domain (the case after error stop). So slave_skip_counter will most
+        likely not do what the user intends. Instead give an error, with a
+        suggestion to instead set @@gtid_slave_pos past the point of error;
+        this works reliably also in the case of multiple domains.
+      */
+      my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
+      return true;
+    }
+  }
+
   /* The value was stored temporarily in thd */
   mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
   return false;

@@ -4607,15 +4607,6 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    /*
-      We initialize the relay log state from the know starting position.
-      It will then be updated as required by GTID and GTID_LIST events found
-      while applying events read from relay logs.
-    */
-    rli->relay_log_state.load(rpl_global_gtid_slave_state);
-  }
   rli->gtid_skip_flag = GTID_SKIP_NOT;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
@@ -4886,6 +4877,7 @@ pthread_handler_t handle_slave_sql(void *arg)
           }
           strmake_buf(rli->group_relay_log_name, ir->name);
           rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+          rli->relay_log_state.load(ir->relay_log_state, ir->relay_log_state_count);
         }
       }
     }

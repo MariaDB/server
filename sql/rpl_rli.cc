@@ -389,6 +389,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     if (rli->is_relay_log_recovery && init_recovery(rli->mi, &msg))
       goto err;
 
+    rli->relay_log_state.load(rpl_global_gtid_slave_state);
     if (init_relay_log_pos(rli,
                            rli->group_relay_log_name,
                            rli->group_relay_log_pos,
@@ -1148,6 +1149,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     error=1;
     goto err;
   }
+  rli->relay_log_state.load(rpl_global_gtid_slave_state);
   if (!just_reset)
   {
     /* Save name of used relay log file */
