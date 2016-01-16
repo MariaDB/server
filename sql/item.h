@@ -656,6 +656,14 @@ protected:
 
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
+  virtual Field *make_string_field(TABLE *table);
+  Field *tmp_table_field_from_field_type(TABLE *table,
+                                         bool fixed_length,
+                                         bool set_blob_packlength);
+  Field *create_tmp_field(bool group, TABLE *table,
+                          uint convert_blob_length,
+                          uint convert_int_length);
+
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -722,7 +730,6 @@ public:
   void init_make_field(Send_field *tmp_field,enum enum_field_types type);
   virtual void cleanup();
   virtual void make_field(THD *thd, Send_field *field);
-  virtual Field *make_string_field(TABLE *table);
   virtual bool fix_fields(THD *, Item **);
   /*
     Fix after some tables has been pulled out. Basically re-calculate all
@@ -1046,8 +1053,6 @@ public:
   int save_str_value_in_field(Field *field, String *result);
 
   virtual Field *get_tmp_table_field() { return 0; }
-  /* This is also used to create fields in CREATE ... SELECT: */
-  virtual Field *tmp_table_field(TABLE *t_arg) { return 0; }
   virtual Field *create_field_for_create_select(THD *thd, TABLE *table);
   virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name ? name : "???"; }
@@ -1655,9 +1660,18 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  Field *tmp_table_field_from_field_type(TABLE *table,
-                                         bool fixed_length,
-                                         bool set_blob_packlength);
+  virtual Field *create_tmp_field(bool group, TABLE *table,
+                                  uint convert_blob_length)
+  {
+    /*
+      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into
+      Field_long : make them Field_longlong.
+    */
+    return create_tmp_field(false, table,
+                            convert_blob_length,
+                            MY_INT32_NUM_DECIMAL_DIGITS - 2);
+  }
+
   virtual Item_field *field_for_view_update() { return 0; }
 
   virtual Item *neg_transformer(THD *thd) { return NULL; }
@@ -2252,7 +2266,6 @@ public:
   {}
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
   /*
     This implementation of used_tables() used by Item_avg_field and
     Item_variance_field which work when only temporary table left, so theu
@@ -3440,8 +3453,6 @@ public:
   { return val_real_from_date(); }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
-  Field *tmp_table_field(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
 };
@@ -3947,7 +3958,6 @@ public:
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
-  Field *tmp_table_field(TABLE *t_arg) { return 0; } 
   Item *get_tmp_table_item(THD *thd);
   table_map used_tables() const;		
   void update_used_tables(); 

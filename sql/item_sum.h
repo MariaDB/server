@@ -481,8 +481,12 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table,
-                                  uint convert_blob_length);
+  Field *create_tmp_field(bool group, TABLE *table,
+                          uint convert_blob_length)
+  {
+    return Item::create_tmp_field(group, table, convert_blob_length,
+                                  MY_INT32_NUM_DECIMAL_DIGITS);
+  }
   virtual bool collect_outer_ref_processor(uchar *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
@@ -1093,7 +1097,6 @@ public:
   }
   table_map used_tables() const { return (table_map) 1L; }
   Field *get_tmp_table_field() { DBUG_ASSERT(0); return NULL; }
-  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
 };
@@ -1483,6 +1486,8 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+protected:
+  virtual Field *make_string_field(TABLE *table);
 
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
@@ -1497,7 +1502,6 @@ public:
   const char *func_name() const { return "group_concat"; }
   virtual Item_result result_type () const { return STRING_RESULT; }
   virtual Item_result cmp_type () const { return STRING_RESULT; }
-  virtual Field *make_string_field(TABLE *table);
   enum_field_types field_type() const
   {
     if (too_big_for_varchar())

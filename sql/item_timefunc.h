@@ -502,7 +502,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
-  Field *tmp_table_field(TABLE *table)
+  Field *create_field_for_create_select(THD *thd, TABLE *table)
   { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }

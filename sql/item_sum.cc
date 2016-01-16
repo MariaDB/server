@@ -496,44 +496,6 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 }
 
 
-Field *Item_sum::create_tmp_field(bool group, TABLE *table,
-                                  uint convert_blob_length)
-{
-  Field *UNINIT_VAR(field);
-  MEM_ROOT *mem_root= table->in_use->mem_root;
-
-  switch (result_type()) {
-  case REAL_RESULT:
-    field= new (mem_root)
-      Field_double(max_length, maybe_null, name, decimals, TRUE);
-    break;
-  case INT_RESULT:
-    field= new (mem_root)
-      Field_longlong(max_length, maybe_null, name, unsigned_flag);
-    break;
-  case STRING_RESULT:
-    if (max_length/collation.collation->mbmaxlen <= 255 ||
-        convert_blob_length > Field_varstring::MAX_SIZE ||
-        !convert_blob_length)
-      return make_string_field(table);
-    field= new (mem_root) Field_varstring(convert_blob_length, maybe_null,
-                                          name, table->s, collation.collation);
-    break;
-  case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(mem_root, this);
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    // This case should never be choosen
-    DBUG_ASSERT(0);
-    return 0;
-  }
-  if (field)
-    field->init(table);
-  return field;
-}
-
-
 void Item_sum::update_used_tables ()
 {
   if (!Item_sum::const_item())

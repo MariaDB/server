@@ -171,12 +171,11 @@ public:
   }
   void signal_divide_by_null();
   friend class udf_handler;
-  Field *tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg);
   Field *create_field_for_create_select(THD *thd, TABLE *table)
   {
+    DBUG_ASSERT(thd == table->in_use);
     return result_type() != STRING_RESULT ?
-           tmp_table_field(table) :
+           create_tmp_field(false, table, 0, MY_INT32_NUM_DECIMAL_DIGITS) :
            tmp_table_field_from_field_type(table, false, false);
   }
   Item *get_tmp_table_item(THD *thd);
@@ -1767,7 +1766,7 @@ public:
   Field *create_field_for_create_select(THD *thd, TABLE *table)
   {
     return result_type() != STRING_RESULT ?
-           tmp_table_field(table) :
+           create_tmp_field(false, table, 0, MY_INT32_NUM_DECIMAL_DIGITS) :
            tmp_table_field_from_field_type(table, false, true);
   }
   table_map used_tables() const
@@ -2136,8 +2135,12 @@ public:
 
   enum enum_field_types field_type() const;
 
-  Field *tmp_table_field(TABLE *t_arg);
-
+  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  {
+    return result_type() != STRING_RESULT ?
+           sp_result_field :
+           tmp_table_field_from_field_type(table, false, false);
+  }
   void make_field(THD *thd, Send_field *tmp_field);
 
   Item_result result_type() const;
