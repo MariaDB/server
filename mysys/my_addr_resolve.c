@@ -153,12 +153,13 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
 
   fd_set set;
   struct timeval timeout;
-  FD_ZERO(&set);
-  FD_SET(out[0], &set);
 
   int filename_start = -1;
   int line_number_start = -1;
   ssize_t i;
+
+  FD_ZERO(&set);
+  FD_SET(out[0], &set);
 
   len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
   if (write(in[1], input, len) <= 0)
