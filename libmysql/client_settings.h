@@ -27,7 +27,7 @@ extern char *	mysql_unix_port;
  When adding capabilities here, consider if they should be also added to
  the server's version.
 */
-#define CLIENT_CAPABILITIES (CLIENT_LONG_PASSWORD | \
+#define CLIENT_CAPABILITIES (CLIENT_MYSQL | \
                              CLIENT_LONG_FLAG |     \
                              CLIENT_TRANSACTIONS |  \
                              CLIENT_PROTOCOL_41 | \

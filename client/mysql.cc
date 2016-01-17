@@ -1921,7 +1921,7 @@ static int get_options(int argc, char **argv)
     connect_flag|= CLIENT_IGNORE_SPACE;
 
   if (opt_progress_reports)
-    connect_flag|= CLIENT_PROGRESS;
+    connect_flag|= CLIENT_PROGRESS_OBSOLETE;
 
   return(0);
 }
@@ -4638,10 +4638,10 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   mysql.reconnect= debug_info_flag; // We want to know if this happens
 
   /*
-    CLIENT_PROGRESS is set only if we requsted it in mysql_real_connect()
-    and the server also supports it
+    CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
+    mysql_real_connect() and the server also supports it
   */
-  if (mysql.client_flag & CLIENT_PROGRESS)
+  if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
   mysql.reconnect= 1;

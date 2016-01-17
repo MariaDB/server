@@ -188,7 +188,8 @@ enum enum_server_command
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
-#define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
+#define CLIENT_LONG_PASSWORD	0	/* obsolete flag */
+#define CLIENT_MYSQL            1       /* mysql/old mariadb server/client */
 #define CLIENT_FOUND_ROWS	2	/* Found instead of affected rows */
 #define CLIENT_LONG_FLAG	4	/* Get all column flags */
 #define CLIENT_CONNECT_WITH_DB	8	/* One can specify db on connect */
@@ -215,7 +216,7 @@ enum enum_server_command
 /* Don't close the connection for a connection with expired password. */
 #define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
 
-#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
+#define CLIENT_PROGRESS_OBSOLETE  (1UL << 29)
 #define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
@@ -228,14 +229,23 @@ enum enum_server_command
 */
 #define CLIENT_REMEMBER_OPTIONS (1UL << 31)
 
+/* MariaDB extended capability flags */
+#define MARIADB_CLIENT_FLAGS_MASK 0xffffffff00000000ULL
+/* Client support progress indicator */
+#define MARIADB_CLIENT_PROGRESS (1ULL << 32)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
 #define CAN_CLIENT_COMPRESS 0
 #endif
 
-/* Gather all possible capabilites (flags) supported by the server */
-#define CLIENT_ALL_FLAGS  (CLIENT_LONG_PASSWORD | \
+/*
+  Gather all possible capabilites (flags) supported by the server
+
+  MARIADB_* flags supported only by MariaDB connector(s).
+*/
+#define CLIENT_ALL_FLAGS  (\
                            CLIENT_FOUND_ROWS | \
                            CLIENT_LONG_FLAG | \
                            CLIENT_CONNECT_WITH_DB | \
@@ -256,7 +266,7 @@ enum enum_server_command
                            CLIENT_PS_MULTI_RESULTS | \
                            CLIENT_SSL_VERIFY_SERVER_CERT | \
                            CLIENT_REMEMBER_OPTIONS | \
-                           CLIENT_PROGRESS | \
+                           MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
                            CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
                            CLIENT_CONNECT_ATTRS)

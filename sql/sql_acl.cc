@@ -11314,7 +11314,8 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
   DBUG_EXECUTE_IF("poison_srv_handshake_scramble_len", end[7]= -100;);
-  bzero(end + 8, 10);
+  bzero(end + 8, 6);
+  int4store(end + 14, thd->client_capabilities >> 32);
   end+= 18;
   /* write scramble tail */
   end= (char*) memcpy(end, data + SCRAMBLE_LENGTH_323,
@@ -11730,18 +11731,29 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
 
-  ulong client_capabilities= uint2korr(net->read_pos);
+  ulonglong client_capabilities= uint2korr(net->read_pos);
+  compile_time_assert(sizeof(client_capabilities) >= 8);
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
-    if (pkt_len < 4)
+    if (pkt_len < 32)
       return packet_error;
     client_capabilities|= ((ulong) uint2korr(net->read_pos+2)) << 16;
+    if (!(client_capabilities & CLIENT_MYSQL))
+    {
+      // it is client with mariadb extensions
+      ulonglong ext_client_capabilities=
+        (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
+      client_capabilities|= ext_client_capabilities;
+    }
+    else if (client_capabilities & CLIENT_PROGRESS_OBSOLETE)
+      client_capabilities|= MARIADB_CLIENT_PROGRESS;
   }
 
   /* Disable those bits which are not supported by the client. */
+  compile_time_assert(sizeof(thd->client_capabilities) >= 8);
   thd->client_capabilities&= client_capabilities;
 
-  DBUG_PRINT("info", ("client capabilities: %lu", thd->client_capabilities));
+  DBUG_PRINT("info", ("client capabilities: %llu", thd->client_capabilities));
   if (thd->client_capabilities & CLIENT_SSL)
   {
     unsigned long errptr __attribute__((unused));
@@ -11769,8 +11781,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
-    if (pkt_len < 32)
-      return packet_error;
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
     DBUG_PRINT("info", ("client_character_set: %d", (uint) net->read_pos[8]));
     if (thd_init_client_charset(thd, (uint) net->read_pos[8]))
@@ -12547,7 +12557,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   }
 
   DBUG_PRINT("info",
-             ("Capabilities: %lu  packet_length: %ld  Host: '%s'  "
+             ("Capabilities: %llu  packet_length: %ld  Host: '%s'  "
               "Login user: '%s' Priv_user: '%s'  Using password: %s "
               "Access: %lu  db: '%s'",
               thd->client_capabilities, thd->max_client_packet_length,

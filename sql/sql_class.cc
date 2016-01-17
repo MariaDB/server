@@ -4329,7 +4329,7 @@ extern "C" void thd_progress_init(MYSQL_THD thd, uint max_stage)
     is a high level command (like ALTER TABLE) and we are not in a
     stored procedure
   */
-  thd->progress.report= ((thd->client_capabilities & CLIENT_PROGRESS) &&
+  thd->progress.report= ((thd->client_capabilities & MARIADB_CLIENT_PROGRESS) &&
                          thd->progress.report_to_client &&
                          !thd->in_sub_stmt);
   thd->progress.next_report_time= 0;

@@ -637,7 +637,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock)
 {
   Vio* save_vio;
-  ulong save_client_capabilities;
+  ulonglong save_client_capabilities;
 
   mysql_rwlock_rdlock(var_lock);
   if (!init_command->length)
