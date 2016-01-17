@@ -15336,7 +15336,7 @@ static void test_mysql_insert_id()
 
   myheader("test_mysql_insert_id");
 
-  rc= mysql_query(mysql, "drop table if exists t1");
+  rc= mysql_query(mysql, "drop table if exists t1,t2");
   myquery(rc);
   /* table without auto_increment column */
   rc= mysql_query(mysql, "create table t1 (f1 int, f2 varchar(255), key(f1))");
