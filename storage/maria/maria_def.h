@@ -67,8 +67,7 @@ typedef struct st_maria_sort_info
   pgcache_page_no_t page;
   ha_rows max_records;
   uint current_key, total_keys;
-  volatile uint got_error;
-  uint threads_running;
+  uint got_error, threads_running;
   myf myf_rw;
   enum data_file_type new_data_file_type, org_data_file_type;
 } MARIA_SORT_INFO;

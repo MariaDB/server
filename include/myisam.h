@@ -331,8 +331,7 @@ typedef struct st_sort_info
   my_off_t filelength, dupp, buff_length;
   ha_rows max_records;
   uint current_key, total_keys;
-  volatile uint got_error;
-  uint threads_running;
+  uint got_error, threads_running;
   myf myf_rw;
   enum data_file_type new_data_file_type;
 } MI_SORT_INFO;
