@@ -438,6 +438,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_RENAME_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_DROP_USER]=         CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_ALTER_USER]=        CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_ROLE]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_GRANT]=             CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_GRANT_ROLE]=        CF_CHANGES_DATA;
@@ -494,6 +495,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CHECKSUM]=  CF_REPORT_PROGRESS;
 
   sql_command_flags[SQLCOM_CREATE_USER]|=       CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_ALTER_USER]|=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_USER]|=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_RENAME_USER]|=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_ROLE]|=       CF_AUTO_COMMIT_TRANS;
@@ -587,6 +589,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_EVENT]|=      CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_EVENT]|=       CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_USER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_USER]|=       CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_RENAME_USER]|=      CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_DROP_USER]|=        CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_CREATE_SERVER]|=    CF_DISALLOW_IN_RO_TRANS;
@@ -4638,6 +4641,7 @@ end_with_restore_list:
       my_ok(thd);
     break;
   }
+  case SQLCOM_ALTER_USER:
   case SQLCOM_RENAME_USER:
   {
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 1) &&
@@ -4645,7 +4649,11 @@ end_with_restore_list:
       break;
     /* Conditionally writes to binlog */
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-    if (!(res= mysql_rename_user(thd, lex->users_list)))
+    if (lex->sql_command == SQLCOM_ALTER_USER)
+      res= mysql_alter_user(thd, lex->users_list);
+    else
+      res= mysql_rename_user(thd, lex->users_list);
+    if (!res)
       my_ok(thd);
     break;
   }
