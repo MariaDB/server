@@ -2531,7 +2531,8 @@ create:
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event { }
-        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
+        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
+          require_clause resource_options
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
               MYSQL_YYABORT;
@@ -7106,6 +7107,11 @@ alter:
             lex->sql_command= SQLCOM_ALTER_SERVER;
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
+        | ALTER opt_if_exists USER clear_privileges user_list
+          require_clause resource_options
+          {
+            Lex->sql_command= SQLCOM_ALTER_USER;
+          }
         ;
 
 ev_alter_on_schedule_completion:
@@ -15412,24 +15418,8 @@ require_clause:
           }
         ;
 
-grant_options:
-          /* empty */ {}
-        | WITH grant_option_list
-        ;
-
-opt_grant_option:
-          /* empty */ {}
-        | WITH GRANT OPTION { Lex->grant |= GRANT_ACL;}
-        ;
-
-grant_option_list:
-          grant_option_list grant_option {}
-        | grant_option {}
-        ;
-
-grant_option:
-          GRANT OPTION { Lex->grant |= GRANT_ACL;}
-        | MAX_QUERIES_PER_HOUR ulong_num
+resource_option:
+        MAX_QUERIES_PER_HOUR ulong_num
           {
             LEX *lex=Lex;
             lex->mqh.questions=$2;
@@ -15459,6 +15449,37 @@ grant_option:
             lex->mqh.max_statement_time= $2->val_real();
             lex->mqh.specified_limits|= USER_RESOURCES::MAX_STATEMENT_TIME;
           }
+        ;
+
+resource_option_list:
+	  resource_option_list resource_option {}
+	| resource_option {}
+        ;
+
+resource_options:
+	  /* empty */ {}
+	| WITH resource_option_list
+        ;
+
+
+grant_options:
+          /* empty */ {}
+        | WITH grant_option_list {}
+        ;
+
+opt_grant_option:
+          /* empty */ {}
+        | WITH GRANT OPTION { Lex->grant |= GRANT_ACL;}
+        ;
+
+grant_option_list:
+          grant_option_list grant_option {}
+        | grant_option {}
+        ;
+
+grant_option:
+          GRANT OPTION { Lex->grant |= GRANT_ACL;}
+	| resource_option {}
         ;
 
 begin:

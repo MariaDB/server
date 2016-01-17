@@ -309,6 +309,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_CREATE_USER:
   case SQLCOM_CREATE_ROLE:
   case SQLCOM_ALTER_TABLE:
+  case SQLCOM_ALTER_USER:
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:

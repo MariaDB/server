@@ -3676,6 +3676,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_server",         STMT_STATUS(SQLCOM_ALTER_SERVER)},
   {"alter_table",          STMT_STATUS(SQLCOM_ALTER_TABLE)},
   {"alter_tablespace",     STMT_STATUS(SQLCOM_ALTER_TABLESPACE)},
+  {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},
   {"analyze",              STMT_STATUS(SQLCOM_ANALYZE)},
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},

@@ -9840,6 +9840,26 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   DBUG_RETURN(result);
 }
 
+/*
+  Alter a user's connection and resource settings.
+
+  SYNOPSIS
+    mysql_alter_user()
+    thd                         The current thread.
+    list                        The users to alter.
+
+  RETURN
+    > 0         Error. Error message already sent.
+    0           OK.
+    < 0         Error. Error message not yet sent.
+*/
+int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
+{
+  DBUG_ENTER("mysql_alter_user");
+  int result= 0;
+  // TODO implement the alter user logic.
+  DBUG_RETURN(result);
+}
 
 /*
   Revoke all privileges from a list of users.
