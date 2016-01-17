@@ -148,10 +148,6 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   char input[32];
   size_t len;
 
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
-  if (write(in[1], input, len) <= 0)
-    return 1;
-
   ssize_t total_bytes_read = 0;
   ssize_t extra_bytes_read = 0;
 
@@ -159,6 +155,14 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   struct timeval timeout;
   FD_ZERO(&set);
   FD_SET(out[0], &set);
+
+  int filename_start = -1;
+  int line_number_start = -1;
+  ssize_t i;
+
+  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
+  if (write(in[1], input, len) <= 0)
+    return 1;
 
   /* 10 ms should be plenty of time for addr2line to issue a response. */
   timeout.tv_sec = 0;
@@ -177,12 +181,10 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   if (total_bytes_read == 0)
     return 1;
 
-  int filename_start = -1;
-  int line_number_start = -1;
   /* Go through the addr2line response and get the required data.
      The response is structured in 2 lnes. The first line contains the function
      name, while the second one contains <filename>:<line number> */
-  for (ssize_t i = 0; i < total_bytes_read; i++) {
+  for (i = 0; i < total_bytes_read; i++) {
     if (output[i] == '\n') {
       filename_start = i + 1;
       output[i] = '\0';
