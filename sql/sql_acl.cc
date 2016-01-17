@@ -634,9 +634,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
                            char *hostname, char *rolename,
                            bool with_admin_option)
 {
-  if (!this)
-    return true;
-
   size_t uname_l = safe_strlen(username);
   size_t hname_l = safe_strlen(hostname);
   size_t rname_l = safe_strlen(rolename);
@@ -10934,7 +10931,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   /* global privileges */
   grant->privilege= sctx->master_access;
 
-  if (!sctx->priv_user)
+  if (!sctx->priv_user[0])
   {
     DBUG_PRINT("info", ("privilege 0x%lx", grant->privilege));
     DBUG_VOID_RETURN;                         // it is slave
