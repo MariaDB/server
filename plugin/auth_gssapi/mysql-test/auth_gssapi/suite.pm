@@ -36,11 +36,13 @@ if (!$ENV{'GSSAPI_FULLNAME'}  || !$ENV{'GSSAPI_SHORTNAME'})
   return "Environment variable GSSAPI_SHORTNAME and GSSAPI_FULLNAME need to be set"
 }
 
-foreach $var ('GSSAPI_SHORTNAME','GSSAPI_FULLNAME','GSSAPI_KEYTAB_PATH','GSSAPI_PRINCIPAL_NAME')
+if ($::opt_verbose)
 {
-   print "$var=$ENV{$var}\n";
+  foreach $var ('GSSAPI_SHORTNAME','GSSAPI_FULLNAME','GSSAPI_KEYTAB_PATH','GSSAPI_PRINCIPAL_NAME')
+  {
+    print "$var=$ENV{$var}\n";
+  }
 }
-
 sub is_default { 1 }
 
 bless { };

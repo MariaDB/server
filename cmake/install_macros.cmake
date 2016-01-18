@@ -44,11 +44,10 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     ENDIF()
 	
     set(comp "")
-    IF(ARG_COMPONENT STREQUAL "Server")
-      IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
-        #MESSAGE("PDB: ${targets}")
-        SET(comp Server)
-      ENDIF()
+   
+    IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
+      #MESSAGE("PDB: ${targets}")
+      SET(comp Server)
     ENDIF()
  
     IF(NOT comp MATCHES Server)

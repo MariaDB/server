@@ -19,6 +19,7 @@ INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 
 # MYSQL_ADD_PLUGIN(plugin_name source1...sourceN
 # [STORAGE_ENGINE]
+# [CLIENT]
 # [MANDATORY|DEFAULT]
 # [STATIC_ONLY|DYNAMIC_ONLY]
 # [MODULE_OUTPUT_NAME module_name]
@@ -30,7 +31,7 @@ INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 MACRO(MYSQL_ADD_PLUGIN)
   MYSQL_PARSE_ARGUMENTS(ARG
     "LINK_LIBRARIES;DEPENDENCIES;MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
-    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED"
+    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
     ${ARGN}
   )
 
@@ -120,7 +121,7 @@ MACRO(MYSQL_ADD_PLUGIN)
 
   # Build either static library or module
   IF (PLUGIN_${plugin} MATCHES "(STATIC|AUTO|YES)" AND NOT ARG_MODULE_ONLY
-      AND NOT ARG_DISABLED)
+      AND NOT ARG_DISABLED AND NOT ARG_CLIENT)
 
     IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
       # If there is a shared library from previous shared build,
@@ -188,14 +189,14 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 
-    # Plugin uses symbols defined in mysqld executable.
+    # Server plugins use symbols defined in mysqld executable.
     # Some operating systems like Windows and OSX and are pretty strict about 
     # unresolved symbols. Others are less strict and allow unresolved symbols
     # in shared libraries. On Linux for example, CMake does not even add 
     # executable to the linker command line (it would result into link error). 
     # Thus we skip TARGET_LINK_LIBRARIES on Linux, as it would only generate
     # an additional dependency.
-    IF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    IF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ARG_CLIENT)
       TARGET_LINK_LIBRARIES (${target} mysqld)
     ENDIF()
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})
@@ -206,19 +207,21 @@ MACRO(MYSQL_ADD_PLUGIN)
     IF(ARG_COMPONENT)
       IF(CPACK_COMPONENTS_ALL AND
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
-        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} PARENT_SCOPE)
+
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT})
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL}  PARENT_SCOPE)
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB" PARENT_SCOPE)
-
-        IF (NOT ARG_CONFIG)
-          SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/${target}.cnf")
-          FILE(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
-        ENDIF()
-        INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
-
+ 
         # workarounds for cmake issues #13248 and #12864:
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
-        SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
+          
+		IF(NOT ARG_CLIENT AND NOT ARG_CONFIG AND UNIX)
+          SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/${target}.cnf")
+          FILE(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
+	      INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
+		  SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)      
+		ENDIF()
       ENDIF()
     ELSE()
       SET(ARG_COMPONENT Server)

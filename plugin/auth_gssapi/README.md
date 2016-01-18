@@ -11,7 +11,7 @@ environment.
 
 ## Server-side preparations on Unix
 To use the plugin, some preparation need to be done on the server side on Unixes.
-MariaDB server will read need access to the Kerberos keytab file, that contains  service principal name for the MariaDB server.
+MariaDB server will need read access to the Kerberos keytab file, that contains  service principal name for the MariaDB server.
 
 
 If you are using **Unix Kerberos KDC (MIT,Heimdal)**
@@ -91,7 +91,7 @@ You may also use alternative *short* form of CREATE USER
 CREATE USER usr1 IDENTIFIED WITH gssapi;
 ```
 
-If this syntax is used, realm part is used for comparison
+If this syntax is used, realm part is *not* used for comparison
 thus 'usr1@EXAMPLE.COM', 'usr1@EXAMPLE.CO.UK' and 'mymachine\usr1' will all identify as 'usr1'.
 
 #Login as GSSAPI user with command line clients

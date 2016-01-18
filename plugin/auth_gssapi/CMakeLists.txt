@@ -25,9 +25,12 @@ ENDIF ()
 
 
 MYSQL_ADD_PLUGIN(auth_gssapi server_plugin.cc ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
-                 LINK_LIBRARIES ${GSSAPI_LIBS}
+                 LINK_LIBRARIES ${GSSAPI_LIBS} 
+                 COMPONENT gssapi-server
                  MODULE_ONLY)
 
 MYSQL_ADD_PLUGIN(auth_gssapi_client client_plugin.cc ${GSSAPI_CLIENT} ${GSSAPI_ERRMSG}
                  LINK_LIBRARIES ${GSSAPI_LIBS}
+                 COMPONENT gssapi-client
+                 CLIENT
                  MODULE_ONLY)

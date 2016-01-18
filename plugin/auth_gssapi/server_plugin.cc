@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, Shuang Qiu, Robbie Hardwood,
+/* Copyright (c) 2015, Shuang Qiu, Robbie Harwood,
    Vladislav Vaintroub & MariaDB Corporation
 
    All rights reserved.
@@ -59,6 +59,14 @@ static int gssapi_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
   const char *user;
   int user_len;
 
+  /* No user name yet ? Read the client handshake packet with the user name. */
+  if (auth_info->user_name == 0)
+  {
+    unsigned char *pkt;
+    if (vio->read_packet(vio, &pkt) < 0)
+      return CR_ERROR;
+  }
+  
   /* Send first packet with target name and mech name */
   if (vio->write_packet(vio, (unsigned char *)first_packet, first_packet_len))
   {
@@ -106,7 +114,7 @@ static int deinitialize_plugin(void *unused)
 /* system variable */
 static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
-                        "Keytab file path (Kerberos)",
+                        "Keytab file path for Kerberos authentication",
                         NULL,
                         NULL,
                         "");
@@ -131,7 +139,7 @@ static TYPELIB mech_name_typelib = {
 };
 static MYSQL_SYSVAR_ENUM(mech_name, srv_mech,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
-                        "GSSAPI mechanism : either Kerberos or Negotiate",
+                        "GSSAPI mechanism",
                         NULL,
                         NULL,
                         2,&mech_name_typelib);
@@ -169,7 +177,7 @@ maria_declare_plugin(gssapi_server)
   NULL,                                  /* status variables */
   system_variables,                      /* system variables */
   "1.0",
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+  MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
 

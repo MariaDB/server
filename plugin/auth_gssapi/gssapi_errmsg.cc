@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, Shuang Qiu, Robbie Hardwood,
+/* Copyright (c) 2015, Shuang Qiu, Robbie Harwood,
 Vladislav Vaintroub & MariaDB Corporation
 
 All rights reserved.
