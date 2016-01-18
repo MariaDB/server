@@ -2249,7 +2249,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         rc = SQLTables(hstmt, name.ptr(2), name.length(2),
                               name.ptr(1), name.length(1),
                               name.ptr(0), name.length(0),
-                              cap->Pat, SQL_NTS);
+															cap->Pat, cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_COL:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
@@ -2258,7 +2258,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
                                name.ptr(1), name.length(1),
                                name.ptr(0), name.length(0),
-                               cap->Pat, SQL_NTS);
+															 cap->Pat, cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";
