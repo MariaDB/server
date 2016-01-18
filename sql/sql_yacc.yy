@@ -7107,9 +7107,10 @@ alter:
             lex->sql_command= SQLCOM_ALTER_SERVER;
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
-        | ALTER opt_if_exists USER clear_privileges user_list
+        | ALTER opt_if_exists USER clear_privileges grant_list
           require_clause resource_options
           {
+            Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
           }
         ;

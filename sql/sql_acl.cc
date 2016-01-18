@@ -9851,13 +9851,60 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   RETURN
     > 0         Error. Error message already sent.
     0           OK.
-    < 0         Error. Error message not yet sent.
 */
 int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
 {
   DBUG_ENTER("mysql_alter_user");
   int result= 0;
-  // TODO implement the alter user logic.
+  TABLE_LIST tables[TABLES_MAX];
+  String wrong_users;
+  // The only table we're altering is the user table.
+  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
+    DBUG_RETURN(result);
+
+  // Lock ACL data structures until we finish altering all users.
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+
+  LEX_USER *tmp_lex_user;
+  List_iterator<LEX_USER> users_list_iterator(users_list);
+  while ((tmp_lex_user= users_list_iterator++))
+  {
+    LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
+    if (!lex_user ||
+        fix_lex_user(thd, lex_user) ||
+        replace_user_table(thd, tables[USER_TABLE].table, *lex_user,0,
+                           false, false, true))
+    {
+      thd->clear_error();
+      append_user(thd, &wrong_users, tmp_lex_user);
+      result= TRUE;
+      continue;
+    }
+  }
+
+  // Unlock ACL data structures.
+  mysql_mutex_unlock(&acl_cache->lock);
+  mysql_rwlock_unlock(&LOCK_grant);
+
+  if (result)
+  {
+    // 'if exists' flag leads to warnings instead of errors.
+    if (thd->lex->create_info.if_exists())
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_CANNOT_USER,
+                          ER_THD(thd, ER_CANNOT_USER),
+                          "ALTER USER", wrong_users.c_ptr_safe());
+      result= FALSE;
+    }
+    else
+    {
+      my_error(ER_CANNOT_USER, MYF(0),
+               "ALTER USER",
+               wrong_users.c_ptr_safe());
+    }
+  }
   DBUG_RETURN(result);
 }
 
