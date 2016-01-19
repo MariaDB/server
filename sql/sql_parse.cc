@@ -422,6 +422,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_CREATE_USER]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_MASTER_STAT]= CF_STATUS_COMMAND;
@@ -4715,6 +4716,7 @@ mysql_execute_command(THD *thd)
     break;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  case SQLCOM_SHOW_CREATE_USER:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
@@ -4722,7 +4724,20 @@ mysql_execute_command(THD *thd)
       goto error;
 
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-    res = mysql_show_grants(thd, grant_user);
+    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
+        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
+      grant_user->user= current_user;
+
+    if (grant_user->user.str == current_user.str ||
+        grant_user->user.str == current_role.str ||
+        grant_user->user.str == current_user_and_current_role.str ||
+        !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
+    {
+      if (lex->sql_command == SQLCOM_SHOW_GRANTS)
+        res = mysql_show_grants(thd, grant_user);
+      else
+        res = mysql_show_create_user(thd, grant_user);
+    }
     break;
   }
 #endif

@@ -7811,6 +7811,10 @@ static int show_grants_callback(ACL_USER_BASE *role, void *data)
   return 0;
 }
 
+bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
+{
+  return FALSE;
+}
 
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name)

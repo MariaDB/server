@@ -246,6 +246,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
+bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 void get_privilege_desc(char *to, uint max_length, ulong access);
