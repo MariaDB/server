@@ -12498,7 +12498,7 @@ show_param:
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
             if (!(Lex->grant_user= (LEX_USER*)thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
-            Lex->grant_user->user= current_user_and_current_role;
+            Lex->grant_user->user= current_user;
           }
         | CREATE USER user
           {

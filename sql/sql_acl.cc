@@ -7756,6 +7756,94 @@ static void add_user_option(String *grant, double value, const char *name)
   }
 }
 
+static void add_user_parameters(String *result, ACL_USER* acl_user,
+                                bool with_grant)
+{
+  result->append(STRING_WITH_LEN("@'"));
+  result->append(acl_user->host.hostname, acl_user->hostname_length,
+                system_charset_info);
+  result->append('\'');
+
+  if (acl_user->plugin.str == native_password_plugin_name.str ||
+      acl_user->plugin.str == old_password_plugin_name.str)
+  {
+    if (acl_user->auth_string.length)
+    {
+      DBUG_ASSERT(acl_user->salt_len);
+      result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
+      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append('\'');
+    }
+  }
+  else
+  {
+    result->append(STRING_WITH_LEN(" IDENTIFIED VIA "));
+    result->append(acl_user->plugin.str, acl_user->plugin.length);
+    if (acl_user->auth_string.length)
+    {
+      result->append(STRING_WITH_LEN(" USING '"));
+      result->append(acl_user->auth_string.str, acl_user->auth_string.length);
+      result->append('\'');
+    }
+  }
+  /* "show grants" SSL related stuff */
+  if (acl_user->ssl_type == SSL_TYPE_ANY)
+    result->append(STRING_WITH_LEN(" REQUIRE SSL"));
+  else if (acl_user->ssl_type == SSL_TYPE_X509)
+    result->append(STRING_WITH_LEN(" REQUIRE X509"));
+  else if (acl_user->ssl_type == SSL_TYPE_SPECIFIED)
+  {
+    int ssl_options = 0;
+    result->append(STRING_WITH_LEN(" REQUIRE "));
+    if (acl_user->x509_issuer)
+    {
+      ssl_options++;
+      result->append(STRING_WITH_LEN("ISSUER \'"));
+      result->append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
+      result->append('\'');
+    }
+    if (acl_user->x509_subject)
+    {
+      if (ssl_options++)
+        result->append(' ');
+      result->append(STRING_WITH_LEN("SUBJECT \'"));
+      result->append(acl_user->x509_subject,strlen(acl_user->x509_subject),
+                    system_charset_info);
+      result->append('\'');
+    }
+    if (acl_user->ssl_cipher)
+    {
+      if (ssl_options++)
+        result->append(' ');
+      result->append(STRING_WITH_LEN("CIPHER '"));
+      result->append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
+                    system_charset_info);
+      result->append('\'');
+    }
+  }
+  if (with_grant ||
+      (acl_user->user_resource.questions ||
+       acl_user->user_resource.updates ||
+       acl_user->user_resource.conn_per_hour ||
+       acl_user->user_resource.user_conn ||
+       acl_user->user_resource.max_statement_time != 0.0))
+  {
+    result->append(STRING_WITH_LEN(" WITH"));
+    if (with_grant)
+      result->append(STRING_WITH_LEN(" GRANT OPTION"));
+    add_user_option(result, acl_user->user_resource.questions,
+                    "MAX_QUERIES_PER_HOUR", false);
+    add_user_option(result, acl_user->user_resource.updates,
+                    "MAX_UPDATES_PER_HOUR", false);
+    add_user_option(result, acl_user->user_resource.conn_per_hour,
+                    "MAX_CONNECTIONS_PER_HOUR", false);
+    add_user_option(result, acl_user->user_resource.user_conn,
+                    "MAX_USER_CONNECTIONS", true);
+    add_user_option(result, acl_user->user_resource.max_statement_time,
+                    "MAX_STATEMENT_TIME");
+  }
+}
+
 static const char *command_array[]=
 {
   "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD",
@@ -7802,6 +7890,78 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 }
 
 
+bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
+{
+  const char *username = safe_str(lex_user->user.str);
+  const char *hostname = safe_str(lex_user->host.str);
+  char buff[1024]; //Show create user should not take more than 1024 bytes.
+  Protocol *protocol= thd->protocol;
+  bool error= false;
+  ACL_USER *acl_user;
+  DBUG_ENTER("mysql_show_create_user");
+
+  // Check if the command specifies a username or not.
+  if (lex_user->user.str == current_user.str)
+  {
+    username= thd->security_ctx->priv_user;
+    hostname= thd->security_ctx->priv_host;
+  }
+
+  String field_name(buff, sizeof(buff), system_charset_info);
+  List<Item> field_list;
+  strxmov(buff, "CREATE USER for ", username, "@", hostname, NullS);
+  Item_string *field = new (thd->mem_root) Item_string_ascii(thd, "", 0);
+  if (!field)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0));
+    DBUG_RETURN(true);
+  }
+
+  field->name= buff;
+  field->max_length= sizeof(buff);
+  field_list.push_back(field, thd->mem_root);
+  if (protocol->send_result_set_metadata(&field_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+    DBUG_RETURN(true);
+
+  String result(buff, sizeof(buff), system_charset_info);
+  result.length(0);
+  mysql_rwlock_rdlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+
+  acl_user= find_user_exact(hostname, username);
+
+  // User not found in the internal data structures.
+  if (!acl_user)
+  {
+    my_error(ER_PASSWORD_NO_MATCH, MYF(0));
+    error= true;
+    goto end;
+  }
+
+  result.append("CREATE USER '");
+  result.append(username);
+  result.append('\'');
+
+  add_user_parameters(&result, acl_user, false);
+
+  protocol->prepare_for_resend();
+  protocol->store(result.ptr(), result.length(), result.charset());
+  if (protocol->write())
+  {
+    error= true;
+  }
+  my_eof(thd);
+
+end:
+  mysql_rwlock_unlock(&LOCK_grant);
+  mysql_mutex_unlock(&acl_cache->lock);
+
+  DBUG_RETURN(error);
+}
+
+
 static int show_grants_callback(ACL_USER_BASE *role, void *data)
 {
   THD *thd= (THD *)data;
@@ -7809,11 +7969,6 @@ static int show_grants_callback(ACL_USER_BASE *role, void *data)
   if (print_grants_for_role(thd, (ACL_ROLE *)role))
     return -1;
   return 0;
-}
-
-bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
-{
-  return FALSE;
 }
 
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
@@ -8090,93 +8245,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   global.append('\'');
 
   if (!handle_as_role)
-  {
-    ACL_USER *acl_user= (ACL_USER *)acl_entry;
-
-    global.append (STRING_WITH_LEN("@'"));
-    global.append(acl_user->host.hostname, acl_user->hostname_length,
-                  system_charset_info);
-    global.append ('\'');
-
-    if (acl_user->plugin.str == native_password_plugin_name.str ||
-        acl_user->plugin.str == old_password_plugin_name.str)
-    {
-      if (acl_user->auth_string.length)
-      {
-        DBUG_ASSERT(acl_user->salt_len);
-        global.append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-        global.append(acl_user->auth_string.str, acl_user->auth_string.length);
-        global.append('\'');
-      }
-    }
-    else
-    {
-      global.append(STRING_WITH_LEN(" IDENTIFIED VIA "));
-      global.append(acl_user->plugin.str, acl_user->plugin.length);
-      if (acl_user->auth_string.length)
-      {
-        global.append(STRING_WITH_LEN(" USING '"));
-        global.append(acl_user->auth_string.str, acl_user->auth_string.length);
-        global.append('\'');
-      }
-    }
-    /* "show grants" SSL related stuff */
-    if (acl_user->ssl_type == SSL_TYPE_ANY)
-      global.append(STRING_WITH_LEN(" REQUIRE SSL"));
-    else if (acl_user->ssl_type == SSL_TYPE_X509)
-      global.append(STRING_WITH_LEN(" REQUIRE X509"));
-    else if (acl_user->ssl_type == SSL_TYPE_SPECIFIED)
-    {
-      int ssl_options = 0;
-      global.append(STRING_WITH_LEN(" REQUIRE "));
-      if (acl_user->x509_issuer)
-      {
-        ssl_options++;
-        global.append(STRING_WITH_LEN("ISSUER \'"));
-        global.append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
-        global.append('\'');
-      }
-      if (acl_user->x509_subject)
-      {
-        if (ssl_options++)
-          global.append(' ');
-        global.append(STRING_WITH_LEN("SUBJECT \'"));
-        global.append(acl_user->x509_subject,strlen(acl_user->x509_subject),
-                      system_charset_info);
-        global.append('\'');
-      }
-      if (acl_user->ssl_cipher)
-      {
-        if (ssl_options++)
-          global.append(' ');
-        global.append(STRING_WITH_LEN("CIPHER '"));
-        global.append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
-                      system_charset_info);
-        global.append('\'');
-      }
-    }
-    if ((want_access & GRANT_ACL) ||
-        (acl_user->user_resource.questions ||
-         acl_user->user_resource.updates ||
-         acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn ||
-         acl_user->user_resource.max_statement_time != 0.0))
-    {
-      global.append(STRING_WITH_LEN(" WITH"));
-      if (want_access & GRANT_ACL)
-        global.append(STRING_WITH_LEN(" GRANT OPTION"));
-      add_user_option(&global, acl_user->user_resource.questions,
-                      "MAX_QUERIES_PER_HOUR", false);
-      add_user_option(&global, acl_user->user_resource.updates,
-                      "MAX_UPDATES_PER_HOUR", false);
-      add_user_option(&global, acl_user->user_resource.conn_per_hour,
-                      "MAX_CONNECTIONS_PER_HOUR", false);
-      add_user_option(&global, acl_user->user_resource.user_conn,
-                      "MAX_USER_CONNECTIONS", true);
-      add_user_option(&global, acl_user->user_resource.max_statement_time,
-                      "MAX_STATEMENT_TIME");
-    }
-  }
+    add_user_parameters(&global, (ACL_USER *)acl_entry, (want_access & GRANT_ACL));
 
   protocol->prepare_for_resend();
   protocol->store(global.ptr(),global.length(),global.charset());
