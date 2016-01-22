@@ -248,6 +248,35 @@ static bool maybe_start_compound_statement(THD *thd)
   return 0;
 }
 
+static bool push_sp_label(THD *thd, LEX_STRING label)
+{
+  sp_pcontext *ctx= thd->lex->spcont;
+  sp_label *lab= ctx->find_label(label);
+
+  if (lab)
+  {
+    my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
+    return 1;
+  }
+  else
+  {
+    lab= thd->lex->spcont->push_label(thd, label,
+        thd->lex->sphead->instructions());
+    lab->type= sp_label::ITERATION;
+  }
+  return 0;
+}
+
+static bool push_sp_empty_label(THD *thd)
+{
+  if (maybe_start_compound_statement(thd))
+    return 1;
+  /* Unlabeled controls get an empty label. */
+  thd->lex->spcont->push_label(thd, empty_lex_str,
+      thd->lex->sphead->instructions());
+  return 0;
+}
+
 /**
   Helper action for a case expression statement (the expr in 'CASE expr').
   This helper is used for 'searched' cases only.
@@ -997,7 +1026,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 160 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 160
+%expect 162
 
 /*
    Comments for TOKENS.
@@ -1934,6 +1963,7 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_iterate
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
+%type <NONE> loop_body while_body repeat_body
 
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
@@ -3768,20 +3798,6 @@ sp_proc_stmt_return:
           }
         ;
 
-sp_unlabeled_control:
-          {
-            if (maybe_start_compound_statement(thd))
-              MYSQL_YYABORT;
-            /* Unlabeled controls get an empty label. */
-            Lex->spcont->push_label(thd, empty_lex_str,
-                                    Lex->sphead->instructions());
-          }
-          sp_control_content
-          {
-            Lex->sphead->backpatch(Lex->spcont->pop_label());
-          }
-        ;
-
 sp_proc_stmt_leave:
           LEAVE_SYM label_ident
           {
@@ -4200,41 +4216,6 @@ else_clause_opt:
         | ELSE sp_proc_stmts1
         ;
 
-sp_labeled_control:
-          label_ident ':'
-          {
-            LEX *lex= Lex;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *lab= ctx->find_label($1);
-
-            if (lab)
-            {
-              my_error(ER_SP_LABEL_REDEFINE, MYF(0), $1.str);
-              MYSQL_YYABORT;
-            }
-            else
-            {
-              lab= lex->spcont->push_label(thd, $1, lex->sphead->instructions());
-              lab->type= sp_label::ITERATION;
-            }
-          }
-          sp_control_content sp_opt_label
-          {
-            LEX *lex= Lex;
-            sp_label *lab= lex->spcont->pop_label();
-
-            if ($5.str)
-            {
-              if (my_strcasecmp(system_charset_info, $5.str, lab->name.str) != 0)
-              {
-                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $5.str);
-                MYSQL_YYABORT;
-              }
-            }
-            lex->sphead->backpatch(lab);
-          }
-        ;
-
 sp_opt_label:
           /* Empty  */  { $$= null_lex_str; }
         | label_ident   { $$= $1; }
@@ -4327,8 +4308,7 @@ sp_block_content:
           }
         ;
 
-sp_control_content:
-          LOOP_SYM
+loop_body:
           sp_proc_stmts1 END LOOP_SYM
           {
             LEX *lex= Lex;
@@ -4340,15 +4320,16 @@ sp_control_content:
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
           }
-        | WHILE_SYM 
-          { Lex->sphead->reset_lex(thd); }
+        ;
+
+while_body:
           expr DO_SYM
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             uint ip= sp->instructions();
             sp_instr_jump_if_not *i= new (lex->thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $3, lex);
+              sp_instr_jump_if_not(ip, lex->spcont, $1, lex);
             if (i == NULL ||
                 /* Jumping forward */
                 sp->push_backpatch(i, lex->spcont->last_label()) ||
@@ -4370,7 +4351,10 @@ sp_control_content:
               MYSQL_YYABORT;
             lex->sphead->do_cont_backpatch();
           }
-        | REPEAT_SYM sp_proc_stmts1 UNTIL_SYM 
+        ;
+
+repeat_body:
+          sp_proc_stmts1 UNTIL_SYM 
           { Lex->sphead->reset_lex(thd); }
           expr END REPEAT_SYM
           {
@@ -4378,7 +4362,7 @@ sp_control_content:
             uint ip= lex->sphead->instructions();
             sp_label *lab= lex->spcont->last_label();  /* Jumping back */
             sp_instr_jump_if_not *i= new (lex->thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $5, lab->ip, lex);
+              sp_instr_jump_if_not(ip, lex->spcont, $4, lab->ip, lex);
             if (i == NULL ||
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
@@ -4387,6 +4371,84 @@ sp_control_content:
             /* We can shortcut the cont_backpatch here */
             i->m_cont_dest= ip+1;
           }
+        ;
+
+pop_sp_label:
+          sp_opt_label
+          {
+            sp_label *lab;
+            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
+            if ($1.str)
+            {
+              if (my_strcasecmp(system_charset_info, $1.str,
+                                lab->name.str) != 0)
+              {
+                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $1.str);
+                MYSQL_YYABORT;
+              }
+            }
+          }
+        ;
+
+pop_sp_empty_label:
+          {
+            sp_label *lab;
+            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
+            DBUG_ASSERT(lab->name.length == 0);
+          }
+        ;
+
+sp_labeled_control:
+          label_ident ':' LOOP_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+          }
+          loop_body pop_sp_label
+          { }
+        | label_ident ':' WHILE_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd);
+          }
+          while_body pop_sp_label
+          { }
+        | label_ident ':' REPEAT_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+          }
+          repeat_body pop_sp_label
+          { }
+        ;
+
+sp_unlabeled_control:
+          LOOP_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+          }
+          loop_body
+          pop_sp_empty_label
+          { }
+        | WHILE_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd);
+          }
+          while_body
+          pop_sp_empty_label
+          { }
+        | REPEAT_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+          }
+          repeat_body
+          pop_sp_empty_label
+          { }
         ;
 
 trg_action_time:
