@@ -1103,6 +1103,10 @@ int ha_oqgraph::info(uint flag)
 
 int ha_oqgraph::extra(enum ha_extra_function operation)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("rnd_pos g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   return edges->file->extra(operation);
 }
 
