@@ -14139,9 +14139,7 @@ user_maybe_role:
               MYSQL_YYABORT;
             $$->user = $1;
             $$->host= null_lex_str; // User or Role, see get_current_user()
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
@@ -14153,9 +14151,7 @@ user_maybe_role:
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
@@ -15417,9 +15413,7 @@ current_role:
             if (!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
           }
           ;
 
@@ -15438,9 +15432,7 @@ grant_role:
               MYSQL_YYABORT;
             $$->user = $1;
             $$->host= empty_lex_str;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,

@@ -211,6 +211,12 @@ typedef struct	st_lex_user {
     else
       l->length= strxmov(l->str= buf, user.str, "@", host.str, NullS) - buf;
   }
+  void reset_auth()
+  {
+    password.length= plugin.length= auth.length= 0;
+    password.str= 0;
+    plugin.str= auth.str= const_cast<char*>("");
+  }
 } LEX_USER;
 
 /*

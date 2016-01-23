@@ -984,7 +984,7 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
 
   - if user->plugin is specified, user->auth is the plugin auth data.
   - if user->plugin is mysql_native_password or mysql_old_password,
-    user->auth if the password hash, and LEX_USER is transformed
+    user->auth is the password hash, and LEX_USER is transformed
     to match the next case (that is, user->plugin is cleared).
   - if user->plugin is NOT specified, built-in auth is assumed, that is
     mysql_native_password or mysql_old_password. In that case,
@@ -10156,9 +10156,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   thd->make_lex_string(&combo->user, combo->user.str, strlen(combo->user.str));
   thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
 
-  combo->password= null_lex_str;
-  combo->plugin= empty_lex_str;
-  combo->auth= empty_lex_str;
+  combo->reset_auth();
 
   if(au)
   {

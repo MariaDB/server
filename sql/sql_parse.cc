@@ -8949,9 +8949,7 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
   }
   definer->user.length= strlen(definer->user.str);
 
-  definer->password= null_lex_str;
-  definer->plugin= empty_lex_str;
-  definer->auth= empty_lex_str;
+  definer->reset_auth();
 }
 
 
@@ -9009,7 +9007,7 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->password= null_lex_str;
+  definer->reset_auth();
 
   return definer;
 }

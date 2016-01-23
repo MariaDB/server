@@ -5160,9 +5160,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user = invoker_user;
     definer->host= invoker_host;
-    definer->password= null_lex_str;
-    definer->plugin= empty_lex_str;
-    definer->auth= empty_lex_str;
+    definer->reset_auth();
   }
   else
 #endif
