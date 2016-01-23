@@ -8962,6 +8962,9 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
+  uint autoinc_index= table->next_number_field
+                        ? table->next_number_field->field_index
+                        : ~0U;
   DBUG_ENTER("fill_record");
 
   if (!*ptr)
@@ -8987,7 +8990,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     DBUG_ASSERT(field->table == table);
 
     value=v++;
-    if (field == table->next_number_field)
+    if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
     if (field->vcol_info && 
         value->type() != Item::DEFAULT_VALUE_ITEM && 

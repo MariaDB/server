@@ -309,3 +309,16 @@ a	b	c
 1	1	1
 2	5	3
 drop table t1;
+set session sql_mode ='no_auto_value_on_zero';
+create table t1 (id int unsigned auto_increment primary key);
+insert t1 values (0);
+select * from t1;
+id
+0
+delete from t1;
+create trigger t1_bi before insert on t1 for each row begin end;
+insert t1 values (0);
+select * from t1;
+id
+0
+drop table t1;

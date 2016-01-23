@@ -325,3 +325,17 @@ insert t1 values (9, 9, 2);
 insert t1 (a,c) values (9, 3);
 select * from t1;
 drop table t1;
+
+#
+# MDEV-9428 NO_AUTO_VALUE_ON_ZERO is ignored when a trigger before insert is defined
+#
+set session sql_mode ='no_auto_value_on_zero';
+create table t1 (id int unsigned auto_increment primary key);
+insert t1 values (0);
+select * from t1;
+delete from t1;
+create trigger t1_bi before insert on t1 for each row begin end;
+insert t1 values (0);
+select * from t1;
+drop table t1;
+
