@@ -1050,9 +1050,6 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
     return true;
   }
 
-  if (validate_password(user))
-    return true;
-
   if (user->pwtext.length && !user->pwhash.length)
   {
     size_t scramble_length;
@@ -2747,7 +2744,8 @@ bool check_change_password(THD *thd, LEX_USER *user)
 {
   LEX_USER *real_user= get_current_user(thd, user);
 
-  if (fix_and_copy_user(real_user, user, thd))
+  if (fix_and_copy_user(real_user, user, thd) ||
+      validate_password(real_user))
     return true;
 
   *user= *real_user;
@@ -3460,6 +3458,10 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
   }
+
+  if (!old_row_exists || combo.pwtext.length || combo.pwhash.length)
+    if (validate_password(&combo))
+      goto end;
 
   /* Update table columns with new privileges */
 
