@@ -874,6 +874,17 @@ static void free_acl_role(ACL_ROLE *role)
   delete_dynamic(&(role->parent_grantee));
 }
 
+static my_bool check_if_exists(THD *, plugin_ref, void *)
+{
+  return TRUE;
+}
+
+static bool has_validation_plugins()
+{
+  return plugin_foreach(NULL, check_if_exists,
+                        MariaDB_PASSWORD_VALIDATION_PLUGIN, NULL);
+}
+
 struct validation_data { LEX_STRING *user, *password; };
 
 static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
@@ -885,22 +896,27 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 }
 
 
-static bool validate_password(LEX_STRING *user, LEX_STRING *password)
+static bool validate_password(LEX_USER *user)
 {
-  struct validation_data data= { user, password };
-  return plugin_foreach(NULL, do_validate,
-                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data);
-}
-
-static my_bool check_if_exists(THD *, plugin_ref, void *)
-{
-  return TRUE;
-}
-
-static bool has_validation_plugins()
-{
-  return plugin_foreach(NULL, check_if_exists,
-                        MariaDB_PASSWORD_VALIDATION_PLUGIN, NULL);
+  if (user->pwtext.length || !user->pwhash.length)
+  {
+    struct validation_data data= { &user->user, &user->pwtext };
+    if (plugin_foreach(NULL, do_validate,
+                       MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
+    {
+      my_error(ER_NOT_VALID_PASSWORD, MYF(0));
+      return true;
+    }
+  }
+  else
+  {
+    if (strict_password_validation && has_validation_plugins())
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--strict-password-validation");
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -1034,22 +1050,8 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
     return true;
   }
 
-  if (user->pwtext.length || !user->pwhash.length)
-  {
-    if (validate_password(&user->user, &user->pwtext))
-    {
-      my_error(ER_NOT_VALID_PASSWORD, MYF(0));
-      return true;
-    }
-  }
-  else
-  {
-    if (strict_password_validation && has_validation_plugins())
-    {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--strict-password-validation");
-      return true;
-    }
-  }
+  if (validate_password(user))
+    return true;
 
   if (user->pwtext.length && !user->pwhash.length)
   {
