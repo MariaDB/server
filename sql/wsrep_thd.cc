@@ -371,9 +371,20 @@ static void wsrep_replication_process(THD *thd)
 
 static bool create_wsrep_THD(wsrep_thd_processor_fun processor)
 {
+  ulong old_wsrep_running_threads= wsrep_running_threads;
   pthread_t unused;
+  mysql_mutex_lock(&LOCK_thread_count);
   bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
                            (void*)processor);
+  /*
+    if starting a thread on server startup, wait until the this thread's THD
+    is fully initialized (otherwise a THD initialization code might
+    try to access a partially initialized server data structure - MDEV-8208).
+  */
+  if (!mysqld_server_initialized)
+    while (old_wsrep_running_threads == wsrep_running_threads)
+      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
   return res;
 }
 
