@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) Olivier Bertrand 2004 - 2016
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0005 December 11, 2015";
+       char version[]= "Version 1.04.0005 January 24, 2016";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -340,14 +340,21 @@ static MYSQL_THDVAR_ENUM(
 #endif   // XMSG || NEWMSG
 
 /***********************************************************************/
+/*  The CONNECT handlerton object.                                     */
+/***********************************************************************/
+handlerton *connect_hton= NULL;
+
+/***********************************************************************/
 /*  Function to export session variable values to other source files.  */
 /***********************************************************************/
-extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
+extern "C" int GetTraceValue(void) 
+  {return connect_hton ? THDVAR(current_thd, xtrace) : 0;}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
-uint GetJsonGrpSize(void) {return THDVAR(current_thd, json_grp_size);}
+uint GetJsonGrpSize(void)
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
 void SetWorkSize(uint) 
 {
@@ -441,11 +448,6 @@ static int check_msg_path (MYSQL_THD thd, struct st_mysql_sys_var *var,
 	return(1);
 } // end of check_msg_path
 #endif   // 0
-
-/***********************************************************************/
-/*  The CONNECT handlerton object.                                     */
-/***********************************************************************/
-handlerton *connect_hton;
 
 /**
   CREATE TABLE option list (table options)
@@ -687,6 +689,7 @@ static int connect_done_func(void *)
     delete pc;
     } // endfor pc
 
+	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func
 

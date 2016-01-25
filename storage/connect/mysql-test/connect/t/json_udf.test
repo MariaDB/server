@@ -108,7 +108,8 @@ CREATE TABLE t3 (
 
 SELECT Json_Object(SERIALNO, NAME, TITLE, SALARY) FROM t3 WHERE NAME = 'MERCHANT';
 SELECT DEPARTMENT, Json_Array_Grp(NAME) FROM t3 GROUP BY DEPARTMENT;
-SET connect_json_grp_size=30;
+#SET connect_json_grp_size=30;           Deprecated
+SELECT JsonSet_Grp_Size(30);
 SELECT Json_Object(title, Json_Array_Grp(name) `json_names`) from t3 GROUP BY title;
 SELECT Json_Array(DEPARTMENT, Json_Array_Grp(NAME)) FROM t3 GROUP BY DEPARTMENT;
 SELECT Json_Object(DEPARTMENT, Json_Array_Grp(NAME) json_NAMES) FROM t3 GROUP BY DEPARTMENT;
