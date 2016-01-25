@@ -117,7 +117,7 @@ static const char *reconnect_messages[SLAVE_RECON_ACT_MAX][SLAVE_RECON_MSG_MAX]=
 {
   {
     "Waiting to reconnect after a failed registration on master",
-    "Slave I/O thread killed while waitnig to reconnect after a failed \
+    "Slave I/O thread killed while waiting to reconnect after a failed \
 registration on master",
     "Reconnecting after a failed registration on master",
     "failed registering on master, reconnecting to try again, \
@@ -2728,6 +2728,8 @@ static bool send_show_master_info_header(THD *thd, bool full,
   DBUG_RETURN(FALSE);
 }
 
+/* Text for Slave_IO_Running */
+static const char *slave_running[]= { "No", "Connecting", "Preparing", "Yes" };
 
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                        String *gtid_pos)
@@ -2780,9 +2782,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                     &my_charset_bin);
     protocol->store((ulonglong) mi->rli.group_relay_log_pos);
     protocol->store(mi->rli.group_master_log_name, &my_charset_bin);
-    protocol->store(mi->slave_running == MYSQL_SLAVE_RUN_CONNECT ?
-                    "Yes" : (mi->slave_running == MYSQL_SLAVE_RUN_NOT_CONNECT ?
-                             "Connecting" : "No"), &my_charset_bin);
+    protocol->store(slave_running[mi->slave_running], &my_charset_bin);
     protocol->store(mi->rli.slave_running ? "Yes":"No", &my_charset_bin);
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
@@ -2825,7 +2825,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       Seconds_Behind_Master: if SQL thread is running and I/O thread is
       connected, we can compute it otherwise show NULL (i.e. unknown).
     */
-    if ((mi->slave_running == MYSQL_SLAVE_RUN_CONNECT) &&
+    if ((mi->slave_running == MYSQL_SLAVE_RUN_READING) &&
         mi->rli.slave_running)
     {
       long time_diff;
@@ -4128,16 +4128,16 @@ connected:
     if (request_dump(thd, mysql, mi, &suppress_warnings))
     {
       sql_print_error("Failed on request_dump()");
-      if (check_io_slave_killed(mi, "Slave I/O thread killed while \
-requesting master dump") ||
-          try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                           reconnect_messages[SLAVE_RECON_ACT_DUMP]))
+      if (check_io_slave_killed(mi, NullS) ||
+        try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
+                         reconnect_messages[SLAVE_RECON_ACT_DUMP]))
         goto err;
       goto connected;
     }
 
     const char *event_buf;
 
+    mi->slave_running= MYSQL_SLAVE_RUN_READING;
     DBUG_ASSERT(mi->last_error().number == 0);
     while (!io_slave_killed(mi))
     {
@@ -4150,8 +4150,7 @@ requesting master dump") ||
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
       event_len= read_event(mysql, mi, &suppress_warnings);
-      if (check_io_slave_killed(mi, "Slave I/O thread killed while \
-reading event"))
+      if (check_io_slave_killed(mi, NullS))
         goto err;
 
       if (event_len == packet_error)

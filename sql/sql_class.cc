@@ -1817,7 +1817,8 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 void THD::awake(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
-  DBUG_PRINT("enter", ("this: %p current_thd: %p", this, current_thd));
+  DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
+                       this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
@@ -4024,6 +4025,12 @@ void thd_increment_bytes_sent(void *thd, ulong length)
   {
     ((THD*) thd)->status_var.bytes_sent+= length;
   }
+}
+
+my_bool thd_net_is_killed()
+{
+  THD *thd= current_thd;
+  return thd && thd->killed ? 1 : 0;
 }
 
 

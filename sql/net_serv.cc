@@ -34,6 +34,7 @@
   HFTODO this must be hidden if we don't want client capabilities in 
   embedded library
  */
+
 #include <my_global.h>
 #include <mysql.h>
 #include <mysql_com.h>
@@ -107,13 +108,12 @@ extern void query_cache_insert(void *thd, const char *packet, ulong length,
                                unsigned pkt_nr);
 #endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
-#else
-#define update_statistics(A)
-#endif
-
-#ifdef MYSQL_SERVER
+extern my_bool thd_net_is_killed();
 /* Additional instrumentation hooks for the server */
 #include "mysql_com_server.h"
+#else
+#define update_statistics(A)
+#define thd_net_is_killed() 0
 #endif
 
 #define TEST_BLOCKING		8
@@ -876,6 +876,16 @@ my_real_read(NET *net, size_t *complen,
 
 	  DBUG_PRINT("info",("vio_read returned %ld  errno: %d",
 			     (long) length, vio_errno(net->vio)));
+
+          if (i== 0 && thd_net_is_killed())
+          {
+            len= packet_error;
+            net->error= 0;
+            net->last_errno= ER_CONNECTION_KILLED;
+            MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+            goto end;
+          }
+
 #if !defined(__WIN__) && defined(MYSQL_SERVER)
 	  /*
 	    We got an error that there was no data on the socket. We now set up

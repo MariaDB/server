@@ -135,11 +135,11 @@ extern const char *relay_log_index;
 extern const char *relay_log_basename;
 
 /*
-  3 possible values for Master_info::slave_running and
+  4 possible values for Master_info::slave_running and
   Relay_log_info::slave_running.
-  The values 0,1,2 are very important: to keep the diff small, I didn't
-  substitute places where we use 0/1 with the newly defined symbols. So don't change
-  these values.
+  The values 0,1,2,3 are very important: to keep the diff small, I didn't
+  substitute places where we use 0/1 with the newly defined symbols.
+  So don't change these values.
   The same way, code is assuming that in Relay_log_info we use only values
   0/1.
   I started with using an enum, but
@@ -148,6 +148,7 @@ extern const char *relay_log_basename;
 #define MYSQL_SLAVE_NOT_RUN         0
 #define MYSQL_SLAVE_RUN_NOT_CONNECT 1
 #define MYSQL_SLAVE_RUN_CONNECT     2
+#define MYSQL_SLAVE_RUN_READING     3
 
 #define RPL_LOG_NAME (rli->group_master_log_name[0] ? rli->group_master_log_name :\
  "FIRST")
