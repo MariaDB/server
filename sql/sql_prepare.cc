@@ -1813,7 +1813,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
 
 /**
-  Validate and prepare for execution CREATE TABLE statement.
+  Validate and prepare for execution SHOW CREATE TABLE statement.
 
   @param stmt               prepared statement
   @param tables             list of tables used in this query
