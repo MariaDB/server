@@ -103,6 +103,7 @@ When one supplies long data for a placeholder:
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
 #include "sql_cursor.h"
+#include "sql_show.h"
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
@@ -1812,6 +1813,42 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
 
 /**
+  Validate and prepare for execution CREATE TABLE statement.
+
+  @param stmt               prepared statement
+  @param tables             list of tables used in this query
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_create_table(Prepared_statement *stmt,
+                                        TABLE_LIST *tables)
+{
+  DBUG_ENTER("mysql_test_show_create_table");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+  char buff[2048];
+  String buffer(buff, sizeof(buff), system_charset_info);
+
+  if (mysqld_show_create_get_fields(thd, tables, &fields, &buffer))
+    goto err_exit;
+    
+  if (send_prep_stmt(stmt, fields.elements) ||
+      thd->protocol->send_result_set_metadata(&fields, Protocol::SEND_EOF) ||
+      thd->protocol->flush())
+    goto err_exit;
+
+  DBUG_RETURN(2);
+
+err_exit:
+  DBUG_RETURN(1);
+}
+
+
+/**
   @brief Validate and prepare for execution CREATE VIEW statement
 
   @param stmt prepared statement
@@ -2144,7 +2181,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_TABLE:
     res= mysql_test_create_table(stmt);
     break;
-
+  case SQLCOM_SHOW_CREATE:
+    res= mysql_test_show_create_table(stmt, tables);
+    if (res == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
   case SQLCOM_CREATE_VIEW:
     if (lex->create_view_mode == VIEW_ALTER)
     {

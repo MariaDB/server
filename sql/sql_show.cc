@@ -1092,6 +1092,106 @@ public:
 
 
 /*
+  Return metadata for CREATE command for table or view
+
+  @param thd	     Thread handler
+  @param table_list  Table / view
+  @param field_list  resulting list of fields
+  @param buffer      resulting CREATE statement
+
+  @return
+  @retval 0      OK
+  @retval 1      Error
+
+*/
+
+bool
+mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
+                              List<Item> *field_list, String *buffer)
+{
+  bool error= TRUE;
+  MEM_ROOT *mem_root= thd->mem_root;
+  DBUG_ENTER("mysqld_show_create_get_fields");
+  DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
+                      table_list->table_name));
+
+  /* We want to preserve the tree for views. */
+  thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+
+  {
+    /*
+      Use open_tables() directly rather than
+      open_normal_and_derived_tables().  This ensures that
+      close_thread_tables() is not called if open tables fails and the
+      error is ignored. This allows us to handle broken views nicely.
+    */
+    uint counter;
+    Show_create_error_handler view_error_suppressor(thd, table_list);
+    thd->push_internal_handler(&view_error_suppressor);
+    bool open_error=
+      open_tables(thd, &table_list, &counter,
+                  MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL) ||
+                  mysql_handle_derived(thd->lex, DT_PREPARE);
+    thd->pop_internal_handler();
+    if (open_error && (thd->killed || thd->is_error()))
+      goto exit;
+  }
+
+  /* TODO: add environment variables show when it become possible */
+  if (thd->lex->only_view && !table_list->view)
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0),
+             table_list->db, table_list->table_name, "VIEW");
+    goto exit;
+  }
+
+  buffer->length(0);
+
+  if (table_list->view)
+    buffer->set_charset(table_list->view_creation_ctx->get_client_cs());
+
+  if ((table_list->view ?
+       show_create_view(thd, table_list, buffer) :
+       show_create_table(thd, table_list, buffer, NULL, WITHOUT_DB_NAME)))
+    goto exit;
+
+  if (table_list->view)
+  {
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "View", NAME_CHAR_LEN),
+                         mem_root);
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "Create View",
+                                           MY_MAX(buffer->length(),1024)),
+                         mem_root);
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "character_set_client",
+                                           MY_CS_NAME_SIZE),
+                         mem_root);
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "collation_connection",
+                                           MY_CS_NAME_SIZE),
+                         mem_root);
+  }
+  else
+  {
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "Table", NAME_CHAR_LEN),
+                         mem_root);
+    // 1024 is for not to confuse old clients
+    field_list->push_back(new (mem_root)
+                         Item_empty_string(thd, "Create Table",
+                                           MY_MAX(buffer->length(),1024)),
+                         mem_root);
+  }
+  error= FALSE;
+
+exit:
+  DBUG_RETURN(error);
+}
+
+
+/*
   Return CREATE command for table or view
 
   @param thd	     Thread handler
@@ -1125,75 +1225,9 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
-  /* We want to preserve the tree for views. */
-  thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
 
-  {
-    /*
-      Use open_tables() directly rather than
-      open_normal_and_derived_tables().  This ensures that
-      close_thread_tables() is not called if open tables fails and the
-      error is ignored. This allows us to handle broken views nicely.
-    */
-    uint counter;
-    Show_create_error_handler view_error_suppressor(thd, table_list);
-    thd->push_internal_handler(&view_error_suppressor);
-    bool open_error=
-      open_tables(thd, &table_list, &counter,
-                  MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL) ||
-                  mysql_handle_derived(thd->lex, DT_PREPARE);
-    thd->pop_internal_handler();
-    if (open_error && (thd->killed || thd->is_error()))
-      goto exit;
-  }
-
-  /* TODO: add environment variables show when it become possible */
-  if (thd->lex->only_view && !table_list->view)
-  {
-    my_error(ER_WRONG_OBJECT, MYF(0),
-             table_list->db, table_list->table_name, "VIEW");
+  if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
-  }
-
-  buffer.length(0);
-
-  if (table_list->view)
-    buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
-
-  if ((table_list->view ?
-       show_create_view(thd, table_list, &buffer) :
-       show_create_table(thd, table_list, &buffer, NULL, WITHOUT_DB_NAME)))
-    goto exit;
-
-  if (table_list->view)
-  {
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "View", NAME_CHAR_LEN),
-                         mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Create View",
-                                           MY_MAX(buffer.length(),1024)),
-                         mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "character_set_client",
-                                           MY_CS_NAME_SIZE),
-                         mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "collation_connection",
-                                           MY_CS_NAME_SIZE),
-                         mem_root);
-  }
-  else
-  {
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Table", NAME_CHAR_LEN),
-                         mem_root);
-    // 1024 is for not to confuse old clients
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Create Table",
-                                           MY_MAX(buffer.length(),1024)),
-                         mem_root);
-  }
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |

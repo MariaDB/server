@@ -422,6 +422,15 @@ static void test_prepare_simple()
 
   mysql_stmt_close(stmt);
 
+  /* show create */
+  strmov(query, "SHOW CREATE TABLE test_prepare_simple");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
+
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);
