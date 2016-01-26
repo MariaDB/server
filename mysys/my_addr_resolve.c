@@ -175,6 +175,10 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
                            sizeof(output) - total_bytes_read);
     if (extra_bytes_read < 0)
       return 1;
+    /* Timeout or max bytes read. */
+    if (extra_bytes_read == 0)
+      break;
+
     total_bytes_read += extra_bytes_read;
   }
 
@@ -183,7 +187,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     return 1;
 
   /* Go through the addr2line response and get the required data.
-     The response is structured in 2 lnes. The first line contains the function
+     The response is structured in 2 lines. The first line contains the function
      name, while the second one contains <filename>:<line number> */
   for (i = 0; i < total_bytes_read; i++) {
     if (output[i] == '\n') {
