@@ -1848,6 +1848,15 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
        ON_UPDATE(fix_slave_parallel_threads));
 
+/* Alias for @@slave_parallel_threads to match what MySQL 5.7 uses. */
+static Sys_var_ulong Sys_slave_parallel_workers(
+       "slave_parallel_workers",
+       "Alias for slave_parallel_threads",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+
 
 static bool
 check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
