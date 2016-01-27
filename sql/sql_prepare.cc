@@ -1814,11 +1814,17 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 }
 
 
-static bool send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *fields)
+static int send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *fields)
 {
-  return send_prep_stmt(stmt, fields->elements) ||
-         thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
-         thd->protocol->flush();
+  if (stmt->is_sql_prepare())
+    return 0;
+
+  if (send_prep_stmt(stmt, fields->elements) ||
+      thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
+      thd->protocol->flush())
+    return 1;
+
+  return 2;
 }
 
 
@@ -1834,7 +1840,7 @@ static bool send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *f
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_create_table(Prepared_statement *stmt,
+static int mysql_test_show_create_table(Prepared_statement *stmt,
                                         TABLE_LIST *tables)
 {
   DBUG_ENTER("mysql_test_show_create_table");
@@ -1843,8 +1849,10 @@ static bool mysql_test_show_create_table(Prepared_statement *stmt,
   char buff[2048];
   String buffer(buff, sizeof(buff), system_charset_info);
 
-  DBUG_RETURN(mysqld_show_create_get_fields(thd, tables, &fields, &buffer) ||
-              send_stmt_metadata(thd, stmt, &fields));
+  if (mysqld_show_create_get_fields(thd, tables, &fields, &buffer))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 
 
@@ -1859,7 +1867,7 @@ static bool mysql_test_show_create_table(Prepared_statement *stmt,
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_create_db(Prepared_statement *stmt)
+static int mysql_test_show_create_db(Prepared_statement *stmt)
 {
   DBUG_ENTER("mysql_test_show_create_db");
   THD *thd= stmt->thd;
@@ -1883,7 +1891,7 @@ static bool mysql_test_show_create_db(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_grants(Prepared_statement *stmt)
+static int mysql_test_show_grants(Prepared_statement *stmt)
 {
   DBUG_ENTER("mysql_test_show_grants");
   THD *thd= stmt->thd;
@@ -1908,7 +1916,7 @@ static bool mysql_test_show_grants(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_slave_status(Prepared_statement *stmt)
+static int mysql_test_show_slave_status(Prepared_statement *stmt)
 {
   DBUG_ENTER("mysql_test_show_slave_status");
   THD *thd= stmt->thd;
@@ -1931,7 +1939,7 @@ static bool mysql_test_show_slave_status(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_master_status(Prepared_statement *stmt)
+static int mysql_test_show_master_status(Prepared_statement *stmt)
 {
   DBUG_ENTER("mysql_test_show_master_status");
   THD *thd= stmt->thd;
@@ -1954,7 +1962,7 @@ static bool mysql_test_show_master_status(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_binlogs(Prepared_statement *stmt)
+static int mysql_test_show_binlogs(Prepared_statement *stmt)
 {
   DBUG_ENTER("mysql_test_show_binlogs");
   THD *thd= stmt->thd;
@@ -1979,7 +1987,7 @@ static bool mysql_test_show_binlogs(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_show_create_routine(Prepared_statement *stmt, int type)
+static int mysql_test_show_create_routine(Prepared_statement *stmt, int type)
 {
   DBUG_ENTER("mysql_test_show_binlogs");
   THD *thd= stmt->thd;
@@ -2325,14 +2333,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     res= mysql_test_create_table(stmt);
     break;
   case SQLCOM_SHOW_CREATE:
-    if (!(res= mysql_test_show_create_table(stmt, tables)))
+    if ((res= mysql_test_show_create_table(stmt, tables)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
     }
     break;
   case SQLCOM_SHOW_CREATE_DB:
-    if (!(res= mysql_test_show_create_db(stmt)))
+    if ((res= mysql_test_show_create_db(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
@@ -2340,7 +2348,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_GRANTS:
-    if (!(res= mysql_test_show_grants(stmt)))
+    if ((res= mysql_test_show_grants(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
@@ -2349,21 +2357,21 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 #ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_SLAVE_STAT:
-    if (!(res= mysql_test_show_slave_status(stmt)))
+    if ((res= mysql_test_show_slave_status(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
     }
     break;
   case SQLCOM_SHOW_MASTER_STAT:
-    if (!(res= mysql_test_show_master_status(stmt)))
+    if ((res= mysql_test_show_master_status(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
     }
     break;
   case SQLCOM_SHOW_BINLOGS:
-    if (!(res= mysql_test_show_binlogs(stmt)))
+    if ((res= mysql_test_show_binlogs(stmt)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
@@ -2371,14 +2379,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
-    if (!(res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)))
+    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
     }
     break;
   case SQLCOM_SHOW_CREATE_FUNC:
-    if (!(res= mysql_test_show_create_routine(stmt, TYPE_ENUM_FUNCTION)))
+    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_FUNCTION)) == 2)
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
