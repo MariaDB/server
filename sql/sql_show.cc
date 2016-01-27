@@ -1214,7 +1214,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   String buffer(buff, sizeof(buff), system_charset_info);
   List<Item> field_list;
   bool error= TRUE;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_create");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
