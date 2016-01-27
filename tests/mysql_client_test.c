@@ -450,6 +450,13 @@ static void test_prepare_simple()
   DIE_UNLESS(mysql_stmt_field_count(stmt) == 47);
   mysql_stmt_close(stmt);
 
+  /* show master status */
+  strmov(query, "SHOW MASTER STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 4);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);

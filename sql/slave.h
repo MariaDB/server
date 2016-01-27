@@ -211,6 +211,7 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                      bool full, size_t gtid_pos_length);
 bool show_master_info(THD* thd, Master_info* mi, bool full);
 bool show_all_master_info(THD* thd);
+void show_binlog_info_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlog_info(THD* thd);
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                         bool (*pred)(const void *), const void *param);
