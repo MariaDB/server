@@ -1836,12 +1836,16 @@ static int mysql_test_show_create_table(Prepared_statement *stmt,
   if (mysqld_show_create_get_fields(thd, tables, &fields, &buffer))
     goto err_exit;
     
-  if (send_prep_stmt(stmt, fields.elements) ||
-      thd->protocol->send_result_set_metadata(&fields, Protocol::SEND_EOF) ||
-      thd->protocol->flush())
-    goto err_exit;
+  if (!stmt->is_sql_prepare())
+  {
+    if (send_prep_stmt(stmt, fields.elements) ||
+        thd->protocol->send_result_set_metadata(&fields, Protocol::SEND_EOF) ||
+        thd->protocol->flush())
+      goto err_exit;
 
-  DBUG_RETURN(2);
+    DBUG_RETURN(2);
+  }
+  DBUG_RETURN(0);
 
 err_exit:
   DBUG_RETURN(1);
