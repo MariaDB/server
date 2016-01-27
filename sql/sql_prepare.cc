@@ -1812,6 +1812,14 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 }
 
 
+static bool send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *fields)
+{
+  return send_prep_stmt(stmt, fields->elements) ||
+         thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
+         thd->protocol->flush();
+}
+
+
 /**
   Validate and prepare for execution SHOW CREATE TABLE statement.
 
@@ -1824,7 +1832,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static int mysql_test_show_create_table(Prepared_statement *stmt,
+static bool mysql_test_show_create_table(Prepared_statement *stmt,
                                         TABLE_LIST *tables)
 {
   DBUG_ENTER("mysql_test_show_create_table");
@@ -1833,22 +1841,31 @@ static int mysql_test_show_create_table(Prepared_statement *stmt,
   char buff[2048];
   String buffer(buff, sizeof(buff), system_charset_info);
 
-  if (mysqld_show_create_get_fields(thd, tables, &fields, &buffer))
-    goto err_exit;
+  DBUG_RETURN(mysqld_show_create_get_fields(thd, tables, &fields, &buffer) ||
+              send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
+  Validate and prepare for execution SHOW CREATE DATABASE statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static bool mysql_test_show_create_db(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_create_db");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  mysqld_show_create_db_get_fields(thd, &fields);
     
-  if (!stmt->is_sql_prepare())
-  {
-    if (send_prep_stmt(stmt, fields.elements) ||
-        thd->protocol->send_result_set_metadata(&fields, Protocol::SEND_EOF) ||
-        thd->protocol->flush())
-      goto err_exit;
-
-    DBUG_RETURN(2);
-  }
-  DBUG_RETURN(0);
-
-err_exit:
-  DBUG_RETURN(1);
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 
 
@@ -2186,8 +2203,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     res= mysql_test_create_table(stmt);
     break;
   case SQLCOM_SHOW_CREATE:
-    res= mysql_test_show_create_table(stmt, tables);
-    if (res == 2)
+    if (!(res= mysql_test_show_create_table(stmt, tables)))
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_DB:
+    if (!(res= mysql_test_show_create_db(stmt)))
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);

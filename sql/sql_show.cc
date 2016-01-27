@@ -1272,6 +1272,19 @@ exit:
   DBUG_RETURN(error);
 }
 
+
+void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Database", NAME_CHAR_LEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Create Database", 1024),
+                        mem_root);
+}
+
+
 bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
                            LEX_STRING *orig_dbname,
                            const DDL_options_st &options)
@@ -1284,7 +1297,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
+  List<Item> field_list;
   DBUG_ENTER("mysql_show_create_db");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1318,13 +1331,8 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 
     load_db_opt_by_name(thd, dbname->str, &create);
   }
-  List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Database", NAME_CHAR_LEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Create Database", 1024),
-                       mem_root);
+
+  mysqld_show_create_db_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
