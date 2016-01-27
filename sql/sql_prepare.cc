@@ -104,6 +104,7 @@ When one supplies long data for a placeholder:
                          // mysql_handle_derived
 #include "sql_cursor.h"
 #include "sql_show.h"
+#include "sql_repl.h"
 #include "slave.h"
 #include "sp_head.h"
 #include "sp.h"
@@ -1940,6 +1941,29 @@ static bool mysql_test_show_master_status(Prepared_statement *stmt)
 
 
 /**
+  Validate and prepare for execution SHOW BINLOGS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static bool mysql_test_show_binlogs(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_binlogs");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  show_binlogs_get_fields(thd, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
   @brief Validate and prepare for execution CREATE VIEW statement
 
   @param stmt prepared statement
@@ -2302,6 +2326,13 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   case SQLCOM_SHOW_MASTER_STAT:
     if (!(res= mysql_test_show_master_status(stmt)))
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_BINLOGS:
+    if (!(res= mysql_test_show_binlogs(stmt)))
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
