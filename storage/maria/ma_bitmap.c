@@ -1249,7 +1249,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
 
   DBUG_ASSERT(size <= FULL_PAGE_SIZE(share));
 
-  if (insert_order)
+  if (insert_order && bitmap->page == share->last_insert_bitmap)
   {
     uint last_insert_page= share->last_insert_page;
     uint byte= 6 * (last_insert_page / 16);
@@ -1315,6 +1315,7 @@ found:
   {
     share->last_insert_page=
         ((uint) (best_data - bitmap->map)) / 6 * 16 + best_pos;
+    share->last_insert_bitmap= bitmap->page;
   }
   fill_block(bitmap, block, best_data, best_pos, best_bits, FULL_HEAD_PAGE);
   DBUG_RETURN(0);
@@ -1613,6 +1614,16 @@ static my_bool find_head(MARIA_HA *info, uint length, uint position)
     preallocated at _ma_init_block_record().
   */
   block= dynamic_element(&info->bitmap_blocks, position, MARIA_BITMAP_BLOCK *);
+
+  if (info->s->base.extra_options & MA_EXTRA_OPTIONS_INSERT_ORDER)
+  {
+    if (bitmap->page != info->s->last_insert_bitmap &&
+        _ma_change_bitmap_page(info, bitmap,
+                               info->s->last_insert_bitmap))
+      return 1;
+    /* Don't allocate any blocks from earlier pages */
+    info->s->state.first_bitmap_with_space= info->s->last_insert_bitmap;
+  }
 
   /*
     We need to have DIRENTRY_SIZE here to take into account that we may
@@ -3115,6 +3126,10 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
   bzero(bitmap->map, bitmap->block_size);
   bitmap->used_size= 0;
 #ifndef DBUG_OFF
+  /*
+    Make a copy of the page to be able to print out bitmap changes during
+    debugging
+  */
   memcpy(bitmap->map + bitmap->block_size, bitmap->map, bitmap->block_size);
 #endif
 

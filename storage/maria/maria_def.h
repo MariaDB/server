@@ -523,6 +523,7 @@ typedef struct st_maria_share
      Keep of track of last insert page, used to implement insert order
   */
   uint last_insert_page;
+  pgcache_page_no_t last_insert_bitmap;
 } MARIA_SHARE;
 
 
