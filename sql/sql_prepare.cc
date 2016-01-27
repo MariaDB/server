@@ -1870,6 +1870,29 @@ static bool mysql_test_show_create_db(Prepared_statement *stmt)
 
 
 /**
+  Validate and prepare for execution SHOW GRANTS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static bool mysql_test_show_grants(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_grants");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  mysql_show_grants_get_fields(thd, &fields, "Grants for");
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
   @brief Validate and prepare for execution CREATE VIEW statement
 
   @param stmt prepared statement
@@ -2211,6 +2234,13 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   case SQLCOM_SHOW_CREATE_DB:
     if (!(res= mysql_test_show_create_db(stmt)))
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_GRANTS:
+    if (!(res= mysql_test_show_grants(stmt)))
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);

@@ -436,6 +436,13 @@ static void test_prepare_simple()
   DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
   mysql_stmt_close(stmt);
 
+  /* show grants */
+  strmov(query, "SHOW GRANTS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);

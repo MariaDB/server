@@ -7740,6 +7740,16 @@ static int show_grants_callback(ACL_USER_BASE *role, void *data)
 }
 
 
+void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
+                                  const char *name)
+{
+  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
+  field->name= (char *) name;
+  field->max_length=1024;
+  fields->push_back(field, thd->mem_root);
+}
+
+
 /*
   SHOW GRANTS;  Send grants for a user to the client
 
@@ -7805,15 +7815,14 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
   List<Item> field_list;
-  field->name=buff;
-  field->max_length=1024;
   if (!username)
     strxmov(buff,"Grants for ",rolename, NullS);
   else
     strxmov(buff,"Grants for ",username,"@",hostname, NullS);
-  field_list.push_back(field, thd->mem_root);
+
+  mysql_show_grants_get_fields(thd, &field_list, buff);
+
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
