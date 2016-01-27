@@ -457,6 +457,20 @@ static void test_prepare_simple()
   DIE_UNLESS(mysql_stmt_field_count(stmt) == 4);
   mysql_stmt_close(stmt);
 
+  /* show create procedure */
+  strmov(query, "SHOW CREATE PROCEDURE e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
+  /* show create function */
+  strmov(query, "SHOW CREATE FUNCTION e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);

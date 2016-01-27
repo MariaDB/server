@@ -340,6 +340,9 @@ public:
   bool
   execute_procedure(THD *thd, List<Item> *args);
 
+  static void
+  show_create_routine_get_fields(THD *thd, int type, List<Item> *fields);
+
   bool
   show_create_routine(THD *thd, int type);
 

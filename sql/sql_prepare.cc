@@ -1964,6 +1964,29 @@ static bool mysql_test_show_binlogs(Prepared_statement *stmt)
 
 
 /**
+  Validate and prepare for execution SHOW CREATE PROC/FUNC statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static bool mysql_test_show_create_routine(Prepared_statement *stmt, int type)
+{
+  DBUG_ENTER("mysql_test_show_binlogs");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  sp_head::show_create_routine_get_fields(thd, type, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
   @brief Validate and prepare for execution CREATE VIEW statement
 
   @param stmt prepared statement
@@ -2333,6 +2356,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   case SQLCOM_SHOW_BINLOGS:
     if (!(res= mysql_test_show_binlogs(stmt)))
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_PROC:
+    if (!(res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)))
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_FUNC:
+    if (!(res= mysql_test_show_create_routine(stmt, TYPE_ENUM_FUNCTION)))
     {
       /* Statement and field info has already been sent */
       DBUG_RETURN(FALSE);
