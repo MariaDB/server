@@ -1871,6 +1871,7 @@ static bool mysql_test_show_create_db(Prepared_statement *stmt)
 }
 
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Validate and prepare for execution SHOW GRANTS statement.
 
@@ -1892,8 +1893,10 @@ static bool mysql_test_show_grants(Prepared_statement *stmt)
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
+#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
+#ifndef EMBEDDED_LIBRARY
 /**
   Validate and prepare for execution SHOW SLAVE STATUS statement.
 
@@ -1961,6 +1964,8 @@ static bool mysql_test_show_binlogs(Prepared_statement *stmt)
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
+
+#endif /* EMBEDDED_LIBRARY */
 
 
 /**
@@ -2333,6 +2338,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_GRANTS:
     if (!(res= mysql_test_show_grants(stmt)))
     {
@@ -2340,6 +2346,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+#ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_SLAVE_STAT:
     if (!(res= mysql_test_show_slave_status(stmt)))
     {
@@ -2361,6 +2369,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+#endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if (!(res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)))
     {
