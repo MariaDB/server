@@ -207,6 +207,8 @@ int mysql_table_dump(THD* thd, const char* db,
 int fetch_master_table(THD* thd, const char* db_name, const char* table_name,
 		       Master_info* mi, MYSQL* mysql, bool overwrite);
 
+void show_master_info_get_fields(THD *thd, List<Item> *field_list,
+                                     bool full, size_t gtid_pos_length);
 bool show_master_info(THD* thd, Master_info* mi, bool full);
 bool show_all_master_info(THD* thd);
 bool show_binlog_info(THD* thd);

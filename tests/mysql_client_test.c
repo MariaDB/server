@@ -443,6 +443,13 @@ static void test_prepare_simple()
   DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
   mysql_stmt_close(stmt);
 
+  /* show slave status */
+  strmov(query, "SHOW SLAVE STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 47);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);
