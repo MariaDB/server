@@ -4571,5 +4571,17 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
 DROP TABLE t1;
 #
+# Bug#58081 Duplicate entry error when doing GROUP BY
+# MDEV-9332 Bug after upgrade to 10.1.10
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(0),(1),(0),(0);
+SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binlog_size);
+COUNT(*)
+20
+5
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

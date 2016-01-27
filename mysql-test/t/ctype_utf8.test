@@ -1577,12 +1577,12 @@ SET NAMES utf8;
 
 --echo #
 --echo # Bug#57687 crash when reporting duplicate group_key error and utf8
---echo # Make sure to modify this when Bug#58081 is fixed.
+--echo # Bug#58081 Duplicate entry error when doing GROUP BY
+--echo # MDEV-9332 Bug after upgrade to 10.1.10
 --echo #
 SET NAMES utf8;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (0), (0), (1), (0), (0);
---error ER_DUP_ENTRY
 SELECT COUNT(*) FROM t1, t1 t2 
 GROUP BY INSERT('', t2.a, t1.a, (@@global.max_binlog_size));
 DROP TABLE t1;
