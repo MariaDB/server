@@ -2531,12 +2531,137 @@ bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 }
 
 
+void Item_func_nullif::split_sum_func(THD *thd, Item **ref_pointer_array,
+                                      List<Item> &fields, uint flags)
+{
+  if (m_cache)
+  {
+    flags|= SPLIT_SUM_SKIP_REGISTERED; // See Item_func::split_sum_func
+    m_cache->split_sum_func2_example(thd, ref_pointer_array, fields, flags);
+    args[1]->split_sum_func2(thd, ref_pointer_array, fields, &args[1], flags);
+  }
+  else
+  {
+    Item_func::split_sum_func(thd, ref_pointer_array, fields, flags);
+  }
+}
+
+
+void Item_func_nullif::update_used_tables()
+{
+  if (m_cache)
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(m_cache->get_example());
+    used_tables_and_const_cache_update_and_join(arg_count, args);
+  }
+  else
+  {
+    Item_func::update_used_tables();
+  }
+}
+
+
+
 void
 Item_func_nullif::fix_length_and_dec()
 {
   if (!args[2])					// Only false if EOM
     return;
 
+  DBUG_ASSERT(args[0] == args[2]);
+  THD *thd= current_thd;
+  if (args[0]->type() == SUM_FUNC_ITEM)
+  {
+    /*
+      NULLIF(l_expr, r_expr)
+
+        is calculated in the way to return a result equal to:
+
+      CASE WHEN l_expr = r_expr THEN NULL ELSE r_expr END.
+
+      There's nothing special with r_expr, because it's referenced
+      only by args[1] and nothing else.
+
+      l_expr needs a special treatment, as it's referenced by both
+      args[0] and args[2] initially.
+
+      args[0] and args[2] can be replaced:
+
+      - to Item_func_conv_charset by character set aggregation routines
+      - to a constant Item by equal field propagation routines
+        (in case of Item_field)
+
+      For aggregate functions we have to wrap the original args[0]/args[2]
+      into Item_cache (see MDEV-9181). In this case the Item_cache
+      instance becomes the subject to character set conversion instead of
+      the original args[0]/args[2], while the original args[0]/args[2] get
+      hidden inside the cache.
+
+      Some examples of what NULLIF can end up with after argument
+      substitution (we don't mention args[1] here for simplicity):
+
+      1. l_expr is not an aggragate function:
+
+        a. No conversion happened.
+           args[0] and args[2] were not replaced to something else
+           (i.e. neither by character set conversion, nor by propagation):
+
+          args[0] \
+                   l_expr
+          args[2] /
+
+        b. Conversion of args[0] happened.
+           args[0] was replaced, e.g. to Item_func_conv_charset:
+
+           args[0] > Item_func_conv_charset \
+                                             l_expr
+           args[2] >------------------------/
+
+        c. Conversion of args[2] happened:
+
+           args[0] >------------------------\
+                                             l_expr
+           args[2] > Item_func_conv_charset /
+
+        d. Conversion of both args[0] and args[2] happened
+           (e.g. by equal field propagation).
+
+           args[0] > Item_int
+           args[2] > Item_int
+
+      2. In case if l_expr is an aggregate function:
+
+        a. No conversion happened:
+
+          args[0] \
+                   Item_cache > l_expr
+          args[2] /
+
+        b. Conversion of args[0] happened:
+
+          args[0] > Item_func_conv_charset \
+                                            Item_cache > l_expr
+          args[2] >------------------------/
+
+        c. Conversion of args[2] happened:
+
+           args[0] >------------------------\
+                                             Item_cache > l_expr
+           args[2] > Item_func_conv_charset /
+
+        d. Conversion of both args[0] and args[2] happened.
+           (e.g. by equal expression propagation)
+           TODO: check if it's possible (and add an example query if so).
+    */
+    m_cache= args[0]->cmp_type() == STRING_RESULT ?
+             new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
+             Item_cache::get_cache(thd, args[0]);
+    m_cache->setup(current_thd, args[0]);
+    m_cache->store(args[0]);
+    m_cache->set_used_tables(args[0]->used_tables());
+    args[0]= args[2]= m_cache;
+  }
   set_handler_by_field_type(args[2]->field_type());
   collation.set(args[2]->collation);
   decimals= args[2]->decimals;
@@ -2611,6 +2736,13 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
 }
 
 
+int Item_func_nullif::compare()
+{
+  if (m_cache)
+    m_cache->cache_value();
+  return cmp.compare();
+}
+
 /**
   @note
   Note that we have to evaluate the first argument twice as the compare
@@ -2626,7 +2758,7 @@ Item_func_nullif::real_op()
 {
   DBUG_ASSERT(fixed == 1);
   double value;
-  if (!cmp.compare())
+  if (!compare())
   {
     null_value=1;
     return 0.0;
@@ -2641,7 +2773,7 @@ Item_func_nullif::int_op()
 {
   DBUG_ASSERT(fixed == 1);
   longlong value;
-  if (!cmp.compare())
+  if (!compare())
   {
     null_value=1;
     return 0;
@@ -2656,7 +2788,7 @@ Item_func_nullif::str_op(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  if (!cmp.compare())
+  if (!compare())
   {
     null_value=1;
     return 0;
@@ -2672,7 +2804,7 @@ Item_func_nullif::decimal_op(my_decimal * decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   my_decimal *res;
-  if (!cmp.compare())
+  if (!compare())
   {
     null_value=1;
     return 0;
@@ -2687,7 +2819,7 @@ bool
 Item_func_nullif::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  if (!cmp.compare())
+  if (!compare())
     return (null_value= true);
   return (null_value= args[2]->get_date(ltime, fuzzydate));
 }
@@ -2696,7 +2828,7 @@ Item_func_nullif::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 bool
 Item_func_nullif::is_null()
 {
-  return (null_value= (!cmp.compare() ? 1 : args[2]->null_value));
+  return (null_value= (!compare() ? 1 : args[2]->null_value));
 }
 
 
