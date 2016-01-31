@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 #
 # Test what happens if one removes a decryption key for Aria
 #
