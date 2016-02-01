@@ -1517,3 +1517,22 @@ and dept_id in (select dept_id from t2 where COMPANY_ID = 1000);
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-9505: Valgrind failure in SEL_ARG::store_min,find_used_partitions,...
+--echo #
+create table t1 (a int, b char(10), c varchar(5), d int)
+partition by range columns(a,b,c)
+subpartition by key (c,d)
+subpartitions 3
+( partition p0 values less than (1,'abc','abc'),
+  partition p1 values less than (2,'abc','abc'),
+  partition p2 values less than (3,'abc','abc'),
+  partition p3 values less than (4,'abc','abc')
+);
+
+insert into t1 values (1,'a','b',1),(2,'a','b',2),(3,'a','b',3);
+select * from t1 where (a = 1 AND b < 'd' AND (c = 'b' OR (c = 'c' AND d = 1)) OR
+                       (a = 1 AND b >= 'a' AND (c = 'c' OR (c = 'd' AND d = 2))));
+drop table t1;
+
+
