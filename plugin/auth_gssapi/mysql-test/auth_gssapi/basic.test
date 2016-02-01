@@ -4,7 +4,7 @@ INSTALL SONAME 'auth_gssapi';
 # CREATE USER without 'AS' clause
 #
 --replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
-eval CREATE USER $GSSAPI_SHORTNAME IDENTIFIED WITH gssapi;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi;
 connect (con1,localhost,$GSSAPI_SHORTNAME,,);
 --replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
 SELECT USER(),CURRENT_USER();
@@ -12,7 +12,7 @@ disconnect con1;
 
 connection default;
 --replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
-eval DROP USER $GSSAPI_SHORTNAME;
+eval DROP USER '$GSSAPI_SHORTNAME';
 
 CREATE USER nosuchuser IDENTIFIED WITH gssapi;
 --disable_query_log
