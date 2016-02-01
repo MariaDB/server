@@ -2569,8 +2569,21 @@ Item_func_nullif::fix_length_and_dec()
   if (!args[2])					// Only false if EOM
     return;
 
-  DBUG_ASSERT(args[0] == args[2]);
   THD *thd= current_thd;
+  /*
+    At prepared statement EXECUTE time, args[0] can already
+    point to a different Item, created during PREPARE time fix_length_and_dec().
+    For example, if character set conversion was needed, arguments can look
+    like this:
+
+      args[0]= > Item_func_conv_charset \
+                                         l_expr
+      args[2]= >------------------------/
+
+    Otherwise (during PREPARE or convensional execution),
+    args[0] and args[2] should still point to the same original l_expr.
+  */
+  DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
   if (args[0]->type() == SUM_FUNC_ITEM)
   {
     /*
@@ -2586,11 +2599,24 @@ Item_func_nullif::fix_length_and_dec()
       l_expr needs a special treatment, as it's referenced by both
       args[0] and args[2] initially.
 
-      args[0] and args[2] can be replaced:
+      args[2] is used to return the value. Afrer all transformations
+      (e.g. in fix_length_and_dec(), equal field propagation, etc)
+      args[2] points to a an Item which preserves the exact data type and
+      attributes (e.g. collation) of the original l_expr.
+      It can point:
+      - to the original l_expr
+      - to an Item_cache pointing to l_expr
+      - to a constant of the same data type with l_expr.
+
+      args[0] is used for comparison. It can be replaced:
 
       - to Item_func_conv_charset by character set aggregation routines
       - to a constant Item by equal field propagation routines
         (in case of Item_field)
+
+      The data type and/or the attributes of args[0] can differ from
+      the data type and the attributes of the original l_expr, to make
+      it comparable to args[1] (which points to r_expr or its replacement).
 
       For aggregate functions we have to wrap the original args[0]/args[2]
       into Item_cache (see MDEV-9181). In this case the Item_cache
@@ -2599,7 +2625,7 @@ Item_func_nullif::fix_length_and_dec()
       hidden inside the cache.
 
       Some examples of what NULLIF can end up with after argument
-      substitution (we don't mention args[1] here for simplicity):
+      substitution (we don't mention args[1] in some cases for simplicity):
 
       1. l_expr is not an aggragate function:
 
@@ -2607,28 +2633,56 @@ Item_func_nullif::fix_length_and_dec()
            args[0] and args[2] were not replaced to something else
            (i.e. neither by character set conversion, nor by propagation):
 
+          args[1] > r_expr
           args[0] \
-                   l_expr
+                    l_expr
           args[2] /
 
-        b. Conversion of args[0] happened.
-           args[0] was replaced, e.g. to Item_func_conv_charset:
+        b. Conversion of args[0] happened:
 
-           args[0] > Item_func_conv_charset \
-                                             l_expr
-           args[2] >------------------------/
+           CREATE OR REPLACE TABLE t1 (
+             a CHAR(10) CHARACTER SET latin1,
+             b CHAR(10) CHARACTER SET utf8);
+           SELECT * FROM t1 WHERE NULLIF(a,b);
 
-        c. Conversion of args[2] happened:
+           args[1] > r_expr                          (Item_field for t1.b)
+           args[0] > Item_func_conv_charset\
+                                            l_expr   (Item_field for t1.a)
+           args[2] > ----------------------/
 
-           args[0] >------------------------\
-                                             l_expr
-           args[2] > Item_func_conv_charset /
+        c. Conversion of args[1] happened:
 
-        d. Conversion of both args[0] and args[2] happened
-           (e.g. by equal field propagation).
+          CREATE OR REPLACE TABLE t1 (
+            a CHAR(10) CHARACTER SET utf8,
+            b CHAR(10) CHARACTER SET latin1);
+          SELECT * FROM t1 WHERE NULLIF(a,b);
 
-           args[0] > Item_int
-           args[2] > Item_int
+          args[1] > Item_func_conv_charset -> r_expr (Item_field for t1.b)
+          args[0] \
+                   l_expr                            (Item_field for t1.a)
+          args[2] /
+
+        d. Conversion of only args[0] happened (by equal field proparation):
+
+           CREATE OR REPLACE TABLE t1 (
+             a CHAR(10),
+             b CHAR(10));
+           SELECT * FROM t1 WHERE NULLIF(a,b) AND a='a';
+
+           args[1] > r_expr            (Item_field for t1.b)
+           args[0] > Item_string('a')  (constant replacement for t1.a)
+           args[2] > l_expr            (Item_field for t1.a)
+
+        e. Conversion of both args[0] and args[2] happened
+           (by equal field propagation):
+
+           CREATE OR REPLACE TABLE t1 (a INT,b INT);
+           SELECT * FROM t1 WHERE NULLIF(a,b) AND a=5;
+
+           args[1] > r_expr         (Item_field for "b")
+           args[0] \
+                    Item_int (5)    (constant replacement for "a")
+           args[2] /
 
       2. In case if l_expr is an aggregate function:
 
@@ -2644,13 +2698,7 @@ Item_func_nullif::fix_length_and_dec()
                                             Item_cache > l_expr
           args[2] >------------------------/
 
-        c. Conversion of args[2] happened:
-
-           args[0] >------------------------\
-                                             Item_cache > l_expr
-           args[2] > Item_func_conv_charset /
-
-        d. Conversion of both args[0] and args[2] happened.
+        c. Conversion of both args[0] and args[2] happened.
            (e.g. by equal expression propagation)
            TODO: check if it's possible (and add an example query if so).
     */
