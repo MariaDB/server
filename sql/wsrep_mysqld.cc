@@ -1744,8 +1744,9 @@ pthread_handler_t start_wsrep_THD(void *arg)
     goto error;
   }
 
+  thd->thread_id= next_thread_id();
+
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id=thread_id++;
 
   if (wsrep_gtid_mode)
   {

@@ -702,12 +702,6 @@ extern "C"
   @param length length of buffer
   @param max_query_len how many chars of query to copy (0 for all)
 
-  @req LOCK_thread_count
-  
-  @note LOCK_thread_count mutex is not necessary when the function is invoked on
-   the currently running thread (current_thd) or if the caller in some other
-   way guarantees that access to thd->query is serialized.
- 
   @return Pointer to string
 */
 
@@ -953,7 +947,7 @@ THD::THD(bool is_wsrep_applier)
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
   user_time.val= start_time= start_time_sec_part= 0;
-  start_utime= utime_after_query= prior_thr_create_utime= 0L;
+  start_utime= utime_after_query= 0;
   utime_after_lock= 0L;
   progress.arena= 0;
   progress.report_to_client= 0;
@@ -1378,6 +1372,12 @@ extern "C"   THD *_current_thd_noinline(void)
 {
   return my_pthread_getspecific_ptr(THD*,THR_THD);
 }
+
+extern "C" my_thread_id next_thread_id_noinline()
+{
+#undef next_thread_id
+  return next_thread_id();
+}
 #endif
 
 /*
@@ -1628,6 +1628,10 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+  /* Check that we have already called thd->unlink() */
+  DBUG_ASSERT(prev == 0 && next == 0);
+  /* This takes a long time so we should not do this under LOCK_thread_count */
+  mysql_mutex_assert_not_owner(&LOCK_thread_count);
 
   /*
     In error cases, thd may not be current thd. We have to fix this so
@@ -4073,7 +4077,7 @@ void Security_context::destroy()
   // If not pointer to constant
   if (host != my_localhost)
   {
-    my_free(host);
+    my_free((char*) host);
     host= NULL;
   }
   if (user != delayed_user)

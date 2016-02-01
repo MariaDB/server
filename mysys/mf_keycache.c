@@ -1068,7 +1068,7 @@ static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
 static void unlink_from_queue(KEYCACHE_WQUEUE *wqueue,
                               struct st_my_thread_var *thread)
 {
-  KEYCACHE_DBUG_PRINT("unlink_from_queue", ("thread %ld", thread->id));
+  KEYCACHE_DBUG_PRINT("unlink_from_queue", ("thread %ld", (ulong) thread->id));
   DBUG_ASSERT(thread->next && thread->prev);
 
   if (thread->next == thread)
@@ -1145,7 +1145,7 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
   */
   do
   {
-    KEYCACHE_DBUG_PRINT("wait", ("suspend thread %ld", thread->id));
+    KEYCACHE_DBUG_PRINT("wait", ("suspend thread %ld", (ulong) thread->id));
     keycache_pthread_cond_wait(&thread->suspend, mutex);
   }
   while (thread->next);
@@ -1184,7 +1184,7 @@ static void release_whole_queue(KEYCACHE_WQUEUE *wqueue)
     thread=next;
     DBUG_ASSERT(thread && thread->init == 1);
     KEYCACHE_DBUG_PRINT("release_whole_queue: signal",
-                        ("thread %ld", thread->id));
+                        ("thread %ld", (ulong) thread->id));
     /* Take thread from queue. */
     next= thread->next;
     thread->next= NULL;
@@ -1388,7 +1388,8 @@ static void link_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block,
       */
       if ((HASH_LINK *) thread->keycache_link == hash_link)
       {
-        KEYCACHE_DBUG_PRINT("link_block: signal", ("thread %ld", thread->id));
+        KEYCACHE_DBUG_PRINT("link_block: signal",
+                            ("thread %ld", (ulong) thread->id));
         keycache_pthread_cond_signal(&thread->suspend);
         unlink_from_queue(&keycache->waiting_for_block, thread);
         block->requests++;
@@ -1677,7 +1678,7 @@ static void wait_for_readers(SIMPLE_KEY_CACHE_CB *keycache,
   {
     KEYCACHE_DBUG_PRINT("wait_for_readers: wait",
                         ("suspend thread %ld  block %u",
-                         thread->id, BLOCK_NUMBER(block)));
+                         (ulong) thread->id, BLOCK_NUMBER(block)));
     /* There must be no other waiter. We have no queue here. */
     DBUG_ASSERT(!block->condvar);
     block->condvar= &thread->suspend;
@@ -1737,7 +1738,8 @@ static void unlink_hash(SIMPLE_KEY_CACHE_CB *keycache, HASH_LINK *hash_link)
       */
       if (page->file == hash_link->file && page->filepos == hash_link->diskpos)
       {
-        KEYCACHE_DBUG_PRINT("unlink_hash: signal", ("thread %ld", thread->id));
+        KEYCACHE_DBUG_PRINT("unlink_hash: signal",
+                            ("thread %ld", (ulong) thread->id));
         keycache_pthread_cond_signal(&thread->suspend);
         unlink_from_queue(&keycache->waiting_for_hash_link, thread);
       }
@@ -1821,7 +1823,7 @@ restart:
       thread->keycache_link= (void *) &page;
       link_into_queue(&keycache->waiting_for_hash_link, thread);
       KEYCACHE_DBUG_PRINT("get_hash_link: wait",
-                        ("suspend thread %ld", thread->id));
+                          ("suspend thread %ld", (ulong) thread->id));
       keycache_pthread_cond_wait(&thread->suspend,
                                  &keycache->cache_lock);
       thread->keycache_link= NULL;
@@ -1987,7 +1989,7 @@ restart:
       do
       {
         KEYCACHE_DBUG_PRINT("find_key_block: wait",
-                            ("suspend thread %ld", thread->id));
+                            ("suspend thread %ld", (ulong) thread->id));
         keycache_pthread_cond_wait(&thread->suspend,
                                    &keycache->cache_lock);
       } while (thread->next);
@@ -2334,7 +2336,7 @@ restart:
           do
           {
             KEYCACHE_DBUG_PRINT("find_key_block: wait",
-                                ("suspend thread %ld", thread->id));
+                                ("suspend thread %ld", (ulong) thread->id));
             keycache_pthread_cond_wait(&thread->suspend,
                                        &keycache->cache_lock);
           }
@@ -4585,7 +4587,7 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
   KEYCACHE_PAGE *page;
   uint i;
 
-  fprintf(keycache_dump_file, "thread:%u\n", thread->id);
+  fprintf(keycache_dump_file, "thread:%lu\n", (ulong) thread->id);
 
   i=0;
   thread=last=waiting_for_hash_link.last_thread;
@@ -4596,8 +4598,8 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
       thread=thread->next;
       page= (KEYCACHE_PAGE *) thread->keycache_link;
       fprintf(keycache_dump_file,
-              "thread:%u, (file,filepos)=(%u,%lu)\n",
-              thread->id,(uint) page->file,(ulong) page->filepos);
+              "thread:%lu, (file,filepos)=(%u,%lu)\n",
+              (ulong) thread->id,(uint) page->file,(ulong) page->filepos);
       if (++i == MAX_QUEUE_LEN)
         break;
     }
@@ -4612,8 +4614,8 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
       thread=thread->next;
       hash_link= (HASH_LINK *) thread->keycache_link;
       fprintf(keycache_dump_file,
-        "thread:%u hash_link:%u (file,filepos)=(%u,%lu)\n",
-        thread->id, (uint) HASH_LINK_NUMBER(hash_link),
+              "thread:%lu hash_link:%u (file,filepos)=(%u,%lu)\n",
+              (ulong) thread->id, (uint) HASH_LINK_NUMBER(hash_link),
         (uint) hash_link->file,(ulong) hash_link->diskpos);
       if (++i == MAX_QUEUE_LEN)
         break;
@@ -4640,7 +4642,7 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
         {
           thread=thread->next;
           fprintf(keycache_dump_file,
-                  "thread:%u\n", thread->id);
+                  "thread:%lu\n", (ulong) thread->id);
           if (++i == MAX_QUEUE_LEN)
             break;
         }

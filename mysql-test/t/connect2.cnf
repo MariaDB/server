@@ -1,0 +1,9 @@
+!include include/default_my.cnf
+
+[mysqld.1]
+extra-port=        @ENV.MASTER_EXTRA_PORT
+extra-max-connections=2
+thread_handling=pool-of-threads
+
+[ENV]
+MASTER_EXTRA_PORT= @OPT.port

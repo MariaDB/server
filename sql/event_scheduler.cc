@@ -135,9 +135,7 @@ post_init_event_thread(THD *thd)
   }
 
   thread_safe_increment32(&thread_count);
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  add_to_active_threads(thd);
   inc_thread_running();
   return FALSE;
 }
@@ -191,9 +189,7 @@ pre_init_event_thread(THD* thd)
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
 
   /*
     Guarantees that we will see the thread in SHOW PROCESSLIST though its
@@ -479,7 +475,7 @@ Event_scheduler::run(THD *thd)
   DBUG_ENTER("Event_scheduler::run");
 
   sql_print_information("Event Scheduler: scheduler thread started with id %lu",
-                        thd->thread_id);
+                        (ulong) thd->thread_id);
   /*
     Recalculate the values in the queue because there could have been stops
     in executions of the scheduler and some times could have passed by.
@@ -669,13 +665,13 @@ Event_scheduler::stop()
 
     state= STOPPING;
     DBUG_PRINT("info", ("Scheduler thread has id %lu",
-                        scheduler_thd->thread_id));
+                        (ulong) scheduler_thd->thread_id));
     /* Lock from delete */
     mysql_mutex_lock(&scheduler_thd->LOCK_thd_data);
     /* This will wake up the thread if it waits on Queue's conditional */
     sql_print_information("Event Scheduler: Killing the scheduler thread, "
                           "thread id %lu",
-                          scheduler_thd->thread_id);
+                          (ulong) scheduler_thd->thread_id);
     scheduler_thd->awake(KILL_CONNECTION);
     mysql_mutex_unlock(&scheduler_thd->LOCK_thd_data);
 
@@ -832,7 +828,8 @@ Event_scheduler::dump_internal_status()
   puts("");
   puts("Event scheduler status:");
   printf("State      : %s\n", scheduler_states_names[state].str);
-  printf("Thread id  : %lu\n", scheduler_thd? scheduler_thd->thread_id : 0);
+  printf("Thread id  : %lu\n", scheduler_thd ?
+         (ulong) scheduler_thd->thread_id : (ulong) 0);
   printf("LLA        : %s:%u\n", mutex_last_locked_in_func,
                                  mutex_last_locked_at_line);
   printf("LUA        : %s:%u\n", mutex_last_unlocked_in_func,

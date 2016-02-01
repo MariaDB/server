@@ -2068,6 +2068,7 @@ public:
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     mysql_mutex_unlock(&LOCK_thread_count);
+    thread_safe_increment32(&thread_count);
     DBUG_VOID_RETURN;
   }
   ~Delayed_insert()
@@ -2081,17 +2082,24 @@ public:
       close_thread_tables(&thd);
       thd.mdl_context.release_transactional_locks();
     }
-    mysql_mutex_lock(&LOCK_thread_count);
     mysql_mutex_destroy(&mutex);
     mysql_cond_destroy(&cond);
     mysql_cond_destroy(&cond_client);
+
+    /*
+      We could use unlink_not_visible_threads() here, but as
+      delayed_insert_threads also needs to be protected by
+      the LOCK_thread_count mutex, we open code this.
+    */
+    mysql_mutex_lock(&LOCK_thread_count);
     thd.unlink();				// Must be unlinked under lock
-    my_free(thd.query());
-    thd.security_ctx->user= thd.security_ctx->host=0;
     delayed_insert_threads--;
     mysql_mutex_unlock(&LOCK_thread_count);
-    thread_safe_decrement32(&thread_count);
-    mysql_cond_broadcast(&COND_thread_count); /* Tell main we are ready */
+
+    my_free(thd.query());
+    thd.security_ctx->user= 0;
+    thd.security_ctx->host= 0;
+    dec_thread_count();
   }
 
   /* The following is for checking when we can delete ourselves */
@@ -2225,8 +2233,6 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     {
       if (!(di= new Delayed_insert(thd->lex->current_select)))
         goto end_create;
-
-      thread_safe_increment32(&thread_count);
 
       /*
         Annotating delayed inserts is not supported.
@@ -2803,15 +2809,13 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
   pthread_detach_this_thread();
   /* Add thread to THD list so that's it's visible in 'show processlist' */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   thd->set_current_time();
-  threads.append(thd);
+  add_to_active_threads(thd);
   if (abort_loop)
     thd->killed= KILL_CONNECTION;
   else
     thd->reset_killed();
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   mysql_thread_set_psi_id(thd->thread_id);
 

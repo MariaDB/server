@@ -230,7 +230,7 @@ struct connection_t
 };
 
 
-void init_connection(connection_t *connection)
+void init_connection(connection_t *connection, THD *thd)
 {
   connection->logged_in = false;
   connection->handle= 0;
@@ -243,7 +243,8 @@ void init_connection(connection_t *connection)
   memset(&connection->overlapped, 0, sizeof(OVERLAPPED));
   InitializeThreadpoolEnvironment(&connection->callback_environ);
   SetThreadpoolCallbackPool(&connection->callback_environ, pool);
-  connection->thd = 0;
+  connection->thd = thd;
+  thd->event_scheduler.data= connection;
 }
 
 
@@ -465,7 +466,7 @@ static void check_thread_init()
   if (FlsGetValue(fls) == NULL)
   {
     FlsSetValue(fls, (void *)1);
-    thread_created++;
+    statistic_increment(thread_created, &LOCK_status);
     InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
   }
 }
@@ -532,6 +533,16 @@ bool tp_init(void)
 }
 
 
+/* Dummy functions, do nothing */
+
+bool tp_init_new_connection_thread()
+{
+  return 0;
+}
+
+bool tp_end_thread(THD *thd, bool cache_thread)
+{}
+
 /**
   Scheduler callback : Destroy the scheduler.
 */
@@ -543,7 +554,6 @@ void tp_end(void)
     CloseThreadpool(pool);
   }
 }
-
 
 /*
   Handle read completion/notification.
@@ -656,24 +666,26 @@ static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
 
 /*
   Notify the thread pool about a new connection.
-  NOTE: LOCK_thread_count is locked on entry. This function must unlock it.
 */
-void tp_add_connection(THD *thd)
-{
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
-  connection_t *con = (connection_t *)malloc(sizeof(connection_t));
-  if(!con)
+void tp_add_connection(CONNECT *connect)
+{
+  THD *thd;
+  connection_t *con;
+
+  if (!(con = (connection_t *) malloc(sizeof(connection_t))) ||
+      !(thd= connect->create_thd()))
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    threadpool_cleanup_connection(thd);
+    free(con)
+    connect->close_and_delete();
     return;
   }
+  delete connect;
 
-  init_connection(con);
-  con->thd= thd;
-  thd->event_scheduler.data= con;
+  add_to_active_threads(thd);
+
+  init_connection(con, thd);
 
   /* Try to login asynchronously, using threads in the pool */
   PTP_WORK wrk =  CreateThreadpoolWork(login_callback,con, &con->callback_environ);

@@ -30,6 +30,7 @@
 #include "my_rdtsc.h"
 
 class THD;
+class CONNECT;
 struct handlerton;
 class Time_zone;
 
@@ -81,8 +82,8 @@ enum enum_slave_parallel_mode {
 /* Function prototypes */
 void kill_mysql(THD *thd= 0);
 void close_connection(THD *thd, uint sql_errno= 0);
-void handle_connection_in_main_thread(THD *thd);
-void create_thread_to_handle_connection(THD *thd);
+void handle_connection_in_main_thread(CONNECT *thd);
+void create_thread_to_handle_connection(CONNECT *connect);
 void delete_running_thd(THD *thd);
 void signal_thd_deleted();
 void unlink_thd(THD *thd);
@@ -90,6 +91,8 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
 void refresh_status(THD *thd);
 bool is_secure_file_path(char *path);
+void dec_connection_count(scheduler_functions *scheduler);
+extern void init_net_server_extension(THD *thd);
 
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *files_charset_info ;
@@ -117,7 +120,7 @@ extern bool opt_skip_name_resolve;
 extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern bool volatile abort_loop;
-extern bool in_bootstrap;
+extern bool volatile in_bootstrap;
 extern uint connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
@@ -177,7 +180,7 @@ extern char log_error_file[FN_REFLEN], *opt_tc_log_file;
 extern const double log_10[309];
 extern ulonglong keybuff_size;
 extern ulonglong thd_startup_options;
-extern ulong thread_id;
+extern my_thread_id global_thread_id;
 extern ulong binlog_cache_use, binlog_cache_disk_use;
 extern ulong binlog_stmt_cache_use, binlog_stmt_cache_disk_use;
 extern ulong aborted_threads,aborted_connects;
@@ -292,6 +295,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
+  key_LOCK_start_thread,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
@@ -323,6 +327,7 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
   key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
+  key_COND_start_thread,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
 extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
@@ -558,6 +563,7 @@ extern mysql_mutex_t
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
        LOCK_slave_init;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
+extern mysql_mutex_t LOCK_start_thread;
 #ifdef HAVE_OPENSSL
 extern char* des_key_file;
 extern mysql_mutex_t LOCK_des_key_file;
@@ -566,7 +572,7 @@ extern mysql_mutex_t LOCK_server_started;
 extern mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_system_variables_hash;
-extern mysql_cond_t COND_thread_count;
+extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
@@ -698,6 +704,16 @@ inline query_id_t get_query_id()
   return my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
 }
 
+/* increment global_thread_id and return it.  */
+inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
+{
+  return my_atomic_add32_explicit(&global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
+}
+
+#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
+extern my_thread_id next_thread_id_noinline();
+#define next_thread_id() next_thread_id_noinline()
+#endif
 
 /*
   TODO: Replace this with an inline function.
@@ -746,7 +762,8 @@ inline void dec_thread_running()
   thread_safe_decrement32(&thread_running);
 }
 
-void set_server_version(void);
+extern void set_server_version(void);
+extern void dec_thread_count(void);
 
 #if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
 extern "C" THD *_current_thd_noinline();
@@ -767,6 +784,7 @@ inline int set_current_thd(THD *thd)
 {
   return my_pthread_setspecific_ptr(THR_THD, thd);
 }
+
 
 /*
   @todo remove, make it static in ha_maria.cc

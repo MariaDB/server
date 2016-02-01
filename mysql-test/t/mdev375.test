@@ -17,6 +17,7 @@ SELECT 2;
 
 --connection default
 SELECT 0;
+show status like "Threads_connected";
 
 SET GLOBAL log_warnings=default;
 SET GLOBAL max_connections=default;

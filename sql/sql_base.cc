@@ -1233,7 +1233,8 @@ bool close_temporary_tables(THD *thd)
       */
       for (;
            table && is_user_table(table) &&
-             tmpkeyval(thd, table) == thd->variables.pseudo_thread_id &&
+             (ulong) tmpkeyval(thd, table) ==
+             (ulong) thd->variables.pseudo_thread_id &&
              table->s->db.length == db.length() &&
              memcmp(table->s->db.str, db.ptr(), db.length()) == 0;
            table= next)

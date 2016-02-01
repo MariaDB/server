@@ -19,8 +19,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 #ifndef MYSQL_SOCKET_H
 #define MYSQL_SOCKET_H
 
-/* For strlen() */
-#include <string.h>
 /* For MY_STAT */
 #include <my_dir.h>
 /* For my_chsize */

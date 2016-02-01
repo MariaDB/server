@@ -664,7 +664,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
 void *create_embedded_thd(int client_flag)
 {
   THD * thd= new THD;
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
 
   thd->thread_stack= (char*) &thd;
   if (thd->store_globals())

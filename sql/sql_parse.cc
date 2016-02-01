@@ -844,12 +844,13 @@ end:
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  thread_safe_decrement32(&thread_count);
+  DBUG_ASSERT(thread_count == 1);
   in_bootstrap= FALSE;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  /*
+    dec_thread_count will signal bootstrap() function that we have ended as
+    thread_count will become 0.
+  */
+  dec_thread_count();
   my_thread_end();
   pthread_exit(0);
 #endif
@@ -953,7 +954,6 @@ bool do_command(THD *thd)
   */
   if(!thd->skip_wait_timeout)
     my_net_set_read_timeout(net, thd->variables.net_wait_timeout);
-
 
   /*
     XXX: this code is here only to clear possible errors of init_connect. 
@@ -7279,7 +7279,6 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
             and Query_log_event::print() would give ';;' output).
             This also helps display only the current query in SHOW
             PROCESSLIST.
-            Note that we don't need LOCK_thread_count to modify query_length.
           */
           if (found_semicolon && (ulong) (found_semicolon - thd->query()))
             thd->set_query_inner(thd->query(),

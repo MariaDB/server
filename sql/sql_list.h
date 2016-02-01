@@ -650,6 +650,10 @@ struct ilink
     if (next) next->prev=prev;
     prev=0 ; next=0;
   }
+  inline void assert_if_linked()
+  {
+    DBUG_ASSERT(prev != 0 && next != 0);
+  }
   virtual ~ilink() { unlink(); }		/*lint -e1740 */
 };
 

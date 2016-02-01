@@ -809,7 +809,7 @@ static int create_worker(thread_group_t *thread_group)
   if (!err)
   {
     thread_group->last_thread_creation_time=microsecond_interval_timer();
-    thread_created++;
+    statistic_increment(thread_created,&LOCK_status);
     add_thread_count(thread_group, 1);
   }
   else
@@ -1203,14 +1203,14 @@ void wait_end(thread_group_t *thread_group)
   Allocate/initialize a new connection structure.
 */
 
-connection_t *alloc_connection(THD *thd)
+connection_t *alloc_connection()
 {
+  connection_t* connection;
   DBUG_ENTER("alloc_connection");
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", DBUG_RETURN(0); );
   
-  connection_t* connection = (connection_t *)my_malloc(sizeof(connection_t),0);
-  if (connection)
+  if ((connection = (connection_t *)my_malloc(sizeof(connection_t),0)))
   {
-    connection->thd = thd;
     connection->waiting= false;
     connection->logged_in= false;
     connection->bound_to_poll_descriptor= false;
@@ -1225,38 +1225,40 @@ connection_t *alloc_connection(THD *thd)
   Add a new connection to thread pool..
 */
 
-void tp_add_connection(THD *thd)
+void tp_add_connection(CONNECT *connect)
 {
+  connection_t *connection;
+  THD *thd;
   DBUG_ENTER("tp_add_connection");
-  
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
-  connection_t *connection= alloc_connection(thd);
-  if (connection)
+
+  if (!(connection= alloc_connection()) || !(thd= connect->create_thd()))
   {
-    thd->event_scheduler.data= connection;
-      
-    /* Assign connection to a group. */
-    thread_group_t *group= 
-      &all_groups[thd->thread_id%group_count];
-    
-    connection->thread_group=group;
-      
-    mysql_mutex_lock(&group->mutex);
-    group->connection_count++;
-    mysql_mutex_unlock(&group->mutex);
-    
-    /*
-       Add connection to the work queue.Actual logon 
-       will be done by a worker thread.
-    */
-    queue_put(group, connection);
+    my_free(connection);
+    connect->close_and_delete();
+    DBUG_VOID_RETURN;
   }
-  else
-  {
-    /* Allocation failed */
-    threadpool_cleanup_connection(thd);
-  } 
+  connection->thd= thd;
+  delete connect;
+
+  add_to_active_threads(thd);
+
+  thd->event_scheduler.data= connection;
+      
+  /* Assign connection to a group. */
+  thread_group_t *group= 
+    &all_groups[thd->thread_id%group_count];
+    
+  connection->thread_group=group;
+      
+  mysql_mutex_lock(&group->mutex);
+  group->connection_count++;
+  mysql_mutex_unlock(&group->mutex);
+    
+  /*
+    Add connection to the work queue.Actual logon 
+    will be done by a worker thread.
+  */
+  queue_put(group, connection);
   DBUG_VOID_RETURN;
 }
 
@@ -1548,6 +1550,18 @@ bool tp_init()
   DBUG_RETURN(0);
 }
 
+
+/* Dummy functions, do nothing */
+
+bool tp_init_new_connection_thread()
+{
+  return 0;
+}
+
+bool tp_end_thread(THD *thd, bool cache_thread)
+{
+  return 0;
+}
 
 void tp_end()
 {

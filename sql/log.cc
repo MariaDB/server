@@ -6582,7 +6582,6 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate)
   DBUG_ENTER("MYSQL_BIN_LOG::rotate_and_purge");
   bool check_purge= false;
 
-  //todo: fix the macro def and restore safe_mutex_assert_not_owner(&LOCK_log);
   mysql_mutex_lock(&LOCK_log);
   prev_binlog_id= current_binlog_id;
   if ((error= rotate(force_rotate, &check_purge)))
@@ -9508,9 +9507,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd= new THD;
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->thread_id= next_thread_id();
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -9597,9 +9594,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  /* No need to use mutex as thd is not linked into other threads */
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   my_thread_end();
 

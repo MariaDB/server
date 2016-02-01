@@ -221,7 +221,8 @@ int threadpool_process_request(THD *thd)
 
 
   /*
-    In the loop below, the flow is essentially the copy of thead-per-connections
+    In the loop below, the flow is essentially the copy of
+    thead-per-connections
     logic, see do_handle_one_connection() in sql_connect.c
 
     The goal is to execute a single query, thus the loop is normally executed 
@@ -266,12 +267,12 @@ static scheduler_functions tp_scheduler_functions=
   NULL,
   NULL,
   tp_init,                            // init
-  NULL,                               // init_new_connection_thread
+  tp_init_new_connection_thread,      // init_new_connection_thread
   tp_add_connection,                  // add_connection
   tp_wait_begin,                      // thd_wait_begin
   tp_wait_end,                        // thd_wait_end
   post_kill_notification,             // post_kill_notification
-  NULL,                               // end_thread
+  tp_end_thread,                      // Dummy function
   tp_end                              // end
 };
 
