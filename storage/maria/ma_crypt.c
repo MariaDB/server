@@ -416,7 +416,10 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     /* 2 - encrypt page */
     if (ma_encrypt(share, share->crypt_data,
                    src + head, dst + head, size, pageno, lsn, &key_version))
+    {
+      my_free(crypt_buf);
       return 1;
+    }
     /* 3 - copy tail */
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
     /* 4 - store key version */
