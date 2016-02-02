@@ -21031,14 +21031,12 @@ check_reverse_order:
         }
 
         table->file->ha_index_or_rnd_end();
-
-        if (select_limit < table->stat_records())
-          tab->limit= select_limit;
-
         if (tab->join->select_options & SELECT_DESCRIBE)
         {
           tab->ref.key= -1;
           tab->ref.key_parts= 0;
+          if (select_limit < table->stat_records())
+            tab->limit= select_limit;
           table->disable_keyread();
         }
       }
