@@ -1819,6 +1819,10 @@ JOIN::optimize_inner()
   }
 
   need_tmp= test_if_need_tmp_table();
+  //TODO this could probably go in test_if_need_tmp_table.
+  if (this->select_lex->window_specs.elements > 0) {
+    need_tmp= TRUE;
+  }
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
