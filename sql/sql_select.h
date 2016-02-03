@@ -1518,6 +1518,9 @@ public:
   int reinit();
   int init_execution();
   void exec();
+
+  void process_window_functions(List<Item> *curr_fields_list);
+
   void exec_inner();
   bool prepare_result(List<Item> **columns_list);
   int destroy();
@@ -2291,4 +2294,5 @@ public:
   int execute(JOIN *join);
 };
 
+bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 #endif /* SQL_SELECT_INCLUDED */

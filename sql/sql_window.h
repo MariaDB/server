@@ -5,6 +5,13 @@
 #include "my_global.h"
 #include "item.h"
 
+/*
+  Window functions module. 
+  
+  Each instance of window function has its own element in SELECT_LEX::window_specs.
+*/
+
+
 class Window_frame_bound : public Sql_alloc
 {
 

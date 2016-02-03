@@ -3235,6 +3235,7 @@ void JOIN::exec_inner()
     error= thd->is_error();
     DBUG_VOID_RETURN;
   }
+  process_window_functions(curr_fields_list);
 
   THD_STAGE_INFO(thd, stage_sending_data);
   DBUG_PRINT("info", ("%s", thd->proc_info));
