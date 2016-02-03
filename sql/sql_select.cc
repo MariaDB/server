@@ -15912,6 +15912,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   case Item::NULL_ITEM:
   case Item::VARBIN_ITEM:
   case Item::CACHE_ITEM:
+  case Item::WINDOW_FUNC_ITEM: // psergey-winfunc:
   case Item::EXPR_CACHE_ITEM:
     if (make_copy_field)
     {
