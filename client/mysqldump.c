@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2015, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1116,7 +1116,6 @@ static int fetch_db_collation(const char *db_name,
                               int db_cl_size)
 {
   my_bool err_status= FALSE;
-  char query[QUERY_LENGTH];
   MYSQL_RES *db_cl_res;
   MYSQL_ROW db_cl_row;
 

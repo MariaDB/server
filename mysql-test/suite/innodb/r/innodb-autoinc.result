@@ -567,7 +567,7 @@ Variable_name	Value
 auto_increment_increment	65535
 auto_increment_offset	65535
 INSERT INTO t1 VALUES (NULL),(NULL);
-ERROR 22003: Out of range value for column 'c1' at row 1
+ERROR HY000: Failed to read auto-increment value from storage engine
 SELECT * FROM t1;
 c1
 1
@@ -641,6 +641,18 @@ PRIMARY KEY (m)) ENGINE = InnoDB;
 INSERT INTO t2 (n,o) VALUES
 (1 , 'true'), (1 , 'false'), (2 , 'true'), (2 , 'false'), (3 , 'true'),
 (3 , 'false'), (4 , 'true'), (4 , 'false'), (5 , 'true'), (5 , 'false');
+SELECT * FROM t2;
+m	n	o
+1	1	TRUE
+2	1	FALSE
+3	2	TRUE
+4	2	FALSE
+5	3	TRUE
+6	3	FALSE
+7	4	TRUE
+8	4	FALSE
+9	5	TRUE
+10	5	FALSE
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -648,7 +660,7 @@ t2	CREATE TABLE `t2` (
   `n` int(10) unsigned NOT NULL,
   `o` enum('FALSE','TRUE') DEFAULT NULL,
   PRIMARY KEY (`m`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1
 INSERT INTO t1 (b,c) SELECT n,o FROM t2 ;
 SHOW CREATE TABLE t1;
 Table	Create Table
