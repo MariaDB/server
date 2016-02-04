@@ -1519,7 +1519,7 @@ public:
   int init_execution();
   void exec();
 
-  void process_window_functions(List<Item> *curr_fields_list);
+  bool process_window_functions(List<Item> *curr_fields_list);
 
   void exec_inner();
   bool prepare_result(List<Item> **columns_list);

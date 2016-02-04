@@ -2,7 +2,7 @@
 #include "item_windowfunc.h"
 #include "filesort.h"
 #include "sql_window.h"
-
+//TODO: why pass List<Window_spec> by value??
 
 bool
 Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
@@ -88,9 +88,13 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   @detail
     JOIN::exec calls this after it has filled the temporary table with query
     output. The temporary table has fields to store window function values.
+
+  @return
+    false OK
+    true  Error
 */
 
-void JOIN::process_window_functions(List<Item> *curr_fields_list)
+bool JOIN::process_window_functions(List<Item> *curr_fields_list)
 {
   /*
    TODO Get this code to set can_compute_window_function during preparation,
@@ -125,17 +129,22 @@ void JOIN::process_window_functions(List<Item> *curr_fields_list)
     The rule for having compatible sorting is thus:
       Each partition order must contain the other window functions partitions
       prefixes, or be a prefix itself. This must hold true for all partitions.
-      Analog for the order by clause.
-
+      Analog for the order by clause.  
   */
 
   List<Item_window_func> window_functions;
   SQL_I_List<ORDER> largest_partition;
   SQL_I_List<ORDER> largest_order_by;
   List_iterator_fast<Item> it(*curr_fields_list);
-  bool can_compute_window_live = !need_tmp;
-
   Item *item;
+
+#if 0
+  bool can_compute_window_live = !need_tmp;
+  /*
+    psergey-winfunc: temporarily disabled the below because there is no 
+    way to test it. Enable it back when we can.
+  */
+
   // Construct the window_functions item list and check if they can be
   // computed using only one sorting.
   //
@@ -181,7 +190,6 @@ void JOIN::process_window_functions(List<Item> *curr_fields_list)
         largest_order_by = spec->order_list;
     }
   }
-
   if (can_compute_window_live && window_functions.elements && table_count == 1)
   {
     ha_rows examined_rows = 0;
@@ -215,4 +223,83 @@ void JOIN::process_window_functions(List<Item> *curr_fields_list)
 
     my_free(s_order);
   }
+  else
+#endif
+  {
+    while ((item= it++))
+    {
+      if (item->type() == Item::WINDOW_FUNC_ITEM)
+      {
+        Item_window_func *item_win = (Item_window_func *) item;
+        Window_spec *spec = item_win->window_spec;
+        // spec->partition_list
+        // spec->order_list
+        ha_rows examined_rows = 0;
+        ha_rows found_rows = 0;
+        ha_rows filesort_retval;
+        /*
+          psergey: Igor suggests to use create_sort_index() here, but I think
+          it doesn't make sense: create_sort_index() assumes that it operates
+          on a base table in the join. 
+          It calls test_if_skip_sort_order, checks for quick_select and what
+          not. 
+          It also assumes that ordering comes either from ORDER BY or GROUP BY.
+          todo: check this again.
+        */
+        uint total_size= spec->partition_list.elements + 
+                         spec->order_list.elements;
+        SORT_FIELD *s_order= 
+          (SORT_FIELD *) my_malloc(sizeof(SORT_FIELD) * (total_size+1), 
+                                   MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
+        size_t pos= 0;
+        for (ORDER* curr = spec->partition_list.first; curr; curr=curr->next, pos++)
+          s_order[pos].item = *curr->item;
+
+        for (ORDER* curr = spec->order_list.first; curr; curr=curr->next, pos++)
+          s_order[pos].item = *curr->item;
+        
+        //psergey-todo: need the below:?? 
+        table[0]->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
+                                                   MYF(MY_WME | MY_ZEROFILL|
+                                                       MY_THREAD_SPECIFIC));
+        Filesort_tracker dummy_tracker(false);
+        filesort_retval= filesort(thd, table[0], s_order,
+                                  total_size,
+                                  this->select, HA_POS_ERROR, FALSE,
+                                  &examined_rows, &found_rows,
+                                  &dummy_tracker);
+        table[0]->sort.found_records= filesort_retval;
+
+        join_tab->read_first_record = join_init_read_record;
+        join_tab->records= found_rows;
+
+        my_free(s_order);
+        //psergey-todo: use the created sorted-index to compute the window
+        //function we're looking at.
+        handler *file= table[0]->file;
+
+        // TODO: We should read in sorted order here, not in rnd_next order!
+        // note: we can use the same approach as filesort uses to compare
+        // sort_keys..
+        READ_RECORD	info;
+
+        if (init_read_record(&info, thd, table[0], select, 0, 1, FALSE))
+          return true;
+
+        int err;
+        while (!(error=info.read_record(&info)))
+        {
+          //TODO: What happens for "PARTITION BY (item value...) ? 
+          // TODO: Sort keys are available in the record. Can we just check
+          //      them?
+          // TODO: how does one check only 'PARTITION BY' part?
+        }
+        end_read_record(&info);
+
+        // TODO-TODO: also check how the values are read...
+      }
+    }
+  }
+  return false;
 }
+
