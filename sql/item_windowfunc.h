@@ -147,15 +147,21 @@ private:
 public:
   Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
     : Item_result_field(thd), window_func(win_func),
-      window_name(win_name), window_spec(NULL) {}
+      window_name(win_name), window_spec(NULL), 
+      read_value_from_result_field(false) {}
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
     : Item_result_field(thd), window_func(win_func),
-      window_name(NULL), window_spec(win_spec) {}
+      window_name(NULL), window_spec(win_spec), 
+      read_value_from_result_field(false) {}
 
-  enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
+  /*
+    Computation functions.
+  */
+  void setup_partition_border_check(THD *thd);
 
   enum_field_types field_type() const { return window_func->field_type(); }
+  enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
   
   /* 
     TODO: Window functions are very special functions, so val_() methods have
@@ -170,19 +176,42 @@ public:
       It calls window_func->val_int() so that current window function value 
       can be saved and stored in the temp.table.
 
-    - Phase#3: the temporaty table is read and passed to query output. (Do 
-      I understand correctly that Item_window_func::val_XXX won't be called 
-      at all in this phase? Need to check)
-
+    - Phase#3: the temporary table is read and passed to query output. 
+      However, Item_window_func still remains in the select list, so
+      item_windowfunc->val_int() will be called.
   */
-  double val_real() {  return window_func->val_real(); }
+private:
+  bool read_value_from_result_field;
 
-  longlong val_int() { return window_func->val_int(); }
+public:
+  void set_read_value_from_result_field() 
+  {
+    read_value_from_result_field= true;
+  }
 
-  String* val_str(String* str) { return window_func->val_str(str); }
+  double val_real() 
+  {
+    return read_value_from_result_field? result_field->val_real() :
+                                         window_func->val_real();
+  }
+
+  longlong val_int()
+  { 
+    return read_value_from_result_field? result_field->val_int() : 
+                                          window_func->val_int(); 
+  }
+
+  String* val_str(String* str)
+  {
+    return read_value_from_result_field? result_field->val_str(str) : 
+                                         window_func->val_str(str);
+  }
 
   my_decimal* val_decimal(my_decimal* dec)
-  { return window_func->val_decimal(dec); }
+  { 
+    return read_value_from_result_field? result_field->val_decimal(dec) : 
+                                         window_func->val_decimal(dec);
+  }
 
   void fix_length_and_dec() { }
 

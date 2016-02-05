@@ -1,4 +1,8 @@
 #include "item_windowfunc.h" 
+#include "my_dbug.h"
+#include "my_global.h"
+#include "sql_select.h" // test if group changed
+
 
 bool
 Item_window_func::fix_fields(THD *thd, Item **ref)
@@ -15,5 +19,37 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   fixed= 1;
+  read_value_from_result_field= false;
   return FALSE;
 }
+
+
+/*
+  This must be called before advance_window() can be called.
+
+  @detail
+    If we attempt to do it in fix_fields(), partition_fields will refer
+    to the original window function arguments.
+    We need it to refer to temp.table columns.
+*/
+
+void Item_window_func::setup_partition_border_check(THD *thd)
+{
+  for (ORDER * curr = window_spec->partition_list.first; curr; curr=curr->next) {
+    //curr->item_ptr->fix_fields(thd, curr->item);
+    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);  
+    partition_fields.push_back(tmp);
+  }
+}
+
+
+void Item_window_func::advance_window() {
+
+  int changed = test_if_group_changed(partition_fields);
+
+  if (changed > -1) {
+    window_func->clear();
+  }
+  window_func->add();
+}
+

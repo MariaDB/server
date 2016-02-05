@@ -19304,6 +19304,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
   if (!end_of_records)
   {
+#if 0    
+#endif
     if (join->table_count &&
         join->join_tab->is_using_loose_index_scan())
     {

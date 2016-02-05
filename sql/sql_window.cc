@@ -1,7 +1,9 @@
 #include "sql_select.h"
 #include "item_windowfunc.h"
 #include "filesort.h"
+#include "sql_base.h"
 #include "sql_window.h"
+
 //TODO: why pass List<Window_spec> by value??
 
 bool
@@ -258,10 +260,11 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         for (ORDER* curr = spec->order_list.first; curr; curr=curr->next, pos++)
           s_order[pos].item = *curr->item;
         
-        //psergey-todo: need the below:?? 
+        /* This is free'd by free_io_cache call below. */
         table[0]->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
                                                    MYF(MY_WME | MY_ZEROFILL|
                                                        MY_THREAD_SPECIFIC));
+
         Filesort_tracker dummy_tracker(false);
         filesort_retval= filesort(thd, table[0], s_order,
                                   total_size,
@@ -274,29 +277,38 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         join_tab->records= found_rows;
 
         my_free(s_order);
-        //psergey-todo: use the created sorted-index to compute the window
-        //function we're looking at.
-        handler *file= table[0]->file;
-
-        // TODO: We should read in sorted order here, not in rnd_next order!
-        // note: we can use the same approach as filesort uses to compare
-        // sort_keys..
-        READ_RECORD	info;
-
+        
+        /*
+          Go through the sorted array and compute the window function
+        */
+        READ_RECORD info;
         if (init_read_record(&info, thd, table[0], select, 0, 1, FALSE))
           return true;
 
-        int err;
-        while (!(error=info.read_record(&info)))
-        {
-          //TODO: What happens for "PARTITION BY (item value...) ? 
-          // TODO: Sort keys are available in the record. Can we just check
-          //      them?
-          // TODO: how does one check only 'PARTITION BY' part?
-        }
-        end_read_record(&info);
+        item_win->setup_partition_border_check(thd);
 
-        // TODO-TODO: also check how the values are read...
+        int err;
+        TABLE *tbl= *table;
+        while (!(err=info.read_record(&info)))
+        {
+          store_record(tbl,record[1]);
+          
+          /* 
+            This will cause window function to compute its value for the
+            current row : 
+          */
+          item_win->advance_window();
+
+          /* Put the new value into temptable's field */
+          item_win->save_in_field(item_win->result_field, true);
+          err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+          if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+            return true;
+        }
+        item_win->set_read_value_from_result_field();
+        end_read_record(&info);
+        filesort_free_buffers(table[0], true);
+        free_io_cache(table[0]);
       }
     }
   }
