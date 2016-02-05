@@ -1,4 +1,17 @@
 drop table if exists t1,t2;
+#
+#  Check what happens when one attempts to use window function without OVER clause 
+#
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2);
+select row_number() from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
+select rank() from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
+drop table t1;
+#
+#  Check if basic window functions work
+#
 create table t1(a int, b int, x char(32));
 insert into t1 values (2, 10, 'xx');
 insert into t1 values (2, 10, 'zz');
@@ -39,3 +52,34 @@ pk	a	b	row_number() over (order by a)	row_number() over (order by b)
 4	13	19	4	2
 5	14	18	5	1
 drop table t1;
+#
+# Try RANK() function
+#
+create table t2 (
+pk int primary key, 
+a int
+);
+insert into t2 values
+( 1 , 0),
+( 2 , 0),
+( 3 , 1),
+( 4 , 1),
+( 8 , 2),
+( 5 , 2),
+( 6 , 2),
+( 7 , 2),
+( 9 , 4),
+(10 , 4);
+select pk, a, rank() over (order by a) from t2;
+pk	a	rank() over (order by a)
+1	0	1
+2	0	1
+3	1	3
+4	1	3
+8	2	5
+5	2	5
+6	2	5
+7	2	5
+9	4	9
+10	4	9
+drop table t2;

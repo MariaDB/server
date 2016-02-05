@@ -109,6 +109,7 @@ public:
 
 
 class st_select_lex;
+class Window_spec;
 
 /**
   Class Item_sum is the base class used for special expressions that SQL calls
@@ -550,6 +551,9 @@ public:
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name()); 
   }
+  
+  //psergey-todo: this is ugly:
+  virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
 };
 
 

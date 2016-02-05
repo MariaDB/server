@@ -6,6 +6,22 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+--echo #
+--echo #  Check what happens when one attempts to use window function without OVER clause 
+--echo #
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2);
+
+--error ER_PARSE_ERROR
+select row_number() from t1;
+--error ER_PARSE_ERROR
+select rank() from t1;
+
+drop table t1;
+
+--echo #
+--echo #  Check if basic window functions work
+--echo #
 create table t1(a int, b int, x char(32));
 insert into t1 values (2, 10, 'xx');
 insert into t1 values (2, 10, 'zz');
@@ -34,4 +50,28 @@ select
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # Try RANK() function
+--echo #
+create table t2 (
+  pk int primary key, 
+  a int
+);
+
+insert into t2 values
+( 1 , 0),
+( 2 , 0),
+( 3 , 1),
+( 4 , 1),
+( 8 , 2),
+( 5 , 2),
+( 6 , 2),
+( 7 , 2),
+( 9 , 4),
+(10 , 4);
+
+select pk, a, rank() over (order by a) from t2;
+
+drop table t2;
 
