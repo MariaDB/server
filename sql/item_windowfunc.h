@@ -6,6 +6,13 @@
 
 class Window_spec;
 
+/*
+  ROW_NUMBER() OVER (...)
+
+  - This is a Window function (not just an aggregate)
+  - It can be computed by doing one pass over select output, provided 
+    the output is sorted according to the window definition.
+*/
 
 class Item_sum_row_number: public Item_sum_int
 {
@@ -31,12 +38,28 @@ class Item_sum_row_number: public Item_sum_int
   
 };
 
+
+/*
+  RANK() OVER (...) Windowing function
+
+  - This is a Window function (not just an aggregate)
+  - It can be computed by doing one pass over select output, provided 
+    the output is sorted according to the window definition.
+*/
+
 class Item_sum_rank: public Item_sum_int
 {
   longlong rank;
-
-  void clear() {}
-  bool add() { return false; }
+  
+  /*TODO:  implementation is currently missing */
+  void clear()
+  {
+    // This is called on next partition
+  }
+  bool add() 
+  { 
+    return false; 
+  }
   void update_field() {}
 
  public:
@@ -55,10 +78,20 @@ class Item_sum_rank: public Item_sum_int
   
 };
 
+
+/*
+  RANK() OVER (...) Windowing function
+
+  - This is a Window function (not just an aggregate)
+  - It can be computed by doing one pass over select output, provided 
+    the output is sorted according to the window definition.
+*/
+
 class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
-
+  
+  /* TODO: implementation is missing */
   void clear() {}
   bool add() { return false; }
   void update_field() {}
@@ -164,7 +197,7 @@ public:
   enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
   
   /* 
-    TODO: Window functions are very special functions, so val_() methods have
+    Window functions are very special functions, so val_() methods have
     special meaning for them:
 
     - Phase#1: we run the join and put its result into temporary table. For 
@@ -179,6 +212,7 @@ public:
     - Phase#3: the temporary table is read and passed to query output. 
       However, Item_window_func still remains in the select list, so
       item_windowfunc->val_int() will be called.
+      During Phase#3, read_value_from_result_field= true.
   */
 private:
   bool read_value_from_result_field;

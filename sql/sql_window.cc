@@ -299,7 +299,11 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
           */
           item_win->advance_window();
 
-          /* Put the new value into temptable's field */
+          /* 
+            Put the new value into temptable's field 
+            TODO: Should this use item_win->update_field() call?
+            Regular aggegate function implementations seem to implement it.
+          */
           item_win->save_in_field(item_win->result_field, true);
           err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
           if (err && err != HA_ERR_RECORD_IS_THE_SAME)
