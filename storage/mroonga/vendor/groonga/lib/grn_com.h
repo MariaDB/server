@@ -83,7 +83,7 @@ GRN_API grn_com_queue_entry *grn_com_queue_deque(grn_ctx *ctx, grn_com_queue *q)
 #   define GRN_COM_POLLIN  EVFILT_READ
 #   define GRN_COM_POLLOUT EVFILT_WRITE
 #  else /* USE_KQUEUE */
-#   include <sys/poll.h>
+#   include <poll.h>
 #   define GRN_COM_POLLIN  POLLIN
 #   define GRN_COM_POLLOUT POLLOUT
 #  endif /* USE_KQUEUE */

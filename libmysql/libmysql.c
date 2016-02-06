@@ -48,7 +48,7 @@
 #endif
 #endif /* !defined(__WIN__) */
 #ifdef HAVE_POLL
-#include <sys/poll.h>
+#include <poll.h>
 #endif
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>

@@ -15,6 +15,13 @@
 
 # This is the CMakeLists for InnoDB
 
+IF(NOT WITH_INNOBASE_STORAGE_ENGINE)
+  RETURN()
+ENDIF()
+
+INCLUDE(CheckFunctionExists)
+INCLUDE(CheckCSourceCompiles)
+INCLUDE(CheckCSourceRuns)
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
