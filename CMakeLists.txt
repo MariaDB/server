@@ -340,10 +340,10 @@ CHECK_PCRE()
 
 CHECK_SYSTEMD()
 
-IF(CMAKE_CROSSCOMPILING)
-  SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
-  INCLUDE(${IMPORT_EXECUTABLES})
-ENDIF()
+# IF(CMAKE_CROSSCOMPILING)
+#   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
+#   INCLUDE(${IMPORT_EXECUTABLES})
+# ENDIF()
 
 #
 # Setup maintainer mode options. Platform checks are
