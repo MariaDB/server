@@ -692,10 +692,20 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
 
       if (!lex->column_list)
-      { 
-        uint fields= 0;
-        for ( ; *field_ptr; field_ptr++, fields++) ;         
-        bitmap_set_prefix(tab->read_set, fields);
+      {
+        bitmap_clear_all(tab->read_set);
+        for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+        {
+          enum enum_field_types type= (*field_ptr)->type();
+          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+              type > MYSQL_TYPE_BLOB)
+            bitmap_set_bit(tab->read_set, fields);
+          else
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                               ER_NO_EIS_FOR_FIELD,
+                               ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                               (*field_ptr)->field_name);
+        }
       }
       else
       {
@@ -713,8 +723,17 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             compl_result_code= result_code= HA_ADMIN_INVALID;
             break;
           }
-          bitmap_set_bit(tab->read_set, pos-1);
-        } 
+          pos--;
+          enum enum_field_types type= tab->field[pos]->type();
+          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+              type > MYSQL_TYPE_BLOB)
+            bitmap_set_bit(tab->read_set, pos);
+          else
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                               ER_NO_EIS_FOR_FIELD,
+                               ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                               column_name->str);
+        }
         tab->file->column_bitmaps_signal(); 
       }
       

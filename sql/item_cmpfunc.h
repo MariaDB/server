@@ -996,10 +996,13 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     - Item_field::propagate_equal_fields(ANY_SUBST) for the left "a"
     - Item_field::propagate_equal_fields(IDENTITY_SUBST) for the right "a"
   */
+  Item_cache *m_cache;
+  int compare();
 public:
   // Put "a" to args[0] for comparison and to args[2] for the returned value.
   Item_func_nullif(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b, a)
+    Item_func_hybrid_field_type(thd, a, b, a),
+    m_cache(NULL)
   {}
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
@@ -1010,6 +1013,9 @@ public:
   uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
+  void update_used_tables();
   table_map not_null_tables() const { return 0; }
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)

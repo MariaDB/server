@@ -91,12 +91,6 @@ my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
 
-/*
-  Set during the creation of first wsrep applier and rollback threads.
-  Since these threads are critical, abort if the thread creation fails.
-*/
-my_bool wsrep_creating_startup_threads = 0;
-
 // Use wsrep_gtid_domain_id for galera transactions?
 bool wsrep_gtid_mode                   = 0;
 // gtid_domain_id for galera transactions.
@@ -798,7 +792,6 @@ void wsrep_init_startup (bool first)
 
   if (!wsrep_start_replication()) unireg_abort(1);
 
-  wsrep_creating_startup_threads= 1;
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
 
@@ -1820,21 +1813,11 @@ pthread_handler_t start_wsrep_THD(void *arg)
   //thd->version= refresh_version;
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
-
-  if (wsrep_creating_startup_threads == 0)
-  {
-    thd->init_for_queries();
-  }
+  thd->init_for_queries();
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
   mysql_cond_broadcast(&COND_thread_count);
-
-  if (wsrep_running_threads > 2)
-  {
-    wsrep_creating_startup_threads= 0;
-  }
-
   mysql_mutex_unlock(&LOCK_thread_count);
 
   processor(thd);
@@ -1877,7 +1860,7 @@ error:
   WSREP_ERROR("Failed to create/initialize system thread");
 
   /* Abort if its the first applier/rollbacker thread. */
-  if (wsrep_creating_startup_threads == 1)
+  if (!mysqld_server_initialized)
     unireg_abort(1);
   else
     return NULL;

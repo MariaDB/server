@@ -1092,38 +1092,28 @@ public:
 
 
 /*
-  Return CREATE command for table or view
+  Return metadata for CREATE command for table or view
 
   @param thd	     Thread handler
   @param table_list  Table / view
+  @param field_list  resulting list of fields
+  @param buffer      resulting CREATE statement
 
   @return
   @retval 0      OK
   @retval 1      Error
 
-  @notes
-  table_list->db and table_list->table_name are kept unchanged to
-  not cause problems with SP.
 */
 
 bool
-mysqld_show_create(THD *thd, TABLE_LIST *table_list)
+mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
+                              List<Item> *field_list, String *buffer)
 {
-  Protocol *protocol= thd->protocol;
-  char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
-  List<Item> field_list;
   bool error= TRUE;
   MEM_ROOT *mem_root= thd->mem_root;
-  DBUG_ENTER("mysqld_show_create");
+  DBUG_ENTER("mysqld_show_create_get_fields");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
-
-  /*
-    Metadata locks taken during SHOW CREATE should be released when
-    the statmement completes as it is an information statement.
-  */
-  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* We want to preserve the tree for views. */
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
@@ -1155,45 +1145,88 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     goto exit;
   }
 
-  buffer.length(0);
+  buffer->length(0);
 
   if (table_list->view)
-    buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
+    buffer->set_charset(table_list->view_creation_ctx->get_client_cs());
 
   if ((table_list->view ?
-       show_create_view(thd, table_list, &buffer) :
-       show_create_table(thd, table_list, &buffer, NULL, WITHOUT_DB_NAME)))
+       show_create_view(thd, table_list, buffer) :
+       show_create_table(thd, table_list, buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
 
   if (table_list->view)
   {
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "View", NAME_CHAR_LEN),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Create View",
-                                           MY_MAX(buffer.length(),1024)),
+                                           MY_MAX(buffer->length(),1024)),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "character_set_client",
                                            MY_CS_NAME_SIZE),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "collation_connection",
                                            MY_CS_NAME_SIZE),
                          mem_root);
   }
   else
   {
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Table", NAME_CHAR_LEN),
                          mem_root);
     // 1024 is for not to confuse old clients
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Create Table",
-                                           MY_MAX(buffer.length(),1024)),
+                                           MY_MAX(buffer->length(),1024)),
                          mem_root);
   }
+  error= FALSE;
+
+exit:
+  DBUG_RETURN(error);
+}
+
+
+/*
+  Return CREATE command for table or view
+
+  @param thd	     Thread handler
+  @param table_list  Table / view
+
+  @return
+  @retval 0      OK
+  @retval 1      Error
+
+  @notes
+  table_list->db and table_list->table_name are kept unchanged to
+  not cause problems with SP.
+*/
+
+bool
+mysqld_show_create(THD *thd, TABLE_LIST *table_list)
+{
+  Protocol *protocol= thd->protocol;
+  char buff[2048];
+  String buffer(buff, sizeof(buff), system_charset_info);
+  List<Item> field_list;
+  bool error= TRUE;
+  DBUG_ENTER("mysqld_show_create");
+  DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
+                      table_list->table_name));
+
+  /*
+    Metadata locks taken during SHOW CREATE should be released when
+    the statmement completes as it is an information statement.
+  */
+  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+
+  if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
+    goto exit;
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
@@ -1239,6 +1272,19 @@ exit:
   DBUG_RETURN(error);
 }
 
+
+void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Database", NAME_CHAR_LEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Create Database", 1024),
+                        mem_root);
+}
+
+
 bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
                            LEX_STRING *orig_dbname,
                            const DDL_options_st &options)
@@ -1251,7 +1297,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
+  List<Item> field_list;
   DBUG_ENTER("mysql_show_create_db");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1285,13 +1331,8 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 
     load_db_opt_by_name(thd, dbname->str, &create);
   }
-  List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Database", NAME_CHAR_LEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Create Database", 1024),
-                       mem_root);
+
+  mysqld_show_create_db_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |

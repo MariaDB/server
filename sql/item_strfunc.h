@@ -960,20 +960,22 @@ class Item_func_conv_charset :public Item_str_func
   String tmp_value;
 public:
   bool safe;
-  CHARSET_INFO *conv_charset; // keep it public
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs):
     Item_str_func(thd, a)
-  { conv_charset= cs; use_cached_value= 0; safe= 0; }
+  {
+    collation.set(cs, DERIVATION_IMPLICIT);
+    use_cached_value= 0; safe= 0;
+  }
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs, bool cache_if_const):
     Item_str_func(thd, a)
   {
-    conv_charset= cs;
+    collation.set(cs, DERIVATION_IMPLICIT);
     if (cache_if_const && args[0]->const_item() && !args[0]->is_expensive())
     {
       uint errors= 0;
       String tmp, *str= args[0]->val_str(&tmp);
       if (!str || str_value.copy(str->ptr(), str->length(),
-                                 str->charset(), conv_charset, &errors))
+                                 str->charset(), cs, &errors))
         null_value= 1;
       use_cached_value= 1;
       str_value.mark_as_const();

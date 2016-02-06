@@ -20633,7 +20633,15 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
         quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)
-      ref_key= -1;
+    {
+      /*
+        we set ref_key=MAX_KEY instead of -1, because test_if_cheaper ordering
+        assumes that "ref_key==-1" means doing full index scan. 
+        (This is not very straightforward and we got into this situation for 
+         historical reasons. Should be fixed at some point).
+      */
+      ref_key= MAX_KEY;
+    }
     else
     {
       ref_key= select->quick->index;
@@ -25298,8 +25306,12 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
   @param          table               Table if tab == NULL or tab->table
   @param          usable_keys         Key map to find a cheaper key in
   @param          ref_key             
-                * 0 <= key < MAX_KEY   - key number (hint) to start the search
-                * -1                   - no key number provided
+                   0 <= key < MAX_KEY  - Key that is currently used for finding
+                                         row
+                   MAX_KEY             - means index_merge is used
+                   -1                  - means we're currently not using an
+                                         index to find rows.
+
   @param          select_limit        LIMIT value
   @param [out]    new_key             Key number if success, otherwise undefined
   @param [out]    new_key_direction   Return -1 (reverse) or +1 if success,
@@ -25328,7 +25340,6 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                          uint *saved_best_key_parts)
 {
   DBUG_ENTER("test_if_cheaper_ordering");
-  DBUG_ASSERT(ref_key < int(MAX_KEY));
   /*
     Check whether there is an index compatible with the given order
     usage of which is cheaper than usage of the ref_key index (ref_key>=0)
@@ -25393,7 +25404,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     Calculate the selectivity of the ref_key for REF_ACCESS. For
     RANGE_ACCESS we use table->quick_condition_rows.
   */
-  if (ref_key >= 0 && !is_hash_join_key_no(ref_key) && tab->type == JT_REF)
+  if (ref_key >= 0 && ref_key != MAX_KEY && tab->type == JT_REF)
   {
     if (table->quick_keys.is_set(ref_key))
       refkey_rows_estimate= table->quick_rows[ref_key];

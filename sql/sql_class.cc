@@ -1817,7 +1817,8 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 void THD::awake(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
-  DBUG_PRINT("enter", ("this: %p current_thd: %p", this, current_thd));
+  DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
+                       this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
@@ -4024,6 +4025,12 @@ void thd_increment_bytes_sent(void *thd, ulong length)
   }
 }
 
+my_bool thd_net_is_killed()
+{
+  THD *thd= current_thd;
+  return thd && thd->killed ? 1 : 0;
+}
+
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
@@ -5158,9 +5165,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user = invoker_user;
     definer->host= invoker_host;
-    definer->password= null_lex_str;
-    definer->plugin= empty_lex_str;
-    definer->auth= empty_lex_str;
+    definer->reset_auth();
   }
   else
 #endif

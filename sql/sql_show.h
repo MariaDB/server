@@ -85,7 +85,10 @@ bool append_identifier(THD *thd, String *packet, const char *name,
 		       uint length);
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
+bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
+                                   List<Item> *field_list, String *buffer);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
+void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
 bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
                            LEX_STRING *orig_db_name,
                            const DDL_options_st &options);

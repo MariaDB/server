@@ -4088,6 +4088,25 @@ err:
 }
 
 
+void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Position", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Do_DB", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Ignore_DB", 255),
+                        mem_root);
+}
+
+
 /**
   Execute a SHOW MASTER STATUS statement.
 
@@ -4100,23 +4119,10 @@ err:
 bool show_binlog_info(THD* thd)
 {
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlog_info");
 
   List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "File", FN_REFLEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Position", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Do_DB", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Ignore_DB", 255),
-                       mem_root);
+  show_binlog_info_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -4140,6 +4146,19 @@ bool show_binlog_info(THD* thd)
 }
 
 
+void show_binlogs_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Log_name", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "File_size", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+}
+
+
 /**
   Execute a SHOW BINARY LOGS statement.
 
@@ -4159,7 +4178,6 @@ bool show_binlogs(THD* thd)
   uint length;
   int cur_dir_len;
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4168,13 +4186,8 @@ bool show_binlogs(THD* thd)
     DBUG_RETURN(TRUE);
   }
 
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Log_name", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "File_size", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
+  show_binlogs_get_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

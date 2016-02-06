@@ -1,11 +1,11 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: RELDEF                                                */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -37,6 +37,7 @@
 #include "plgdbsem.h"
 #include "reldef.h"
 #include "colblk.h"
+#include "tabcol.h"
 #include "filamap.h"
 #include "filamfix.h"
 #include "filamvct.h"
@@ -217,11 +218,13 @@ TABDEF::TABDEF(void)
 /***********************************************************************/
 /*  Define: initialize the table definition block from XDB file.       */
 /***********************************************************************/
-bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
+bool TABDEF::Define(PGLOBAL g, PCATLG cat, 
+	                  LPCSTR name, LPCSTR schema, LPCSTR am)
   {
   int   poff = 0;
 
-  Name = (PSZ)PlugDup(g, name);
+  Name = (PSZ)name;
+	Schema = (PSZ)schema;
   Cat = cat;
   Hc = ((MYCAT*)cat)->GetHandler();
   Catfunc = GetFuncID(GetStringCatInfo(g, "Catfunc", NULL));
@@ -569,7 +572,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     } // endif Cbuf
 
   // Here "OEM" should be replace by a more useful value
-  if (xdefp->Define(g, cat, Name, "OEM"))
+  if (xdefp->Define(g, cat, Name, Schema, "OEM"))
     return NULL;
 
   // Ok, return external block

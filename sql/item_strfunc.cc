@@ -3404,7 +3404,7 @@ String *Item_func_conv_charset::val_str(String *str)
   String *arg= args[0]->val_str(str);
   String_copier_for_item copier(current_thd);
   return ((null_value= args[0]->null_value ||
-                       copier.copy_with_warn(conv_charset, &tmp_value,
+                       copier.copy_with_warn(collation.collation, &tmp_value,
                                              arg->charset(), arg->ptr(),
                                              arg->length(), arg->length()))) ?
     0 : &tmp_value;
@@ -3412,7 +3412,7 @@ String *Item_func_conv_charset::val_str(String *str)
 
 void Item_func_conv_charset::fix_length_and_dec()
 {
-  collation.set(conv_charset, DERIVATION_IMPLICIT);
+  DBUG_ASSERT(collation.derivation == DERIVATION_IMPLICIT);
   fix_char_length(args[0]->max_char_length());
 }
 
@@ -3421,7 +3421,7 @@ void Item_func_conv_charset::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("convert("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" using "));
-  str->append(conv_charset->csname);
+  str->append(collation.collation->csname);
   str->append(')');
 }
 

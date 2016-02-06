@@ -3683,6 +3683,11 @@ public:
     used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
   }
+  void used_tables_and_const_cache_update_and_join(Item *item)
+  {
+    item->update_used_tables();
+    used_tables_and_const_cache_join(item);
+  }
   /*
     Call update_used_tables() for all "argc" items in the array "argv"
     and join with the current cache.
@@ -3692,10 +3697,7 @@ public:
   void used_tables_and_const_cache_update_and_join(uint argc, Item **argv)
   {
     for (uint i=0 ; i < argc ; i++)
-    {
-      argv[i]->update_used_tables();
-      used_tables_and_const_cache_join(argv[i]);
-    }
+      used_tables_and_const_cache_update_and_join(argv[i]);
   }
   /*
     Call update_used_tables() for all items in the list
@@ -3708,10 +3710,7 @@ public:
     List_iterator_fast<Item> li(list);
     Item *item;
     while ((item=li++))
-    {
-      item->update_used_tables();
-      used_tables_and_const_cache_join(item);
-    }
+      used_tables_and_const_cache_update_and_join(item);
   }
 };
 
@@ -5135,6 +5134,12 @@ public:
     return (this->*processor)(arg);
   }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
+  void split_sum_func2_example(THD *thd, Item **ref_pointer_array,
+                               List<Item> &fields, uint flags)
+  {
+    example->split_sum_func2(thd, ref_pointer_array, fields, &example, flags);
+  }
+  Item *get_example() const { return example; }
 };
 
 
@@ -5238,6 +5243,30 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
 };
+
+
+class Item_cache_str_for_nullif: public Item_cache_str
+{
+public:
+  Item_cache_str_for_nullif(THD *thd, const Item *item)
+   :Item_cache_str(thd, item)
+  { }
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+  {
+    /**
+      Item_cache_str::safe_charset_converter() returns a new Item_cache
+      with Item_func_conv_charset installed on "example". The original
+      Item_cache is not referenced (neither directly nor recursively)
+      from the result of Item_cache_str::safe_charset_converter().
+
+      For NULLIF() purposes we need a different behavior:
+      we need a new instance of Item_func_conv_charset,
+      with the original Item_cache referenced in args[0]. See MDEV-9181.
+    */
+    return Item::safe_charset_converter(thd, tocs);
+  }
+};
+
 
 class Item_cache_row: public Item_cache
 {

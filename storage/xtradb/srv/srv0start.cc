@@ -3076,7 +3076,9 @@ files_checked:
 		fts_optimize_init();
 
 		/* Create thread(s) that handles key rotation */
+		fil_system_enter();
 		fil_crypt_threads_init();
+		fil_system_exit();
 
 		/* Create the log scrub thread */
 		if (srv_scrub_log)

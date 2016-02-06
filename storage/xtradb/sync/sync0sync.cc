@@ -482,7 +482,13 @@ mutex_validate(
 	const ib_mutex_t*	mutex)	/*!< in: mutex */
 {
 	ut_a(mutex);
-	ut_a(mutex->magic_n == MUTEX_MAGIC_N);
+
+	if (mutex->magic_n != MUTEX_MAGIC_N) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Mutex %p not initialized file %s line %lu.",
+			mutex, mutex->cfile_name, mutex->cline);
+	}
+	ut_ad(mutex->magic_n == MUTEX_MAGIC_N);
 
 	return(TRUE);
 }

@@ -1353,6 +1353,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #ifdef HAVE_REPLICATION
   case COM_REGISTER_SLAVE:
   {
+    status_var_increment(thd->status_var.com_register_slave);
     if (!register_slave(thd, (uchar*)packet, packet_length))
       my_ok(thd);
     break;
@@ -8942,9 +8943,7 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
   }
   definer->user.length= strlen(definer->user.str);
 
-  definer->password= null_lex_str;
-  definer->plugin= empty_lex_str;
-  definer->auth= empty_lex_str;
+  definer->reset_auth();
 }
 
 
@@ -9002,7 +9001,7 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->password= null_lex_str;
+  definer->reset_auth();
 
   return definer;
 }
