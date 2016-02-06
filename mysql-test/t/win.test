@@ -6,9 +6,11 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+--echo # ########################################################################
+--echo # # Parser tests
+--echo # ########################################################################
 --echo #
 --echo #  Check what happens when one attempts to use window function without OVER clause 
---echo #
 create table t1 (a int, b int);
 insert into t1 values (1,1),(2,2);
 
@@ -17,11 +19,18 @@ select row_number() from t1;
 --error ER_PARSE_ERROR
 select rank() from t1;
 
+--echo # Attempt to use window function in the WHERE clause
+--error ER_INVALID_GROUP_FUNC_USE
+select * from t1 where 1=rank() over (order by a);
+--error ER_INVALID_GROUP_FUNC_USE
+select * from t1 where 1>row_number() over (partition by b order by a);
 drop table t1;
 
+--echo # ########################################################################
+--echo # # Functionality tests
+--echo # ########################################################################
 --echo #
---echo #  Check if basic window functions work
---echo #
+--echo #  Check if ROW_NUMBER() works in basic cases
 create table t1(a int, b int, x char(32));
 insert into t1 values (2, 10, 'xx');
 insert into t1 values (2, 10, 'zz');

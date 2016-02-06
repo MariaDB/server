@@ -286,8 +286,6 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
           return true;
 
         item_win->setup_partition_border_check(thd);
-        // TODO: somehow, setup_sortkey_check here (either directly here
-        //   or in the item.
 
         int err;
         TABLE *tbl= *table;

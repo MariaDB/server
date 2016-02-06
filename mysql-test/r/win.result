@@ -1,17 +1,26 @@
 drop table if exists t1,t2;
+# ########################################################################
+# # Parser tests
+# ########################################################################
 #
 #  Check what happens when one attempts to use window function without OVER clause 
-#
 create table t1 (a int, b int);
 insert into t1 values (1,1),(2,2);
 select row_number() from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
 select rank() from t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
+# Attempt to use window function in the WHERE clause
+select * from t1 where 1=rank() over (order by a);
+ERROR HY000: Invalid use of group function
+select * from t1 where 1>row_number() over (partition by b order by a);
+ERROR HY000: Invalid use of group function
 drop table t1;
+# ########################################################################
+# # Functionality tests
+# ########################################################################
 #
-#  Check if basic window functions work
-#
+#  Check if ROW_NUMBER() works in basic cases
 create table t1(a int, b int, x char(32));
 insert into t1 values (2, 10, 'xx');
 insert into t1 values (2, 10, 'zz');
