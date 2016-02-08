@@ -383,9 +383,9 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 			 &wtime);
 
     if (replay_round++ % 100000 == 0)
-      WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: (%lu) "
+      WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: %lld "
                   "conflict: %d (round: %d)",
-		  wsrep_replaying, thd->thread_id,
+		  wsrep_replaying, (longlong) thd->thread_id,
                   thd->wsrep_conflict_state, replay_round);
 
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -449,11 +449,11 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
   {
-    WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %zu\n"
+    WSREP_WARN("SQL statement was ineffective  thd: %lld  buf: %zu\n"
                "schema: %s \n"
 	       "QUERY: %s\n"
 	       " => Skipping replication",
-	       thd->thread_id, data_len,
+	       (longlong) thd->thread_id, data_len,
                (thd->db ? thd->db : "(null)"), thd->query());
     rcode = WSREP_TRX_FAIL;
   }
@@ -469,20 +469,22 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
                                 &thd->wsrep_trx_meta);
 
     if (rcode == WSREP_TRX_MISSING) {
-      WSREP_WARN("Transaction missing in provider, thd: %ld, schema: %s, SQL: %s",
-                 thd->thread_id, (thd->db ? thd->db : "(null)"), thd->query());
+      WSREP_WARN("Transaction missing in provider, thd: %lld  schema: %s  SQL: %s",
+                 (longlong) thd->thread_id,
+                 (thd->db ? thd->db : "(null)"), thd->query());
       rcode = WSREP_TRX_FAIL;
     } else if (rcode == WSREP_BF_ABORT) {
-      WSREP_DEBUG("thd %lu seqno %lld BF aborted by provider, will replay",
-                  thd->thread_id, (long long)thd->wsrep_trx_meta.gtid.seqno);
+      WSREP_DEBUG("thd: %lld  seqno: %lld  BF aborted by provider, will replay",
+                  (longlong) thd->thread_id,
+                  (longlong) thd->wsrep_trx_meta.gtid.seqno);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       thd->wsrep_conflict_state = MUST_REPLAY;
       DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       mysql_mutex_lock(&LOCK_wsrep_replaying);
       wsrep_replaying++;
-      WSREP_DEBUG("replaying increased: %d, thd: %lu",
-                  wsrep_replaying, thd->thread_id);
+      WSREP_DEBUG("replaying increased: %d, thd: %lld",
+                  wsrep_replaying, (longlong) thd->thread_id);
       mysql_mutex_unlock(&LOCK_wsrep_replaying);
     }
   } else {
@@ -506,9 +508,9 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
     if (thd->wsrep_conflict_state != NO_CONFLICT)
     {
-      WSREP_WARN("thd %lu seqno %lld: conflict state %d after post commit",
-                 thd->thread_id,
-                 (long long)thd->wsrep_trx_meta.gtid.seqno,
+      WSREP_WARN("thd: %llu  seqno: %lld  conflict state %d after post commit",
+                 (longlong) thd->thread_id,
+                 (longlong) thd->wsrep_trx_meta.gtid.seqno,
                  thd->wsrep_conflict_state);
     }
     thd->wsrep_exec_mode= LOCAL_COMMIT;

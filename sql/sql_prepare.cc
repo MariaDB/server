@@ -3893,8 +3893,9 @@ reexecute:
     switch (thd->wsrep_conflict_state)
     {
       case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %ld err: %d",
-	            thd->thread_id, thd->get_stmt_da()->sql_errno() );
+        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
+	            (longlong) thd->thread_id,
+                    thd->get_stmt_da()->sql_errno() );
         thd->wsrep_conflict_state = NO_CONFLICT;
         break;
 

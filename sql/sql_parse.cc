@@ -2830,7 +2830,8 @@ mysql_execute_command(THD *thd)
       thd->mdl_context.release_transactional_locks();
       if (commit_failed)
       {
-        WSREP_DEBUG("implicit commit failed, MDL released: %lu", thd->thread_id);
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
         goto error;
       }
     }
@@ -4969,7 +4970,8 @@ end_with_restore_list:
     if (trans_begin(thd, lex->start_transaction_opt))
     {
       thd->mdl_context.release_transactional_locks();
-      WSREP_DEBUG("BEGIN failed, MDL released: %lu", thd->thread_id);
+      WSREP_DEBUG("BEGIN failed, MDL released: %lld",
+                  (longlong) thd->thread_id);
       goto error;
     }
     my_ok(thd);
@@ -4988,7 +4990,8 @@ end_with_restore_list:
     thd->mdl_context.release_transactional_locks();
     if (commit_failed)
     {
-      WSREP_DEBUG("COMMIT failed, MDL released: %lu", thd->thread_id);
+      WSREP_DEBUG("COMMIT failed, MDL released: %lld",
+                  (longlong) thd->thread_id);
       goto error;
     }
     /* Begin transaction with the same isolation level. */
@@ -5035,7 +5038,8 @@ end_with_restore_list:
 
     if (rollback_failed)
     {
-      WSREP_DEBUG("rollback failed, MDL released: %lu", thd->thread_id);
+      WSREP_DEBUG("rollback failed, MDL released: %lld",
+                  (longlong) thd->thread_id);
       goto error;
     }
     /* Begin transaction with the same isolation level. */
@@ -5549,7 +5553,8 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     if (commit_failed)
     {
-      WSREP_DEBUG("XA commit failed, MDL released: %lu", thd->thread_id);
+      WSREP_DEBUG("XA commit failed, MDL released: %lld",
+                  (longlong) thd->thread_id);
       goto error;
     }
     /*
@@ -5567,7 +5572,8 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     if (rollback_failed)
     {
-      WSREP_DEBUG("XA rollback failed, MDL released: %lu", thd->thread_id);
+      WSREP_DEBUG("XA rollback failed, MDL released: %lld",
+                  (longlong) thd->thread_id);
       goto error;
     }
     /*
@@ -5798,8 +5804,8 @@ finish:
       ! thd->in_active_multi_stmt_transaction() &&
       thd->mdl_context.has_transactional_locks())
   {
-    WSREP_DEBUG("Forcing release of transactional locks for thd %lu",
-               thd->thread_id);
+    WSREP_DEBUG("Forcing release of transactional locks for thd: %lld",
+                (longlong) thd->thread_id);
     thd->mdl_context.release_transactional_locks();
   }
 #endif /* WITH_WSREP */
@@ -7165,10 +7171,11 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         }
         else
         {
-          WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s", 
+          WSREP_DEBUG("%s, thd: %lld is_AC: %d, retry: %lu - %lu SQL: %s", 
                       (thd->wsrep_conflict_state == ABORTED) ? 
                       "BF Aborted" : "cert failure",
-                      thd->thread_id, is_autocommit, thd->wsrep_retry_counter, 
+                      (longlong) thd->thread_id, is_autocommit,
+                      thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
           my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
           thd->killed= NOT_KILLED;
