@@ -120,15 +120,16 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
 
   @param      thd            Current thread
   @param      table          Table to sort
-  @param      sortorder      How to sort the table
-  @param      s_length       Number of elements in sortorder
-  @param      select         Condition to apply to the rows
-  @param      max_rows       Return only this many rows
+  @param      filesort       How to sort the table
   @param      sort_positions Set to TRUE if we want to force sorting by position
                              (Needed by UPDATE/INSERT or ALTER TABLE or
                               when rowids are required by executor)
   @param[out] examined_rows  Store number of examined rows here
-  @param[out] found_rows     Store the number of found rows here
+                             This is the number of found rows before
+                             applying WHERE condition.
+  @param[out] found_rows     Store the number of found rows here.
+                             This is the number of found rows after
+                             applying WHERE condition.
 
   @note
     If we sort by position (like if sort_positions is 1) filesort() will
@@ -140,12 +141,9 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     \#			Number of rows
 */
 
-ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
-		 SQL_SELECT *select, ha_rows max_rows,
-                 bool sort_positions,
-                 ha_rows *examined_rows,
-                 ha_rows *found_rows,
-                 Filesort_tracker* tracker)
+ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
+                 bool sort_positions, ha_rows *examined_rows,
+                 ha_rows *found_rows, Filesort_tracker* tracker)
 {
   int error;
   size_t memory_available= thd->variables.sortbuff_size;
@@ -156,9 +154,16 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   Sort_param param;
   bool multi_byte_charset;
   Bounded_queue<uchar, uchar> pq;
+  SQL_SELECT *const select= filesort->select;
+  ha_rows max_rows= filesort->limit;
+  uint s_length= 0;
 
   DBUG_ENTER("filesort");
-  DBUG_EXECUTE("info",TEST_filesort(sortorder,s_length););
+
+  if (!(s_length= filesort->make_sortorder(thd)))
+    DBUG_RETURN(HA_POS_ERROR);  /* purecov: inspected */
+
+  DBUG_EXECUTE("info",TEST_filesort(filesort->sortorder,s_length););
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_PUSH("");		/* No DBUG here */
 #endif
@@ -190,7 +195,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   error= 1;
   *found_rows= HA_POS_ERROR;
 
-  param.init_for_filesort(sortlength(thd, sortorder, s_length,
+  param.init_for_filesort(sortlength(thd, filesort->sortorder, s_length,
                                      &multi_byte_charset),
                           table,
                           thd->variables.max_length_for_sort_data,
@@ -292,7 +297,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     goto err;
 
   param.sort_form= table;
-  param.end=(param.local_sortorder=sortorder)+s_length;
+  param.end=(param.local_sortorder=filesort->sortorder)+s_length;
   num_rows= find_all_keys(thd, &param, select,
                           &table_sort,
                           &buffpek_pointers,
@@ -467,6 +472,55 @@ void filesort_free_buffers(TABLE *table, bool full)
     table->sort.addon_field= NULL;
   }
   DBUG_VOID_RETURN;
+}
+
+
+void Filesort::cleanup()
+{
+  if (select && own_select)
+  {
+    select->cleanup();
+    select= NULL;
+  }
+}
+
+
+uint Filesort::make_sortorder(THD *thd)
+{
+  uint count;
+  SORT_FIELD *sort,*pos;
+  ORDER *ord;
+  DBUG_ENTER("make_sortorder");
+
+
+  count=0;
+  for (ord = order; ord; ord= ord->next)
+    count++;
+  if (!sortorder)
+    sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * (count + 1));
+  pos= sort= sortorder;
+
+  if (!pos)
+    DBUG_RETURN(0);
+
+  for (ord= order; ord; ord= ord->next, pos++)
+  {
+    Item *item= ord->item[0]->real_item();
+    pos->field= 0; pos->item= 0;
+    if (item->type() == Item::FIELD_ITEM)
+      pos->field= ((Item_field*) item)->field;
+    else if (item->type() == Item::SUM_FUNC_ITEM && !item->const_item())
+      pos->field= ((Item_sum*) item)->get_tmp_table_field();
+    else if (item->type() == Item::COPY_STR_ITEM)
+    {						// Blob patch
+      pos->item= ((Item_copy*) item)->get_item();
+    }
+    else
+      pos->item= *ord->item;
+    pos->reverse= (ord->direction == ORDER::ORDER_DESC);
+    DBUG_ASSERT(pos->field != NULL || pos->item != NULL);
+  }
+  DBUG_RETURN(count);
 }
 
 

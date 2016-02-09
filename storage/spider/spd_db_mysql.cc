@@ -8134,7 +8134,7 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
         DBUG_PRINT("info",("spider error=%d", error_num));
         DBUG_RETURN(error_num);
       }
-      if (order->asc)
+      if (order->direction == ORDER::ORDER_ASC)
       {
         if (str->reserve(SPIDER_SQL_COMMA_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);

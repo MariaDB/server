@@ -697,12 +697,13 @@ bool Explain_node::print_explain_json_cache(Json_writer *writer,
 }
 
 
+#if 0
 void Explain_select::replace_table(uint idx, Explain_table_access *new_tab)
 {
   delete join_tabs[idx];
   join_tabs[idx]= new_tab;
 }
-
+#endif 
 
 Explain_basic_join::~Explain_basic_join()
 {

@@ -1531,7 +1531,7 @@ end:
   if (!head->no_keyread)
   {
     doing_key_read= 1;
-    head->enable_keyread();
+    head->set_keyread(true);
   }
 
   head->prepare_for_position();
@@ -10647,7 +10647,7 @@ int read_keys_and_merge_scans(THD *thd,
   if (!head->key_read)
   {
     enabled_keyread= 1;
-    head->enable_keyread();
+    head->set_keyread(true);
   }
   head->prepare_for_position();
 
@@ -10741,14 +10741,14 @@ int read_keys_and_merge_scans(THD *thd,
     index merge currently doesn't support "using index" at all
   */
   if (enabled_keyread)
-    head->disable_keyread();
+    head->set_keyread(false);
   if (init_read_record(read_record, thd, head, (SQL_SELECT*) 0, 1 , 1, TRUE))
     result= 1;
  DBUG_RETURN(result);
 
 err:
   if (enabled_keyread)
-    head->disable_keyread();
+    head->set_keyread(false);
   DBUG_RETURN(1);
 }
 
@@ -12074,9 +12074,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     DBUG_RETURN(NULL); /* Cannot execute with correlated conditions. */
 
   /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
-  if (join->make_sum_func_list(join->all_fields, join->fields_list, 1))
-    DBUG_RETURN(NULL);
-
   List_iterator<Item> select_items_it(join->fields_list);
   is_agg_distinct = is_indexed_agg_distinct(join, &agg_distinct_flds);
 
@@ -13459,7 +13456,7 @@ QUICK_GROUP_MIN_MAX_SELECT::~QUICK_GROUP_MIN_MAX_SELECT()
   {
     DBUG_ASSERT(file == head->file);
     if (doing_key_read)
-      head->disable_keyread();
+      head->set_keyread(false);
     /*
       There may be a code path when the same table was first accessed by index,
       then the index is closed, and the table is scanned (order by + loose scan).
@@ -13652,7 +13649,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   if (!head->key_read)
   {
     doing_key_read= 1;
-    head->enable_keyread(); /* We need only the key attributes */
+    head->set_keyread(true); /* We need only the key attributes */
   }
   if ((result= file->ha_index_init(index,1)))
   {

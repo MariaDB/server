@@ -488,7 +488,7 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "volatile parameter": "REPLACED",
-    "having_condition": "(TOP > a)",
+    "having_condition": "(TOP > t2.a)",
     "filesort": {
       "r_loops": 1,
       "volatile parameter": "REPLACED",

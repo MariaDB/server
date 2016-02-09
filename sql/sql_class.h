@@ -4474,16 +4474,9 @@ public:
 
 class TMP_TABLE_PARAM :public Sql_alloc
 {
-private:
-  /* Prevent use of these (not safe because of lists and copy_field) */
-  TMP_TABLE_PARAM(const TMP_TABLE_PARAM &);
-  void operator=(TMP_TABLE_PARAM &);
-
 public:
   List<Item> copy_funcs;
-  List<Item> save_copy_funcs;
   Copy_field *copy_field, *copy_field_end;
-  Copy_field *save_copy_field, *save_copy_field_end;
   uchar	    *group_buff;
   Item	    **items_to_copy;			/* Fields in tmp table */
   TMP_ENGINE_COLUMNDEF *recinfo, *start_recinfo;
@@ -4518,9 +4511,15 @@ public:
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
   uint	quick_group;
-  bool  using_indirect_summary_function;
   /* If >0 convert all blob fields to varchar(convert_blob_length) */
   uint  convert_blob_length;
+  /**
+    Enabled when we have atleast one outer_sum_func. Needed when used
+    along with distinct.
+
+    @see create_tmp_table
+  */
+  bool  using_outer_summary_function;
   CHARSET_INFO *table_charset;
   bool schema_table;
   /* TRUE if the temp table is created for subquery materialization. */
@@ -4550,9 +4549,10 @@ public:
   TMP_TABLE_PARAM()
     :copy_field(0), group_parts(0),
      group_length(0), group_null_parts(0), convert_blob_length(0),
-    schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-    precomputed_group_by(0),
-    force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
+     using_outer_summary_function(0),
+     schema_table(0), materialized_subquery(0), force_not_null_cols(0),
+     precomputed_group_by(0),
+     force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {}
   ~TMP_TABLE_PARAM()
   {
@@ -4564,8 +4564,8 @@ public:
     if (copy_field)				/* Fix for Intel compiler */
     {
       delete [] copy_field;
-      save_copy_field= copy_field= NULL;
-      save_copy_field_end= copy_field_end= NULL;
+      copy_field= NULL;
+      copy_field_end= NULL;
     }
   }
 };

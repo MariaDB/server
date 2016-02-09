@@ -7809,11 +7809,13 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list,
 	       uint wild_num)
 {
+  if (!wild_num)
+    return(0);
+
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
   DBUG_ENTER("setup_wild");
-  DBUG_ASSERT(wild_num != 0);
 
   /*
     Don't use arena if we are not in prepared statements or stored procedures
@@ -7892,7 +7894,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 ** Check that all given fields exists and fill struct with current data
 ****************************************************************************/
 
-bool setup_fields(THD *thd, Item **ref_pointer_array,
+bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, bool allow_sum_func)
 {
@@ -7924,8 +7926,11 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
     TODO: remove it when (if) we made one list for allfields and
     ref_pointer_array
   */
-  if (ref_pointer_array)
-    bzero(ref_pointer_array, sizeof(Item *) * fields.elements);
+  if (!ref_pointer_array.is_null())
+  {
+    DBUG_ASSERT(ref_pointer_array.size() >= fields.elements);
+    memset(ref_pointer_array.array(), 0, sizeof(Item *) * fields.elements);
+  }
 
   /*
     We call set_entry() there (before fix_fields() of the whole list of field
@@ -7943,7 +7948,7 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   while ((var= li++))
     var->set_entry(thd, FALSE);
 
-  Item **ref= ref_pointer_array;
+  Ref_ptr_array ref= ref_pointer_array;
   thd->lex->current_select->cur_pos_in_select_list= 0;
   while ((item= it++))
   {
@@ -7956,12 +7961,16 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
       DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
       DBUG_RETURN(TRUE); /* purecov: inspected */
     }
-    if (ref)
-      *(ref++)= item;
+    if (!ref.is_null())
+    {
+      ref[0]= item;
+      ref.pop_front();
+    }
     if (item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM &&
 	sum_func_list)
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
                            SPLIT_SUM_SELECT);
+    thd->lex->current_select->select_list_tables|= item->used_tables();
     thd->lex->used_tables|= item->used_tables();
     thd->lex->current_select->cur_pos_in_select_list++;
   }
@@ -8380,7 +8389,10 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       views and natural joins this update is performed inside the loop below.
     */
     if (table)
+    {
       thd->lex->used_tables|= table->map;
+      thd->lex->current_select->select_list_tables|= table->map;
+    }
 
     /*
       Initialize a generic field iterator for the current table reference.
@@ -8472,6 +8484,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
           if (field_table)
           {
             thd->lex->used_tables|= field_table->map;
+            thd->lex->current_select->select_list_tables|=
+              field_table->map;
             field_table->covering_keys.intersect(field->part_of_key);
             field_table->merge_keys.merge(field->part_of_key);
             field_table->used_fields++;

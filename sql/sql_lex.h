@@ -709,6 +709,7 @@ public:
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
 /*
   SELECT_LEX - store information of parsed SELECT statment
@@ -787,9 +788,9 @@ public:
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
   SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
-  // Arrays of pointers to top elements of all_fields list
-  Item **ref_pointer_array;
-  size_t ref_pointer_array_size; // Number of elements in array.
+
+  /// Array of pointers to top elements of all_fields list
+  Ref_ptr_array ref_pointer_array;
 
   /*
     number of items in select_list and HAVING clause used to get number
@@ -885,6 +886,12 @@ public:
     joins on the right.
   */
   List<String> *prev_join_using;
+
+  /**
+    The set of those tables whose fields are referenced in the select list of
+    this select level.
+  */
+  table_map select_list_tables;
 
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;

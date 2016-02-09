@@ -65,6 +65,8 @@ class RANGE_OPT_PARAM;
 class SEL_TREE;
 
 
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
+
 static inline uint32
 char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
 {
@@ -1182,7 +1184,7 @@ public:
   void print_item_w_name(String *, enum_query_type query_type);
   void print_value(String *);
   virtual void update_used_tables() {}
-  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inheited,
                                   bool link_item_fields,
                                   COND_EQUAL **cond_equal_ref)
   {
@@ -1218,10 +1220,11 @@ public:
   {
     return false;
   }
-  virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
+  virtual void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags) {}
   /* Called for items that really have to be split */
-  void split_sum_func2(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+  void split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
+                       List<Item> &fields,
                        Item **ref, uint flags);
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)

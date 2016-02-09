@@ -312,7 +312,7 @@ void end_read_record(READ_RECORD *info)
   if (info->table)
   {
     filesort_free_buffers(info->table,0);
-    if (info->table->created)
+    if (info->table->is_created())
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
     if (info->read_record != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();

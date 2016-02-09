@@ -305,7 +305,6 @@ select c1, sum(c2) from t3 group by c1;
 explain
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
---error 1028
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 1;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 20;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 21;
@@ -321,7 +320,6 @@ insert into t3i values
 explain
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
---error 1028
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 1;
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 20;
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 21;
@@ -432,7 +430,7 @@ drop table t1,t2,t1i,t2i;
 SET @@optimizer_switch='in_to_exists=on,outer_join_with_cache=on';
 
 CREATE TABLE t1 ( a VARCHAR(3) ) ENGINE=MyISAM;
-INSERT INTO t1 VALUES ('USA');
+INSERT INTO t1 VALUES ('USA'),('CAN');
 
 CREATE TABLE t2 ( b INT );
 INSERT INTO t2 VALUES (3899),(3914),(3888);

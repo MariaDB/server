@@ -212,8 +212,13 @@ typedef struct st_order {
   Field  *fast_field_copier_setup;
   int    counter;                       /* position in SELECT list, correct
                                            only if counter_used is true*/
-  bool	 asc;				/* true if ascending */
-  bool	 free_me;			/* true if item isn't shared  */
+  enum enum_order {
+    ORDER_NOT_RELEVANT,
+    ORDER_ASC,
+    ORDER_DESC
+  };
+
+  enum_order direction;                 /* Requested direction of ordering */
   bool	 in_field_list;			/* true if in select field list */
   bool   counter_used;                  /* parameter was counter of columns */
   Field  *field;			/* If tmp-table group */
@@ -337,6 +342,7 @@ public:
   uchar     *record_pointers;    /* If sorted in memory */
   ha_rows   found_records;      /* How many records in sort */
 
+  Filesort_info(): record_pointers(0) {};
   /** Sort filesort_buffer */
   void sort_buffer(Sort_param *param, uint count)
   { filesort_buffer.sort_buffer(param, count); }
@@ -1239,7 +1245,9 @@ public:
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   bool m_needs_reopen;
+private:
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
+public:
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   bool master_had_triggers;
@@ -1346,30 +1354,46 @@ public:
     map= map_arg;
     tablenr= tablenr_arg;
   }
-  inline void enable_keyread()
+
+  void set_keyread(bool flag)
   {
-    DBUG_ENTER("enable_keyread");
-    DBUG_ASSERT(key_read == 0);
-    key_read= 1;
-    file->extra(HA_EXTRA_KEYREAD);
-    DBUG_VOID_RETURN;
+    DBUG_ASSERT(file);
+    if (flag && !key_read)
+    {
+      key_read= 1;
+      if (is_created())
+        file->extra(HA_EXTRA_KEYREAD);
+    }
+    else if (!flag && key_read)
+    {
+      key_read= 0;
+      if (is_created())
+        file->extra(HA_EXTRA_NO_KEYREAD);
+    }
   }
+
+  /// Return true if table is instantiated, and false otherwise.
+  bool is_created() const { return created; }
+
+  /**
+    Set the table as "created", and enable flags in storage engine
+    that could not be enabled without an instantiated table.
+  */
+  void set_created()
+  {
+    if (created)
+      return;
+    if (key_read)
+      file->extra(HA_EXTRA_KEYREAD);
+    created= true;
+  }
+
   /*
     Returns TRUE if the table is filled at execution phase (and so, the
     optimizer must not do anything that depends on the contents of the table,
     like range analysis or constant table detection)
   */
   bool is_filled_at_execution();
-  inline void disable_keyread()
-  {
-    DBUG_ENTER("disable_keyread");
-    if (key_read)
-    {
-      key_read= 0;
-      file->extra(HA_EXTRA_NO_KEYREAD);
-    }
-    DBUG_VOID_RETURN;
-  }
 
   bool update_const_key_parts(COND *conds);
 
@@ -2056,6 +2080,11 @@ struct TABLE_LIST
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
+  /**
+    TRUE <=> already materialized. Valid only for materialized derived
+    tables/views.
+  */
+  bool materialized;
   /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
 

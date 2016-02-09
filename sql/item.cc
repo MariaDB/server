@@ -1733,7 +1733,7 @@ public:
     thd->fatal_error() may be called if we are out of memory
 */
 
-void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
+void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
                            List<Item> &fields, Item **ref, 
                            uint split_flags)
 {
@@ -1797,7 +1797,7 @@ void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
   if (!(item_ref= (new (thd->mem_root)
                    Item_aggregate_ref(thd,
                                       &thd->lex->current_select->context,
-                                      ref_pointer_array + el, 0, name))))
+				      &ref_pointer_array[el], 0, name))))
     return;                                   // fatal_error is set
   if (type() == SUM_FUNC_ITEM)
     item_ref->depended_from= ((Item_sum *) this)->depended_from(); 
@@ -3738,16 +3738,18 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
                       str_value.charset());
     collation.set(str_value.charset(), DERIVATION_COERCIBLE);
     decimals= 0;
-
+    item_type= Item::STRING_ITEM;
     break;
   }
 
   case REAL_RESULT:
     set_double(arg->val_real());
+    item_type= Item::REAL_ITEM;
     break;
 
   case INT_RESULT:
     set_int(arg->val_int(), arg->max_length);
+    item_type= Item::INT_ITEM;
     break;
 
   case DECIMAL_RESULT:
@@ -3759,6 +3761,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
       return TRUE;
 
     set_decimal(dv);
+    item_type= Item::DECIMAL_ITEM;
     break;
   }
 
@@ -3768,11 +3771,11 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     DBUG_ASSERT(TRUE);  // Abort in debug mode.
 
     set_null();         // Set to NULL in release mode.
+    item_type= Item::NULL_ITEM;
     return FALSE;
   }
 
   set_handler_by_result_type(arg->result_type());
-  item_type= arg->type();
   return FALSE;
 }
 
@@ -4472,7 +4475,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
         return NULL;
       }
       DBUG_ASSERT((*select_ref)->fixed);
-      return (select->ref_pointer_array + counter);
+      return &select->ref_pointer_array[counter];
     }
     if (group_by_ref)
       return group_by_ref;
@@ -6499,15 +6502,14 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
       type() != Item::TRIGGER_FIELD_ITEM)
   {
     List<Item> *all_fields= &select->join->all_fields;
-    Item **ref_pointer_array= select->ref_pointer_array;
-    DBUG_ASSERT(all_fields->elements <= select->ref_pointer_array_size);
+    Ref_ptr_array &ref_pointer_array= select->ref_pointer_array;
     int el= all_fields->elements;
     Item_ref *ref;
 
     ref_pointer_array[el]= (Item*)this;
     all_fields->push_front((Item*)this, thd->mem_root);
     ref= new (thd->mem_root)
-      Item_ref(thd, &select->context, ref_pointer_array + el,
+      Item_ref(thd, &select->context, &ref_pointer_array[el],
                table_name, field_name);
     return ref;
   }

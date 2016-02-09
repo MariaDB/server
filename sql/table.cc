@@ -5732,7 +5732,7 @@ void TABLE::mark_columns_used_by_index(uint index)
   MY_BITMAP *bitmap= &tmp_set;
   DBUG_ENTER("TABLE::mark_columns_used_by_index");
 
-  enable_keyread();
+  set_keyread(true);
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap, bitmap);
@@ -5753,7 +5753,7 @@ void TABLE::add_read_columns_used_by_index(uint index)
   MY_BITMAP *bitmap= &tmp_set;
   DBUG_ENTER("TABLE::add_read_columns_used_by_index");
 
-  enable_keyread();
+  set_keyread(true);
   bitmap_copy(bitmap, read_set);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap, write_set);
@@ -5776,7 +5776,7 @@ void TABLE::restore_column_maps_after_mark_index()
 {
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
 
-  disable_keyread();
+  set_keyread(false);
   default_column_bitmaps();
   file->column_bitmaps_signal();
   DBUG_VOID_RETURN;

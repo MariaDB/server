@@ -1905,8 +1905,7 @@ void st_select_lex::init_query()
   parent_lex->push_context(&context, parent_lex->thd->mem_root);
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
-  ref_pointer_array= 0;
-  ref_pointer_array_size= 0;
+  ref_pointer_array.reset();
   select_n_where_fields= 0;
   select_n_reserved= 0;
   select_n_having_items= 0;
@@ -1924,6 +1923,7 @@ void st_select_lex::init_query()
   prep_leaf_list_state= UNINIT;
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
+  select_list_tables= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
 }
@@ -2421,7 +2421,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_having_items +
                        select_n_where_fields +
                        order_group_num) * 5;
-  if (ref_pointer_array != NULL)
+  if (!ref_pointer_array.is_null())
   {
     /*
       We need to take 'n_sum_items' into account when allocating the array,
@@ -2430,17 +2430,24 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       In the usual case we can reuse the array from the prepare phase.
       If we need a bigger array, we must allocate a new one.
     */
-    if (ref_pointer_array_size >= n_elems)
-    {
-      DBUG_PRINT("info", ("reusing old ref_array"));
+    if (ref_pointer_array.size() == n_elems)
       return false;
-    }
-  }
-  ref_pointer_array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
-  if (ref_pointer_array != NULL)
-    ref_pointer_array_size= n_elems;
 
-  return ref_pointer_array == NULL;
+    /*
+      We need to take 'n_sum_items' into account when allocating the array,
+      and this may actually increase during the optimization phase due to
+      MIN/MAX rewrite in Item_in_subselect::single_value_transformer.
+      In the usual case we can reuse the array from the prepare phase.
+      If we need a bigger array, we must allocate a new one.
+     */
+    if (ref_pointer_array.size() == n_elems)
+      return false;
+   }
+  Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
+  if (array != NULL)
+    ref_pointer_array= Ref_ptr_array(array, n_elems);
+
+  return array == NULL;
 }
 
 
@@ -2511,8 +2518,8 @@ void st_select_lex::print_order(String *str,
     }
     else
       (*order->item)->print(str, query_type);
-    if (!order->asc)
-      str->append(STRING_WITH_LEN(" desc"));
+    if (order->direction == ORDER::ORDER_DESC)
+       str->append(STRING_WITH_LEN(" desc"));
     if (order->next)
       str->append(',');
   }
@@ -3941,9 +3948,11 @@ void SELECT_LEX::update_used_tables()
 
   Item *item;
   List_iterator_fast<Item> it(join->fields_list);
+  select_list_tables= 0;
   while ((item= it++))
   {
     item->update_used_tables();
+    select_list_tables|= item->used_tables();
   }
   Item_outer_ref *ref;
   List_iterator_fast<Item_outer_ref> ref_it(inner_refs_list);
@@ -3992,6 +4001,8 @@ void st_select_lex::update_correlated_cache()
 
   if (join->conds)
     is_correlated|= MY_TEST(join->conds->used_tables() & OUTER_REF_TABLE_BIT);
+
+  is_correlated|= join->having_is_correlated;
 
   if (join->having)
     is_correlated|= MY_TEST(join->having->used_tables() & OUTER_REF_TABLE_BIT);

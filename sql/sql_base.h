@@ -168,7 +168,7 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list, uint wild_num);
-bool setup_fields(THD *thd, Item** ref_pointer_array,
+bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, bool allow_sum_func);
 void unfix_fields(List<Item> &items);
@@ -392,7 +392,7 @@ inline TABLE_LIST *find_table_in_local_list(TABLE_LIST *table,
 }
 
 
-inline bool setup_fields_with_no_wrap(THD *thd, Item **ref_pointer_array,
+inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &item,
                                       enum_mark_columns mark_used_columns,
                                       List<Item> *sum_func_list,

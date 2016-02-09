@@ -2898,7 +2898,7 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
                   field->table->s->null_bytes);
     int res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset);
     if (res)
-      return (*order_item)->asc ? res : -res;
+      return ((*order_item)->direction == ORDER::ORDER_ASC) ? res : -res;
   }
   /*
     We can't return 0 because in that case the tree class would remove this
@@ -3367,8 +3367,8 @@ bool Item_func_group_concat::setup(THD *thd)
     if (!ref_pointer_array)
       DBUG_RETURN(TRUE);
     memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
-    if (setup_order(thd, ref_pointer_array, context->table_list, list,
-                    all_fields, *order))
+    if (setup_order(thd, Ref_ptr_array(ref_pointer_array, n_elems),
+                    context->table_list, list,  all_fields, *order))
       DBUG_RETURN(TRUE);
   }
 
@@ -3494,9 +3494,9 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
       if (i)
         str->append(',');
       orig_args[i + arg_count_field]->print(str, query_type);
-      if (order[i]->asc)
+      if (order[i]->direction == ORDER::ORDER_ASC)
         str->append(STRING_WITH_LEN(" ASC"));
-      else
+     else
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }

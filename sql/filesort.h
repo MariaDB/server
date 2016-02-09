@@ -20,18 +20,58 @@ class SQL_SELECT;
 
 #include "my_global.h"                          /* uint, uchar */
 #include "my_base.h"                            /* ha_rows */
+#include "sql_list.h"                           /* Sql_alloc */
 
 class SQL_SELECT;
 class THD;
 struct TABLE;
-struct SORT_FIELD;
 class Filesort_tracker;
+struct SORT_FIELD;
+typedef struct st_order ORDER;
+ 
 
-ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder,
-                 uint s_length, SQL_SELECT *select,
-                 ha_rows max_rows, bool sort_positions,
-                 ha_rows *examined_rows, ha_rows *found_rows,
-                 Filesort_tracker* tracker);
+/**
+  Sorting related info.
+  To be extended by another WL to include complete filesort implementation.
+*/
+class Filesort: public Sql_alloc
+{
+public:
+  /** List of expressions to order the table by */
+  ORDER *order;
+  /** Number of records to return */
+  ha_rows limit;
+  /** ORDER BY list with some precalculated info for filesort */
+  SORT_FIELD *sortorder;
+  /** select to use for getting records */
+  SQL_SELECT *select;
+  /** TRUE <=> free select on destruction */
+  bool own_select;
+  /** true means we are using Priority Queue for order by with limit. */
+  bool using_pq;
+
+  Filesort(ORDER *order_arg, ha_rows limit_arg, SQL_SELECT *select_arg):
+    order(order_arg),
+    limit(limit_arg),
+    sortorder(NULL),
+    select(select_arg),
+    own_select(false), 
+    using_pq(false)
+  {
+    DBUG_ASSERT(order);
+  };
+
+  ~Filesort() { cleanup(); }
+  /* Prepare ORDER BY list for sorting. */
+  uint make_sortorder(THD *thd);
+
+private:
+  void cleanup();
+};
+
+ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
+                 bool sort_positions, ha_rows *examined_rows,
+                 ha_rows *found_rows, Filesort_tracker* tracker);
 void filesort_free_buffers(TABLE *table, bool full);
 void change_double_for_sort(double nr,uchar *to);
 

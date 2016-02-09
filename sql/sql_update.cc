@@ -340,7 +340,8 @@ int mysql_update(THD *thd,
   if (table_list->is_view())
     unfix_fields(fields);
 
-  if (setup_fields_with_no_wrap(thd, 0, fields, MARK_COLUMNS_WRITE, 0, 0))
+  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
+                                fields, MARK_COLUMNS_WRITE, 0, 0))
     DBUG_RETURN(1);                     /* purecov: inspected */
   if (table_list->view && check_fields(thd, fields))
   {
@@ -359,7 +360,7 @@ int mysql_update(THD *thd,
   table_list->grant.want_privilege= table->grant.want_privilege=
     (SELECT_ACL & ~table->grant.privilege);
 #endif
-  if (setup_fields(thd, 0, values, MARK_COLUMNS_READ, 0, 0))
+  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, 0))
   {
     free_underlaid_joins(thd, select_lex);
     DBUG_RETURN(1);				/* purecov: inspected */
@@ -555,10 +556,9 @@ int mysql_update(THD *thd,
 	to update
         NOTE: filesort will call table->prepare_for_position()
       */
-      uint         length= 0;
-      SORT_FIELD  *sortorder;
       ha_rows examined_rows;
       ha_rows found_rows;
+      Filesort fsort(order, limit, select);
 
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
 						    MYF(MY_FAE | MY_ZEROFILL |
@@ -566,13 +566,10 @@ int mysql_update(THD *thd,
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
-          (table->sort.found_records= filesort(thd, table, sortorder, length,
-                                               select, limit,
-                                               true,
+      if ((table->sort.found_records= filesort(thd, table, &fsort, true,
                                                &examined_rows, &found_rows,
                                                fs_tracker))
-          == HA_POS_ERROR)
+           == HA_POS_ERROR)
       {
 	goto err;
       }
@@ -701,7 +698,7 @@ int mysql_update(THD *thd,
       if (error >= 0)
 	goto err;
     }
-    table->disable_keyread();
+    table->set_keyread(false);
     table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
@@ -1053,7 +1050,7 @@ int mysql_update(THD *thd,
 err:
   delete select;
   free_underlaid_joins(thd, select_lex);
-  table->disable_keyread();
+  table->set_keyread(false);
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
@@ -1427,7 +1424,8 @@ int mysql_multi_update_prepare(THD *thd)
   if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
     DBUG_RETURN(TRUE);
 
-  if (setup_fields_with_no_wrap(thd, 0, *fields, MARK_COLUMNS_WRITE, 0, 0))
+  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
+                                *fields, MARK_COLUMNS_WRITE, 0, 0))
     DBUG_RETURN(TRUE);
 
   for (tl= table_list; tl ; tl= tl->next_local)
@@ -1614,7 +1612,7 @@ bool mysql_multi_update(THD *thd,
   thd->abort_on_warning= thd->is_strict_mode();
   List<Item> total_list;
 
-  res= mysql_select(thd, &select_lex->ref_pointer_array,
+  res= mysql_select(thd,
                     table_list, select_lex->with_wild,
                     total_list,
                     conds, 0, (ORDER *) NULL, (ORDER *)NULL, (Item *) NULL,
@@ -1710,7 +1708,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     reference tables
   */
 
-  int error= setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0);
+  int error= setup_fields(thd, Ref_ptr_array(),
+                          *values, MARK_COLUMNS_READ, 0, 0);
 
   ti.rewind();
   while ((table_ref= ti++))
@@ -2037,7 +2036,7 @@ loop_end:
 
     /* Make an unique key over the first field to avoid duplicated updates */
     bzero((char*) &group, sizeof(group));
-    group.asc= 1;
+    group.direction= ORDER::ORDER_ASC;
     group.item= (Item**) temp_fields.head_ref();
 
     tmp_param->quick_group=1;
