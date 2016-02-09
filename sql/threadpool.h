@@ -38,12 +38,10 @@ extern int  threadpool_add_connection(THD *thd);
   threadpool_unix.cc or threadpool_win.cc
 */
 extern bool tp_init();
-extern bool tp_init_new_connection_thread();
 extern void tp_add_connection(CONNECT *);
 extern void tp_wait_begin(THD *, int);
 extern void tp_wait_end(THD*);
 extern void tp_post_kill_notification(THD *thd);
-extern bool tp_end_thread(THD *thd, bool cache_thread);
 extern void tp_end(void);
 
 /* Used in SHOW for threadpool_idle_thread_count */

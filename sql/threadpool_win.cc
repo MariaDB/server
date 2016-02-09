@@ -533,16 +533,6 @@ bool tp_init(void)
 }
 
 
-/* Dummy functions, do nothing */
-
-bool tp_init_new_connection_thread()
-{
-  return 0;
-}
-
-bool tp_end_thread(THD *thd, bool cache_thread)
-{}
-
 /**
   Scheduler callback : Destroy the scheduler.
 */
@@ -677,7 +667,7 @@ void tp_add_connection(CONNECT *connect)
       !(thd= connect->create_thd()))
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    free(con)
+    free(con);
     connect->close_and_delete();
     return;
   }

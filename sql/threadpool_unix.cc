@@ -1550,19 +1550,6 @@ bool tp_init()
   DBUG_RETURN(0);
 }
 
-
-/* Dummy functions, do nothing */
-
-bool tp_init_new_connection_thread()
-{
-  return 0;
-}
-
-bool tp_end_thread(THD *thd, bool cache_thread)
-{
-  return 0;
-}
-
 void tp_end()
 {
   DBUG_ENTER("tp_end");

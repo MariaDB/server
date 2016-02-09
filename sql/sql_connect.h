@@ -26,7 +26,7 @@
   Object to hold connect information to be given to the newly created thread
 */
 
-class scheduler_functions;
+struct scheduler_functions;
 
 class CONNECT : public ilink {
 public:

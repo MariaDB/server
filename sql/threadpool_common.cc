@@ -261,6 +261,19 @@ end:
 }
 
 
+
+/* Dummy functions, do nothing */
+
+static bool tp_init_new_connection_thread()
+{
+  return 0;
+}
+
+static bool tp_end_thread(THD *, bool)
+{
+  return 0;
+}
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads

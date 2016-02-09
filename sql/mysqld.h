@@ -711,7 +711,7 @@ inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
 }
 
 #if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern my_thread_id next_thread_id_noinline();
+extern "C" my_thread_id next_thread_id_noinline();
 #define next_thread_id() next_thread_id_noinline()
 #endif
 

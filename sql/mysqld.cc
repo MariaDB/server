@@ -5505,7 +5505,7 @@ static void handle_connections_methods()
     unireg_abort(1);				// Will not return
   }
 
-  mysql_mutex_lock(&LOCK_thread_start);
+  mysql_mutex_lock(&LOCK_start_thread);
   mysql_cond_init(key_COND_handler_count, &COND_handler_count, NULL);
   handler_count=0;
   if (hPipe != INVALID_HANDLE_VALUE)
@@ -5548,17 +5548,17 @@ static void handle_connections_methods()
 #endif
 
   while (handler_count > 0)
-    mysql_cond_wait(&COND_handler_count, &LOCK_thread_start);
-  mysql_mutex_unlock(&LOCK_thread_start);
+    mysql_cond_wait(&COND_handler_count, &LOCK_start_thread);
+  mysql_mutex_unlock(&LOCK_start_thread);
   DBUG_VOID_RETURN;
 }
 
 void decrement_handler_count()
 {
-  mysql_mutex_lock(&LOCK_thread_start);
+  mysql_mutex_lock(&LOCK_start_thread);
   if (--handler_count == 0)
     mysql_cond_signal(&COND_handler_count);
-  mysql_mutex_unlock(&LOCK_thread_start);
+  mysql_mutex_unlock(&LOCK_start_thread);
   my_thread_end();
 }
 #else
@@ -6838,7 +6838,7 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
       hPipe=hConnectedPipe;
       continue;					// We have to try again
     }
-
+    CONNECT *connect;
     if (!(connect= new CONNECT) ||
         !(connect->vio= vio_new_win32pipe(hConnectedPipe)))
     {
