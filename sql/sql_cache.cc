@@ -1928,7 +1928,7 @@ lookup:
     unlock();
     if (wsrep_sync_wait(thd))
       goto err;
-    if (try_lock(TRUE))
+    if (try_lock(thd, Query_cache::TIMEOUT))
       goto err;
     once_more= false;
     goto lookup;
