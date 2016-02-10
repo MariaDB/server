@@ -6146,6 +6146,7 @@ static bool fill_alter_inplace_info(THD *thd,
     c) flags passed to storage engine contain more detailed information
        about nature of changes than those provided from parser.
   */
+  bool maybe_alter_vcol= false;
   for (f_ptr= table->field; (field= *f_ptr); f_ptr++)
   {
     /* Clear marker for renamed or dropped field
@@ -6169,7 +6170,8 @@ static bool fill_alter_inplace_info(THD *thd,
       /*
         Check if type of column has changed to some incompatible type.
       */
-      switch (field->is_equal(new_field))
+      uint is_equal= field->is_equal(new_field);
+      switch (is_equal)
       {
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */
@@ -6222,15 +6224,17 @@ static bool fill_alter_inplace_info(THD *thd,
       }
 
       /*
-        Check if the altered column is computed and either
+        Check if the column is computed and either
         is stored or is used in the partitioning expression.
-        TODO: Mark such a column with an alter flag only if
-        the defining expression has changed.
       */
       if (field->vcol_info && 
           (field->stored_in_db || field->vcol_info->is_in_partitioning_expr()))
       {
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+        if (is_equal == IS_EQUAL_NO ||
+            !field->vcol_info->is_equal(new_field->vcol_info))
+          ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+        else
+          maybe_alter_vcol= true;
       }
 
       /* Check if field was renamed */
@@ -6294,6 +6298,21 @@ static bool fill_alter_inplace_info(THD *thd,
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::DROP_COLUMN);
       field->flags|= FIELD_IS_DROPPED;
     }
+  }
+
+  if (maybe_alter_vcol)
+  {
+    /*
+      No virtual column was altered, but perhaps one of the other columns was,
+      and that column was part of the vcol expression?
+      We don't detect this correctly (FIXME), so let's just say that a vcol
+      *might* be affected if any other column was altered.
+    */
+    if (ha_alter_info->handler_flags &
+          ( Alter_inplace_info::ALTER_COLUMN_TYPE
+          | Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
+          | Alter_inplace_info::ALTER_COLUMN_OPTION ))
+      ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
   }
 
   new_field_it.init(alter_info->create_list);
