@@ -1,0 +1,697 @@
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+INSERT INTO containers VALUES ("tcp://127.0.0.1:DAEMON_MEMCACHED_PORT_0", "test", "t1", "c1", "c2", "c3", "c4", "c5", "PRIMARY", "|");
+USE test;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 VARCHAR(32),
+c2 INT,
+c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+SELECT c1,c2 FROM t1;
+c1	c2
+SELECT SLEEP(2);
+SLEEP(2)
+0
+# --- Value column type: VARCHAR ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 VARCHAR(128);
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H:  (returned by decr)
+H: -10 (returned by get)
+Here the memcached results after -10 + 1:
+I:  (returned by incr)
+I: -10 (returned by get)
+Here the memcached results after -10 + 20:
+J:  (returned by incr)
+J: -10 (returned by get)
+Here the memcached results after -9223372036854775808 - 1:
+K:  (returned by decr)
+K: -9223372036854775808 (returned by get)
+Here the memcached results after 9223372036854775807 + 1:
+L: 9223372036854775808 (returned by incr)
+L: 9223372036854775808 (returned by get)
+Here the memcached results after -9223372036854775798 - 20:
+M:  (returned by decr)
+M: -9223372036854775798 (returned by get)
+Here the memcached results after 9223372036854775797 + 20:
+N: 9223372036854775817 (returned by incr)
+N: 9223372036854775817 (returned by get)
+Here the memcached results after 0 - 1:
+O: 0 (returned by decr)
+O: 0 (returned by get)
+Here the memcached results after 18446744073709551615 + 1:
+P: 0 (returned by incr)
+P: 0 (returned by get)
+Here the memcached results after 10 - 20:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+Here the memcached results after 18446744073709551605 + 20:
+R: 9 (returned by incr)
+R: 9 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	-10
+I	-10
+J	-10
+K	-9223372036854775808
+L	9223372036854775808
+M	-9223372036854775798
+N	9223372036854775817
+O	0
+P	0
+Q	0
+R	9
+# --- Value column type: BIGINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: -11 (returned by decr)
+H: -11 (returned by get)
+Here the memcached results after -10 + 1:
+I: -9 (returned by incr)
+I: -9 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -9223372036854775808 - 1:
+K: 9223372036854775807 (returned by decr)
+K: 9223372036854775807 (returned by get)
+Here the memcached results after 9223372036854775807 + 1:
+L: -9223372036854775808 (returned by incr)
+L: -9223372036854775808 (returned by get)
+Here the memcached results after -9223372036854775798 - 20:
+M: 9223372036854775798 (returned by decr)
+M: 9223372036854775798 (returned by get)
+Here the memcached results after 9223372036854775797 + 20:
+N: -9223372036854775799 (returned by incr)
+N: -9223372036854775799 (returned by get)
+Here the memcached results after -2 - 18446744073709551613:
+O: 1 (returned by decr)
+O: 1 (returned by get)
+Here the memcached results after -2 - 18446744073709551614:
+P: 0 (returned by decr)
+P: 0 (returned by get)
+Here the memcached results after -2 - 18446744073709551615:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	-11
+I	-9
+J	10
+K	9223372036854775807
+L	-9223372036854775808
+M	9223372036854775798
+N	-9223372036854775799
+O	1
+P	0
+Q	0
+# --- Value column type: BIGINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT UNSIGNED;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: 18446744073709551605 (returned by decr)
+H: 18446744073709551605 (returned by get)
+Here the memcached results after -10 + 1:
+I: 18446744073709551607 (returned by incr)
+I: 18446744073709551607 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -9223372036854775808 - 1:
+K: 9223372036854775807 (returned by decr)
+K: 9223372036854775807 (returned by get)
+Here the memcached results after 9223372036854775807 + 1:
+L: 9223372036854775808 (returned by incr)
+L: 9223372036854775808 (returned by get)
+Here the memcached results after -9223372036854775798 - 20:
+M: 9223372036854775798 (returned by decr)
+M: 9223372036854775798 (returned by get)
+Here the memcached results after 9223372036854775797 + 20:
+N: 9223372036854775817 (returned by incr)
+N: 9223372036854775817 (returned by get)
+Here the memcached results after 0 - 1:
+O: 0 (returned by decr)
+O: 0 (returned by get)
+Here the memcached results after 18446744073709551615 + 1:
+P: 0 (returned by incr)
+P: 0 (returned by get)
+Here the memcached results after 10 - 20:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+Here the memcached results after 18446744073709551605 + 20:
+R: 9 (returned by incr)
+R: 9 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	18446744073709551605
+I	18446744073709551607
+J	10
+K	9223372036854775807
+L	9223372036854775808
+M	9223372036854775798
+N	9223372036854775817
+O	0
+P	0
+Q	0
+R	9
+# --- Value column type: INT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: -11 (returned by decr)
+H: -11 (returned by get)
+Here the memcached results after -10 + 1:
+I: -9 (returned by incr)
+I: -9 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -2147483648 - 1:
+K: 2147483647 (returned by decr)
+K: 2147483647 (returned by get)
+Here the memcached results after 2147483647 + 1:
+L: -2147483648 (returned by incr)
+L: -2147483648 (returned by get)
+Here the memcached results after -2147483638 - 20:
+M: 2147483638 (returned by decr)
+M: 2147483638 (returned by get)
+Here the memcached results after 2147483637 + 20:
+N: -2147483639 (returned by incr)
+N: -2147483639 (returned by get)
+Here the memcached results after -2 - 4294967293:
+O: 1 (returned by decr)
+O: 1 (returned by get)
+Here the memcached results after -2 - 4294967294:
+P: 0 (returned by decr)
+P: 0 (returned by get)
+Here the memcached results after -2 - 4294967295:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	-11
+I	-9
+J	10
+K	2147483647
+L	-2147483648
+M	2147483638
+N	-2147483639
+O	1
+P	0
+Q	0
+# --- Value column type: INT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT UNSIGNED;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: 4294967285 (returned by decr)
+H: 4294967285 (returned by get)
+Here the memcached results after -10 + 1:
+I: 4294967287 (returned by incr)
+I: 4294967287 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -2147483648 - 1:
+K: 2147483647 (returned by decr)
+K: 2147483647 (returned by get)
+Here the memcached results after 2147483647 + 1:
+L: 2147483648 (returned by incr)
+L: 2147483648 (returned by get)
+Here the memcached results after -2147483638 - 20:
+M: 2147483638 (returned by decr)
+M: 2147483638 (returned by get)
+Here the memcached results after 2147483637 + 20:
+N: 2147483657 (returned by incr)
+N: 2147483657 (returned by get)
+Here the memcached results after 0 - 1:
+O: 0 (returned by decr)
+O: 0 (returned by get)
+Here the memcached results after 4294967295 + 1:
+P: 0 (returned by incr)
+P: 0 (returned by get)
+Here the memcached results after 10 - 20:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+Here the memcached results after 4294967285 + 20:
+R: 9 (returned by incr)
+R: 9 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	4294967285
+I	4294967287
+J	10
+K	2147483647
+L	2147483648
+M	2147483638
+N	2147483657
+O	0
+P	0
+Q	0
+R	9
+# --- Value column type: SMALLINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: -11 (returned by decr)
+H: -11 (returned by get)
+Here the memcached results after -10 + 1:
+I: -9 (returned by incr)
+I: -9 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -32768 - 1:
+K: 32767 (returned by decr)
+K: 32767 (returned by get)
+Here the memcached results after 32767 + 1:
+L: -32768 (returned by incr)
+L: -32768 (returned by get)
+Here the memcached results after -32758 - 20:
+M: 32758 (returned by decr)
+M: 32758 (returned by get)
+Here the memcached results after 32757 + 20:
+N: -32759 (returned by incr)
+N: -32759 (returned by get)
+Here the memcached results after -2 - 65533:
+O: 1 (returned by decr)
+O: 1 (returned by get)
+Here the memcached results after -2 - 65534:
+P: 0 (returned by decr)
+P: 0 (returned by get)
+Here the memcached results after -2 - 65535:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	-11
+I	-9
+J	10
+K	32767
+L	-32768
+M	32758
+N	-32759
+O	1
+P	0
+Q	0
+# --- Value column type: SMALLINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT UNSIGNED;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: 65525 (returned by decr)
+H: 65525 (returned by get)
+Here the memcached results after -10 + 1:
+I: 65527 (returned by incr)
+I: 65527 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -32768 - 1:
+K: 32767 (returned by decr)
+K: 32767 (returned by get)
+Here the memcached results after 32767 + 1:
+L: 32768 (returned by incr)
+L: 32768 (returned by get)
+Here the memcached results after -32758 - 20:
+M: 32758 (returned by decr)
+M: 32758 (returned by get)
+Here the memcached results after 32757 + 20:
+N: 32777 (returned by incr)
+N: 32777 (returned by get)
+Here the memcached results after 0 - 1:
+O: 0 (returned by decr)
+O: 0 (returned by get)
+Here the memcached results after 65535 + 1:
+P: 0 (returned by incr)
+P: 0 (returned by get)
+Here the memcached results after 10 - 20:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+Here the memcached results after 65525 + 20:
+R: 9 (returned by incr)
+R: 9 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	65525
+I	65527
+J	10
+K	32767
+L	32768
+M	32758
+N	32777
+O	0
+P	0
+Q	0
+R	9
+# --- Value column type: TINYINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: -11 (returned by decr)
+H: -11 (returned by get)
+Here the memcached results after -10 + 1:
+I: -9 (returned by incr)
+I: -9 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -128 - 1:
+K: 127 (returned by decr)
+K: 127 (returned by get)
+Here the memcached results after 127 + 1:
+L: -128 (returned by incr)
+L: -128 (returned by get)
+Here the memcached results after -118 - 20:
+M: 118 (returned by decr)
+M: 118 (returned by get)
+Here the memcached results after 117 + 20:
+N: -119 (returned by incr)
+N: -119 (returned by get)
+Here the memcached results after -2 - 253:
+O: 1 (returned by decr)
+O: 1 (returned by get)
+Here the memcached results after -2 - 254:
+P: 0 (returned by decr)
+P: 0 (returned by get)
+Here the memcached results after -2 - 255:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	-11
+I	-9
+J	10
+K	127
+L	-128
+M	118
+N	-119
+O	1
+P	0
+Q	0
+# --- Value column type: TINYINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT UNSIGNED;
+Here the memcached results after 0 + 1:
+A: 1 (returned by incr)
+A: 1 (returned by get)
+Here the memcached results after 0 + 10:
+B: 10 (returned by incr)
+B: 10 (returned by get)
+Here the memcached results after 0 - 1:
+C: 0 (returned by decr)
+C: 0 (returned by get)
+Here the memcached results after 0 - 10:
+D: 0 (returned by decr)
+D: 0 (returned by get)
+Here the memcached results after 10 + 1:
+E: 11 (returned by incr)
+E: 11 (returned by get)
+Here the memcached results after 10 - 1:
+F: 9 (returned by decr)
+F: 9 (returned by get)
+Here the memcached results after 10 - 20:
+G: 0 (returned by decr)
+G: 0 (returned by get)
+Here the memcached results after -10 - 1:
+H: 245 (returned by decr)
+H: 245 (returned by get)
+Here the memcached results after -10 + 1:
+I: 247 (returned by incr)
+I: 247 (returned by get)
+Here the memcached results after -10 + 20:
+J: 10 (returned by incr)
+J: 10 (returned by get)
+Here the memcached results after -128 - 1:
+K: 127 (returned by decr)
+K: 127 (returned by get)
+Here the memcached results after 127 + 1:
+L: 128 (returned by incr)
+L: 128 (returned by get)
+Here the memcached results after -118 - 20:
+M: 118 (returned by decr)
+M: 118 (returned by get)
+Here the memcached results after 117 + 20:
+N: 137 (returned by incr)
+N: 137 (returned by get)
+Here the memcached results after 0 - 1:
+O: 0 (returned by decr)
+O: 0 (returned by get)
+Here the memcached results after 255 + 1:
+P: 0 (returned by incr)
+P: 0 (returned by get)
+Here the memcached results after 10 - 20:
+Q: 0 (returned by decr)
+Q: 0 (returned by get)
+Here the memcached results after 245 + 20:
+R: 9 (returned by incr)
+R: 9 (returned by get)
+SELECT c1,c2 FROM t1;
+c1	c2
+A	1
+B	10
+C	0
+D	0
+E	11
+F	9
+G	0
+H	245
+I	247
+J	10
+K	127
+L	128
+M	118
+N	137
+O	0
+P	0
+Q	0
+R	9
+DROP TABLE t1;
+SET sql_mode=default;
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+SET @@global.tx_isolation= @tx_isolation;

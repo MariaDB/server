@@ -3838,6 +3838,19 @@ ib_cfg_get_cfg()
 }
 
 /*****************************************************************//**
+Wrapper of ut_strerr() which converts an InnoDB error number to a
+human readable text message.
+@return string, describing the error */
+
+const char*
+ib_ut_strerr(
+/*=========*/
+	ib_err_t	num)	/*!< in: error number */
+{
+	return(ut_strerr(num));
+}
+
+/*****************************************************************//**
 Increase/decrease the memcached sync count of table to sync memcached
 DML with SQL DDLs.
 @return DB_SUCCESS or error number */

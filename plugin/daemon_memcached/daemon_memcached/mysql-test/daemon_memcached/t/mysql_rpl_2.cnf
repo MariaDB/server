@@ -1,0 +1,4 @@
+!include suite/rpl/my.cnf
+
+[ENV]
+DAEMON_MEMCACHED_PORT_0 = @OPT.port

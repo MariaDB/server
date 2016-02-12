@@ -1,0 +1,9 @@
+#ifndef CONFIG_DAEMON_MEMCACHED_H
+#define CONFIG_DAEMON_MEMCACHED_H
+
+/* daemon_memcached plugin features */
+
+#cmakedefine DAEMON_MEMCACHED_ENABLE_SASL 1
+#cmakedefine DAEMON_MEMCACHED_ENABLE_SASL_PWDB 1
+
+#endif

@@ -1,0 +1,99 @@
+Following are simple steps to get everything started:
+
+1) Build MariaDB server. Libevent headers are required during build and libevent shared library
+   is required at runtime. Optionally plugin can be built with libevent statically linked into it.
+
+2) Start MariaDB server. (make sure daemon_memcached.so and daemon_memcached_engine_ib.so are
+   copied to MariaDB plugin directory).
+
+3) Create the configure table and a demo table by running daemon_memcached_config.sql:
+
+    mysql < /usr/share/mysql/daemon_memcached_config.sql
+
+4) Install the memcached daemon plugin:
+
+    mysql> install plugin daemon_memcached soname "daemon_memcached.so";
+
+5) Test it out:
+
+    telnet 127.0.0.1 11211
+
+    set some_key 0 0 9
+    123456789
+    STORED
+    get some_key
+    VALUE some_key 0 9
+    123456789
+    END
+
+6) Run memcapable. Memcapable is part of libmemcached package.
+
+    jy@jy-laptop:~/work2/mysql-5.6-labs-innodb-memcached/bld/mysql-test$ memcapable -v
+    ascii quit                              [pass]
+    ascii version                           [pass]
+    ascii verbosity                         [pass]
+    ascii set                               [pass]
+    ascii set noreply                       [pass]
+    ascii get                               [pass]
+    ascii gets                              [pass]
+    ascii mget                              [pass]
+    ascii flush                             [pass]
+    ascii flush noreply                     [pass]
+    ascii add                               [pass]
+    ascii add noreply                       [pass]
+    ascii replace                           [pass]
+    ascii replace noreply                   [pass]
+    ascii cas                               [pass]
+    ascii cas noreply                       [pass]
+    ascii delete                            [pass]
+    ascii delete noreply                    [pass]
+    ascii incr                              [pass]
+    ascii incr noreply                      [pass]
+    ascii decr                              [pass]
+    ascii decr noreply                      [pass]
+    ascii append                            [pass]
+    ascii append noreply                    [pass]
+    ascii prepend                           [pass]
+    ascii prepend noreply                   [pass]
+    ascii stat                              [pass]
+    binary noop                             [pass]
+    binary quit                             [pass]
+    binary quitq                            [pass]
+    binary set                              [pass]
+    binary setq                             [pass]
+    binary flush                            [pass]
+    binary flushq                           [pass]
+    binary add                              [pass]
+    binary addq                             [pass]
+    binary replace                          [pass]
+    binary replaceq                         [pass]
+    binary delete                           [pass]
+    binary deleteq                          [pass]
+    binary get                              [pass]
+    binary getq                             [pass]
+    binary getk                             [pass]
+    binary getkq                            [pass]
+    binary incr                             [pass]
+    binary incrq                            [pass]
+    binary decr                             [pass]
+    binary decrq                            [pass]
+    binary version                          [pass]
+    binary append                           [pass]
+    binary appendq                          [pass]
+    binary prepend                          [pass]
+    binary prependq                         [pass]
+    binary stat                             [pass]
+    All tests passed
+
+7) Memcached command line options now can be set by specifying MariaDB configure variable
+   "daemon_memcached_option".
+
+8) You can also configure the commit batch size by specifying boot time system variable
+   "daemon_memcached_w_batch_size" and "daemon_memcached_r_batch_size".
+
+    mysqld ... --loose-daemon_memcached_w_batch_size=100
+
+9) To enable binlog, please turn on server configure variable "innodb_api_enable_binlog" along
+   with "log-bin" at server boot time:
+
+    mysqld ... --log-bin --innodb_api_enable_binlog=1

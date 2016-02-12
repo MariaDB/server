@@ -1,0 +1,254 @@
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+INSERT INTO containers VALUES ("tcp://127.0.0.1:DAEMON_MEMCACHED_PORT_0", "test", "t1", "c1", "c2", "c3", "c4", "c5", "PRIMARY", "|");
+USE test;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 VARCHAR(32),
+c2 INT,
+c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+SELECT c1,c2 FROM t1;
+c1	c2
+SELECT SLEEP(2);
+SLEEP(2)
+0
+# --- Value column type: VARCHAR ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 VARCHAR(128);
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: -1
+Here the memcached results after set min border:
+D: 0
+Here the memcached results after set max border:
+E: 18446744073709551615
+Here the memcached results after set under min border:
+F: -1
+Here the memcached results after set over max border:
+G: 18446744073709551616
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	-1
+D	0
+E	18446744073709551615
+F	-1
+G	18446744073709551616
+# --- Value column type: BIGINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: -1
+Here the memcached results after set min border:
+D: -9223372036854775808
+Here the memcached results after set max border:
+E: 9223372036854775807
+Here the memcached results after set under min border:
+F: 9223372036854775807
+Here the memcached results after set over max border:
+G: -9223372036854775808
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	-1
+D	-9223372036854775808
+E	9223372036854775807
+F	9223372036854775807
+G	-9223372036854775808
+# --- Value column type: BIGINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT UNSIGNED;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: 18446744073709551615
+Here the memcached results after set min border:
+D: 0
+Here the memcached results after set max border:
+E: 18446744073709551615
+Here the memcached results after set under min border:
+F: 18446744073709551615
+Here the memcached results after set over max border:
+G: 0
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	18446744073709551615
+D	0
+E	18446744073709551615
+F	18446744073709551615
+G	0
+# --- Value column type: INT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: -1
+Here the memcached results after set min border:
+D: -2147483648
+Here the memcached results after set max border:
+E: 2147483647
+Here the memcached results after set under min border:
+F: 2147483647
+Here the memcached results after set over max border:
+G: -2147483648
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	-1
+D	-2147483648
+E	2147483647
+F	2147483647
+G	-2147483648
+# --- Value column type: INT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT UNSIGNED;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: 4294967295
+Here the memcached results after set min border:
+D: 0
+Here the memcached results after set max border:
+E: 4294967295
+Here the memcached results after set under min border:
+F: 4294967295
+Here the memcached results after set over max border:
+G: 0
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	4294967295
+D	0
+E	4294967295
+F	4294967295
+G	0
+# --- Value column type: SMALLINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: -1
+Here the memcached results after set min border:
+D: -32768
+Here the memcached results after set max border:
+E: 32767
+Here the memcached results after set under min border:
+F: 32767
+Here the memcached results after set over max border:
+G: -32768
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	-1
+D	-32768
+E	32767
+F	32767
+G	-32768
+# --- Value column type: SMALLINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT UNSIGNED;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: 65535
+Here the memcached results after set min border:
+D: 0
+Here the memcached results after set max border:
+E: 65535
+Here the memcached results after set under min border:
+F: 65535
+Here the memcached results after set over max border:
+G: 0
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	65535
+D	0
+E	65535
+F	65535
+G	0
+# --- Value column type: TINYINT ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: -1
+Here the memcached results after set min border:
+D: -128
+Here the memcached results after set max border:
+E: 127
+Here the memcached results after set under min border:
+F: 127
+Here the memcached results after set over max border:
+G: -128
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	-1
+D	-128
+E	127
+F	127
+G	-128
+# --- Value column type: TINYINT UNSIGNED ---
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT UNSIGNED;
+Here the memcached results after set 0:
+A: 0
+Here the memcached results after set 1:
+B: 1
+Here the memcached results after set -1:
+C: 255
+Here the memcached results after set min border:
+D: 0
+Here the memcached results after set max border:
+E: 255
+Here the memcached results after set under min border:
+F: 255
+Here the memcached results after set over max border:
+G: 0
+SELECT c1,c2 FROM t1;
+c1	c2
+A	0
+B	1
+C	255
+D	0
+E	255
+F	255
+G	0
+DROP TABLE t1;
+SET sql_mode=default;
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+SET @@global.tx_isolation= @tx_isolation;

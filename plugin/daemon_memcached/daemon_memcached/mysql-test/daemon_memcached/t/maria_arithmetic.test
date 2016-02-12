@@ -1,0 +1,724 @@
+source include/not_valgrind.inc;
+source include/have_memcached_plugin.inc;
+source include/not_windows.inc;
+source include/have_innodb.inc;
+
+--enable_connect_log
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+# Create the memcached tables
+--disable_query_log
+source include/memcached_config.inc;
+call mtr.add_suppression("Plugin daemon_memcached");
+--enable_query_log
+
+# describe table for memcached
+--replace_result $DAEMON_MEMCACHED_PORT_0 DAEMON_MEMCACHED_PORT_0
+eval INSERT INTO containers VALUES ("tcp://127.0.0.1:$DAEMON_MEMCACHED_PORT_0", "test", "t1", "c1", "c2", "c3", "c4", "c5", "PRIMARY", "|");
+
+USE test;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+CREATE TABLE t1 (c1 VARCHAR(32),
+                 c2 INT,
+                 c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+
+# Tables must exist before plugin can be started!
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+SELECT SLEEP(2);
+
+--echo # --- Value column type: VARCHAR ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 VARCHAR(128);
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-9223372036854775808, "-", 1];
+push @t, [9223372036854775807, "+", 1];
+push @t, [-9223372036854775808 + 10, "-", 20];
+push @t, [9223372036854775807 - 10, "+", 20];
+
+push @t, [0, "-", 1];
+push @t, [18446744073709551615, "+", 1];
+push @t, [0 + 10, "-", 20];
+push @t, [18446744073709551615 - 10, "+", 20];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: BIGINT ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-9223372036854775808, "-", 1];
+push @t, [9223372036854775807, "+", 1];
+push @t, [-9223372036854775808 + 10, "-", 20];
+push @t, [9223372036854775807 - 10, "+", 20];
+
+push @t, [-2, "-", 18446744073709551613];
+push @t, [-2, "-", 18446744073709551614];
+push @t, [-2, "-", 18446744073709551615];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: BIGINT UNSIGNED ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 BIGINT UNSIGNED;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-9223372036854775808, "-", 1];
+push @t, [9223372036854775807, "+", 1];
+push @t, [-9223372036854775808 + 10, "-", 20];
+push @t, [9223372036854775807 - 10, "+", 20];
+
+push @t, [0, "-", 1];
+push @t, [18446744073709551615, "+", 1];
+push @t, [0 + 10, "-", 20];
+push @t, [18446744073709551615 - 10, "+", 20];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: INT ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-2147483648, "-", 1];
+push @t, [2147483647, "+", 1];
+push @t, [-2147483648 + 10, "-", 20];
+push @t, [2147483647 - 10, "+", 20];
+
+push @t, [-2, "-", 4294967293];
+push @t, [-2, "-", 4294967294];
+push @t, [-2, "-", 4294967295];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: INT UNSIGNED ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 INT UNSIGNED;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-2147483648, "-", 1];
+push @t, [2147483647, "+", 1];
+push @t, [-2147483648 + 10, "-", 20];
+push @t, [2147483647 - 10, "+", 20];
+
+push @t, [0, "-", 1];
+push @t, [4294967295, "+", 1];
+push @t, [0 + 10, "-", 20];
+push @t, [4294967295 - 10, "+", 20];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: SMALLINT ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-32768, "-", 1];
+push @t, [32767, "+", 1];
+push @t, [-32768 + 10, "-", 20];
+push @t, [32767 - 10, "+", 20];
+
+push @t, [-2, "-", 65533];
+push @t, [-2, "-", 65534];
+push @t, [-2, "-", 65535];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: SMALLINT UNSIGNED ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 SMALLINT UNSIGNED;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-32768, "-", 1];
+push @t, [32767, "+", 1];
+push @t, [-32768 + 10, "-", 20];
+push @t, [32767 - 10, "+", 20];
+
+push @t, [0, "-", 1];
+push @t, [65535, "+", 1];
+push @t, [0 + 10, "-", 20];
+push @t, [65535 - 10, "+", 20];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: TINYINT ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-128, "-", 1];
+push @t, [127, "+", 1];
+push @t, [-128 + 10, "-", 20];
+push @t, [127 - 10, "+", 20];
+
+push @t, [-2, "-", 253];
+push @t, [-2, "-", 254];
+push @t, [-2, "-", 255];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+--echo # --- Value column type: TINYINT UNSIGNED ---
+
+DELETE FROM t1;
+ALTER TABLE t1 MODIFY c2 TINYINT UNSIGNED;
+
+perl;
+use Cache::Memcached;
+sub Cache::Memcached::_incrdecr {
+    my $cmdname = shift;
+    my Cache::Memcached $self = shift;
+    my ($key, $value) = @_;
+    return undef if ! $self->{'active'} || $self->{'readonly'};
+    my $sock = $self->get_sock($key);
+    return undef unless $sock;
+    $key = $key->[1] if ref $key;
+    $self->{'stats'}->{$cmdname}++;
+    $value = 1 unless defined $value;
+
+    my $line = "$cmdname $self->{namespace}$key $value\r\n";
+    my $res = Cache::Memcached::_write_and_read($self, $sock, $line);
+
+    return undef unless defined $res && $res =~ /^([-]?\d+)/;
+    return $1;
+}
+my $memd = new Cache::Memcached {
+  'servers' => [ "127.0.0.1:$ENV{DAEMON_MEMCACHED_PORT_0}" ],
+  'connect_timeout' => 20,
+  'select_timeout' => 20
+};
+my @t;
+my @alphabet = ("A".."Z");
+
+push @t, [0, "+", 1];
+push @t, [0, "+", 10];
+push @t, [0, "-", 1];
+push @t, [0, "-", 10];
+push @t, [10, "+", 1];
+push @t, [10, "-", 1];
+push @t, [10, "-", 20];
+push @t, [-10, "-", 1];
+push @t, [-10, "+", 1];
+push @t, [-10, "+", 20];
+
+push @t, [-128, "-", 1];
+push @t, [127, "+", 1];
+push @t, [-128 + 10, "-", 20];
+push @t, [127 - 10, "+", 20];
+
+push @t, [0, "-", 1];
+push @t, [255, "+", 1];
+push @t, [0 + 10, "-", 20];
+push @t, [255 - 10, "+", 20];
+
+foreach $par (@t) {
+	my $l = shift @alphabet;
+	print "Here the memcached results after @$par:\n";
+	$val = $memd->set($l, @$par[0]);
+	if (@$par[1] eq '+') {
+		$val = $memd->incr($l, @$par[2]);
+		print "$l: $val (returned by incr)\n";
+	} else {
+		$val = $memd->decr($l, @$par[2]);
+		print "$l: $val (returned by decr)\n";
+	}
+	$val = $memd->get($l);
+	print "$l: $val (returned by get)\n";
+}
+
+$memd->disconnect_all;
+EOF
+
+--sorted_result
+SELECT c1,c2 FROM t1;
+
+# ----------------------------------------------------------
+
+DROP TABLE t1;
+SET sql_mode=default;
+
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+
+SET @@global.tx_isolation= @tx_isolation;

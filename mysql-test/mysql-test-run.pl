@@ -2625,7 +2625,10 @@ sub setup_vardir() {
   }
   else
   {
-    $plugindir= $mysqld_variables{'plugin-dir'} || '.';
+    $plugindir= $mysqld_variables{'plugin-dir'} ||
+                mtr_path_exists("$bindir/lib64/mysql/plugin",
+                                "$bindir/lib/mysql/plugin",
+                                "$bindir/lib/plugin");
     # hm, what paths work for debs and for rpms ?
     for (<$bindir/lib64/mysql/plugin/*.so>,
          <$bindir/lib/mysql/plugin/*.so>,
@@ -5187,6 +5190,11 @@ sub server_need_restart {
   {
     mtr_verbose_restart($server, "no restart for --extern server");
     return 0;
+  }
+
+  if ( $tinfo->{'force_restart'} ) {
+    mtr_verbose_restart($server, "forced in .opt file");
+    return 1;
   }
 
   if ( $opt_force_restart ) {

@@ -1,0 +1,43 @@
+SET @tx_isolation= @@global.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+INSERT INTO containers VALUES ("tcp://127.0.0.1:DAEMON_MEMCACHED_PORT_0", "test", "t1",
+"c1", "c2",  "c3", "c4", "c5", "PRIMARY", "|");
+USE test;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1        (c1 VARCHAR(255),
+c2 VARCHAR(1024),
+c3 INT, c4 BIGINT UNSIGNED, c5 INT, primary key(c1))
+ENGINE = INNODB;
+INSERT INTO t1 VALUES ('1', '10', 0, 0, 0);
+INSERT INTO t1 VALUES ('2', '20', 0, 0, 0);
+INSERT INTO t1 VALUES ('3', 'Berlin', 0, 0 ,0);
+INSERT INTO t1 VALUES ('4', '40', 0, 0, 0);
+INSTALL PLUGIN daemon_memcached SONAME 'daemon_memcached.so';
+SELECT c1,c2 FROM t1;
+c1	c2
+1	10
+2	20
+3	Berlin
+4	40
+SELECT SLEEP(1);
+SLEEP(1)
+0
+Here the memcached results:
+10
+20
+Berlin
+40
+Here the memcached results after decr 4|40:
+39
+19
+19
+SELECT c1,c2 FROM t1;
+c1	c2
+1	10
+2	20
+3	Berlin
+4	19
+DROP TABLE IF EXISTS t1;
+UNINSTALL PLUGIN daemon_memcached;
+DROP DATABASE daemon_memcached;
+SET @@global.tx_isolation= @tx_isolation;

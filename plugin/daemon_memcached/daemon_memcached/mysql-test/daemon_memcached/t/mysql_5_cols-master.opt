@@ -1,0 +1,2 @@
+$DAEMON_MEMCACHED_OPT
+--loose-daemon_memcached_engine_lib_path=$DAEMON_MEMCACHED_ENGINE_DIR
