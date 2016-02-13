@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -332,9 +331,7 @@ static void do_copy_next_number(Copy_field *copy)
 
 static void do_copy_blob(Copy_field *copy)
 {
-  ulong length=((Field_blob*) copy->from_field)->get_length();
-  ((Field_blob*) copy->to_field)->store_length(length);
-  memcpy(copy->to_ptr, copy->from_ptr, sizeof(char*));
+  ((Field_blob*) copy->to_field)->copy_value(((Field_blob*) copy->from_field));
 }
 
 static void do_conv_blob(Copy_field *copy)
@@ -709,12 +706,7 @@ Copy_field::get_copy_func(Field *to,Field *from)
     if (!(from->flags & BLOB_FLAG) || from->charset() != to->charset())
       return do_conv_blob;
     if (from_length != to_length)
-    {
-      // Correct pointer to point at char pointer
-      to_ptr+=   to_length - to->table->s->blob_ptr_size;
-      from_ptr+= from_length- from->table->s->blob_ptr_size;
       return do_copy_blob;
-    }
   }
   else
   {
@@ -863,7 +855,12 @@ int field_conv(Field *to,Field *from)
     Field_blob *blob=(Field_blob*) to;
     from->val_str(&blob->value);
 
-    if (!blob->value.is_alloced() && from->is_updatable())
+    /*
+      Copy value if copy_blobs is set, or source is part of the table's
+      writeset.
+    */
+    if (to->table->copy_blobs ||
+        (!blob->value.is_alloced() && from->is_updatable()))
       blob->value.copy();
 
     return blob->store(blob->value.ptr(),blob->value.length(),from->charset());

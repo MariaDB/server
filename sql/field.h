@@ -1935,6 +1935,7 @@ public:
   {
     set_ptr_offset(0, length, data);
   }
+  int copy_value(Field_blob *from);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   void sql_type(String &str) const;

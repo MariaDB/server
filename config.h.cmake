@@ -95,6 +95,7 @@
 #cmakedefine HAVE_SYS_TYPES_H 1
 #cmakedefine HAVE_SYS_UN_H 1
 #cmakedefine HAVE_SYS_VADVISE_H 1
+#cmakedefine HAVE_UCONTEXT_H 1
 #cmakedefine HAVE_TERM_H 1
 #cmakedefine HAVE_TERMBITS_H 1
 #cmakedefine HAVE_TERMIOS_H 1
@@ -292,7 +293,6 @@
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
 #cmakedefine HAVE_TIMES 1
-#cmakedefine HAVE_UCONTEXT 1
 #cmakedefine HAVE_VALLOC 1
 #cmakedefine HAVE_VIDATTR 1
 #define HAVE_VIO_READ_BUFF 1
@@ -320,6 +320,8 @@
 #cmakedefine HAVE_TIMESPEC_TS_SEC 1
 #cmakedefine STRUCT_DIRENT_HAS_D_INO 1
 #cmakedefine STRUCT_DIRENT_HAS_D_NAMLEN 1
+#cmakedefine STRUCT_TIMESPEC_HAS_TV_SEC 1
+#cmakedefine STRUCT_TIMESPEC_HAS_TV_NSEC 1
 #cmakedefine SPRINTF_RETURNS_INT 1
 
 #define USE_MB 1
@@ -466,7 +468,7 @@
 #cmakedefine HAVE_BSD_SIGNALS 1
 #cmakedefine HAVE_SVR3_SIGNALS 1
 #cmakedefine HAVE_V7_SIGNALS 1
-
+#cmakedefine HAVE_ERR_remove_thread_state 1
 
 #cmakedefine HAVE_SOLARIS_STYLE_GETHOST 1
 
@@ -516,6 +518,10 @@
 #cmakedefine strtoll @strtoll@
 #cmakedefine strtoull @strtoull@
 #cmakedefine vsnprintf @vsnprintf@
+#if (_MSC_VER > 1800)
+#define tzname _tzname
+#define P_tmpdir "C:\\TEMP"
+#endif
 #if (_MSC_VER > 1310)
 # define HAVE_SETENV
 #define setenv(a,b,c) _putenv_s(a,b)
