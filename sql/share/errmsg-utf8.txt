@@ -7136,3 +7136,14 @@ ER_KILL_QUERY_DENIED_ERROR
         eng "You are not owner of query %lu"
         ger "Sie sind nicht Eigentümer von Abfrage %lu"
         rus "Вы не являетесь владельцем запроса %lu"
+ER_WRONG_WINDOW_SPEC_NAME
+        eng "Window specification with name '%s' is not defined"
+ER_DUP_WINDOW_NAME
+        eng "Multiple window specifications with the same name '%s'"
+ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC
+        eng "Window specification referencing another one '%s' cannot contain partition list"
+ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC
+        eng "Referenced window specification '%s' already contains order list"
+ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC
+        eng "Referenced window specification '%s' cannot contain window frame"
+

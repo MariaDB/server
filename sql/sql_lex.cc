@@ -546,6 +546,14 @@ void lex_start(THD *thd)
   lex->stmt_var_list.empty();
   lex->proc_list.elements=0;
 
+  lex->save_group_list.empty();
+  lex->save_order_list.empty();
+  lex->win_ref= NULL;
+  lex->win_frame= NULL;
+  lex->frame_top_bound= NULL;
+  lex->frame_bottom_bound= NULL;
+  lex->win_spec= NULL;
+
   lex->is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
@@ -1926,6 +1934,7 @@ void st_select_lex::init_query()
   select_list_tables= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  window_specs.empty();
 }
 
 void st_select_lex::init_select()

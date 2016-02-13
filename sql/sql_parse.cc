@@ -7816,6 +7816,53 @@ TABLE_LIST *st_select_lex::convert_right_join()
   DBUG_RETURN(tab1);
 }
 
+
+void st_select_lex::prepare_add_window_spec(THD *thd)
+{
+  LEX *lex= thd->lex;
+  lex->save_group_list= group_list;
+  lex->save_order_list= order_list;
+  lex->win_ref= NULL;
+  lex->win_frame= NULL;
+  lex->frame_top_bound= NULL;
+  lex->frame_bottom_bound= NULL;
+  group_list.empty();
+  order_list.empty();
+}
+
+bool st_select_lex::add_window_def(THD *thd,
+                                   LEX_STRING *win_name,
+                                   LEX_STRING *win_ref,
+                                   SQL_I_List<ORDER> win_partition_list,
+                                   SQL_I_List<ORDER> win_order_list,
+                                   Window_frame *win_frame)
+{
+  Window_def *win_def= new (thd->mem_root) Window_def(win_name,
+                                                      win_ref,
+                                                      win_partition_list,
+                                                      win_order_list,
+                                                      win_frame);
+  group_list= thd->lex->save_group_list;
+  order_list= thd->lex->save_order_list;
+  return (win_def == NULL || window_specs.push_back(win_def));
+}
+
+bool st_select_lex::add_window_spec(THD *thd, 
+                                    LEX_STRING *win_ref,
+                                    SQL_I_List<ORDER> win_partition_list,
+                                    SQL_I_List<ORDER> win_order_list,
+                                    Window_frame *win_frame)
+{
+  Window_spec *win_spec= new (thd->mem_root) Window_spec(win_ref,
+                                                         win_partition_list,
+                                                         win_order_list,
+                                                         win_frame);
+  group_list= thd->lex->save_group_list;
+  order_list= thd->lex->save_order_list;
+  thd->lex->win_spec= win_spec;
+  return (win_spec == NULL || window_specs.push_back(win_spec));
+}
+
 /**
   Set lock for all tables in current select level.
 

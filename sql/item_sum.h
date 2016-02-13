@@ -347,7 +347,9 @@ public:
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
-    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC
+    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
+    ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
+    CUME_DIST_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -712,6 +714,7 @@ public:
 class Item_sum_int :public Item_sum_num
 {
 public:
+  Item_sum_int(THD *thd): Item_sum_num(thd) {}
   Item_sum_int(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
   Item_sum_int(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
   Item_sum_int(THD *thd, Item_sum_int *item) :Item_sum_num(thd, item) {}
@@ -726,7 +729,7 @@ public:
 
 
 class Item_sum_sum :public Item_sum_num,
-                    public Type_handler_hybrid_field_type
+                   public Type_handler_hybrid_field_type 
 {
 protected:
   double sum;

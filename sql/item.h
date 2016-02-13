@@ -628,7 +628,8 @@ public:
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
-  enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM, STRING_ITEM,
+  enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM,
+             WINDOW_FUNC_ITEM, STRING_ITEM,
 	     INT_ITEM, REAL_ITEM, NULL_ITEM, VARBIN_ITEM,
 	     COPY_STR_ITEM, FIELD_AVG_ITEM, DEFAULT_VALUE_ITEM,
 	     PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
