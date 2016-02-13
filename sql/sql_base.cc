@@ -7904,7 +7904,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
   DBUG_ENTER("setup_fields");
-  DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array));
+  DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array.array()));
 
   thd->mark_used_columns= mark_used_columns;
   DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
