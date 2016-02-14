@@ -19,6 +19,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   fixed= 1;
+  force_return_blank= true;
   read_value_from_result_field= false;
   return FALSE;
 }

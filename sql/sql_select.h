@@ -424,6 +424,8 @@ typedef struct st_join_table {
   /* Sorting related info */
   Filesort *filesort;
 
+  bool used_for_window_func;
+
   /**
     List of topmost expressions in the select list. The *next* JOIN TAB
     in the plan should use it to obtain correct values. Same applicable to
@@ -2295,4 +2297,6 @@ public:
 };
 
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
+int test_if_group_changed(List<Cached_item> &list);
+int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab);
 #endif /* SQL_SELECT_INCLUDED */

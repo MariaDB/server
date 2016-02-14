@@ -19,11 +19,18 @@ class Item_sum_row_number: public Item_sum_int
 {
   longlong count;
 
-  void clear() {}
-  bool add() { return false; }
+public:
+  void clear()
+  {
+    count= 0;
+  }
+  bool add() 
+  {
+    count++;
+    return false; 
+  }
   void update_field() {}
 
- public:
   Item_sum_row_number(THD *thd)
     : Item_sum_int(thd),  count(0) {}
 
@@ -32,6 +39,10 @@ class Item_sum_row_number: public Item_sum_int
     return ROW_NUMBER_FUNC;
   }
 
+  longlong val_int()
+  {
+    return count;
+  }
   const char*func_name() const
   {
     return "row_number";
@@ -251,25 +262,37 @@ class Item_sum_cume_dist: public Item_sum_num
 
 class Item_window_func : public Item_result_field
 {
+  /* Window function parameters as we've got them from the parser */
   Item_sum *window_func;
   LEX_STRING *window_name;
+public:
   Window_spec *window_spec;
-
+  
+  /*
+    This stores the data bout the partition we're currently in.
+    advance_window() uses this to tell when we've left one partition and
+    entered another.
+  */
+  List<Cached_item> partition_fields;
 public:
   Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
     : Item_result_field(thd), window_func(win_func),
       window_name(win_name), window_spec(NULL), 
+      force_return_blank(true),
       read_value_from_result_field(false) {}
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
     : Item_result_field(thd), window_func(win_func),
       window_name(NULL), window_spec(win_spec), 
+      force_return_blank(true),
       read_value_from_result_field(false) {}
 
   /*
     Computation functions.
   */
   void setup_partition_border_check(THD *thd);
+
+  void advance_window();
 
   enum_field_types field_type() const { return window_func->field_type(); }
   enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
@@ -292,7 +315,11 @@ public:
       item_windowfunc->val_int() will be called.
       During Phase#3, read_value_from_result_field= true.
   */
+public:
+  // TODO: how to reset this for subquery re-execution??
+  bool force_return_blank;
 private:
+
   bool read_value_from_result_field;
 
 public:
@@ -303,24 +330,32 @@ public:
 
   double val_real() 
   {
+    if (force_return_blank)
+      return 0.0;
     return read_value_from_result_field? result_field->val_real() :
                                          window_func->val_real();
   }
 
   longlong val_int()
   { 
+    if (force_return_blank)
+      return 0;
     return read_value_from_result_field? result_field->val_int() : 
                                           window_func->val_int(); 
   }
 
   String* val_str(String* str)
   {
+    if (force_return_blank)
+      return str;
     return read_value_from_result_field? result_field->val_str(str) : 
                                          window_func->val_str(str);
   }
 
   my_decimal* val_decimal(my_decimal* dec)
   { 
+    if (force_return_blank)
+      return dec;
     return read_value_from_result_field? result_field->val_decimal(dec) : 
                                          window_func->val_decimal(dec);
   }

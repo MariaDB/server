@@ -233,9 +233,24 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
       if (item->type() == Item::WINDOW_FUNC_ITEM)
       {
         Item_window_func *item_win = (Item_window_func *) item;
+        item_win->force_return_blank= false;
         Window_spec *spec = item_win->window_spec;
+        
+        DBUG_ASSERT(spec->partition_list.next[0] == NULL);
+        *(spec->partition_list.next)= spec->order_list.first;
         // spec->partition_list
         // spec->order_list
+        add_sorting_to_table(&join_tab[top_join_tab_count],
+                             spec->partition_list.first);
+        join_tab[top_join_tab_count].used_for_window_func= true;
+
+        create_sort_index(this->thd, this, &join_tab[top_join_tab_count]);
+        *(spec->partition_list.next)= NULL;
+        //join_tab[top_join_tab_count] has the temp. table that we need.
+        //bool JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
+
+        // spec->partition_list.first
+#if 0        
         ha_rows examined_rows = 0;
         ha_rows found_rows = 0;
         ha_rows filesort_retval;
@@ -277,18 +292,19 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         join_tab->records= found_rows;
 
         my_free(s_order);
-        
+#endif       
         /*
           Go through the sorted array and compute the window function
         */
         READ_RECORD info;
-        if (init_read_record(&info, thd, table[0], select, 0, 1, FALSE))
+        //TABLE *tbl= *table;
+        TABLE *tbl= join_tab[top_join_tab_count].table;
+        if (init_read_record(&info, thd, tbl, select, 0, 1, FALSE))
           return true;
 
         item_win->setup_partition_border_check(thd);
 
         int err;
-        TABLE *tbl= *table;
         while (!(err=info.read_record(&info)))
         {
           store_record(tbl,record[1]);
@@ -311,8 +327,10 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         }
         item_win->set_read_value_from_result_field();
         end_read_record(&info);
+#if 0        
         filesort_free_buffers(table[0], true);
         free_io_cache(table[0]);
+#endif        
       }
     }
   }

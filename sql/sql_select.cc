@@ -181,7 +181,6 @@ end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
-static int test_if_group_changed(List<Cached_item> &list);
 static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
 static int join_read_system(JOIN_TAB *tab);
 static int join_read_const(JOIN_TAB *tab);
@@ -234,7 +233,7 @@ static bool list_contains_unique_index(TABLE *table,
                           bool (*find_func) (Field *, void *), void *data);
 static bool find_field_in_item_list (Field *field, void *data);
 static bool find_field_in_order_list (Field *field, void *data);
-static int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab);
+int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab);
 static int remove_dup_with_compare(THD *thd, TABLE *entry, Field **field,
 				   Item *having);
 static int remove_dup_with_hash_index(THD *thd,TABLE *table,
@@ -3235,7 +3234,6 @@ void JOIN::exec_inner()
     error= thd->is_error();
     DBUG_VOID_RETURN;
   }
-  process_window_functions(curr_fields_list);
 
   THD_STAGE_INFO(thd, stage_sending_data);
   DBUG_PRINT("info", ("%s", thd->proc_info));
@@ -8500,6 +8498,11 @@ bool JOIN::get_best_combination()
                      (tmp_table_param. using_outer_summary_function ? 2 : 1) : 0) +
                     (order ? 1 : 0) +
        (select_options & (SELECT_BIG_RESULT | OPTION_BUFFER_RESULT) ? 1 : 0) ;
+  
+  // psergey-temp:
+  if (select_lex->window_specs.elements)
+    aggr_tables++;
+
   if (aggr_tables > 2)
     aggr_tables= 2;
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
@@ -19062,7 +19065,7 @@ int join_init_read_record(JOIN_TAB *tab)
 
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
-  if (tab->filesort && tab->sort_table())     // Sort table.
+  if (tab->filesort && !tab->used_for_window_func && tab->sort_table())     // Sort table.
     return 1;
 
   if (tab->select && tab->select->quick && (error= tab->select->quick->reset()))
@@ -21102,7 +21105,7 @@ use_filesort:
     1		No records
 */
 
-static int
+int
 create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab)
 {
   ha_rows examined_rows;
@@ -22347,7 +22350,7 @@ int test_if_item_cache_changed(List<Cached_item> &list)
    value>=0    - Number of the component where the group changed
 */
 
-static int
+int
 test_if_group_changed(List<Cached_item> &list)
 {
   DBUG_ENTER("test_if_group_changed");
@@ -25810,8 +25813,10 @@ AGGR_OP::end_send()
     table->file->print_error(new_errno,MYF(0));
     return NESTED_LOOP_ERROR;
   }
+
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
+  join->process_window_functions(&join->fields_list); // location #2
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;
