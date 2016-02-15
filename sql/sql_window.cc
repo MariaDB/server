@@ -235,69 +235,32 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         Item_window_func *item_win = (Item_window_func *) item;
         item_win->force_return_blank= false;
         Window_spec *spec = item_win->window_spec;
-        
+        /*
+          The sorting criteria should be 
+           (spec->partition_list, spec->order_list)
+
+          Connect the two lists for the duration of add_sorting_to_table()
+          call.
+        */
         DBUG_ASSERT(spec->partition_list.next[0] == NULL);
         *(spec->partition_list.next)= spec->order_list.first;
-        // spec->partition_list
-        // spec->order_list
+
+        /*
+           join_tab[top_join_tab_count].table is the temp. table where join
+           output was stored.
+        */
         add_sorting_to_table(&join_tab[top_join_tab_count],
                              spec->partition_list.first);
         join_tab[top_join_tab_count].used_for_window_func= true;
 
         create_sort_index(this->thd, this, &join_tab[top_join_tab_count]);
+        /* Disconnect order_list from partition_list */
         *(spec->partition_list.next)= NULL;
-        //join_tab[top_join_tab_count] has the temp. table that we need.
-        //bool JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
 
-        // spec->partition_list.first
-#if 0        
-        ha_rows examined_rows = 0;
-        ha_rows found_rows = 0;
-        ha_rows filesort_retval;
-        /*
-          psergey: Igor suggests to use create_sort_index() here, but I think
-          it doesn't make sense: create_sort_index() assumes that it operates
-          on a base table in the join. 
-          It calls test_if_skip_sort_order, checks for quick_select and what
-          not. 
-          It also assumes that ordering comes either from ORDER BY or GROUP BY.
-          todo: check this again.
-        */
-        uint total_size= spec->partition_list.elements + 
-                         spec->order_list.elements;
-        SORT_FIELD *s_order= 
-          (SORT_FIELD *) my_malloc(sizeof(SORT_FIELD) * (total_size+1), 
-                                   MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
-        size_t pos= 0;
-        for (ORDER* curr = spec->partition_list.first; curr; curr=curr->next, pos++)
-          s_order[pos].item = *curr->item;
-
-        for (ORDER* curr = spec->order_list.first; curr; curr=curr->next, pos++)
-          s_order[pos].item = *curr->item;
-        
-        /* This is free'd by free_io_cache call below. */
-        table[0]->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                                   MYF(MY_WME | MY_ZEROFILL|
-                                                       MY_THREAD_SPECIFIC));
-
-        Filesort_tracker dummy_tracker(false);
-        filesort_retval= filesort(thd, table[0], s_order,
-                                  total_size,
-                                  this->select, HA_POS_ERROR, FALSE,
-                                  &examined_rows, &found_rows,
-                                  &dummy_tracker);
-        table[0]->sort.found_records= filesort_retval;
-
-        join_tab->read_first_record = join_init_read_record;
-        join_tab->records= found_rows;
-
-        my_free(s_order);
-#endif       
         /*
           Go through the sorted array and compute the window function
         */
         READ_RECORD info;
-        //TABLE *tbl= *table;
         TABLE *tbl= join_tab[top_join_tab_count].table;
         if (init_read_record(&info, thd, tbl, select, 0, 1, FALSE))
           return true;
@@ -326,11 +289,12 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
             return true;
         }
         item_win->set_read_value_from_result_field();
+        /* This calls filesort_free_buffers(): */
         end_read_record(&info);
-#if 0        
-        filesort_free_buffers(table[0], true);
-        free_io_cache(table[0]);
-#endif        
+
+        delete join_tab[top_join_tab_count].filesort;
+        join_tab[top_join_tab_count].filesort= NULL;
+        free_io_cache(tbl);
       }
     }
   }
