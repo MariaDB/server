@@ -157,13 +157,18 @@ class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
   List<Cached_item> orderby_fields;
-  /* TODO: implementation is missing */
-  void clear() {
+  /*
+     XXX(cvicentiu) This class could potentially be implemented in the rank
+     class, with a switch for the DENSE case.
+  */
+  void clear()
+  {
     dense_rank= 1;
   }
   bool add();
   void update_field() {}
-  longlong val_int() {
+  longlong val_int()
+  {
     return dense_rank;
   }
 

@@ -109,5 +109,4 @@ insert into t3 values
 select pk, a, b, rank() over (order by a), dense_rank() over (order by a) from t3;
 select pk, a, b, rank() over (partition by b order by a), dense_rank() over (partition by b order by a) from t3;
 
-drop table tr;
-
+drop table t3;
