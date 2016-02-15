@@ -55,6 +55,24 @@ void Item_sum_rank::setup_window_func(THD *thd, Window_spec *window_spec)
   clear();
 }
 
+void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  /* TODO: consider moving this && Item_sum_rank's implementation */
+  for (ORDER *curr = window_spec->order_list.first; curr; curr=curr->next) {
+    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
+    orderby_fields.push_back(tmp);
+  }
+  clear();
+}
+
+bool Item_sum_dense_rank::add()
+{
+  if (test_if_group_changed(orderby_fields) > -1)
+   dense_rank++;
+
+  return false;
+}
+
 
 bool Item_sum_rank::add()
 {

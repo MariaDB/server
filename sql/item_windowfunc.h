@@ -135,7 +135,7 @@ public:
 
 
 /*
-  RANK() OVER (...) Windowing function
+  DENSE_RANK() OVER (...) Windowing function
 
   @detail
   - This is a Window function (not just an aggregate)
@@ -156,11 +156,16 @@ public:
 class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
-  
+  List<Cached_item> orderby_fields;
   /* TODO: implementation is missing */
-  void clear() {}
-  bool add() { return false; }
+  void clear() {
+    dense_rank= 1;
+  }
+  bool add();
   void update_field() {}
+  longlong val_int() {
+    return dense_rank;
+  }
 
  public:
   Item_sum_dense_rank(THD *thd)
@@ -174,7 +179,9 @@ class Item_sum_dense_rank: public Item_sum_int
   {
     return "dense_rank";
   }
-  
+
+  void setup_window_func(THD *thd, Window_spec *window_spec);
+
 };
 
 
