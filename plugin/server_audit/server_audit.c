@@ -537,10 +537,14 @@ static struct st_mysql_show_var audit_status[]=
 #if defined(HAVE_PSI_INTERFACE) && !defined(FLOGGER_NO_PSI)
 /* These belong to the service initialization */
 static PSI_mutex_key key_LOCK_operations;
+static PSI_mutex_key key_LOCK_bigbuffer;
 static PSI_mutex_info mutex_key_list[]=
-{{ &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
-{{ &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
-   PSI_FLAG_GLOBAL}};
+{
+  { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
+    PSI_FLAG_GLOBAL},
+  { &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
+    PSI_FLAG_GLOBAL}
+};
 #endif
 static mysql_mutex_t lock_operations;
 static mysql_mutex_t lock_bigbuffer;
@@ -2845,7 +2849,7 @@ void __attribute__ ((constructor)) audit_plugin_so_init(void)
   }
 
   memset(locinfo_ini_value, 'O', sizeof(locinfo_ini_value)-1);
-  locinfo_ini_value[sizeof(locinfo_ini_value)]= 0;
+  locinfo_ini_value[sizeof(locinfo_ini_value)-1]= 0;
 
 exit:
 #ifdef _WIN32
