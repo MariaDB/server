@@ -200,12 +200,14 @@ innobase_fulltext_exist(
 /*******************************************************************//**
 Determine if ALTER TABLE needs to rebuild the table.
 @param ha_alter_info		the DDL operation
+@param altered_table		MySQL original table
 @return whether it is necessary to rebuild the table */
 static __attribute__((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
 /*==================*/
-	const Alter_inplace_info*	ha_alter_info)
+	const Alter_inplace_info*	ha_alter_info,
+	const TABLE*			altered_table)
 {
 	if (ha_alter_info->handler_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
@@ -217,6 +219,34 @@ innobase_need_rebuild(
 		return(false);
 	}
 
+	/* If alter table changes column name and adds a new
+	index, we need to check is this new index created
+	to new column name. This is because column name
+	changes are done normally after creating indexes. */
+	if ((ha_alter_info->handler_flags
+			& Alter_inplace_info::ALTER_COLUMN_NAME) &&
+	    ((ha_alter_info->handler_flags
+		    & Alter_inplace_info::ADD_INDEX) ||
+	     (ha_alter_info->handler_flags
+		     & Alter_inplace_info::ADD_FOREIGN_KEY))) {
+		for (ulint i = 0; i < ha_alter_info->key_count; i++) {
+			const KEY* key = &ha_alter_info->key_info_buffer[
+				ha_alter_info->index_add_buffer[i]];
+
+			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
+				const KEY_PART_INFO*	key_part = &(key->key_part[j]);
+				const Field* field = altered_table->field[key_part->fieldnr];
+
+				/* Field used on added index is renamed on
+				this same alter table. We need table
+				rebuild. */
+				if (field->flags & FIELD_IS_RENAMED) {
+					return (true);
+				}
+			}
+		}
+	}
+	
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
 }
 
@@ -531,7 +561,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		operation is possible. */
 	} else if (((ha_alter_info->handler_flags
 		     & Alter_inplace_info::ADD_PK_INDEX)
-		    || innobase_need_rebuild(ha_alter_info))
+			|| innobase_need_rebuild(ha_alter_info, table))
 		   && (innobase_fulltext_exist(altered_table))) {
 		/* Refuse to rebuild the table online, if
 		fulltext indexes are to survive the rebuild. */
@@ -1532,7 +1562,8 @@ innobase_create_index_def(
 	index_def_t*		index,		/*!< out: index definition */
 	mem_heap_t*		heap,		/*!< in: heap where memory
 						is allocated */
-	const Field**		fields)		/*!z in: MySQL table fields */
+	const Field**		fields)		/*!< in: MySQL table fields
+						*/
 {
 	const KEY*	key = &keys[key_number];
 	ulint		i;
@@ -1827,9 +1858,11 @@ innobase_create_key_defs(
 	bool&				add_fts_doc_id,
 			/*!< in: whether we need to add new DOC ID
 			column for FTS index */
-	bool&				add_fts_doc_idx)
+	bool&				add_fts_doc_idx,
 			/*!< in: whether we need to add new DOC ID
 			index for FTS index */
+	const TABLE*			table)
+			/*!< in: MySQL table that is being altered */
 {
 	index_def_t*		indexdef;
 	index_def_t*		indexdefs;
@@ -1879,7 +1912,8 @@ innobase_create_key_defs(
 	}
 
 	const bool rebuild = new_primary || add_fts_doc_id
-		|| innobase_need_rebuild(ha_alter_info);
+		|| innobase_need_rebuild(ha_alter_info, table);
+
 	/* Reserve one more space if new_primary is true, and we might
 	need to add the FTS_DOC_ID_INDEX */
 	indexdef = indexdefs = static_cast<index_def_t*>(
@@ -2716,7 +2750,8 @@ prepare_inplace_alter_table_dict(
 		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
 		num_fts_index,
 		row_table_got_default_clust_index(ctx->new_table),
-		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx);
+		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
+		old_table);
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
 
@@ -2729,7 +2764,7 @@ prepare_inplace_alter_table_dict(
 		/* This is not an online operation (LOCK=NONE). */
 	} else if (ctx->add_autoinc == ULINT_UNDEFINED
 		   && num_fts_index == 0
-		   && (!innobase_need_rebuild(ha_alter_info)
+		   && (!innobase_need_rebuild(ha_alter_info, old_table)
 		       || !innobase_fulltext_exist(altered_table))) {
 		/* InnoDB can perform an online operation (LOCK=NONE). */
 	} else {
@@ -2746,7 +2781,7 @@ prepare_inplace_alter_table_dict(
 	is just copied from old table and stored in indexdefs[0] */
 	DBUG_ASSERT(!add_fts_doc_id || new_clustered);
 	DBUG_ASSERT(!!new_clustered ==
-		    (innobase_need_rebuild(ha_alter_info)
+		    (innobase_need_rebuild(ha_alter_info, old_table)
 		     || add_fts_doc_id));
 
 	/* Allocate memory for dictionary index definitions */
@@ -2996,7 +3031,7 @@ prepare_inplace_alter_table_dict(
 			add_cols, ctx->heap);
 		ctx->add_cols = add_cols;
 	} else {
-		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info));
+		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
 
 		if (!ctx->new_table->fts
 		    && innobase_fulltext_exist(altered_table)) {
@@ -3017,7 +3052,7 @@ prepare_inplace_alter_table_dict(
 
 		ctx->add_index[a] = row_merge_create_index(
 			ctx->trx, ctx->new_table,
-			&index_defs[a]);
+			&index_defs[a], ctx->col_names);
 
 		add_key_nums[a] = index_defs[a].key_number;
 
@@ -3862,7 +3897,7 @@ err_exit:
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || (ha_alter_info->handler_flags
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
-		&& !innobase_need_rebuild(ha_alter_info))) {
+		&& !innobase_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
 			ha_alter_info->handler_ctx
@@ -4036,7 +4071,7 @@ ok_exit:
 
 	if (ha_alter_info->handler_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !innobase_need_rebuild(ha_alter_info)) {
+	    && !innobase_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
 
