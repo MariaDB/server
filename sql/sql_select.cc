@@ -7304,13 +7304,13 @@ double JOIN::get_examined_rows()
 {
   double examined_rows;
   double prev_fanout= 1;
-  JOIN_TAB *tab= first_breadth_first_optimization_tab();
+  JOIN_TAB *tab= first_breadth_first_tab();
   JOIN_TAB *prev_tab= tab;
 
   examined_rows= tab->get_examined_rows();
 
-  while ((tab= next_breadth_first_tab(first_breadth_first_optimization_tab(),
-                                      top_table_access_tabs_count, tab)))
+  while ((tab= next_breadth_first_tab(first_breadth_first_tab(),
+                                      top_join_tab_count, tab)))
   {
     prev_fanout *= prev_tab->records_read;
     examined_rows+= tab->get_examined_rows() * prev_fanout;
@@ -8262,7 +8262,7 @@ static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
 JOIN_TAB *first_explain_order_tab(JOIN* join)
 {
   JOIN_TAB* tab;
-  tab= join->table_access_tabs;
+  tab= join->join_tab;
   return (tab->bush_children) ? tab->bush_children->start : tab;
 }
 
@@ -8276,7 +8276,7 @@ JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab)
   /* Move to next tab in the array we're traversing */
   tab++;
   
-  if (tab == join->table_access_tabs + join->top_join_tab_count)
+  if (tab == join->join_tab + join->top_join_tab_count)
     return NULL; /* Outside SJM nest and reached EOF */
 
   if (tab->bush_children)
@@ -8302,7 +8302,7 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables const_tbls
 
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab)
 {
-  tab= next_breadth_first_tab(join->first_breadth_first_execution_tab(),
+  tab= next_breadth_first_tab(join->first_breadth_first_tab(),
                               join->top_join_tab_count, tab);
   if (tab && tab->bush_root_tab)
     tab= NULL;
@@ -8636,12 +8636,6 @@ bool JOIN::get_best_combination()
 
   top_join_tab_count= join_tab_ranges.head()->end - 
                       join_tab_ranges.head()->start;
-  /*
-    Save pointers to select join tabs for SHOW EXPLAIN
-  */
-  table_access_tabs= join_tab;
-  top_table_access_tabs_count= top_join_tab_count;
-
 
   update_depend_map(this);
   DBUG_RETURN(0);
@@ -11754,20 +11748,10 @@ void JOIN::cleanup(bool full)
       */
       if (table_count)
       {
-        for (tab= first_breadth_first_optimization_tab(); tab;
-             tab= next_breadth_first_tab(first_breadth_first_optimization_tab(),
-                                         top_table_access_tabs_count, tab))
+        for (tab= first_breadth_first_tab(); tab;
+             tab= next_breadth_first_tab(first_breadth_first_tab(),
+                                         top_join_tab_count, tab))
           tab->cleanup();
-
-        /* We've walked optimization tabs, do execution ones too. */
-        if (first_breadth_first_execution_tab() !=
-            first_breadth_first_optimization_tab())
-        {
-          for (tab= first_breadth_first_execution_tab(); tab;
-               tab= next_breadth_first_tab(first_breadth_first_execution_tab(),
-                                           top_join_tab_count, tab))
-            tab->cleanup();
-        }
       }
       cleaned= true;
       //psergey2: added (Q: why not in the above loop?)
@@ -24163,7 +24147,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       xpl_sel->having= having;
     xpl_sel->having_value= having_value;
 
-    JOIN_TAB* const first_top_tab= join->first_breadth_first_optimization_tab();
+    JOIN_TAB* const first_top_tab= join->first_breadth_first_tab();
     JOIN_TAB* prev_bush_root_tab= NULL;
 
     Explain_basic_join *cur_parent= xpl_sel;
