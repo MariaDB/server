@@ -1057,18 +1057,6 @@ public:
   /* List of fields that aren't under an aggregate function */
   List<Item_field> non_agg_fields;
 
-  /*
-    For "Using temporary+Using filesort" queries, JOIN::join_tab can point to
-    either: 
-    1. array of join tabs describing how to run the select, or
-    2. array of single join tab describing read from the temporary table.
-
-    SHOW EXPLAIN code needs to read/show #1. This is why two next members are
-    there for saving it.
-  */
-  JOIN_TAB *table_access_tabs;
-  uint     top_table_access_tabs_count;
-  
   JOIN_TAB **map2table;    ///< mapping between table indexes and JOIN_TABs
   List<JOIN_TAB_RANGE> join_tab_ranges;
   
@@ -1498,13 +1486,6 @@ public:
     in_to_exists_having= NULL;
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
-
-    /* 
-      The following is needed because JOIN::cleanup(true) may be called for 
-      joins for which JOIN::optimize was aborted with an error before a proper
-      query plan was produced
-    */
-    table_access_tabs= NULL; 
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -1663,8 +1644,7 @@ public:
   int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                bool need_order, bool distinct,
                                const char *message);
-  JOIN_TAB *first_breadth_first_optimization_tab() { return table_access_tabs; }
-  JOIN_TAB *first_breadth_first_execution_tab() { return join_tab; }
+  JOIN_TAB *first_breadth_first_tab() { return join_tab; }
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
