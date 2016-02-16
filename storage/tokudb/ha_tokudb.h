@@ -837,9 +837,6 @@ public:
     bool primary_key_is_clustered() {
         return true;
     }
-    bool supports_clustered_keys() {
-        return true;
-    }
     int cmp_ref(const uchar * ref1, const uchar * ref2);
     bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
 
