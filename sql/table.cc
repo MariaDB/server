@@ -40,6 +40,7 @@
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
+#include "rpl_filter.h"
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -316,7 +317,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
-    share->cached_row_logging_check= -1;
+    /* The following will be fixed in open_table_from_share */
+    share->cached_row_logging_check= 1;
 
     init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -381,7 +383,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->path.length= share->normalized_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_TRUE_VARCHAR;
 
-  share->cached_row_logging_check= -1;
+  share->cached_row_logging_check= 0;           // No row logging
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -2973,6 +2975,9 @@ partititon_err:
   {
     outparam->no_replicate= FALSE;
   }
+
+  if (outparam->no_replicate || !binlog_filter->db_ok(outparam->s->db.str))
+    outparam->s->cached_row_logging_check= 0;   // No row based replication
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)

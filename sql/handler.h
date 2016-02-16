@@ -2581,11 +2581,6 @@ public:
   RANGE_SEQ_IF mrr_funcs;  /* Range sequence traversal functions */
   HANDLER_BUFFER *multi_range_buffer; /* MRR buffer info */
   uint ranges_in_seq; /* Total number of ranges in the traversed sequence */
-  /* TRUE <=> source MRR ranges and the output are ordered */
-  bool mrr_is_output_sorted;
-
-  /** TRUE <=> we're currently traversing a range in mrr_cur_range. */
-  bool mrr_have_range;
   /** Current range (the one we're now returning rows from) */
   KEY_MULTI_RANGE mrr_cur_range;
 
@@ -2593,23 +2588,32 @@ public:
   key_range save_end_range, *end_range;
   KEY_PART_INFO *range_key_part;
   int key_compare_result_on_equal;
-  bool eq_range;
-  bool internal_tmp_table;                      /* If internal tmp table */
 
-  uint errkey;				/* Last dup key */
-  uint key_used_on_scan;
-  uint active_index;
+  /* TRUE <=> source MRR ranges and the output are ordered */
+  bool mrr_is_output_sorted;
+  /** TRUE <=> we're currently traversing a range in mrr_cur_range. */
+  bool mrr_have_range;
+  bool eq_range;
+  bool internal_tmp_table;                 /* If internal tmp table */
+  bool implicit_emptied;                   /* Can be !=0 only if HEAP */
+  bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
+  bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
+  bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
   /* 
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
   */
   bool in_range_check_pushed_down;
 
+  uint errkey;                             /* Last dup key */
+  uint key_used_on_scan;
+  uint active_index;
+
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
   enum {NONE=0, INDEX, RND} inited;
-  bool implicit_emptied;                /* Can be !=0 only if HEAP */
+
   const COND *pushed_cond;
   /**
     next_insert_id is the next value which should be inserted into the
@@ -2693,11 +2697,16 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0), ht(ht_arg),
-    ref(0), end_range(NULL), key_used_on_scan(MAX_KEY), active_index(MAX_KEY),
+    ref(0), end_range(NULL),
+    implicit_emptied(0),
+    mark_trx_read_write_done(0),
+    check_table_binlog_row_based_done(0),
+    check_table_binlog_row_based_result(0),
     in_range_check_pushed_down(FALSE),
+    key_used_on_scan(MAX_KEY),
+    active_index(MAX_KEY),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
-    implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     tracker(NULL),
     pushed_idx_cond(NULL),
@@ -3875,10 +3884,22 @@ protected:
   */
   virtual int delete_table(const char *name);
 
+public:
+  inline bool check_table_binlog_row_based(bool binlog_row);
 private:
+  /* Cache result to avoid extra calls */
+  inline void mark_trx_read_write()
+  {
+    if (unlikely(!mark_trx_read_write_done))
+    {
+      mark_trx_read_write_done= 1;
+      mark_trx_read_write_internal();
+    }
+  }
+  void mark_trx_read_write_internal();
+  bool check_table_binlog_row_based_internal(bool binlog_row);
+
   /* Private helpers */
-  inline void mark_trx_read_write();
-private:
   inline void increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
