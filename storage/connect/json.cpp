@@ -594,8 +594,8 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
   if (fs) {
 		fputs(EL, fs);
     fclose(fs);
-		str = (err) ? NULL : (char*) "Ok";
-  } else if (!err) {
+		str = (err) ? NULL : strcpy(g->Message, "Ok");
+	} else if (!err) {
     str = ((JOUTSTR*)jp)->Strp;
     jp->WriteChr('\0');
     PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);

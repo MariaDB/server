@@ -1,7 +1,7 @@
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Name` varchar(256) NOT NULL,
-  `Description` varchar(256) NOT NULL
+  `Description` varchar(256) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
 CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=DATADIR/test/contacts.xls';;
 SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
@@ -16,11 +16,11 @@ DROP TABLE contact;
 CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=DATADIR/test/contacts.xls' CHARSET=utf8 DATA_CHARSET=latin1;;
 SELECT * FROM t1 WHERE Table_name='CONTACT';
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
-DATADIR/test/contacts		CONTACT	TABLE	
+DATADIR/test/contacts	NULL	CONTACT	TABLE	NULL
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=DATADIR/test/contacts.xls' CHARSET=utf8 DATA_CHARSET=latin1;;
 SELECT * FROM t1 WHERE Table_name='CONTACT' AND Column_name IN ('Nom','Fonction');
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-DATADIR/test/contacts		CONTACT	Nom	12	VARCHAR	255	510	0	0	1	
-DATADIR/test/contacts		CONTACT	Fonction	12	VARCHAR	255	510	0	0	1	
+DATADIR/test/contacts	NULL	CONTACT	Nom	12	VARCHAR	255	510	NULL	NULL	1	NULL
+DATADIR/test/contacts	NULL	CONTACT	Fonction	12	VARCHAR	255	510	NULL	NULL	1	NULL
 DROP TABLE t1;
