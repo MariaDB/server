@@ -31,6 +31,9 @@ static void log_error( OM_uint32 major, OM_uint32 minor, const char *msg)
   Generate default principal service name formatted as principal name "mariadb/server.fqdn@REALM"
 */
 #include <krb5.h>
+#ifndef HAVE_KRB5_FREE_UNPARSED_NAME
+#define krb5_free_unparsed_name(a,b) krb5_xfree(b)
+#endif
 static char* get_default_principal_name()
 {
   static char default_name[1024];
