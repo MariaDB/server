@@ -1,0 +1,11 @@
+SET GLOBAL wsrep_desync=1;
+SET wsrep_OSU_method=RSU;
+CREATE TABLE t1 (i int primary key);
+SHOW VARIABLES LIKE 'wsrep_desync';
+Variable_name	Value
+wsrep_desync	ON
+SET GLOBAL wsrep_desync=0;
+DROP TABLE t1;
+SHOW VARIABLES LIKE 'wsrep_desync';
+Variable_name	Value
+wsrep_desync	OFF
