@@ -16625,7 +16625,6 @@ innodb_sched_priority_purge_update(
 		return;
 	}
 
-	ut_ad(purge_sys->state == PURGE_STATE_RUN);
 	for (ulint i = 0; i < srv_n_purge_threads; i++) {
 		ulint nice = os_thread_get_priority(srv_purge_tids[i]);
 		ulint actual_priority
