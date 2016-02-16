@@ -25,7 +25,8 @@ return "No my_print_defaults" unless $epath;
 push @::global_suppressions,
   (
      qr(WSREP: wsrep_sst_receive_address is set to '127.0.0.1),
-     qr(WSREP: Could not open saved state file for reading: ),
+     qr(WSREP: Could not open saved state file for reading: .*),
+     qr(WSREP: Could not open state file for reading: .*),
      qr(WSREP: Gap in state sequence. Need state transfer.),
      qr(WSREP: Failed to prepare for incremental state transfer:),
      qr(WSREP:.*down context.*),
