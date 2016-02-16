@@ -4926,11 +4926,11 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
   error|= sql->append("` ");
   error|= sql->append(type);
 
-  if (len && typ != TYPE_DATE) {
+	if (len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0)) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
-    if (!strcmp(type, "DOUBLE")) {
+		if (typ == TYPE_DOUBLE) {
       error|= sql->append(',');
       // dec must be < len and < 31
       error|= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
@@ -5516,6 +5516,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         dec= crp->Prec;
         flg= crp->Flag;
         v= crp->Var;
+				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
@@ -5523,9 +5524,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         // Now add the field
 #if defined(NEW_WAY)
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf, v);
+                       tm, "", flg, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, NULL, NOT_NULL_FLAG,
+        if (add_field(&sql, cnm, typ, len, dec, NULL, tm,
                       NULL, NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
@@ -5582,7 +5583,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
               len= crp->Kdata->GetIntValue(i);
               break;
             case FLD_SCALE:
-              dec= crp->Kdata->GetIntValue(i);
+							dec = (!crp->Kdata->IsNull(i)) ? crp->Kdata->GetIntValue(i) : -1;
               break;
             case FLD_NULL:
               if (crp->Kdata->GetIntValue(i))
@@ -5675,14 +5676,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
               dec= 0;
             } // endswitch typ
 
-          } // endif ttp
+        } else
 #endif   // ODBC_SUPPORT
-
         // Make the arguments as required by add_fields
-        if (typ == TYPE_DATE)
+				if (typ == TYPE_DOUBLE)
+					prec= len;
+
+				if (typ == TYPE_DATE)
           prec= 0;
-        else if (typ == TYPE_DOUBLE)
-          prec= len;
 
         // Now add the field
 #if defined(NEW_WAY)
