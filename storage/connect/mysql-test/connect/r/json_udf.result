@@ -217,7 +217,9 @@ DEPARTMENT	Json_Array_Grp(NAME)
 2452	["BIGHEAD","ORELLY","BIGHORN","SMITH","CHERRY"]
 Warnings:
 Warning	1105	Result truncated to json_grp_size values
-SET connect_json_grp_size=30;
+SELECT JsonSet_Grp_Size(30);
+JsonSet_Grp_Size(30)
+30
 SELECT Json_Object(title, Json_Array_Grp(name) `json_names`) from t3 GROUP BY title;
 Json_Object(title, Json_Array_Grp(name) `json_names`)
 {"title":"ADMINISTRATOR","names":["GOOSEPEN","FUNNIGUY","SHRINKY"]}

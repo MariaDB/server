@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) Olivier Bertrand 2004 - 2016
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0005 December 11, 2015";
+       char version[]= "Version 1.04.0005 January 24, 2016";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -340,14 +340,21 @@ static MYSQL_THDVAR_ENUM(
 #endif   // XMSG || NEWMSG
 
 /***********************************************************************/
+/*  The CONNECT handlerton object.                                     */
+/***********************************************************************/
+handlerton *connect_hton= NULL;
+
+/***********************************************************************/
 /*  Function to export session variable values to other source files.  */
 /***********************************************************************/
-extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
+extern "C" int GetTraceValue(void) 
+  {return connect_hton ? THDVAR(current_thd, xtrace) : 0;}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
-uint GetJsonGrpSize(void) {return THDVAR(current_thd, json_grp_size);}
+uint GetJsonGrpSize(void)
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
 void SetWorkSize(uint) 
 {
@@ -441,11 +448,6 @@ static int check_msg_path (MYSQL_THD thd, struct st_mysql_sys_var *var,
 	return(1);
 } // end of check_msg_path
 #endif   // 0
-
-/***********************************************************************/
-/*  The CONNECT handlerton object.                                     */
-/***********************************************************************/
-handlerton *connect_hton;
 
 /**
   CREATE TABLE option list (table options)
@@ -687,6 +689,7 @@ static int connect_done_func(void *)
     delete pc;
     } // endfor pc
 
+	connect_hton= NULL;
   DBUG_RETURN(error);
 } // end of connect_done_func
 
@@ -4923,11 +4926,11 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
   error|= sql->append("` ");
   error|= sql->append(type);
 
-  if (len && typ != TYPE_DATE) {
+	if (len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0)) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
 
-    if (!strcmp(type, "DOUBLE")) {
+		if (typ == TYPE_DOUBLE) {
       error|= sql->append(',');
       // dec must be < len and < 31
       error|= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
@@ -5513,6 +5516,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         dec= crp->Prec;
         flg= crp->Flag;
         v= crp->Var;
+				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
@@ -5520,9 +5524,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         // Now add the field
 #if defined(NEW_WAY)
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
-                       NOT_NULL_FLAG, "", flg, dbf, v);
+                       tm, "", flg, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, NULL, NOT_NULL_FLAG,
+        if (add_field(&sql, cnm, typ, len, dec, NULL, tm,
                       NULL, NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
@@ -5579,7 +5583,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
               len= crp->Kdata->GetIntValue(i);
               break;
             case FLD_SCALE:
-              dec= crp->Kdata->GetIntValue(i);
+							dec = (!crp->Kdata->IsNull(i)) ? crp->Kdata->GetIntValue(i) : -1;
               break;
             case FLD_NULL:
               if (crp->Kdata->GetIntValue(i))
@@ -5672,14 +5676,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
               dec= 0;
             } // endswitch typ
 
-          } // endif ttp
+        } else
 #endif   // ODBC_SUPPORT
-
         // Make the arguments as required by add_fields
-        if (typ == TYPE_DATE)
+				if (typ == TYPE_DOUBLE)
+					prec= len;
+
+				if (typ == TYPE_DATE)
           prec= 0;
-        else if (typ == TYPE_DOUBLE)
-          prec= len;
 
         // Now add the field
 #if defined(NEW_WAY)
