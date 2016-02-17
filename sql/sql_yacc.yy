@@ -64,7 +64,6 @@
 #include "rpl_mi.h"
 #include "lex_token.h"
 
-
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
 /* warning C4065: switch statement contains 'default' but no 'case' labels */

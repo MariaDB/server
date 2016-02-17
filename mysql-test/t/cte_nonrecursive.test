@@ -50,6 +50,34 @@ explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
   where t2.c=t.a;
 
+--echo # specivication of t contains having
+with t as (select a, count(*) from t1 where b >= 'c'
+             group by a having count(*)=1 ) 
+ select * from t2,t where t2.c=t.a; 
+select * from t2, (select a, count(*) from t1 where b >= 'c'
+                      group by a having count(*)=1) t
+ where t2.c=t.a; 
+
+--echo # main query contains having
+with t as (select * from t2 where c <= 4) 
+  select a, count(*) from t1,t where t1.a=t.c group by a having count(*)=1; 
+select a, count(*) from t1, (select * from t2 where c <= 4) t 
+  where t1.a=t.c group by a having count(*)=1; 
+
+--echo # main query contains group by + order by
+with t as (select * from t2 where c <= 4 ) 
+  select a, count(*) from t1,t where t1.a=t.c group by a order by count(*); 
+select a, count(*) from t1, (select * from t2 where c <= 4 ) t
+  where t1.a=t.c group by a order by count(*); 
+
+--echo # main query contains group by + order by + limit
+with t as (select * from t2 where c <= 4 ) 
+  select a, count(*) from t1,t
+    where t1.a=t.c group by a order by count(*) desc limit 1; 
+select a, count(*) from t1, (select * from t2 where c <= 4 ) t
+  where t1.a=t.c group by a order by count(*) desc limit 1; 
+
+
 --echo # t is used in a subquery
 with t as (select a from t1 where a<5)
   select * from t2 where c in (select a from t);
@@ -119,6 +147,10 @@ explain
 select * from (select * from t1 where b >= 'c') as r1,
               (select * from t1 where b >= 'c') as r2
   where r1.a=r2.a;
+
+--echo # two references to t specifying explicitly column names
+with t(c) as (select a from t1 where b >= 'c')
+  select * from t r1, t r2 where r1.c=r2.c;
 
 --echo # specification of t contains union
 with t as (select a from t1 where b >= 'f' 
@@ -264,7 +296,35 @@ select * from v2;
 explain
 select * from v2;
 
-drop view v1,v2;
+--echo # with clause in the specification of a view that whose definition
+--echo # table alias for a with table
+create view v3 as
+with t(c) as (select a from t1 where b >= 'c')
+select * from t r1 where r1.c=4;
+show create view v3;
+select * from v3;
+
+--echo # with clause in the specification of a view that whose definition
+--echo # two table aliases for for the same with table
+create view v4(c,d) as
+with t(c) as (select a from t1 where b >= 'c')
+select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
+show create view v4;
+select * from v4;
+explain
+select * from v4;
+
+drop view v1,v2,v3,v4;
+
+
+--echo # currently any views containing with clause are not updatable
+create view v1(a) as 
+with t as (select a from t1 where b >= 'c') 
+  select t.a from t2,t where t2.c=t.a;
+--error ER_NON_UPDATABLE_TABLE
+update v1 set a=0 where a > 4;
+drop view v1;
+
 
 --echo # prepare of a query containing a definition of a with table t
 prepare stmt1 from "

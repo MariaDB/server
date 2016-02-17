@@ -655,7 +655,7 @@ public:
   */
   st_select_lex *fake_select_lex;
   /**
-    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when noq
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
@@ -670,6 +670,8 @@ public:
     when the list of inserted values is empty.
   */
   TABLE *insert_table_with_stored_vcol;
+
+  bool columns_are_renamed;
 
   void init_query();
   st_select_lex* outer_select();

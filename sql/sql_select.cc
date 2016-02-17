@@ -24677,6 +24677,11 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         str->append(')');
         cmp_name= "";                               // Force printing of alias
       }
+      else
+      {
+        append_identifier(thd, str, table_name, table_name_length);
+        cmp_name= table_name;        
+      }
     }
     else
     {

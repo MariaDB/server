@@ -392,29 +392,32 @@ err:
 
 /**
   @brief
-    Process optional column list of this with element
-     
-  @param thd        The context of the statement containing this with element
+    Rename columns of the unit derived from the spec of this with element
+  @param thd        The context of the statement containing the with element
+  @param unit       The specification of the with element or its clone
 
   @details
-    The method processes the column list in this with element.    
-    It reports an error if the cardinality of this list differs from
-    the cardinality of the select lists in the specification of the table
-    defined by this with element. Otherwise it renames the columns
-    of these select lists and sets the flag column_list_is_processed to true
-    preventing processing the list for the second time.
+    The method assumes that the parameter unit is either specification itself
+    of this with element or a clone of this specification. The looks through
+    the column list in this with element. It reports an error if the cardinality
+    of this list differs from the cardinality of select lists in 'unit'.
+    Otherwise it renames the columns  of the first select list and sets the flag
+    unit->column_list_is_processed to true preventing renaming columns for the
+    second time.
 
   @retval
     true   if an error was reported 
     false  otherwise
 */    
 
-bool With_element::process_column_list(THD *thd)
+bool 
+With_element::rename_columns_of_derived_unit(THD *thd, 
+                                             st_select_lex_unit *unit)
 {
-  if (column_list_is_processed)
+  if (unit->columns_are_renamed)
     return false;
 
-  st_select_lex *select= spec->first_select();
+  st_select_lex *select= unit->first_select();
 
   if (column_list.elements)  //  The column list is optional
   {
@@ -428,7 +431,7 @@ bool With_element::process_column_list(THD *thd)
       my_error(ER_WITH_COL_WRONG_LIST, MYF(0));
       return true;
     }
-    /* Rename the columns of the first select in the specification query */
+    /* Rename the columns of the first select in the unit */
     while ((item= it++, name= nm++))
     {
       item->set_name(thd, name->str, (uint) name->length, system_charset_info);
@@ -438,7 +441,8 @@ bool With_element::process_column_list(THD *thd)
 
   make_valid_column_names(thd, select->item_list);
 
-  column_list_is_processed= true;
+  unit->columns_are_renamed= true;
+
   return false;
 }
 
@@ -473,7 +477,7 @@ bool With_element::prepare_unreferenced(THD *thd)
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (!spec->prepared &&
       (spec->prepare(thd, 0, 0) ||
-       process_column_list(thd) ||
+       rename_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;
  

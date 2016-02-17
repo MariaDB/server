@@ -1882,6 +1882,7 @@ void st_select_lex_unit::init_query()
   derived= 0;
   with_clause= 0;
   with_element= 0;
+  columns_are_renamed= false;
 }
 
 void st_select_lex::init_query()

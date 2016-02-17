@@ -58,8 +58,6 @@ public:
   List <LEX_STRING> column_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
-  /* Set to true after column list has been processed in semantic analysis */
-  bool column_list_is_processed;
   /* 
     Set to true is recursion is used (directly or indirectly)
     for the definition of this element
@@ -71,7 +69,7 @@ public:
                st_select_lex_unit *unit)
     : next_elem(NULL), dependency_map(0), references(0),
       query_name(name), column_list(list), spec(unit),
-      column_list_is_processed(false), is_recursive(false) {}
+      is_recursive(false) {}
 
   void check_dependencies_in_unit(st_select_lex_unit *unit);
 
@@ -85,11 +83,11 @@ public:
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
 
-  bool process_column_list(THD *thd);
-
   bool is_referenced() { return references != 0; }
 
   void inc_references() { references++; }
+
+  bool rename_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);
 
   bool prepare_unreferenced(THD *thd);
 
