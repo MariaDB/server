@@ -151,7 +151,20 @@ find_opts (argv_copy& a, struct opt* const opts)
 {
     for (int i = 0; i < a.argc_; ++i)
     {
-        char* ptr = a.argv_[i] + 2; // we're interested only in long options
+        char *ptr;
+
+        /*
+          We're interested only in long options, ensure that the arg is of
+          sufficient length.
+        */
+        if (strlen(a.argv_[i]) > 2)
+        {
+          ptr= a.argv_[i] + 2;
+        }
+        else
+        {
+          continue;
+        }
 
         struct opt* opt = opts;
         for (; 0 != opt->name; ++opt)
