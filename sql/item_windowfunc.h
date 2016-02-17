@@ -275,6 +275,7 @@ class Item_sum_cume_dist: public Item_sum_num
 class Item_window_func : public Item_result_field
 {
   /* Window function parameters as we've got them from the parser */
+public:
   Item_sum *window_func;
   LEX_STRING *window_name;
 public:
@@ -301,10 +302,12 @@ public:
 
   /*
     Computation functions.
+    TODO: consoder merging these with class Group_bound_tracker.
   */
   void setup_partition_border_check(THD *thd);
 
   void advance_window();
+  int check_partition_bound();
 
   enum_field_types field_type() const { return window_func->field_type(); }
   enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
@@ -367,12 +370,18 @@ public:
   my_decimal* val_decimal(my_decimal* dec)
   { 
     if (force_return_blank)
+    {
+      my_decimal_set_zero(dec);
       return dec;
+    }
     return read_value_from_result_field? result_field->val_decimal(dec) : 
                                          window_func->val_decimal(dec);
   }
 
-  void fix_length_and_dec() { }
+  void fix_length_and_dec()
+  {
+    window_func->fix_length_and_dec();
+  }
 
   const char* func_name() const { return "WF"; }
 

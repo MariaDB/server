@@ -39,7 +39,7 @@ int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_buffer(READ_RECORD *info);
-static int rr_from_pointers(READ_RECORD *info);
+int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
 static int rr_cmp(uchar *a,uchar *b);
@@ -531,8 +531,8 @@ static int rr_unpack_from_tempfile(READ_RECORD *info)
 
   return 0;
 }
-
-static int rr_from_pointers(READ_RECORD *info)
+//psergey: make this 'static' again:
+int rr_from_pointers(READ_RECORD *info)
 {
   int tmp;
   uchar *cache_pos;

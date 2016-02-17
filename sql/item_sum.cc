@@ -1531,6 +1531,18 @@ bool Item_sum_count::add()
   return 0;
 }
 
+
+/*
+  Remove a row. This is used by window functions.
+*/
+
+void Item_sum_count::remove()
+{
+  /* TODO: Handle DECIMAL type */
+  DBUG_ASSERT(aggr->Aggrtype() == Aggregator::SIMPLE_AGGREGATOR);
+  count--;
+}
+
 longlong Item_sum_count::val_int()
 {
   DBUG_ASSERT(fixed == 1);

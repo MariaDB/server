@@ -545,6 +545,9 @@ public:
   virtual void clear()= 0;
   virtual bool add()= 0;
   virtual bool setup(THD *thd) { return false; }
+  
+  //psergey: for window functions:
+  virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
   bool check_vcol_func_processor(uchar *int_arg) 
@@ -784,6 +787,8 @@ class Item_sum_count :public Item_sum_int
   void clear();
   bool add();
   void cleanup();
+  // psergey-added:
+  void remove();
 
   public:
   Item_sum_count(THD *thd, Item *item_par):

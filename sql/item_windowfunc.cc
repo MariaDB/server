@@ -18,6 +18,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   if (window_func->fix_fields(thd, ref))
     return TRUE;
 
+  max_length= window_func->max_length;
+
   fixed= 1;
   force_return_blank= true;
   read_value_from_result_field= false;
@@ -88,10 +90,14 @@ bool Item_sum_rank::add()
   return false; 
 }
 
+int Item_window_func::check_partition_bound()
+{
+  return test_if_group_changed(partition_fields);
+}
 
-void Item_window_func::advance_window() {
-
-  int changed = test_if_group_changed(partition_fields);
+void Item_window_func::advance_window()
+{
+  int changed= check_partition_bound();
 
   if (changed > -1)
   {
