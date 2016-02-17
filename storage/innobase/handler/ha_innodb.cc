@@ -33,6 +33,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
+#define lower_case_file_system lower_case_file_system_server
+#define mysql_unpacked_real_data_home mysql_unpacked_real_data_home_server
 #include <sql_table.h>	// explain_filename, nz2, EXPLAIN_PARTITIONS_AS_COMMENT,
 			// EXPLAIN_FILENAME_MAX_EXTRA_LENGTH
 
@@ -43,6 +45,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <innodb_priv.h>
 #include <table_cache.h>
 #include <my_check_opt.h>
+
+#undef lower_case_file_system
+#undef mysql_unpacked_real_data_home
+MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
+MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
 #ifdef _WIN32
 #include <io.h>
