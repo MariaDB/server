@@ -45,6 +45,7 @@ add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 # OS specific C flags, definitions and source files.
 #
 IF(UNIX)
+ IF(NOT "${CMAKE_C_COMPILER_ID} ${CMAKE_CXX_COMPILER_ID}" MATCHES SunPro)
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
@@ -71,10 +72,13 @@ IF(UNIX)
 
     #message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
+ ENDIF()
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 
+ IF(NOT "${CMAKE_C_COMPILER_ID} ${CMAKE_CXX_COMPILER_ID}" MATCHES SunPro)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
+ ENDIF()
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
   SET(IPHLPAPI_LIBRARY "")

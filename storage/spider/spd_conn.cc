@@ -2718,11 +2718,16 @@ void *spider_bg_sts_action(
 #endif
   spider_db_handler **dbton_hdl;
 #else
-  int need_mons[share->link_count];
-  SPIDER_CONN *conns[share->link_count];
-  uint conn_link_idx[share->link_count];
-  uchar conn_can_fo[share->link_bitmap_size];
-  char *conn_keys[share->link_count];
+  int *need_mons;
+  SPIDER_CONN **conns;
+  uint *conn_link_idx;
+  uchar *conn_can_fo;
+  char **conn_keys;
+  need_mons = (int *)alloca(share->link_count * sizeof(int));
+  conns = (SPIDER_CONN **)alloca(share->link_count * sizeof(SPIDER_CONN *));
+  conn_link_idx = (uint *)alloca(share->link_count * sizeof(uint));
+  conn_can_fo = (uchar *)alloca(share->link_bitmap_size * sizeof(uchar));
+  conn_keys = (char **)alloca(share->link_count * sizeof(char *));
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *hs_r_conn_keys[share->link_count];
   char *hs_w_conn_keys[share->link_count];
@@ -3100,11 +3105,16 @@ void *spider_bg_crd_action(
 #endif
   spider_db_handler **dbton_hdl;
 #else
-  int need_mons[share->link_count];
-  SPIDER_CONN *conns[share->link_count];
-  uint conn_link_idx[share->link_count];
-  uchar conn_can_fo[share->link_bitmap_size];
-  char *conn_keys[share->link_count];
+  int *need_mons;
+  SPIDER_CONN **conns;
+  uint *conn_link_idx;
+  uchar *conn_can_fo;
+  char **conn_keys;
+  need_mons = (int *)alloca(share->link_count * sizeof(int));
+  conns = (SPIDER_CONN **)alloca(share->link_count * sizeof(SPIDER_CONN *));
+  conn_link_idx = (uint *)alloca(share->link_count * sizeof(uint));
+  conn_can_fo = (uchar *)alloca(share->link_bitmap_size * sizeof(uchar));
+  conn_keys = (char **)alloca(share->link_count * sizeof(char *));
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *hs_r_conn_keys[share->link_count];
   char *hs_w_conn_keys[share->link_count];
@@ -3422,7 +3432,8 @@ int spider_create_mon_threads(
         SPIDER_SQL_INT_LEN + 1);
       conv_name_str.set_charset(system_charset_info);
 #else
-      char buf[share->table_name_length + SPIDER_SQL_INT_LEN + 1];
+      char *buf;
+      buf = (char *)alloca((share->table_name_length + SPIDER_SQL_INT_LEN + 1) * sizeof(char));
       spider_string conv_name_str(buf, share->table_name_length +
         SPIDER_SQL_INT_LEN + 1, system_charset_info);
 #endif
@@ -3752,8 +3763,10 @@ int spider_conn_first_link_idx(
   int *link_idxs, link_idx;
   long *balances;
 #else
-  int link_idxs[link_count];
-  long balances[link_count];
+  int *link_idxs;
+  long *balances;
+  link_idxs = (int *)alloca((link_count) * sizeof(int));
+  balances = (long *)alloca((link_count) * sizeof(long));
 #endif
   DBUG_ENTER("spider_conn_first_link_idx");
 #ifdef _MSC_VER

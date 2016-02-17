@@ -537,6 +537,67 @@ inline uint32 sphF2DW ( float f )	{ union { float f; uint32 d; } u; u.f = f; ret
 inline float sphDW2F ( uint32 d )	{ union { float f; uint32 d; } u; u.d = d; return u.f; }
 
 
+template < typename T > int ParseArray ( T ** ppValues, const char * sValue );
+
+template < typename T >
+int ParseArray ( T ** ppValues, const char * sValue )
+{
+	SPH_ENTER_METHOD();
+
+	assert ( ppValues );
+	assert ( !(*ppValues) );
+
+	const char * pValue;
+	bool bPrevDigit = false;
+	int iValues = 0;
+
+	// count the values
+	for ( pValue=sValue; *pValue; pValue++ )
+	{
+		bool bDigit = (*pValue)>='0' && (*pValue)<='9';
+		if ( bDigit && !bPrevDigit )
+			iValues++;
+		bPrevDigit = bDigit;
+	}
+	if ( !iValues )
+		SPH_RET(0);
+
+	// extract the values
+	T * pValues = new T [ iValues ];
+	*ppValues = pValues;
+
+	int iIndex = 0, iSign = 1;
+	T uValue = 0;
+
+	bPrevDigit = false;
+	for ( pValue=sValue ;; pValue++ )
+	{
+		bool bDigit = (*pValue)>='0' && (*pValue)<='9';
+
+		if ( bDigit )
+		{
+			if ( !bPrevDigit )
+				uValue = 0;
+			uValue = uValue*10 + ( (*pValue)-'0' );
+		} else if ( bPrevDigit )
+		{
+			assert ( iIndex<iValues );
+			pValues [ iIndex++ ] = uValue * iSign;
+			iSign = 1;
+		} else if ( *pValue=='-' )
+			iSign = -1;
+
+		bPrevDigit = bDigit;
+		if ( !*pValue )
+			break;
+	}
+
+	SPH_RET ( iValues );
+}
+
+template int ParseArray<uint32> ( uint32 **, const char * );
+template int ParseArray<longlong> ( longlong **, const char * );
+
 /// client-side search query
 struct CSphSEQuery
 {
@@ -622,7 +683,11 @@ protected:
 	int				m_iBufLeft;
 	bool			m_bBufOverrun;
 
-	template < typename T > int ParseArray ( T ** ppValues, const char * sValue );
+	union
+	{
+		template int ParseArray<uint32> ( uint32 **, const char * );
+		template int ParseArray<longlong> ( longlong **, const char * );
+	};
 	bool			ParseField ( char * sField );
 
 	void			SendBytes ( const void * pBytes, int iBytes );
@@ -633,9 +698,6 @@ protected:
 	void			SendString ( const char * v )	{ int iLen = strlen(v); SendDword(iLen); SendBytes ( v, iLen ); }
 	void			SendFloat ( float v )			{ SendDword ( sphF2DW(v) ); }
 };
-
-template int CSphSEQuery::ParseArray<uint32> ( uint32 **, const char * );
-template int CSphSEQuery::ParseArray<longlong> ( longlong **, const char * );
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1323,63 +1385,6 @@ CSphSEQuery::~CSphSEQuery ()
 	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 		SafeDelete ( m_dOverrides.at(i) );
 	SPH_VOID_RET();
-}
-
-
-template < typename T >
-int CSphSEQuery::ParseArray ( T ** ppValues, const char * sValue )
-{
-	SPH_ENTER_METHOD();
-
-	assert ( ppValues );
-	assert ( !(*ppValues) );
-
-	const char * pValue;
-	bool bPrevDigit = false;
-	int iValues = 0;
-
-	// count the values
-	for ( pValue=sValue; *pValue; pValue++ )
-	{
-		bool bDigit = (*pValue)>='0' && (*pValue)<='9';
-		if ( bDigit && !bPrevDigit )
-			iValues++;
-		bPrevDigit = bDigit;
-	}
-	if ( !iValues )
-		SPH_RET(0);
-
-	// extract the values
-	T * pValues = new T [ iValues ];
-	*ppValues = pValues;
-
-	int iIndex = 0, iSign = 1;
-	T uValue = 0;
-
-	bPrevDigit = false;
-	for ( pValue=sValue ;; pValue++ )
-	{
-		bool bDigit = (*pValue)>='0' && (*pValue)<='9';
-
-		if ( bDigit )
-		{
-			if ( !bPrevDigit )
-				uValue = 0;
-			uValue = uValue*10 + ( (*pValue)-'0' );
-		} else if ( bPrevDigit )
-		{
-			assert ( iIndex<iValues );
-			pValues [ iIndex++ ] = uValue * iSign;
-			iSign = 1;
-		} else if ( *pValue=='-' )
-			iSign = -1;
-
-		bPrevDigit = bDigit;
-		if ( !*pValue )
-			break;
-	}
-
-	SPH_RET ( iValues );
 }
 
 
