@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4674,10 +4674,10 @@ corrupt:
 
 					ib_push_warning((void *)NULL, DB_DECRYPTION_FAILED,
 						"Table in tablespace %lu encrypted."
-						"However key management plugin or used key_id %lu is not found or"
+						"However key management plugin or used key_id %u is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
-						bpage->key_version);
+						(ulint)bpage->space, bpage->key_version);
 
 					if (bpage->space > TRX_SYS_SPACE) {
 						if (corrupted) {
@@ -4701,10 +4701,19 @@ corrupt:
 		}
 
 		if (uncompressed && !recv_no_ibuf_operations) {
-			ibuf_merge_or_delete_for_page(
-				(buf_block_t*) bpage, bpage->space,
-				bpage->offset, buf_page_get_zip_size(bpage),
-				TRUE);
+			if (bpage && bpage->encrypted) {
+				fprintf(stderr,
+					"InnoDB: Warning: Table in tablespace %lu encrypted."
+					"However key management plugin or used key_id %u is not found or"
+					" used encryption algorithm or method does not match."
+					" Can't continue opening the table.\n",
+					(ulint)bpage->space, bpage->key_version);
+			} else {
+				ibuf_merge_or_delete_for_page(
+					(buf_block_t*) bpage, bpage->space,
+					bpage->offset, buf_page_get_zip_size(bpage),
+					TRUE);
+			}
 		}
 	} else {
 		/* io_type == BUF_IO_WRITE */
@@ -6156,6 +6165,7 @@ buf_page_decrypt_after_read(
 	bool page_compressed = fil_page_is_compressed(dst_frame);
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
+	bool success = true;
 
 	/* If page is encrypted read post-encryption checksum */
 	if (!page_compressed_encrypted && key_version != 0) {
@@ -6214,16 +6224,21 @@ buf_page_decrypt_after_read(
 			}
 
 			/* decrypt using crypt_buf to dst_frame */
-			fil_space_decrypt(bpage->space,
-					  slot->crypt_buf,
-					  size,
-					  dst_frame);
+			byte* res = fil_space_decrypt(bpage->space,
+						slot->crypt_buf,
+						size,
+						dst_frame);
+
+			if (!res) {
+				bpage->encrypted = true;
+				success = false;
+			}
 #ifdef UNIV_DEBUG
 			fil_page_type_validate(dst_frame);
 #endif
 		}
 
-		if (page_compressed_encrypted) {
+		if (page_compressed_encrypted && success) {
 			if (!slot) {
 				slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
 			}
@@ -6236,11 +6251,11 @@ buf_page_decrypt_after_read(
 					dst_frame,
 					size,
 					&bpage->write_size);
-		}
 
 #ifdef UNIV_DEBUG
-		fil_page_type_validate(dst_frame);
+			fil_page_type_validate(dst_frame);
 #endif
+		}
 
 		/* Mark this slot as free */
 		if (slot) {
@@ -6250,5 +6265,5 @@ buf_page_decrypt_after_read(
 
 	bpage->key_version = key_version;
 
-	return (TRUE);
+	return (success);
 }

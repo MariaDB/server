@@ -799,6 +799,7 @@ fil_space_decrypt(
 	byte*		src_frame)	/*!< in/out: page buffer */
 {
 	dberr_t err = DB_SUCCESS;
+	byte* res = NULL;
 
 	bool encrypted = fil_space_decrypt(
 				fil_space_get_crypt_data(space),
@@ -807,13 +808,17 @@ fil_space_decrypt(
 				src_frame,
 				&err);
 
-	if (encrypted) {
-		/* Copy the decrypted page back to page buffer, not
-		really any other options. */
-		memcpy(src_frame, tmp_frame, page_size);
+	if (err == DB_SUCCESS) {
+		if (encrypted) {
+			/* Copy the decrypted page back to page buffer, not
+			really any other options. */
+			memcpy(src_frame, tmp_frame, page_size);
+		}
+
+		res = src_frame;
 	}
 
-	return src_frame;
+	return res;
 }
 
 /******************************************************************
