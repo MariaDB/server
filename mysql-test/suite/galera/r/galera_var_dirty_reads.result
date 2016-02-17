@@ -33,11 +33,12 @@ SELECT 1;
 1
 1
 USE information_schema;
-ERROR 08S01: WSREP has not yet prepared node for application use
 SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
-ERROR 08S01: WSREP has not yet prepared node for application use
+VARIABLE_NAME	VARIABLE_VALUE
+WSREP_DIRTY_READS	OFF
 SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
-ERROR 08S01: WSREP has not yet prepared node for application use
+COUNT(*) >= 10
+1
 USE test;
 SELECT * FROM t1;
 i

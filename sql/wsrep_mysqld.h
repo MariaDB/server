@@ -80,6 +80,7 @@ extern const char* wsrep_notify_cmd;
 extern long        wsrep_max_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
+extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_replicate_myisam;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_restart_slave;
@@ -91,6 +92,12 @@ extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern bool        wsrep_dirty_reads;
+
+enum enum_wsrep_reject_types {
+  WSREP_REJECT_NONE,    /* nothing rejected */
+  WSREP_REJECT_ALL,     /* reject all queries, with UNKNOWN_COMMAND error */
+  WSREP_REJECT_ALL_KILL /* kill existing connections and reject all queries*/
+};
 
 enum enum_wsrep_OSU_method {
     WSREP_OSU_TOI,

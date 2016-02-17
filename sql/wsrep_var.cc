@@ -34,6 +34,7 @@ const  char* wsrep_node_name        = 0;
 const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
+ulong   wsrep_reject_queries;
 
 static long wsrep_prev_slave_threads = wsrep_slave_threads;
 
@@ -382,6 +383,30 @@ void wsrep_provider_options_init(const char* value)
   if (wsrep_provider_options && wsrep_provider_options != value) 
     my_free((void *)wsrep_provider_options);
   wsrep_provider_options = (value) ? my_strdup(value, MYF(0)) : NULL;
+}
+
+bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
+{
+    switch (wsrep_reject_queries) {
+        case WSREP_REJECT_NONE:
+            wsrep_ready_set(TRUE); 
+            WSREP_INFO("Allowing client queries due to manual setting");
+            break;
+        case WSREP_REJECT_ALL:
+            wsrep_ready_set(FALSE);
+            WSREP_INFO("Rejecting client queries due to manual setting");
+            break;
+        case WSREP_REJECT_ALL_KILL:
+            wsrep_ready_set(FALSE);
+            wsrep_close_client_connections(FALSE);
+            WSREP_INFO("Rejecting client queries and killing connections due to manual setting");
+            break;
+        default:
+          WSREP_INFO("Unknown value for wsrep_reject_queries: %lu",
+                     wsrep_reject_queries);
+            return true;
+    }
+    return false;
 }
 
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
