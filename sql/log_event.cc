@@ -11394,7 +11394,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   /* unpack row into table->record[0] */
   if ((error= unpack_current_row(rgi)))
+  {
+    table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
+  }
 
   if (m_curr_row == m_rows_buf && !invoke_triggers)
   {
@@ -12453,8 +12456,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       We need to read the second image in the event of error to be
       able to skip to the next pair of updates
     */
-    m_curr_row= m_curr_row_end;
-    unpack_current_row(rgi);
+    if ((m_curr_row= m_curr_row_end))
+      unpack_current_row(rgi);
     return error;
   }
 
