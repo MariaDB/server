@@ -275,6 +275,7 @@ void init_update_queries(void)
   server_command_flags[COM_SHUTDOWN]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_SLEEP]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_TIME]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_INIT_DB]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_END]= CF_SKIP_WSREP_CHECK;
 
   /*
@@ -913,7 +914,8 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 #ifdef WITH_WSREP
 static bool wsrep_node_is_ready(THD *thd)
 {
-  if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready)
+  if (thd->variables.wsrep_on && !thd->wsrep_applier &&
+      (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE))
   {
     my_message(ER_UNKNOWN_COM_ERROR,
                "WSREP has not yet prepared node for application use",
@@ -1104,8 +1106,9 @@ bool do_command(THD *thd)
   /*
     Bail out if DB snapshot has not been installed.
   */
-  if (!(server_command_flags[command] & CF_SKIP_WSREP_CHECK) &&
-      !wsrep_node_is_ready(thd))
+  if (thd->variables.wsrep_on && !thd->wsrep_applier &&
+      (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE) &&
+      (server_command_flags[command] & CF_SKIP_WSREP_CHECK) == 0)
   {
     thd->protocol->end_statement();
 
@@ -2674,19 +2677,18 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. SET and SHOW commands,
-      however, are always allowed.
-      Select query is also allowed if it does not access any table.
-      We additionally allow all other commands that do not change data in
-      case wsrep_dirty_reads is enabled.
-    */
-    if (thd->variables.wsrep_on && !thd->wsrep_applier &&
-        !(wsrep_ready ||
-          (thd->variables.wsrep_dirty_reads &&
-           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0) ||
-          wsrep_tables_accessible_when_detached(all_tables)) &&
-         lex->sql_command != SQLCOM_SET_OPTION &&
-         !wsrep_is_show_query(lex->sql_command))
+     * Bail out if DB snapshot has not been installed. We however,
+     * allow SET and SHOW queries and reads from information schema
+     * and dirty reads (if configured)
+     */
+    if (thd->variables.wsrep_on &&
+	!thd->wsrep_applier &&
+        !(wsrep_ready && wsrep_reject_queries == WSREP_REJECT_NONE)        &&
+        !(thd->variables.wsrep_dirty_reads &&
+          (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
+        !wsrep_tables_accessible_when_detached(all_tables)                 &&
+        lex->sql_command != SQLCOM_SET_OPTION                              &&
+        !wsrep_is_show_query(lex->sql_command))
     {
       my_message(ER_UNKNOWN_COM_ERROR,
                  "WSREP has not yet prepared node for application use", MYF(0));
