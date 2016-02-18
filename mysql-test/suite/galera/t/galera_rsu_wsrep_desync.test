@@ -34,6 +34,7 @@ SHOW VARIABLES LIKE 'wsrep_desync';
 SET wsrep_OSU_method=TOI;
 
 DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
 
 # Next, test wsrep_desync 0 > 1 during DDL, currently not allowed
 
@@ -62,8 +63,11 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 --reap
 
 SHOW CREATE TABLE t1;
+
+# Restore old state
 SET wsrep_OSU_method=TOI;
 DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
 
 CALL mtr.add_suppression("Protocol violation");
 CALL mtr.add_suppression("desync failed");

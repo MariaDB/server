@@ -16,6 +16,7 @@ Variable_name	Value
 wsrep_desync	OFF
 SET wsrep_OSU_method=TOI;
 DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 SET GLOBAL wsrep_desync=0;
 Warnings:
@@ -35,6 +36,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SET wsrep_OSU_method=TOI;
 DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
 CALL mtr.add_suppression("Protocol violation");
 CALL mtr.add_suppression("desync failed");
 CALL mtr.add_suppression("Protocol violation");
