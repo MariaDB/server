@@ -6805,18 +6805,17 @@ void THD::reset_for_next_command()
     transactions. Appliers and replayers are either processing ROW
     events or get autoinc variable values from Query_log_event.
   */
-  if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE) {
-    if (wsrep_auto_increment_control)
-    {
-      if (thd->variables.auto_increment_offset !=
-	  global_system_variables.auto_increment_offset)
-	thd->variables.auto_increment_offset=
-	  global_system_variables.auto_increment_offset;
-      if (thd->variables.auto_increment_increment !=
-	  global_system_variables.auto_increment_increment)
-	thd->variables.auto_increment_increment=
-	  global_system_variables.auto_increment_increment;
-    }
+  if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE &&
+      !thd->slave_thread && wsrep_auto_increment_control)
+  {
+    if (thd->variables.auto_increment_offset !=
+        global_system_variables.auto_increment_offset)
+      thd->variables.auto_increment_offset=
+        global_system_variables.auto_increment_offset;
+    if (thd->variables.auto_increment_increment !=
+        global_system_variables.auto_increment_increment)
+      thd->variables.auto_increment_increment=
+        global_system_variables.auto_increment_increment;
   }
 #endif /* WITH_WSREP */
   thd->query_start_used= 0;

@@ -1,0 +1,79 @@
+#
+# Test Galera as a slave to a MySQL master
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+#
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/galera_cluster.inc
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE USER='root';
+
+--connection node_1
+
+##
+## Verify the correct operation of the auto-increment when
+## the binlog format set to the 'STATEMENT' on the master node:
+##
+
+SET SESSION binlog_format='STATEMENT';
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like '%auto_increment%';
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like '%auto_increment%';
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like '%auto_increment%';
+
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_1
+
+SET GLOBAL binlog_format='ROW';
+
+RESET MASTER;

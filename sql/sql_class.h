@@ -660,6 +660,7 @@ typedef struct system_variables
   uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
   ulong wsrep_OSU_method;
+  ulong wsrep_auto_increment_control;
 #endif
   double long_query_time_double;
 
