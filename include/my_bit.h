@@ -121,6 +121,15 @@ static inline uint32 my_reverse_bits(uint32 key)
      _my_bits_reverse_table[(key>>24)      ];
 }
 
+/*
+  a number with the n lowest bits set
+  an overflow-safe version of  (1 << n) - 1
+*/
+static inline uint32 my_set_bits(int n)
+{
+  return (((1UL << (n - 1)) - 1) << 1) | 1;
+}
+
 C_MODE_END
 
 #endif /* MY_BIT_INCLUDED */
