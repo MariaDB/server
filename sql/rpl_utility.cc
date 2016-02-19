@@ -98,20 +98,22 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
     return 3;
 
   case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_TIME:
     return 3;
+
+  case MYSQL_TYPE_TIME:
+    return MIN_TIME_WIDTH;
 
   case MYSQL_TYPE_TIME2:
     return max_display_length_for_temporal2_field(MIN_TIME_WIDTH, metadata);
 
   case MYSQL_TYPE_TIMESTAMP:
-    return 4;
+    return MAX_DATETIME_WIDTH;
 
   case MYSQL_TYPE_TIMESTAMP2:
     return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
 
   case MYSQL_TYPE_DATETIME:
-    return 8;
+    return MAX_DATETIME_WIDTH;
 
   case MYSQL_TYPE_DATETIME2:
     return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
