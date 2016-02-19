@@ -18,13 +18,29 @@ i	c
 2	dummy_text
 3	dummy_text
 4	dummy_text
+SET SESSION auto_increment_increment=7;
+insert into t1(i) values(null), (null), (null);
+SET SESSION auto_increment_offset=5;
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+2	dummy_text
+3	dummy_text
+4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
 show variables like 'binlog_format';
 Variable_name	Value
 binlog_format	STATEMENT
 show variables like '%auto_increment%';
 Variable_name	Value
-auto_increment_increment	1
-auto_increment_offset	1
+auto_increment_increment	7
+auto_increment_offset	5
 wsrep_auto_increment_control	ON
 select * from t1;
 i	c
@@ -32,30 +48,37 @@ i	c
 2	dummy_text
 3	dummy_text
 4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
 show variables like 'binlog_format';
 Variable_name	Value
 binlog_format	ROW
-show variables like '%auto_increment%';
+show variables like 'auto_increment_increment';
 Variable_name	Value
 auto_increment_increment	2
-auto_increment_offset	1
-wsrep_auto_increment_control	ON
 select * from t1;
 i	c
 1	dummy_text
 2	dummy_text
 3	dummy_text
 4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
 show variables like 'binlog_format';
 Variable_name	Value
 binlog_format	ROW
-show variables like '%auto_increment%';
+show variables like 'auto_increment_increment';
 Variable_name	Value
 auto_increment_increment	2
-auto_increment_offset	2
-wsrep_auto_increment_control	ON
 DROP TABLE t1;
 STOP SLAVE;
 RESET SLAVE ALL;
-SET GLOBAL binlog_format='ROW';
 RESET MASTER;
