@@ -38,7 +38,9 @@ public:
   Window_frame_bound(Bound_precedence_type prec_type,
                      Item *offset_val)
     : precedence_type(prec_type), offset(offset_val) {}
- 
+
+  bool is_unbounded() { return offset == NULL; }
+
 };
 
 
@@ -76,6 +78,8 @@ public:
     : units(win_frame_units), top_bound(win_frame_top_bound),
       bottom_bound(win_frame_bottom_bound), exclusion(win_frame_exclusion) {}
 
+  bool check_frame_bounds();
+
 };
 
 class Window_spec : public Sql_alloc
@@ -99,11 +103,12 @@ class Window_spec : public Sql_alloc
     : window_ref(win_ref), partition_list(part_list), order_list(ord_list),
     window_frame(win_frame), referenced_win_spec(NULL) {}
 
-    virtual char *name() { return NULL; }
+  virtual char *name() { return NULL; }
 
-    bool check_window_names(List_iterator_fast<Window_spec> &it);
+  bool check_window_names(List_iterator_fast<Window_spec> &it);
 
-    char *window_reference() { return window_ref ? window_ref->str : NULL; }
+
+  char *window_reference() { return window_ref ? window_ref->str : NULL; }
 };
 
 class Window_def : public Window_spec
@@ -120,7 +125,7 @@ class Window_def : public Window_spec
     : Window_spec(win_ref, part_list, ord_list, win_frame),
       window_name(win_name) {}
  
-    char *name() { return window_name->str; }
+  char *name() { return window_name->str; }
 
 };
 

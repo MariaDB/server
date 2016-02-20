@@ -5,9 +5,47 @@
 
 
 bool
+Item_window_func::resolve_window_name(THD *thd)
+{
+  DBUG_ASSERT(window_name != NULL && window_spec == NULL);
+  char *ref_name= window_name->str;
+
+  /* !TODO: Add the code to resolve ref_name in outer queries */ 
+  /* 
+    First look for the deinition of the window with 'window_name'
+    in the current select
+  */
+  List<Window_spec> curr_window_specs=thd->lex->current_select->window_specs;
+  List_iterator_fast<Window_spec> it(curr_window_specs);
+  Window_spec *win_spec;
+  while((win_spec= it++))
+  {
+    char *win_spec_name= win_spec->name();
+    if (win_spec_name &&
+        my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+    {
+      window_spec= win_spec;
+      break;
+    }
+  }
+
+  if (!window_spec)
+  {
+    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
+    return true;
+  }
+
+  return false;                      
+}
+
+
+bool
 Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
+
+  if (window_name && resolve_window_name(thd))
+    return true;
   
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
@@ -16,14 +54,14 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     object. Is this the intent?
   */
   if (window_func->fix_fields(thd, ref))
-    return TRUE;
+    return true;
 
   max_length= window_func->max_length;
 
   fixed= 1;
   force_return_blank= true;
   read_value_from_result_field= false;
-  return FALSE;
+  return false;
 }
 
 

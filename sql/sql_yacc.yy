@@ -8489,19 +8489,20 @@ select_part2:
           opt_where_clause
           opt_group_clause
           opt_having_clause
+          opt_window_clause
           opt_order_clause
           opt_limit_clause
           opt_procedure_clause
           opt_into
           opt_select_lock_type
           {
-            if ($2 && $10)
+            if ($2 && $11)
             {
               /* double "INTO" clause */
               my_error(ER_WRONG_USAGE, MYF(0), "INTO", "INTO");
               MYSQL_YYABORT;
             }
-            if ($9 && ($2 || $10))
+            if ($10 && ($2 || $11))
             {
               /* "INTO" with "PROCEDURE ANALYSE" */
               my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "INTO");

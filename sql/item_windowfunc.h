@@ -386,6 +386,9 @@ public:
   const char* func_name() const { return "WF"; }
 
   bool fix_fields(THD *thd, Item **ref);
+  
+  bool resolve_window_name(THD *thd);
+
 };
 
 

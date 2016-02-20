@@ -10,48 +10,68 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
   char *name= this->name();
   char *ref_name= window_reference();
-  bool win_ref_is_resolved= false;
   it.rewind();
   Window_spec *win_spec;
   while((win_spec= it++) && win_spec != this)
   {
     char *win_spec_name= win_spec->name();
-    if (win_spec_name)
+    if (!win_spec_name)
+      break;
+    if (name && my_strcasecmp(system_charset_info, name, win_spec_name) == 0)
     {
-      if (name && my_strcasecmp(system_charset_info, name, win_spec_name) == 0)
+      my_error(ER_DUP_WINDOW_NAME, MYF(0), name);
+      return true;
+    }
+    if (ref_name &&
+        my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+    {
+      if (partition_list.elements)
       {
-        my_error(ER_DUP_WINDOW_NAME, MYF(0), name);
+        my_error(ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
+                 ref_name);
         return true;
       }
-      if (ref_name &&
-          my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+      if (win_spec->order_list.elements && order_list.elements)
       {
-        if (win_spec->partition_list.elements)
-	{
-          my_error(ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
-                   ref_name);
-          return true;
-        }
-        if (win_spec->order_list.elements && order_list.elements)
-	{
-          my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
-          return true;              
-        } 
-        if (win_spec->window_frame) 
-	{
-          my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0), ref_name);
-          return true;              
-        }
-        referenced_win_spec=win_spec; 
-        win_ref_is_resolved= true; 
+        my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
+        return true;              
+      } 
+      if (win_spec->window_frame) 
+      {
+        my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0), ref_name);
+        return true;              
       }
+      referenced_win_spec= win_spec;
+      if (partition_list.elements == 0)
+        partition_list= win_spec->partition_list;
+      if (order_list.elements == 0)
+        order_list= win_spec->order_list;
     }
   }
-  if (ref_name && !win_ref_is_resolved)
+  if (ref_name && !referenced_win_spec)
   {
     my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
     return true;              
   }
+  return false;
+}
+
+bool
+Window_frame::check_frame_bounds()
+{
+  if ((top_bound->is_unbounded() &&
+       top_bound->precedence_type == Window_frame_bound::FOLLOWING) ||
+      (bottom_bound->is_unbounded() &&
+       bottom_bound->precedence_type == Window_frame_bound::PRECEDING) ||
+      (top_bound->precedence_type == Window_frame_bound::CURRENT &&
+       bottom_bound->precedence_type == Window_frame_bound::PRECEDING) ||
+      (bottom_bound->precedence_type == Window_frame_bound::CURRENT &&
+       top_bound->precedence_type == Window_frame_bound::FOLLOWING))
+  {
+    my_error(ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS, MYF(0));
+    return true;              
+  }
+
   return false;
 }
 
@@ -64,6 +84,24 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   Window_spec *win_spec;
   DBUG_ENTER("setup_windows");
   List_iterator<Window_spec> it(win_specs);
+
+  /* 
+    Move all unnamed specifications after the named ones.
+    We could have avoided it if we had built two separate lists for
+    named and unnamed specifications.
+  */
+  uint i = 0;
+  uint elems= win_specs.elements;
+  while ((win_spec= it++) && i++ < elems)
+  {
+    if (win_spec->name() == NULL)
+    {
+      it.remove();
+      win_specs.push_back(win_spec);
+    }
+  }
+  it.rewind();
+
   List_iterator_fast<Window_spec> itp(win_specs);
     
   while ((win_spec= it++))
@@ -73,7 +111,9 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                     win_spec->partition_list.first, &hidden_group_fields) ||
         setup_order(thd, ref_pointer_array, tables, fields, all_fields,
-                    win_spec->order_list.first))
+                    win_spec->order_list.first) ||
+        (win_spec->window_frame && 
+         win_spec->window_frame->check_frame_bounds()))
     {
       DBUG_RETURN(1);
     }

@@ -253,3 +253,173 @@ pk	c	CNT
 9	2	2
 10	2	1
 drop table t0,t1;
+#
+# Resolution of window names
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select 
+pk, c, 
+count(*) over w1 as CNT
+from t1
+window w1 as (partition by c order by pk 
+rows between 2 preceding and 2 following);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select 
+pk, c, 
+count(*) over (w1 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c order by pk);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select 
+pk, c, 
+count(*) over (w1 order by pk rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select 
+pk, c, 
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 order by pk);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select 
+pk, c, 
+count(*) over w3 as CNT
+from t1
+window
+w1 as (partition by c), 
+w2 as (w1 order by pk),
+w3 as (w2 rows between 2 preceding and 2 following);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select 
+pk, c, 
+count(*) over w as CNT
+from t1
+window w1 as (partition by c order by pk 
+rows between 2 preceding and 2 following);
+ERROR HY000: Window specification with name 'w' is not defined
+select 
+pk, c, 
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w1 as (order by pk);
+ERROR HY000: Multiple window specifications with the same name 'w1'
+select 
+pk, c, 
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w partition by c order by pk);
+ERROR HY000: Window specification with name 'w' is not defined
+select 
+pk, c, 
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 partition by c order by pk);
+ERROR HY000: Window specification referencing another one 'w1' cannot contain partition list
+select 
+pk, c, 
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c order by pk), w2 as (w1 order by pk);
+ERROR HY000: Referenced window specification 'w1' already contains order list
+select 
+pk, c, 
+count(*) over w3 as CNT
+from t1
+window
+w1 as (partition by c), 
+w2 as (w1 order by pk rows between 3 preceding and 2 following),
+w3 as (w2 rows between 2 preceding and 2 following);
+ERROR HY000: Referenced window specification 'w2' cannot contain window frame
+select 
+pk, c, 
+count(*) over w1 as CNT
+from t1
+window w1 as (partition by c order by pk 
+rows between unbounded following and 2 following);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select 
+pk, c, 
+count(*) over (w1 rows between 2 preceding and unbounded preceding) as CNT
+from t1
+window w1 as (partition by c order by pk);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select 
+pk, c, 
+count(*) over (w1 order by pk rows between current row and 2 preceding) as CNT
+from t1
+window w1 as (partition by c);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select 
+pk, c, 
+count(*) over (w2 rows between 2 following and current row) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 order by pk);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+drop table t0,t1;
