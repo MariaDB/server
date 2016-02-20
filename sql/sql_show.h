@@ -117,7 +117,10 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
 COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
-ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
+ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name, bool *in_plugin);
+static inline ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
+{ bool unused; return find_schema_table(thd, table_name, &unused); }
+
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
                        ST_SCHEMA_TABLE *schema_table);

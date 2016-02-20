@@ -12865,9 +12865,10 @@ show_param:
         | IDENT_sys remember_tok_start wild_and_where
            {
              LEX *lex= Lex;
+             bool in_plugin;
              lex->sql_command= SQLCOM_SHOW_GENERIC;
-             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str);
-             if (!table || !table->old_format)
+             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str, &in_plugin);
+             if (!table || !table->old_format || !in_plugin)
              {
                my_parse_error(thd, ER_SYNTAX_ERROR, $2);
                MYSQL_YYABORT;

@@ -7374,12 +7374,14 @@ static my_bool find_schema_table_in_plugin(THD *thd, plugin_ref plugin,
     #   pointer to 'schema_tables' element
 */
 
-ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
+ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name,
+                                   bool *in_plugin)
 {
   schema_table_ref schema_table_a;
   ST_SCHEMA_TABLE *schema_table= schema_tables;
   DBUG_ENTER("find_schema_table");
 
+  *in_plugin= false;
   for (; schema_table->table_name; schema_table++)
   {
     if (!my_strcasecmp(system_charset_info,
@@ -7388,6 +7390,7 @@ ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
       DBUG_RETURN(schema_table);
   }
 
+  *in_plugin= true;
   schema_table_a.table_name= table_name;
   if (plugin_foreach(thd, find_schema_table_in_plugin,
                      MYSQL_INFORMATION_SCHEMA_PLUGIN, &schema_table_a))
