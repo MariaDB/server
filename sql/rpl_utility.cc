@@ -991,6 +991,17 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
       */
       unsigned_flag= static_cast<Field_num*>(target_field)->unsigned_flag;
       break;
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_DATETIME:
+      /*
+        As we don't know the precision of the temporal field on the master,
+        assume it's the same on master and slave.  This is true when not
+        using conversions so it should be true also when using conversions.
+      */
+      if (target_field->decimals())
+        max_length+= target_field->decimals() + 1;
+      break;
     default:
       break;
     }
