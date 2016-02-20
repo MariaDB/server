@@ -2381,7 +2381,7 @@ bool Item_field::update_table_bitmaps_processor(uchar *arg)
 
 static inline void set_field_to_new_field(Field **field, Field **new_field)
 {
-  if (*field)
+  if (*field && (*field)->table == new_field[0]->table)
   {
     Field *newf= new_field[(*field)->field_index];
     if ((*field)->ptr == newf->ptr)
