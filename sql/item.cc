@@ -2394,6 +2394,7 @@ bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
   Field **new_fields= (Field **)arg;
   set_field_to_new_field(&field, new_fields);
   set_field_to_new_field(&result_field, new_fields);
+  maybe_null= field && field->maybe_null();
   return 0;
 }
 

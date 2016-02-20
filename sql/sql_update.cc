@@ -368,6 +368,9 @@ int mysql_update(THD *thd,
   if (check_unique_table(thd, table_list))
     DBUG_RETURN(TRUE);
 
+  switch_to_nullable_trigger_fields(fields, table);
+  switch_to_nullable_trigger_fields(values, table);
+
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
@@ -455,8 +458,6 @@ int mysql_update(THD *thd,
   }
   init_ftfuncs(thd, select_lex, 1);
 
-  switch_to_nullable_trigger_fields(fields, table);
-  switch_to_nullable_trigger_fields(values, table);
   table->mark_columns_needed_for_update();
 
   table->update_const_key_parts(conds);

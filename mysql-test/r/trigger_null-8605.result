@@ -322,3 +322,15 @@ select * from t1;
 id
 0
 drop table t1;
+create table t1 (a int not null, b int);
+create trigger trgi before update on t1 for each row do 1;
+insert t1 values (1,1),(2,2),(3,3),(1,4);
+create table t2 select a as c, b as d from t1;
+update t1 set a=(select count(c) from t2 where c+1=a+1 group by a);
+select * from t1;
+a	b
+2	1
+1	2
+1	3
+2	4
+drop table t1, t2;
