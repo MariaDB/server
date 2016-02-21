@@ -561,22 +561,34 @@ bool Item_subselect::is_expensive()
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
     JOIN *cur_join= sl->join;
+
+    /* not optimized subquery */
     if (!cur_join)
-      continue;
+      return true;
+
+    /* very simple subquery */
+    if (!cur_join->tables_list && !sl->first_inner_unit())
+      return false;
+
+    /*
+      If the subquery is not optimised or in the process of optimization
+      it supposed to be expensive
+    */
+    if (!cur_join->optimized)
+      return true;
 
     /*
       Subqueries whose result is known after optimization are not expensive.
       Such subqueries have all tables optimized away, thus have no join plan.
     */
-    if (cur_join->optimized &&
-        (cur_join->zero_result_cause || !cur_join->tables_list))
+    if ((cur_join->zero_result_cause || !cur_join->tables_list))
       return false;
 
     /*
       If a subquery is not optimized we cannot estimate its cost. A subquery is
       considered optimized if it has a join plan.
     */
-    if (!(cur_join->optimized && cur_join->join_tab))
+    if (!cur_join->join_tab)
       return true;
 
     if (sl->first_inner_unit())
