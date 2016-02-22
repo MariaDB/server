@@ -28,12 +28,15 @@ INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDENCIES target1...targetN]
 
-MACRO(MYSQL_ADD_PLUGIN)
+FUNCTION(MYSQL_ADD_PLUGIN)
   MYSQL_PARSE_ARGUMENTS(ARG
     "LINK_LIBRARIES;DEPENDENCIES;MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
     "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
     ${ARGN}
   )
+  IF(WITHOUT_SERVER AND NOT ARG_CLIENT)
+    RETURN()
+  ENDIF()
 
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
@@ -235,14 +238,16 @@ MACRO(MYSQL_ADD_PLUGIN)
   IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
     INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
   ENDIF()
-
-ENDMACRO()
+ENDFUNCTION()
 
 
 # Add all CMake projects under storage  and plugin 
 # subdirectories, configure sql_builtins.cc
 MACRO(CONFIGURE_PLUGINS)
-  FILE(GLOB dirs_storage ${CMAKE_SOURCE_DIR}/storage/*)
+  IF(NOT WITHOUT_SERVER)
+    FILE(GLOB dirs_storage ${CMAKE_SOURCE_DIR}/storage/*)
+  ENDIF()
+
   FILE(GLOB dirs_plugin ${CMAKE_SOURCE_DIR}/plugin/*)
   FOREACH(dir ${dirs_storage} ${dirs_plugin})
     IF (EXISTS ${dir}/CMakeLists.txt)
