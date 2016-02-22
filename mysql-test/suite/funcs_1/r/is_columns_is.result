@@ -363,7 +363,7 @@ def	information_schema	TABLES	AUTO_INCREMENT	14	NULL	YES	bigint	NULL	NULL	20	0	N
 def	information_schema	TABLES	AVG_ROW_LENGTH	9	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	TABLES	CHECKSUM	19	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	TABLES	CHECK_TIME	17	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select	
-def	information_schema	TABLES	CREATE_OPTIONS	20	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(255)			select	
+def	information_schema	TABLES	CREATE_OPTIONS	20	NULL	YES	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select	
 def	information_schema	TABLES	CREATE_TIME	15	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select	
 def	information_schema	TABLES	DATA_FREE	13	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	TABLES	DATA_LENGTH	10	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
@@ -906,7 +906,7 @@ NULL	information_schema	TABLES	UPDATE_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	TABLES	CHECK_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 3.0000	information_schema	TABLES	TABLE_COLLATION	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 NULL	information_schema	TABLES	CHECKSUM	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-3.0000	information_schema	TABLES	CREATE_OPTIONS	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+3.0000	information_schema	TABLES	CREATE_OPTIONS	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLES	TABLE_COMMENT	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLESPACES	TABLESPACE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLESPACES	ENGINE	varchar	64	192	utf8	utf8_general_ci	varchar(64)

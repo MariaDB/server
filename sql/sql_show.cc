@@ -5036,6 +5036,15 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 
+    if (file)
+    {
+      HA_CREATE_INFO create_info;
+      memset(&create_info, 0, sizeof(create_info));
+      file->update_create_info(&create_info);
+      append_directory(thd, &str, "DATA", create_info.data_file_name);
+      append_directory(thd, &str, "INDEX", create_info.index_file_name);
+    }
+
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
 
@@ -8300,8 +8309,8 @@ ST_FIELD_INFO tables_fields_info[]=
    OPEN_FRM_ONLY},
   {"CHECKSUM", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
    (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Checksum", OPEN_FULL_TABLE},
-  {"CREATE_OPTIONS", 255, MYSQL_TYPE_STRING, 0, 1, "Create_options",
-   OPEN_FRM_ONLY},
+  {"CREATE_OPTIONS", 2048, MYSQL_TYPE_STRING, 0, 1, "Create_options",
+   OPEN_FULL_TABLE},
   {"TABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}

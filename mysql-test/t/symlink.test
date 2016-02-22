@@ -292,6 +292,8 @@ eval create table t1 (a int primary key) engine=myisam
       index directory="$MYSQLTEST_VARDIR/run";
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 show create table t1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select create_options from information_schema.tables where table_name='t1';
 --echo # CREATE TABLE LIKE statement on table with INDEX/DATA DIRECTORY
 --echo # options should not fail. Per documentation newly created table
 --echo # should not inherit value of these options from the original table.
