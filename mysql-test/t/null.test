@@ -949,6 +949,15 @@ EXPLAIN EXTENDED SELECT NULLIF(AVG(a),0) FROM t1;
 
 DROP TABLE t1;
 
+#
+# MDEV-9576 syntax error on view with nullif and count
+#
+create table t1 (col1 varchar(50));
+create view v1 AS select nullif(count(distinct col1),0) from t1;
+show create view v1;
+drop view v1;
+drop table t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

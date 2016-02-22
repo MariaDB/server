@@ -2584,7 +2584,7 @@ Item_func_nullif::fix_length_and_dec()
     args[0] and args[2] should still point to the same original l_expr.
   */
   DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
-  if (args[0]->type() == SUM_FUNC_ITEM)
+  if (args[0]->type() == SUM_FUNC_ITEM && !thd->lex->context_analysis_only)
   {
     /*
       NULLIF(l_expr, r_expr)
@@ -2757,7 +2757,7 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       Note, the EXPLAIN EXTENDED and EXPLAIN FORMAT=JSON routines
       do pass QT_ITEM_FUNC_NULLIF_TO_CASE to print().
     */
-    DBUG_ASSERT(args[0] == args[2]);
+    DBUG_ASSERT(args[0] == args[2] || current_thd->lex->context_analysis_only);
     str->append(func_name());
     str->append('(');
     args[2]->print(str, query_type);
