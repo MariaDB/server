@@ -155,6 +155,50 @@ FLUSH RELAY LOGS;
 --eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
 --enable_query_log
 
+--connection node_1
+SET @userstat_old= @@userstat;
+SET GLOBAL userstat=ON;
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+FLUSH CLIENT_STATISTICS;
+FLUSH INDEX_STATISTICS;
+FLUSH TABLE_STATISTICS;
+FLUSH USER_STATISTICS;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 4 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
+--connection node_1
+SET @old_thread_statistics= @@global.thread_statistics;
+SET GLOBAL thread_statistics= ON;
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+FLUSH THREAD_STATISTICS;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--connection node_1
+FLUSH CHANGED_PAGE_BITMAPS;
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
+--enable_query_log
+
+
 #
 # The following statements should not be replicated: FLUSH LOGS, FLUSH TABLES WITH LOCKS
 #
@@ -220,6 +264,10 @@ FLUSH TABLES t1;
 --eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 1 AS wsrep_last_committed_diff;
 --enable_query_log
 
+
+
 --connection node_1
 DROP TABLE t1;
 DROP TABLE t2;
+SET GLOBAL userstat= @userstat_old;
+SET GLOBAL thread_statistics= @old_thread_statistics;
