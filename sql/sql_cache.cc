@@ -1963,7 +1963,7 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     unlock();
     if (wsrep_sync_wait(thd))
       goto err;
-    if (try_lock(TRUE))
+    if (try_lock(thd, Query_cache::TIMEOUT))
       goto err;
     query_block = (Query_cache_block *) my_hash_search(&queries,
                                                        (uchar*) sql,
