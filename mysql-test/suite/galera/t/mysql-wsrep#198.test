@@ -1,6 +1,5 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_binlog_format_row.inc
 
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
