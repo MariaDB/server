@@ -12317,7 +12317,11 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     if (!error)
+    {
+      m_table->mark_columns_per_binlog_row_image();
       error= m_table->file->ha_delete_row(m_table->record[0]);
+      m_table->default_column_bitmaps();
+    }
     if (invoke_triggers && !error &&
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet
