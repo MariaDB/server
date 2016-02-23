@@ -268,8 +268,11 @@ row_merge_create_index(
 /*===================*/
 	trx_t*			trx,	/*!< in/out: trx (sets error_state) */
 	dict_table_t*		table,	/*!< in: the index is on this table */
-	const index_def_t*	index_def);
+	const index_def_t*	index_def,
 					/*!< in: the index definition */
+	const char**		col_names);
+					/*! in: column names if columns are
+					renamed or NULL */
 /*********************************************************************//**
 Check if a transaction can use an index.
 @return	TRUE if index can be used by the transaction else FALSE */

@@ -130,9 +130,6 @@ os_log_bytes_written	disabled
 os_log_fsyncs	disabled
 os_log_pending_fsyncs	disabled
 os_log_pending_writes	disabled
-os_merge_blocks_written	disabled
-os_merge_blocks_read	disabled
-os_merge_blocks_merged	disabled
 trx_rw_commits	disabled
 trx_ro_commits	disabled
 trx_nl_ro_commits	disabled
@@ -281,9 +278,6 @@ lock_row_lock_time	disabled
 lock_row_lock_time_max	disabled
 lock_row_lock_waits	disabled
 lock_row_lock_time_avg	disabled
-os_merge_blocks_written	disabled
-os_merge_blocks_read	disabled
-os_merge_blocks_merged	disabled
 innodb_rwlock_s_spin_waits	disabled
 innodb_rwlock_x_spin_waits	disabled
 innodb_rwlock_s_spin_rounds	disabled
@@ -322,9 +316,6 @@ os_log_bytes_written	disabled
 os_log_fsyncs	disabled
 os_log_pending_fsyncs	enabled
 os_log_pending_writes	enabled
-os_merge_blocks_written	disabled
-os_merge_blocks_read	disabled
-os_merge_blocks_merged	disabled
 set global innodb_monitor_enable="";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of ''
 set global innodb_monitor_enable="_";

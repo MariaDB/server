@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -351,6 +351,15 @@ thd_supports_xa(
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_supports_xa */
 
+/** Get status of innodb_tmpdir.
+@param[in]	thd	thread handle, or NULL to query
+			the global innodb_tmpdir.
+@retval NULL if innodb_tmpdir="" */
+UNIV_INTERN
+const char*
+thd_innodb_tmpdir(
+	THD*	thd);
+
 /******************************************************************//**
 Returns the lock wait timeout for the current connection.
 @return	the lock wait timeout, in seconds */
@@ -634,6 +643,7 @@ ib_push_warning(
 	ulint		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
+
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
 UNIV_INTERN
@@ -643,4 +653,19 @@ ib_push_warning(
 	ulint		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
+
+/*****************************************************************//**
+Normalizes a table name string. A normalized name consists of the
+database name catenated to '/' and table name. An example:
+test/mytable. On Windows normalization puts both the database name and the
+table name always to lower case if "set_lower_case" is set to TRUE. */
+void
+normalize_table_name_low(
+/*=====================*/
+	char*		norm_name,	/*!< out: normalized name as a
+					null-terminated string */
+	const char*	name,		/*!< in: table name string */
+	ibool		set_lower_case); /*!< in: TRUE if we want to set
+					name to lower case */
+
 #endif /* HA_INNODB_PROTOTYPES_H */

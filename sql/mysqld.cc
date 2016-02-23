@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1467,7 +1467,6 @@ static openssl_lock_t *openssl_dynlock_create(const char *, int);
 static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
-static unsigned long openssl_id_function();
 #endif
 char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
@@ -4663,7 +4662,6 @@ static int init_thread_environment()
   CRYPTO_set_dynlock_destroy_callback(openssl_dynlock_destroy);
   CRYPTO_set_dynlock_lock_callback(openssl_lock);
   CRYPTO_set_locking_callback(openssl_lock_function);
-  CRYPTO_set_id_callback(openssl_id_function);
 #endif
 #endif
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_connect, &LOCK_sys_init_connect);
@@ -4699,12 +4697,6 @@ static int init_thread_environment()
 
 
 #if defined(HAVE_OPENSSL) && !defined(HAVE_YASSL)
-static unsigned long openssl_id_function()
-{
-  return (unsigned long) pthread_self();
-}
-
-
 static openssl_lock_t *openssl_dynlock_create(const char *file, int line)
 {
   openssl_lock_t *lock= new openssl_lock_t;
@@ -8737,7 +8729,7 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;
-  strmov(server_version, MYSQL_SERVER_VERSION);
+  strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
   key_caches.empty();
@@ -9647,17 +9639,20 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
 void set_server_version(void)
 {
-  char *end= strxmov(server_version, MYSQL_SERVER_VERSION,
-                     MYSQL_SERVER_SUFFIX_STR, NullS);
+  char *version_end= server_version+sizeof(server_version)-1;
+  char *end= strxnmov(server_version, sizeof(server_version)-1,
+                      MYSQL_SERVER_VERSION,
+                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
-  end= strmov(end, "-embedded");
+  end= strnmov(end, "-embedded", (version_end-end));
 #endif
 #ifndef DBUG_OFF
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
-    end= strmov(end, "-debug");
+    end= strnmov(end, "-debug", (version_end-end));
 #endif
   if (opt_log || global_system_variables.sql_log_slow || opt_bin_log)
-    strmov(end, "-log");                        // This may slow down system
+    strnmov(end, "-log", (version_end-end)); // This may slow down system
+  *end= 0;
 }
 
 
@@ -9963,7 +9958,7 @@ void refresh_status(THD *thd)
     Set max_used_connections to the number of currently open
     connections.  This is not perfect, but status data is not exact anyway.
   */
-  max_used_connections= thread_count-delayed_insert_threads;
+  max_used_connections= connection_count + extra_connection_count;
 }
 
 #ifdef HAVE_PSI_INTERFACE

@@ -56,7 +56,7 @@ struct show_table_authors_st show_table_authors[]= {
     "Unicode and character sets" },
   { "Alexey Botchkov (Holyfoot)", "Izhevsk, Russia",
     "GIS extensions, embedded server, precision math"},
-  { "Daniel Bartholomew", "Raleigh, USA", "MariaDB documentation"},
+  { "Daniel Bartholomew", "Raleigh, USA", "MariaDB documentation, Buildbot, releases"},
   { "Colin Charles", "Selangor, Malesia", "MariaDB documentation, talks at a LOT of conferences"},
   { "Sergey Vojtovich", "Izhevsk, Russia",
     "initial implementation of plugin architecture, maintained native storage engines (MyISAM, MEMORY, ARCHIVE, etc), rewrite of table cache"},
@@ -73,6 +73,8 @@ struct show_table_authors_st show_table_authors[]= {
   { "Pavel Ivanov", "USA", "Some patches and bug fixes"},
   { "Konstantin Osipov", "Moscow, Russia",
     "Prepared statements (4.1), Cursors (5.0), GET_LOCK (10.0)" },
+  { "Ian Gilfillan", "South Africa", "MariaDB documentation"},
+  { "Federico Razolli", "Italy", "MariaDB documentation Italian translation"},
 
   /* People working on MySQL code base (not NDB) */
   { "Guilhem Bichot", "Bordeaux, France", "Replication (since 4.0)" },

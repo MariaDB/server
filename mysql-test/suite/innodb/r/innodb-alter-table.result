@@ -43,3 +43,95 @@ KEY `mdl_courmodu_gro_ix` (`groupingid`)
 # Inserting 2701 rows into the table...
 ALTER TABLE moodle19.mdl_course_modules ADD stefantest LONGTEXT CHARACTER SET utf8 COLLATE utf8_general_ci AFTER showdescription;
 drop database moodle19;
+use test;
+CREATE TABLE `w_findispmon05u` (
+`atpkey` INT(11) NOT NULL DEFAULT '0',
+`atzo05` INT(11) NULL DEFAULT NULL,
+`pos` BIGINT(21) NULL DEFAULT NULL,
+`f5BnvB` INT(9) NULL DEFAULT NULL,
+`f5atbvb` INT(11) NULL DEFAULT NULL,
+`f5atbwmg` INT(11) NULL DEFAULT NULL,
+`f5pBneu` BIGINT(12) NULL DEFAULT NULL,
+`atbwdt` INT(11) NULL DEFAULT NULL,
+`atbwzt` INT(11) NULL DEFAULT NULL,
+`atbart` VARCHAR(10) NULL DEFAULT NULL
+)
+COLLATE='utf8_general_ci'
+ENGINE=InnoDB;
+ALTER TABLE `w_findispmon05u`
+CHANGE COLUMN `atpkey` `f5atpkey` INT(11) NOT NULL DEFAULT '0' FIRST,
+CHANGE COLUMN `atzo05` `f5atzo05` INT(11) NULL DEFAULT NULL AFTER `f5atpkey`,
+CHANGE COLUMN `atbwdt` `f5atbwdt` INT(11) NULL DEFAULT NULL AFTER `f5pBneu`,
+CHANGE COLUMN `atbwzt` `f5atbwzt` INT(11) NULL DEFAULT NULL AFTER `f5atbwdt`,
+CHANGE COLUMN `atbart` `f5atbart` VARCHAR(10) NULL DEFAULT NULL AFTER `f5atbwzt`,
+ADD INDEX `atpkey` (`f5atpkey`),
+ADD INDEX `inatkey` (`f5atzo05`, `pos`),
+ADD INDEX `pos` (`pos`, `f5atzo05`);
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE `w_findispmon05u`;
+Table	Create Table
+w_findispmon05u	CREATE TABLE `w_findispmon05u` (
+  `f5atpkey` int(11) NOT NULL DEFAULT '0',
+  `f5atzo05` int(11) DEFAULT NULL,
+  `pos` bigint(21) DEFAULT NULL,
+  `f5BnvB` int(9) DEFAULT NULL,
+  `f5atbvb` int(11) DEFAULT NULL,
+  `f5atbwmg` int(11) DEFAULT NULL,
+  `f5pBneu` bigint(12) DEFAULT NULL,
+  `f5atbwdt` int(11) DEFAULT NULL,
+  `f5atbwzt` int(11) DEFAULT NULL,
+  `f5atbart` varchar(10) DEFAULT NULL,
+  KEY `atpkey` (`f5atpkey`),
+  KEY `inatkey` (`f5atzo05`,`pos`),
+  KEY `pos` (`pos`,`f5atzo05`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE `w_findispmon05u`;
+CREATE TABLE t (
+a INT NOT NULL,
+b INT NOT NULL,
+PRIMARY KEY (a)
+) ENGINE=INNODB;
+ALTER TABLE t
+CHANGE COLUMN b c INT NOT NULL,
+ADD UNIQUE INDEX (c);
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  `c` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t
+CHANGE COLUMN c b INT NOT NULL,
+ADD UNIQUE INDEX (c);
+ERROR 42000: Key column 'c' doesn't exist in table
+DROP TABLE t;
+CREATE TABLE parent (
+a INT NOT NULL,
+b INT NOT NULL,
+PRIMARY KEY (a)
+) ENGINE=INNODB;
+CREATE TABLE child (
+a INT NOT NULL,
+b INT NOT NULL,
+PRIMARY KEY (a)
+) ENGINE=INNODB;
+ALTER TABLE child
+CHANGE COLUMN b c INT NOT NULL,
+ADD FOREIGN KEY (c) REFERENCES parent(a);
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE child;
+Table	Create Table
+child	CREATE TABLE `child` (
+  `a` int(11) NOT NULL,
+  `c` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `c` (`c`),
+  CONSTRAINT `child_ibfk_1` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE child, parent;

@@ -386,6 +386,14 @@ select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 drop table t1;
 
 --echo #
+--echo # MDEV-9511 Valgrind warnings 'Invalid read' in Field_newdate::cmp and Field_newdate::val_str
+--echo #
+CREATE TABLE t1 (f1 DATE, f2 VARCHAR(1));
+INSERT INTO t1 VALUES ('2003-04-27','a'),('1900-01-01','a');
+SELECT GROUP_CONCAT(f2, IF(f1, f2, f1), f1 ORDER BY 2,1,3) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -401,15 +409,6 @@ INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a BETWEEN '2001-01-01' AND '2001-01-02';
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a IN ('2001-01-01','2001-01-02');
 DROP TABLE t1;
-
-
---echo #
---echo # End of 10.1 tests
---echo #
-
---echo #
---echo # Start of 10.1 tests
---echo #
 
 --echo #
 --echo #     MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'

@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2033,10 +2033,6 @@ srv_export_innodb_status(void)
 			(ulint) (max_trx_id - up_limit_id);
 	}
 #endif /* UNIV_DEBUG */
-
-	export_vars.innodb_merge_buffers_written = srv_stats.merge_buffers_written;
-	export_vars.innodb_merge_buffers_read = srv_stats.merge_buffers_read;
-	export_vars.innodb_merge_buffers_merged = srv_stats.merge_buffers_merged;
 
 	export_vars.innodb_sec_rec_cluster_reads =
 		srv_stats.n_sec_rec_cluster_reads;

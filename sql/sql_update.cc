@@ -2432,6 +2432,10 @@ int multi_update::do_updates()
         int error;
         if (table->default_field && (error= table->update_default_fields()))
           goto err2;
+        if (table->vfield &&
+            update_virtual_fields(thd, table,
+                 (table->triggers ? VCOL_UPDATE_ALL : VCOL_UPDATE_FOR_WRITE)))
+          goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {

@@ -4894,6 +4894,7 @@ row_rename_table_for_mysql(
 	pars_info_t*	info			= NULL;
 	int		retry;
 	bool		aux_fts_rename		= false;
+	char*		is_part 		= NULL;
 
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
@@ -4930,6 +4931,55 @@ row_rename_table_for_mysql(
 
 	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
 					DICT_ERR_IGNORE_NONE);
+
+	/* We look for pattern #P# to see if the table is partitioned
+	MySQL table. */
+#ifdef __WIN__
+	is_part = strstr((char *)old_name, (char *)"#p#");
+#else
+	is_part = strstr((char *)old_name, (char *)"#P#");
+#endif /* __WIN__ */
+
+	/* MySQL partition engine hard codes the file name
+	separator as "#P#". The text case is fixed even if
+	lower_case_table_names is set to 1 or 2. This is true
+	for sub-partition names as well. InnoDB always
+	normalises file names to lower case on Windows, this
+	can potentially cause problems when copying/moving
+	tables between platforms.
+
+	1) If boot against an installation from Windows
+	platform, then its partition table name could
+	be all be in lower case in system tables. So we
+	will need to check lower case name when load table.
+
+	2) If  we boot an installation from other case
+	sensitive platform in Windows, we might need to
+	check the existence of table name without lowering
+	case them in the system table. */
+	if (!table &&
+	    is_part &&
+	    innobase_get_lower_case_table_names() == 1) {
+		char par_case_name[MAX_FULL_NAME_LEN + 1];
+#ifndef __WIN__
+		/* Check for the table using lower
+		case name, including the partition
+		separator "P" */
+		memcpy(par_case_name, old_name,
+			strlen(old_name));
+		par_case_name[strlen(old_name)] = 0;
+		innobase_casedn_str(par_case_name);
+#else
+		/* On Windows platfrom, check
+		whether there exists table name in
+		system table whose name is
+		not being normalized to lower case */
+		normalize_table_name_low(
+			par_case_name, old_name, FALSE);
+#endif
+		table = dict_table_open_on_name(par_case_name, dict_locked, FALSE,
+					DICT_ERR_IGNORE_NONE);
+	}
 
 	if (!table) {
 		err = DB_TABLE_NOT_FOUND;

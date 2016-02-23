@@ -600,6 +600,13 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool is_equal(Virtual_column_info* vcol)
+  {
+    return field_type == vcol->get_real_type()
+        && stored_in_db == vcol->is_stored()
+        && expr_str.length == vcol->expr_str.length
+        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
+  }
 };
 
 class Field: public Value_source
