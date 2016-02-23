@@ -4690,7 +4690,11 @@ end_with_restore_list:
     REFRESH_QUERY_CACHE_FREE                |
 #endif /* HAVE_QUERY_CACHE */
     REFRESH_STATUS                          |
-    REFRESH_USER_RESOURCES))
+    REFRESH_USER_RESOURCES                  |
+    REFRESH_TABLE_STATS                     |
+    REFRESH_INDEX_STATS                     |
+    REFRESH_USER_STATS                      |
+    REFRESH_CLIENT_STATS))
     {
       WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL)
     }
