@@ -31,6 +31,8 @@
 #include <my_getopt.h>
 #include <assert.h>
 
+struct encryption_service_st encryption_handler;
+
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
 #else

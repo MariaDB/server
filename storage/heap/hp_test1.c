@@ -24,6 +24,8 @@
 #include <m_string.h>
 #include "heap.h"
 
+struct encryption_service_st encryption_handler;
+
 static int get_options(int argc, char *argv[]);
 
 static int flag=0,verbose=0,remove_ant=0,flags[50];

@@ -48,6 +48,8 @@
 #include <m_string.h>
 #include <errno.h>
 
+struct encryption_service_st encryption_handler;
+
 #define PC_MALLOC		256	/* Bytes for pointers */
 #define PS_MALLOC		512	/* Bytes for data */
 

@@ -65,10 +65,10 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
     handle->crypt_ctx_init ? handle->crypt_ctx_init : ctx_init;
 
   encryption_handler.encryption_ctx_update_func=
-    handle->crypt_ctx_update ? handle->crypt_ctx_update : my_aes_crypt_update;
+    handle->crypt_ctx_update ? handle->crypt_ctx_update : (int(*)(void*,const unsigned char*,unsigned,unsigned char*,unsigned*))my_aes_crypt_update;
 
   encryption_handler.encryption_ctx_finish_func=
-    handle->crypt_ctx_finish ? handle->crypt_ctx_finish : my_aes_crypt_finish;
+    handle->crypt_ctx_finish ? handle->crypt_ctx_finish : (int(*)(void*,unsigned char*,unsigned*))my_aes_crypt_finish;
 
   encryption_handler.encryption_encrypted_length_func=
     handle->encrypted_length ? handle->encrypted_length : get_length;

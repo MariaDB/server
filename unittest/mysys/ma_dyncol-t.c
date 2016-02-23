@@ -32,6 +32,8 @@
 #include <ma_dyncol.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 void test_value_single_null()
 {
   int rc= FALSE;

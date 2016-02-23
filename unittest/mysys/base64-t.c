@@ -23,6 +23,8 @@
 #define BASE64_LOOP_COUNT 500
 #define BASE64_ROWS 4                           /* Number of ok(..) */
 
+struct encryption_service_st encryption_handler;
+
 int
 main(int argc __attribute__((unused)),char *argv[])
 {

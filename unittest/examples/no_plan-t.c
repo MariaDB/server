@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 /*
   Sometimes, the number of tests is not known beforehand. In those
   cases, you should invoke plan(NO_PLAN).

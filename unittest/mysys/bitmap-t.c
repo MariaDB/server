@@ -27,6 +27,8 @@
 
 #define MAX_TESTED_BITMAP_SIZE 1024
 
+struct encryption_service_st encryption_handler;
+
 uint get_rand_bit(uint bitsize)
 {
   return (rand() % bitsize);

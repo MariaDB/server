@@ -3722,8 +3722,10 @@ int spider_check_trx_and_get_conn(
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
           }
 #else
-          char db[table_share->db.length + 1],
-            table_name[table_share->table_name.length + 1];
+          char *db,
+            *table_name;
+          db = (char *)alloca((table_share->db.length + 1) * sizeof(char));
+          table_name = (char *)alloca((table_share->table_name.length + 1) * sizeof(char));
 #endif
           memcpy(db, table_share->db.str, table_share->db.length);
           db[table_share->db.length] = '\0';
@@ -3881,8 +3883,10 @@ int spider_check_trx_and_get_conn(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
 #else
-        char db[table_share->db.length + 1],
-          table_name[table_share->table_name.length + 1];
+        char *db,
+          *table_name;
+	db = (char *)alloca((table_share->db.length + 1) * sizeof(char));
+	table_name = (char *)alloca((table_share->table_name.length + 1) * sizeof(char));
 #endif
         memcpy(db, table_share->db.str, table_share->db.length);
         db[table_share->db.length] = '\0';
@@ -4027,8 +4031,10 @@ int spider_check_trx_and_get_conn(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
 #else
-        char db[table_share->db.length + 1],
-          table_name[table_share->table_name.length + 1];
+        char *db,
+          *table_name;
+	db = (char *)alloca((table_share->db.length + 1) * sizeof(char));
+	table_name = (char *)alloca((table_share->table_name.length + 1) * sizeof(char));
 #endif
         memcpy(db, table_share->db.str, table_share->db.length);
         db[table_share->db.length] = '\0';

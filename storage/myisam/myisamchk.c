@@ -25,6 +25,8 @@
 #include <sys/mman.h>
 #endif
 
+struct encryption_service_st encryption_handler;
+
 static uint decode_bits;
 static char **default_argv;
 static const char *load_default_groups[]= { "myisamchk", 0 };

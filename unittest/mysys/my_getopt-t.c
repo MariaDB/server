@@ -36,6 +36,8 @@ ulong opt_ul;
 int arg_c, res;
 char **arg_v, *arg_s[100];
 
+struct encryption_service_st encryption_handler;
+
 ulong mopts_num;
 char *mopts_str;
 my_bool mopts_bool;

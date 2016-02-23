@@ -20,6 +20,8 @@
 #include <m_string.h>
 #include <assert.h>
 
+struct encryption_service_st encryption_handler;
+
 int main (int argc, char **argv)
 {
   MYSQL conn;

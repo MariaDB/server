@@ -47,6 +47,8 @@
 
 MY_TIMER_INFO myt;
 
+struct encryption_service_st encryption_handler;
+
 void test_init()
 {
   my_timer_init(&myt);

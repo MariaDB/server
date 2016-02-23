@@ -20,6 +20,8 @@
 #include "my_sys.h"
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 void test_timers()
 {
   ulonglong t1_a;

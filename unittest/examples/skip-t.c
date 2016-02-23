@@ -17,6 +17,8 @@
 #include <tap.h>
 #include <stdlib.h>
 
+struct encryption_service_st encryption_handler;
+
 int main() {
   plan(4);
   ok1(1);

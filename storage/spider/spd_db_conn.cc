@@ -9300,7 +9300,8 @@ int spider_db_udf_ping_table(
       spider_string where_str(init_sql_alloc_size);
       where_str.set_charset(system_charset_info);
 #else
-      char sql_buf[init_sql_alloc_size], where_buf[init_sql_alloc_size];
+      char *sql_buf, *where_buf;
+      sql_buf = (char *)alloca((init_sql_alloc_size) * sizeof(char)); where_buf = (char *)alloca((init_sql_alloc_size) * sizeof(char));
       spider_string sql_str(sql_buf, sizeof(sql_buf),
         system_charset_info);
       spider_string where_str(where_buf, sizeof(where_buf),
@@ -9521,7 +9522,8 @@ int spider_db_udf_ping_table_mon_next(
   spider_string sql_str(init_sql_alloc_size);
   sql_str.set_charset(thd->variables.character_set_client);
 #else
-  char sql_buf[init_sql_alloc_size];
+  char *sql_buf;
+  sql_buf = (char *)alloca((init_sql_alloc_size) * sizeof(char));
   spider_string sql_str(sql_buf, sizeof(sql_buf),
     thd->variables.character_set_client);
 #endif

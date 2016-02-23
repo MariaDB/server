@@ -19,6 +19,8 @@
 #include "heapdef.h"		/* Because of hp_find_block */
 #include <signal.h>
 
+struct encryption_service_st encryption_handler;
+
 #define MAX_RECORDS 100000
 #define MAX_KEYS 4
 

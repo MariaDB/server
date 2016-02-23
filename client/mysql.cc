@@ -42,6 +42,8 @@
 #include <signal.h>
 #include <violite.h>
 
+struct encryption_service_st encryption_handler;
+
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
 #endif

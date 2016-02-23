@@ -54,6 +54,8 @@
 #include "mysql_version.h"
 #include "mysqld_error.h"
 
+struct encryption_service_st encryption_handler;
+
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 /* Exit codes */

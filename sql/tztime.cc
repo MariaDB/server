@@ -2682,6 +2682,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
   return 0;
 }
 
+struct encryption_service_st encryption_handler;
 
 int
 main(int argc, char **argv)
@@ -2800,6 +2801,7 @@ is_equal_TIME_tm(const TIME* time_arg, const struct tm * tm_arg)
          time_arg->second_part == 0;
 }
 
+struct encryption_service_st encryption_handler;
 
 int
 main(int argc, char **argv)

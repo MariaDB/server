@@ -55,6 +55,8 @@
 #include <signal.h>
 #include <my_stacktrace.h>
 
+struct encryption_service_st encryption_handler;
+
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
 #ifdef __WIN__

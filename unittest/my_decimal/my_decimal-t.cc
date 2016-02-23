@@ -22,7 +22,7 @@
 #include <sql_string.h>
 #include <my_decimal.h>
 
-
+struct encryption_service_st encryption_handler;
 
 /*
   Test my_decimal constuctor and assignement operators

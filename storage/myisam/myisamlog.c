@@ -27,6 +27,8 @@
 #include <sys/resource.h>
 #endif
 
+struct encryption_service_st encryption_handler;
+
 #define FILENAME(A) (A ? A->show_name : "Unknown")
 
 struct file_info {

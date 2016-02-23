@@ -26,6 +26,8 @@
 #include <welcome_copyright_notice.h>
 #include <my_rnd.h>
 
+struct encryption_service_st encryption_handler;
+
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */

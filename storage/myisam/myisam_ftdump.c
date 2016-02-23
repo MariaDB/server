@@ -20,6 +20,8 @@
 #include "ftdefs.h"
 #include <my_getopt.h>
 
+struct encryption_service_st encryption_handler;
+
 static void usage();
 static void complain(int val);
 static my_bool get_one_option(int, const struct my_option *, char *);

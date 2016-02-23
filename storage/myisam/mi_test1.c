@@ -20,6 +20,8 @@
 #include <my_getopt.h>
 #include <m_string.h>
 
+struct encryption_service_st encryption_handler;
+
 #define MAX_REC_LENGTH 1024
 
 static void usage();

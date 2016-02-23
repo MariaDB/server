@@ -1782,6 +1782,8 @@ static ulong sum=0;
 #define MAX_LOCK_COUNT 8
 #define TEST_TIMEOUT 100000
 
+struct encryption_service_st encryption_handler;
+
 /* The following functions is for WRITE_CONCURRENT_INSERT */
 
 static void test_get_status(void* param __attribute__((unused)),

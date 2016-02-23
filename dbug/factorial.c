@@ -1,5 +1,7 @@
 #include <my_global.h>
 
+struct encryption_service_st encryption_handler;
+
 int factorial (
 register int value)
 {

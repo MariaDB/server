@@ -16,6 +16,8 @@
 
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 unsigned int gcs(unsigned int a, unsigned int b)
 {
   if (b > a) {

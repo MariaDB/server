@@ -18,6 +18,8 @@
 
 #include "myisam.h"
 
+struct encryption_service_st encryption_handler;
+
 #ifdef HAVE_SPATIAL
 #include "sp_defs.h"
 

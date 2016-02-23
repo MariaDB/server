@@ -436,7 +436,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   if (!cur_pi->get_next())
   {
     /* Single point. */
-    if (res_receiver.single_point(cur_pi->x, cur_pi->y))
+    if (res_receiver.single_point(cur_pi->u.s1.x, cur_pi->u.s1.y))
       goto mem_error;
     goto build_result;
   }
@@ -461,8 +461,8 @@ String *Item_func_convexhull::val_str(String *str_value)
   {
     /* We only have 2 nodes in the result, so we create a polyline. */
     if (res_receiver.start_shape(Gcalc_function::shape_line) ||
-        res_receiver.add_point(left_first->pi->x, left_first->pi->y) ||
-        res_receiver.add_point(left_cur->pi->x, left_cur->pi->y) ||
+        res_receiver.add_point(left_first->pi->u.s1.x, left_first->pi->u.s1.y) ||
+        res_receiver.add_point(left_cur->pi->u.s1.x, left_cur->pi->u.s1.y) ||
         res_receiver.complete_shape())
 
       goto mem_error;
@@ -475,7 +475,7 @@ String *Item_func_convexhull::val_str(String *str_value)
 
   while (left_first)
   {
-    if (res_receiver.add_point(left_first->pi->x, left_first->pi->y))
+    if (res_receiver.add_point(left_first->pi->u.s1.x, left_first->pi->u.s1.y))
       goto mem_error;
     left_first= left_first->get_next();
   }
@@ -485,7 +485,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   right_cur= right_cur->prev;
   while (right_cur->prev)
   {
-    if (res_receiver.add_point(right_cur->pi->x, right_cur->pi->y))
+    if (res_receiver.add_point(right_cur->pi->u.s1.x, right_cur->pi->u.s1.y))
       goto mem_error;
     right_cur= right_cur->prev;
   }
@@ -1105,10 +1105,10 @@ static double count_edge_t(const Gcalc_heap::Info *ea,
                            double &ex, double &ey, double &vx, double &vy,
                            double &e_sqrlen)
 {
-  ex= eb->x - ea->x;
-  ey= eb->y - ea->y;
-  vx= v->x - ea->x;
-  vy= v->y - ea->y;
+  ex= eb->u.s1.x - ea->u.s1.x;
+  ey= eb->u.s1.y - ea->u.s1.y;
+  vx= v->u.s1.x - ea->u.s1.x;
+  vy= v->u.s1.y - ea->u.s1.y;
   e_sqrlen= ex * ex + ey * ey;
   return (ex * vx + ey * vy) / e_sqrlen;
 }
@@ -1124,8 +1124,8 @@ static double distance_to_line(double ex, double ey, double vx, double vy,
 static double distance_points(const Gcalc_heap::Info *a,
                               const Gcalc_heap::Info *b)
 {
-  double x= a->x - b->x;
-  double y= a->y - b->y;
+  double x= a->u.s1.x - b->u.s1.x;
+  double y= a->u.s1.y - b->u.s1.y;
   return sqrt(x * x + y * y);
 }
 
@@ -2333,7 +2333,7 @@ double Item_func_distance::val_real()
       continue;
 
 count_distance:
-    if (cur_point->shape >= obj2_si)
+    if (cur_point->u.s1.shape >= obj2_si)
       continue;
     cur_point_edge= !cur_point->is_bottom();
 
@@ -2341,13 +2341,13 @@ count_distance:
     {
       /* We only check vertices of object 2 */
       if (dist_point->type != Gcalc_heap::nt_shape_node ||
-          dist_point->shape < obj2_si)
+          dist_point->u.s1.shape < obj2_si)
         continue;
 
       /* if we have an edge to check */
-      if (dist_point->left)
+      if (dist_point->u.s1.left)
       {
-        t= count_edge_t(dist_point, dist_point->left, cur_point,
+        t= count_edge_t(dist_point, dist_point->u.s1.left, cur_point,
                         ex, ey, vx, vy, e_sqrlen);
         if ((t>0.0) && (t<1.0))
         {
@@ -2358,7 +2358,7 @@ count_distance:
       }
       if (cur_point_edge)
       {
-        t= count_edge_t(cur_point, cur_point->left, dist_point,
+        t= count_edge_t(cur_point, cur_point->u.s1.left, dist_point,
                         ex, ey, vx, vy, e_sqrlen);
         if ((t>0.0) && (t<1.0))
         {

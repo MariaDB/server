@@ -3710,7 +3710,8 @@ int spider_create_conn_keys(
   uint *hs_w_conn_keys_lengths;
 #endif
 #else
-  uint conn_keys_lengths[share->all_link_count];
+  uint *conn_keys_lengths;
+  conn_keys_lengths = (uint *)alloca((share->all_link_count) * sizeof(uint));
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint hs_r_conn_keys_lengths[share->all_link_count];
   uint hs_w_conn_keys_lengths[share->all_link_count];
@@ -4692,8 +4693,10 @@ SPIDER_SHARE *spider_get_share(
         goto error_but_no_delete;
       }
 #else
-      char db[table_share->db.length + 1],
-        table_name[table_share->table_name.length + 1];
+      char *db,
+        *table_name;
+      db = (char *)alloca((table_share->db.length + 1) * sizeof(char));
+      table_name = (char *)alloca((table_share->table_name.length + 1) * sizeof(char));
 #endif
       memcpy(db, table_share->db.str, table_share->db.length);
       db[table_share->db.length] = '\0';
@@ -5113,8 +5116,10 @@ SPIDER_SHARE *spider_get_share(
         goto error_but_no_delete;
       }
 #else
-      char db[table_share->db.length + 1],
-        table_name[table_share->table_name.length + 1];
+      char *db,
+        *table_name;
+      db = (char *)alloca((table_share->db.length + 1) * sizeof(char));
+      table_name = (char *)alloca((table_share->table_name.length + 1) * sizeof(char));
 #endif
       memcpy(db, table_share->db.str, table_share->db.length);
       db[table_share->db.length] = '\0';

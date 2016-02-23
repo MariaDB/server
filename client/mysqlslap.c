@@ -92,6 +92,8 @@ TODO:
 #include <ctype.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
+struct encryption_service_st encryption_handler;
+
 #ifdef __WIN__
 #define srandom  srand
 #define random   rand

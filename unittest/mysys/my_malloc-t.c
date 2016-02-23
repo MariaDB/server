@@ -17,6 +17,8 @@
 #include <my_sys.h>
 #include "tap.h"
 
+struct encryption_service_st encryption_handler;
+
 int main(int argc __attribute__((unused)),char *argv[])
 {
   void *p;

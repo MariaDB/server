@@ -21,6 +21,8 @@
 #include <string.h>
 #include <ctype.h>
 
+struct encryption_service_st encryption_handler;
+
 #define DO_TEST(mode, nopad, slen, fill, dlen, hash)                    \
   SKIP_BLOCK_IF(mode == 0xDEADBEAF, nopad ? 4 : 5, #mode " not supported")     \
   {                                                                     \

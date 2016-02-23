@@ -29,6 +29,7 @@
 # define WIFEXITED(stat_val) (((stat_val) & 255) == 0)
 #endif
 
+struct encryption_service_st encryption_handler;
 
 #if defined(HAVE_LRAND48)
 #define rnd(X) (lrand48() % X)

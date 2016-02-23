@@ -9,6 +9,8 @@ char *push1=0;
 #include <my_pthread.h>
 #include <string.h>
 
+struct encryption_service_st encryption_handler;
+
 const char *func3()
 {
   DBUG_ENTER("func3");

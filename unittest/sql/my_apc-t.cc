@@ -25,6 +25,8 @@
 
 #include <tap.h>
 
+struct encryption_service_st encryption_handler;
+
 /*
   A fake THD with enter_cond/exit_cond and some other members.
 */

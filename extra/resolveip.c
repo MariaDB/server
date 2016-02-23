@@ -32,6 +32,8 @@
 #include <my_net.h>
 #include <my_getopt.h>
 
+struct encryption_service_st encryption_handler;
+
 #if !defined(_AIX) && !defined(h_errno)
 extern int h_errno;
 #endif

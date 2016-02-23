@@ -29,6 +29,8 @@
 #include <my_default.h>
 #include <mysql_version.h>
 
+struct encryption_service_st encryption_handler;
+
 #define load_default_groups mysqld_groups
 #include <mysqld_default_groups.h>
 #undef load_default_groups
