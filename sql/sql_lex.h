@@ -1807,6 +1807,7 @@ class Lex_input_stream
 {
   size_t unescape(CHARSET_INFO *cs, char *to,
                   const char *str, const char *end, int sep);
+  my_charset_conv_wc_mb get_escape_func(THD *thd, my_wc_t sep) const;
 public:
   Lex_input_stream()
   {
@@ -2077,14 +2078,23 @@ public:
     return (uint) (m_body_utf8_ptr - m_body_utf8);
   }
 
+  /**
+    Get the maximum length of the utf8-body buffer.
+    The utf8 body can grow because of the character set conversion and escaping.
+  */
+  uint get_body_utf8_maximum_length(THD *thd);
+
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
   void body_utf8_append(const char *ptr, const char *end_ptr);
-  void body_utf8_append_literal(THD *thd,
-                                const LEX_STRING *txt,
-                                CHARSET_INFO *txt_cs,
-                                const char *end_ptr);
-
+  void body_utf8_append_ident(THD *thd,
+                              const LEX_STRING *txt,
+                              const char *end_ptr);
+  void body_utf8_append_escape(THD *thd,
+                               const LEX_STRING *txt,
+                               CHARSET_INFO *txt_cs,
+                               const char *end_ptr,
+                               my_wc_t sep);
   /** Current thread. */
   THD *m_thd;
 
@@ -2105,7 +2115,7 @@ public:
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
 
-  bool get_text(LEX_STRING *to, int pre_skip, int post_skip);
+  bool get_text(LEX_STRING *to, uint sep, int pre_skip, int post_skip);
 
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 

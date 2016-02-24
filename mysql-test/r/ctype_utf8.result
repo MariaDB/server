@@ -10259,5 +10259,146 @@ Warnings:
 Note	1003	select `test`.`t1`.`c` AS `c` from `test`.`t1` where (`test`.`t1`.`c` = 'A')
 DROP TABLE t1;
 #
+# MDEV-7231 Field ROUTINE_DEFINITION in INFORMATION_SCHEMA.`ROUTINES` contains broken procedure body when used shielding quotes inside.
+#
+CREATE PROCEDURE p1()
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """", '\'', "\"";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT _binary'test';
+SELECT _binary'test\0';
+SELECT N'''', N"""", N'\'', N"\"";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END$$
+SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='p1';
+ROUTINE_DEFINITION
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """", '''', """";
+SELECT '<tab>\t<tab>\t<tab>';
+SELECT '<nl>\n<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT 'test';
+SELECT 'test\0';
+SELECT N'''', N"""", N'''', N"""";
+SELECT N'<tab>\t<tab>\t<tab>';
+SELECT N'<nl>\n<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END
+SELECT body_utf8 FROM mysql.proc WHERE name='p1';
+body_utf8
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """", '''', """";
+SELECT '<tab>\t<tab>\t<tab>';
+SELECT '<nl>\n<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT 'test';
+SELECT 'test\0';
+SELECT N'''', N"""", N'''', N"""";
+SELECT N'<tab>\t<tab>\t<tab>';
+SELECT N'<nl>\n<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END
+DROP PROCEDURE p1;
+SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
+CREATE PROCEDURE p1()
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT _binary'test';
+SELECT _binary'test\0';
+SELECT N'''', N"""";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END$$
+SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='p1';
+ROUTINE_DEFINITION
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT 'test';
+SELECT 'test\0';
+SELECT N'''', N"""";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END
+SELECT body_utf8 FROM mysql.proc WHERE name='p1';
+body_utf8
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT 'test';
+SELECT 'test\0';
+SELECT N'''', N"""";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END
+DROP PROCEDURE p1;
+SET @@SQL_MODE=default;
+#
 # End of 10.1 tests
 #
