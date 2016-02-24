@@ -73,7 +73,8 @@ class VALBLK : public BLOCK {
   virtual void   SetNull(int n, bool b)
                   {if (To_Nulls) {To_Nulls[n] = (b) ? '*' : 0;}}
   virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
-  virtual void   SetNullable(bool b);
+	virtual bool   IsNullable(void) {return Nullable;}
+	virtual void   SetNullable(bool b);
   virtual bool   IsUnsigned(void) {return Unsigned;}
   virtual bool   Init(PGLOBAL g, bool check) = 0;
   virtual int    GetVlen(void) = 0;

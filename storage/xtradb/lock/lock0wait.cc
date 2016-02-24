@@ -396,7 +396,9 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
 #ifdef WITH_WSREP
-                if (!wsrep_is_BF_lock_timeout(trx)) {
+                if (!wsrep_on(trx->mysql_thd) ||
+                    (!wsrep_is_BF_lock_timeout(trx) &&
+                     trx->error_state != DB_DEADLOCK)) {
 #endif /* WITH_WSREP */
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;

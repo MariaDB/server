@@ -2,15 +2,9 @@ drop table if exists t1,t2,t3;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 modify b int default 5;
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 change b new_name int;
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 modify e enum('a','b','c');
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 comment "new comment";
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
-alter online table t1 rename to t2;
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 algorithm=INPLACE, lock=NONE;
 alter online table t1;
 alter table t1 algorithm=INPLACE;
@@ -40,10 +34,13 @@ alter online table t1 add f int;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 alter online table t1 engine=memory;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED.
+alter online table t1 rename to t2;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
 alter online table t1 drop index b;
+alter online table t1 comment "new comment";
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);

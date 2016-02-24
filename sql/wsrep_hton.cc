@@ -22,6 +22,7 @@
 #include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
+#include "debug_sync.h"
 
 extern ulonglong thd_to_trx_id(THD *thd);
 
@@ -67,6 +68,17 @@ void wsrep_register_hton(THD* thd, bool all)
   if (WSREP(thd) && thd->wsrep_exec_mode != TOTAL_ORDER &&
       !thd->wsrep_apply_toi)
   {
+    if (thd->wsrep_exec_mode == LOCAL_STATE      &&
+        (thd_sql_command(thd) == SQLCOM_OPTIMIZE ||
+        thd_sql_command(thd) == SQLCOM_ANALYZE   ||
+        thd_sql_command(thd) == SQLCOM_REPAIR)   &&
+            thd->lex->no_write_to_binlog == 1)
+    {
+        WSREP_DEBUG("Skipping wsrep_register_hton for LOCAL sql admin command : %s",
+                thd->query());
+        return;
+    }
+
     THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
     for (Ha_trx_info *i= trans->ha_list; i; i = i->next())
     {
@@ -316,6 +328,8 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     WSREP_ERROR("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
+
+  DEBUG_SYNC(thd, "wsrep_before_replication");
 
   if (thd->slave_thread && !opt_log_slave_updates) DBUG_RETURN(WSREP_TRX_OK);
 

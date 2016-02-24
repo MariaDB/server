@@ -27,3 +27,5 @@ galera_ssl_upgrade : TODO: investigate
 mysql-wsrep#90 : TODO: investigate
 galera_flush : mysql-wsrep/issues/229
 galera_transaction_read_only : mysql-wsrep/issues/229
+galera_gcs_fragment : Incorrect arguments to SET
+galera_flush_local : Fails sporadically

@@ -1,0 +1,145 @@
+DROP TABLE IF EXISTS t1, t2, x1, x2;
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t2 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER);
+CREATE TABLE x1 (f1 INTEGER) ENGINE=MyISAM;
+CREATE TABLE x2 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO x1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO t2 (f2) SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4;
+INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+FLUSH LOCAL DES_KEY_FILE;
+FLUSH LOCAL HOSTS;
+FLUSH LOCAL QUERY CACHE;
+FLUSH LOCAL STATUS;
+FLUSH LOCAL PRIVILEGES;
+FLUSH LOCAL USER_RESOURCES;
+FLUSH LOCAL TABLES;
+FLUSH LOCAL TABLES t2;
+FLUSH LOCAL ERROR LOGS;
+FLUSH LOCAL SLOW LOGS;
+FLUSH LOCAL GENERAL LOGS;
+FLUSH LOCAL ENGINE LOGS;
+FLUSH LOCAL RELAY LOGS;
+FLUSH LOCAL CLIENT_STATISTICS;
+FLUSH LOCAL INDEX_STATISTICS;
+FLUSH LOCAL TABLE_STATISTICS;
+FLUSH LOCAL USER_STATISTICS;
+FLUSH LOCAL LOGS;
+FLUSH LOCAL BINARY LOGS;
+FLUSH LOCAL TABLES WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH LOCAL TABLES t1 WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH LOCAL TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE;
+FLUSH LOCAL TABLES t1;
+UNLOCK TABLES;
+LOCK TABLES t1 READ;
+FLUSH LOCAL TABLES t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+FLUSH LOCAL TABLES t1;
+ANALYZE LOCAL TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+OPTIMIZE LOCAL TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+REPAIR LOCAL TABLE x1, x2;
+Table	Op	Msg_type	Msg_text
+test.x1	repair	status	OK
+test.x2	repair	status	OK
+wsrep_last_committed_diff
+1
+SELECT COUNT(*) = 10 FROM t1;
+COUNT(*) = 10
+1
+SELECT COUNT(*) = 10 FROM x1;
+COUNT(*) = 10
+1
+SELECT COUNT(*) = 10000 FROM t2;
+COUNT(*) = 10000
+1
+SELECT COUNT(*) = 10 FROM x2;
+COUNT(*) = 10
+1
+DROP TABLE t1, t2, x1, x2;
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t2 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER);
+CREATE TABLE x1 (f1 INTEGER) ENGINE=MyISAM;
+CREATE TABLE x2 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO x1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO t2 (f2) SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4;
+INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+set wsrep_on=0;
+FLUSH DES_KEY_FILE;
+FLUSH HOSTS;
+FLUSH QUERY CACHE;
+FLUSH STATUS;
+FLUSH PRIVILEGES;
+FLUSH USER_RESOURCES;
+FLUSH TABLES;
+FLUSH TABLES t2;
+FLUSH ERROR LOGS;
+FLUSH SLOW LOGS;
+FLUSH GENERAL LOGS;
+FLUSH ENGINE LOGS;
+FLUSH RELAY LOGS;
+FLUSH CLIENT_STATISTICS;
+FLUSH INDEX_STATISTICS;
+FLUSH TABLE_STATISTICS;
+FLUSH USER_STATISTICS;
+FLUSH LOGS;
+FLUSH BINARY LOGS;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES t1 WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE;
+FLUSH TABLES t1;
+UNLOCK TABLES;
+LOCK TABLES t1 READ;
+FLUSH TABLES t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+FLUSH TABLES t1;
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+OPTIMIZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+REPAIR TABLE x1, x2;
+Table	Op	Msg_type	Msg_text
+test.x1	repair	status	OK
+test.x2	repair	status	OK
+wsrep_last_committed_diff
+1
+wsrep_last_committed_diff2
+1
+SELECT COUNT(*) = 10 FROM t1;
+COUNT(*) = 10
+1
+SELECT COUNT(*) = 10 FROM x1;
+COUNT(*) = 10
+1
+SELECT COUNT(*) = 10000 FROM t2;
+COUNT(*) = 10000
+1
+SELECT COUNT(*) = 10 FROM x2;
+COUNT(*) = 10
+1
+set wsrep_on=1;
+DROP TABLE t1, t2, x1, x2;

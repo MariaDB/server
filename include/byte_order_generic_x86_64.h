@@ -31,7 +31,7 @@
   Attention: Please, note, uint3korr reads 4 bytes (not 3)!
   It means, that you have to provide enough allocated space.
 */
-#if defined(HAVE_purify) && !defined(_WIN32)
+#if defined(HAVE_valgrind) && !defined(_WIN32)
 #define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) +\
 				  (((uint32) ((uchar) (A)[1])) << 8) +\
 				  (((uint32) ((uchar) (A)[2])) << 16))

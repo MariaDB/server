@@ -1,5 +1,5 @@
-# Copyright (c) 2005, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2008-2011, Monty Program Ab
+# Copyright (c) 2005, 2015, Oracle and/or its affiliates.
+# Copyright (c) 2008, 2016, MariaDB
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -1091,8 +1091,8 @@
 # write_keys() and find_all_keys().
 # They both return ha_rows, which is platform dependent.
 #
-# The '...' wildcards are for 'fun:inline_mysql_file_write' which *may*
-# be inlined.
+# The '...' wildcards are for 'fun:inline_mysql_file_write' and
+# 'fun:find_all_keys' which *may* be inlined.
 {
    Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / one
    Memcheck:Param
@@ -1103,7 +1103,7 @@
    fun:my_b_flush_io_cache
    fun:_my_b_write
    fun:_Z*10write_keysP13st_sort_paramPPhjP11st_io_cacheS4_
-   fun:_Z*13find_all_keysP13st_sort_paramP10SQL_SELECTPPhP11st_io_cacheS6_
+   ...
    fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
 }
 
@@ -1284,28 +1284,6 @@
   fun:vasprintf
   fun:asprintf
   fun:dlerror
-}
-
-{
-   GitHub codership/galera#308
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:malloc
-   fun:_ZNK6galera13ReplicatorSMM9stats_getEv
-   fun:_ZL28export_wsrep_status_to_mysqlP3THD
-   fun:_Z17wsrep_show_statusP3THDP17st_mysql_show_varPc
-   fun:_ZL17show_status_arrayP3THDPKcP17st_mysql_show_var13enum_var_typeP17system_status_varS2_P5TABLEbP4Item
-   fun:_Z11fill_statusP3THDP10TABLE_LISTP4Item
-   fun:_ZL13do_fill_tableP3THDP10TABLE_LISTP13st_join_table
-   fun:_Z24get_schema_tables_resultP4JOIN23enum_schema_table_state
-   fun:_ZN4JOIN14prepare_resultEPP4ListI4ItemE
-   fun:_ZN4JOIN4execEv
-   fun:_ZL20mysql_execute_selectP3THDP13st_select_lexb
-   fun:_Z12mysql_selectP3THDP10TABLE_LISTjR4ListI4ItemEPS4_P10SQL_I_ListI8st_orderESB_S7_yP13select_resultP18st_select_lex_unitP13st_select_lex
-   fun:_Z13handle_selectP3THDP13select_resultm
-   fun:_ZL21execute_sqlcom_selectP3THDP10TABLE_LIST
-   fun:_Z21mysql_execute_commandP3THD
-   fun:_Z11mysql_parseP3THDPcjP12Parser_state
 }
 
 {

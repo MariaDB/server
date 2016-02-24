@@ -1,0 +1,18 @@
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
+LOCK TABLE t2 WRITE;
+OPTIMIZE TABLE t1,t2;;
+REPAIR TABLE t1,t2;;
+SET SESSION wsrep_sync_wait = 0;
+INSERT INTO t2 VALUES (1);
+UNLOCK TABLES;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t2	repair	note	The storage engine for the table doesn't support repair
+DROP TABLE t1;
+DROP TABLE t2;

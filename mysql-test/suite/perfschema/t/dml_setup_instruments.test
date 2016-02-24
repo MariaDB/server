@@ -88,3 +88,10 @@ UNLOCK TABLES;
 --echo
 UPDATE performance_schema.setup_instruments SET timed='NO'
 ORDER BY RAND();
+
+# MTR is configured to start with everything set to ON,
+# so we need to restore it after the previous update
+--disable_query_log
+update performance_schema.setup_instruments set timed='YES';
+--enable_query_log
+

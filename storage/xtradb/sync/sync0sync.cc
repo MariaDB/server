@@ -1657,34 +1657,49 @@ sync_print_wait_info(
 /*=================*/
 	FILE*	file)		/*!< in: file where to print */
 {
+	// Sum counter values once
+	ib_int64_t mutex_spin_wait_count_val
+		= static_cast<ib_int64_t>(mutex_spin_wait_count);
+	ib_int64_t mutex_spin_round_count_val
+		= static_cast<ib_int64_t>(mutex_spin_round_count);
+	ib_int64_t mutex_os_wait_count_val
+		= static_cast<ib_int64_t>(mutex_os_wait_count);
+	ib_int64_t rw_s_spin_wait_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_s_spin_wait_count);
+	ib_int64_t rw_s_spin_round_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_s_spin_round_count);
+	ib_int64_t rw_s_os_wait_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_s_os_wait_count);
+	ib_int64_t rw_x_spin_wait_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_x_spin_wait_count);
+	ib_int64_t rw_x_spin_round_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_x_spin_round_count);
+	ib_int64_t rw_x_os_wait_count_val
+		= static_cast<ib_int64_t>(rw_lock_stats.rw_x_os_wait_count);
+
 	fprintf(file,
-		"Mutex spin waits " UINT64PF ", rounds " UINT64PF ", "
-		"OS waits " UINT64PF "\n"
-		"RW-shared spins " UINT64PF ", rounds " UINT64PF ", "
-		"OS waits " UINT64PF "\n"
-		"RW-excl spins " UINT64PF ", rounds " UINT64PF ", "
-		"OS waits " UINT64PF "\n",
-		(ib_uint64_t) mutex_spin_wait_count,
-		(ib_uint64_t) mutex_spin_round_count,
-		(ib_uint64_t) mutex_os_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_s_spin_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_s_spin_round_count,
-		(ib_uint64_t) rw_lock_stats.rw_s_os_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_spin_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_spin_round_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_os_wait_count);
+		"Mutex spin waits " INT64PF ", rounds " INT64PF ", "
+		"OS waits " INT64PF "\n"
+		"RW-shared spins " INT64PF ", rounds " INT64PF ", "
+		"OS waits " INT64PF "\n"
+		"RW-excl spins " INT64PF ", rounds " INT64PF ", "
+		"OS waits " INT64PF "\n",
+		mutex_spin_wait_count_val, mutex_spin_round_count_val,
+		mutex_os_wait_count_val,
+		rw_s_spin_wait_count_val, rw_s_spin_round_count_val,
+		rw_s_os_wait_count_val,
+		rw_x_spin_wait_count_val, rw_x_spin_round_count_val,
+		rw_x_os_wait_count_val);
 
 	fprintf(file,
 		"Spin rounds per wait: %.2f mutex, %.2f RW-shared, "
 		"%.2f RW-excl\n",
-		(double) mutex_spin_round_count /
-		(mutex_spin_wait_count ? mutex_spin_wait_count : 1),
-		(double) rw_lock_stats.rw_s_spin_round_count /
-		(rw_lock_stats.rw_s_spin_wait_count
-		 ? rw_lock_stats.rw_s_spin_wait_count : 1),
-		(double) rw_lock_stats.rw_x_spin_round_count /
-		(rw_lock_stats.rw_x_spin_wait_count
-		 ? rw_lock_stats.rw_x_spin_wait_count : 1));
+		(double) mutex_spin_round_count_val /
+		(mutex_spin_wait_count_val ? mutex_spin_wait_count_val : 1LL),
+		(double) rw_s_spin_round_count_val /
+		(rw_s_spin_wait_count_val ? rw_s_spin_wait_count_val : 1LL),
+		(double) rw_x_spin_round_count_val /
+		(rw_x_spin_wait_count_val ? rw_x_spin_wait_count_val : 1LL));
 }
 
 /*******************************************************************//**

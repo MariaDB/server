@@ -18,7 +18,9 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_2
-SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
 
 --connection node_1
 INSERT INTO t1 VALUES (1);
@@ -27,8 +29,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION wsrep_sync_wait = 0;
 
 # Wait until applier has blocked
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'apply_monitor_slave_enter_sync'
---source include/wait_condition.inc
+--source include/galera_wait_sync_point.inc
 
 SELECT COUNT(*) = 0 FROM t1;
 
@@ -41,8 +42,8 @@ SELECT COUNT(*) = 0 FROM t1;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Init' AND INFO = 'FLUSH TABLES WITH READ LOCK'
 --source include/wait_condition.inc
 
-SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
 
 --connection node_2a
 --reap

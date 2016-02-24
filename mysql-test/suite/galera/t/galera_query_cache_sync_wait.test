@@ -1,0 +1,94 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_query_cache.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET SESSION wsrep_sync_wait = 7;
+SELECT MAX(id) FROM t1; # first lookup miss
+
+#
+# Query cache hit, wait timeout
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT MAX(id) FROM t1;
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+FLUSH QUERY CACHE;
+SET SESSION wsrep_sync_wait = 7;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+
+#
+# Query cache miss, wait timeout
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (3);
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT MAX(id) FROM t1;
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+#
+# Query cache miss
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (4);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 7;
+SELECT MAX(id) FROM t1;
+SET SESSION wsrep_sync_wait = 7;
+
+#
+# Query cache hit
+#
+
+FLUSH STATUS;
+SELECT MAX(id) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+
+#
+# Query cache invalidated
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 7;
+--send SELECT MAX(id) FROM t1 
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+--connection node_2
+--reap
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
+DROP TABLE t1;
+
+--connection node_2a
+SET DEBUG_SYNC = "RESET";

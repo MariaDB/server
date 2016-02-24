@@ -1,0 +1,16 @@
+create table t1 (c2 int as (-c1), c1 int primary key auto_increment) engine=innodb;
+insert into t1(c1) values (null),(null),(null);
+select * from t1;
+c2	c1
+-1	1
+-2	2
+-3	3
+alter table t1 auto_increment = 3;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c2` int(11) AS (-c1) VIRTUAL,
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`c1`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+drop table t1;
