@@ -1,0 +1,42 @@
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+SET GLOBAL wsrep_desync=1;
+SET wsrep_OSU_method=RSU;
+SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+SET GLOBAL wsrep_desync=0;
+SET DEBUG_SYNC= 'now SIGNAL continue';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW VARIABLES LIKE 'wsrep_desync';
+Variable_name	Value
+wsrep_desync	OFF
+SET wsrep_OSU_method=TOI;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+SET GLOBAL wsrep_desync=0;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+SET wsrep_OSU_method=RSU;
+SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+SET GLOBAL wsrep_desync=1;
+ERROR HY000: Operation 'desync' failed for SET GLOBAL wsrep_desync=1
+SET GLOBAL wsrep_desync=0;
+SET DEBUG_SYNC= 'now SIGNAL continue';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SET wsrep_OSU_method=TOI;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+CALL mtr.add_suppression("Protocol violation");
+CALL mtr.add_suppression("desync failed");
+CALL mtr.add_suppression("Protocol violation");

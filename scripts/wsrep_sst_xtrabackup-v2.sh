@@ -250,7 +250,11 @@ parse_cnf()
 {
     local group=$1
     local var=$2
-    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
+    # print the default settings for given group using my_print_default.
+    # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
+    # then grep for needed variable
+    # finally get the variable value (if variables has been specified multiple time use the last value only)
+    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     if [[ -z $reval ]];then 
         [[ -n $3 ]] && reval=$3
     fi
@@ -699,9 +703,8 @@ then
            INNOEXTRA+=" --user=$WSREP_SST_OPT_USER"
         fi
 
-        if [ -n "$WSREP_SST_OPT_PSWD" ]; then
-#           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
-           export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+        if [ -n "${WSREP_SST_OPT_PSWD:-}" ]; then
+           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
         else
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="

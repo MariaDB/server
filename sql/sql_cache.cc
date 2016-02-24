@@ -1933,6 +1933,13 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
                           (int)flags.autocommit));
   memcpy((uchar *)(sql + (tot_length - QUERY_CACHE_FLAGS_SIZE)),
 	 (uchar*) &flags, QUERY_CACHE_FLAGS_SIZE);
+
+#ifdef WITH_WSREP
+  bool once_more;
+  once_more= true;
+lookup:
+#endif /* WITH_WSREP */
+
   query_block = (Query_cache_block *)  my_hash_search(&queries, (uchar*) sql,
                                                       tot_length);
   /* Quick abort on unlocked data */
@@ -1944,6 +1951,19 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     goto err_unlock;
   }
   DBUG_PRINT("qcache", ("Query in query hash 0x%lx", (ulong)query_block));
+
+#ifdef WITH_WSREP
+  if (once_more && WSREP_CLIENT(thd) && wsrep_must_sync_wait(thd))
+  {
+    unlock();
+    if (wsrep_sync_wait(thd))
+      goto err;
+    if (try_lock(thd, Query_cache::TIMEOUT))
+      goto err;
+    once_more= false;
+    goto lookup;
+  }
+#endif /* WITH_WSREP */
 
   /* Now lock and test that nothing changed while blocks was unlocked */
   BLOCK_LOCK_RD(query_block);

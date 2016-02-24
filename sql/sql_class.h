@@ -3991,6 +3991,7 @@ public:
   void                      *wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
   bool                      wsrep_skip_append_keys;
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

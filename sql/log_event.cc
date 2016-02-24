@@ -9895,7 +9895,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 
 #ifdef HAVE_QUERY_CACHE
+#ifdef WITH_WSREP
+    /*
+       Moved invalidation right before the call to rows_event_stmt_cleanup(),
+       to avoid query cache being polluted with stale entries.
+    */
+    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    {
+#endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
 #endif
   }
 
@@ -10087,6 +10098,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   /* remove trigger's tables */
   if (slave_run_triggers_for_rbr)
     restore_empty_query_table_list(thd->lex);
+
+#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
+    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    {
+      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+    }
+#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+
   if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,

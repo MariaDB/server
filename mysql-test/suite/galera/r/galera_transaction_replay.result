@@ -10,6 +10,8 @@ f1	f2
 SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
 COMMIT;;
 SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';

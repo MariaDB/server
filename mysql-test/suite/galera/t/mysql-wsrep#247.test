@@ -1,0 +1,23 @@
+#
+# codership/mysql-wsrep/247 MW-246 -
+# DDL with RSU fails if node is desynced upfont
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+SET GLOBAL wsrep_desync=1;
+
+SET wsrep_OSU_method=RSU;
+
+CREATE TABLE t1 (i int primary key);
+
+SHOW VARIABLES LIKE 'wsrep_desync';
+
+SET GLOBAL wsrep_desync=0;
+--sleep 1
+DROP TABLE t1;
+SHOW VARIABLES LIKE 'wsrep_desync';
+
