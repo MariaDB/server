@@ -30,7 +30,7 @@ if ($galera_wsrep_start_position != $expected_position)
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
---source include/galera_wait_ready.inc
+--source include/wait_until_ready.inc
 
 --connection node_1
 DROP TABLE t1;

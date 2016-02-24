@@ -3,6 +3,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 --connection node_2
 SET SESSION wsrep_sync_wait = 1;

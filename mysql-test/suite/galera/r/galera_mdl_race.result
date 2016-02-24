@@ -7,10 +7,16 @@ START TRANSACTION;
 UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
 LOCK TABLE t2 WRITE;
 SET GLOBAL DEBUG = "d,sync.wsrep_before_mdl_wait";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SELECT * FROM t2;;
 SET GLOBAL DEBUG = "d,sync.wsrep_after_BF_victim_lock";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
 SET GLOBAL DEBUG = "";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_before_mdl_wait";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_after_BF_victim_lock";
 UNLOCK TABLES;
@@ -29,3 +35,4 @@ COUNT(*) = 1
 1
 DROP TABLE t1;
 DROP TABLE t2;
+SET DEBUG_SYNC = "RESET";

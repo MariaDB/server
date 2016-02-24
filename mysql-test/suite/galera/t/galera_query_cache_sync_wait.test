@@ -29,6 +29,7 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 FLUSH QUERY CACHE;
 SET SESSION wsrep_sync_wait = 7;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
 
 #
 # Query cache miss, wait timeout
@@ -88,3 +89,6 @@ SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
 DROP TABLE t1;
+
+--connection node_2a
+SET DEBUG_SYNC = "RESET";
