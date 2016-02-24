@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3885,6 +3885,19 @@ void SELECT_LEX::update_used_tables()
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
     }
+    /*
+      - There is no need to check sj_on_expr, because merged semi-joins inject
+        sj_on_expr into the parent's WHERE clase.
+      - For non-merged semi-joins (aka JTBMs), we need to check their
+        left_expr. There is no need to check the rest of the subselect, we know
+        it is uncorrelated and so cannot refer to any tables in this select.
+    */
+    if (tl->jtbm_subselect)
+    {
+      Item *left_expr= tl->jtbm_subselect->left_expr;
+      left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+    }
+
     embedding= tl->embedding;
     while (embedding)
     {

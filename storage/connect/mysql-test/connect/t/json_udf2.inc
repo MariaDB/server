@@ -11,6 +11,8 @@ DROP FUNCTION json_object_add;
 DROP FUNCTION json_object_delete;
 DROP FUNCTION json_object_list;
 DROP FUNCTION jsonvalue;
+DROP FUNCTION jsonset_grp_size;
+DROP FUNCTION jsonget_grp_size;
 DROP FUNCTION json_array_grp;
 DROP FUNCTION json_object_grp;
 DROP FUNCTION jsonget_string;

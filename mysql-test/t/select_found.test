@@ -277,3 +277,13 @@ select sql_calc_found_rows * from t1 ignore index (i) where i = 0 order by v lim
 select found_rows();
 drop table t1;
 
+#
+# MDEV-9390 Function found_rows() gives incorrect result where the previous SELECT contains ORDER BY clause
+#
+create table t1(c1 int);
+insert into t1 values(1),(2),(3),(4),(5);
+select * from t1 order by c1 limit 2,1;
+select found_rows();
+select sql_calc_found_rows * from t1 order by c1 limit 2,1;
+select found_rows();
+drop table t1;

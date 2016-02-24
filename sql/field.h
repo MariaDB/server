@@ -283,6 +283,13 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool is_equal(Virtual_column_info* vcol)
+  {
+    return field_type == vcol->get_real_type()
+        && stored_in_db == vcol->is_stored()
+        && expr_str.length == vcol->expr_str.length
+        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
+  }
 };
 
 class Field
@@ -2550,6 +2557,7 @@ public:
   {
     set_ptr_offset(0, length, data);
   }
+  int copy_value(Field_blob *from);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,

@@ -1,7 +1,7 @@
 /************** Table C++ Functions Source Code File (.CPP) ************/
 /*  Name: TABLE.CPP  Version 2.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2016    */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -518,7 +518,8 @@ bool TDBCAT::InitCol(PGLOBAL g)
       sprintf(g->Message, "Invalid flag %d for column %s",
                           colp->Flag, colp->Name);
       return true;
-      } // endif Crp
+		} else if (crp->Fld == FLD_SCALE || crp->Fld == FLD_RADIX)
+			colp->Value->SetNullable(true);
 
     } // endfor colp
 
@@ -586,11 +587,14 @@ CATCOL::CATCOL(PCOLDEF cdp, PTDB tdbp, int n)
 /***********************************************************************/
 void CATCOL::ReadColumn(PGLOBAL)
   {
+	bool b = (!Crp->Kdata || Crp->Kdata->IsNull(Tdbp->N));
+
   // Get the value of the Name or Description property
-  if (Crp->Kdata)
+  if (!b)
     Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
   else
     Value->Reset();
 
+	Value->SetNull(b);
   } // end of ReadColumn
 

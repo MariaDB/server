@@ -907,10 +907,7 @@ end:
   if (res)
     deinit();
   if (!had_thd)
-  {
     delete thd;
-    set_current_thd(0);
-  }
 
   DBUG_RETURN(res);
 }

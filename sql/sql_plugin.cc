@@ -1791,9 +1791,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);
 end:
-  /* Remember that we don't have a THD */
   delete new_thd;
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

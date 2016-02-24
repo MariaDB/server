@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1894,7 +1894,7 @@ THD::~THD()
     DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
   }
 
-  set_current_thd(orig_thd);
+  set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
 
@@ -1992,7 +1992,8 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 void THD::awake(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
-  DBUG_PRINT("enter", ("this: %p current_thd: %p", this, current_thd));
+  DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
+                       this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
@@ -4081,6 +4082,12 @@ void thd_increment_bytes_sent(ulong length)
   }
 }
 
+my_bool thd_net_is_killed()
+{
+  THD *thd= current_thd;
+  return thd && thd->killed ? 1 : 0;
+}
+
 
 void thd_increment_bytes_received(ulong length)
 {
@@ -5370,6 +5377,94 @@ void xid_cache_delete(XID_STATE *xid_state)
   mysql_mutex_unlock(&LOCK_xid_cache);
 }
 
+/*
+  Tells if two (or more) tables have auto_increment columns and we want to
+  lock those tables with a write lock.
+
+  SYNOPSIS
+    has_two_write_locked_tables_with_auto_increment
+      tables        Table list
+
+  NOTES:
+    Call this function only when you have established the list of all tables
+    which you'll want to update (including stored functions, triggers, views
+    inside your statement).
+*/
+
+static bool
+has_write_table_with_auto_increment(TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    /* we must do preliminary checks as table->table may be NULL */
+    if (!table->placeholder() &&
+        table->table->found_next_number_field &&
+        (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      return 1;
+  }
+
+  return 0;
+}
+
+/*
+   checks if we have select tables in the table list and write tables
+   with auto-increment column.
+
+  SYNOPSIS
+   has_two_write_locked_tables_with_auto_increment_and_select
+      tables        Table list
+
+  RETURN VALUES
+
+   -true if the table list has atleast one table with auto-increment column
+
+
+         and atleast one table to select from.
+   -false otherwise
+*/
+
+static bool
+has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
+{
+  bool has_select= false;
+  bool has_auto_increment_tables = has_write_table_with_auto_increment(tables);
+  for(TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+     if (!table->placeholder() &&
+        (table->lock_type <= TL_READ_NO_INSERT))
+      {
+        has_select= true;
+        break;
+      }
+  }
+  return(has_select && has_auto_increment_tables);
+}
+
+/*
+  Tells if there is a table whose auto_increment column is a part
+  of a compound primary key while is not the first column in
+  the table definition.
+
+  @param tables Table list
+
+  @return true if the table exists, fais if does not.
+*/
+
+static bool
+has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    /* we must do preliminary checks as table->table may be NULL */
+    if (!table->placeholder() &&
+        table->table->found_next_number_field &&
+        (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        && table->table->s->next_number_keypart != 0)
+      return 1;
+  }
+
+  return 0;
+}
 
 /**
   Decide on logging format to use for the statement and issue errors
@@ -5553,6 +5648,31 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                            prelocked_mode_name[locked_tables_mode]));
     }
 #endif
+
+    if (variables.binlog_format != BINLOG_FORMAT_ROW && tables)
+    {
+      /*
+        DML statements that modify a table with an auto_increment column based on
+        rows selected from a table are unsafe as the order in which the rows are
+        fetched fron the select tables cannot be determined and may differ on
+        master and slave.
+       */
+      if (has_write_table_with_auto_increment_and_select(tables))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
+
+      if (has_write_table_auto_increment_not_first_in_pk(tables))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
+
+      /*
+        A query that modifies autoinc column in sub-statement can make the
+        master and slave inconsistent.
+        We can solve these problems in mixed mode by switching to binlogging
+        if at least one updated table is used by sub-statement
+       */
+      if (lex->requires_prelocking() &&
+          has_write_table_with_auto_increment(lex->first_not_own_table()))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
+    }
 
     /*
       Get the capabilities vector for all involved storage engines and

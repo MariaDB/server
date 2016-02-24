@@ -35,6 +35,15 @@ SET SQL_MODE = '';
 drop table t1;
 SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'not_exists' AND TABLE_NAME = 'not_exists';
 TABLE_NAME
+CREATE procedure e1()
+BEGIN
+START TRANSACTION;
+INSERT INTO test.non_exists VALUES (0,0,0) /* e1  */;
+COMMIT;
+END|
+CALL e1();
+ERROR 42S02: Table 'test.non_exists' doesn't exist
+DROP PROCEDURE e1;
 uninstall plugin SQL_ERROR_LOG;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
@@ -45,3 +54,4 @@ TIME HOSTNAME ERROR 1000: new message : RESIGNAL SQLSTATE '40000' SET
 MYSQL_ERRNO = 1000,
 MESSAGE_TEXT = 'new message'
 TIME HOSTNAME ERROR 1366: Incorrect integer value: 'aa' for column 'id' at row 1 : insert into t1 values ('aa')
+TIME HOSTNAME ERROR 1146: Table 'test.non_exists' doesn't exist : INSERT INTO test.non_exists VALUES (0,0,0) /* e1  */

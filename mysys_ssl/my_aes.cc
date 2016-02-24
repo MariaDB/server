@@ -26,6 +26,10 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
+#ifdef HAVE_ERR_remove_thread_state
+#define ERR_remove_state(X) ERR_remove_thread_state(NULL)
+#endif
+
 // Wrap C struct, to ensure resources are released.
 struct MyCipherCtx
 {

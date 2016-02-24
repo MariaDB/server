@@ -1,7 +1,7 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
 /*  Name: ODBCONN.CPP  Version 2.2                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -314,8 +314,10 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
                    FLD_TYPE,  FLD_TYPENAME, FLD_PREC,    FLD_LENGTH,
                    FLD_SCALE, FLD_RADIX,    FLD_NULL,    FLD_REM};
   unsigned int length[] = {0, 0, 0, 0, 6, 0, 10, 10, 6, 6, 6, 0};
-  int      n, ncol = 12;
-  PQRYRES  qrp;
+	bool     b[] = {true,true,false,false,false,false,false,false,true,true,false,true};
+  int      i, n, ncol = 12;
+	PCOLRES  crp;
+	PQRYRES  qrp;
   CATPARM *cap;
   ODBConn *ocp = NULL;
 
@@ -362,6 +364,10 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS,
                           buftyp, fldtyp, length, false, true);
+
+	for (i = 0, crp = qrp->Colresp; crp; i++, crp = crp->Next)
+		if (b[i])
+			crp->Kdata->SetNullable(true);
 
   if (info || !qrp)                      // Info table
     return qrp;
@@ -495,8 +501,10 @@ PQRYRES ODBCDrivers(PGLOBAL g, int maxres, bool info)
   int      buftyp[] = {TYPE_STRING, TYPE_STRING};
   XFLD     fldtyp[] = {FLD_NAME, FLD_REM};
   unsigned int length[] = {128, 256};
-  int      ncol = 2;
-  PQRYRES  qrp;
+	bool     b[] = {false, true};
+	int      i, ncol = 2;
+	PCOLRES  crp;
+	PQRYRES  qrp;
   ODBConn *ocp = NULL;
 
   /************************************************************************/
@@ -520,7 +528,11 @@ PQRYRES ODBCDrivers(PGLOBAL g, int maxres, bool info)
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
                           buftyp, fldtyp, length, false, true);
 
-  /************************************************************************/
+	for (i = 0, crp = qrp->Colresp; crp; i++, crp = crp->Next)
+		if (b[i])
+			crp->Kdata->SetNullable(true);
+
+	/************************************************************************/
   /*  Now get the results into blocks.                                    */
   /************************************************************************/
   if (!info && qrp && ocp->GetDrivers(qrp))
@@ -542,8 +554,10 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
   int      buftyp[] = {TYPE_STRING, TYPE_STRING};
   XFLD     fldtyp[] = {FLD_NAME, FLD_REM};
   unsigned int length[] = {0, 256};
-  int      n = 0, ncol = 2;
-  PQRYRES  qrp;
+	bool     b[] = {false, true};
+	int      i, n = 0, ncol = 2;
+	PCOLRES  crp;
+	PQRYRES  qrp;
   ODBConn *ocp = NULL;
 
   /************************************************************************/
@@ -571,7 +585,11 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, 
                           buftyp, fldtyp, length, false, true);
 
-  /************************************************************************/
+	for (i = 0, crp = qrp->Colresp; crp; i++, crp = crp->Next)
+		if (b[i])
+			crp->Kdata->SetNullable(true);
+
+	/************************************************************************/
   /*  Now get the results into blocks.                                    */
   /************************************************************************/
   if (!info && qrp && ocp->GetDataSources(qrp))
@@ -595,8 +613,10 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   XFLD     fldtyp[] = {FLD_CAT,  FLD_SCHEM, FLD_NAME,
                        FLD_TYPE, FLD_REM};
   unsigned int length[] = {0, 0, 0, 16, 0};
-  int      n, ncol = 5;
-  PQRYRES  qrp;
+	bool     b[] ={ true, true, false, false, true };
+	int      i, n, ncol = 5;
+	PCOLRES  crp;
+	PQRYRES  qrp;
   CATPARM *cap;
   ODBConn *ocp = NULL;
 
@@ -638,7 +658,11 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES, buftyp,
                                         fldtyp, length, false, true);
 
-  if (info || !qrp)
+	for (i = 0, crp = qrp->Colresp; crp; i++, crp = crp->Next)
+		if (b[i])
+			crp->Kdata->SetNullable(true);
+
+	if (info || !qrp)
     return qrp;
 
   if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
@@ -2249,7 +2273,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         rc = SQLTables(hstmt, name.ptr(2), name.length(2),
                               name.ptr(1), name.length(1),
                               name.ptr(0), name.length(0),
-                              cap->Pat, SQL_NTS);
+															cap->Pat, cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_COL:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
@@ -2258,7 +2282,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         rc = SQLColumns(hstmt, name.ptr(2), name.length(2),
                                name.ptr(1), name.length(1),
                                name.ptr(0), name.length(0),
-                               cap->Pat, SQL_NTS);
+															 cap->Pat, cap->Pat ? SQL_NTS : 0);
         break;
       case CAT_KEY:
         fnc = "SQLPrimaryKeys";

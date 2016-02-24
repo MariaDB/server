@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1516,7 +1516,6 @@ static openssl_lock_t *openssl_dynlock_create(const char *, int);
 static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
-static unsigned long openssl_id_function();
 #endif
 char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
@@ -4631,7 +4630,6 @@ static int init_thread_environment()
   CRYPTO_set_dynlock_destroy_callback(openssl_dynlock_destroy);
   CRYPTO_set_dynlock_lock_callback(openssl_lock);
   CRYPTO_set_locking_callback(openssl_lock_function);
-  CRYPTO_set_id_callback(openssl_id_function);
 #endif
 #endif
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_connect, &LOCK_sys_init_connect);
@@ -4689,12 +4687,6 @@ static int init_thread_environment()
 
 
 #if defined(HAVE_OPENSSL) && !defined(HAVE_YASSL)
-static unsigned long openssl_id_function()
-{
-  return (unsigned long) pthread_self();
-}
-
-
 static openssl_lock_t *openssl_dynlock_create(const char *file, int line)
 {
   openssl_lock_t *lock= new openssl_lock_t;
@@ -7137,7 +7129,6 @@ void handle_connections_sockets()
 	(void) mysql_socket_close(new_sock);
       }
       delete thd;
-      set_current_thd(0);
       statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
@@ -7252,7 +7243,6 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
-      set_current_thd(0);
       continue;
     }
     /* Host is unknown */
@@ -8093,14 +8083,46 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE);
     if (mi)
-      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
-                      mi->rli.slave_running);
+      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+                      mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   if (mi)
     *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
+  return 0;
+}
+
+
+/* How many slaves are connected to this master */
+
+static int show_slaves_connected(THD *thd, SHOW_VAR *var, char *buff)
+{
+
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_slave_list);
+
+  *((longlong *)buff)= slave_list.records;
+
+  mysql_mutex_unlock(&LOCK_slave_list);
+  return 0;
+}
+
+
+/* How many masters this slave is connected to */
+
+
+static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+
+  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -8756,6 +8778,9 @@ SHOW_VAR status_vars[]= {
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
 #ifdef HAVE_REPLICATION
+  {"Slaves_connected",        (char*) &show_slaves_connected, SHOW_SIMPLE_FUNC },
+  {"Slaves_running",          (char*) &show_slaves_running, SHOW_SIMPLE_FUNC },
+  {"Slave_connections",       (char*) offsetof(STATUS_VAR, com_register_slave), SHOW_LONG_STATUS},
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
   {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
   {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},
@@ -9051,7 +9076,7 @@ static int mysql_init_variables(void)
   my_atomic_rwlock_init(&thread_count_lock);
   my_atomic_rwlock_init(&statistics_lock);
   my_atomic_rwlock_init(&slave_executed_entries_lock);
-  strmov(server_version, MYSQL_SERVER_VERSION);
+  strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
   key_caches.empty();
@@ -9929,20 +9954,23 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
 void set_server_version(void)
 {
-  char *end= strxmov(server_version, MYSQL_SERVER_VERSION,
-                     MYSQL_SERVER_SUFFIX_STR, NullS);
+  char *version_end= server_version+sizeof(server_version)-1;
+  char *end= strxnmov(server_version, sizeof(server_version)-1,
+                      MYSQL_SERVER_VERSION,
+                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
-  end= strmov(end, "-embedded");
+  end= strnmov(end, "-embedded", (version_end-end));
 #endif
 #ifdef WITH_WSREP
   end= strmov(end, "-wsrep");
 #endif
 #ifndef DBUG_OFF
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
-    end= strmov(end, "-debug");
+    end= strnmov(end, "-debug", (version_end-end));
 #endif
   if (opt_log || opt_slow_log || opt_bin_log)
-    strmov(end, "-log");                        // This may slow down system
+    strnmov(end, "-log", (version_end-end)); // This may slow down system
+  *end= 0;
 }
 
 
@@ -10240,7 +10268,7 @@ void refresh_status(THD *thd)
     Set max_used_connections to the number of currently open
     connections.  This is not perfect, but status data is not exact anyway.
   */
-  max_used_connections= thread_count-delayed_insert_threads;
+  max_used_connections= connection_count + extra_connection_count;
 }
 
 #ifdef HAVE_PSI_INTERFACE

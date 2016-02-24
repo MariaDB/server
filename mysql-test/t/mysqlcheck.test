@@ -319,9 +319,9 @@ CREATE TABLE test.`t.1` (id int);
 
 drop table test.`t.1`;
 
-#
-# MDEV-8123 mysqlcheck: new --process-views option conflicts with --quick, --extended and such
-#
+--echo #
+--echo # MDEV-8123 mysqlcheck: new --process-views option conflicts with --quick, --extended and such
+--echo #
 create view v1 as select 1;
 --echo mysqlcheck --process-views test
 --exec $MYSQL_CHECK --process-views test
@@ -340,12 +340,22 @@ create view v1 as select 1;
 drop view v1;
 
 
-#
-# MDEV-8124 mysqlcheck: --auto-repair runs REPAIR TABLE instead of REPAIR VIEW on views
-#
+--echo #
+--echo # MDEV-8124 mysqlcheck: --auto-repair runs REPAIR TABLE instead of REPAIR VIEW on views
+--echo #
 create table t1(a int);
 --copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
 --echo mysqlcheck --process-views --check-upgrade --auto-repair test
 --exec $MYSQL_CHECK --process-views --check-upgrade --auto-repair test
 drop view v1;
+drop table t1;
+
+--echo #
+--echo #MDEV-7384 [PATCH] add PERSISENT FOR ALL option to mysqlanalyze/mysqlcheck
+--echo #
+create table t1(a int);
+insert into t1 (a) values (1), (2), (3);
+select * from mysql.column_stats;
+--exec $MYSQL_CHECK --analyze test t1 --persistent
+select * from mysql.column_stats where db_name = 'test' and table_name = 't1';
 drop table t1;

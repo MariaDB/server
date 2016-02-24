@@ -3696,7 +3696,7 @@ sp_proc_stmt_statement:
               if (yychar == YYEMPTY)
                 i->m_query.length= lip->get_ptr() - sp->m_tmp_query;
               else
-                i->m_query.length= lip->get_tok_end() - sp->m_tmp_query;
+                i->m_query.length= lip->get_tok_start() - sp->m_tmp_query;;
               if (!(i->m_query.str= strmake_root(thd->mem_root,
                                                  sp->m_tmp_query,
                                                  i->m_query.length)) ||
@@ -10769,15 +10769,6 @@ table_factor:
               sel->add_joined_table($$);
               lex->pop_context();
               lex->nest_level--;
-              /*
-                Fields in derived table can be used in upper select in
-                case of merge. We do not add HAVING fields because we do
-                not merge such derived. We do not add union because
-                also do not merge them
-              */
-              if (!sel->next_select())
-                $2->select_n_where_fields+=
-                  sel->select_n_where_fields;
             }
             /*else if (($3->select_lex &&
                       $3->select_lex->master_unit()->is_union() &&
@@ -10798,6 +10789,15 @@ table_factor:
                  nest_level is the same as in the outer query */
               $$= $3;
             }
+            /*
+              Fields in derived table can be used in upper select in
+              case of merge. We do not add HAVING fields because we do
+              not merge such derived. We do not add union because
+              also do not merge them
+            */
+            if ($$ && $$->derived &&
+                !$$->derived->first_select()->next_select())
+              $$->select_lex->add_where_field($$->derived->first_select());
           }
         ;
 

@@ -258,8 +258,6 @@ void udf_init()
 end:
   close_mysql_tables(new_thd);
   delete new_thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

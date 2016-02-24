@@ -4306,7 +4306,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
-    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
 
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
