@@ -9359,7 +9359,7 @@ static void add_not_null_conds(JOIN *join)
           if (!referred_tab)
             continue;
           if (!(notnull= new (join->thd->mem_root)
-                Item_func_isnotnull(join->thd, not_null_item)))
+                Item_func_isnotnull(join->thd, item)))
             DBUG_VOID_RETURN;
           /*
             We need to do full fix_fields() call here in order to have correct
