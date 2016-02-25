@@ -902,7 +902,7 @@ THD::THD(bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_skip_append_keys(false)
+   wsrep_ignore_table(false)
 #endif
 {
   ulong tmp;

@@ -2377,9 +2377,9 @@ int wsrep_thd_retry_counter(THD *thd)
 }
 
 
-extern "C" bool wsrep_thd_skip_append_keys(THD *thd)
+extern "C" bool wsrep_thd_ignore_table(THD *thd)
 {
-  return thd->wsrep_skip_append_keys;
+  return thd->wsrep_ignore_table;
 }
 
 

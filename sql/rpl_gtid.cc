@@ -567,7 +567,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     Updates in slave state table should not be appended to galera transaction
     writeset.
   */
-  thd->wsrep_skip_append_keys= true;
+  thd->wsrep_ignore_table= true;
 #endif
 
   if (!in_transaction)
@@ -685,7 +685,7 @@ IF_DBUG(dbug_break:, )
 end:
 
 #ifdef WITH_WSREP
-  thd->wsrep_skip_append_keys= false;
+  thd->wsrep_ignore_table= false;
 #endif
 
   if (table_opened)

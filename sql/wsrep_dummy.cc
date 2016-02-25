@@ -116,7 +116,7 @@ int wsrep_thd_retry_counter(THD *)
 void wsrep_thd_set_conflict_state(THD *, enum wsrep_conflict_state)
 { }
 
-bool wsrep_thd_skip_append_keys(THD *)
+bool wsrep_thd_ignore_table(THD *)
 { return 0; }
 
 longlong wsrep_thd_trx_seqno(THD *)

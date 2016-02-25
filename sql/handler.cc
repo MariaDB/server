@@ -5723,10 +5723,16 @@ static int binlog_log_row(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
-  /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      table->file->partition_ht()->db_type != DB_TYPE_INNODB)
+#ifdef WITH_WSREP
+  /*
+    Only InnoDB tables will be replicated through binlog emulation. Also
+    updates in mysql.gtid_slave_state table should not be binlogged.
+  */
+  if ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
+      (thd->wsrep_ignore_table == true))
     return 0;
+#endif /* WITH_WSREP */
 
   if (check_table_binlog_row_based(thd, table))
   {
