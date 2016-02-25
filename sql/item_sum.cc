@@ -1538,8 +1538,9 @@ bool Item_sum_count::add()
 
 void Item_sum_count::remove()
 {
-  /* TODO: Handle DECIMAL type */
   DBUG_ASSERT(aggr->Aggrtype() == Aggregator::SIMPLE_AGGREGATOR);
+  if (aggr->arg_is_null(false))
+    return;
   count--;
 }
 

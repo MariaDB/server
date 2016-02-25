@@ -284,7 +284,22 @@ window w1 as (partition by c), w2 as (w1 order by pk);
 
 drop table t0,t1;
 
+--echo #
+--echo # MDEV-9634: Window function produces incorrect value
+--echo #
 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (part_id int, pk int, a int);
+insert into t2 select 
+  if(a<5, 0, 1), a, if(a<5, NULL, 1) from t0;
+select * from t2;
 
+select 
+  part_id, pk, a,
+  count(a) over (partition by part_id order by pk
+                 rows between 1 preceding and 1 following) as CNT
+from t2;
 
+drop table t0, t2;
 

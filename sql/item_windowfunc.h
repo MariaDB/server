@@ -378,6 +378,8 @@ public:
                                          window_func->val_decimal(dec);
   }
 
+  void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
+                              List<Item> &fields, uint flags);
   void fix_length_and_dec()
   {
     window_func->fix_length_and_dec();

@@ -66,6 +66,42 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
 
 /*
+  @detail
+    Window function evaluates its arguments when it is scanning the temporary
+    table in partition/order-by order. That is, arguments should be read from
+    the temporary table, not from the original base columns.
+
+    In order for this to work, we need to call "split_sum_func" for each
+    argument. The effect of the call is:
+     1. the argument is added into ref_pointer_array. This will cause the
+        argument to be saved in the temp.table
+     2. argument item is replaced with an Item_ref object. this object refers
+        the argument through the ref_pointer_array.
+
+    then, change_to_use_tmp_fields() will replace ref_pointer_array with an
+    array that points to the temp.table fields.
+    This way, when window_func attempts to evaluate its arguments, it will use
+    Item_ref objects which will read data from the temp.table.
+
+    Note: Before window functions, aggregate functions never needed to do such
+    transformations on their arguments. This is because grouping operation
+    does not need to read from the temp.table.
+    (Q: what happens when we first sort and then do grouping in a
+      group-after-group mode? dont group by items read from temp.table, then?)
+*/
+
+void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
+                                      List<Item> &fields, uint flags)
+{
+  for (uint i=0; i < window_func->argument_count(); i++)
+  {
+    Item **p_item= &window_func->arguments()[i];
+    (*p_item)->split_sum_func2(thd, ref_pointer_array, fields, p_item, flags);
+  }
+}
+
+
+/*
   This must be called before advance_window() can be called.
 
   @detail
