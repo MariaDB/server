@@ -11373,11 +11373,6 @@ get_select_lex_derived:
 select_derived_init:
           {
             LEX *lex= Lex;
-            if (! lex->parsing_options.allows_derived)
-            {
-              my_error(ER_VIEW_SELECT_DERIVED, MYF(0));
-              MYSQL_YYABORT;
-            }
 
             TABLE_LIST *embedding= lex->current_select->embedding;
             $$= embedding &&
@@ -16745,7 +16740,6 @@ view_select:
           {
             LEX *lex= Lex;
             lex->parsing_options.allows_variable= FALSE;
-            lex->parsing_options.allows_derived= FALSE;
             lex->create_view_select.str= (char *) YYLIP->get_cpp_ptr();
           }
           opt_with_clause query_expression_body_view view_check_option
@@ -16757,7 +16751,6 @@ view_select:
             lex->create_view_select.str= (char *) create_view_select;
             trim_whitespace(thd->charset(), &lex->create_view_select);
             lex->parsing_options.allows_variable= TRUE;
-            lex->parsing_options.allows_derived= TRUE;
             lex->current_select->set_with_clause($2);
           }
         ;

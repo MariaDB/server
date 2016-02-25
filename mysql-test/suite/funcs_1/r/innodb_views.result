@@ -3503,7 +3503,7 @@ Select @x;
 0
 CREATE or REPLACE VIEW v1 AS Select 1
 FROM (SELECT 1 FROM t1) my_table;
-ERROR HY000: View's SELECT contains a subquery in the FROM clause
+DROP VIEW v1;
 CREATE VIEW v1 AS SELECT f1 FROM t1;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1 ;
 SET @a:=0 ;
@@ -7535,7 +7535,7 @@ Testcase 3.3.1.39
 Drop view if exists test.v1 ;
 CREATE VIEW test.v1
 AS Select f59 from (Select * FROM tb2 limit 20) tx ;
-ERROR HY000: View's SELECT contains a subquery in the FROM clause
+DROP VIEW test.v1;
 SELECT * FROM test.v1 order by f59 ;
 ERROR 42S02: Table 'test.v1' doesn't exist
 Drop view if exists test.v1 ;

@@ -232,7 +232,6 @@ void
 st_parsing_options::reset()
 {
   allows_variable= TRUE;
-  allows_derived= TRUE;
 }
 
 
@@ -2951,7 +2950,7 @@ bool LEX::can_be_merged()
          tmp_unit= tmp_unit->next_unit())
     {
       if (tmp_unit->first_select()->parent_lex == this &&
-          (tmp_unit->item == 0 ||
+          (tmp_unit->item != 0 &&
            (tmp_unit->item->place() != IN_WHERE &&
             tmp_unit->item->place() != IN_ON &&
             tmp_unit->item->place() != SELECT_LIST)))

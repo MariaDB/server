@@ -1817,7 +1817,6 @@ private:
 struct st_parsing_options
 {
   bool allows_variable;
-  bool allows_derived;
 
   st_parsing_options() { reset(); }
   void reset();

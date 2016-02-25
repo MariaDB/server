@@ -1234,10 +1234,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
           {
             // Partitioned key is updated
             my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                     tl->belong_to_view ? tl->belong_to_view->alias
-                                        : tl->alias,
-                     tl2->belong_to_view ? tl2->belong_to_view->alias
-                                         : tl2->alias);
+                     tl->top_table()->alias,
+                     tl2->top_table()->alias);
             return true;
           }
 
@@ -1255,10 +1253,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
               {
                 // Clustered primary key is updated
                 my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                         tl->belong_to_view ? tl->belong_to_view->alias
-                         : tl->alias,
-                         tl2->belong_to_view ? tl2->belong_to_view->alias
-                         : tl2->alias);
+                         tl->top_table()->alias,
+                         tl2->top_table()->alias);
                 return true;
               }
             }
@@ -1459,11 +1455,13 @@ int mysql_multi_update_prepare(THD *thd)
     {
       if (!tl->single_table_updatable() || check_key_in_view(thd, tl))
       {
-        my_error(ER_NON_UPDATABLE_TABLE, MYF(0), tl->alias, "UPDATE");
+        my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
+                 tl->top_table()->alias, "UPDATE");
         DBUG_RETURN(TRUE);
       }
 
-      DBUG_PRINT("info",("setting table `%s` for update", tl->alias));
+      DBUG_PRINT("info",("setting table `%s` for update",
+                         tl->top_table()->alias));
       /*
         If table will be updated we should not downgrade lock for it and
         leave it as is.

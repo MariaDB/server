@@ -24541,7 +24541,8 @@ static void print_table_array(THD *thd,
       continue;
     }
 
-    if (curr->outer_join)
+    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
     {
       /* MySQL converts right to left joins */
       str->append(STRING_WITH_LEN(" left join "));

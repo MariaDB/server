@@ -1235,8 +1235,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE PROCEDURE bug20953()
 CREATE VIEW v AS SELECT i FROM t1 PROCEDURE ANALYSE();
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()' at line 2
-CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 FROM (SELECT 1) AS d1;
-ERROR HY000: View's SELECT contains a subquery in the FROM clause
+CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 FROM (SELECT 1) AS d1 into @w;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @w' at line 1
 CREATE PROCEDURE bug20953(i INT) CREATE VIEW v AS SELECT i;
 ERROR HY000: View's SELECT contains a variable or parameter
 CREATE PROCEDURE bug20953()
