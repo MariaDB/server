@@ -4224,7 +4224,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
-    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
 
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
@@ -5604,15 +5604,17 @@ inline bool handler::check_table_binlog_row_based(bool binlog_row)
 
 bool handler::check_table_binlog_row_based_internal(bool binlog_row)
 {
-  THD *thd;
+  THD *thd= table->in_use;
 
+#ifdef WITH_WSREP
   /* only InnoDB tables will be replicated through binlog emulation */
   if (binlog_row &&
-      WSREP_EMULATE_BINLOG(thd) &&
-      table->file->partition_ht()->db_type != DB_TYPE_INNODB)
+      ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
+       (thd->wsrep_ignore_table == true)))
     return 0;
+#endif
 
-  thd= table->in_use;
   return (table->s->cached_row_logging_check &&
           thd->is_current_stmt_binlog_format_row() &&
           /*

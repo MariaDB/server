@@ -34,6 +34,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     "LINK_LIBRARIES;DEPENDENCIES"
     ${ARGN}
   )
+  IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
@@ -236,13 +237,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
   ENDIF()
 
+  ENDIF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 ENDMACRO()
 
 
 # Add all CMake projects under storage  and plugin 
 # subdirectories, configure sql_builtins.cc
 MACRO(CONFIGURE_PLUGINS)
-  FILE(GLOB dirs_storage ${CMAKE_SOURCE_DIR}/storage/*)
+  IF(NOT WITHOUT_SERVER)
+    FILE(GLOB dirs_storage ${CMAKE_SOURCE_DIR}/storage/*)
+  ENDIF()
+
   FILE(GLOB dirs_plugin ${CMAKE_SOURCE_DIR}/plugin/*)
   FOREACH(dir ${dirs_storage} ${dirs_plugin})
     IF (EXISTS ${dir}/CMakeLists.txt)

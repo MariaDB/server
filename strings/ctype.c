@@ -1030,19 +1030,18 @@ my_charset_is_ascii_compatible(CHARSET_INFO *cs)
   @return Number of bytes copied to 'to' string
 */
 
-static uint32
-my_convert_internal(char *to, uint32 to_length,
-                    CHARSET_INFO *to_cs,
-                    const char *from, uint32 from_length,
-                    CHARSET_INFO *from_cs, uint *errors)
+uint32
+my_convert_using_func(char *to, uint32 to_length,
+                      CHARSET_INFO *to_cs, my_charset_conv_wc_mb wc_mb,
+                      const char *from, uint32 from_length,
+                      CHARSET_INFO *from_cs, my_charset_conv_mb_wc mb_wc,
+                      uint *errors)
 {
   int         cnvres;
   my_wc_t     wc;
   const uchar *from_end= (const uchar*) from + from_length;
   char *to_start= to;
   uchar *to_end= (uchar*) to + to_length;
-  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
-  my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
   uint error_count= 0;
 
   while (1)
@@ -1119,8 +1118,11 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
     immediately switch to slow mb_wc->wc_mb method.
   */
   if ((to_cs->state | from_cs->state) & MY_CS_NONASCII)
-    return my_convert_internal(to, to_length, to_cs,
-                               from, from_length, from_cs, errors);
+    return my_convert_using_func(to, to_length,
+                                 to_cs, to_cs->cset->wc_mb,
+                                 from, from_length,
+                                 from_cs, from_cs->cset->mb_wc,
+                                 errors);
 
   length= length2= MY_MIN(to_length, from_length);
 
@@ -1152,9 +1154,11 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
       uint32 copied_length= length2 - length;
       to_length-= copied_length;
       from_length-= copied_length;
-      return copied_length + my_convert_internal(to, to_length, to_cs,
-                                                 from, from_length, from_cs,
-                                                 errors);
+      return copied_length + my_convert_using_func(to, to_length, to_cs,
+                                                   to_cs->cset->wc_mb,
+                                                   from, from_length, from_cs,
+                                                   from_cs->cset->mb_wc,
+                                                   errors);
     }
   }
 

@@ -77,6 +77,12 @@ extern "C" {
 	DllExport char *json_object_list(UDF_EXEC_ARGS);
 	DllExport void json_object_list_deinit(UDF_INIT*);
 
+	DllExport my_bool jsonset_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsonset_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+
+	DllExport my_bool jsonget_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsonget_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);
+
 	DllExport my_bool json_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport void json_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
 	DllExport char *json_array_grp(UDF_EXEC_ARGS);

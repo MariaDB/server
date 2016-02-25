@@ -93,7 +93,7 @@ if (NOT HAVE_BACKTRACE_WITHOUT_EXECINFO)
   if (HAVE_BACKTRACE_WITH_EXECINFO)
     list(APPEND EXTRA_SYSTEM_LIBS execinfo)
   else ()
-    message(FATAL_ERROR "Cannot find backtrace(), even with -lexecinfo.")
+    message(WARNING "Cannot find backtrace(), even with -lexecinfo.")
   endif ()
 endif ()
 

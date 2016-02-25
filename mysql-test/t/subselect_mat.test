@@ -254,3 +254,19 @@ SELECT a, b, (a, b) NOT IN (SELECT a, b FROM t2) as sq
 FROM t1;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-9489: Assertion `0' failed in Protocol::end_statement() on
+--echo # UNION ALL
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+INSERT INTO t1 VALUES (1),(2);
+
+( SELECT 1 FROM t1 WHERE f1 NOT IN ( SELECT f2 FROM t2 ) LIMIT 0 )
+UNION ALL
+( SELECT 1 FROM t1 WHERE f1 NOT IN ( SELECT f2 FROM t2 ) )
+;
+
+drop table t1, t2;

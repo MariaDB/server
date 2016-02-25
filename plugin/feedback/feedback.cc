@@ -376,7 +376,6 @@ static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
        "Proxy server host:port.", NULL, NULL,0);
 
-
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_ULONG(debug_startup_interval, debug_startup_interval,
        PLUGIN_VAR_RQCMDARG, "for debugging only",

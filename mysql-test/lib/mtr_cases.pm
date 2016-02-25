@@ -496,6 +496,7 @@ sub process_suite {
 
     # disabled.def
     parse_disabled($suite->{dir} .'/disabled.def', $suitename);
+    parse_disabled($suite->{dir} .'/t/disabled.def', $suitename);
 
     # combinations
     if (@::opt_combinations)

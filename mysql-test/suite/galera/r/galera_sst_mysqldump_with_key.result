@@ -104,3 +104,5 @@ CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
 DROP USER sslsst;
+SET GLOBAL general_log = ON;
+SET GLOBAL slow_query_log = ON;

@@ -940,19 +940,24 @@ bool wsrep_start_replication()
   return true;
 }
 
+bool wsrep_must_sync_wait (THD* thd, uint mask)
+{
+  return (thd->variables.wsrep_sync_wait & mask) &&
+    thd->variables.wsrep_on &&
+    !thd->in_active_multi_stmt_transaction() &&
+    thd->wsrep_conflict_state != REPLAYING &&
+    thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
+}
+
 bool wsrep_sync_wait (THD* thd, uint mask)
 {
-  if ((thd->variables.wsrep_sync_wait & mask) &&
-      thd->variables.wsrep_on &&
-      !thd->in_active_multi_stmt_transaction() &&
-      thd->wsrep_conflict_state != REPLAYING)
+  if (wsrep_must_sync_wait(thd, mask))
   {
     WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
                 thd->variables.wsrep_sync_wait, mask);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
-    wsrep_gtid_t  gtid;
-    wsrep_status_t ret= wsrep->causal_read (wsrep, &gtid);
+    wsrep_status_t ret= wsrep->causal_read (wsrep, &thd->wsrep_sync_wait_gtid);
 
     if (unlikely(WSREP_OK != ret))
     {
@@ -1460,16 +1465,19 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
   WSREP_DEBUG("RSU BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
                thd->wsrep_exec_mode, thd->query() );
 
-  ret = wsrep->desync(wsrep);
-  if (ret != WSREP_OK)
+  if (!wsrep_desync)
   {
-    WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
-               ret,
-               (thd->db ? thd->db : "(null)"),
-               thd->query());
-    my_error(ER_LOCK_DEADLOCK, MYF(0));
-    return(ret);
+    ret = wsrep->desync(wsrep);
+    if (ret != WSREP_OK)
+    {
+      WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
+                 ret, (thd->db ? thd->db : "(null)"), thd->query());
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      return(ret);
+    }
   }
+  else
+    WSREP_DEBUG("RSU desync skipped: %d", wsrep_desync);
   mysql_mutex_lock(&LOCK_wsrep_replaying);
   wsrep_replaying++;
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -1484,13 +1492,14 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
     wsrep_replaying--;
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
 
-    ret = wsrep->resync(wsrep);
-    if (ret != WSREP_OK)
+    if (!wsrep_desync)
     {
-      WSREP_WARN("resync failed %d for schema: %s, query: %s",
-                 ret,
-                 (thd->db ? thd->db : "(null)"),
-                 thd->query());
+      ret = wsrep->resync(wsrep);
+      if (ret != WSREP_OK)
+      {
+        WSREP_WARN("resync failed %d for schema: %s, query: %s",
+                   ret, (thd->db ? thd->db : "(null)"), thd->query());
+      }
     }
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     return(1);
@@ -1527,14 +1536,18 @@ static void wsrep_RSU_end(THD *thd)
                (thd->db ? thd->db : "(null)"),
                thd->query());
   }
-  ret = wsrep->resync(wsrep);
-  if (ret != WSREP_OK)
+  if (!wsrep_desync)
   {
-    WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
-               (thd->db ? thd->db : "(null)"),
-               thd->query());
-    return;
+    ret = wsrep->resync(wsrep);
+    if (ret != WSREP_OK)
+    {
+      WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
+                 (thd->db ? thd->db : "(null)"), thd->query());
+      return;
+    }
   }
+  else
+    WSREP_DEBUG("RSU resync skipped: %d", wsrep_desync);
   thd->variables.wsrep_on = 1;
 }
 
@@ -2183,9 +2196,9 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
                      &(thd->lex->definer->host),
                      saved_mode))
   {
-      WSREP_WARN("SP create string failed: schema: %s, query: %s",
-                 (thd->db ? thd->db : "(null)"), thd->query());
-      return 1;
+    WSREP_WARN("SP create string failed: schema: %s, query: %s",
+               (thd->db ? thd->db : "(null)"), thd->query());
+    return 1;
   }
 
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
@@ -2366,9 +2379,9 @@ int wsrep_thd_retry_counter(THD *thd)
 }
 
 
-extern "C" bool wsrep_thd_skip_append_keys(THD *thd)
+extern "C" bool wsrep_thd_ignore_table(THD *thd)
 {
-  return thd->wsrep_skip_append_keys;
+  return thd->wsrep_ignore_table;
 }
 
 

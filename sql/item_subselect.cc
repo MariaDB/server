@@ -5329,6 +5329,7 @@ int subselect_hash_sj_engine::exec()
     item_in->reset();
     item_in->make_const();
     item_in->set_first_execution();
+    thd->lex->current_select= save_select;
     DBUG_RETURN(FALSE);
   }
 
@@ -5372,6 +5373,7 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
+      thd->lex->current_select= save_select;
       DBUG_RETURN(FALSE);
     }
 

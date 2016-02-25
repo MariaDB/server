@@ -25,7 +25,7 @@ MACRO(EXTRACT_LINK_LIBRARIES target var)
       # Filter out "general", it is not a library, just CMake hint
       # Also, remove duplicates
       IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} ")
-        IF (lib MATCHES "^\\-l")
+        IF (lib MATCHES "^\\-")
           SET(${var} "${${var}} ${lib} ") 
         ELSEIF(lib MATCHES "^/")
           IF (lib MATCHES "\\.(a|so([0-9.]*)|lib|dll|dylib)$")

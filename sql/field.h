@@ -609,6 +609,13 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool is_equal(Virtual_column_info* vcol)
+  {
+    return field_type == vcol->get_real_type()
+        && stored_in_db == vcol->is_stored()
+        && expr_str.length == vcol->expr_str.length
+        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
+  }
 };
 
 class Field: public Value_source
@@ -3159,7 +3166,7 @@ public:
   int  store_field(Field *from)
   {                                             // Be sure the value is stored
     from->val_str(&value);
-    if (!value.is_alloced() && from->is_updatable())
+    if (table->copy_blobs || (!value.is_alloced() && from->is_updatable()))
       value.copy();
     return store(value.ptr(), value.length(), from->charset());
   }

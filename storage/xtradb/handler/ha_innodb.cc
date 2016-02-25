@@ -5,7 +5,7 @@ Copyright (c) 2013, 2015, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -944,12 +944,6 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_os_log_pending_writes,	  SHOW_LONG},
   {"os_log_written",
   (char*) &export_vars.innodb_os_log_written,		  SHOW_LONGLONG},
-  {"os_merge_buffers_written",
-  (char*) &export_vars.innodb_merge_buffers_written,	  SHOW_LONGLONG},
-  {"os_merge_buffers_read",
-  (char*) &export_vars.innodb_merge_buffers_read,	  SHOW_LONGLONG},
-  {"os_merge_buffers_merged",
-  (char*) &export_vars.innodb_merge_buffers_merged,	  SHOW_LONGLONG},
   {"page_size",
   (char*) &export_vars.innodb_page_size,		  SHOW_LONG},
   {"pages_created",
@@ -1490,7 +1484,6 @@ Normalizes a table name string. A normalized name consists of the
 database name catenated to '/' and table name. An example:
 test/mytable. On Windows normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE. */
-static
 void
 normalize_table_name_low(
 /*=====================*/
@@ -5386,7 +5379,6 @@ Normalizes a table name string. A normalized name consists of the
 database name catenated to '/' and table name. Example: test/mytable.
 On Windows normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE. */
-static
 void
 normalize_table_name_low(
 /*=====================*/
@@ -8323,7 +8315,13 @@ ha_innobase::write_row(
 
 	ha_statistic_increment(&SSV::ha_write_count);
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -8651,7 +8649,7 @@ report_error:
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
 	    wsrep_on(user_thd)                           &&
 	    !wsrep_consistency_check(user_thd)           &&
-	    !wsrep_thd_skip_append_keys(user_thd))
+	    !wsrep_thd_ignore_table(user_thd))
 	{
 		if (wsrep_append_keys(user_thd, false, record, NULL))
 		{
@@ -8670,7 +8668,13 @@ wsrep_error:
 func_exit:
 	innobase_active_small();
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -9084,7 +9088,13 @@ ha_innobase::update_row(
 
 	ha_statistic_increment(&SSV::ha_update_count);
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -9185,7 +9195,7 @@ func_exit:
 	if (error == DB_SUCCESS                          &&
 	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
 	    wsrep_on(user_thd)                           &&
-	    !wsrep_thd_skip_append_keys(user_thd))
+	    !wsrep_thd_ignore_table(user_thd))
         {
 		DBUG_PRINT("wsrep", ("update row key"));
 
@@ -9199,7 +9209,13 @@ func_exit:
 wsrep_error:
 #endif /* WITH_WSREP */
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -9265,7 +9281,7 @@ ha_innobase::delete_row(
 	if (error == DB_SUCCESS                          &&
             wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)                           &&
-            !wsrep_thd_skip_append_keys(user_thd))
+            !wsrep_thd_ignore_table(user_thd))
         {
 		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
@@ -12721,7 +12737,13 @@ ha_innobase::truncate()
 
 	update_thd(ha_thd());
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -12736,7 +12758,13 @@ ha_innobase::truncate()
 
 	err = row_truncate_table_for_mysql(prebuilt->table, prebuilt->trx);
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -14126,7 +14154,13 @@ ha_innobase::analyze(
 {
 	int	ret;
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		return(HA_ADMIN_CORRUPT);
 	}
 
@@ -14136,7 +14170,13 @@ ha_innobase::analyze(
 		HA_STATUS_TIME | HA_STATUS_CONST | HA_STATUS_VARIABLE,
 		true /* this is ANALYZE */);
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		return(HA_ADMIN_CORRUPT);
 	}
 
@@ -15345,7 +15385,13 @@ ha_innobase::transactional_table_lock(
 
 	update_thd(thd);
 
-	if (UNIV_UNLIKELY(share->ib_table->is_corrupt)) {
+	if (share->ib_table != prebuilt->table) {
+		fprintf(stderr,
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
+	}
+
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -18445,7 +18491,6 @@ innodb_sched_priority_purge_update(
 		return;
 	}
 
-	ut_ad(purge_sys->state == PURGE_STATE_RUN);
 	for (ulint i = 0; i < srv_n_purge_threads; i++) {
 		ulint nice = os_thread_get_priority(srv_purge_tids[i]);
 		ulint actual_priority
@@ -19203,6 +19248,15 @@ wsrep_innobase_kill_one_trx(
 		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
 
 	wsrep_thd_LOCK(thd);
+        DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
+                 {
+                   const char act[]=
+                     "now "
+                     "wait_for signal.wsrep_after_BF_victim_lock";
+                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
+
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
 		WSREP_DEBUG("kill trx EXITING for %lu", victim_trx->id);

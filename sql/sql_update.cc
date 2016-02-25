@@ -368,6 +368,9 @@ int mysql_update(THD *thd,
   if (check_unique_table(thd, table_list))
     DBUG_RETURN(TRUE);
 
+  switch_to_nullable_trigger_fields(fields, table);
+  switch_to_nullable_trigger_fields(values, table);
+
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
@@ -455,8 +458,6 @@ int mysql_update(THD *thd,
   }
   init_ftfuncs(thd, select_lex, 1);
 
-  switch_to_nullable_trigger_fields(fields, table);
-  switch_to_nullable_trigger_fields(values, table);
   table->mark_columns_needed_for_update();
 
   table->update_const_key_parts(conds);
@@ -2430,6 +2431,10 @@ int multi_update::do_updates()
       {
         int error;
         if (table->default_field && (error= table->update_default_fields()))
+          goto err2;
+        if (table->vfield &&
+            update_virtual_fields(thd, table,
+                 (table->triggers ? VCOL_UPDATE_ALL : VCOL_UPDATE_FOR_WRITE)))
           goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)

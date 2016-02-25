@@ -777,6 +777,10 @@ btr_root_get(
 	buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
 			mtr);
 
+	if (root && root->page.encrypted == true) {
+		root = NULL;
+	}
+
 	return(root ? buf_block_get_frame(root) : NULL);
 }
 

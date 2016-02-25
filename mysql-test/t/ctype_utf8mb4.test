@@ -1905,5 +1905,17 @@ SET NAMES utf8mb4;
 SELECT * FROM `test😁😁test`;
 
 --echo #
+--echo # MDEV-7231 Field ROUTINE_DEFINITION in INFORMATION_SCHEMA.`ROUTINES` contains broken procedure body when used shielding quotes inside.
+--echo #
+# Non-BMP characters should be replaced to '?' in ROUTINE_DEFINITION/body_utf8
+SET NAMES utf8mb4;
+CREATE FUNCTION f1() RETURNS TEXT CHARACTER SET utf8mb4
+RETURN CONCAT('😎','x😎','😎y','x😎y');
+SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='f1';
+SELECT body_utf8 FROM mysql.proc WHERE name='f1';
+DROP FUNCTION f1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

@@ -442,9 +442,8 @@ then
            INNOEXTRA+=" --user=$WSREP_SST_OPT_USER"
         fi
 
-        if [ -n "$WSREP_SST_OPT_PSWD"  ]; then
-#           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
-           export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+        if [ -n "${WSREP_SST_OPT_PSWD:-}" ]; then
+           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
         else
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="
