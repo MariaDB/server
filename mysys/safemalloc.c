@@ -55,6 +55,9 @@ struct st_irem
   struct st_irem *next;        /* Linked list of structures       */
   struct st_irem *prev;        /* Other link                      */
   size_t datasize;             /* Size requested                  */
+#if SIZEOF_SIZE_T == 4
+  size_t pad;                  /* Compensate 32bit datasize */
+#endif
 #ifdef HAVE_BACKTRACE
   void *frame[SF_REMEMBER_FRAMES]; /* call stack                  */
 #endif
