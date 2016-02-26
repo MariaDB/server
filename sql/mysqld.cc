@@ -555,7 +555,7 @@ ulong max_prepared_stmt_count;
   statements.
 */
 ulong prepared_stmt_count=0;
-my_thread_id global_thread_id= 0;
+my_thread_id global_thread_id= 1;
 ulong current_pid;
 ulong slow_launch_threads = 0;
 uint sync_binlog_period= 0, sync_relaylog_period= 0,
@@ -8744,7 +8744,7 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= 1;
-  global_thread_id= 0;
+  global_thread_id= 1;
   strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
