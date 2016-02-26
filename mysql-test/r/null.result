@@ -1531,6 +1531,17 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select nullif(count(distinct `t1`.`col1`),0) AS `nullif(count(distinct col1),0)` from `t1`	latin1	latin1_swedish_ci
 drop view v1;
 drop table t1;
+create table t1 (col1 varchar(50) default null);
+insert into t1 (col1) values ('hello'), ('hello'), ('hello');
+create view v1 as select nullif(count(col1),0) from t1;
+select * from v1;
+nullif(count(col1),0)
+3
+select nullif(count(col1),0) from t1;
+nullif(count(col1),0)
+3
+drop view v1;
+drop table t1;
 #
 # End of 10.1 tests
 #

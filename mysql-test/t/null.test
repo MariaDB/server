@@ -958,6 +958,17 @@ show create view v1;
 drop view v1;
 drop table t1;
 
+#
+# MDEV-9637 select nullif(count(col1),0) gives wrong result if in a view
+#
+create table t1 (col1 varchar(50) default null);
+insert into t1 (col1) values ('hello'), ('hello'), ('hello');
+create view v1 as select nullif(count(col1),0) from t1;
+select * from v1;
+select nullif(count(col1),0) from t1;
+drop view v1;
+drop table t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

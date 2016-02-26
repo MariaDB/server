@@ -2584,7 +2584,8 @@ Item_func_nullif::fix_length_and_dec()
     args[0] and args[2] should still point to the same original l_expr.
   */
   DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
-  if (args[0]->type() == SUM_FUNC_ITEM && !thd->lex->context_analysis_only)
+  if (args[0]->type() == SUM_FUNC_ITEM &&
+      !thd->lex->is_ps_or_view_context_analysis())
   {
     /*
       NULLIF(l_expr, r_expr)
