@@ -265,6 +265,7 @@ ret:
     thd->set_status_var_init();
     thread_count--;
     thd->killed= KILL_CONNECTION;
+    thd->unlink();
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
