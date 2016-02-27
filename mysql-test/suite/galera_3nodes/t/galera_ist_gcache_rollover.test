@@ -38,7 +38,8 @@ INSERT INTO t1 VALUES (11), (12), (13), (14), (15);
 INSERT INTO t1 VALUES (21), (22), (23), (24), (25);
 
 # Make sure IST will block ...
-SET GLOBAL wsrep_provider_options = 'dbug=d,ist_sender_send_after_get_buffers';
+--let $galera_sync_point = ist_sender_send_after_get_buffers
+--source include/galera_set_sync_point.inc
 
 # ... and restart providers to force IST
 --connection node_2
@@ -70,8 +71,8 @@ INSERT INTO t2 VALUES (REPEAT('x', 512 * 1024));
 INSERT INTO t2 VALUES (REPEAT('x', 512 * 1024));
 
 # Unlock IST and wait for it to complete
-SET GLOBAL wsrep_provider_options = 'signal=ist_sender_send_after_get_buffers';
-SET GLOBAL wsrep_provider_options = 'dbug=';
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
 
 INSERT INTO t1 VALUES (51), (52), (53), (54), (55);
 

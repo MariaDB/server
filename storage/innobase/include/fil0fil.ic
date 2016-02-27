@@ -146,9 +146,9 @@ fil_page_type_validate(
 
 		/* Dump out the page info */
 		fprintf(stderr, "InnoDB: Space %lu offset %lu name %s page_type %lu page_type_name %s\n"
-			"InnoDB: key_version %u page_compressed %d page_compressed_encrypted %d lsn %lu compressed_len %lu\n",
+			"InnoDB: key_version %u page_compressed %d page_compressed_encrypted %d lsn %llu compressed_len %lu\n",
 			space, offset, rspace->name, page_type, fil_get_page_type_name(page_type),
-			key_version, page_compressed, page_compressed_encrypted, lsn, compressed_len);
+			key_version, page_compressed, page_compressed_encrypted, (ulonglong)lsn, compressed_len);
 		fflush(stderr);
 
 		ut_ad(page_type == FIL_PAGE_PAGE_COMPRESSED ||

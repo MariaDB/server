@@ -369,6 +369,25 @@ static void wsrep_replication_process(THD *thd)
   DBUG_VOID_RETURN;
 }
 
+static bool create_wsrep_THD(wsrep_thd_processor_fun processor)
+{
+  ulong old_wsrep_running_threads= wsrep_running_threads;
+  pthread_t unused;
+  mysql_mutex_lock(&LOCK_thread_count);
+  bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
+                           (void*)processor);
+  /*
+    if starting a thread on server startup, wait until the this thread's THD
+    is fully initialized (otherwise a THD initialization code might
+    try to access a partially initialized server data structure - MDEV-8208).
+  */
+  if (!mysqld_server_initialized)
+    while (old_wsrep_running_threads == wsrep_running_threads)
+      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return res;
+}
+
 void wsrep_create_appliers(long threads)
 {
   if (!wsrep_connected)
@@ -385,11 +404,8 @@ void wsrep_create_appliers(long threads)
   }
 
   long wsrep_threads=0;
-  pthread_t hThread;
   while (wsrep_threads++ < threads) {
-    if (pthread_create(
-      &hThread, &connection_attrib,
-      start_wsrep_THD, (void*)wsrep_replication_process))
+    if (create_wsrep_THD(wsrep_replication_process))
       WSREP_WARN("Can't create thread to manage wsrep replication");
   }
 }
@@ -476,10 +492,8 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
   {
-    pthread_t hThread;
     /* create rollbacker */
-    if (pthread_create( &hThread, &connection_attrib,
-                        start_wsrep_THD, (void*)wsrep_rollback_process))
+    if (create_wsrep_THD(wsrep_rollback_process))
       WSREP_WARN("Can't create thread to manage wsrep rollback");
   }
 }

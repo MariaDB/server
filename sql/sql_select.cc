@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015 MariaDB
+   Copyright (c) 2009, 2016 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9359,7 +9359,7 @@ static void add_not_null_conds(JOIN *join)
           if (!referred_tab)
             continue;
           if (!(notnull= new (join->thd->mem_root)
-                Item_func_isnotnull(join->thd, not_null_item)))
+                Item_func_isnotnull(join->thd, item)))
             DBUG_VOID_RETURN;
           /*
             We need to do full fix_fields() call here in order to have correct
@@ -17261,6 +17261,12 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
+    /*
+       Note that a similar check is performed during
+       subquery_types_allow_materialization. See MDEV-7122 for more details as
+       to why. Whenever this changes, it must be updated there as well, for
+       all tmp_table engines.
+    */
     if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
@@ -17460,6 +17466,12 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
+    /*
+       Note that a similar check is performed during
+       subquery_types_allow_materialization. See MDEV-7122 for more details as
+       to why. Whenever this changes, it must be updated there as well, for
+       all tmp_table engines.
+    */
     if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
@@ -18927,7 +18939,18 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
     }
   }
 
+  /*
+    The following is needed when one makes ref (or eq_ref) access from row
+    comparisons: one must call row->bring_value() to get the new values.
+  */
+  if (tab && tab->bush_children)
+  {
+    TABLE_LIST *emb_sj_nest= tab->bush_children->start->emb_sj_nest;
+    emb_sj_nest->sj_subq_pred->left_expr->bring_value();
+  }
+
   /* TODO: Why don't we do "Late NULLs Filtering" here? */
+
   if (cmp_buffer_with_ref(thd, table, table_ref) ||
       (table->status & (STATUS_GARBAGE | STATUS_NO_PARENT | STATUS_NULL_ROW)))
   {
@@ -20777,7 +20800,15 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
         quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)
-      ref_key= -1;
+    {
+      /*
+        we set ref_key=MAX_KEY instead of -1, because test_if_cheaper ordering
+        assumes that "ref_key==-1" means doing full index scan. 
+        (This is not very straightforward and we got into this situation for 
+         historical reasons. Should be fixed at some point).
+      */
+      ref_key= MAX_KEY;
+    }
     else
     {
       ref_key= select->quick->index;
@@ -21330,7 +21361,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                             &examined_rows, &found_rows, 
                             join->explain->ops_tracker.report_sorting(thd));
   table->sort.found_records= filesort_retval;
-  tab->records= found_rows;                     // For SQL_CALC_ROWS
+  tab->records= join->select_options & OPTION_FOUND_ROWS ? found_rows : filesort_retval;
 
   if (quick_created)
   {
@@ -25442,8 +25473,12 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
   @param          table               Table if tab == NULL or tab->table
   @param          usable_keys         Key map to find a cheaper key in
   @param          ref_key             
-                * 0 <= key < MAX_KEY   - key number (hint) to start the search
-                * -1                   - no key number provided
+                   0 <= key < MAX_KEY  - Key that is currently used for finding
+                                         row
+                   MAX_KEY             - means index_merge is used
+                   -1                  - means we're currently not using an
+                                         index to find rows.
+
   @param          select_limit        LIMIT value
   @param [out]    new_key             Key number if success, otherwise undefined
   @param [out]    new_key_direction   Return -1 (reverse) or +1 if success,
@@ -25472,7 +25507,6 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                          uint *saved_best_key_parts)
 {
   DBUG_ENTER("test_if_cheaper_ordering");
-  DBUG_ASSERT(ref_key < int(MAX_KEY));
   /*
     Check whether there is an index compatible with the given order
     usage of which is cheaper than usage of the ref_key index (ref_key>=0)
@@ -25537,7 +25571,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     Calculate the selectivity of the ref_key for REF_ACCESS. For
     RANGE_ACCESS we use table->quick_condition_rows.
   */
-  if (ref_key >= 0 && !is_hash_join_key_no(ref_key) && tab->type == JT_REF)
+  if (ref_key >= 0 && ref_key != MAX_KEY && tab->type == JT_REF)
   {
     if (table->quick_keys.is_set(ref_key))
       refkey_rows_estimate= table->quick_rows[ref_key];

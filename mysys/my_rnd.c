@@ -95,7 +95,3 @@ double my_rnd_ssl(struct my_rnd_struct *rand_st)
 
   return my_rnd(rand_st);
 }
-
-#ifdef __cplusplus
-}
-#endif

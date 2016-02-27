@@ -39,4 +39,9 @@ explain select count(*) from seq_1_to_15_step_2, seq_1_to_15_step_2 as t2;
 explain select count(*) from seq_1_to_15_step_2 where seq > 0;
 explain select count(*) from seq_1_to_15_step_2 group by mod(seq,2);
 
-drop table seq_1_to_15_step_2;
+#
+# MDEV-9550 COUNT(NULL) returns incorrect result with sequence storage engine
+#
+create temporary table t1 select * from seq_1_to_3;
+select count(NULL) from t1;
+select count(NULL) from seq_1_to_3;

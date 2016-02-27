@@ -422,6 +422,55 @@ static void test_prepare_simple()
 
   mysql_stmt_close(stmt);
 
+  /* show create */
+  strmov(query, "SHOW CREATE TABLE test_prepare_simple");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
+  mysql_stmt_close(stmt);
+
+  /* show create database */
+  strmov(query, "SHOW CREATE DATABASE test");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
+  mysql_stmt_close(stmt);
+
+  /* show grants */
+  strmov(query, "SHOW GRANTS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
+  mysql_stmt_close(stmt);
+
+  /* show slave status */
+  strmov(query, "SHOW SLAVE STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 47);
+  mysql_stmt_close(stmt);
+
+  /* show master status */
+  strmov(query, "SHOW MASTER STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 4);
+  mysql_stmt_close(stmt);
+
+  /* show create procedure */
+  strmov(query, "SHOW CREATE PROCEDURE e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
+  /* show create function */
+  strmov(query, "SHOW CREATE FUNCTION e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);

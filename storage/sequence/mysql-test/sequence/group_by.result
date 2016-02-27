@@ -85,4 +85,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select count(*) from seq_1_to_15_step_2 group by mod(seq,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	index	NULL	PRIMARY	8	NULL	8	Using index; Using temporary; Using filesort
-drop table seq_1_to_15_step_2;
+create temporary table t1 select * from seq_1_to_3;
+select count(NULL) from t1;
+count(NULL)
+0
+select count(NULL) from seq_1_to_3;
+count(NULL)
+0

@@ -799,6 +799,7 @@ fil_space_decrypt(
 	byte*		src_frame)	/*!< in/out: page buffer */
 {
 	dberr_t err = DB_SUCCESS;
+	byte* res = NULL;
 
 	bool encrypted = fil_space_decrypt(
 				fil_space_get_crypt_data(space),
@@ -807,13 +808,17 @@ fil_space_decrypt(
 				src_frame,
 				&err);
 
-	if (encrypted) {
-		/* Copy the decrypted page back to page buffer, not
-		really any other options. */
-		memcpy(src_frame, tmp_frame, page_size);
+	if (err == DB_SUCCESS) {
+		if (encrypted) {
+			/* Copy the decrypted page back to page buffer, not
+			really any other options. */
+			memcpy(src_frame, tmp_frame, page_size);
+		}
+
+		res = src_frame;
 	}
 
-	return src_frame;
+	return res;
 }
 
 /******************************************************************
@@ -2294,6 +2299,10 @@ fil_crypt_set_thread_cnt(
 /*=====================*/
 	uint	new_cnt)	/*!< in: New key rotation thread count */
 {
+	if (!fil_crypt_threads_inited) {
+		fil_crypt_threads_init();
+	}
+
 	if (new_cnt > srv_n_fil_crypt_threads) {
 		uint add = new_cnt - srv_n_fil_crypt_threads;
 		srv_n_fil_crypt_threads = new_cnt;
@@ -2358,15 +2367,18 @@ void
 fil_crypt_threads_init()
 /*====================*/
 {
-	fil_crypt_event = os_event_create();
-	fil_crypt_threads_event = os_event_create();
-	mutex_create(fil_crypt_threads_mutex_key,
-		     &fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
+	ut_ad(mutex_own(&fil_system->mutex));
+	if (!fil_crypt_threads_inited) {
+		fil_crypt_event = os_event_create();
+		fil_crypt_threads_event = os_event_create();
+		mutex_create(fil_crypt_threads_mutex_key,
+			&fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
 
-	uint cnt = srv_n_fil_crypt_threads;
-	srv_n_fil_crypt_threads = 0;
-	fil_crypt_set_thread_cnt(cnt);
-	fil_crypt_threads_inited = true;
+		uint cnt = srv_n_fil_crypt_threads;
+		srv_n_fil_crypt_threads = 0;
+		fil_crypt_threads_inited = true;
+		fil_crypt_set_thread_cnt(cnt);
+	}
 }
 
 /*********************************************************************
@@ -2389,6 +2401,7 @@ fil_crypt_threads_cleanup()
 {
 	os_event_free(fil_crypt_event);
 	os_event_free(fil_crypt_threads_event);
+	fil_crypt_threads_inited = false;
 }
 
 /*********************************************************************

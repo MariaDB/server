@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -450,27 +451,29 @@ dict_boot(void)
 
 	/* Initialize the insert buffer table and index for each tablespace */
 
-	ibuf_init_at_db_start();
-
 	dberr_t	err = DB_SUCCESS;
 
-	if (srv_read_only_mode && !ibuf_is_empty()) {
+	err = ibuf_init_at_db_start();
 
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Change buffer must be empty when --innodb-read-only "
-			"is set!");
+	if (err == DB_SUCCESS) {
+		if (srv_read_only_mode && !ibuf_is_empty()) {
 
-		err = DB_ERROR;
-	} else {
-		/* Load definitions of other indexes on system tables */
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Change buffer must be empty when --innodb-read-only "
+				"is set!");
 
-		dict_load_sys_table(dict_sys->sys_tables);
-		dict_load_sys_table(dict_sys->sys_columns);
-		dict_load_sys_table(dict_sys->sys_indexes);
-		dict_load_sys_table(dict_sys->sys_fields);
+			err = DB_ERROR;
+		} else {
+			/* Load definitions of other indexes on system tables */
+
+			dict_load_sys_table(dict_sys->sys_tables);
+			dict_load_sys_table(dict_sys->sys_columns);
+			dict_load_sys_table(dict_sys->sys_indexes);
+			dict_load_sys_table(dict_sys->sys_fields);
+		}
+
+		mutex_exit(&(dict_sys->mutex));
 	}
-
-	mutex_exit(&(dict_sys->mutex));
 
 	return(err);
 }

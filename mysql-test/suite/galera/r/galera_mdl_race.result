@@ -1,0 +1,38 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+LOCK TABLE t2 WRITE;
+SET GLOBAL DEBUG = "d,sync.wsrep_before_mdl_wait";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SELECT * FROM t2;;
+SET GLOBAL DEBUG = "d,sync.wsrep_after_BF_victim_lock";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+SET GLOBAL DEBUG = "";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_before_mdl_wait";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_after_BF_victim_lock";
+UNLOCK TABLES;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+COUNT(*) = 1
+1
+DROP TABLE t1;
+DROP TABLE t2;
+SET DEBUG_SYNC = "RESET";

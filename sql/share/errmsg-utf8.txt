@@ -7106,7 +7106,7 @@ ER_PRIOR_COMMIT_FAILED
 ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
-	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+	eng "When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
 ER_PLUGIN_INSTALLED
@@ -7136,3 +7136,6 @@ ER_KILL_QUERY_DENIED_ERROR
         eng "You are not owner of query %lu"
         ger "Sie sind nicht Eigentümer von Abfrage %lu"
         rus "Вы не являетесь владельцем запроса %lu"
+ER_NO_EIS_FOR_FIELD
+        eng "Engine-independent statistics are not collected for column '%s'"
+        ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"

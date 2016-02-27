@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1467,7 +1467,6 @@ static openssl_lock_t *openssl_dynlock_create(const char *, int);
 static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
-static unsigned long openssl_id_function();
 #endif
 char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
@@ -4663,7 +4662,6 @@ static int init_thread_environment()
   CRYPTO_set_dynlock_destroy_callback(openssl_dynlock_destroy);
   CRYPTO_set_dynlock_lock_callback(openssl_lock);
   CRYPTO_set_locking_callback(openssl_lock_function);
-  CRYPTO_set_id_callback(openssl_id_function);
 #endif
 #endif
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_connect, &LOCK_sys_init_connect);
@@ -4699,12 +4697,6 @@ static int init_thread_environment()
 
 
 #if defined(HAVE_OPENSSL) && !defined(HAVE_YASSL)
-static unsigned long openssl_id_function()
-{
-  return (unsigned long) pthread_self();
-}
-
-
 static openssl_lock_t *openssl_dynlock_create(const char *file, int line)
 {
   openssl_lock_t *lock= new openssl_lock_t;
@@ -5206,49 +5198,6 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
-
-#ifdef WITH_WSREP
-  /* Wait for wsrep threads to get created. */
-  if (wsrep_creating_startup_threads == 1) {
-    mysql_mutex_lock(&LOCK_thread_count);
-    while (wsrep_running_threads < 2)
-    {
-      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-    }
-
-    /* Now is the time to initialize threads for queries. */
-    THD *tmp;
-    I_List_iterator<THD> it(threads);
-    while ((tmp= it++))
-    {
-      if (tmp->wsrep_applier == true)
-      {
-        /*
-          Save/restore server_status and variables.option_bits and they get
-          altered during init_for_queries().
-        */
-        unsigned int server_status_saved= tmp->server_status;
-        ulonglong option_bits_saved= tmp->variables.option_bits;
-
-        /*
-          Set THR_THD to temporarily point to this THD to register all the
-          variables that allocates memory for this THD.
-        */
-        THD *current_thd_saved= current_thd;
-        set_current_thd(tmp);
-
-        tmp->init_for_queries();
-
-        /* Restore current_thd. */
-        set_current_thd(current_thd_saved);
-
-        tmp->server_status= server_status_saved;
-        tmp->variables.option_bits= option_bits_saved;
-      }
-    }
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
-#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5897,6 +5846,9 @@ int mysqld_main(int argc, char **argv)
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
+
   if (WSREP_ON)
   {
     if (opt_bootstrap)
@@ -5936,9 +5888,6 @@ int mysqld_main(int argc, char **argv)
       exit(0);
     }
   }
-
-  /* It's now safe to use thread specific memory */
-  mysqld_server_initialized= 1;
 
   create_shutdown_thread();
   start_handle_manager();
@@ -7746,14 +7695,46 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE);
     if (mi)
-      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
-                      mi->rli.slave_running);
+      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+                      mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   if (mi)
     *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
+  return 0;
+}
+
+
+/* How many slaves are connected to this master */
+
+static int show_slaves_connected(THD *thd, SHOW_VAR *var, char *buff)
+{
+
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_slave_list);
+
+  *((longlong *)buff)= slave_list.records;
+
+  mysql_mutex_unlock(&LOCK_slave_list);
+  return 0;
+}
+
+
+/* How many masters this slave is connected to */
+
+
+static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+
+  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -8466,6 +8447,9 @@ SHOW_VAR status_vars[]= {
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_INT},
 #ifdef HAVE_REPLICATION
+  {"Slaves_connected",        (char*) &show_slaves_connected, SHOW_SIMPLE_FUNC },
+  {"Slaves_running",          (char*) &show_slaves_running, SHOW_SIMPLE_FUNC },
+  {"Slave_connections",       (char*) offsetof(STATUS_VAR, com_register_slave), SHOW_LONG_STATUS},
   {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
   {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
   {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},
@@ -8745,7 +8729,7 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;
-  strmov(server_version, MYSQL_SERVER_VERSION);
+  strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
   key_caches.empty();
@@ -9655,17 +9639,20 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
 void set_server_version(void)
 {
-  char *end= strxmov(server_version, MYSQL_SERVER_VERSION,
-                     MYSQL_SERVER_SUFFIX_STR, NullS);
+  char *version_end= server_version+sizeof(server_version)-1;
+  char *end= strxnmov(server_version, sizeof(server_version)-1,
+                      MYSQL_SERVER_VERSION,
+                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
-  end= strmov(end, "-embedded");
+  end= strnmov(end, "-embedded", (version_end-end));
 #endif
 #ifndef DBUG_OFF
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
-    end= strmov(end, "-debug");
+    end= strnmov(end, "-debug", (version_end-end));
 #endif
   if (opt_log || global_system_variables.sql_log_slow || opt_bin_log)
-    strmov(end, "-log");                        // This may slow down system
+    strnmov(end, "-log", (version_end-end)); // This may slow down system
+  *end= 0;
 }
 
 
@@ -9971,7 +9958,7 @@ void refresh_status(THD *thd)
     Set max_used_connections to the number of currently open
     connections.  This is not perfect, but status data is not exact anyway.
   */
-  max_used_connections= thread_count-delayed_insert_threads;
+  max_used_connections= connection_count + extra_connection_count;
 }
 
 #ifdef HAVE_PSI_INTERFACE

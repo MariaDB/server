@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3525,7 +3525,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   
   slave_proxy_id= thread_id = uint4korr(buf + Q_THREAD_ID_OFFSET);
   exec_time = uint4korr(buf + Q_EXEC_TIME_OFFSET);
-  db_len = (uint)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
+  db_len = (uchar)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
   error_code = uint2korr(buf + Q_ERR_CODE_OFFSET);
 
   /*
@@ -9895,7 +9895,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 
 #ifdef HAVE_QUERY_CACHE
+#ifdef WITH_WSREP
+    /*
+       Moved invalidation right before the call to rows_event_stmt_cleanup(),
+       to avoid query cache being polluted with stale entries.
+    */
+    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    {
+#endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
 #endif
   }
 
@@ -10087,6 +10098,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   /* remove trigger's tables */
   if (slave_run_triggers_for_rbr)
     restore_empty_query_table_list(thd->lex);
+
+#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
+    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    {
+      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+    }
+#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+
   if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,
@@ -11128,8 +11147,8 @@ bool Table_map_log_event::write_data_body()
   DBUG_ASSERT(m_dbnam != NULL);
   DBUG_ASSERT(m_tblnam != NULL);
   /* We use only one byte per length for storage in event: */
-  DBUG_ASSERT(m_dblen < 128);
-  DBUG_ASSERT(m_tbllen < 128);
+  DBUG_ASSERT(m_dblen <= MY_MIN(NAME_LEN, 255));
+  DBUG_ASSERT(m_tbllen <= MY_MIN(NAME_LEN, 255));
 
   uchar const dbuf[]= { (uchar) m_dblen };
   uchar const tbuf[]= { (uchar) m_tbllen };
@@ -11352,6 +11371,7 @@ bool Rows_log_event::process_triggers(trg_event_type event,
 {
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
+  m_table->triggers->mark_fields_used(event);
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
   {
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
@@ -12316,7 +12336,11 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     if (!error)
+    {
+      m_table->mark_columns_per_binlog_row_image();
       error= m_table->file->ha_delete_row(m_table->record[0]);
+      m_table->default_column_bitmaps();
+    }
     if (invoke_triggers && !error &&
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet

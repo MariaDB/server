@@ -348,7 +348,7 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return TRUE;
 
   Tabname = (char*)Tablep->GetName();
-  DB = (char*)Tablep->GetQualifier();
+  DB = (char*)Tablep->GetSchema();
   Tabsrc = (char*)Tablep->GetSrc();
 
   Host = GetStringCatInfo(g, "Host", "localhost");
@@ -529,7 +529,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
     // Get the new table description block of this source table
     PTABLE tablep = new(g) XTAB("whatever", Tabsrc);
 
-    tablep->SetQualifier(Database);
+    tablep->SetSchema(Database);
 
     if (!(Tdbp = GetSubTable(g, tablep, true)))
       return true;

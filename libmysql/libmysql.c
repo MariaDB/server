@@ -47,9 +47,11 @@
 #include <sys/select.h>
 #endif
 #endif /* !defined(__WIN__) */
-#ifdef HAVE_POLL
+#if defined(HAVE_POLL_H)
+#include <poll.h>
+#elif defined(HAVE_SYS_POLL_H)
 #include <sys/poll.h>
-#endif
+#endif /* defined(HAVE_POLL_H) */
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif

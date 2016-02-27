@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -324,9 +324,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
   DBUG_ASSERT(begin_ptr);
   DBUG_ASSERT(m_cpp_buf <= begin_ptr && begin_ptr <= m_cpp_buf + m_buf_length);
 
-  uint body_utf8_length=
-    (m_buf_length / thd->variables.character_set_client->mbminlen) *
-    my_charset_utf8_bin.mbmaxlen;
+  uint body_utf8_length= get_body_utf8_maximum_length(thd);
 
   m_body_utf8= (char *) thd->alloc(body_utf8_length + 1);
   m_body_utf8_ptr= m_body_utf8;
@@ -334,6 +332,22 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 
   m_cpp_utf8_processed_ptr= begin_ptr;
 }
+
+
+uint Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+{
+  /*
+    String literals can grow during escaping:
+    1a. Character string '<TAB>' can grow to '\t', 3 bytes to 4 bytes growth.
+    1b. Character string '1000 times <TAB>' grows from
+        1002 to 2002 bytes (including quotes), which gives a little bit
+        less than 2 times growth.
+    "2" should be a reasonable multiplier that safely covers escaping needs.
+  */
+  return (m_buf_length / thd->variables.character_set_client->mbminlen) *
+          my_charset_utf8_bin.mbmaxlen * 2/*for escaping*/;
+}
+
 
 /**
   @brief The operation appends unprocessed part of pre-processed buffer till
@@ -402,15 +416,15 @@ void Lex_input_stream::body_utf8_append(const char *ptr)
                   operation.
 */
 
-void Lex_input_stream::body_utf8_append_literal(THD *thd,
-                                                const LEX_STRING *txt,
-                                                CHARSET_INFO *txt_cs,
-                                                const char *end_ptr)
+void Lex_input_stream::body_utf8_append_ident(THD *thd,
+                                              const LEX_STRING *txt,
+                                              const char *end_ptr)
 {
   if (!m_cpp_utf8_processed_ptr)
     return;
 
   LEX_STRING utf_txt;
+  CHARSET_INFO *txt_cs= thd->charset();
 
   if (!my_charset_same(txt_cs, &my_charset_utf8_general_ci))
   {
@@ -433,6 +447,189 @@ void Lex_input_stream::body_utf8_append_literal(THD *thd,
 
   m_cpp_utf8_processed_ptr= end_ptr;
 }
+
+
+
+
+extern "C" {
+
+/**
+  Escape a character. Consequently puts "escape" and "wc" characters into
+  the destination utf8 string.
+  @param cs     - the character set (utf8)
+  @param escape - the escape character (backslash, single quote, double quote)
+  @param wc     - the character to be escaped
+  @param str    - the destination string
+  @param end    - the end of the destination string
+  @returns      - a code according to the wc_mb() convension.
+*/
+int my_wc_mb_utf8_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
+                              uchar *str, uchar *end)
+{
+  DBUG_ASSERT(escape > 0);
+  if (str + 1 >= end)
+    return MY_CS_TOOSMALL2;  // Not enough space, need at least two bytes.
+  *str= escape;
+  int cnvres= my_charset_utf8_handler.wc_mb(cs, wc, str + 1, end);
+  if (cnvres > 0)
+    return cnvres + 1;       // The character was normally put
+  if (cnvres == MY_CS_ILUNI)
+    return MY_CS_ILUNI;      // Could not encode "wc" (e.g. non-BMP character)
+  DBUG_ASSERT(cnvres <= MY_CS_TOOSMALL);
+  return cnvres - 1;         // Not enough space
+}
+
+
+/**
+  Optionally escape a character.
+  If "escape" is non-zero, then both "escape" and "wc" are put to
+  the destination string. Otherwise, only "wc" is put.
+  @param cs     - the character set (utf8)
+  @param wc     - the character to be optionally escaped
+  @param escape - the escape character, or 0
+  @param ewc    - the escaped replacement of "wc" (e.g. 't' for '\t')
+  @param str    - the destination string
+  @param end    - the end of the destination string
+  @returns      - a code according to the wc_mb() conversion.
+*/
+int my_wc_mb_utf8_opt_escape(CHARSET_INFO *cs,
+                             my_wc_t wc, my_wc_t escape, my_wc_t ewc,
+                             uchar *str, uchar *end)
+{
+  return escape ? my_wc_mb_utf8_with_escape(cs, escape, ewc, str, end) :
+                  my_charset_utf8_handler.wc_mb(cs, wc, str, end);
+}
+
+/**
+  Encode a character with optional backlash escaping and quote escaping.
+  Quote marks are escaped using another quote mark.
+  Additionally, if "escape" is non-zero, then special characters are
+  also escaped using "escape".
+  Otherwise (if "escape" is zero, e.g. in case of MODE_NO_BACKSLASH_ESCAPES),
+  then special characters are not escaped and handled as normal characters.
+
+  @param cs        - the character set (utf8)
+  @param wc        - the character to be encoded
+  @param str       - the destination string
+  @param end       - the end of the destination string
+  @param sep       - the string delimiter (e.g. ' or ")
+  @param escape    - the escape character (backslash, or 0)
+  @returns         - a code according to the wc_mb() convension.
+*/
+int my_wc_mb_utf8_escape(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end,
+                         my_wc_t sep, my_wc_t escape)
+{
+  DBUG_ASSERT(escape == 0 || escape == '\\');
+  DBUG_ASSERT(sep == '"' || sep == '\'');
+  switch (wc) {
+  case 0:      return my_wc_mb_utf8_opt_escape(cs, wc, escape, '0', str, end);
+  case '\t':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 't', str, end);
+  case '\r':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'r', str, end);
+  case '\n':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'n', str, end);
+  case '\032': return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'Z', str, end);
+  case '\'':
+  case '\"':
+    if (wc == sep)
+      return my_wc_mb_utf8_with_escape(cs, wc, wc, str, end);
+  }
+  return my_charset_utf8_handler.wc_mb(cs, wc, str, end); // No escaping needed
+}
+
+
+/** wc_mb() compatible routines for all sql_mode and delimiter combinations */
+int my_wc_mb_utf8_escape_single_quote_and_backslash(CHARSET_INFO *cs,
+                                                    my_wc_t wc,
+                                                    uchar *str, uchar *end)
+{
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', '\\');
+}
+
+
+int my_wc_mb_utf8_escape_double_quote_and_backslash(CHARSET_INFO *cs,
+                                                    my_wc_t wc,
+                                                    uchar *str, uchar *end)
+{
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', '\\');
+}
+
+
+int my_wc_mb_utf8_escape_single_quote(CHARSET_INFO *cs, my_wc_t wc,
+                                      uchar *str, uchar *end)
+{
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', 0);
+}
+
+
+int my_wc_mb_utf8_escape_double_quote(CHARSET_INFO *cs, my_wc_t wc,
+                                      uchar *str, uchar *end)
+{
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', 0);
+}
+
+}; // End of extern "C"
+
+
+/**
+  Get an escaping function, depending on the current sql_mode and the
+  string separator.
+*/
+my_charset_conv_wc_mb
+Lex_input_stream::get_escape_func(THD *thd, my_wc_t sep) const
+{
+  return thd->backslash_escapes() ?
+         (sep == '"' ? my_wc_mb_utf8_escape_double_quote_and_backslash:
+                       my_wc_mb_utf8_escape_single_quote_and_backslash) :
+         (sep == '"' ? my_wc_mb_utf8_escape_double_quote:
+                       my_wc_mb_utf8_escape_single_quote);
+}
+
+
+/**
+  Append a text literal to the end of m_body_utf8.
+  The string is escaped according to the current sql_mode and the
+  string delimiter (e.g. ' or ").
+
+  @param thd       - current THD
+  @param txt       - the string to be appended to m_body_utf8.
+                     Note, the string must be already unescaped.
+  @param cs        - the character set of the string
+  @param end_ptr   - m_cpp_utf8_processed_ptr will be set to this value
+                     (see body_utf8_append_ident for details)
+  @param sep       - the string delimiter (single or double quote)
+*/
+void Lex_input_stream::body_utf8_append_escape(THD *thd,
+                                               const LEX_STRING *txt,
+                                               CHARSET_INFO *cs,
+                                               const char *end_ptr,
+                                               my_wc_t sep)
+{
+  DBUG_ASSERT(sep == '\'' || sep == '"');
+  if (!m_cpp_utf8_processed_ptr)
+    return;
+  uint errors;
+  /**
+    We previously alloced m_body_utf8 to be able to store the query with all
+    strings properly escaped. See get_body_utf8_maximum_length().
+    So here we have guaranteedly enough space to append any string literal
+    with escaping. Passing txt->length*2 as "available space" is always safe.
+    For better safety purposes we could calculate get_body_utf8_maximum_length()
+    every time we append a string, but this would affect performance negatively,
+    so let's check that we don't get beyond the allocated buffer in
+    debug build only.
+  */
+  DBUG_ASSERT(m_body_utf8 + get_body_utf8_maximum_length(thd) >=
+              m_body_utf8_ptr + txt->length * 2);
+  uint32 cnv_length= my_convert_using_func(m_body_utf8_ptr, txt->length * 2,
+                                           &my_charset_utf8_general_ci,
+                                           get_escape_func(thd, sep),
+                                           txt->str, txt->length,
+                                           cs, cs->cset->mb_wc,
+                                           &errors);
+  m_body_utf8_ptr+= cnv_length;
+  *m_body_utf8_ptr= 0;
+  m_cpp_utf8_processed_ptr= end_ptr;
+}
+
 
 void Lex_input_stream::add_digest_token(uint token, LEX_YYSTYPE yylval)
 {
@@ -797,14 +994,14 @@ Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
   Fix sometimes to do only one scan of the string
 */
 
-bool Lex_input_stream::get_text(LEX_STRING *dst, int pre_skip, int post_skip)
+bool Lex_input_stream::get_text(LEX_STRING *dst, uint sep,
+                                int pre_skip, int post_skip)
 {
-  reg1 uchar c,sep;
+  reg1 uchar c;
   uint found_escape=0;
   CHARSET_INFO *cs= m_thd->charset();
 
   tok_bitmap= 0;
-  sep= yyGetLast();                        // String should end with this
   while (! eof())
   {
     c= yyGet();
@@ -1169,6 +1366,8 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       return((int) c);
 
     case MY_LEX_IDENT_OR_NCHAR:
+    {
+      uint sep;
       if (lip->yyPeek() != '\'')
       {
 	state= MY_LEX_IDENT;
@@ -1176,14 +1375,20 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Found N'string' */
       lip->yySkip();                         // Skip '
-      if (lip->get_text(&yylval->lex_str, 2, 1))
+      if (lip->get_text(&yylval->lex_str, (sep= lip->yyGetLast()), 2, 1))
       {
 	state= MY_LEX_CHAR;             // Read char by char
 	break;
       }
+
+      lip->body_utf8_append(lip->m_cpp_text_start);
+      lip->body_utf8_append_escape(thd, &yylval->lex_str,
+                                   national_charset_info,
+                                   lip->m_cpp_text_end, sep);
+
       lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(NCHAR_STRING);
-
+    }
     case MY_LEX_IDENT_OR_HEX:
       if (lip->yyPeek() == '\'')
       {					// Found x'hex-number'
@@ -1286,8 +1491,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_literal(thd, &yylval->lex_str, cs,
-                                    lip->m_cpp_text_end);
+      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
 
       return(result_state);			// IDENT or IDENT_QUOTED
 
@@ -1391,8 +1595,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_literal(thd, &yylval->lex_str, cs,
-                                    lip->m_cpp_text_end);
+      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
 
       return(result_state);
 
@@ -1435,8 +1638,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_literal(thd, &yylval->lex_str, cs,
-                                    lip->m_cpp_text_end);
+      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
 
       return(IDENT_QUOTED);
     }
@@ -1541,23 +1743,23 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* " used for strings */
     case MY_LEX_STRING:			// Incomplete text string
-      if (lip->get_text(&yylval->lex_str, 1, 1))
+    {
+      uint sep;
+      if (lip->get_text(&yylval->lex_str, (sep= lip->yyGetLast()), 1, 1))
       {
 	state= MY_LEX_CHAR;		// Read char by char
 	break;
       }
-
+      CHARSET_INFO *strcs= lip->m_underscore_cs ? lip->m_underscore_cs : cs;
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_literal(thd, &yylval->lex_str,
-        lip->m_underscore_cs ? lip->m_underscore_cs : cs,
-        lip->m_cpp_text_end);
-
+      lip->body_utf8_append_escape(thd, &yylval->lex_str, strcs,
+                                   lip->m_cpp_text_end, sep);
       lip->m_underscore_cs= NULL;
 
       lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(TEXT_STRING);
-
+    }
     case MY_LEX_COMMENT:			//  Comment
       lex->select_lex.options|= OPTION_FOUND_COMMENT;
       while ((c = lip->yyGet()) != '\n' && c) ;
@@ -1806,8 +2008,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_literal(thd, &yylval->lex_str, cs,
-                                    lip->m_cpp_text_end);
+      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
 
       return(result_state);
     }
@@ -3916,6 +4117,19 @@ void SELECT_LEX::update_used_tables()
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
     }
+    /*
+      - There is no need to check sj_on_expr, because merged semi-joins inject
+        sj_on_expr into the parent's WHERE clase.
+      - For non-merged semi-joins (aka JTBMs), we need to check their
+        left_expr. There is no need to check the rest of the subselect, we know
+        it is uncorrelated and so cannot refer to any tables in this select.
+    */
+    if (tl->jtbm_subselect)
+    {
+      Item *left_expr= tl->jtbm_subselect->left_expr;
+      left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+    }
+
     embedding= tl->embedding;
     while (embedding)
     {

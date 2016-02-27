@@ -16,8 +16,8 @@ CREATE TABLE t2 (f1 LONGTEXT);
 INSERT INTO t2 VALUES (REPEAT('x', 512 * 1024));
 INSERT INTO t2 VALUES (REPEAT('x', 512 * 1024));
 INSERT INTO t2 VALUES (REPEAT('x', 512 * 1024));
-SET GLOBAL wsrep_provider_options = 'signal=ist_sender_send_after_get_buffers';
 SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=ist_sender_send_after_get_buffers';
 INSERT INTO t1 VALUES (51), (52), (53), (54), (55);
 SELECT COUNT(*) = 30 FROM t1;
 COUNT(*) = 30

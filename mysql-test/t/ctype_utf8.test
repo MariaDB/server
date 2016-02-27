@@ -1577,13 +1577,13 @@ SET NAMES utf8;
 
 --echo #
 --echo # Bug#57687 crash when reporting duplicate group_key error and utf8
---echo # Make sure to modify this when Bug#58081 is fixed.
+--echo # Bug#58081 Duplicate entry error when doing GROUP BY
+--echo # MDEV-9332 Bug after upgrade to 10.1.10
 --echo #
 SET NAMES utf8;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (0), (0), (1), (0), (0);
---error ER_DUP_ENTRY
-SELECT COUNT(*) FROM t1, t1 t2 
+SELECT COUNT(*) FROM t1, t1 t2
 GROUP BY INSERT('', t2.a, t1.a, (@@global.max_binlog_size));
 DROP TABLE t1;
 
@@ -1869,6 +1869,82 @@ SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-7231 Field ROUTINE_DEFINITION in INFORMATION_SCHEMA.`ROUTINES` contains broken procedure body when used shielding quotes inside.
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """", '\'', "\"";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT _binary'test';
+SELECT _binary'test\0';
+SELECT N'''', N"""", N'\'', N"\"";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END$$
+DELIMITER ;$$
+SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='p1';
+SELECT body_utf8 FROM mysql.proc WHERE name='p1';
+DROP PROCEDURE p1;
+
+SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT CONCAT('ABC = ''',1,''''), CONCAT('ABC = ',2);
+SELECT '''', """";
+SELECT '<tab>	<tab>\t<tab>';
+SELECT '<nl>
+<nl>\n<nl>';
+SELECT 'test';
+SELECT 'tëst';
+SELECT 'test\0';
+SELECT 'tëst\0';
+SELECT _binary'test';
+SELECT _binary'test\0';
+SELECT N'''', N"""";
+SELECT N'<tab>	<tab>\t<tab>';
+SELECT N'<nl>
+<nl>\n<nl>';
+SELECT N'test';
+SELECT N'tëst';
+SELECT N'test\0';
+SELECT N'tëst\0';
+END$$
+DELIMITER ;$$
+SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='p1';
+SELECT body_utf8 FROM mysql.proc WHERE name='p1';
+DROP PROCEDURE p1;
+SET @@SQL_MODE=default;
+
+
+# TODO: Uncomment the below test whe we fix:
+# MDEV-9623INFORMATION_SCHEMA.ROUTINES.ROUTINE_DEFINITION does not handle binary literals well
+#
+#SET NAMES binary;
+#CREATE FUNCTION f1() RETURNS TEXT RETURN CONCAT('i','й');
+#SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES
+#WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='f1';
+#SELECT body_utf8 FROM mysql.proc WHERE name='f1';
+#DROP FUNCTION f1;
+#SET NAMES utf8;
 
 
 --echo #

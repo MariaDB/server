@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1647,10 +1647,6 @@ srv_export_innodb_status(void)
 	}
 #endif /* UNIV_DEBUG */
 
-	export_vars.innodb_merge_buffers_written = srv_stats.merge_buffers_written;
-	export_vars.innodb_merge_buffers_read = srv_stats.merge_buffers_read;
-	export_vars.innodb_merge_buffers_merged = srv_stats.merge_buffers_merged;
-
 	export_vars.innodb_sec_rec_cluster_reads =
 		srv_stats.n_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
@@ -1860,6 +1856,8 @@ exit_func:
 /*********************************************************************//**
 A thread which prints warnings about semaphore waits which have lasted
 too long. These can be used to track bugs which cause hangs.
+Note: In order to make sync_arr_wake_threads_if_sema_free work as expected,
+we should avoid waiting any mutexes in this function!
 @return	a dummy parameter */
 extern "C" UNIV_INTERN
 os_thread_ret_t
@@ -1899,23 +1897,21 @@ loop:
 	/* Try to track a strange bug reported by Harald Fuchs and others,
 	where the lsn seems to decrease at times */
 
-        /* We have to use nowait to ensure we don't block */
-	new_lsn= log_get_lsn_nowait();
+	if (log_peek_lsn(&new_lsn)) {
+		if (new_lsn < old_lsn) {
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				"  InnoDB: Error: old log sequence number " LSN_PF
+				" was greater\n"
+				"InnoDB: than the new log sequence number " LSN_PF "!\n"
+				"InnoDB: Please submit a bug report"
+				" to http://bugs.mysql.com\n",
+				old_lsn, new_lsn);
+			ut_ad(0);
+		}
 
-	if (new_lsn && new_lsn < old_lsn) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Error: old log sequence number " LSN_PF
-			" was greater\n"
-			"InnoDB: than the new log sequence number " LSN_PF "!\n"
-			"InnoDB: Please submit a bug report"
-			" to http://bugs.mysql.com\n",
-			old_lsn, new_lsn);
-		ut_ad(0);
-	}
-
-        if (new_lsn)
 		old_lsn = new_lsn;
+	}
 
 	if (difftime(time(NULL), srv_last_monitor_time) > 60) {
 		/* We referesh InnoDB Monitor values so that averages are

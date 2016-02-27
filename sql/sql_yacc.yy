@@ -248,6 +248,35 @@ static bool maybe_start_compound_statement(THD *thd)
   return 0;
 }
 
+static bool push_sp_label(THD *thd, LEX_STRING label)
+{
+  sp_pcontext *ctx= thd->lex->spcont;
+  sp_label *lab= ctx->find_label(label);
+
+  if (lab)
+  {
+    my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
+    return 1;
+  }
+  else
+  {
+    lab= thd->lex->spcont->push_label(thd, label,
+        thd->lex->sphead->instructions());
+    lab->type= sp_label::ITERATION;
+  }
+  return 0;
+}
+
+static bool push_sp_empty_label(THD *thd)
+{
+  if (maybe_start_compound_statement(thd))
+    return 1;
+  /* Unlabeled controls get an empty label. */
+  thd->lex->spcont->push_label(thd, empty_lex_str,
+      thd->lex->sphead->instructions());
+  return 0;
+}
+
 /**
   Helper action for a case expression statement (the expr in 'CASE expr').
   This helper is used for 'searched' cases only.
@@ -997,7 +1026,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 160 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 160
+%expect 162
 
 /*
    Comments for TOKENS.
@@ -1934,6 +1963,7 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_iterate
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
+%type <NONE> loop_body while_body repeat_body
 
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
@@ -3726,7 +3756,7 @@ sp_proc_stmt_statement:
               if (yychar == YYEMPTY)
                 i->m_query.length= lip->get_ptr() - sp->m_tmp_query;
               else
-                i->m_query.length= lip->get_tok_end() - sp->m_tmp_query;
+                i->m_query.length= lip->get_tok_start() - sp->m_tmp_query;;
               if (!(i->m_query.str= strmake_root(thd->mem_root,
                                                  sp->m_tmp_query,
                                                  i->m_query.length)) ||
@@ -3765,20 +3795,6 @@ sp_proc_stmt_return:
             }
             if (sp->restore_lex(thd))
               MYSQL_YYABORT;
-          }
-        ;
-
-sp_unlabeled_control:
-          {
-            if (maybe_start_compound_statement(thd))
-              MYSQL_YYABORT;
-            /* Unlabeled controls get an empty label. */
-            Lex->spcont->push_label(thd, empty_lex_str,
-                                    Lex->sphead->instructions());
-          }
-          sp_control_content
-          {
-            Lex->sphead->backpatch(Lex->spcont->pop_label());
           }
         ;
 
@@ -4200,41 +4216,6 @@ else_clause_opt:
         | ELSE sp_proc_stmts1
         ;
 
-sp_labeled_control:
-          label_ident ':'
-          {
-            LEX *lex= Lex;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *lab= ctx->find_label($1);
-
-            if (lab)
-            {
-              my_error(ER_SP_LABEL_REDEFINE, MYF(0), $1.str);
-              MYSQL_YYABORT;
-            }
-            else
-            {
-              lab= lex->spcont->push_label(thd, $1, lex->sphead->instructions());
-              lab->type= sp_label::ITERATION;
-            }
-          }
-          sp_control_content sp_opt_label
-          {
-            LEX *lex= Lex;
-            sp_label *lab= lex->spcont->pop_label();
-
-            if ($5.str)
-            {
-              if (my_strcasecmp(system_charset_info, $5.str, lab->name.str) != 0)
-              {
-                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $5.str);
-                MYSQL_YYABORT;
-              }
-            }
-            lex->sphead->backpatch(lab);
-          }
-        ;
-
 sp_opt_label:
           /* Empty  */  { $$= null_lex_str; }
         | label_ident   { $$= $1; }
@@ -4327,8 +4308,7 @@ sp_block_content:
           }
         ;
 
-sp_control_content:
-          LOOP_SYM
+loop_body:
           sp_proc_stmts1 END LOOP_SYM
           {
             LEX *lex= Lex;
@@ -4340,15 +4320,16 @@ sp_control_content:
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
           }
-        | WHILE_SYM 
-          { Lex->sphead->reset_lex(thd); }
+        ;
+
+while_body:
           expr DO_SYM
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             uint ip= sp->instructions();
             sp_instr_jump_if_not *i= new (lex->thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $3, lex);
+              sp_instr_jump_if_not(ip, lex->spcont, $1, lex);
             if (i == NULL ||
                 /* Jumping forward */
                 sp->push_backpatch(i, lex->spcont->last_label()) ||
@@ -4370,7 +4351,10 @@ sp_control_content:
               MYSQL_YYABORT;
             lex->sphead->do_cont_backpatch();
           }
-        | REPEAT_SYM sp_proc_stmts1 UNTIL_SYM 
+        ;
+
+repeat_body:
+          sp_proc_stmts1 UNTIL_SYM 
           { Lex->sphead->reset_lex(thd); }
           expr END REPEAT_SYM
           {
@@ -4378,7 +4362,7 @@ sp_control_content:
             uint ip= lex->sphead->instructions();
             sp_label *lab= lex->spcont->last_label();  /* Jumping back */
             sp_instr_jump_if_not *i= new (lex->thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $5, lab->ip, lex);
+              sp_instr_jump_if_not(ip, lex->spcont, $4, lab->ip, lex);
             if (i == NULL ||
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
@@ -4387,6 +4371,84 @@ sp_control_content:
             /* We can shortcut the cont_backpatch here */
             i->m_cont_dest= ip+1;
           }
+        ;
+
+pop_sp_label:
+          sp_opt_label
+          {
+            sp_label *lab;
+            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
+            if ($1.str)
+            {
+              if (my_strcasecmp(system_charset_info, $1.str,
+                                lab->name.str) != 0)
+              {
+                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $1.str);
+                MYSQL_YYABORT;
+              }
+            }
+          }
+        ;
+
+pop_sp_empty_label:
+          {
+            sp_label *lab;
+            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
+            DBUG_ASSERT(lab->name.length == 0);
+          }
+        ;
+
+sp_labeled_control:
+          label_ident ':' LOOP_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+          }
+          loop_body pop_sp_label
+          { }
+        | label_ident ':' WHILE_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd);
+          }
+          while_body pop_sp_label
+          { }
+        | label_ident ':' REPEAT_SYM
+          {
+            if (push_sp_label(thd, $1))
+              MYSQL_YYABORT;
+          }
+          repeat_body pop_sp_label
+          { }
+        ;
+
+sp_unlabeled_control:
+          LOOP_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+          }
+          loop_body
+          pop_sp_empty_label
+          { }
+        | WHILE_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd);
+          }
+          while_body
+          pop_sp_empty_label
+          { }
+        | REPEAT_SYM
+          {
+            if (push_sp_empty_label(thd))
+              MYSQL_YYABORT;
+          }
+          repeat_body
+          pop_sp_empty_label
+          { }
         ;
 
 trg_action_time:
@@ -10908,15 +10970,6 @@ table_factor:
               sel->add_joined_table($$);
               lex->pop_context();
               lex->nest_level--;
-              /*
-                Fields in derived table can be used in upper select in
-                case of merge. We do not add HAVING fields because we do
-                not merge such derived. We do not add union because
-                also do not merge them
-              */
-              if (!sel->next_select())
-                $2->select_n_where_fields+=
-                  sel->select_n_where_fields;
             }
             /*else if (($3->select_lex &&
                       $3->select_lex->master_unit()->is_union() &&
@@ -10937,6 +10990,15 @@ table_factor:
                  nest_level is the same as in the outer query */
               $$= $3;
             }
+            /*
+              Fields in derived table can be used in upper select in
+              case of merge. We do not add HAVING fields because we do
+              not merge such derived. We do not add union because
+              also do not merge them
+            */
+            if ($$ && $$->derived &&
+                !$$->derived->first_select()->next_select())
+              $$->select_lex->add_where_field($$->derived->first_select());
           }
         ;
 
@@ -12803,9 +12865,10 @@ show_param:
         | IDENT_sys remember_tok_start wild_and_where
            {
              LEX *lex= Lex;
+             bool in_plugin;
              lex->sql_command= SQLCOM_SHOW_GENERIC;
-             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str);
-             if (!table || !table->old_format)
+             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str, &in_plugin);
+             if (!table || !table->old_format || !in_plugin)
              {
                my_parse_error(thd, ER_SYNTAX_ERROR, $2);
                MYSQL_YYABORT;
@@ -14139,9 +14202,7 @@ user_maybe_role:
               MYSQL_YYABORT;
             $$->user = $1;
             $$->host= null_lex_str; // User or Role, see get_current_user()
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
@@ -14153,9 +14214,7 @@ user_maybe_role:
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
@@ -15071,14 +15130,14 @@ opt_for_user:
         ;
 
 text_or_password:
-          TEXT_STRING { Lex->definer->auth= $1;}
-        | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->password= $3; }
+          TEXT_STRING { Lex->definer->pwhash= $1;}
+        | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->pwtext= $3; }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->password= $3;
-            Lex->definer->auth.str= Item_func_password::alloc(thd,
+            Lex->definer->pwtext= $3;
+            Lex->definer->pwhash.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            Lex->definer->pwhash.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -15417,9 +15476,7 @@ current_role:
             if (!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
           }
           ;
 
@@ -15438,9 +15495,7 @@ grant_role:
               MYSQL_YYABORT;
             $$->user = $1;
             $$->host= empty_lex_str;
-            $$->password= null_lex_str;
-            $$->plugin= empty_lex_str;
-            $$->auth= empty_lex_str;
+            $$->reset_auth();
 
             if (check_string_char_length(&$$->user, ER_USERNAME,
                                          username_char_length,
@@ -15656,14 +15711,15 @@ using_or_as: USING | AS ;
 grant_user:
           user IDENTIFIED_SYM BY TEXT_STRING
           {
-            $$=$1; $1->password=$4;
+            $$= $1;
+            $1->pwtext= $4;
             if (Lex->sql_command == SQLCOM_REVOKE)
               MYSQL_YYABORT;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
-            $1->auth= $5;
+            $1->pwhash= $5;
           }
         | user IDENTIFIED_SYM via_or_with ident_or_text
           {

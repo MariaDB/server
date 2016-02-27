@@ -25,10 +25,9 @@ while ($i)
   disconnect con1;
   disable_query_log;
   echo # Waiting for thread to get deleted;
-  while (`SELECT VARIABLE_VALUE!=2 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='max_used_connections'`)
+  while (`SELECT count(*)!=2 FROM INFORMATION_SCHEMA.PROCESSLIST`)
   {
     real_sleep 0.1;
-    FLUSH STATUS;
   }
   enable_query_log;
   SET debug_sync='now SIGNAL go';

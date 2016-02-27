@@ -1,0 +1,24 @@
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 TEXT);
+SET GLOBAL wsrep_cluster_address='';
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,gcs_core_after_frag_send';
+SET SESSION wsrep_retry_autocommit=0;
+INSERT INTO t1 VALUES (1, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+SET GLOBAL wsrep_provider_options = 'signal=gcs_core_after_frag_send';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+INSERT INTO t1 VALUES (3, "cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+SELECT * FROM t1;
+f1	f2
+2	bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+3	cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+SELECT * FROM t1;
+f1	f2
+2	bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+3	cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+DROP TABLE t1;

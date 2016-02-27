@@ -6635,17 +6635,6 @@ static void copy_data_file_state(MARIA_STATE_INFO *to,
 }
 
 
-/* Return 1 if block is full of zero's */
-
-static my_bool zero_filled_block(uchar *tmp, uint length)
-{
-  while (length--)
-    if (*(tmp++) != 0)
-      return 0;
-  return 1;
-}
-
-
 /*
   Read 'safely' next record while scanning table.
 
@@ -6753,8 +6742,7 @@ read_next_page:
             sometimes be found at end of a bitmap when we wrote a big
             record last that was moved to the next bitmap.
           */
-          if (!zero_filled_block(info->scan.page_buff, share->block_size) ||
-              _ma_check_bitmap_data(info, UNALLOCATED_PAGE, 0, 
+          if (_ma_check_bitmap_data(info, UNALLOCATED_PAGE, 0, 
                                     _ma_bitmap_get_page_bits(info,
                                                              &share->bitmap,
                                                              page)))

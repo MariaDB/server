@@ -909,6 +909,54 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)=CONCAT('2020',RAND());
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9181 (NULLIF(count(table.col)), 0) gives wrong result on 10.1.x
+--echo #
+CREATE TABLE t1 (c1 varchar(50) DEFAULT NULL);
+INSERT INTO t1 (c1) VALUES ('hello'), ('hello\r\n'), ('hello'),('hello');
+SELECT NULLIF(COUNT(c1),0) FROM t1;
+SELECT CASE WHEN COUNT(c1)=0 THEN NULL ELSE COUNT(c1) END  FROM t1;
+SELECT NULLIF(COUNT(c1)+0,0) AS c1,NULLIF(CAST(COUNT(c1) AS SIGNED),0) AS c2,NULLIF(CONCAT(COUNT(c1)),0) AS c3 FROM t1;
+SELECT NULLIF(COUNT(DISTINCT c1),0) FROM t1;
+SELECT CASE WHEN COUNT(DISTINCT c1)=0 THEN NULL ELSE COUNT(DISTINCT c1) END  FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE  t1 (
+  id INT NOT NULL,
+  c1 INT DEFAULT NULL
+);
+INSERT INTO t1 VALUES (1,1),(1,2),(2,3),(2,4);
+SELECT NULLIF(COUNT(c1),0) AS c1,NULLIF(COUNT(c1)+0,0) AS c1_wrapped,CASE WHEN COUNT(c1) IS NULL THEN 0 ELSE COUNT(c1) END AS c1_case FROM t1 GROUP BY id;
+DROP TABLE t1;
+
+# Testing with side effects
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @a=0;
+SELECT NULLIF(LAST_VALUE(@a:=@a+1,a),0) FROM t1;
+SELECT @a;
+SET @a=0;
+SELECT NULLIF(AVG(a),0), NULLIF(AVG(LAST_VALUE(@a:=@a+1,a)),0) FROM t1;
+SELECT @a;
+
+# There should not be cache in here:
+
+EXPLAIN EXTENDED SELECT NULLIF(a,0) FROM t1;
+
+# But there should be a cache in here:
+EXPLAIN EXTENDED SELECT NULLIF(AVG(a),0) FROM t1;
+
+DROP TABLE t1;
+
+#
+# MDEV-9576 syntax error on view with nullif and count
+#
+create table t1 (col1 varchar(50));
+create view v1 AS select nullif(count(distinct col1),0) from t1;
+show create view v1;
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.1 tests

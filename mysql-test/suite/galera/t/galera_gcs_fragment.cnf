@@ -1,0 +1,5 @@
+!include ../galera_2nodes.cnf
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcs.max_packet_size=64'
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcs.max_packet_size=64'

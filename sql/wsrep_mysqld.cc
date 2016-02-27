@@ -91,12 +91,6 @@ my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
 
-/*
-  Set during the creation of first wsrep applier and rollback threads.
-  Since these threads are critical, abort if the thread creation fails.
-*/
-my_bool wsrep_creating_startup_threads = 0;
-
 // Use wsrep_gtid_domain_id for galera transactions?
 bool wsrep_gtid_mode                   = 0;
 // gtid_domain_id for galera transactions.
@@ -798,7 +792,6 @@ void wsrep_init_startup (bool first)
 
   if (!wsrep_start_replication()) unireg_abort(1);
 
-  wsrep_creating_startup_threads= 1;
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
 
@@ -947,19 +940,24 @@ bool wsrep_start_replication()
   return true;
 }
 
+bool wsrep_must_sync_wait (THD* thd, uint mask)
+{
+  return (thd->variables.wsrep_sync_wait & mask) &&
+    thd->variables.wsrep_on &&
+    !thd->in_active_multi_stmt_transaction() &&
+    thd->wsrep_conflict_state != REPLAYING &&
+    thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
+}
+
 bool wsrep_sync_wait (THD* thd, uint mask)
 {
-  if ((thd->variables.wsrep_sync_wait & mask) &&
-      thd->variables.wsrep_on &&
-      !thd->in_active_multi_stmt_transaction() &&
-      thd->wsrep_conflict_state != REPLAYING)
+  if (wsrep_must_sync_wait(thd, mask))
   {
     WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
                 thd->variables.wsrep_sync_wait, mask);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
-    wsrep_gtid_t  gtid;
-    wsrep_status_t ret= wsrep->causal_read (wsrep, &gtid);
+    wsrep_status_t ret= wsrep->causal_read (wsrep, &thd->wsrep_sync_wait_gtid);
 
     if (unlikely(WSREP_OK != ret))
     {
@@ -1467,16 +1465,19 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
   WSREP_DEBUG("RSU BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
                thd->wsrep_exec_mode, thd->query() );
 
-  ret = wsrep->desync(wsrep);
-  if (ret != WSREP_OK)
+  if (!wsrep_desync)
   {
-    WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
-               ret,
-               (thd->db ? thd->db : "(null)"),
-               thd->query());
-    my_error(ER_LOCK_DEADLOCK, MYF(0));
-    return(ret);
+    ret = wsrep->desync(wsrep);
+    if (ret != WSREP_OK)
+    {
+      WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
+                 ret, (thd->db ? thd->db : "(null)"), thd->query());
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      return(ret);
+    }
   }
+  else
+    WSREP_DEBUG("RSU desync skipped: %d", wsrep_desync);
   mysql_mutex_lock(&LOCK_wsrep_replaying);
   wsrep_replaying++;
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -1491,13 +1492,14 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
     wsrep_replaying--;
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
 
-    ret = wsrep->resync(wsrep);
-    if (ret != WSREP_OK)
+    if (!wsrep_desync)
     {
-      WSREP_WARN("resync failed %d for schema: %s, query: %s",
-                 ret,
-                 (thd->db ? thd->db : "(null)"),
-                 thd->query());
+      ret = wsrep->resync(wsrep);
+      if (ret != WSREP_OK)
+      {
+        WSREP_WARN("resync failed %d for schema: %s, query: %s",
+                   ret, (thd->db ? thd->db : "(null)"), thd->query());
+      }
     }
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     return(1);
@@ -1534,14 +1536,18 @@ static void wsrep_RSU_end(THD *thd)
                (thd->db ? thd->db : "(null)"),
                thd->query());
   }
-  ret = wsrep->resync(wsrep);
-  if (ret != WSREP_OK)
+  if (!wsrep_desync)
   {
-    WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
-               (thd->db ? thd->db : "(null)"),
-               thd->query());
-    return;
+    ret = wsrep->resync(wsrep);
+    if (ret != WSREP_OK)
+    {
+      WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
+                 (thd->db ? thd->db : "(null)"), thd->query());
+      return;
+    }
   }
+  else
+    WSREP_DEBUG("RSU resync skipped: %d", wsrep_desync);
   thd->variables.wsrep_on = 1;
 }
 
@@ -1820,21 +1826,11 @@ pthread_handler_t start_wsrep_THD(void *arg)
   //thd->version= refresh_version;
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
-
-  if (wsrep_creating_startup_threads == 0)
-  {
-    thd->init_for_queries();
-  }
+  thd->init_for_queries();
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
   mysql_cond_broadcast(&COND_thread_count);
-
-  if (wsrep_running_threads > 2)
-  {
-    wsrep_creating_startup_threads= 0;
-  }
-
   mysql_mutex_unlock(&LOCK_thread_count);
 
   processor(thd);
@@ -1877,7 +1873,7 @@ error:
   WSREP_ERROR("Failed to create/initialize system thread");
 
   /* Abort if its the first applier/rollbacker thread. */
-  if (wsrep_creating_startup_threads == 1)
+  if (!mysqld_server_initialized)
     unireg_abort(1);
   else
     return NULL;
@@ -2198,9 +2194,9 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
                      &(thd->lex->definer->host),
                      saved_mode))
   {
-      WSREP_WARN("SP create string failed: schema: %s, query: %s",
-                 (thd->db ? thd->db : "(null)"), thd->query());
-      return 1;
+    WSREP_WARN("SP create string failed: schema: %s, query: %s",
+               (thd->db ? thd->db : "(null)"), thd->query());
+    return 1;
   }
 
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
@@ -2381,9 +2377,9 @@ int wsrep_thd_retry_counter(THD *thd)
 }
 
 
-extern "C" bool wsrep_thd_skip_append_keys(THD *thd)
+extern "C" bool wsrep_thd_ignore_table(THD *thd)
 {
-  return thd->wsrep_skip_append_keys;
+  return thd->wsrep_ignore_table;
 }
 
 

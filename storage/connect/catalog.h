@@ -77,8 +77,8 @@ class DllExport CATALOG {
   virtual bool    ClearName(PGLOBAL, PSZ) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
   virtual PRELDEF GetTableDescEx(PGLOBAL, PTABLE) {return NULL;}
-  virtual PRELDEF GetTableDesc(PGLOBAL, LPCSTR, LPCSTR,
-                                        PRELDEF* = NULL) {return NULL;}
+  //virtual PRELDEF GetTableDesc(PGLOBAL, LPCSTR, LPCSTR,
+  //                                      PRELDEF* = NULL) {return NULL;}
   virtual PRELDEF GetFirstTable(PGLOBAL) {return NULL;}
   virtual PRELDEF GetNextTable(PGLOBAL) {return NULL;}
   virtual bool    TestCond(PGLOBAL, const char*, const char*) {return true;}
@@ -95,7 +95,7 @@ class DllExport CATALOG {
 
  protected:
   virtual bool    ClearSection(PGLOBAL, const char*, const char*) {return true;}
-  virtual PRELDEF MakeTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
+  //virtual PRELDEF MakeTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
 
   // Members
   char   *Cbuf;                        /* Buffer used for col section  */

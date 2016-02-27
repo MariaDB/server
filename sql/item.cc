@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2381,7 +2381,7 @@ bool Item_field::update_table_bitmaps_processor(uchar *arg)
 
 static inline void set_field_to_new_field(Field **field, Field **new_field)
 {
-  if (*field)
+  if (*field && (*field)->table == new_field[0]->table)
   {
     Field *newf= new_field[(*field)->field_index];
     if ((*field)->ptr == newf->ptr)
@@ -2394,6 +2394,7 @@ bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
   Field **new_fields= (Field **)arg;
   set_field_to_new_field(&field, new_fields);
   set_field_to_new_field(&result_field, new_fields);
+  maybe_null= field && field->maybe_null();
   return 0;
 }
 

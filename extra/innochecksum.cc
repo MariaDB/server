@@ -694,14 +694,14 @@ int main(int argc, char **argv)
   if (*filename == '\0')
   {
     fprintf(stderr, "Error; File name missing\n");
-    goto error;
+    goto error_out;
   }
 
   /* stat the file to get size and page count */
   if (stat(filename, &st))
   {
     fprintf(stderr, "Error; %s cannot be found\n", filename);
-    goto error;
+    goto error_out;
   }
   size= st.st_size;
 
@@ -711,7 +711,7 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "Error; %s cannot be opened", filename);
     perror(" ");
-    goto error;
+    goto error_out;
   }
 
   big_buf = (unsigned char *)malloc(2 * UNIV_PAGE_SIZE_MAX);
@@ -719,7 +719,7 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "Error; failed to allocate memory\n");
     perror("");
-    goto error;
+    goto error_f;
   }
 
   /* Make sure the page is aligned */
@@ -731,7 +731,7 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "Error; failed to allocate memory\n");
     perror("");
-    return 1;
+    goto error_big_buf;
   }
 
   /* Make sure the page is aligned */
@@ -983,12 +983,17 @@ ok:
     print_stats();
   free(big_xdes);
   free(big_buf);
+  fclose(f);
   my_end(0);
   exit(0);
 
 error:
   free(big_xdes);
+error_big_buf:
   free(big_buf);
+error_f:
+  fclose(f);
+error_out:
   my_end(0);
   exit(1);
 }

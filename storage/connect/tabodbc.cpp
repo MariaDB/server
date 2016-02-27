@@ -912,19 +912,21 @@ bool TDBODBC::OpenDB(PGLOBAL g)
         if ((n = Ocp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
           strcpy(g->Message, "Cannot get result size");
           return true;
-          } // endif n
+				} else if (n) {
+					Ocp->m_Rows = n;
 
-        Ocp->m_Rows = n;
+					if ((Qrp = Ocp->AllocateResult(g)))
+						Memory = 2;            // Must be filled
+					else {
+						strcpy(g->Message, "Result set memory allocation failed");
+						return true;
+					} // endif n
 
-        if ((Qrp = Ocp->AllocateResult(g)))
-          Memory = 2;            // Must be filled
-        else {
-          strcpy(g->Message, "Result set memory allocation failed");
-          return true;
-          } // endif n
+				} else				 // Void result
+					Memory = 0;
 
-        Ocp->m_Rows = 0;
-      } else
+				Ocp->m_Rows = 0;
+			} else
         return true;
 
       } // endif Memory

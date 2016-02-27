@@ -26,6 +26,7 @@ SET SESSION wsrep_sync_wait = 0;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_2
+--sleep 1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 

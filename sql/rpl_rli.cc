@@ -63,7 +63,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
-   slave_running(0), until_condition(UNTIL_NONE),
+   slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    m_flags(0)
 {
@@ -389,6 +389,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     if (rli->is_relay_log_recovery && init_recovery(rli->mi, &msg))
       goto err;
 
+    rli->relay_log_state.load(rpl_global_gtid_slave_state);
     if (init_relay_log_pos(rli,
                            rli->group_relay_log_name,
                            rli->group_relay_log_pos,
@@ -1148,6 +1149,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     error=1;
     goto err;
   }
+  rli->relay_log_state.load(rpl_global_gtid_slave_state);
   if (!just_reset)
   {
     /* Save name of used relay log file */

@@ -15,36 +15,13 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
 #include <my_global.h>
+#include <my_bit.h>
 #include "rpl_utility.h"
 #include "log_event.h"
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 #include "rpl_rli.h"
 #include "sql_select.h"
-
-/**
-   Function to compare two size_t integers for their relative
-   order. Used below.
- */
-int compare(size_t a, size_t b)
-{
-  if (a < b)
-    return -1;
-  if (b < a)
-    return 1;
-  return 0;
-}
-
-
-/**
-   Max value for an unsigned integer of 'bits' bits.
-
-   The somewhat contorted expression is to avoid overflow.
- */
-uint32 uint_max(int bits) {
-  return (((1UL << (bits - 1)) - 1) << 1) | 1;
-}
-
 
 /**
   Calculate display length for MySQL56 temporal data types from their metadata.
@@ -121,20 +98,22 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
     return 3;
 
   case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_TIME:
     return 3;
+
+  case MYSQL_TYPE_TIME:
+    return MIN_TIME_WIDTH;
 
   case MYSQL_TYPE_TIME2:
     return max_display_length_for_temporal2_field(MIN_TIME_WIDTH, metadata);
 
   case MYSQL_TYPE_TIMESTAMP:
-    return 4;
+    return MAX_DATETIME_WIDTH;
 
   case MYSQL_TYPE_TIMESTAMP2:
     return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
 
   case MYSQL_TYPE_DATETIME:
-    return 8;
+    return MAX_DATETIME_WIDTH;
 
   case MYSQL_TYPE_DATETIME2:
     return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
@@ -160,10 +139,10 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
     */
 
   case MYSQL_TYPE_TINY_BLOB:
-    return uint_max(1 * 8);
+    return my_set_bits(1 * 8);
 
   case MYSQL_TYPE_MEDIUM_BLOB:
-    return uint_max(3 * 8);
+    return my_set_bits(3 * 8);
 
   case MYSQL_TYPE_BLOB:
     /*
@@ -171,11 +150,11 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
       blobs are of type MYSQL_TYPE_BLOB. In that case, we have to look
       at the length instead to decide what the max display size is.
      */
-    return uint_max(metadata * 8);
+    return my_set_bits(metadata * 8);
 
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_GEOMETRY:
-    return uint_max(4 * 8);
+    return my_set_bits(4 * 8);
 
   default:
     return ~(uint32) 0;
@@ -205,7 +184,7 @@ int compare_lengths(Field *field, enum_field_types source_type, uint16 metadata)
                        " target_length: %lu, target_type: %u",
                        (unsigned long) source_length, source_type,
                        (unsigned long) target_length, field->real_type()));
-  int result= compare(source_length, target_length);
+  int result= source_length < target_length ? -1 : source_length > target_length;
   DBUG_PRINT("result", ("%d", result));
   DBUG_RETURN(result);
 }
@@ -950,6 +929,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   {
     Create_field *field_def=
       (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
+    Field *target_field= target_table->field[col];
     bool unsigned_flag= 0;
     if (field_list.push_back(field_def, thd->mem_root))
       DBUG_RETURN(NULL);
@@ -964,7 +944,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
       int precision;
     case MYSQL_TYPE_ENUM:
     case MYSQL_TYPE_SET:
-      interval= static_cast<Field_enum*>(target_table->field[col])->typelib;
+      interval= static_cast<Field_enum*>(target_field)->typelib;
       pack_length= field_metadata(col) & 0x00ff;
       break;
 
@@ -988,7 +968,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
                       " column Name: %s.%s.%s.",
                       target_table->s->db.str,
                       target_table->s->table_name.str,
-                      target_table->field[col]->field_name);
+                      target_field->field_name);
       goto err;
 
     case MYSQL_TYPE_TINY_BLOB:
@@ -1009,7 +989,18 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
         assume we have same sign on master and slave.  This is true when not
         using conversions so it should be true also when using conversions.
       */
-      unsigned_flag= ((Field_num*) target_table->field[col])->unsigned_flag;
+      unsigned_flag= static_cast<Field_num*>(target_field)->unsigned_flag;
+      break;
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_DATETIME:
+      /*
+        As we don't know the precision of the temporal field on the master,
+        assume it's the same on master and slave.  This is true when not
+        using conversions so it should be true also when using conversions.
+      */
+      if (target_field->decimals())
+        max_length+= target_field->decimals() + 1;
       break;
     default:
       break;
@@ -1017,7 +1008,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
 
     DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
-                         binlog_type(col), target_table->field[col]->field_name,
+                         binlog_type(col), target_field->field_name,
                          max_length, decimals, TRUE, unsigned_flag,
                          pack_length));
     field_def->init_for_tmp_table(type(col),
@@ -1026,7 +1017,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
                                   TRUE,         // maybe_null
                                   unsigned_flag,
                                   pack_length);
-    field_def->charset= target_table->field[col]->charset();
+    field_def->charset= target_field->charset();
     field_def->interval= interval;
   }
 

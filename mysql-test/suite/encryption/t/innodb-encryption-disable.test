@@ -1,0 +1,92 @@
+-- source include/have_innodb.inc
+# embedded does not support restart
+-- source include/not_embedded.inc
+-- source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
+-- source filekeys_plugin_exists.inc
+
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
+#
+# MDEV-9559: Server without encryption configs crashes if selecting from an implicitly encrypted table
+#
+call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
+call mtr.add_suppression("InnoDB: However key management plugin or used key_id 1 is not found or used encryption algorithm or method does not match.");
+call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
+call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
+call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
+# Suppression for builds where file_key_management plugin is linked statically
+call mtr.add_suppression("Couldn't load plugins from 'file_key_management*");
+call mtr.add_suppression("InnoDB: Tablespace id.* is encrypted but encryption service or used key_id .* is not available. Can't continue opening tablespace.");
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/keys1.txt
+1;770A8A65DA156D24EE2A093277530142
+4;770A8A65DA156D24EE2A093277530143
+EOF
+
+--exec echo "restart:--innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+create table t5 (
+     `intcol1` int(32) DEFAULT NULL,
+       `intcol2` int(32) DEFAULT NULL,
+       `charcol1` varchar(128) DEFAULT NULL,
+       `charcol2` varchar(128) DEFAULT NULL,
+       `charcol3` varchar(128) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t5 values (1,2,'maria','db','encryption');
+
+CREATE TABLE `t1` (
+  `intcol1` int(32) DEFAULT NULL,
+  `intcol2` int(32) DEFAULT NULL,
+  `charcol1` varchar(128) DEFAULT NULL,
+  `charcol2` varchar(128) DEFAULT NULL,
+  `charcol3` varchar(128) DEFAULT NULL
+) ENGINE=InnoDB;
+
+insert into t1 values (1,2,'maria','db','encryption');
+alter table t1 encrypted='yes' `encryption_key_id`=1;
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart:--innodb-encrypt-tables=OFF" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--error 1296
+select * from t1;
+--error 1296
+select * from t5;
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart:--innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+drop table t1;
+drop table t5;
+
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log
+
+--remove_file $MYSQLTEST_VARDIR/keys1.txt

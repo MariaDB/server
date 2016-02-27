@@ -150,3 +150,10 @@ select a from t1 having a > 1|
 begin not atomic select a from t1 having a > 1; end|
 drop table t1|
 
+--echo #
+--echo # MDEV-8615: Assertion `m_cpp_buf <= begin_ptr &&
+--echo # begin_ptr <= m_cpp_buf + m_buf_length' failed in
+--echo # Lex_input_stream::body_utf8_start
+--echo #
+--error ER_PARSE_ERROR
+--query b'

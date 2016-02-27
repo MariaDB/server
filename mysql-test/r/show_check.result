@@ -133,7 +133,7 @@ def	information_schema	TABLES	TABLES	UPDATE_TIME	Update_time	12	19	0	Y	128	0	63
 def	information_schema	TABLES	TABLES	CHECK_TIME	Check_time	12	19	0	Y	128	0	63
 def	information_schema	TABLES	TABLES	TABLE_COLLATION	Collation	253	32	0	Y	0	0	8
 def	information_schema	TABLES	TABLES	CHECKSUM	Checksum	8	21	0	Y	32800	0	63
-def	information_schema	TABLES	TABLES	CREATE_OPTIONS	Create_options	253	255	0	Y	0	0	8
+def	information_schema	TABLES	TABLES	CREATE_OPTIONS	Create_options	253	2048	0	Y	0	0	8
 def	information_schema	TABLES	TABLES	TABLE_COMMENT	Comment	253	2048	0	N	1	0	8
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
 show databases;
@@ -935,7 +935,7 @@ def	information_schema	TABLES	TABLES	TABLE_TYPE	TABLE_TYPE	253	192	10	N	1	0	33
 def	information_schema	TABLES	TABLES	ENGINE	ENGINE	253	192	6	Y	0	0	33
 def	information_schema	TABLES	TABLES	ROW_FORMAT	ROW_FORMAT	253	30	5	Y	0	0	33
 def	information_schema	TABLES	TABLES	TABLE_COLLATION	TABLE_COLLATION	253	96	17	Y	0	0	33
-def	information_schema	TABLES	TABLES	CREATE_OPTIONS	CREATE_OPTIONS	253	765	0	Y	0	0	33
+def	information_schema	TABLES	TABLES	CREATE_OPTIONS	CREATE_OPTIONS	253	6144	0	Y	0	0	33
 def	information_schema	TABLES	TABLES	TABLE_COMMENT	TABLE_COMMENT	253	6144	0	N	1	0	33
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	ROW_FORMAT	TABLE_COLLATION	CREATE_OPTIONS	TABLE_COMMENT
 def	test	t1	BASE TABLE	MyISAM	Fixed	latin1_swedish_ci		

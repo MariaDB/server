@@ -1,0 +1,66 @@
+# Test fragmentation over configuration changes
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Prepare table
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 TEXT);
+
+# Stop node2
+
+# Disconnect node_2 from group
+--connection node_2
+--let $wsrep_cluster_address_orig = `select @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address='';
+
+# Connection for sync points
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+
+# Set breakpoint in gcs after first fragment send
+
+--let $galera_sync_point = gcs_core_after_frag_send
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+SET SESSION wsrep_retry_autocommit=0;
+--send INSERT INTO t1 VALUES (1, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+
+# Restart node_2, wait until it joins the group and then make INSERT
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig'
+--enable_query_log
+SET SESSION wsrep_on = 0;
+--source include/galera_wait_ready.inc
+SET SESSION wsrep_on = 1;
+
+INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+# Signal node_1 to continue
+--connection node_1a
+--source include/galera_signal_sync_point.inc
+
+# Deadlock error should be returned since write set send was
+# interrupted by gcs
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+# Do additional insert to verify that node_1 remain operational
+INSERT INTO t1 VALUES (3, "cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+
+# Nodes node_1 and node_2 should now contain rows 2 and 3
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+
+DROP TABLE t1;

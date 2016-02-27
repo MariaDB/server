@@ -21,3 +21,43 @@ SELECT  * FROM t1 WHERE a = 8 AND (b = 1 OR b IS NULL) ORDER BY c;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9457: Poor query plan chosen for ORDER BY query by a recent 10.1
+--echo #
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int primary key,
+  key1 int,
+  key2 int,
+  col1 char(255),
+  key(key1),
+  key(key2)
+) engine=innodb;
+
+set @a=-1;
+insert into t1 
+select 
+  @a:=@a+1, 
+  @a, 
+  @a, 
+  repeat('abcd', 63) 
+from t0 A, t0 B, t0 C, t0 D;
+
+--echo # The following must NOT use 'index' on PK. 
+--echo # It should use index_merge(key1,key2) + filesort
+--replace_column 9 #
+explain 
+select * 
+from t1
+where key1<3 or key2<3
+order by pk;
+
+--replace_column 9 #
+explain 
+select * 
+from t1
+where key1<3 or key2<3;
+
+drop table t0, t1;

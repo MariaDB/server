@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -187,14 +187,14 @@ void
 row_merge_drop_temp_indexes(void);
 /*=============================*/
 
-/*********************************************************************//**
-Creates temporary merge files, and if UNIV_PFS_IO defined, register
-the file descriptor with Performance Schema.
+/** Create temporary merge files in the given paramater path, and if
+UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
+@param[in]	path	location for creating temporary merge files.
 @return File descriptor */
 UNIV_INTERN
 int
-row_merge_file_create_low(void)
-/*===========================*/
+row_merge_file_create_low(
+	const char*	path)
 	__attribute__((warn_unused_result));
 /*********************************************************************//**
 Destroy a merge file. And de-register the file from Performance Schema
@@ -268,8 +268,11 @@ row_merge_create_index(
 /*===================*/
 	trx_t*			trx,	/*!< in/out: trx (sets error_state) */
 	dict_table_t*		table,	/*!< in: the index is on this table */
-	const index_def_t*	index_def);
+	const index_def_t*	index_def,
 					/*!< in: the index definition */
+	const char**		col_names);
+					/*! in: column names if columns are
+					renamed or NULL */
 /*********************************************************************//**
 Check if a transaction can use an index.
 @return	TRUE if index can be used by the transaction else FALSE */
@@ -369,15 +372,17 @@ row_merge_buf_empty(
 /*================*/
 	row_merge_buf_t*	buf)	/*!< in,own: sort buffer */
 	__attribute__((warn_unused_result, nonnull));
-/*********************************************************************//**
-Create a merge file.
+
+/** Create a merge file in the given location.
+@param[out]	merge_file	merge file structure
+@param[in]	path		location for creating temporary file
 @return file descriptor, or -1 on failure */
 UNIV_INTERN
 int
 row_merge_file_create(
-/*==================*/
-	merge_file_t*	merge_file)	/*!< out: merge file structure */
-	__attribute__((nonnull));
+	merge_file_t*	merge_file,
+	const char*	path);
+
 /*********************************************************************//**
 Merge disk files.
 @return DB_SUCCESS or error code */

@@ -348,3 +348,18 @@ select found_rows();
 found_rows()
 75
 drop table t1;
+create table t1(c1 int);
+insert into t1 values(1),(2),(3),(4),(5);
+select * from t1 order by c1 limit 2,1;
+c1
+3
+select found_rows();
+found_rows()
+3
+select sql_calc_found_rows * from t1 order by c1 limit 2,1;
+c1
+3
+select found_rows();
+found_rows()
+5
+drop table t1;
