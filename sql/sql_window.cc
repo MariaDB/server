@@ -189,6 +189,11 @@ public:
     }
   }
 
+  /*
+    Check if the current row is in a different group than the previous row
+    this function was called for.
+    The new row's group becomes the current row's group.
+  */
   bool check_if_next_group()
   {
     if (test_if_group_changed(group_fields) > -1)
@@ -221,12 +226,20 @@ public:
   {}
 
   /*
-    Current row has entered the new partition (this also includes the first
-    partition).
-    //TODO: can we also say "tbl->record[0] is the first row in the partition?"
-    // TODO2: and if yes, will this function keep it so? (NO)
+    Current row has moved to the next partition and is positioned on the first
+    row there. Position the frame bound accordingly.
 
-    Position the frame bound accordingly.
+    @param first   -  TRUE means this is the first partition
+    @param item    -  Put or remove rows from there.
+
+    @detail
+      - if first==false, the caller guarantees that tbl->record[0] points at the
+        first row in the new partition.
+      - if first==true, we are just starting in the first partition and no such
+        guarantee is provided.
+
+      - The callee may move tbl->file and tbl->record[0] to point to some other
+        row.
   */
   virtual void next_partition(bool first, Item_sum* item)=0;
   
@@ -240,65 +253,60 @@ public:
   virtual ~Frame_cursor(){}
 };
 
+//////////////////////////////////////////////////////////////////////////////////
+/*
+  UNBOUNDED PRECEDING frame bound
+*/
+class Frame_unbounded_preceding : public Frame_cursor
+{
+public:
+  void next_partition(bool first, Item_sum* item)
+  {
+    /*
+      UNBOUNDED PRECEDING frame end just stays on the first row.
+      We are start of the frame, so we don't need to update the sum function.
+    */
+  }
+
+  void next_row(Item_sum* item)
+  {
+    /* Do nothing, UNBOUNDED PRECEDING|FOLLOWING frame ends don't move. */
+  }
+};
 
 /*
-  UNBOUNDED (PRECEDING|FOLLOWING) frame bound
+  UNBOUNDED FOLLOWING frame bound
 */
 
-class Frame_unbounded : public Frame_cursor
+class Frame_unbounded_following : public Frame_cursor
 {
-  const bool is_start;
-  const bool is_preceding;
-  
   READ_RECORD cursor;
   Group_bound_tracker bound_tracker;
 public:
-  Frame_unbounded(bool is_start_arg, bool is_preceding_arg) : 
-    is_start(is_start_arg), is_preceding(is_preceding_arg)
-  {}
-
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
   {
-    if (!is_preceding)
-    {
-      // Cursor is only needed by UNBOUNDED FOLLOWING
-      clone_read_record(info, &cursor);
-      bound_tracker.init(thd, partition_list);
-    }
+    clone_read_record(info, &cursor);
+    bound_tracker.init(thd, partition_list);
   }
 
   void next_partition(bool first, Item_sum* item)
   {
-    if (is_preceding)
+    /* Walk to the end of the partition and stay there */
+    if (first)
     {
-      /* 
-        UNBOUNDED PRECEDING frame end just stays on the first row.
-        We are start of the frame, so we don't need to update the sum function.
-      */
+      /* Read the first row */
+      if (cursor.read_record(&cursor))
+        return;
     }
-    else
+    /* Remember which partition we are in */
+    bound_tracker.check_if_next_group();
+    item->add();
+
+    while (!cursor.read_record(&cursor))
     {
-      /*
-        UNBOUNDED FOLLOWING should reach the end of the partition and stay
-        there.
-      */
-      if (first)
-      {
-        /* Read the first row */
-        if (cursor.read_record(&cursor))
-          return;
-      }
-      /* Remember what partition we are in */
-      bound_tracker.check_if_next_group();
-
+      if (bound_tracker.check_if_next_group())
+        break;
       item->add();
-
-      while (!cursor.read_record(&cursor))
-      {
-        if (bound_tracker.check_if_next_group())
-          break;
-        item->add();
-      }
     }
   }
 
@@ -450,9 +458,13 @@ Frame_cursor *get_frame_cursor(Window_frame_bound *bound, bool is_start_bound)
   {
     bool is_preceding= (bound->precedence_type ==
                         Window_frame_bound::PRECEDING);
-    if (bound->offset == NULL)
+
+    if (bound->offset == NULL) /* this is UNBOUNDED */
     {
-      return new Frame_unbounded(is_start_bound, is_preceding);
+      if (is_preceding)
+        return new Frame_unbounded_preceding;
+      else
+        return new Frame_unbounded_following;
     }
 
     longlong n_rows= bound->offset->val_int();
