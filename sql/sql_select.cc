@@ -24252,6 +24252,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       xpl_sel->using_filesort= true;
 
     xpl_sel->exec_const_cond= exec_const_cond;
+    xpl_sel->outer_ref_cond= outer_ref_cond;
     if (tmp_having)
       xpl_sel->having= tmp_having;
     else

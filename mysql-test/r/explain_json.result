@@ -1543,3 +1543,43 @@ ANALYZE
 set optimizer_switch=@tmp_optimizer_switch;
 set join_cache_level=@tmp_join_cache_level;
 drop table t1,t2,t3,t4;
+#
+# MDEV-9652: EXPLAIN FORMAT=JSON should show outer_ref_cond
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json 
+select a, (select max(a) from t1 where t0.a<5 and t1.b<t0.a) from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "expression_cache": {
+          "state": "uninitialized",
+          "query_block": {
+            "select_id": 2,
+            "outer_ref_condition": "(t0.a < 5)",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100,
+              "attached_condition": "((t0.a < 5) and (t1.b < t0.a))"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t0,t1;

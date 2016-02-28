@@ -862,6 +862,12 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
+    if (outer_ref_cond)
+    {
+      writer->add_member("outer_ref_condition");
+      write_item(writer, outer_ref_cond);
+    }
+
     /* we do not print HAVING which always evaluates to TRUE */
     if (having || (having_value == Item::COND_FALSE))
     {
