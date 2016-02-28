@@ -372,5 +372,4 @@ public:
 
 };
 
-
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

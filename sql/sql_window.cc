@@ -886,28 +886,32 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         item_win->setup_partition_border_check(thd);
       
         Item_sum::Sumfunctype type= item_win->window_func->sum_func();
-        if (type == Item_sum::ROW_NUMBER_FUNC ||
-            type == Item_sum::RANK_FUNC || 
-            type == Item_sum::DENSE_RANK_FUNC)
-        {
-          /* 
-            One-pass window function computation, walk through the rows and
-            assign values.
-          */
-          if (compute_window_func_values(item_win, tbl, &info))
-            is_error= true;
+        switch (type) {
+          case Item_sum::ROW_NUMBER_FUNC:
+          case Item_sum::RANK_FUNC:
+          case Item_sum::DENSE_RANK_FUNC:
+            {
+              /*
+                One-pass window function computation, walk through the rows and
+                assign values.
+              */
+              if (compute_window_func_values(item_win, tbl, &info))
+                is_error= true;
+              break;
+            }
+          case Item_sum::COUNT_FUNC:
+          {
+            /*
+              Frame-aware window function computation. It does one pass, but
+              uses three cursors -frame_start, current_row, and frame_end.
+            */
+            if (compute_window_func_with_frames(item_win, tbl, &info))
+              is_error= true;
+            break;
+          }
+          default:
+            DBUG_ASSERT(0);
         }
-        else if (type == Item_sum::COUNT_FUNC)
-        {
-          /*
-            Frame-aware window function computation. It does one pass, but 
-            uses three cursors -frame_top, current_row, and frame_bottom.
-          */
-          if (compute_window_func_with_frames(item_win, tbl, &info))
-            is_error= true;
-        }
-        else
-          DBUG_ASSERT(0);
 
         item_win->set_read_value_from_result_field();
         /* This calls filesort_free_buffers(): */
