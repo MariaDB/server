@@ -95,7 +95,7 @@ static void connection_class_handler(THD *thd, uint event_subclass, va_list ap)
   mysql_event_connection event;
   event.event_subclass= event_subclass;
   event.status= va_arg(ap, int);
-  event.thread_id= va_arg(ap, unsigned long);
+  event.thread_id= (unsigned long) va_arg(ap, long long);
   event.user= va_arg(ap, const char *);
   event.user_length= va_arg(ap, unsigned int);
   event.priv_user= va_arg(ap, const char *);

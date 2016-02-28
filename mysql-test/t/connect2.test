@@ -71,6 +71,8 @@ connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
 connection default;
 
 # Check that threads_connected didn't count aborted connections
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
 show status like "Threads_connected";
 
 #
