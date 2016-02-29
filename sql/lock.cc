@@ -1071,7 +1071,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 #ifdef WITH_WSREP
     wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     wsrep->resume(wsrep);
-    if (!wsrep_desync && !thd->wsrep_donor)
+    if (!wsrep_desync && !wsrep_node_is_donor())
     {
       int ret = wsrep->resync(wsrep);
       if (ret != WSREP_OK)
@@ -1141,13 +1141,13 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
      Donor servicing thread is an exception, it should pause provider but not desync,
      as it is already desynced in donor state
   */
-  if (!WSREP(thd) && !thd->wsrep_donor)
+  if (!WSREP(thd) && !wsrep_node_is_donor())
   {
     DBUG_RETURN(FALSE);
   }
 
   /* if already desynced or donor, avoid double desyncing */
-  if (wsrep_desync || thd->wsrep_donor)
+  if (wsrep_desync || wsrep_node_is_donor())
   {
     WSREP_DEBUG("desync set upfont, skipping implicit desync for FTWRL: %d",
                 wsrep_desync);

@@ -330,4 +330,5 @@ int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 void wsrep_init_sidno(const wsrep_uuid_t&);
 #endif /* GTID_SUPPORT */
 
+bool wsrep_node_is_donor();
 #endif /* WSREP_MYSQLD_H */
