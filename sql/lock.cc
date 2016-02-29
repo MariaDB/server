@@ -1071,6 +1071,16 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 #ifdef WITH_WSREP
     wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     wsrep->resume(wsrep);
+    if (!wsrep_desync && !thd->wsrep_donor)
+    {
+      int ret = wsrep->resync(wsrep);
+      if (ret != WSREP_OK)
+      {
+        WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s", ret,
+                   (thd->db ? thd->db : "(null)"), thd->query());
+        DBUG_VOID_RETURN;
+      }
+    }
 #endif /* WITH_WSREP */
   }
   thd->mdl_context.release_lock(m_mdl_global_shared_lock);
@@ -1106,7 +1116,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   */
 
 #ifdef WITH_WSREP
-  if (m_mdl_blocks_commits_lock)
+  if (WSREP(thd) && m_mdl_blocks_commits_lock)
   {
     WSREP_DEBUG("GRL was in block commit mode when entering "
 		"make_global_read_lock_block_commit");
@@ -1131,6 +1141,35 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
 #ifdef WITH_WSREP
+  /* Native threads should bail out before wsrep oprations to follow.
+     Donor servicing thread is an exception, it should pause provider but not desync,
+     as it is already desynced in donor state
+  */
+  if (!WSREP(thd) && !thd->wsrep_donor)
+  {
+    DBUG_RETURN(FALSE);
+  }
+
+  /* if already desynced or donor, avoid double desyncing */
+  if (wsrep_desync || thd->wsrep_donor)
+  {
+    WSREP_DEBUG("desync set upfont, skipping implicit desync for FTWRL: %d",
+                wsrep_desync);
+  }
+  else
+  {
+    int rcode;
+    WSREP_DEBUG("running implicit desync for node");
+    rcode = wsrep->desync(wsrep);
+    if (rcode != WSREP_OK)
+    {
+      WSREP_WARN("FTWRL desync failed %d for schema: %s, query: %s",
+                 rcode, (thd->db ? thd->db : "(null)"), thd->query());
+      my_message(ER_LOCK_DEADLOCK, "wsrep desync failed for FTWRL", MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+  }
+
   long long ret = wsrep->pause(wsrep);
   if (ret >= 0)
   {

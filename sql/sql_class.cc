@@ -1088,7 +1088,8 @@ THD::THD()
    wsrep_po_in_trans(FALSE),
    wsrep_apply_format(0),
    wsrep_apply_toi(false),
-   wsrep_skip_append_keys(false)
+   wsrep_skip_append_keys(false),
+   wsrep_donor(false)
 #endif
 {
   ulong tmp;
