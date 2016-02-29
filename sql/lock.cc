@@ -1120,11 +1120,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   {
     WSREP_DEBUG("GRL was in block commit mode when entering "
 		"make_global_read_lock_block_commit");
-    thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
-    m_mdl_blocks_commits_lock= NULL;
-    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-    wsrep->resume(wsrep);
-    m_state= GRL_ACQUIRED;
+    DBUG_RETURN(FALSE);
   }
 #endif /* WITH_WSREP */
 
