@@ -3893,7 +3893,7 @@ Field *Item::create_field_for_create_select(THD *thd, TABLE *table)
 {
   Field *def_field, *tmp_field;
   return create_tmp_field(thd, table, this, type(),
-                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0, 0);
+                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
 }
 
 

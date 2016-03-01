@@ -7845,13 +7845,36 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length, new_length;
   String_copier copier;
-  const char *tmp;
+  char *tmp;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   if (!length)
   {
     bzero(ptr,Field_blob::pack_length());
+    return 0;
+  }
+
+  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  {
+    DBUG_ASSERT(!f_is_hex_escape(flags));
+    DBUG_ASSERT(field_charset == cs);
+    DBUG_ASSERT(length <= max_data_length());
+    
+    new_length= length;
+    copy_length= table->in_use->variables.group_concat_max_len;
+    if (new_length > copy_length)
+    {
+      int well_formed_error;
+      new_length= cs->cset->well_formed_len(cs, from, from + copy_length,
+                                            new_length, &well_formed_error);
+      table->blob_storage->set_truncated_value(true);
+    }
+    if (!(tmp= table->blob_storage->store(from, new_length)))
+      goto oom_error;
+
+    Field_blob::store_length(new_length);
+    bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
 
@@ -7881,15 +7904,14 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   new_length= MY_MIN(max_data_length(), field_charset->mbmaxlen * length);
   if (value.alloc(new_length))
     goto oom_error;
-
+  tmp= const_cast<char*>(value.ptr());
 
   if (f_is_hex_escape(flags))
   {
     copy_length= my_copy_with_hex_escaping(field_charset,
-                                           (char*) value.ptr(), new_length,
-                                            from, length);
+                                           tmp, new_length,
+                                           from, length);
     Field_blob::store_length(copy_length);
-    tmp= value.ptr();
     bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
@@ -7897,7 +7919,6 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
                                        (char*) value.ptr(), new_length,
                                        cs, from, length);
   Field_blob::store_length(copy_length);
-  tmp= value.ptr();
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
   return check_conversion_status(&copier, from + length, cs, true);

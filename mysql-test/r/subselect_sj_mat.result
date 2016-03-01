@@ -787,6 +787,10 @@ select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_512
@@ -801,6 +805,10 @@ select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 drop table t1_512, t2_512, t3_512;
 set @blob_len = 1024;
 set @suffix_len = @blob_len - @prefix_len;
@@ -882,6 +890,10 @@ select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1024
@@ -896,6 +908,10 @@ select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 drop table t1_1024, t2_1024, t3_1024;
 set @blob_len = 1025;
 set @suffix_len = @blob_len - @prefix_len;
@@ -977,6 +993,10 @@ select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1025
@@ -991,6 +1011,10 @@ select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 left(a1,7)	left(a2,7)
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by GROUP_CONCAT()
 drop table t1_1025, t2_1025, t3_1025;
 create table t1bit (a1 bit(3), a2 bit(3));
 create table t2bit (b1 bit(3), b2 bit(3));
