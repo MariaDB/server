@@ -174,6 +174,100 @@ bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
   return false;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
+
+/*
+  A cursor over a sequence of rowids. One can
+   - Move to next rowid
+   - jump to given number in the sequence
+   - Know the number of the current rowid (i.e. how many rowids have been read)
+*/
+
+class Rowid_seq_cursor
+{
+  uchar *cache_start;
+  uchar *cache_pos;
+  uchar *cache_end;
+  uint ref_length;
+
+public:
+  void init(READ_RECORD *info)
+  {
+    cache_start= info->cache_pos;
+    cache_pos=   info->cache_pos;
+    cache_end=   info->cache_end;
+    ref_length= info->ref_length;
+  }
+
+  virtual int get_next()
+  {
+    /* Allow multiple get_next() calls in EOF state*/
+    if (cache_pos == cache_end)
+      return -1;
+    cache_pos+= ref_length;
+    return 0;
+  }
+  
+  ha_rows get_rownum()
+  {
+    return (cache_pos - cache_start) / ref_length;
+  }
+
+  // will be called by ROWS n FOLLOWING to catch up.
+  void move_to(ha_rows row_number)
+  {
+    cache_pos= cache_start + row_number * ref_length;
+  }
+protected:
+  bool at_eof() { return (cache_pos == cache_end); }
+  uchar *get_curr_rowid() { return cache_pos; }
+};
+
+
+/*
+  Cursor which reads from rowid sequence and also retrieves table rows.
+*/
+
+class Table_read_cursor : public Rowid_seq_cursor
+{
+  /* 
+    Note: we don't own *read_record, somebody else is using it.
+    We only look at the constant part of it, e.g. table, record buffer, etc.
+  */
+  READ_RECORD *read_record;
+public:
+
+  void init(READ_RECORD *info)
+  {
+    Rowid_seq_cursor::init(info);
+    read_record= info;
+  }
+
+  virtual int get_next()
+  {
+    if (at_eof())
+      return -1;
+
+    uchar* curr_rowid= get_curr_rowid();
+    int res= Rowid_seq_cursor::get_next();
+    if (!res)
+    {
+      res= read_record->table->file->ha_rnd_pos(read_record->record,
+                                                curr_rowid);
+    }
+    return res;
+  }
+
+  // todo: should move_to() also read row here? 
+};
+
+/*
+  TODO: We should also have a cursor that reads table rows and 
+  stays within the current partition.
+*/
+
+/////////////////////////////////////////////////////////////////////////////
 
 /* A wrapper around test_if_group_changed */
 class Group_bound_tracker
@@ -270,7 +364,7 @@ public:
 
   void next_row(Item_sum* item)
   {
-    /* Do nothing, UNBOUNDED PRECEDING|FOLLOWING frame ends don't move. */
+    /* Do nothing, UNBOUNDED PRECEDING frame end doesn't move. */
   }
 };
 
@@ -280,29 +374,30 @@ public:
 
 class Frame_unbounded_following : public Frame_cursor
 {
-  READ_RECORD cursor;
+  Table_read_cursor cursor;
+
   Group_bound_tracker bound_tracker;
 public:
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
   {
-    clone_read_record(info, &cursor);
+    cursor.init(info);
     bound_tracker.init(thd, partition_list);
   }
 
   void next_partition(bool first, Item_sum* item)
   {
-    /* Walk to the end of the partition and stay there */
     if (first)
     {
       /* Read the first row */
-      if (cursor.read_record(&cursor))
+      if (cursor.get_next())
         return;
     }
     /* Remember which partition we are in */
     bound_tracker.check_if_next_group();
     item->add();
 
-    while (!cursor.read_record(&cursor))
+    /* Walk to the end of the partition, updating the SUM function */
+    while (!cursor.get_next())
     {
       if (bound_tracker.check_if_next_group())
         break;
@@ -312,7 +407,7 @@ public:
 
   void next_row(Item_sum* item)
   {
-    /* Do nothing, UNBOUNDED PRECEDING|FOLLOWING frame ends don't move. */
+    /* Do nothing, UNBOUNDED FOLLOWING frame end doesn't */
   }
 };
 
@@ -330,8 +425,8 @@ class Frame_n_rows : public Frame_cursor
 
   ha_rows n_rows_to_skip;
 
-  READ_RECORD cursor;
-  bool cursor_eof;
+  Table_read_cursor cursor;
+  bool cursor_eof; //TODO: need this still?
 
   Group_bound_tracker bound_tracker;
   bool at_partition_start;
@@ -343,7 +438,7 @@ public:
 
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
   {
-    clone_read_record(info, &cursor);
+    cursor.init(info);
     cursor_eof= false;
     at_partition_start= true;
     bound_tracker.init(thd, partition_list);
@@ -361,8 +456,9 @@ public:
         /* 
           The cursor in "ROWS n PRECEDING" lags behind by n_rows rows.
           Catch up.
+          TODO: change this to be a jump forward.
         */
-        while (!(cursor_eof= (0 != cursor.read_record(&cursor))))
+        while (!(cursor_eof= (0 != cursor.get_next())))
         {
           if (bound_tracker.check_if_next_group())
             break;
@@ -416,7 +512,7 @@ private:
   {
     if (!cursor_eof)
     {
-      if (!(cursor_eof= (0 != cursor.read_record(&cursor))))
+      if (!(cursor_eof= (0 != cursor.get_next())))
       {
         bool new_group= bound_tracker.check_if_next_group();
         if (at_partition_start || !new_group)
