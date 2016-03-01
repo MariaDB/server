@@ -1069,16 +1069,19 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
     m_mdl_blocks_commits_lock= NULL;
 #ifdef WITH_WSREP
-    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-    wsrep->resume(wsrep);
-    if (!wsrep_desync && !wsrep_node_is_donor())
+    if (WSREP(thd) || wsrep_node_is_donor())
     {
-      int ret = wsrep->resync(wsrep);
-      if (ret != WSREP_OK)
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+      wsrep->resume(wsrep);
+      if (!wsrep_desync && !wsrep_node_is_donor())
       {
-        WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s", ret,
-                   (thd->db ? thd->db : "(null)"), thd->query());
-        DBUG_VOID_RETURN;
+        int ret = wsrep->resync(wsrep);
+        if (ret != WSREP_OK)
+        {
+          WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s", ret,
+                     (thd->db ? thd->db : "(null)"), thd->query());
+          DBUG_VOID_RETURN;
+        }
       }
     }
 #endif /* WITH_WSREP */
