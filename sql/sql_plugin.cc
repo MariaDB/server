@@ -2152,7 +2152,8 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
   error= plugin_add(thd->mem_root, name, &dl, REPORT_TO_USER);
@@ -2282,7 +2283,8 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
 
