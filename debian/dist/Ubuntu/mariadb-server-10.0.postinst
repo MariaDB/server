@@ -282,8 +282,10 @@ db_stop # in case invoke failes
 
 # If we upgrade from MySQL mysql.service may be masked, which also
 # means init.d script is disabled. Unmask mysql service explicitely.
-# Ignore exit code as command is not available everywhere.
-deb-systemd-helper unmask mysql.service > /dev/null || true
+# Check first that the command exists, to avoid emitting any warning messages.
+if [ -x "$(command -v deb-systemd-helper)" ]; then
+  deb-systemd-helper unmask mysql.service > /dev/null
+fi
 
 #DEBHELPER#
 
