@@ -66,27 +66,6 @@ public:
 
   "This implies that if two or more rows are not distinct with respect to 
   the window ordering, then there will be one or more"
-
-  @todo: failure to overload val_int() causes infinite mutual recursion like
-  this:
-
-  #7505 0x0000555555cd3a1c in Item::val_int_from_real (this=0x7fff50006460) at sql/item.cc:364
-  #7506 0x0000555555c768d4 in Item_sum_num::val_int (this=0x7fff50006460) at sql/item_sum.h:707
-  #7507 0x0000555555c76a54 in Item_sum_int::val_real (this=0x7fff50006460) at sql/item_sum.h:721
-  #7508 0x0000555555cd3a1c in Item::val_int_from_real (this=0x7fff50006460) at sql/item.cc:364
-  #7509 0x0000555555c768d4 in Item_sum_num::val_int (this=0x7fff50006460) at sql/item_sum.h:707
-  #7510 0x0000555555c76a54 in Item_sum_int::val_real (this=0x7fff50006460) at sql/item_sum.h:721
-  #7511 0x0000555555e6b411 in Item_window_func::val_real (this=0x7fff5000d870) at sql/item_windowfunc.h:291
-  #7512 0x0000555555ce1f40 in Item::save_in_field (this=0x7fff5000d870, field=0x7fff50012be0, no_conversions=true) at sql/item.cc:5843
-  #7513 0x00005555559c2c54 in Item_result_field::save_in_result_field (this=0x7fff5000d870, no_conversions=true) at sql/item.h:2280
-  #7514 0x0000555555aeb6bf in copy_funcs (func_ptr=0x7fff500126c8, thd=0x55555ab77458) at sql/sql_select.cc:23077
-  #7515 0x0000555555ae2d01 in end_write (join=0x7fff5000f230, join_tab=0x7fff50010728, end_of_records=false) at sql/sql_select.cc:19520
-  #7516 0x0000555555adffc1 in evaluate_join_record (join=0x7fff5000f230, join_tab=0x7fff500103e0, error=0) at sql/sql_select.cc:18388
-  #7517 0x0000555555adf8b6 in sub_select (join=0x7fff5000f230, join_tab=0x7fff500103e0, end_of_records=false) at sql/sql_select.cc:18163
-
-  is this normal? Can it happen with other val_XXX functions? 
-  Should we use another way to prevent this by forcing
-  Item_window_func::val_real() to return NULL at phase #1?
 */
 
 class Item_sum_rank: public Item_sum_int
