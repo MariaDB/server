@@ -358,7 +358,7 @@ public:
   {
     /*
       UNBOUNDED PRECEDING frame end just stays on the first row.
-      We are start of the frame, so we don't need to update the sum function.
+      We are top of the frame, so we don't need to update the sum function.
     */
   }
 
@@ -418,8 +418,8 @@ public:
 
 class Frame_n_rows : public Frame_cursor
 {
-  /* Whether this start of frame or end of rame */
-  const bool is_start;
+  /* Whether this is top of the frame or bottom */ 
+  const bool is_top_bound;
   const ha_rows n_rows;
   const bool is_preceding;
 
@@ -432,8 +432,8 @@ class Frame_n_rows : public Frame_cursor
   bool at_partition_start;
   bool at_partition_end;
 public:
-  Frame_n_rows(bool is_start_arg, bool is_preceding_arg, ha_rows n_rows_arg) :
-    is_start(is_start_arg), n_rows(n_rows_arg), is_preceding(is_preceding_arg)
+  Frame_n_rows(bool is_top_bound_arg, bool is_preceding_arg, ha_rows n_rows_arg) :
+    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg), is_preceding(is_preceding_arg)
   {}
 
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
@@ -464,7 +464,7 @@ public:
             break;
         }
       }
-      n_rows_to_skip= n_rows - (is_start? 0:1);
+      n_rows_to_skip= n_rows - (is_top_bound? 0:1);
     }
     else
     {
@@ -474,19 +474,19 @@ public:
       */
       n_rows_to_skip= 0;
 
-      if (!first && (!is_start || n_rows))
+      if (!first && (!is_top_bound || n_rows))
       {
           // We are positioned at the first row in the partition:
-        if (is_start) // this is frame start endpoint
+        if (is_top_bound) // this is frame top endpoint
           item->remove();
         else
           item->add();
       }
       /* 
-        Note: i_end=-1 when this is a start-endpoint "CURRENT ROW" which is
+        Note: i_end=-1 when this is a top-endpoint "CURRENT ROW" which is
               implemented as "ROWS 0 FOLLOWING".
      */
-      longlong i_end= n_rows + (first?1:0)- is_start;
+      longlong i_end= n_rows + (first?1:0)- is_top_bound;
       for (longlong i= 0; i < i_end; i++)
       {
         if (next_row_intern(item))
@@ -517,7 +517,7 @@ private:
         bool new_group= bound_tracker.check_if_next_group();
         if (at_partition_start || !new_group)
         {
-          if (is_start) // this is frame start endpoint
+          if (is_top_bound) // this is frame start endpoint
             item->remove();
           else
             item->add();
@@ -541,13 +541,13 @@ private:
 class Frame_current_row : public Frame_n_rows
 {
 public:
-  Frame_current_row(bool is_start_arg) :
-    Frame_n_rows(is_start_arg, false /*is_preceding*/, ha_rows(0))
+  Frame_current_row(bool is_top_bound_arg) :
+    Frame_n_rows(is_top_bound_arg, false /*is_preceding*/, ha_rows(0))
   {}
 };
 
 
-Frame_cursor *get_frame_cursor(Window_frame_bound *bound, bool is_start_bound)
+Frame_cursor *get_frame_cursor(Window_frame_bound *bound, bool is_top_bound)
 {
   if (bound->precedence_type == Window_frame_bound::PRECEDING ||
       bound->precedence_type == Window_frame_bound::FOLLOWING) 
@@ -564,12 +564,12 @@ Frame_cursor *get_frame_cursor(Window_frame_bound *bound, bool is_start_bound)
     }
 
     longlong n_rows= bound->offset->val_int();
-    return new Frame_n_rows(is_start_bound, is_preceding, n_rows);
+    return new Frame_n_rows(is_top_bound, is_preceding, n_rows);
   }
 
   if (bound->precedence_type == Window_frame_bound::CURRENT)
   {
-    return new Frame_current_row(is_start_bound);
+    return new Frame_current_row(is_top_bound);
   }
   return NULL; 
 }
@@ -582,7 +582,7 @@ Frame_cursor *get_frame_cursor(Window_frame_bound *bound, bool is_start_bound)
   cursors: 
    - current row - the row that we're computing window func value for)
    - start_bound - the start of the frame
-   - end_bound   - the end of the frame
+   - bottom_bound   - the end of the frame
    
   All three cursors move together.
 
@@ -616,8 +616,8 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
 {
   THD *thd= current_thd;
   int err= 0;
-  Frame_cursor *start_bound;
-  Frame_cursor *end_bound;
+  Frame_cursor *top_bound;
+  Frame_cursor *bottom_bound;
 
   Item_sum *sum_func= item_win->window_func;
   /* This algorithm doesn't support DISTINCT aggregator */
@@ -625,11 +625,11 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   
   Window_frame *window_frame= item_win->window_spec->window_frame;
   DBUG_ASSERT(window_frame->units == Window_frame::UNITS_ROWS);
-  start_bound= get_frame_cursor(window_frame->top_bound, true);
-  end_bound= get_frame_cursor(window_frame->bottom_bound, false);
+  top_bound= get_frame_cursor(window_frame->top_bound, true);
+  bottom_bound= get_frame_cursor(window_frame->bottom_bound, false);
     
-  start_bound->init(thd, info, &item_win->window_spec->partition_list);
-  end_bound->init(thd, info, &item_win->window_spec->partition_list);
+  top_bound->init(thd, info, &item_win->window_spec->partition_list);
+  bottom_bound->init(thd, info, &item_win->window_spec->partition_list);
 
   bool is_error= false;
   bool first_row= true;
@@ -641,14 +641,14 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
     {
       /* Start the first partition */
       sum_func->clear();
-      end_bound->next_partition(true, sum_func);
-      start_bound->next_partition(true, sum_func);
+      bottom_bound->next_partition(true, sum_func);
+      top_bound->next_partition(true, sum_func);
     }
     else
     {
       /* These can write into tbl->record[0] */
-      end_bound->next_row(sum_func);
-      start_bound->next_row(sum_func);
+      bottom_bound->next_row(sum_func);
+      top_bound->next_row(sum_func);
     }
     
     if ((err=info->read_record(info)))
@@ -667,17 +667,17 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
       memcpy(rowid_buf, tbl->file->ref, tbl->file->ref_length);
       /* 
         Ok, the current row is the first row in the new partition.
-        We move end_bound first, because we want rows to be added into the
-        aggregate before start_bound attempts to remove them.
+        We move bottom_bound first, because we want rows to be added into the
+        aggregate before top_bound attempts to remove them.
       */
-      end_bound->next_partition(false, sum_func);
+      bottom_bound->next_partition(false, sum_func);
       
       /*
         The problem is, the above call may have made tbl->record[0] to point to
         some other record.
       */
       tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
-      start_bound->next_partition(false, sum_func);
+      top_bound->next_partition(false, sum_func);
 
       /* 
         The same problem again. The above call may have moved table's current
@@ -699,8 +699,8 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   }
 
   my_free(rowid_buf);
-  delete start_bound;
-  delete end_bound;
+  delete top_bound;
+  delete bottom_bound;
   return is_error? true: false;
 }
 
@@ -906,7 +906,7 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         {
           /*
             Frame-aware window function computation. It does one pass, but 
-            uses three cursors -frame_start, current_row, and frame_end.
+            uses three cursors -frame_top, current_row, and frame_bottom.
           */
           if (compute_window_func_with_frames(item_win, tbl, &info))
             is_error= true;
