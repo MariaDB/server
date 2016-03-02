@@ -3207,7 +3207,6 @@ void JOIN::exec_inner()
   if (select_options & SELECT_DESCRIBE)
   {
     do_select_call_count= 0;
-    // psergey-merge-todo: what to do with this ^^^ ?
 
     select_describe(this, need_tmp,
 		    order != 0 && !skip_sort_order,
@@ -8207,9 +8206,6 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
                                         uint n_top_tabs_count, JOIN_TAB *tab)
 {
-  /*
-    psergey-merge-todo: the following is UGLY:
-  */
   n_top_tabs_count += tab->join->aggr_tables;
   if (!tab->bush_root_tab)
   {
@@ -8499,7 +8495,6 @@ bool JOIN::get_best_combination()
                     (order ? 1 : 0) +
        (select_options & (SELECT_BIG_RESULT | OPTION_BUFFER_RESULT) ? 1 : 0) ;
   
-  // psergey-temp:
   if (select_lex->window_specs.elements)
     aggr_tables++;
 

@@ -531,7 +531,7 @@ static int rr_unpack_from_tempfile(READ_RECORD *info)
 
   return 0;
 }
-//psergey: make this 'static' again:
+
 int rr_from_pointers(READ_RECORD *info)
 {
   int tmp;

@@ -546,7 +546,6 @@ public:
   virtual bool add()= 0;
   virtual bool setup(THD *thd) { return false; }
   
-  //psergey: for window functions:
   virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
@@ -555,7 +554,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(func_name()); 
   }
   
-  //psergey-todo: this is ugly:
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
 };
 
@@ -787,7 +785,6 @@ class Item_sum_count :public Item_sum_int
   void clear();
   bool add();
   void cleanup();
-  // psergey-added:
   void remove();
 
   public:

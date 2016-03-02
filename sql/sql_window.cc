@@ -764,11 +764,6 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
 
 #if 0
   bool can_compute_window_live = !need_tmp;
-  /*
-    psergey-winfunc: temporarily disabled the below because there is no 
-    way to test it. Enable it back when we can.
-  */
-
   // Construct the window_functions item list and check if they can be
   // computed using only one sorting.
   //
