@@ -2686,7 +2686,8 @@ mysql_execute_command(THD *thd)
         !(wsrep_ready && wsrep_reject_queries == WSREP_REJECT_NONE)        &&
         !(thd->variables.wsrep_dirty_reads &&
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
-        !wsrep_tables_accessible_when_detached(all_tables)                 &&
+        !(thd->variables.wsrep_dirty_reads &&
+          wsrep_tables_accessible_when_detached(all_tables))               &&
         lex->sql_command != SQLCOM_SET_OPTION                              &&
         !wsrep_is_show_query(lex->sql_command))
     {
