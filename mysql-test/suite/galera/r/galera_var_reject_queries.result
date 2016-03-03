@@ -7,7 +7,7 @@ ERROR 08S01: WSREP has not yet prepared node for application use
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 ERROR HY000: Lost connection to MySQL server during query
 SELECT * FROM t1;
-ERROR 70100: Connection was killed
+Got one of the listed errors
 SELECT * FROM t1;
 ERROR 08S01: WSREP has not yet prepared node for application use
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
