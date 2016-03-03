@@ -2566,8 +2566,15 @@ void Item_func_nullif::update_used_tables()
 void
 Item_func_nullif::fix_length_and_dec()
 {
-  if (!args[2])					// Only false if EOM
-    return;
+  /*
+    If this is the first invocation of fix_length_and_dec(), create the
+    third argument as a copy of the first. This cannot be done before
+    fix_fields(), because fix_fields() might replace items,
+    for exampe NOT x --> x==0, or (SELECT 1) --> 1.
+    See also class Item_func_nullif declaration.
+  */
+  if (arg_count == 2)
+    args[arg_count++]= args[0];
 
   THD *thd= current_thd;
   /*
@@ -2706,7 +2713,7 @@ Item_func_nullif::fix_length_and_dec()
     m_cache= args[0]->cmp_type() == STRING_RESULT ?
              new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
              Item_cache::get_cache(thd, args[0]);
-    m_cache->setup(current_thd, args[0]);
+    m_cache->setup(thd, args[0]);
     m_cache->store(args[0]);
     m_cache->set_used_tables(args[0]->used_tables());
     thd->change_item_tree(&args[0], m_cache);
@@ -2718,7 +2725,7 @@ Item_func_nullif::fix_length_and_dec()
   unsigned_flag= args[2]->unsigned_flag;
   fix_char_length(args[2]->max_char_length());
   maybe_null=1;
-  setup_args_and_comparator(current_thd, &cmp);
+  setup_args_and_comparator(thd, &cmp);
 }
 
 
@@ -2737,10 +2744,10 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     Therefore, after equal field propagation args[0] and args[2] can point
     to different items.
   */
-  if (!(query_type & QT_ITEM_FUNC_NULLIF_TO_CASE) || args[0] == args[2])
+  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) || args[0] == args[2])
   {
     /*
-      If no QT_ITEM_FUNC_NULLIF_TO_CASE is requested,
+      If QT_ITEM_ORIGINAL_FUNC_NULLIF is requested,
       that means we want the original NULLIF() representation,
       e.g. when we are in:
         SHOW CREATE {VIEW|FUNCTION|PROCEDURE}
@@ -2748,15 +2755,12 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       The original representation is possible only if
       args[0] and args[2] still point to the same Item.
 
-      The caller must pass call print() with QT_ITEM_FUNC_NULLIF_TO_CASE
+      The caller must never pass call print() with QT_ITEM_ORIGINAL_FUNC_NULLIF
       if an expression has undergone some optimization
       (e.g. equal field propagation done in optimize_cond()) already and
       NULLIF() potentially has two different representations of "a":
       - one "a" for comparison
       - another "a" for the returned value!
-
-      Note, the EXPLAIN EXTENDED and EXPLAIN FORMAT=JSON routines
-      do pass QT_ITEM_FUNC_NULLIF_TO_CASE to print().
     */
     DBUG_ASSERT(args[0] == args[2] || current_thd->lex->context_analysis_only);
     str->append(func_name());
@@ -5789,7 +5793,7 @@ bool Item_func_not::fix_fields(THD *thd, Item **ref)
   args[0]->under_not(this);
   if (args[0]->type() == FIELD_ITEM)
   {
-    /* replace  "NOT <field>" with "<filed> == 0" */
+    /* replace  "NOT <field>" with "<field> == 0" */
     Query_arena backup, *arena;
     Item *new_item;
     bool rc= TRUE;

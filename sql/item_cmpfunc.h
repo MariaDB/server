@@ -998,11 +998,18 @@ class Item_func_nullif :public Item_func_hybrid_field_type
   Item_cache *m_cache;
   int compare();
 public:
-  // Put "a" to args[0] for comparison and to args[2] for the returned value.
+  /*
+    Here we pass three arguments to the parent constructor, as NULLIF
+    is a three-argument function, it needs two copies of the first argument
+    (see above). But fix_fields() will be confused if we try to prepare the
+    same Item twice (if args[0]==args[2]), so we hide the third argument
+    (decrementing arg_count) and copy args[2]=args[0] again after fix_fields().
+    See also Item_func_nullif::fix_length_and_dec().
+  */
   Item_func_nullif(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b, a),
     m_cache(NULL)
-  {}
+  { arg_count--; }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
   longlong int_op();

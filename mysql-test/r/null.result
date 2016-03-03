@@ -1542,6 +1542,22 @@ nullif(count(col1),0)
 3
 drop view v1;
 drop table t1;
+select nullif((select 1), (select 2));
+nullif((select 1), (select 2))
+1
+create table t1 (f int);
+insert into t1 values (1),(2);
+select nullif( not f, 1 ) from t1;
+nullif( not f, 1 )
+0
+0
+drop table t1;
+set names utf8;
+create table t1 (f1 varchar(10));
+insert into t1 values ('2015-12-31');
+select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
+ERROR 22003: DOUBLE value is out of range in 'pow(cast((case when '2002-09-08' = '2015-12-31' then NULL else '2002-09-08' end) as datetime(6)),24)'
+drop table t1;
 #
 # End of 10.1 tests
 #

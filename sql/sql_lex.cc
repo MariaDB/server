@@ -2689,7 +2689,7 @@ void st_select_lex::print_order(String *str,
   {
     if (order->counter_used)
     {
-      if (query_type != QT_VIEW_INTERNAL)
+      if (!(query_type & QT_VIEW_INTERNAL))
       {
         char buffer[20];
         size_t length= my_snprintf(buffer, 20, "%d", order->counter);

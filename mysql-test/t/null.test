@@ -969,6 +969,25 @@ select nullif(count(col1),0) from t1;
 drop view v1;
 drop table t1;
 
+#
+# MDEV-9644 Assertion `args[0] == args[2] || thd->stmt_arena->is_stmt_execute()' failed in Item_func_nullif::fix_length_and_dec()
+#
+select nullif((select 1), (select 2));
+create table t1 (f int);
+insert into t1 values (1),(2);
+select nullif( not f, 1 ) from t1;
+drop table t1;
+
+#
+# MDEV-9641 Assertion `args[0] == args[2] || _current_thd()->lex->context_analysis_only' failed in Item_func_nullif::print(String*, enum_query_type)
+#
+set names utf8;
+create table t1 (f1 varchar(10));
+insert into t1 values ('2015-12-31');
+--error ER_DATA_OUT_OF_RANGE
+select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
+drop table t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
