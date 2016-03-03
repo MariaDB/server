@@ -705,6 +705,110 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
 }
 
 
+bool compute_two_pass_window_functions(Item_window_func *item_win,
+                                       TABLE *table, READ_RECORD *info)
+{
+  /* Perform first pass. */
+
+  // TODO-cvicentiu why not initialize the record for when we need, _in_
+  // this function.
+  READ_RECORD *info2= new READ_RECORD();
+  int err;
+  bool is_error = false;
+  bool first_row= true;
+  clone_read_record(info, info2);
+  Item_sum_window_with_context *window_func= 
+    static_cast<Item_sum_window_with_context *>(item_win->window_func);
+  uchar *rowid_buf= (uchar*) my_malloc(table->file->ref_length, MYF(0));
+
+  is_error= window_func->create_window_context();
+  /* Unable to allocate a new context. */
+  if (is_error)
+    return true;
+
+  Window_context *context = window_func->get_window_context();
+  /*
+     The two pass algorithm is as follows:
+     We have a sorted table according to the partition and order by clauses.
+     1. Scan through the table till we reach a partition boundary.
+     2. For each row that we scan, add it to the context.
+     3. Once the partition boundary is met, do a second scan through the
+     current partition and use the context information to compute the value for
+     the window function for that partition.
+     4. Reset the context.
+     5. Repeat from 1 till end of table.
+  */
+
+  bool done = false;
+  longlong rows_in_current_partition = 0;
+  // TODO handle end of table updating.
+  while (!done)
+  {
+
+    if ((err= info->read_record(info)))
+    {
+      done = true;
+    }
+
+    bool partition_changed= (done || item_win->check_partition_bound() > -1) ?
+                              true : false;
+    // The first time we always have a partition changed. Ignore it.
+    if (first_row)
+    {
+      partition_changed= false;
+      first_row= false;
+    }
+
+    if (partition_changed)
+    {
+      /*
+         We are now looking at the first row for the next partition, or at the
+         end of the table. Either way, we must remember this position for when
+         we finish doing the second pass.
+      */
+      table->file->position(table->record[0]);
+      memcpy(rowid_buf, table->file->ref, table->file->ref_length);
+
+      for (longlong row_number = 0; row_number < rows_in_current_partition;
+          row_number++)
+      {
+        if ((err= info2->read_record(info2)))
+        {
+          is_error= true;
+          break;
+        }
+        window_func->add();
+        // Save the window function into the table.
+        item_win->save_in_field(item_win->result_field, true);
+        err= table->file->ha_update_row(table->record[1], table->record[0]);
+        if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+        {
+          is_error= true;
+          break;
+        }
+      }
+
+      if (is_error)
+        break;
+
+      rows_in_current_partition= 0;
+      window_func->clear();
+      context->reset();
+
+      // Return to the beginning of the new partition.
+      table->file->ha_rnd_pos(table->record[0], rowid_buf);
+    }
+    rows_in_current_partition++;
+    context->add_field_to_context(item_win->result_field);
+  }
+
+  window_func->delete_window_context();
+  delete info2;
+  my_free(rowid_buf);
+  return is_error;
+}
+
+
 /*
   @brief
     This function is called by JOIN::exec to compute window function values
@@ -896,6 +1000,13 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
                 assign values.
               */
               if (compute_window_func_values(item_win, tbl, &info))
+                is_error= true;
+              break;
+            }
+          case Item_sum::PERCENT_RANK_FUNC:
+          case Item_sum::CUME_DIST_FUNC:
+            {
+              if (compute_two_pass_window_functions(item_win, tbl, &info))
                 is_error= true;
               break;
             }

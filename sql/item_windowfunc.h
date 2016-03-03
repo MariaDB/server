@@ -70,6 +70,7 @@ public:
 
 class Item_sum_rank: public Item_sum_int
 {
+protected:
   longlong row_number; // just ROW_NUMBER()
   longlong cur_rank;   // current value
   
@@ -108,7 +109,7 @@ public:
   {
     return "rank";
   }
-  
+
   void setup_window_func(THD *thd, Window_spec *window_spec);
 };
 
@@ -168,6 +169,103 @@ class Item_sum_dense_rank: public Item_sum_int
 
 };
 
+/* TODO-cvicentiu
+ * Perhaps this is overengineering, but I would like to decouple the 2-pass
+ * algorithm from the specific action that must be performed during the
+ * first pass. The second pass can make use of the "add" function from the
+ * Item_sum_<window_function>.
+ */
+
+/*
+   This class represents a generic interface for window functions that need
+   to store aditional information. Such window functions include percent_rank
+   and cume_dist.
+*/
+class Window_context
+{
+ public:
+  virtual void add_field_to_context(Field* field) = 0;
+  virtual void reset() = 0;
+  virtual ~Window_context() {};
+};
+
+/*
+   A generic interface that specifies the datatype that the context represents.
+*/
+template <typename T>
+class Window_context_getter
+{
+ protected:
+  virtual T get_field_context(const Field* field) = 0;
+  virtual ~Window_context_getter() {};
+};
+
+/*
+   A window function context representing the number of rows that are present
+   with a partition. Because the number of rows is not dependent of the
+   specific value within the current field, we ignore the parameter
+   in this case.
+*/
+class Window_context_row_count :
+  public Window_context, Window_context_getter<ulonglong>
+{
+ public:
+  Window_context_row_count() : num_rows_(0) {};
+
+  void add_field_to_context(Field* field __attribute__((unused)))
+  {
+    num_rows_++;
+  }
+
+  void reset()
+  {
+    num_rows_= 0;
+  }
+
+  ulonglong get_field_context(const Field* field __attribute__((unused)))
+  {
+    return num_rows_;
+  }
+ private:
+  ulonglong num_rows_;
+};
+
+class Window_context_row_and_group_count :
+  public Window_context, Window_context_getter<std::pair<ulonglong, ulonglong> >
+{
+ public:
+  Window_context_row_and_group_count(void * group_list) {}
+};
+
+/*
+  An abstract class representing an item that holds a context.
+*/
+class Item_context
+{
+ public:
+  Item_context() : context_(NULL) {}
+  Window_context* get_window_context() { return context_; }
+
+  virtual bool create_window_context() = 0;
+  virtual void delete_window_context() = 0;
+
+ protected:
+  Window_context* context_;
+};
+
+/*
+  A base window function (aggregate) that also holds a context.
+
+  NOTE: All two pass window functions need to implement
+  this interface.
+*/
+class Item_sum_window_with_context : public Item_sum_num,
+                                     public Item_context
+{
+ public:
+  Item_sum_window_with_context(THD *thd)
+   : Item_sum_num(thd), Item_context() {}
+};
 
 /*
   @detail
@@ -177,23 +275,43 @@ class Item_sum_dense_rank: public Item_sum_int
 
   Computation of this function requires two passes:
   - First pass to find #rows in the partition
+    This is held within the row_count context.
   - Second pass to compute rank of current row and the value of the function
 */
-
-class Item_sum_percent_rank: public Item_sum_num
+class Item_sum_percent_rank: public Item_sum_window_with_context,
+                             public Window_context_row_count
 {
-  longlong rank;
-  longlong partition_rows;
-
-  void clear() {}
-  bool add() { return false; }
-  void update_field() {}
-
  public:
   Item_sum_percent_rank(THD *thd)
-    : Item_sum_num(thd), rank(0), partition_rows(0) {}
+    : Item_sum_window_with_context(thd), cur_rank(1) {}
 
-  double val_real() { return 0; }
+  longlong val_int()
+  {
+   /*
+      Percent rank is a real value so calling the integer value should never
+      happen. It makes no sense as it gets truncated to either 0 or 1.
+   */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+
+  double val_real()
+  {
+   /*
+     We can not get the real value without knowing the number of rows
+     in the partition. Don't divide by 0.
+   */
+   if (!get_context_())
+   {
+     // Calling this kind of function with a context makes no sense.
+     DBUG_ASSERT(0);
+     return 0;
+   }
+
+   longlong partition_rows = get_context_()->get_field_context(result_field);
+   return partition_rows > 1 ?
+             static_cast<double>(cur_rank - 1) / (partition_rows - 1) : 0;
+  }
 
   enum Sumfunctype sum_func () const
   {
@@ -204,10 +322,59 @@ class Item_sum_percent_rank: public Item_sum_num
   {
     return "percent_rank";
   }
-  
+
+  bool create_window_context()
+  {
+    // TODO-cvicentiu: Currently this means we must make sure to delete
+    // the window context. We can potentially allocate this on the THD memroot.
+    // At the same time, this is only necessary for a small portion of the
+    // query execution and it does not make sense to keep it for all of it.
+    context_ = new Window_context_row_count();
+    if (context_ == NULL)
+      return true;
+    return false;
+  }
+
+  void delete_window_context()
+  {
+    if (context_)
+      delete get_context_();
+    context_ = NULL;
+  }
+
+  void update_field() {}
+
+  void clear()
+  {
+    cur_rank= 1;
+    row_number= 0;
+  }
+  bool add();
+  enum Item_result result_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
 
+  void fix_length_and_dec()
+  {
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
+                    // requires.
+  }
+
+  void setup_window_func(THD *thd, Window_spec *window_spec);
+
+ private:
+  longlong cur_rank;   // Current rank of the current row.
+  longlong row_number; // Value if this were ROW_NUMBER() function.
+
+  List<Cached_item> orderby_fields;
+
+  /* Helper function so that we don't cast the context every time. */
+  Window_context_row_count* get_context_()
+  {
+    return static_cast<Window_context_row_count *>(context_);
+  }
 };
+
+
 
 
 /*
@@ -221,18 +388,11 @@ class Item_sum_percent_rank: public Item_sum_num
   two passes.
 */
 
-class Item_sum_cume_dist: public Item_sum_num
+class Item_sum_cume_dist: public Item_sum_percent_rank
 {
-  longlong count;
-  longlong partition_rows;
-
-  void clear() {}
-  bool add() { return false; }
-  void update_field() {}
-
  public:
   Item_sum_cume_dist(THD *thd)
-    : Item_sum_num(thd), count(0), partition_rows(0) {}
+    : Item_sum_percent_rank(thd) {}
 
   double val_real() { return 0; }
 
@@ -245,9 +405,6 @@ class Item_sum_cume_dist: public Item_sum_num
   {
     return "cume_dist";
   }
-
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
- 
 };
 
 
@@ -331,7 +488,7 @@ public:
   }
 
   longlong val_int()
-  { 
+  {
     if (force_return_blank)
       return 0;
     return read_value_from_result_field? result_field->val_int() : 
@@ -361,15 +518,14 @@ public:
                               List<Item> &fields, uint flags);
   void fix_length_and_dec()
   {
-    window_func->fix_length_and_dec();
+    decimals = window_func->decimals;
   }
 
   const char* func_name() const { return "WF"; }
 
   bool fix_fields(THD *thd, Item **ref);
-  
-  bool resolve_window_name(THD *thd);
 
+  bool resolve_window_name(THD *thd);
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

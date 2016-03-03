@@ -56,6 +56,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   if (window_func->fix_fields(thd, ref))
     return true;
 
+  fix_length_and_dec();
+
   max_length= window_func->max_length;
 
   fixed= 1;
@@ -180,3 +182,27 @@ void Item_window_func::advance_window()
   }
   window_func->add();
 }
+
+bool Item_sum_percent_rank::add()
+{
+  row_number++;
+  if (test_if_group_changed(orderby_fields) > -1)
+  {
+    /* Row value changed. */
+    cur_rank= row_number;
+  }
+  return false;
+}
+
+void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  /* TODO: move this into Item_window_func? */
+  for (ORDER *curr= window_spec->order_list.first; curr; curr=curr->next)
+  {
+    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
+    orderby_fields.push_back(tmp);
+  }
+  clear();
+}
+
+
