@@ -893,6 +893,7 @@ void cleanup_items(Item *item)
 #ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
+  bool has_tables = false;
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
     TABLE_CATEGORY c;
@@ -905,8 +906,9 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
     {
       return false;
     }
+    has_tables = true;
   }
-  return true;
+  return has_tables;
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -2686,8 +2688,7 @@ mysql_execute_command(THD *thd)
         !(wsrep_ready && wsrep_reject_queries == WSREP_REJECT_NONE)        &&
         !(thd->variables.wsrep_dirty_reads &&
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
-        !(thd->variables.wsrep_dirty_reads &&
-          wsrep_tables_accessible_when_detached(all_tables))               &&
+        !wsrep_tables_accessible_when_detached(all_tables)                 &&
         lex->sql_command != SQLCOM_SET_OPTION                              &&
         !wsrep_is_show_query(lex->sql_command))
     {
