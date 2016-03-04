@@ -95,7 +95,7 @@ static int copy_events(Ndb *ndb)
       Uint32 gci= pOp->getGCI();
 
       if (!pOp->isConsistent()) {
-	g_err << "A node failure has occured and events might be missing\n";
+	g_err << "A node failure has occurred and events might be missing\n";
 	DBUG_RETURN(-1);
       }
 	

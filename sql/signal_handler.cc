@@ -216,7 +216,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   if (calling_initgroups)
   {
     my_safe_printf_stderr("%s", "\n"
-      "This crash occured while the server was calling initgroups(). This is\n"
+      "This crash occurred while the server was calling initgroups(). This is\n"
       "often due to the use of a mysqld that is statically linked against \n"
       "glibc and configured to use LDAP in /etc/nsswitch.conf.\n"
       "You will need to either upgrade to a version of glibc that does not\n"

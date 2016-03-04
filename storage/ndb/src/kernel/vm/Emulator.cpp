@@ -246,7 +246,7 @@ NdbShutdown(NdbShutdownType type,
     }
     
     if(type != NST_Normal && type != NST_Restart){
-      // Signal parent that error occured during startup
+      // Signal parent that error occurred during startup
       if (type == NST_ErrorHandlerStartup)
 	kill(getppid(), SIGUSR1);
       g_eventLogger.info("Error handler shutdown completed - %s", exitAbort);

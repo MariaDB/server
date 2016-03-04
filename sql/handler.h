@@ -3502,7 +3502,7 @@ public:
    *) a) If the previous step succeeds, handler::ha_commit_inplace_alter_table() is
          called to allow the storage engine to do any final updates to its structures,
          to make all earlier changes durable and visible to other connections.
-      b) If we have failed to upgrade lock or any errors have occured during the
+      b) If we have failed to upgrade lock or any errors have occurred during the
          handler functions calls (including commit), we call
          handler::ha_commit_inplace_alter_table()
          to rollback all changes which were done during previous steps.

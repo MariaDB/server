@@ -102,7 +102,7 @@ public:
     it are in use. A new Block is allocated and is put into the rear of the
     Block link table if no Block is free.
 
-    @return Return a TranxNode *, or NULL if an error occured.
+    @return Return a TranxNode *, or NULL if an error occurred.
    */
   TranxNode *allocate_node()
   {
@@ -134,7 +134,7 @@ public:
   /**
     All nodes are freed.
 
-    @return Return 0, or 1 if an error occured.
+    @return Return 0, or 1 if an error occurred.
    */
   int free_all_nodes()
   {
@@ -150,7 +150,7 @@ public:
 
     @param node All nodes before 'node' will be freed
 
-    @return Return 0, or 1 if an error occured.
+    @return Return 0, or 1 if an error occurred.
    */
   int free_nodes_before(TranxNode* node)
   {

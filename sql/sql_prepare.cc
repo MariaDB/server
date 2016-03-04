@@ -1820,7 +1820,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   @note This function handles create view commands.
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 static bool mysql_test_create_view(Prepared_statement *stmt)

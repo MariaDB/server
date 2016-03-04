@@ -655,7 +655,7 @@ insert into t1 values (1);
 flush tables;
 # Open t2 and (implicitly) t1.
 select * from t2;
-# Truncate t1, wich was not recognized as open without the bugfix.
+# Truncate t1, which was not recognized as open without the bugfix.
 # After fix for Bug#8306 and before fix for Bug#26379,
 # it should fail with a table-in-use error message, otherwise succeed.
 truncate table t1;

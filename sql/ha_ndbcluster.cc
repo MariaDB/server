@@ -8123,7 +8123,7 @@ uint8 ha_ndbcluster::table_cache_type()
    @param[out] commit_count Commit count for the table.
 
    @return 0 on success.
-   @return 1 if an error occured.
+   @return 1 if an error occurred.
 */
 
 uint ndb_get_commitcount(THD *thd, char *norm_name,
