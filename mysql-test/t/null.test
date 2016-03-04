@@ -988,6 +988,15 @@ insert into t1 values ('2015-12-31');
 select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
 drop table t1;
 
+#
+# MDEV-9682 Assertion `0' failed in Item_cache_row::illegal_method_call on 2nd execution of PS with NULLIF
+#
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+PREPARE stmt FROM "SELECT * FROM t1 WHERE NULLIF( ( 1, 2 ) IN ( SELECT 3, 4 ), 1 )";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
