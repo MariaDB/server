@@ -997,6 +997,16 @@ PREPARE stmt FROM "SELECT * FROM t1 WHERE NULLIF( ( 1, 2 ) IN ( SELECT 3, 4 ), 1
 EXECUTE stmt;
 EXECUTE stmt;
 DROP TABLE t1;
+
+#
+# MDEV-9683 Server crashes in Item::basic_const_item on numerous nested NULLIFs
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(i = ROUND(0), 14), 13), 12), 11), 10), 9), 8), 7), 6), 5), 4), 3), 2), 1);
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
