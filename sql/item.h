@@ -4778,17 +4778,10 @@ public:
    - cmp() method that compares the saved value with the current value of the
      source item, and if they were not equal saves item's value into the saved
      value.
-*/
 
-/*
-  Cached_item_XXX objects are not exactly caches. They do the following:
-
-  Each Cached_item_XXX object has
-   - its source item
-   - saved value of the source item
-   - cmp() method that compares the saved value with the current value of the
-     source item, and if they were not equal saves item's value into the saved
-     value.
+  TODO: add here:
+   - a way to save the new value w/o comparison
+   - a way to do less/equal/greater comparison
 */
 
 class Cached_item :public Sql_alloc
@@ -4796,7 +4789,18 @@ class Cached_item :public Sql_alloc
 public:
   bool null_value;
   Cached_item() :null_value(0) {}
+  /*
+    Compare the cached value with the source value. If not equal, copy
+    the source value to the cache.
+    @return
+      true  - Not equal
+      false - Equal
+  */
   virtual bool cmp(void)=0;
+
+  /* Compare the cached value with the source value, without copying */
+  virtual int  cmp_read_only()=0;
+
   virtual ~Cached_item(); /*line -e1509 */
 };
 
@@ -4808,6 +4812,7 @@ class Cached_item_str :public Cached_item
 public:
   Cached_item_str(THD *thd, Item *arg);
   bool cmp(void);
+  int  cmp_read_only();
   ~Cached_item_str();                           // Deallocate String:s
 };
 
@@ -4819,6 +4824,7 @@ class Cached_item_real :public Cached_item
 public:
   Cached_item_real(Item *item_par) :item(item_par),value(0.0) {}
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 class Cached_item_int :public Cached_item
@@ -4828,6 +4834,7 @@ class Cached_item_int :public Cached_item
 public:
   Cached_item_int(Item *item_par) :item(item_par),value(0) {}
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 
@@ -4838,6 +4845,7 @@ class Cached_item_decimal :public Cached_item
 public:
   Cached_item_decimal(Item *item_par);
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 class Cached_item_field :public Cached_item
@@ -4854,6 +4862,7 @@ public:
     buff= (uchar*) thd_calloc(thd, length= field->pack_length());
   }
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 class Item_default_value : public Item_field

@@ -98,6 +98,25 @@ bool Cached_item_str::cmp(void)
   return tmp;
 }
 
+
+int Cached_item_str::cmp_read_only()
+{
+  String *res= item->val_str(&tmp_value);
+
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+
+  return sortcmp(&value, res, item->collation.collation);
+}
+
+
 Cached_item_str::~Cached_item_str()
 {
   item=0;					// Safety
@@ -115,6 +134,23 @@ bool Cached_item_real::cmp(void)
   return FALSE;
 }
 
+
+int Cached_item_real::cmp_read_only()
+{
+  double nr= item->val_real();
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return (nr == value)? 0 : ((nr < value)? 1: -1);
+}
+
+
 bool Cached_item_int::cmp(void)
 {
   longlong nr=item->val_int();
@@ -125,6 +161,22 @@ bool Cached_item_int::cmp(void)
     return TRUE;
   }
   return FALSE;
+}
+
+
+int Cached_item_int::cmp_read_only()
+{
+  longlong nr= item->val_int();
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return (nr == value)? 0 : ((nr < value)? 1: -1);
 }
 
 
@@ -145,6 +197,22 @@ bool Cached_item_field::cmp(void)
   if (! null_value && (tmp || (tmp= (field->cmp(buff) != 0))))
     field->get_image(buff,length,field->charset());
   return tmp;
+}
+
+
+int Cached_item_field::cmp_read_only()
+{
+  if (null_value)
+  {
+    if (field->is_null())
+      return 0;
+    else
+      return -1;
+  }
+  if (field->is_null())
+    return 1;
+
+  return field->cmp(buff);
 }
 
 
@@ -172,5 +240,22 @@ bool Cached_item_decimal::cmp()
     return FALSE;
   }
   return FALSE;
+}
+
+
+int Cached_item_decimal::cmp_read_only()
+{
+  my_decimal tmp;
+  my_decimal *ptmp= item->val_decimal(&tmp);
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return my_decimal_cmp(&value, ptmp);
 }
 
