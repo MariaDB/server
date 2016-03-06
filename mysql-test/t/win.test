@@ -384,5 +384,41 @@ select
   as CNT
 from t4;
 
+--echo #
+--echo # Try RANGE UNBOUNDED PRECEDING | FOLLOWING
+--echo #
+select 
+  part_id,
+  pk, 
+  val,
+  count(val) over (partition by part_id
+                   order by val 
+                   range between unbounded preceding and 
+                               current row) 
+  as CNT
+from t4;
+
+select 
+  part_id,
+  pk, 
+  val,
+  count(val) over (partition by part_id
+                   order by val 
+                   range between current row and 
+                                 unbounded following) 
+  as CNT
+from t4;
+
+select 
+  part_id,
+  pk, 
+  val,
+  count(val) over (partition by part_id
+                   order by val 
+                   range between unbounded preceding and 
+                                 unbounded following) 
+  as CNT
+from t4;
+
 drop table t4;
 

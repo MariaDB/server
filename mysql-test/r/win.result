@@ -567,4 +567,94 @@ part_id	pk	val	CNT
 5678	206	2	4
 5678	207	3	2
 5678	208	3	2
+#
+# Try RANGE UNBOUNDED PRECEDING | FOLLOWING
+#
+select 
+part_id,
+pk, 
+val,
+count(val) over (partition by part_id
+order by val 
+range between unbounded preceding and 
+current row) 
+as CNT
+from t4;
+part_id	pk	val	CNT
+1234	100	1	3
+1234	101	1	3
+1234	102	1	3
+1234	103	2	7
+1234	104	2	7
+1234	105	2	7
+1234	106	2	7
+1234	107	3	9
+1234	108	3	9
+5678	200	1	3
+5678	201	1	3
+5678	202	1	3
+5678	203	2	7
+5678	204	2	7
+5678	205	2	7
+5678	206	2	7
+5678	207	3	9
+5678	208	3	9
+select 
+part_id,
+pk, 
+val,
+count(val) over (partition by part_id
+order by val 
+range between current row and 
+unbounded following) 
+as CNT
+from t4;
+part_id	pk	val	CNT
+1234	100	1	9
+1234	101	1	9
+1234	102	1	9
+1234	103	2	6
+1234	104	2	6
+1234	105	2	6
+1234	106	2	6
+1234	107	3	2
+1234	108	3	2
+5678	200	1	9
+5678	201	1	9
+5678	202	1	9
+5678	203	2	6
+5678	204	2	6
+5678	205	2	6
+5678	206	2	6
+5678	207	3	2
+5678	208	3	2
+select 
+part_id,
+pk, 
+val,
+count(val) over (partition by part_id
+order by val 
+range between unbounded preceding and 
+unbounded following) 
+as CNT
+from t4;
+part_id	pk	val	CNT
+1234	100	1	9
+1234	101	1	9
+1234	102	1	9
+1234	103	2	9
+1234	104	2	9
+1234	105	2	9
+1234	106	2	9
+1234	107	3	9
+1234	108	3	9
+5678	200	1	9
+5678	201	1	9
+5678	202	1	9
+5678	203	2	9
+5678	204	2	9
+5678	205	2	9
+5678	206	2	9
+5678	207	3	9
+5678	208	3	9
 drop table t4;
