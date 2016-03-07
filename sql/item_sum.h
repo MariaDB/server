@@ -1031,14 +1031,18 @@ public:
 
 class Item_sum_bit :public Item_sum_int
 {
-protected:
-  ulonglong reset_bits,bits;
-
 public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
-    Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg) {}
+    Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
+    as_window_function(FALSE), num_values_added(0) {}
   Item_sum_bit(THD *thd, Item_sum_bit *item):
-    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits) {}
+    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits),
+    as_window_function(item->as_window_function),
+    num_values_added(item->num_values_added)
+  {
+    if (as_window_function)
+      memcpy(bit_counters, item->bit_counters, sizeof(bit_counters));
+  }
   enum Sumfunctype sum_func () const {return SUM_BIT_FUNC;}
   void clear();
   longlong val_int();
@@ -1049,8 +1053,42 @@ public:
   void cleanup()
   {
     bits= reset_bits;
+    if (as_window_function)
+      clear_as_window();
     Item_sum_int::cleanup();
   }
+  void setup_window_func(THD *thd __attribute__((unused)),
+                         Window_spec *window_spec __attribute__((unused)))
+  {
+    as_window_function= TRUE;
+    clear_as_window();
+  }
+  void remove()
+  {
+    if (as_window_function)
+    {
+      remove_as_window(args[0]->val_int());
+      return;
+    }
+    // Unless we're counting bits, we can not remove anything.
+    DBUG_ASSERT(0);
+  }
+
+protected:
+  static const int NUM_BIT_COUNTERS= 64;
+  ulonglong reset_bits,bits;
+  /*
+    Marks whether the function is to be computed as a window function.
+  */
+  bool as_window_function;
+  // When used as an aggregate window function, we need to store
+  // this additional information.
+  ulonglong num_values_added;
+  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  bool add_as_window(ulonglong value);
+  bool remove_as_window(ulonglong value);
+  bool clear_as_window();
+  virtual void set_bits_from_counters()= 0;
 };
 
 
@@ -1062,28 +1100,37 @@ public:
   bool add();
   const char *func_name() const { return "bit_or("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 
 class Item_sum_and :public Item_sum_bit
 {
-  public:
+public:
   Item_sum_and(THD *thd, Item *item_par):
     Item_sum_bit(thd, item_par, ULONGLONG_MAX) {}
   Item_sum_and(THD *thd, Item_sum_and *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_and("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 class Item_sum_xor :public Item_sum_bit
 {
-  public:
+public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_xor(THD *thd, Item_sum_xor *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_xor("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 

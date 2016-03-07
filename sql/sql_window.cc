@@ -1226,6 +1226,7 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
               break;
             }
           case Item_sum::COUNT_FUNC:
+          case Item_sum::SUM_BIT_FUNC:
           {
             /*
               Frame-aware window function computation. It does one pass, but

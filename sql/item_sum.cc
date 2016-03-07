@@ -2101,6 +2101,8 @@ longlong Item_sum_bit::val_int()
 void Item_sum_bit::clear()
 {
   bits= reset_bits;
+  if (as_window_function)
+    clear_as_window();
 }
 
 Item *Item_sum_or::copy_or_same(THD* thd)
@@ -2108,13 +2110,77 @@ Item *Item_sum_or::copy_or_same(THD* thd)
   return new (thd->mem_root) Item_sum_or(thd, this);
 }
 
+bool Item_sum_bit::clear_as_window()
+{
+  memset(bit_counters, 0, sizeof(bit_counters));
+  num_values_added= 0;
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::remove_as_window(ulonglong value)
+{
+  DBUG_ASSERT(as_window_function);
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    if (!bit_counters[i])
+    {
+      // Don't attempt to remove values that were never added.
+      DBUG_ASSERT((value & (1 << i)) == 0);
+      continue;
+    }
+    bit_counters[i]-= (value & (1 << i)) ? 1 : 0;
+  }
+  DBUG_ASSERT(num_values_added > 0);
+  // Prevent overflow;
+  num_values_added = std::min(num_values_added, num_values_added - 1);
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::add_as_window(ulonglong value)
+{
+  DBUG_ASSERT(as_window_function);
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    bit_counters[i]+= (value & (1 << i)) ? 1 : 0;
+  }
+  // Prevent overflow;
+  num_values_added = std::max(num_values_added, num_values_added + 1);
+  set_bits_from_counters();
+  return 0;
+}
+
+void Item_sum_or::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    value|= bit_counters[i] > 0 ? (1 << i) : 0;
+  }
+  bits= value | reset_bits;
+}
 
 bool Item_sum_or::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits|=value;
+  }
   return 0;
+}
+
+void Item_sum_xor::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    value|= (bit_counters[i] % 2) ? (1 << i) : 0;
+  }
+  bits= value ^ reset_bits;
 }
 
 Item *Item_sum_xor::copy_or_same(THD* thd)
@@ -2127,10 +2193,31 @@ bool Item_sum_xor::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits^=value;
+  }
   return 0;
 }
 
+void Item_sum_and::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  if (!num_values_added)
+  {
+    bits= reset_bits;
+    return;
+  }
+
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    // We've only added values of 1 for this bit.
+    if (bit_counters[i] == num_values_added)
+      value|= (1 << i);
+  }
+  bits= value & reset_bits;
+}
 Item *Item_sum_and::copy_or_same(THD* thd)
 {
   return new (thd->mem_root) Item_sum_and(thd, this);
@@ -2141,7 +2228,11 @@ bool Item_sum_and::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits&=value;
+  }
   return 0;
 }
 
@@ -2329,6 +2420,10 @@ void Item_sum_bit::reset_field()
 
 void Item_sum_bit::update_field()
 {
+  // We never call update_field when computing the function as a window
+  // function. Setting bits to a random value invalidates the bits counters and
+  // the result of the bit function becomes erroneous.
+  DBUG_ASSERT(!as_window_function);
   uchar *res=result_field->ptr;
   bits= uint8korr(res);
   add();
