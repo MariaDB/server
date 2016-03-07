@@ -45,7 +45,7 @@ alter user boo;
 --echo #--warning ER_CANNOT_USER
 alter if exists user boo;
 
---echo # Test SSL related altering.
+--echo # Test password related altering.
 alter user foo identified by 'something';
 select * from mysql.user where user = 'foo';
 
@@ -59,6 +59,17 @@ alter user foo identified with 'somecoolplugin';
 select * from mysql.user where user = 'foo';
 
 alter user foo identified with 'somecoolplugin' using 'somecoolpassphrase';
+select * from mysql.user where user = 'foo';
+
+--echo # Test ssl related altering.
+alter user foo identified by 'something' require SSL;
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by 'something' require X509;
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by 'something'
+require cipher 'text' issuer 'foo_issuer' subject 'foo_subject';
 select * from mysql.user where user = 'foo';
 
 --echo # Test resource limits altering.

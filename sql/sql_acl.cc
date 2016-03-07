@@ -7907,7 +7907,6 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
     hostname= thd->security_ctx->priv_host;
   }
 
-  String field_name(buff, sizeof(buff), system_charset_info);
   List<Item> field_list;
   strxmov(buff, "CREATE USER for ", username, "@", hostname, NullS);
   Item_string *field = new (thd->mem_root) Item_string_ascii(thd, "", 0);
