@@ -1073,7 +1073,8 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     {
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
       wsrep->resume(wsrep);
-      if (!wsrep_desync && !wsrep_node_is_donor())
+      /* resync here only if we did implicit desync earlier */
+      if (!wsrep_desync && wsrep_node_is_synced())
       {
         int ret = wsrep->resync(wsrep);
         if (ret != WSREP_OK)
@@ -1149,8 +1150,10 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     DBUG_RETURN(FALSE);
   }
 
-  /* if already desynced or donor, avoid double desyncing */
-  if (wsrep_desync || wsrep_node_is_donor())
+  /* if already desynced or donor, avoid double desyncing 
+     if not in PC and synced, desyncing is not possible either
+  */
+  if (wsrep_desync || !wsrep_node_is_synced())
   {
     WSREP_DEBUG("desync set upfont, skipping implicit desync for FTWRL: %d",
                 wsrep_desync);
