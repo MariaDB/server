@@ -3358,7 +3358,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
 
 end:
 
- /* Show warnings if any or error occured */
+ /* Show warnings if any or error occurred */
   if (show_warnings == 1 && (warnings >= 1 || error))
     print_warnings();
 

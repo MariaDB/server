@@ -627,7 +627,7 @@ private:
   NodeId m_master_node;
 
   /**
-   * Handles the thread wich upon a 'Node is started' event will
+   * Handles the thread which upon a 'Node is started' event will
    * set the node's previous loglevel settings.
    */
   struct NdbThread* _logLevelThread;

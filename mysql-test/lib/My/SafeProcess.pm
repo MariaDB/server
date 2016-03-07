@@ -34,7 +34,7 @@ package My::SafeProcess;
 #    will zap the "monitored process" and exit
 #  - the "monitored process" to exit, in which case it will exit
 #    itself with same exit code as the "monitored process"
-#  - the parent process to send the "shutdown" signal in wich case
+#  - the parent process to send the "shutdown" signal in which case
 #    monitor will kill the "monitored process" hard and exit
 #
 #

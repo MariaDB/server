@@ -3078,7 +3078,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occured while reseting slave";
+  const char* errmsg= "Unknown error occurred while reseting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3660,7 +3660,7 @@ bool mysql_show_binlog_events(THD* thd)
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS ||
               thd->lex->sql_command == SQLCOM_SHOW_RELAYLOG_EVENTS);
 
-  /* select wich binary log to use: binlog or relay */
+  /* select which binary log to use: binlog or relay */
   if ( thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS )
   {
     /*

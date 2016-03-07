@@ -1595,7 +1595,7 @@ explain select * from t1 where a=10 and b=10 or c=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	a,b,c	a,c	5,5	NULL	54	Using union(a,c); Using where
 This will switch to sort-union (intersection will be gone, too,
-thats a known limitation:
+that's a known limitation:
 set optimizer_switch='default,index_merge_union=off';
 explain select * from t1 where a=10 and b=10 or c=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

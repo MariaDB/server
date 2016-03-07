@@ -437,7 +437,7 @@ public:
   bool setTransporter(class Ndb * ndb, class TransporterFacade * tf);
   bool setTransporter(class TransporterFacade * tf);
   
-  // To abstract the stuff thats made in all create/drop/lists below
+  // To abstract the stuff that's made in all create/drop/lists below
   int dictSignal(NdbApiSignal* signal, LinearSectionPtr ptr[3], int secs,
 		 int nodeId, // -1 any, 0 = master, >1 = specified
 		 WaitSignalType wst,

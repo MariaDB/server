@@ -590,7 +590,7 @@ public:
     global parameters for union
   */
   st_select_lex *global_parameters;
-  //node on wich we should return current_select pointer after parsing subquery
+  //node on which we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
   ha_rows select_limit_cnt, offset_limit_cnt;

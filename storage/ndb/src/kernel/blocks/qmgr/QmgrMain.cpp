@@ -3817,7 +3817,7 @@ void Qmgr::systemErrorLab(Signal* signal, Uint32 line, const char * message)
   // Broadcast that this node is failing to other nodes
   failReport(signal, getOwnNodeId(), (UintR)ZTRUE, FailRep::ZOWN_FAILURE);
 
-  // If it's known why shutdown occured
+  // If it's known why shutdown occurred
   // an error message has been passed to this function
   progError(line, NDBD_EXIT_NDBREQUIRE, message);  
 

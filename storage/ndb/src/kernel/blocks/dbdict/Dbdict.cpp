@@ -10860,7 +10860,7 @@ Dbdict::execSUB_REMOVE_REF(Signal* signal)
     OpSubEventPtr subbPtr;
     c_opSubEvent.getPtr(subbPtr, ref->senderData);
     if (err == 1407) {
-      // conf this since this may occur if a nodefailure has occured
+      // conf this since this may occur if a nodefailure has occurred
       // earlier so that the systable was not cleared
       SubRemoveConf* conf = (SubRemoveConf*) signal->getDataPtrSend();
       conf->senderRef  = reference();
