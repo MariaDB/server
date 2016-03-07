@@ -752,6 +752,18 @@ public:
 
 Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
 {
+  // TODO-cvicentiu When a frame is not specified, which is the frame type
+  // that we will use?
+  // Postgres uses RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
+  // For now we use UNBOUNDED FOLLOWING and UNBOUNDED PRECEDING.
+  if (!frame)
+  {
+    if (is_top_bound)
+      return new Frame_unbounded_preceding;
+    else
+      return new Frame_unbounded_following;
+  }
+
   Window_frame_bound *bound= is_top_bound? frame->top_bound :
                                            frame->bottom_bound;
 
