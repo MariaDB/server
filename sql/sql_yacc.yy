@@ -2575,7 +2575,7 @@ create:
           }
           view_or_trigger_or_sp_or_event { }
         | create_or_replace USER opt_if_not_exists clear_privileges grant_list
-          require_clause resource_options
+          opt_require_clause opt_resource_options
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
               MYSQL_YYABORT;
@@ -7342,8 +7342,9 @@ alter:
             lex->sql_command= SQLCOM_ALTER_SERVER;
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
+          /* ALTER USER foo is allowed for MySQL compatibility. */
         | ALTER opt_if_exists USER clear_privileges grant_list
-          require_clause resource_options
+          opt_require_clause opt_resource_options
           {
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
@@ -15361,14 +15362,14 @@ grant:
 
 grant_command:
           grant_privileges ON opt_table grant_ident TO_SYM grant_list
-          require_clause grant_options
+          opt_require_clause opt_grant_options
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT;
             lex->type= 0;
           }
         | grant_privileges ON FUNCTION_SYM grant_ident TO_SYM grant_list
-          require_clause grant_options
+          opt_require_clause opt_grant_options
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -15380,7 +15381,7 @@ grant_command:
             lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident TO_SYM grant_list
-          require_clause grant_options
+          opt_require_clause opt_grant_options
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -15740,7 +15741,7 @@ column_list_id:
           }
         ;
 
-require_clause:
+opt_require_clause:
           /* empty */
         | REQUIRE_SYM require_list
           {
@@ -15798,13 +15799,13 @@ resource_option_list:
 	| resource_option {}
         ;
 
-resource_options:
+opt_resource_options:
 	  /* empty */ {}
 	| WITH resource_option_list
         ;
 
 
-grant_options:
+opt_grant_options:
           /* empty */ {}
         | WITH grant_option_list {}
         ;
