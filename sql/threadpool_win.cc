@@ -226,11 +226,12 @@ struct connection_t
   PTP_WAIT shm_read;
   /* Callback instance, used to inform treadpool about long callbacks */
   PTP_CALLBACK_INSTANCE callback_instance;
+  CONNECT* connect;
   bool logged_in;
 };
 
 
-void init_connection(connection_t *connection, THD *thd)
+void init_connection(connection_t *connection, CONNECT *connect)
 {
   connection->logged_in = false;
   connection->handle= 0;
@@ -240,11 +241,11 @@ void init_connection(connection_t *connection, THD *thd)
   connection->logged_in = false;
   connection->timeout= ULONGLONG_MAX;
   connection->callback_instance= 0;
+  connection->thd= 0;
   memset(&connection->overlapped, 0, sizeof(OVERLAPPED));
   InitializeThreadpoolEnvironment(&connection->callback_environ);
   SetThreadpoolCallbackPool(&connection->callback_environ, pool);
-  connection->thd = thd;
-  thd->event_scheduler.data= connection;
+  connection->connect= connect;
 }
 
 
@@ -397,8 +398,8 @@ int start_io(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 
 int login(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 {
-  if (threadpool_add_connection(connection->thd) == 0
-      && init_io(connection, connection->thd) == 0 
+  if ((connection->thd= threadpool_add_connection(connection->connect, connection))
+      && init_io(connection, connection->thd) == 0
       && start_io(connection, instance) == 0)
   {
     return 0;
@@ -660,22 +661,16 @@ static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
 
 void tp_add_connection(CONNECT *connect)
 {
-  THD *thd;
-  connection_t *con;
-
-  if (!(con = (connection_t *) malloc(sizeof(connection_t))) ||
-      !(thd= connect->create_thd()))
+  connection_t *con;  
+  con= (connection_t *)malloc(sizeof(connection_t));
+  if (!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    free(con);
     connect->close_and_delete();
     return;
   }
-  delete connect;
 
-  add_to_active_threads(thd);
-
-  init_connection(con, thd);
+  init_connection(con, connect);
 
   /* Try to login asynchronously, using threads in the pool */
   PTP_WORK wrk =  CreateThreadpoolWork(login_callback,con, &con->callback_environ);
@@ -687,7 +682,7 @@ void tp_add_connection(CONNECT *connect)
   else
   {
     /* Likely memory pressure */
-    threadpool_cleanup_connection(thd);
+    connect->close_and_delete();
   }
 }
 

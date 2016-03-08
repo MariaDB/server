@@ -94,7 +94,7 @@ struct Worker_thread_context
 /*
   Attach/associate the connection with the OS thread,
 */
-static bool thread_attach(THD* thd)
+static void thread_attach(THD* thd)
 {
   pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
   thd->thread_stack=(char*)&thd;
@@ -103,13 +103,14 @@ static bool thread_attach(THD* thd)
   if (PSI_server)
     PSI_server->set_thread(thd->event_scheduler.m_psi);
 #endif
-  return 0;
 }
 
 
-int threadpool_add_connection(THD *thd)
+THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
 {
-  int retval=1;
+  THD *thd= NULL;
+  int error=1;
+
   Worker_thread_context worker_context;
   worker_context.save();
 
@@ -120,13 +121,23 @@ int threadpool_add_connection(THD *thd)
 
   pthread_setspecific(THR_KEY_mysys, 0);
   my_thread_init();
-  thd->mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
-  if (!thd->mysys_var)
+  st_my_thread_var* mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", mysys_var= NULL; my_thread_end(););
+  if (!mysys_var ||!(thd= connect->create_thd()))
   {
     /* Out of memory? */
+    connect->close_and_delete();
+    if (mysys_var)
+    {
+      my_thread_end();
+    }
     worker_context.restore();
-    return 1;
+    return NULL;
   }
+  delete connect;
+  add_to_active_threads(thd);
+  thd->mysys_var= mysys_var;
+  thd->event_scheduler.data= scheduler_data;
 
   /* Create new PSI thread for use with the THD. */
 #ifdef HAVE_PSI_INTERFACE
@@ -157,14 +168,19 @@ int threadpool_add_connection(THD *thd)
       */
       if (thd_is_connection_alive(thd))
       {
-        retval= 0;
+        error= 0;
         thd->net.reading_or_writing= 1;
         thd->skip_wait_timeout= true;
       }
     }
   }
+  if (error)
+  {
+    threadpool_cleanup_connection(thd);
+    thd= NULL;
+  }
   worker_context.restore();
-  return retval;
+  return thd;
 }
 
 /*

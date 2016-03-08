@@ -30,7 +30,7 @@ extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 extern void threadpool_cleanup_connection(THD *thd);
 extern void threadpool_remove_connection(THD *thd);
 extern int  threadpool_process_request(THD *thd);
-extern int  threadpool_add_connection(THD *thd);
+extern THD*  threadpool_add_connection(CONNECT *connect, void *scheduled_data);
 
 /*
   Functions used by scheduler. 
