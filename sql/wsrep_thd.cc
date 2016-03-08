@@ -185,6 +185,7 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
 
 void wsrep_replay_transaction(THD *thd)
 {
+  DBUG_ENTER("wsrep_replay_transaction");
   /* checking if BF trx must be replayed */
   if (thd->wsrep_conflict_state== MUST_REPLAY) {
     DBUG_ASSERT(wsrep_thd_trx_seqno(thd));
@@ -193,6 +194,13 @@ void wsrep_replay_transaction(THD *thd)
       {
         WSREP_ERROR("replay issue, thd has reported status already");
       }
+
+      /*
+        PS reprepare observer should have been removed already.
+        open_table() will fail if we have dangling observer here.
+      */
+      DBUG_ASSERT(thd->m_reprepare_observer == NULL);
+
       thd->get_stmt_da()->reset_diagnostics_area();
 
       thd->wsrep_conflict_state= REPLAYING;
@@ -299,6 +307,7 @@ void wsrep_replay_transaction(THD *thd)
       mysql_mutex_unlock(&LOCK_wsrep_replaying);
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 static void wsrep_replication_process(THD *thd)
