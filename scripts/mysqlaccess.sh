@@ -2422,7 +2422,7 @@ sub Print_Header {
 sub Print_Footer {
     if ($MySQLaccess::CMD) { #command-line mode
     print "\n"
-         ."BUGs can be reported at https://mariadb.atlassian.net/browse/MDEV\n";
+         ."BUGs can be reported at https://jira.mariadb.org\n";
     }
     if ($MySQLaccess::CGI) { #CGI-BIN mode
     if ($MySQLaccess::Param{'brief'}) {
@@ -2430,7 +2430,7 @@ sub Print_Footer {
     }
     print "<HR>\n"
          ."<ADDRESS>\n"
-         ."BUGs can be reported at <a href=\"https://mariadb.atlassian.net/browse/MDEV\">MariaDB JIRA</a><BR>\n"
+         ."BUGs can be reported at <a href=\"https://jira.mariadb.org\">MariaDB JIRA</a><BR>\n"
 #         ."Don't forget to mention the version $VERSION!<BR>\n"
          ."</ADDRESS>\n"
          ."</BODY>\n"
