@@ -6049,6 +6049,9 @@ int mysqld_main(int argc, char **argv)
       CloseHandle(hEventShutdown);
   }
 #endif
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  ERR_remove_state(0);
+#endif
   mysqld_exit(0);
   return 0;
 }
