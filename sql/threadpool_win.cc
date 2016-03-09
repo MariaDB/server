@@ -663,6 +663,7 @@ void tp_add_connection(CONNECT *connect)
 {
   connection_t *con;  
   con= (connection_t *)malloc(sizeof(connection_t));
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", free(con);con= 0; );
   if (!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");

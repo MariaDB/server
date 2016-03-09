@@ -1235,6 +1235,7 @@ void tp_add_connection(CONNECT *connect)
   connection=  alloc_connection();
   if (!connection)
   {
+    connect->close_and_delete();
     DBUG_VOID_RETURN;
   }
   connection->connect= connect;

@@ -122,13 +122,19 @@ THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   pthread_setspecific(THR_KEY_mysys, 0);
   my_thread_init();
   st_my_thread_var* mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
-  DBUG_EXECUTE_IF("simulate_failed_connection_1", mysys_var= NULL; my_thread_end(););
   if (!mysys_var ||!(thd= connect->create_thd()))
   {
     /* Out of memory? */
     connect->close_and_delete();
     if (mysys_var)
     {
+#ifdef HAVE_PSI_INTERFACE
+      /*
+       current PSI is still from worker thread.
+       Set to 0, to avoid premature cleanup by my_thread_end
+      */
+      if (PSI_server) PSI_server->set_thread(0);
+#endif
       my_thread_end();
     }
     worker_context.restore();
