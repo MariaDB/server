@@ -182,25 +182,11 @@ THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   }
   if (error)
   {
-    threadpool_cleanup_connection(thd);
+    threadpool_remove_connection(thd);
     thd= NULL;
   }
   worker_context.restore();
   return thd;
-}
-
-/*
-  threadpool_cleanup_connection() does the bulk of connection shutdown work.
-  Usually called from threadpool_remove_connection(), but rarely it might
-  be called also in the main polling thread if connection initialization fails.
-*/
-void threadpool_cleanup_connection(THD *thd)
-{
-  thd->net.reading_or_writing = 0;
-  end_connection(thd);
-  close_connection(thd, 0);
-  unlink_thd(thd);
-  mysql_cond_broadcast(&COND_thread_count);
 }
 
 
@@ -210,7 +196,12 @@ void threadpool_remove_connection(THD *thd)
   worker_context.save();
   thread_attach(thd);
 
-  threadpool_cleanup_connection(thd);
+  thd->net.reading_or_writing = 0;
+  end_connection(thd);
+  close_connection(thd, 0);
+  unlink_thd(thd);
+  mysql_cond_broadcast(&COND_thread_count);
+
   /*
     Free resources associated with this connection: 
     mysys thread_var and PSI thread.
