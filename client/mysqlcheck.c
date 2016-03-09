@@ -277,8 +277,8 @@ static void usage(void)
   printf("Usage: %s [OPTIONS] database [tables]\n", my_progname);
   printf("OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
 	 my_progname);
-  puts("Please consult the MariaDB/MySQL knowledgebase at");
-  puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
+  puts("Please consult the MariaDB Knowledge Base at");
+  puts("https://mariadb.com/kb/en/mysqlcheck for latest information about");
   puts("this program.");
   print_defaults("my", load_default_groups);
   puts("");
