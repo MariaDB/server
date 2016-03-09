@@ -142,10 +142,6 @@
 */
 #define OPEN_TRIGGER_ONLY      (OPTIMIZE_I_S_TABLE*2)
 
-#define SC_INFO_LENGTH 4		/* Form format constant */
-#define TE_INFO_LENGTH 3
-#define MTYP_NOEMPTY_BIT 128
-
 /*
   Minimum length pattern before Turbo Boyer-Moore is used
   for SELECT "text" LIKE "%pattern%", excluding the two

@@ -592,7 +592,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
                         HA_CREATE_INFO *create_info, ulong data_offset,
                         handler *file)
 {
-  uint length,int_count,int_length,no_empty, int_parts;
+  uint length,int_count,int_length, int_parts;
   uint time_stamp_pos,null_fields;
   uint table_options= create_info->table_options;
   size_t reclength, totlength, n_length, com_length, expression_length;
@@ -606,7 +606,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
   totlength= 0L;
   reclength= data_offset;
-  no_empty=int_count=int_parts=int_length=time_stamp_pos=null_fields=0;
+  int_count=int_parts=int_length=time_stamp_pos=null_fields=0;
   com_length= 0;
   n_length=2L;
   create_info->field_check_constraints= 0;
@@ -640,13 +640,6 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
     totlength+= field->length;
     com_length+= field->comment.length;
-    if (MTYP_TYPENR(field->unireg_check) == Field::NOEMPTY ||
-	field->unireg_check & MTYP_NOEMPTY_BIT)
-    {
-      field->unireg_check= (Field::utype) ((uint) field->unireg_check |
-					   MTYP_NOEMPTY_BIT);
-      no_empty++;
-    }
     /*
       We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE
       as auto-update field.
@@ -745,7 +738,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
   int2store(forminfo+258,create_fields.elements);
   int2store(forminfo+260,0);              // Screen length, not used anymore
   int2store(forminfo+262,totlength);
-  int2store(forminfo+264,no_empty);
+  int2store(forminfo+264,0); // unused
   int2store(forminfo+266,reclength);
   int2store(forminfo+268,n_length);
   int2store(forminfo+270,int_count);
@@ -998,7 +991,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
 			   uint reclength, ulong data_offset)
 {
   int error= 0;
-  Field::utype type;
   uint null_count;
   uchar *null_pos;
   TABLE table;
@@ -1061,8 +1053,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     if (field->sql_type == MYSQL_TYPE_BIT && !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
-    type= (Field::utype) MTYP_TYPENR(field->unireg_check);
-
     if (field->default_value && !field->has_default_expression())
     {
       int res= field->default_value->expr_item->save_in_field(regfield, 1);
@@ -1081,12 +1071,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       regfield->set_notnull();
       regfield->store((longlong) 1, TRUE);
     }
-    else if (type == Field::YES)		// Old unireg type
-      regfield->store(ER_THD(thd, ER_YES),(uint) strlen(ER_THD(thd, ER_YES)),
-                      system_charset_info);
-    else if (type == Field::NO)			// Old unireg type
-      regfield->store(ER_THD(thd, ER_NO), (uint) strlen(ER_THD(thd, ER_NO)),
-                      system_charset_info);
     else
       regfield->reset();
   }

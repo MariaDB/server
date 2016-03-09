@@ -2898,7 +2898,6 @@ int prepare_create_field(Column_definition *sql_field,
     if (sql_field->charset->state & MY_CS_BINSORT)
       sql_field->pack_flag|=FIELDFLAG_BINARY;
     sql_field->length=8;			// Unireg field length
-    sql_field->unireg_check=Field::BLOB_FIELD;
     (*blob_columns)++;
     break;
   case MYSQL_TYPE_GEOMETRY:
@@ -2914,7 +2913,6 @@ int prepare_create_field(Column_definition *sql_field,
     if (sql_field->charset->state & MY_CS_BINSORT)
       sql_field->pack_flag|=FIELDFLAG_BINARY;
     sql_field->length=8;			// Unireg field length
-    sql_field->unireg_check=Field::BLOB_FIELD;
     (*blob_columns)++;
     break;
 #else
@@ -2950,7 +2948,6 @@ int prepare_create_field(Column_definition *sql_field,
       FIELDFLAG_INTERVAL;
     if (sql_field->charset->state & MY_CS_BINSORT)
       sql_field->pack_flag|=FIELDFLAG_BINARY;
-    sql_field->unireg_check=Field::INTERVAL_FIELD;
     if (check_duplicates_in_interval("ENUM",sql_field->field_name,
                                      sql_field->interval,
                                      sql_field->charset, &dup_val_count))
@@ -2961,7 +2958,6 @@ int prepare_create_field(Column_definition *sql_field,
       FIELDFLAG_BITFIELD;
     if (sql_field->charset->state & MY_CS_BINSORT)
       sql_field->pack_flag|=FIELDFLAG_BINARY;
-    sql_field->unireg_check=Field::BIT_FIELD;
     if (check_duplicates_in_interval("SET",sql_field->field_name,
                                      sql_field->interval,
                                      sql_field->charset, &dup_val_count))

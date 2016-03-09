@@ -709,10 +709,14 @@ public:
     in more clean way with transition to new text based .frm format.
     See also comment for Field_timestamp::Field_timestamp().
   */
-  enum utype  { NONE,DATE,SHIELD,NOEMPTY,CASEUP,PNR,BGNR,PGNR,YES,NO,REL,
-		CHECK,EMPTY,UNKNOWN_FIELD,CASEDN,NEXT_NUMBER,INTERVAL_FIELD,
-                BIT_FIELD, TIMESTAMP_OLD_FIELD, CAPITALIZE, BLOB_FIELD,
-                TIMESTAMP_DN_FIELD, TIMESTAMP_UN_FIELD, TIMESTAMP_DNUN_FIELD};
+  enum utype  {
+    NONE=0,
+    NEXT_NUMBER=15,             // AUTO_INCREMENT
+    TIMESTAMP_OLD_FIELD=18,     // TIMESTAMP created before 4.1.3
+    TIMESTAMP_DN_FIELD=21,      // TIMESTAMP DEFAULT NOW()
+    TIMESTAMP_UN_FIELD=22,      // TIMESTAMP ON UPDATE NOW()
+    TIMESTAMP_DNUN_FIELD=23     // TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
+    };
   enum geometry_type
   {
     GEOM_GEOMETRY = 0, GEOM_POINT = 1, GEOM_LINESTRING = 2, GEOM_POLYGON = 3,
@@ -3905,19 +3909,13 @@ bool check_expression(Virtual_column_info *vcol, const char *type,
 #define FIELDFLAG_GEOM			2048    // mangled with decimals!
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096    /* use Field_bit_as_char */
-
-#define FIELDFLAG_LEFT_FULLSCREEN	8192
-#define FIELDFLAG_RIGHT_FULLSCREEN	16384
-#define FIELDFLAG_FORMAT_NUMBER		16384	// predit: ###,,## in output
+#define FIELDFLAG_LONG_DECIMAL          8192
 #define FIELDFLAG_NO_DEFAULT		16384   /* sql */
-#define FIELDFLAG_SUM			((uint) 32768)// predit: +#fieldflag
 #define FIELDFLAG_MAYBE_NULL		((uint) 32768)// sql
 #define FIELDFLAG_HEX_ESCAPE		((uint) 0x10000)
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
-#define FIELDFLAG_MAX_DEC		63
-#define FIELDFLAG_NUM_SCREEN_TYPE	0x7F01
-#define FIELDFLAG_ALFA_SCREEN_TYPE	0x7800
+#define FIELDFLAG_MAX_DEC               63
 
 #define MTYP_TYPENR(type) (type & 127)	/* Remove bits from type */
 
@@ -3933,10 +3931,9 @@ bool check_expression(Virtual_column_info *vcol, const char *type,
 #define f_is_bitfield(x)        (((x) & (FIELDFLAG_BITFIELD | FIELDFLAG_NUMBER)) == FIELDFLAG_BITFIELD)
 #define f_is_blob(x)		(((x) & (FIELDFLAG_BLOB | FIELDFLAG_NUMBER)) == FIELDFLAG_BLOB)
 #define f_is_geom(x)		(((x) & (FIELDFLAG_GEOM | FIELDFLAG_NUMBER)) == FIELDFLAG_GEOM)
-#define f_is_equ(x)		((x) & (1+2+FIELDFLAG_PACK+31*256))
-#define f_settype(x)		(((int) x) << FIELDFLAG_PACK_SHIFT)
-#define f_maybe_null(x)		(x & FIELDFLAG_MAYBE_NULL)
-#define f_no_default(x)		(x & FIELDFLAG_NO_DEFAULT)
+#define f_settype(x)		(((int) (x)) << FIELDFLAG_PACK_SHIFT)
+#define f_maybe_null(x)		((x) & FIELDFLAG_MAYBE_NULL)
+#define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 

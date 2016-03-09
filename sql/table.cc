@@ -1724,7 +1724,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     /* Remove >32 decimals from old files */
     if (share->mysql_version < 100200)
-      pack_flag&= ~(FIELDFLAG_LEFT_FULLSCREEN);
+      pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
     if (interval_nr && charset->mbminlen > 1)
     {
