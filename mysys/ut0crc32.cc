@@ -97,9 +97,8 @@ have support for it */
 static ib_uint32_t	ut_crc32_slice8_table[8][256];
 static ibool		ut_crc32_slice8_table_initialized = FALSE;
 
-/* Flag that tells whether the CPU supports CRC32 or not */
-UNIV_INTERN bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool	ut_crc32_power8_enabled = false;
+/** Text description of CRC32 implementation */
+const char *ut_crc32_implementation = NULL;
 
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
@@ -216,8 +215,6 @@ ut_crc32_sse42(
 #if defined(__GNUC__) && defined(__x86_64__)
 	ib_uint64_t	crc = (ib_uint32_t) (-1);
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	while (len && ((ulint) buf & 7)) {
 		ut_crc32_sse42_byte;
 	}
@@ -305,6 +302,8 @@ void
 ut_crc32_init()
 /*===========*/
 {
+	bool		ut_crc32_sse2_enabled = false;
+	bool		ut_crc32_power8_enabled = false;
 #if defined(__GNUC__) && defined(__x86_64__)
 	ib_uint32_t	vend[3];
 	ib_uint32_t	model;
@@ -346,10 +345,13 @@ ut_crc32_init()
 
 	if (ut_crc32_sse2_enabled) {
 		ut_crc32 = ut_crc32_sse42;
+		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	} else if (ut_crc32_power8_enabled) {
 		ut_crc32 = ut_crc32_power8;
+		ut_crc32_implementation = "Using POWER8 crc32 instructions";
 	} else {
 		ut_crc32_slice8_table_init();
 		ut_crc32 = ut_crc32_slice8;
+		ut_crc32_implementation = "Using generic crc32 instructions";
 	}
 }
