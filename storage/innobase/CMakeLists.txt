@@ -475,7 +475,7 @@ SET(INNOBASE_SOURCES
 	usr/usr0sess.cc
 	ut/ut0bh.cc
 	ut/ut0byte.cc
-	ut/ut0crc32.cc
+	../../mysys/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc
@@ -489,8 +489,8 @@ SET(INNOBASE_SOURCES
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
     enable_language(ASM)
     LIST(APPEND INNOBASE_SOURCES
-       ut/crc32_power8/crc32.S
-       ut/crc32_power8/crc32_wrapper.c
+       ../../mysys/crc32_power8/crc32.S
+       ../../mysys/crc32_power8/crc32_wrapper.c
        )
 ENDIF()
 

@@ -26,7 +26,7 @@ Created Aug 10, 2011 Vasil Dimov
 #ifndef ut0crc32_h
 #define ut0crc32_h
 
-#include "univ.i"
+#include "../storage/innobase/include/univ.i"
 
 /********************************************************************//**
 Initializes the data structures used by ut_crc32(). Does not do any
