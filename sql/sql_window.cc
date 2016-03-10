@@ -650,16 +650,8 @@ public:
     {
       if (rownum != 0)
       {
-        /* 
-          The cursor in "ROWS n PRECEDING" lags behind by n_rows rows.
-          Catch up.
-          TODO: change this to be a jump forward.
-        */
-        while (!(cursor_eof= (0 != cursor.get_next())))
-        {
-          if (bound_tracker.check_if_next_group())
-            break;
-        }
+        /* The cursor in "ROWS n PRECEDING" lags behind by n_rows rows. */
+        cursor.move_to(rownum);
       }
       n_rows_to_skip= n_rows - (is_top_bound? 0:1);
     }
@@ -717,7 +709,7 @@ private:
     {
       if (!(cursor_eof= (0 != cursor.get_next())))
       {
-        bool new_group= bound_tracker.check_if_next_group();
+        bool new_group= is_preceding? false: bound_tracker.check_if_next_group();
         if (at_partition_start || !new_group)
         {
           if (is_top_bound) // this is frame start endpoint

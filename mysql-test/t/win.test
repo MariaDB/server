@@ -422,3 +422,22 @@ from t4;
 
 drop table t4;
 
+--echo #
+--echo # MDEV-9695: Wrong window frame when using RANGE BETWEEN N FOLLOWING AND PRECEDING
+--echo #
+create table t1 (pk int, a int, b int);
+insert into t1 values
+( 1 , 0, 1),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 8),
+( 5 , 2, 32),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+ 
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as bit_or
+from t1;
+
+drop table t1;
