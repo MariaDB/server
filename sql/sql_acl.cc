@@ -11900,8 +11900,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
         (((ulonglong)uint4korr(net->read_pos + 28)) << 32);
       client_capabilities|= ext_client_capabilities;
     }
-    else if (client_capabilities & CLIENT_PROGRESS_OBSOLETE)
-      client_capabilities|= MARIADB_CLIENT_PROGRESS;
   }
 
   /* Disable those bits which are not supported by the client. */
