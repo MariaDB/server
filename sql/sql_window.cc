@@ -609,87 +609,54 @@ public:
 
 
 /*
-  ROWS $n (PRECEDING|FOLLOWING) frame bound.
-*/
+  ROWS $n PRECEDING frame bound
 
-class Frame_n_rows : public Frame_cursor
+*/
+class Frame_n_rows_preceding : public Frame_cursor
 {
-  /* Whether this is top of the frame or bottom */ 
+  /* Whether this is top of the frame or bottom */
   const bool is_top_bound;
   const ha_rows n_rows;
-  const bool is_preceding;
 
+  /* Number of rows that we need to skip before our cursor starts moving */
   ha_rows n_rows_to_skip;
 
   Table_read_cursor cursor;
-  bool cursor_eof; //TODO: need this still?
-
-  Group_bound_tracker bound_tracker;
-  bool at_partition_start;
-  bool at_partition_end;
 public:
-  Frame_n_rows(bool is_top_bound_arg, bool is_preceding_arg, ha_rows n_rows_arg) :
-    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg), is_preceding(is_preceding_arg)
+  Frame_n_rows_preceding(bool is_top_bound_arg, ha_rows n_rows_arg) :
+    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg)
   {}
 
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
   {
     cursor.init(info);
-    cursor_eof= false;
-    at_partition_start= true;
-    bound_tracker.init(thd, partition_list);
   }
 
   void next_partition(longlong rownum, Item_sum* item)
   {
-    cursor_eof= false;
-    at_partition_start= true;
-    at_partition_end= false;
-    if (is_preceding)
-    {
-      if (rownum != 0)
-      {
-        /* The cursor in "ROWS n PRECEDING" lags behind by n_rows rows. */
-        cursor.move_to(rownum);
-      }
-      n_rows_to_skip= n_rows - (is_top_bound? 0:1);
-    }
-    else
-    {
-      /* 
-        "ROWS n FOLLOWING" is already at the first row in the next partition.
-        Move it to be n_rows ahead.
-      */
-      n_rows_to_skip= 0;
+    /*
+      Position our cursor to point at the first row in the new partition
+      (for rownum=0, it is already there, otherwise, it lags behind)
+    */
+    if (rownum != 0)
+      cursor.move_to(rownum);
 
-      if ((rownum != 0) && (!is_top_bound || n_rows))
-      {
-        // We are positioned at the first row in the partition anyway
-        //cursor.restore_cur_row();
-        if (is_top_bound) // this is frame top endpoint
-          item->remove();
-        else
-          item->add();
-      }
-      /* 
-        Note: i_end=-1 when this is a top-endpoint "CURRENT ROW" which is
-              implemented as "ROWS 0 FOLLOWING".
-      */
-      longlong i_end= n_rows + ((rownum==0)?1:0)- is_top_bound;
-      for (longlong i= 0; i < i_end; i++)
-      {
-        if (next_row_intern(item))
-          break;
-      }
-      if (i_end == -1)
-      {
-        if (!cursor.get_next())
-          bound_tracker.check_if_next_group();
-      }
-    }
+    /*
+      Suppose the bound is ROWS 2 PRECEDING, and current row is row#n:
+        ...
+        n-3
+        n-2 --- bound row
+        n-1
+         n  --- current_row
+        ...
+       The bound should point at row #(n-2). Bounds are inclusive, so
+        - bottom bound should add row #(n-2) into the window function
+        - top bound should remove row (#n-3) from the window function.
+    */
+    n_rows_to_skip= n_rows + (is_top_bound? 1:0) - 1;
   }
-  
+
   void next_row(Item_sum* item)
   {
     if (n_rows_to_skip)
@@ -697,6 +664,133 @@ public:
       n_rows_to_skip--;
       return;
     }
+
+    if (cursor.get_next())
+      return;  // this is not expected to happen.
+
+    if (is_top_bound) // this is frame start endpoint
+      item->remove();
+    else
+      item->add();
+  }
+};
+
+
+/*
+  ROWS ... CURRENT ROW, Bottom bound.
+
+  This case is moved to separate class because here we don't need to maintain
+  our own cursor, or check for partition bound.
+*/
+
+class Frame_rows_current_row_bottom : public Frame_cursor
+{
+public:
+  void pre_next_partition(longlong rownum, Item_sum* item)
+  {
+    item->add();
+  }
+  void next_partition(longlong rownum, Item_sum* item) {}
+  void pre_next_row(Item_sum* item)
+  {
+    /* Temp table's current row is current_row. Add it to the window func */
+    item->add();
+  }
+  void next_row(Item_sum* item) {};
+};
+
+
+/*
+  ROWS-type CURRENT ROW, top bound.
+
+  This serves for processing "ROWS BETWEEN CURRENT ROW AND ..." frames.
+
+      n-1
+       n  --+  --- current_row, and top frame bound
+      n+1   |
+      ...   |
+
+  when the current_row moves to row #n, this frame bound should remove the
+  row #(n-1) from the window function.
+
+  In other words, we need what "ROWS PRECEDING 0" provides.
+*/
+class Frame_rows_current_row_top: public Frame_n_rows_preceding
+
+{
+public:
+  Frame_rows_current_row_top() :
+    Frame_n_rows_preceding(true /*top*/, 0 /* n_rows */)
+  {}
+};
+
+
+/*
+  ROWS $n FOLLOWING frame bound.
+*/
+
+class Frame_n_rows_following : public Frame_cursor
+{
+  /* Whether this is top of the frame or bottom */
+  const bool is_top_bound;
+  const ha_rows n_rows;
+
+  Table_read_cursor cursor;
+  bool at_partition_end;
+
+  /*
+    This cursor reaches partition end before the main cursor has reached it.
+    bound_tracker is used to detect partition end.
+  */
+  Group_bound_tracker bound_tracker;
+public:
+  Frame_n_rows_following(bool is_top_bound_arg, ha_rows n_rows_arg) :
+    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg)
+  {
+    DBUG_ASSERT(n_rows > 0);
+  }
+
+  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
+            SQL_I_List<ORDER> *order_list)
+  {
+    cursor.init(info);
+    at_partition_end= false;
+    bound_tracker.init(thd, partition_list);
+  }
+
+  void pre_next_partition(longlong rownum, Item_sum* item)
+  {
+    at_partition_end= false;
+
+    // Fetch current partition value
+    bound_tracker.check_if_next_group();
+
+    if (rownum != 0)
+    {
+      // This is only needed for "FOLLOWING 1". It is one row behind
+      cursor.move_to(rownum+1);
+
+      // Current row points at the first row in the partition
+      if (is_top_bound) // this is frame top endpoint
+        item->remove();
+      else
+        item->add();
+    }
+  }
+
+  /* Move our cursor to be n_rows ahead.  */
+  void next_partition(longlong rownum, Item_sum* item)
+  {
+    longlong i_end= n_rows + ((rownum==0)?1:0)- is_top_bound;
+    for (longlong i= 0; i < i_end; i++)
+    {
+      if (next_row_intern(item))
+        break;
+    }
+  }
+
+  void next_row(Item_sum* item)
+  {
     if (at_partition_end)
       return;
     next_row_intern(item);
@@ -705,40 +799,22 @@ public:
 private:
   bool next_row_intern(Item_sum *item)
   {
-    if (!cursor_eof)
+    if (!cursor.get_next())
     {
-      if (!(cursor_eof= (0 != cursor.get_next())))
+      if (bound_tracker.check_if_next_group())
+        at_partition_end= true;
+      else
       {
-        bool new_group= is_preceding? false: bound_tracker.check_if_next_group();
-        if (at_partition_start || !new_group)
-        {
-          if (is_top_bound) // this is frame start endpoint
-            item->remove();
-          else
-            item->add();
-
-          at_partition_start= false;
-          return false; /* Action done */
-        }
+        if (is_top_bound) // this is frame start endpoint
+          item->remove();
         else
-        {
-          at_partition_end= true;
-          return true;
-        }
+          item->add();
       }
     }
-    return true; /* Action not done */
+    else
+      at_partition_end= true;
+    return at_partition_end;
   }
-};
-
-
-/* CURRENT ROW is the same as "ROWS 0 FOLLOWING" */
-class Frame_current_row : public Frame_n_rows
-{
-public:
-  Frame_current_row(bool is_top_bound_arg) :
-    Frame_n_rows(is_top_bound_arg, false /*is_preceding*/, ha_rows(0))
-  {}
 };
 
 
@@ -777,7 +853,10 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
     if (frame->units == Window_frame::UNITS_ROWS)
     {
       longlong n_rows= bound->offset->val_int();
-      return new Frame_n_rows(is_top_bound, is_preceding, n_rows);
+      if (is_preceding)
+        return new Frame_n_rows_preceding(is_top_bound, n_rows);
+      else
+        return new Frame_n_rows_following(is_top_bound, n_rows);
     }
     else
     {
@@ -789,7 +868,12 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
   if (bound->precedence_type == Window_frame_bound::CURRENT)
   {
     if (frame->units == Window_frame::UNITS_ROWS)
-      return new Frame_current_row(is_top_bound);
+    {
+      if (is_top_bound)
+        return new Frame_rows_current_row_top;
+      else
+        return new Frame_rows_current_row_bottom;
+    }
     else
     {
       if (is_top_bound)
@@ -798,7 +882,7 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
         return new Frame_range_current_row_bottom;
     }
   }
-  return NULL; 
+  return NULL;
 }
 
 

@@ -440,4 +440,50 @@ select pk, a, b,
 bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as bit_or
 from t1;
 
+--echo # Extra ROWS n PRECEDING tests 
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) as bit_or
+from t1;
 drop table t1;
+
+
+create table t2 (
+  pk int, 
+  a int, 
+  b int
+);
+
+insert into t2 values
+( 1, 0, 1),
+( 2, 0, 2),
+( 3, 0, 4),
+( 4, 0, 8),
+( 5, 1, 16),
+( 6, 1, 32),
+( 7, 1, 64),
+( 8, 1, 128),
+( 9, 2, 256),
+(10, 2, 512),
+(11, 2, 1024),
+(12, 2, 2048);
+
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) as bit_or
+from t2;
+
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 2 PRECEDING AND 2 PRECEDING) as bit_or
+from t2;
+
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) as bit_or
+from t2;
+
+--echo # Check CURRENT ROW 
+
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW) as bit_or
+from t2;
+
+drop table t2;
+
