@@ -831,7 +831,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
   if (param->testflag & T_WAIT_FOREVER)
     open_flags|= HA_OPEN_WAIT_IF_LOCKED;
   else if (param->testflag & T_DESCRIPT)
-    open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
+    open_flags|= HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_FROM_SQL_LAYER;
   else
     open_flags|= HA_OPEN_ABORT_IF_LOCKED;
   if (!(info=mi_open(filename, open_mode, open_flags)))
