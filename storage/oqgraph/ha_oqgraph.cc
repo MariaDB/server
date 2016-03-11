@@ -1372,6 +1372,6 @@ maria_declare_plugin(oqgraph)
   oqgraph_status,                /* status variables             */
   oqgraph_sysvars,               /* system variables             */
   "3.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

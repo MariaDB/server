@@ -282,7 +282,7 @@ maria_declare_plugin(query_cache_info)
   NULL,                       /* status variables     */
   NULL,                       /* system variables     */
   "1.1",                      /* version as a string  */
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 
