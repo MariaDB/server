@@ -820,16 +820,30 @@ private:
 
 Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
 {
-  // TODO-cvicentiu When a frame is not specified, which is the frame type
-  // that we will use?
-  // Postgres uses RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
-  // For now we use UNBOUNDED FOLLOWING and UNBOUNDED PRECEDING.
   if (!frame)
   {
+    /*
+      The docs say this about the lack of frame clause:
+
+        Let WD be a window structure descriptor.
+        ...
+        If WD has no window framing clause, then
+        Case:
+        i) If the window ordering clause of WD is not present, then WF is the
+           window partition of R.
+        ii) Otherwise, WF consists of all rows of the partition of R that
+           precede R or are peers of R in the window ordering of the window
+           partition defined by the window ordering clause.
+
+        For case #ii, the frame bounds essentially are "RANGE BETWEEN UNBOUNDED
+        PRECEDING AND CURRENT ROW".
+        For the case #i, without ordering clause all rows are considered peers,
+        so again the same frame bounds can be used.
+    */
     if (is_top_bound)
       return new Frame_unbounded_preceding;
     else
-      return new Frame_unbounded_following;
+      return new Frame_range_current_row_bottom;
   }
 
   Window_frame_bound *bound= is_top_bound? frame->top_bound :
