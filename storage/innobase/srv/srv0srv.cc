@@ -68,7 +68,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "trx0i_s.h"
 #include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
 #include "srv0mon.h"
-#include "ut0crc32.h"
 #include "btr0defragment.h"
 
 #include "mysql/plugin.h"
@@ -1078,8 +1077,6 @@ srv_init(void)
 
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
-
-	ut_crc32_init();
 
 	dict_mem_init();
 }

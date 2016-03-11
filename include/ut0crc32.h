@@ -28,13 +28,13 @@ Created Aug 10, 2011 Vasil Dimov
 
 #include <my_global.h>
 
+#ifdef  __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /********************************************************************//**
 Initializes the data structures used by ut_crc32(). Does not do any
 allocations, would not hurt if called twice, but would be pointless. */
-/* from UNIV_INTERN in storage/innobase/include/univ.i */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-__attribute__((visibility ("hidden")))
-#endif
 void
 ut_crc32_init();
 /*===========*/
@@ -46,10 +46,16 @@ Calculates CRC32.
 @return CRC32 (CRC-32C, using the GF(2) primitive polynomial 0x11EDC6F41,
 or 0x1EDC6F41 without the high-order bit) */
 typedef uint32 (*ib_ut_crc32_t)(const uint8* ptr, my_ulonglong len);
+typedef uint32 (*ib_ut_crc32_ex_t)(const uint8* ptr, my_ulonglong len, uint32 crc);
 
 extern ib_ut_crc32_t	ut_crc32;
+extern ib_ut_crc32_ex_t	ut_crc32_ex;
 
 /** Text description of CRC32 implementation */
 extern const char *ut_crc32_implementation;
+
+#ifdef  __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* ut0crc32_h */

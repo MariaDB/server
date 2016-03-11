@@ -31,6 +31,7 @@
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_dir.h>
+#include <ut0crc32.h>
 
 #define MAX_ROWS  2000
 #define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
@@ -169,6 +170,7 @@ int main(int argc, char *argv[])
     struct errors *error_head;
     struct languages *lang_head;
     DBUG_ENTER("main");
+    ut_crc32_init();
 
     charsets_dir= DEFAULT_CHARSET_DIR;
     my_umask_dir= 0777;
