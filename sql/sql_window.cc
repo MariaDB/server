@@ -384,17 +384,22 @@ public:
   virtual ~Frame_cursor(){}
 };
 
-//
+//////////////////////////////////////////////////////////////////////////////
 // RANGE-type frames
-//
+//////////////////////////////////////////////////////////////////////////////
 
 /*
-  RANGE BETWEEN ... AND CURRENT ROW
-
-  This is a bottom endpoint of RANGE-CURRENT ROW frame.
-
-  It moves ahead of the current_row. It is located just in front of the first
-  peer of the currrent_row.
+  RANGE BETWEEN ... AND CURRENT ROW, bottom frame bound for CURRENT ROW
+     ...
+   | peer1
+   | peer2  <----- current_row
+   | peer3 
+   +-peer4  <----- the cursor points here. peer4 itself is included.
+     nonpeer1
+     nonpeer2
+  
+  This bound moves in front of the current_row. It should be a the first row
+  that is still a peer of the current row.
 */
 
 class Frame_range_current_row_bottom: public Frame_cursor
@@ -417,7 +422,10 @@ public:
     // Save the value of the current_row
     peer_tracker.check_if_next_group();
     if (rownum != 0)
-      item->add(); // current row is in
+    {
+      // Add the current row now because our cursor has already seen it
+      item->add();
+    }
   }
 
   void next_partition(longlong rownum, Item_sum* item)
@@ -427,14 +435,11 @@ public:
 
   void pre_next_row(Item_sum* item)
   {
-    // Check if our cursor is pointing at a peer of the current row.
-    // If not, move forward until that becomes true
     dont_move= !peer_tracker.check_if_next_group();
     if (!dont_move)
       item->add();
   }
-  // New condition: this now assumes that table's current
-  // row is pointing to the current_row's position
+
   void next_row(Item_sum* item)
   {
     // Check if our cursor is pointing at a peer of the current row.
@@ -469,9 +474,15 @@ private:
 
 
 /*
-  RANGE BETWEEN CURRENT ROW AND ...
+  RANGE BETWEEN CURRENT ROW AND .... Top CURRENT ROW, RANGE-type frame bound
 
-  This is a top endpoint of RANGE-CURRENT ROW frame.
+      nonpeer1
+      nonpeer2
+    +-peer1  <----- the cursor points here. peer1 itself is included.
+    | peer2  
+    | peer3  <----- current_row
+    | peer4 
+      ... 
 
   It moves behind the current_row. It is located right after the first peer of
   the current_row.
@@ -522,8 +533,7 @@ public:
     at_partition_start= false;
     if (move)
     {
-      if (!was_at_partition_start &&
-          cursor.restore_last_row())
+      if (!was_at_partition_start && cursor.restore_last_row())
       {
         item->remove();
       }
@@ -542,7 +552,10 @@ public:
 };
 
 
-//////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+// UNBOUNDED frame bounds (shared between RANGE and ROWS)
+/////////////////////////////////////////////////////////////////////////////
+
 /*
   UNBOUNDED PRECEDING frame bound
 */
@@ -608,6 +621,9 @@ public:
 };
 
 
+/////////////////////////////////////////////////////////////////////////////
+// ROWS-type frame bounds
+/////////////////////////////////////////////////////////////////////////////
 /*
   ROWS $n PRECEDING frame bound
 
@@ -818,6 +834,9 @@ private:
 };
 
 
+/*
+  Get a Frame_cursor for a frame bound. This is a "factory function".
+*/
 Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
 {
   if (!frame)
@@ -973,12 +992,13 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
     tbl->file->position(tbl->record[0]);
     memcpy(rowid_buf, tbl->file->ref, tbl->file->ref_length);
 
-    /* Adjust partition bounds */
-
     if (partition_changed || (rownum == 0))
     {
-      /* Start the first partition */
       sum_func->clear();
+      /*
+        pre_XXX functions assume that tbl->record[0] contains current_row, and 
+        they may not change it.
+      */
       bottom_bound->pre_next_partition(rownum, sum_func);
       top_bound->pre_next_partition(rownum, sum_func);
       /*
@@ -990,17 +1010,18 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
     }
     else
     {
+      /* Again, both pre_XXX function can find current_row in tbl->record[0] */
       bottom_bound->pre_next_row(sum_func);
       top_bound->pre_next_row(sum_func);
 
-      /* These can write into tbl->record[0] */
+      /* These make no assumptions about tbl->record[0] and may change it */
       bottom_bound->next_row(sum_func);
       top_bound->next_row(sum_func);
     }
     rownum++;
 
     /*
-      The bounds may have made tbl->record[0] to point to some record other
+      Frame cursors may have made tbl->record[0] to point to some record other
       than current_row. This applies to tbl->file's internal state, too.
       Fix this by reading the current row again.
     */
