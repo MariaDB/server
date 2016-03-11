@@ -3268,12 +3268,9 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
       sort_param->max_pos=(sort_param->pos+=share->base.pack_reclength);
       if (*sort_param->record)
       {
-	if (sort_param->calc_checksum)
-	  param->glob_crc+= (info->checksum=
-                             (*info->s->calc_check_checksum)(info,
-                                                             sort_param->
-                                                             record));
-	DBUG_RETURN(0);
+        if (sort_param->calc_checksum)
+          info->checksum= (*info->s->calc_check_checksum)(info, sort_param->record);
+        goto finish;
       }
       if (!sort_param->fix_datafile && sort_param->master)
       {
@@ -3568,9 +3565,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	    goto try_next;
 	  }
 	}
-	if (sort_param->calc_checksum)
-	  param->glob_crc+= info->checksum;
-	DBUG_RETURN(0);
+        goto finish;
       }
       if (!searching)
         mi_check_print_info(param,"Key %d - Found wrong stored record at %s",
@@ -3639,11 +3634,8 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 			 block_info.rec_len);
       info->packed_length=block_info.rec_len;
       if (sort_param->calc_checksum)
-	param->glob_crc+= (info->checksum=
-                           (*info->s->calc_check_checksum)(info,
-                                                           sort_param->
-                                                           record));
-      DBUG_RETURN(0);
+	info->checksum= (*info->s->calc_check_checksum)(info, sort_param->record);
+      goto finish;
     }
     default:
       DBUG_ASSERT(0);                           /* Impossible */
@@ -3651,6 +3643,10 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
   }
   DBUG_ASSERT(0);                               /* Impossible */
   DBUG_RETURN(1);                               /* Impossible */
+finish:
+  if (sort_param->calc_checksum)
+    param->glob_crc+= info->checksum;
+  DBUG_RETURN(0);
 }
 
 

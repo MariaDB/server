@@ -16,14 +16,6 @@
 
 /* Definitions needed for myisamchk/mariachk.c */
 
-/*
-  Entries marked as "QQ to be removed" are NOT used to
-  pass check/repair options to xxx_check.c. They are used
-  internally by xxxchk.c or/and ha_xxxx.cc and should NOT
-  be stored together with other flags. They should be removed
-  from the following list to make addition of new flags possible.
-*/
-
 #ifndef _myisamchk_h
 #define _myisamchk_h
 
