@@ -662,7 +662,7 @@ fil_space_encrypt(
 		return src_frame;
 	}
 
-	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+	ut_a(crypt_data != NULL && crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
 
 	byte* tmp = fil_encrypt_buf(crypt_data, space, offset, lsn, src_frame, zip_size, dst_frame);
 
@@ -722,7 +722,7 @@ fil_space_decrypt(
 	}
 
 	if (crypt_data == NULL) {
-		if (space != 0 && offset != 0 && key_version != 0) {
+		if (!(space == 0 && offset == 0) && key_version != 0) {
 			/* FIL_PAGE_FILE_FLUSH_LSN field i.e.
 			FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 			should be only defined for the
@@ -740,7 +740,7 @@ fil_space_decrypt(
 		return false;
 	}
 
-	ut_ad(crypt_data != NULL && crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+	ut_a(crypt_data != NULL && crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
 
 	/* read space & lsn */
 	ulint header_len = FIL_PAGE_DATA;
