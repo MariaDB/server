@@ -487,3 +487,86 @@ from t2;
 
 drop table t2;
 
+--echo #
+--echo # Try RANGE PRECEDING|FOLLWING n
+--echo #
+create table t1 (
+  part_id int,
+  pk int,
+  a int
+);
+
+insert into t1 values 
+(10, 1, 1),
+(10, 2, 2),
+(10, 3, 4),
+(10, 4, 8),
+(10, 5,26), 
+(10, 6,27),
+(10, 7,40),
+(10, 8,71),
+(10, 9,72);
+
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 10 FOLLOWING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 1 FOLLOWING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 10 PRECEDING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 1 PRECEDING) as cnt
+from t1;
+
+# Try bottom bound 
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN 1 PRECEDING 
+                 AND CURRENT ROW) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN 1 FOLLOWING 
+                 AND 3 FOLLOWING) as cnt
+from t1;
+
+# Try with partitions
+insert into t1 select 22, pk, a from t1;
+select
+  part_id, pk, a,
+  count(a) over (PARTITION BY part_id
+                 ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 10 FOLLOWING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (PARTITION BY part_id
+                 ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 1 PRECEDING) as cnt
+from t1;
+
+drop table t1;
+

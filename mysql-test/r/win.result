@@ -781,3 +781,171 @@ pk	a	b	bit_or
 11	2	1024	1024
 12	2	2048	2048
 drop table t2;
+#
+# Try RANGE PRECEDING|FOLLWING n
+#
+create table t1 (
+part_id int,
+pk int,
+a int
+);
+insert into t1 values 
+(10, 1, 1),
+(10, 2, 2),
+(10, 3, 4),
+(10, 4, 8),
+(10, 5,26), 
+(10, 6,27),
+(10, 7,40),
+(10, 8,71),
+(10, 9,72);
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 10 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	4
+2	2	4
+3	4	4
+4	8	4
+5	26	6
+6	27	6
+7	40	7
+8	71	9
+9	72	9
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 1 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	2
+2	2	2
+3	4	3
+4	8	4
+5	26	6
+6	27	6
+7	40	7
+8	71	9
+9	72	9
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 10 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	0
+3	4	0
+4	8	0
+5	26	4
+6	27	4
+7	40	6
+8	71	7
+9	72	7
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 1 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN 1 PRECEDING 
+AND CURRENT ROW) as cnt
+from t1;
+pk	a	cnt
+1	1	1
+2	2	2
+3	4	1
+4	8	1
+5	26	1
+6	27	2
+7	40	1
+8	71	1
+9	72	2
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN 1 FOLLOWING 
+AND 3 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	2
+2	2	1
+3	4	0
+4	8	0
+5	26	1
+6	27	0
+7	40	0
+8	71	1
+9	72	0
+insert into t1 select 22, pk, a from t1;
+select
+part_id, pk, a,
+count(a) over (PARTITION BY part_id
+ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 10 FOLLOWING) as cnt
+from t1;
+part_id	pk	a	cnt
+10	1	1	4
+10	2	2	4
+10	3	4	4
+10	4	8	4
+10	5	26	6
+10	6	27	6
+10	7	40	7
+10	8	71	9
+10	9	72	9
+22	1	1	4
+22	2	2	4
+22	3	4	4
+22	4	8	4
+22	5	26	6
+22	6	27	6
+22	7	40	7
+22	8	71	9
+22	9	72	9
+select
+pk, a,
+count(a) over (PARTITION BY part_id
+ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING 
+AND 1 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+drop table t1;

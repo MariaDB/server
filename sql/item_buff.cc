@@ -71,7 +71,7 @@ Cached_item::~Cached_item() {}
 */
 
 Cached_item_str::Cached_item_str(THD *thd, Item *arg)
-  :item(arg),
+  :Cached_item_item(arg),
    value_max_length(MY_MIN(arg->max_length, thd->variables.max_sort_length)),
    value(value_max_length)
 {}
@@ -217,7 +217,7 @@ int Cached_item_field::cmp_read_only()
 
 
 Cached_item_decimal::Cached_item_decimal(Item *it)
-  :item(it)
+  :Cached_item_item(it)
 {
   my_decimal_set_zero(&value);
 }

@@ -115,4 +115,3 @@ pk	a	b	bit_or	bit_and	bit_xor
 8	2	16	208	0	192
 drop table t1;
 drop table t2;
-

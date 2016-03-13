@@ -4804,9 +4804,24 @@ public:
   virtual ~Cached_item(); /*line -e1509 */
 };
 
-class Cached_item_str :public Cached_item
+class Cached_item_item : public Cached_item
 {
+protected:
   Item *item;
+
+  Cached_item_item(Item *arg) : item(arg) {}
+public:
+  void fetch_value_from(Item *new_item)
+  {
+    Item *save= item;
+    item= new_item;
+    cmp();
+    item= save;
+  }
+};
+
+class Cached_item_str :public Cached_item_item
+{
   uint32 value_max_length;
   String value,tmp_value;
 public:
@@ -4817,30 +4832,27 @@ public:
 };
 
 
-class Cached_item_real :public Cached_item
+class Cached_item_real :public Cached_item_item
 {
-  Item *item;
   double value;
 public:
-  Cached_item_real(Item *item_par) :item(item_par),value(0.0) {}
+  Cached_item_real(Item *item_par) :Cached_item_item(item_par),value(0.0) {}
   bool cmp(void);
   int  cmp_read_only();
 };
 
-class Cached_item_int :public Cached_item
+class Cached_item_int :public Cached_item_item
 {
-  Item *item;
   longlong value;
 public:
-  Cached_item_int(Item *item_par) :item(item_par),value(0) {}
+  Cached_item_int(Item *item_par) :Cached_item_item(item_par),value(0) {}
   bool cmp(void);
   int  cmp_read_only();
 };
 
 
-class Cached_item_decimal :public Cached_item
+class Cached_item_decimal :public Cached_item_item
 {
-  Item *item;
   my_decimal value;
 public:
   Cached_item_decimal(Item *item_par);

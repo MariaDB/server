@@ -299,7 +299,7 @@ public:
   {
     for (ORDER *curr = list->first; curr; curr=curr->next) 
     {
-      Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);  
+      Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
       group_fields.push_back(tmp);
     }
   }
@@ -389,6 +389,206 @@ public:
 //////////////////////////////////////////////////////////////////////////////
 
 /*
+  Frame_range_n_top handles the top end of RANGE-type frame.
+
+  That is, it handles:
+    RANGE BETWEEN n PRECEDING AND ...
+    RANGE BETWEEN n FOLLOWING AND ...
+
+  Top of the frame doesn't need to check for partition end, since bottom will
+  reach it before.
+*/
+
+class Frame_range_n_top : public Frame_cursor
+{
+  Table_read_cursor cursor;
+
+  Cached_item_item *range_expr;
+
+  Item *n_val;
+  Item *item_add;
+
+  const bool is_preceding;
+public:
+  Frame_range_n_top(bool is_preceding_arg, Item *n_val_arg) :
+    n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
+  {}
+
+  void init(THD *thd, READ_RECORD *info,
+            SQL_I_List<ORDER> *partition_list,
+            SQL_I_List<ORDER> *order_list)
+  {
+    cursor.init(info);
+
+    DBUG_ASSERT(order_list->elements == 1);
+    Item *src_expr= order_list->first->item[0];
+
+    range_expr= (Cached_item_item*) new_Cached_item(thd, src_expr, FALSE);
+    if (is_preceding)
+      item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
+    else
+      item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
+
+    item_add->fix_fields(thd, &item_add);
+  }
+
+  void pre_next_partition(longlong rownum, Item_sum* item)
+  {
+    // Save the value of FUNC(current_row)
+    range_expr->fetch_value_from(item_add);
+  }
+
+  void next_partition(longlong rownum, Item_sum* item)
+  {
+    cursor.move_to(rownum);
+    walk_till_non_peer(item);
+  }
+
+  void pre_next_row(Item_sum* item)
+  {
+    range_expr->fetch_value_from(item_add);
+  }
+
+  void next_row(Item_sum* item)
+  {
+    /*
+      Ok, our cursor is at the first row R where
+        (prev_row + n) >= R
+      We need to check about the current row.
+    */
+    if (cursor.restore_last_row())
+    {
+      if (range_expr->cmp_read_only() <= 0)
+        return;
+      item->remove();
+    }
+    walk_till_non_peer(item);
+  }
+
+private:
+  void walk_till_non_peer(Item_sum* item)
+  {
+    while (!cursor.get_next())
+    {
+      if (range_expr->cmp_read_only() <= 0)
+        break;
+      item->remove();
+    }
+  }
+};
+
+
+/*
+  Frame_range_n_bottom handles bottom end of RANGE-type frame.
+
+  That is, it handles frame bounds in form:
+    RANGE BETWEEN ... AND n PRECEDING
+    RANGE BETWEEN ... AND n FOLLOWING
+
+  Bottom end moves first so it needs to check for partition end
+  (todo: unless it's PRECEDING and in that case it doesnt)
+*/
+
+class Frame_range_n_bottom: public Frame_cursor
+{
+  Table_read_cursor cursor;
+
+  Cached_item_item *range_expr;
+
+  Item *n_val;
+  Item *item_add;
+
+  const bool is_preceding;
+
+  Group_bound_tracker bound_tracker;
+  bool end_of_partition;
+public:
+  Frame_range_n_bottom(bool is_preceding_arg, Item *n_val_arg) :
+    n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
+  {}
+
+  void init(THD *thd, READ_RECORD *info,
+            SQL_I_List<ORDER> *partition_list,
+            SQL_I_List<ORDER> *order_list)
+  {
+    cursor.init(info);
+
+    DBUG_ASSERT(order_list->elements == 1);
+    Item *src_expr= order_list->first->item[0];
+
+    range_expr= (Cached_item_item*) new_Cached_item(thd, src_expr, FALSE);
+    if (is_preceding)
+      item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
+    else
+      item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
+
+    item_add->fix_fields(thd, &item_add);
+
+    bound_tracker.init(thd, partition_list);
+  }
+
+  void pre_next_partition(longlong rownum, Item_sum* item)
+  {
+    // Save the value of FUNC(current_row)
+    range_expr->fetch_value_from(item_add);
+
+    bound_tracker.check_if_next_group();
+    end_of_partition= false;
+  }
+
+  void next_partition(longlong rownum, Item_sum* item)
+  {
+    cursor.move_to(rownum);
+    walk_till_non_peer(item);
+  }
+
+  void pre_next_row(Item_sum* item)
+  {
+    if (end_of_partition)
+      return;
+    range_expr->fetch_value_from(item_add);
+  }
+
+  void next_row(Item_sum* item)
+  {
+    if (end_of_partition)
+      return;
+    /*
+      Ok, our cursor is at the first row R where
+        (prev_row + n) >= R
+      We need to check about the current row.
+    */
+    if (cursor.restore_last_row())
+    {
+      if (range_expr->cmp_read_only() < 0)
+        return;
+      item->add();
+    }
+    walk_till_non_peer(item);
+  }
+
+private:
+  void walk_till_non_peer(Item_sum* item)
+  {
+    int res;
+    while (!(res= cursor.get_next()))
+    {
+      if (bound_tracker.check_if_next_group())
+      {
+        end_of_partition= true;
+        break;
+      }
+      if (range_expr->cmp_read_only() < 0)
+        break;
+      item->add();
+    }
+    if (res)
+      end_of_partition= true;
+  }
+};
+
+
+/*
   RANGE BETWEEN ... AND CURRENT ROW, bottom frame bound for CURRENT ROW
      ...
    | peer1
@@ -469,7 +669,6 @@ private:
       item->add();
     }
   }
-
 };
 
 
@@ -893,8 +1092,10 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
     }
     else
     {
-      // todo: Frame_range_n_rows here .
-      DBUG_ASSERT(0);
+      if (is_top_bound)
+        return new Frame_range_n_top(is_preceding, bound->offset);
+      else
+        return new Frame_range_n_bottom(is_preceding, bound->offset);
     }
   }
 
