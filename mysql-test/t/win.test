@@ -82,6 +82,7 @@ insert into t2 values
 (10 , 4);
 
 select pk, a, rank() over (order by a) from t2;
+select pk, a, rank() over (order by a desc) from t2;
 
 drop table t2;
 
@@ -156,6 +157,13 @@ select
   pk, c,  
   count(*) over (partition by c order by pk
                  rows between current row and 1 following) as CNT 
+from t1;
+
+--echo # Check ORDER BY DESC
+select 
+  pk, c, 
+  count(*) over (partition by c order by pk desc
+                 rows between 2 preceding and 2 following) as CNT
 from t1;
 
 drop table t0,t1;
@@ -516,6 +524,13 @@ from t1;
 
 select
   pk, a,
+  count(a) over (ORDER BY a DESC
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 10 FOLLOWING) as cnt
+from t1;
+
+select
+  pk, a,
   count(a) over (ORDER BY a
                  RANGE BETWEEN UNBOUNDED PRECEDING 
                  AND 1 FOLLOWING) as cnt
@@ -524,6 +539,13 @@ from t1;
 select
   pk, a,
   count(a) over (ORDER BY a
+                 RANGE BETWEEN UNBOUNDED PRECEDING 
+                 AND 10 PRECEDING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (ORDER BY a DESC
                  RANGE BETWEEN UNBOUNDED PRECEDING 
                  AND 10 PRECEDING) as cnt
 from t1;
@@ -545,10 +567,33 @@ from t1;
 
 select
   pk, a,
+  count(a) over (ORDER BY a DESC
+                 RANGE BETWEEN 1 PRECEDING 
+                 AND CURRENT ROW) as cnt
+from t1;
+
+select
+  pk, a,
   count(a) over (ORDER BY a
                  RANGE BETWEEN 1 FOLLOWING 
                  AND 3 FOLLOWING) as cnt
 from t1;
+
+--echo # Try CURRENT ROW with[out] DESC
+select
+  pk, a,
+  count(a) over (ORDER BY a
+                 RANGE BETWEEN CURRENT ROW
+                 AND 1 FOLLOWING) as cnt
+from t1;
+
+select
+  pk, a,
+  count(a) over (order by a desc
+                 range between current row
+                 and 1 following) as cnt
+from t1;
+
 
 # Try with partitions
 insert into t1 select 22, pk, a from t1;

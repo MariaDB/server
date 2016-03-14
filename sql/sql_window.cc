@@ -275,9 +275,9 @@ public:
     {
       int rc= read_record->table->file->ha_rnd_pos(read_record->record, p);
       if (!rc)
-        return true;
+        return true; // restored ok
     }
-    return false;
+    return false; // didn't restore
   }
 
   // todo: should move_to() also read row here? 
@@ -409,6 +409,11 @@ class Frame_range_n_top : public Frame_cursor
   Item *item_add;
 
   const bool is_preceding;
+  /*
+     1  when order_list uses ASC ordering
+    -1  when order_list uses DESC ordering
+  */
+  int order_direction;
 public:
   Frame_range_n_top(bool is_preceding_arg, Item *n_val_arg) :
     n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
@@ -422,9 +427,18 @@ public:
 
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
+    if (order_list->first->direction == ORDER::ORDER_ASC)
+      order_direction= 1;
+    else
+      order_direction= -1;
 
     range_expr= (Cached_item_item*) new_Cached_item(thd, src_expr, FALSE);
-    if (is_preceding)
+
+    bool use_minus= is_preceding;
+    if (order_direction == -1)
+      use_minus= !use_minus;
+
+    if (use_minus)
       item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
     else
       item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
@@ -458,7 +472,7 @@ public:
     */
     if (cursor.restore_last_row())
     {
-      if (range_expr->cmp_read_only() <= 0)
+      if (order_direction * range_expr->cmp_read_only() <= 0)
         return;
       item->remove();
     }
@@ -470,7 +484,7 @@ private:
   {
     while (!cursor.get_next())
     {
-      if (range_expr->cmp_read_only() <= 0)
+      if (order_direction * range_expr->cmp_read_only() <= 0)
         break;
       item->remove();
     }
@@ -487,6 +501,8 @@ private:
 
   Bottom end moves first so it needs to check for partition end
   (todo: unless it's PRECEDING and in that case it doesnt)
+  (todo: factor out common parts with Frame_range_n_top into
+   a common ancestor)
 */
 
 class Frame_range_n_bottom: public Frame_cursor
@@ -502,6 +518,12 @@ class Frame_range_n_bottom: public Frame_cursor
 
   Group_bound_tracker bound_tracker;
   bool end_of_partition;
+
+  /*
+     1  when order_list uses ASC ordering
+    -1  when order_list uses DESC ordering
+  */
+  int order_direction;
 public:
   Frame_range_n_bottom(bool is_preceding_arg, Item *n_val_arg) :
     n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
@@ -516,8 +538,18 @@ public:
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
 
+    if (order_list->first->direction == ORDER::ORDER_ASC)
+      order_direction= 1;
+    else
+      order_direction= -1;
+
     range_expr= (Cached_item_item*) new_Cached_item(thd, src_expr, FALSE);
-    if (is_preceding)
+
+    bool use_minus= is_preceding;
+    if (order_direction == -1)
+      use_minus= !use_minus;
+
+    if (use_minus)
       item_add= new (thd->mem_root) Item_func_minus(thd, src_expr, n_val);
     else
       item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
@@ -560,7 +592,7 @@ public:
     */
     if (cursor.restore_last_row())
     {
-      if (range_expr->cmp_read_only() < 0)
+      if (order_direction * range_expr->cmp_read_only() < 0)
         return;
       item->add();
     }
@@ -578,7 +610,7 @@ private:
         end_of_partition= true;
         break;
       }
-      if (range_expr->cmp_read_only() < 0)
+      if (order_direction * range_expr->cmp_read_only() < 0)
         break;
       item->add();
     }
@@ -695,7 +727,6 @@ class Frame_range_current_row_top : public Frame_cursor
   Group_bound_tracker peer_tracker;
 
   bool move;
-  bool at_partition_start;
 public:
   void init(THD *thd, READ_RECORD *info,
             SQL_I_List<ORDER> *partition_list,
@@ -709,31 +740,33 @@ public:
 
   void pre_next_partition(longlong rownum, Item_sum* item)
   {
-    // fetch the value from the first row
+    // Fetch the value from the first row
     peer_tracker.check_if_next_group();
-  }
-
-  void next_partition(longlong rownum, Item_sum* item)
-  {
-    at_partition_start= true;
     cursor.move_to(rownum+1);
   }
 
+  void next_partition(longlong rownum, Item_sum* item) {}
+
   void pre_next_row(Item_sum* item)
   {
-    // Check if our current row is pointing to a peer of the current row.
-    // If not, move forward until that becomes true.
+    // Check if the new current_row is a peer of the row that our cursor is
+    // pointing to.
     move= peer_tracker.check_if_next_group();
   }
 
   void next_row(Item_sum* item)
   {
-    bool was_at_partition_start= at_partition_start;
-    at_partition_start= false;
     if (move)
     {
-      if (!was_at_partition_start && cursor.restore_last_row())
+      /*
+        Our cursor is pointing at the first row that was a peer of the previous
+        current row. Or, it was the first row in the partition.
+      */
+      if (cursor.restore_last_row())
       {
+        // todo: need the following check ?
+        if (!peer_tracker.compare_with_cache())
+          return;
         item->remove();
       }
 
