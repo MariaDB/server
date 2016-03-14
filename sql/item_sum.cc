@@ -1318,25 +1318,39 @@ void Item_sum_sum::fix_length_and_dec()
 bool Item_sum_sum::add()
 {
   DBUG_ENTER("Item_sum_sum::add");
+  add_helper(false);
+  DBUG_RETURN(0);
+}
+
+void Item_sum_sum::add_helper(bool perform_removal)
+{
+  DBUG_ENTER("Item_sum_sum::add_helper");
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
   {
     my_decimal value;
     const my_decimal *val= aggr->arg_val_decimal(&value);
     if (!aggr->arg_is_null(true))
     {
-      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff^1),
-                     val, dec_buffs + curr_dec_buff);
+      if (perform_removal)
+        my_decimal_sub(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
+                       dec_buffs + curr_dec_buff, val);
+      else
+        my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
+                       val, dec_buffs + curr_dec_buff);
       curr_dec_buff^= 1;
       null_value= 0;
     }
   }
   else
   {
-    sum+= aggr->arg_val_real();
+    if (perform_removal)
+      sum-= aggr->arg_val_real();
+    else
+      sum+= aggr->arg_val_real();
     if (!aggr->arg_is_null(true))
       null_value= 0;
   }
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1384,6 +1398,13 @@ my_decimal *Item_sum_sum::val_decimal(my_decimal *val)
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
     return (dec_buffs + curr_dec_buff);
   return val_decimal_from_real(val);
+}
+
+void Item_sum_sum::remove()
+{
+  DBUG_ENTER("Item_sum_sum::remove");
+  add_helper(true);
+  DBUG_VOID_RETURN;
 }
 
 /**

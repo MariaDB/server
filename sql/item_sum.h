@@ -773,6 +773,10 @@ public:
     return has_with_distinct() ? "sum(distinct " : "sum("; 
   }
   Item *copy_or_same(THD* thd);
+  void remove();
+
+private:
+  void add_helper(bool perform_removal);
 };
 
 
