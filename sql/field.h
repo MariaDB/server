@@ -1707,6 +1707,16 @@ public:
     return do_field_real;
   }
   int save_in_field(Field *to) { return to->store(val_real()); }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    /*
+      Cannot do memcpy from a longer field to a shorter field,
+      e.g. a DOUBLE(53,10) into a DOUBLE(10,10).
+      But it should be OK the other way around.
+    */
+    return Field_num::memcpy_field_possible(from) &&
+           field_length >= from->field_length;
+  }
   int store_decimal(const my_decimal *);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
