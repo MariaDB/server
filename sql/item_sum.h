@@ -777,6 +777,7 @@ public:
 
 private:
   void add_helper(bool perform_removal);
+  ulonglong count;
 };
 
 

@@ -1261,6 +1261,13 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
     */
     tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
     store_record(tbl,record[1]);
+    // TODO-cvicentiu
+    // Save in field does not make use of the null value for the sum function.
+    // If we do however set the null value to be the same as the one that
+    // the current sum function has, via say
+    // item_win->null_value = sum_func->null_value; we get an assertion failure
+    // during the sending of data within Item::send, in the case of DECIMAL_RESULT.
+    // How do we force saving of NULL values in the table?
     item_win->save_in_field(item_win->result_field, true);
     err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
     if (err && err != HA_ERR_RECORD_IS_THE_SAME)

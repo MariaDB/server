@@ -1243,7 +1243,8 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
 Item_sum_sum::Item_sum_sum(THD *thd, Item_sum_sum *item) 
   :Item_sum_num(thd, item),
    Type_handler_hybrid_field_type(item),
-   curr_dec_buff(item->curr_dec_buff)
+   curr_dec_buff(item->curr_dec_buff),
+   count(item->count)
 {
   /* TODO: check if the following assignments are really needed */
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
@@ -1265,6 +1266,7 @@ void Item_sum_sum::clear()
 {
   DBUG_ENTER("Item_sum_sum::clear");
   null_value=1;
+  count= 0;
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
   {
     curr_dec_buff= 0;
@@ -1325,6 +1327,7 @@ bool Item_sum_sum::add()
 void Item_sum_sum::add_helper(bool perform_removal)
 {
   DBUG_ENTER("Item_sum_sum::add_helper");
+
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
   {
     my_decimal value;
@@ -1332,13 +1335,20 @@ void Item_sum_sum::add_helper(bool perform_removal)
     if (!aggr->arg_is_null(true))
     {
       if (perform_removal)
+      {
+        DBUG_ASSERT(count > 0);
         my_decimal_sub(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
                        dec_buffs + curr_dec_buff, val);
+        count--;
+      }
       else
+      {
+        count++;
         my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
                        val, dec_buffs + curr_dec_buff);
+      }
       curr_dec_buff^= 1;
-      null_value= 0;
+      null_value= (count > 0) ? 0 : 1;
     }
   }
   else
@@ -1348,7 +1358,17 @@ void Item_sum_sum::add_helper(bool perform_removal)
     else
       sum+= aggr->arg_val_real();
     if (!aggr->arg_is_null(true))
-      null_value= 0;
+    {
+      if (perform_removal)
+      {
+        DBUG_ASSERT(count > 0);
+        count--;
+      }
+      else
+        count++;
+
+      null_value= (count > 0) ? 0 : 1;
+    }
   }
   DBUG_VOID_RETURN;
 }
