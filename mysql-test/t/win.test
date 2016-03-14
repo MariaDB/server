@@ -637,3 +637,30 @@ select
 from t1;
 
 drop table t1;
+
+--echo # 
+--echo # RANGE-type frames and NULL values 
+--echo # 
+create table t1 (
+ pk int,
+ a int,
+ b int
+);
+
+insert into t1 values (1, NULL,1);
+insert into t1 values (2, NULL,1);
+insert into t1 values (3, NULL,1);
+insert into t1 values (4, 10 ,1);
+insert into t1 values (5, 11 ,1);
+insert into t1 values (6, 12 ,1);
+insert into t1 values (7, 13 ,1);
+insert into t1 values (8, 14 ,1);
+
+
+select 
+ pk, a, 
+ count(b) over (order by a 
+                range between 2 preceding 
+                          and 2 following) as CNT
+from t1;
+drop table t1;
