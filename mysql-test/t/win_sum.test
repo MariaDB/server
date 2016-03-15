@@ -21,12 +21,27 @@ insert into t1 values
 (112 , 5, 1, 12.25),
 (113 , 5, NULL, 13.35),
 (114 , 5, NULL, 14.50),
-(115 , 5, NULL, 15.65);
+(115 , 5, NULL, 15.65),
+(116 , 6, 1, NULL),
+(117 , 6, 1, 10),
+(118 , 6, 1, 1.1),
+(119 , 6, 1, NULL),
+(120 , 6, 1, NULL),
+(121 , 6, 1, NULL),
+(122 , 6, 1, 2.2),
+(123 , 6, 1, 20.1),
+(124 , 6, 1, -10.4),
+(125 , 6, 1, NULL),
+(126 , 6, 1, NULL),
+(127 , 6, 1, NULL);
+
 
 --sorted_result
-select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING),
-                 sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+from t1;
 
+--sorted_result
+select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
 from t1;
 
 drop table t1;

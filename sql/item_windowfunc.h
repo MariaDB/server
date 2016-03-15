@@ -490,7 +490,7 @@ public:
     else if (read_value_from_result_field)
     {
       res= result_field->val_real();
-      null_value= false;
+      null_value= result_field->is_null();
     }
     else
     {
@@ -563,7 +563,7 @@ public:
     }
     else
     {
-      res= result_field->val_decimal(dec);
+      res= window_func->val_decimal(dec);
       null_value= window_func->null_value;
     }
     return res;
