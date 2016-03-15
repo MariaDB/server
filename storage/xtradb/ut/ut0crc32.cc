@@ -186,7 +186,7 @@ for RHEL4 support (GCC 3 doesn't support this instruction) */
 
 #ifdef HAVE_CRC32_VPMSUM
 extern "C" {
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
 };
 
 UNIV_INLINE
@@ -196,7 +196,7 @@ ut_crc32_power8(
 		 const byte*		 buf,		 /*!< in: data over which to calculate CRC32 */
 		 ulint			 len)		 /*!< in: data length */
 {
-  return crc32_vpmsum(0, buf, len);
+  return crc32c_vpmsum(0, buf, len);
 }
 #endif
 
