@@ -1681,6 +1681,16 @@ bool Item_sum_avg::add()
   return FALSE;
 }
 
+void Item_sum_avg::remove()
+{
+  Item_sum_sum::remove();
+  if (!aggr->arg_is_null(true))
+  {
+    DBUG_ASSERT(count > 0);
+    count--;
+  }
+}
+
 double Item_sum_avg::val_real()
 {
   DBUG_ASSERT(fixed == 1);

@@ -837,6 +837,8 @@ class Item_sum_count :public Item_sum_int
 class Item_sum_avg :public Item_sum_sum
 {
 public:
+  // TODO-cvicentiu given that Item_sum_sum now uses a counter of its own, in
+  // order to implement remove(), it is possible to remove this member.
   ulonglong count;
   uint prec_increment;
   uint f_precision, f_scale, dec_bin_size;
@@ -855,6 +857,7 @@ public:
   }
   void clear();
   bool add();
+  void remove();
   double val_real();
   // In SPs we might force the "wrong" type with select into a declare variable
   longlong val_int() { return val_int_from_real(); }
