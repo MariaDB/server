@@ -59,6 +59,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   fix_length_and_dec();
 
   max_length= window_func->max_length;
+  maybe_null= window_func->maybe_null;
 
   fixed= 1;
   force_return_blank= true;

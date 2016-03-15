@@ -481,37 +481,91 @@ public:
 
   double val_real() 
   {
+    double res;
     if (force_return_blank)
-      return 0.0;
-    return read_value_from_result_field? result_field->val_real() :
-                                         window_func->val_real();
+    {
+      res= 0.0;
+      null_value= false;
+    }
+    else if (read_value_from_result_field)
+    {
+      res= result_field->val_real();
+      null_value= false;
+    }
+    else
+    {
+      res= window_func->val_real();
+      null_value= window_func->null_value;
+    }
   }
 
   longlong val_int()
   {
+    longlong res;
     if (force_return_blank)
-      return 0;
-    return read_value_from_result_field? result_field->val_int() : 
-                                          window_func->val_int(); 
+    {
+      res= 0;
+      null_value= false;
+    }
+    else if (read_value_from_result_field)
+    {
+      res= result_field->val_int();
+      null_value= result_field->is_null();
+    }
+    else
+    {
+      res= window_func->val_int();
+      null_value= window_func->null_value;
+    }
+    return res;
   }
 
   String* val_str(String* str)
   {
+    String *res;
     if (force_return_blank)
-      return str;
-    return read_value_from_result_field? result_field->val_str(str) : 
-                                         window_func->val_str(str);
+    {
+      null_value= false;
+      str->length(0);
+      res= str;
+    }
+    else if (read_value_from_result_field)
+    {
+      if ((null_value= result_field->is_null()))
+        res= NULL;
+      else
+        res= result_field->val_str(str);
+    }
+    else
+    {
+      res= window_func->val_str(str);
+      null_value= window_func->null_value;
+    }
+    return res;
   }
 
   my_decimal* val_decimal(my_decimal* dec)
-  { 
+  {
+    my_decimal *res;
     if (force_return_blank)
     {
       my_decimal_set_zero(dec);
-      return dec;
+      null_value= false;
+      res= dec;
     }
-    return read_value_from_result_field? result_field->val_decimal(dec) : 
-                                         window_func->val_decimal(dec);
+    else if (read_value_from_result_field)
+    {
+      if ((null_value= result_field->is_null()))
+        res= NULL;
+      else
+        res= result_field->val_decimal(dec);
+    }
+    else
+    {
+      res= result_field->val_decimal(dec);
+      null_value= window_func->null_value;
+    }
+    return res;
   }
 
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
