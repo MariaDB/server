@@ -572,6 +572,12 @@ select 5 div 2.0;
 select 5.9 div 2, 1.23456789e3 DIV 2, 1.23456789e9 DIV 2, 1.23456789e19 DIV 2;
 
 --echo #
+--echo # CRC32 tests
+--echo #
+
+select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678');
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
