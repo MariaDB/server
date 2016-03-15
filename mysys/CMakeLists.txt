@@ -45,9 +45,12 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
     enable_language(ASM)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/mysys/crc32_power8)
     LIST(APPEND MYSYS_SOURCES
        crc32_power8/crc32.S
+       crc32_power8/crc32c.S
        crc32_power8/crc32_wrapper.c
+       crc32_power8/crc32c_wrapper.c
        )
 ENDIF()
 

@@ -190,74 +190,19 @@ ut_cpuid(
 
 /* opcodes taken from objdump of "crc32b (%%rdx), %%rcx"
 for RHEL4 support (GCC 3 doesn't support this instruction) */
-#define ut_crc32_sse42_byte \
+#define ut_crc32c_sse42_byte \
 	asm(".byte 0xf2, 0x48, 0x0f, 0x38, 0xf0, 0x0a" \
 	    : "=c"(crc) : "c"(crc), "d"(buf)); \
 	len--, buf++
 
 /* opcodes taken from objdump of "crc32q (%%rdx), %%rcx"
 for RHEL4 support (GCC 3 doesn't support this instruction) */
-#define ut_crc32_sse42_quadword \
+#define ut_crc32c_sse42_quadword \
 	asm(".byte 0xf2, 0x48, 0x0f, 0x38, 0xf1, 0x0a" \
 	    : "=c"(crc) : "c"(crc), "d"(buf)); \
 	len -= 8, buf += 8
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
-#if defined(__powerpc__)
-extern "C" {
-unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
-};
-#endif /* __powerpc__ */
-
-inline
-uint32
-ut_crc32c_power8(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32c_vpmsum(0, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-inline
-uint32
-ut_crc32_power8(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32_vpmsum(0, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-inline
-uint32
-ut_crc32_power8_ex(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len,		 /*!< in: data length */
-		 uint32			 crc)
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32_vpmsum(crc, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
 
 
 /********************************************************************//**
@@ -269,28 +214,29 @@ ut_crc32c_ex_sse42(
 /*===========*/
 	uint32		crc_arg,
 	const uint8*	buf,	/*!< in: data over which to calculate CRC32 */
-	my_ulonglong	len)	/*!< in: data length */
+	my_ulonglong	len,	/*!< in: data length */
+	uint32		crc_arg)
 {
 #if defined(__GNUC__) && defined(__x86_64__)
-	uint64 crc = (uint32) (-1);
+	uint64 crc = crc_arg ^(uint32) (-1);
 
 	while (len && ((my_ulonglong) buf & 7)) {
-		ut_crc32_sse42_byte;
+		ut_crc32c_sse42_byte;
 	}
 
 	while (len >= 32) {
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
 	}
 
 	while (len >= 8) {
-		ut_crc32_sse42_quadword;
+		ut_crc32c_sse42_quadword;
 	}
 
 	while (len) {
-		ut_crc32_sse42_byte;
+		ut_crc32c_sse42_byte;
 	}
 
 	return((uint32) ((~crc) & 0xFFFFFFFF));
@@ -330,6 +276,7 @@ ut_crc32c_sse42(
 /********************************************************************//**
 Calculates CRC32 manually.
 @return CRC-32C (polynomial 0x11EDC6F41) */
+
 inline
 static
 uint32
@@ -340,7 +287,7 @@ ut_crc32_slice8_common(
         my_ulonglong    len,    /*!< in: data length */
 	uint32		slice8_table[8][256])
 {
-	uint64 crc = (uint32) (-1);
+	uint64 crc = crc_arg ^ (uint32) (-1);
 
 	while (len && ((my_ulonglong) buf & 7)) {
 		ut_crc32_slice8_byte;
@@ -478,6 +425,79 @@ ut_crc32_ex_power8(
 		 uint32			 crc,
 		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
 		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32_vpmsum(crc, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+#if defined(__powerpc__)
+extern "C" {
+unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+};
+#endif /* __powerpc__ */
+
+inline
+uint32
+ut_crc32c_power8(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32c_vpmsum(0, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32c_power8_ex(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len,		 /*!< in: data length */
+		 uint32			 crc)
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32c_vpmsum(crc, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32_power8(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32_vpmsum(0, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32_power8_ex(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len,		 /*!< in: data length */
+		 uint32			 crc)
 {
 #if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
 		 return crc32_vpmsum(crc, buf, len);
