@@ -1091,12 +1091,6 @@ public:
   uint     aggr_tables;     ///< Number of post-join tmp tables 
   uint	   send_group_parts;
   /*
-    This counts how many times do_select() was invoked for this JOIN.
-    It's used to restrict Pushdown_query::execute() only to the first
-    do_select() invocation.
-  */
-  uint     do_select_call_count;
-  /*
     True if the query has GROUP BY.
     (that is, if group_by != NULL. when DISTINCT is converted into GROUP BY, it
      will set this, too. It is not clear why we need a separate var from 
@@ -1463,8 +1457,6 @@ public:
     positions= best_positions= 0;
     pushdown_query= 0;
     original_join_tab= 0;
-    do_select_call_count= 0;
-
     explain= NULL;
 
     all_fields= fields_arg;

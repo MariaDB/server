@@ -2100,13 +2100,22 @@ bool JOIN::make_aggr_tables_info()
   
   sort_and_group_aggr_tab= NULL;
   
- /*
+
+  /*
+    Setup last table to provide fields and all_fields lists to the next
+    node in the plan.
+  */
+  if (join_tab)
+  {
+    join_tab[top_join_tab_count - 1].fields= &fields_list;
+    join_tab[top_join_tab_count - 1].all_fields= &all_fields;
+  }
+
+  /*
     All optimization is done. Check if we can use the storage engines
     group by handler to evaluate the group by
   */
-
   group_by_handler *gbh= NULL;
-#if 0
   if ((tmp_table_param.sum_func_count || group_list) && !procedure)
   {
     /*
@@ -2127,10 +2136,10 @@ bool JOIN::make_aggr_tables_info()
       Query query= {&all_fields, select_distinct, tables_list, conds,
                     group_list, order ? order : group_list, having};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
+
       if (gbh)
       {
         pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
-
         /*
           We must store rows in the tmp table if we need to do an ORDER BY
           or DISTINCT and the storage handler can't handle it.
@@ -2139,8 +2148,47 @@ bool JOIN::make_aggr_tables_info()
         distinct= query.distinct;
         keep_row_order= query.order_by || query.group_by;
         
+        order= query.order_by;
+
+        aggr_tables++;
+        curr_tab= join_tab + top_join_tab_count;
+        bzero(curr_tab, sizeof(JOIN_TAB));
+        curr_tab->ref.key= -1;
+        curr_tab->join= this;
+
+        curr_tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param);
+        TABLE* table= create_tmp_table(thd, curr_tab->tmp_table_param,
+                                       all_fields,
+                                       NULL, query.distinct,
+                                       TRUE, select_options, HA_POS_ERROR,
+                                       "", !need_tmp,
+                                       query.order_by || query.group_by);
+        if (!table)
+          DBUG_RETURN(1);
+
+        curr_tab->aggr= new (thd->mem_root) AGGR_OP(curr_tab);
+        curr_tab->aggr->set_write_func(::end_send);
+        curr_tab->table= table;
+        /*
+          Setup reference fields, used by summary functions and group by fields,
+          to point to the temporary table.
+          The actual switching to the temporary tables fields for HAVING
+          and ORDER BY is done in do_select() by calling
+          set_items_ref_array(items1).
+        */
+        init_items_ref_array();
+        items1= ref_ptr_array_slice(2);
+        //items1= items0 + all_fields.elements;
+        if (change_to_use_tmp_fields(thd, items1,
+                                     tmp_fields_list1, tmp_all_fields1,
+                                     fields_list.elements, all_fields))
+          DBUG_RETURN(1);
+
+        /* Give storage engine access to temporary table */
+        gbh->table= table;
         pushdown_query->store_data_in_temp_table= need_tmp;
         pushdown_query->having= having;
+
         /*
           Group by and having is calculated by the group_by handler.
           Reset the group by and having
@@ -2148,22 +2196,27 @@ bool JOIN::make_aggr_tables_info()
         DBUG_ASSERT(query.group_by == NULL);
         group= 0; group_list= 0;
         having= tmp_having= 0;
-
+        /*
+          Select distinct is handled by handler or by creating an unique index
+          over all fields in the temporary table
+        */
+        select_distinct= 0;
         order= query.order_by;
+        tmp_table_param.field_count+= tmp_table_param.sum_func_count;
+        tmp_table_param.sum_func_count= 0;
+
+        fields= curr_fields_list;
+
+        //todo: new:
+        curr_tab->ref_array= &items1;
+        curr_tab->all_fields= &tmp_all_fields1;
+        curr_tab->fields= &tmp_fields_list1;
+
+        DBUG_RETURN(thd->is_fatal_error);
       }
     }
   }
-#endif
 
-  /*
-    Setup last table to provide fields and all_fields lists to the next
-    node in the plan.
-  */
-  if (join_tab)
-  {
-    join_tab[top_join_tab_count - 1].fields= &fields_list;
-    join_tab[top_join_tab_count - 1].all_fields= &all_fields;
-  }
 
   /*
     The loose index scan access method guarantees that all grouping or
@@ -3206,8 +3259,6 @@ void JOIN::exec_inner()
 
   if (select_options & SELECT_DESCRIBE)
   {
-    do_select_call_count= 0;
-
     select_describe(this, need_tmp,
 		    order != 0 && !skip_sort_order,
 		    select_distinct,
@@ -8495,6 +8546,9 @@ bool JOIN::get_best_combination()
                     (order ? 1 : 0) +
        (select_options & (SELECT_BIG_RESULT | OPTION_BUFFER_RESULT) ? 1 : 0) ;
   
+  if (aggr_tables == 0)
+    aggr_tables= 1; /* For group by pushdown */
+
   if (select_lex->window_specs.elements)
     aggr_tables++;
 
@@ -17613,9 +17667,7 @@ do_select(JOIN *join, Procedure *procedure)
   enum_nested_loop_state error= NESTED_LOOP_OK;
   DBUG_ENTER("do_select");
 
-  join->do_select_call_count++;
-
-  if (join->pushdown_query && join->do_select_call_count == 1)
+  if (join->pushdown_query)
   {
     /* Select fields are in the temporary table */
     join->fields= &join->tmp_fields_list1;
@@ -17623,6 +17675,25 @@ do_select(JOIN *join, Procedure *procedure)
     join->set_items_ref_array(join->items1);
     /* The storage engine will take care of the group by query result */
     int res= join->pushdown_query->execute(join);
+
+    if (res)
+      DBUG_RETURN(res);
+
+    if (join->pushdown_query->store_data_in_temp_table)
+    {
+      JOIN_TAB *last_tab= join->join_tab + join->table_count;
+      last_tab->next_select= end_send;
+
+      enum_nested_loop_state state= last_tab->aggr->end_send();
+      if (state >= NESTED_LOOP_OK)
+        state= sub_select(join, last_tab, true);
+
+      if (state < NESTED_LOOP_OK)
+        res= 1;
+
+      if (join->result->send_eof())
+        res= 1;
+    }
     DBUG_RETURN(res);
   }
   
