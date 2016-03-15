@@ -30,9 +30,7 @@
 
 ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
 {
-  /* this is to mirror the zlib implemenation */
-  if (pos == NULL) return 0UL;
-  crc= (ha_checksum) ut_crc32_ex(pos, length, crc);
+  crc= (ha_checksum) ut_crc32_ex(crc, pos, length);
   DBUG_PRINT("info", ("crc: %lu", (ulong) crc));
   return crc;
 }

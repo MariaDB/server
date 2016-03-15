@@ -25,7 +25,7 @@ Created Aug 11, 2011 Vasil Dimov
 
 #include "univ.i"
 #include "fil0fil.h" /* FIL_* */
-#include "ut0crc32.h" /* ut_crc32() */
+#include "ut0crc32.h" /* ut_crc32c() */
 #include "ut0rnd.h" /* ut_fold_binary() */
 #include "buf0checksum.h"
 
@@ -63,10 +63,10 @@ buf_calc_page_crc32(
 	checksum is stored, and also the last 8 bytes of page because
 	there we store the old formula checksum. */
 
-	checksum = ut_crc32(page + FIL_PAGE_OFFSET,
+	checksum = ut_crc32c(page + FIL_PAGE_OFFSET,
 			    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 			    - FIL_PAGE_OFFSET)
-		^ ut_crc32(page + FIL_PAGE_DATA,
+		^ ut_crc32c(page + FIL_PAGE_DATA,
 			   UNIV_PAGE_SIZE - FIL_PAGE_DATA
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM);
 

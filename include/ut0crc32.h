@@ -40,14 +40,18 @@ ut_crc32_init();
 /*===========*/
 
 /********************************************************************//**
-Calculates CRC32.
+Calculates CRC32C.
 @param ptr	- data over which to calculate CRC32.
 @param len	- data length in bytes.
 @return CRC32 (CRC-32C, using the GF(2) primitive polynomial 0x11EDC6F41,
 or 0x1EDC6F41 without the high-order bit) */
 typedef uint32 (*ib_ut_crc32_t)(const uint8* ptr, my_ulonglong len);
-typedef uint32 (*ib_ut_crc32_ex_t)(const uint8* ptr, my_ulonglong len, uint32 crc);
+typedef uint32 (*ib_ut_crc32_ex_t)(uint32 crc, const uint8* ptr, my_ulonglong len);
 
+extern ib_ut_crc32_t	ut_crc32c;
+extern ib_ut_crc32_ex_t	ut_crc32c_ex;
+
+/* IEEE CRC32 functions on primitive polynomial 0x04C11DB7 */
 extern ib_ut_crc32_t	ut_crc32;
 extern ib_ut_crc32_ex_t	ut_crc32_ex;
 
