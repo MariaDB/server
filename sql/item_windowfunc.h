@@ -497,6 +497,7 @@ public:
       res= window_func->val_real();
       null_value= window_func->null_value;
     }
+    return res;
   }
 
   longlong val_int()
