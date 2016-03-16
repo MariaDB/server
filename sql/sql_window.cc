@@ -25,13 +25,13 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
     if (ref_name &&
         my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
     {
-      if (partition_list.elements)
+      if (partition_list->elements)
       {
         my_error(ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
                  ref_name);
         return true;
       }
-      if (win_spec->order_list.elements && order_list.elements)
+      if (win_spec->order_list->elements && order_list->elements)
       {
         my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
         return true;              
@@ -42,9 +42,9 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
         return true;              
       }
       referenced_win_spec= win_spec;
-      if (partition_list.elements == 0)
+      if (partition_list->elements == 0)
         partition_list= win_spec->partition_list;
-      if (order_list.elements == 0)
+      if (order_list->elements == 0)
         order_list= win_spec->order_list;
     }
   }
@@ -109,9 +109,9 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     bool hidden_group_fields;
     if (win_spec->check_window_names(itp) ||
         setup_group(thd, ref_pointer_array, tables, fields, all_fields,
-                    win_spec->partition_list.first, &hidden_group_fields) ||
+                    win_spec->partition_list->first, &hidden_group_fields) ||
         setup_order(thd, ref_pointer_array, tables, fields, all_fields,
-                    win_spec->order_list.first) ||
+                    win_spec->order_list->first) ||
         (win_spec->window_frame && 
          win_spec->window_frame->check_frame_bounds()))
     {
@@ -1205,10 +1205,10 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   top_bound= get_frame_cursor(window_frame, true);
   bottom_bound= get_frame_cursor(window_frame, false);
     
-  top_bound->init(thd, info, &item_win->window_spec->partition_list,
-                  &item_win->window_spec->order_list);
-  bottom_bound->init(thd, info, &item_win->window_spec->partition_list,
-                     &item_win->window_spec->order_list);
+  top_bound->init(thd, info, item_win->window_spec->partition_list,
+                  item_win->window_spec->order_list);
+  bottom_bound->init(thd, info, item_win->window_spec->partition_list,
+                     item_win->window_spec->order_list);
 
   bool is_error= false;
   longlong rownum= 0;
@@ -1535,22 +1535,22 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
           Connect the two lists for the duration of add_sorting_to_table()
           call.
         */
-        DBUG_ASSERT(spec->partition_list.next[0] == NULL);
-        *(spec->partition_list.next)= spec->order_list.first;
+        DBUG_ASSERT(spec->partition_list->next[0] == NULL);
+        *(spec->partition_list->next)= spec->order_list->first;
 
         /*
            join_tab[top_join_tab_count].table is the temp. table where join
            output was stored.
         */
         add_sorting_to_table(&join_tab[top_join_tab_count],
-                             spec->partition_list.first);
+                             spec->partition_list->first);
         join_tab[top_join_tab_count].used_for_window_func= true;
 
         create_sort_index(this->thd, this, &join_tab[top_join_tab_count]);
         /* Disconnect order_list from partition_list */
-        *(spec->partition_list.next)= NULL;
-
-        /*
+        *(spec->partition_list->next)= NULL;
+ 
+       /*
           Go through the sorted array and compute the window function
         */
         READ_RECORD info;

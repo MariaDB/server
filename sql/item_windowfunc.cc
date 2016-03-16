@@ -115,7 +115,7 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 void Item_window_func::setup_partition_border_check(THD *thd)
 {
-  for (ORDER *curr= window_spec->partition_list.first; curr; curr=curr->next)
+  for (ORDER *curr= window_spec->partition_list->first; curr; curr=curr->next)
   {
     //curr->item_ptr->fix_fields(thd, curr->item);
     Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);  
@@ -128,7 +128,7 @@ void Item_window_func::setup_partition_border_check(THD *thd)
 void Item_sum_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  for (ORDER *curr= window_spec->order_list.first; curr; curr=curr->next)
+  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
   {
     Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
     orderby_fields.push_back(tmp);
@@ -139,7 +139,7 @@ void Item_sum_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: consider moving this && Item_sum_rank's implementation */
-  for (ORDER *curr= window_spec->order_list.first; curr; curr=curr->next)
+  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
   {
     Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
     orderby_fields.push_back(tmp);
@@ -198,7 +198,7 @@ bool Item_sum_percent_rank::add()
 void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  for (ORDER *curr= window_spec->order_list.first; curr; curr=curr->next)
+  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
   {
     Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
     orderby_fields.push_back(tmp);
