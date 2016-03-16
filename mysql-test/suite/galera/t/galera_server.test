@@ -1,0 +1,28 @@
+# Test for CREATE/ALTER/DROP SERVER in Galera cluster
+
+--source include/galera_cluster.inc
+
+--connection node_1
+--echo # On node_1
+CREATE SERVER s1
+  FOREIGN DATA WRAPPER mysql
+  OPTIONS (HOST 'foo');
+
+--connection node_2
+--echo # On node_2
+SELECT * FROM mysql.servers;
+ALTER SERVER s1
+  OPTIONS (HOST 'bar');
+
+--connection node_1
+--echo # On node_1
+SELECT * FROM mysql.servers;
+DROP SERVER s1;
+
+--connection node_2
+--echo # On node_2
+SELECT COUNT(*)=0 FROM mysql.servers;
+
+--source include/galera_end.inc
+--echo # End of test
+

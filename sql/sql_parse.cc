@@ -5649,6 +5649,8 @@ create_sp_error:
     if (check_global_access(thd, SUPER_ACL))
       break;
 
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+
     res= create_server(thd, &lex->server_options);
     break;
   }
@@ -5659,6 +5661,8 @@ create_sp_error:
 
     if (check_global_access(thd, SUPER_ACL))
       break;
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
     if ((error= alter_server(thd, &lex->server_options)))
     {
@@ -5677,6 +5681,8 @@ create_sp_error:
 
     if (check_global_access(thd, SUPER_ACL))
       break;
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
