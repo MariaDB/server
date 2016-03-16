@@ -5437,8 +5437,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
   if (const char *pos= cannot_convert_error_pos())
   {
     char buf[16];
-    int mblen= srccs->cset->charlen(srccs, (const uchar *) pos,
-                                           (const uchar *) src + src_length);
+    int mblen= my_charlen(srccs, pos, src + src_length);
     DBUG_ASSERT(mblen > 0 && mblen * 2 + 1 <= (int) sizeof(buf));
     octet2hex(buf, pos, mblen);
     push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,

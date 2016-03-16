@@ -1431,14 +1431,13 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 
 static const char *require_quotes(const char *name, uint name_length)
 {
-  uint length;
   bool pure_digit= TRUE;
   const char *end= name + name_length;
 
   for (; name < end ; name++)
   {
     uchar chr= (uchar) *name;
-    length= my_mbcharlen(system_charset_info, chr);
+    int length= my_charlen(system_charset_info, name, end);
     if (length == 1 && !system_charset_info->ident_map[chr])
       return name;
     if (length == 1 && (chr < '0' || chr > '9'))
@@ -1496,24 +1495,25 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
   if (packet->append(&quote_char, 1, quote_charset))
     return true;
 
-  for (name_end= name+length ; name < name_end ; name+= length)
+  for (name_end= name+length ; name < name_end ; )
   {
     uchar chr= (uchar) *name;
-    length= my_mbcharlen(system_charset_info, chr);
+    int char_length= my_charlen(system_charset_info, name, name_end);
     /*
-      my_mbcharlen can return 0 on a wrong multibyte
+      charlen can return 0 and negative numbers on a wrong multibyte
       sequence. It is possible when upgrading from 4.0,
       and identifier contains some accented characters.
       The manual says it does not work. So we'll just
-      change length to 1 not to hang in the endless loop.
+      change char_length to 1 not to hang in the endless loop.
     */
-    if (!length)
-      length= 1;
-    if (length == 1 && chr == (uchar) quote_char &&
+    if (char_length <= 0)
+      char_length= 1;
+    if (char_length == 1 && chr == (uchar) quote_char &&
         packet->append(&quote_char, 1, quote_charset))
       return true;
-    if (packet->append(name, length, system_charset_info))
+    if (packet->append(name, char_length, system_charset_info))
       return true;
+    name+= char_length;
   }
   return packet->append(&quote_char, 1, quote_charset);
 }

@@ -220,16 +220,6 @@ static const uchar sort_order_eucjpms[]=
 #include "strcoll.ic"
 
 
-static uint ismbchar_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
-		  const char* p, const char *e)
-{
-  return ((*(uchar*)(p)<0x80)? 0:\
-    iseucjpms(*(p)) && (e)-(p)>1 && iseucjpms(*((p)+1))? 2:\
-    iseucjpms_ss2(*(p)) && (e)-(p)>1 && iskata(*((p)+1))? 2:\
-    iseucjpms_ss3(*(p)) && (e)-(p)>2 && iseucjpms(*((p)+1)) && iseucjpms(*((p)+2))? 3:\
-    0);
-}
-
 static uint mbcharlen_eucjpms(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
   return (iseucjpms(c)? 2: iseucjpms_ss2(c)? 2: iseucjpms_ss3(c)? 3: 1);
@@ -67520,7 +67510,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    ismbchar_eucjpms,
     mbcharlen_eucjpms,
     my_numchars_mb,
     my_charpos_mb,

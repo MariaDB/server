@@ -668,7 +668,7 @@ my_strnncollsp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
 */
 #define my_strnxfrm_mb_non_ascii_char(cs, dst, src, se)                  \
 {                                                                        \
-  switch (cs->cset->ismbchar(cs, (const char*) src, (const char*) se)) { \
+  switch (my_ismbchar(cs, src, se))                                    { \
   case 4:                                                                \
     *dst++= *src++;                                                      \
     /* fall through */                                                   \
@@ -740,8 +740,7 @@ my_strnxfrm_mb(CHARSET_INFO *cs,
   for (; src < se && nweights && dst < de; nweights--)
   {
     int chlen;
-    if (*src < 128 ||
-        !(chlen= cs->cset->ismbchar(cs, (const char*) src, (const char*) se)))
+    if (*src < 128 || !(chlen= my_ismbchar(cs, src, se)))
     {
       /* Single byte character */
       *dst++= sort_order ? sort_order[*src++] : *src++;

@@ -3463,12 +3463,12 @@ my_strnxfrm_gbk(CHARSET_INFO *cs,
 
   for (; dst < de && src < se && nweights; nweights--)
   {
-    if (cs->cset->ismbchar(cs, (const char*) src, (const char*) se))
+    if (my_charlen(cs, src, se) > 1)
     {
       /*
         Note, it is safe not to check (src < se)
-        in the code below, because ismbchar() would
-        not return TRUE if src was too short
+        in the code below, because my_charlen() would
+        not return 2 if src was too short
       */
       uint16 e= gbksortorder((uint16) gbkcode(*src, *(src + 1)));
       *dst++= gbkhead(e);
@@ -3482,12 +3482,6 @@ my_strnxfrm_gbk(CHARSET_INFO *cs,
   return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
 }
 
-
-static uint ismbchar_gbk(CHARSET_INFO *cs __attribute__((unused)),
-		 const char* p, const char *e)
-{
-  return (isgbkhead(*(p)) && (e)-(p)>1 && isgbktail(*((p)+1))? 2: 0);
-}
 
 static uint mbcharlen_gbk(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
@@ -10703,7 +10697,6 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  ismbchar_gbk,
   mbcharlen_gbk,
   my_numchars_mb,
   my_charpos_mb,

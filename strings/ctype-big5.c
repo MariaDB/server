@@ -862,12 +862,12 @@ my_strnxfrm_big5(CHARSET_INFO *cs,
   
   for (; dst < de && src < se && nweights; nweights--)
   {
-    if (cs->cset->ismbchar(cs, (const char*) src, (const char*) se))
+    if (my_charlen(cs, src, se) > 1)
     {
       /*
         Note, it is safe not to check (src < se)
-        in the code below, because ismbchar() would
-        not return TRUE if src was too short
+        in the code below, because my_charlen() would
+        not return 2 if src was too short
       */
       uint16 e= big5strokexfrm((uint16) big5code(*src, *(src + 1)));
       *dst++= big5head(e);
@@ -928,13 +928,6 @@ static int my_strxfrm_big5(uchar *dest, const uchar *src, int len)
   return (int) (d-dest);
 }
 #endif
-
-
-static uint ismbchar_big5(CHARSET_INFO *cs __attribute__((unused)),
-                         const char* p, const char *e)
-{
-  return (isbig5head(*(p)) && (e)-(p)>1 && isbig5tail(*((p)+1))? 2: 0);
-}
 
 
 static uint mbcharlen_big5(CHARSET_INFO *cs __attribute__((unused)), uint c)
@@ -6818,7 +6811,6 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
 static MY_CHARSET_HANDLER my_charset_big5_handler=
 {
   NULL,			/* init */
-  ismbchar_big5,
   mbcharlen_big5,
   my_numchars_mb,
   my_charpos_mb,

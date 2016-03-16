@@ -1406,28 +1406,22 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       if (use_mb(cs))
       {
 	result_state= IDENT_QUOTED;
-        if (my_mbcharlen(cs, lip->yyGetLast()) > 1)
+        int char_length= my_charlen(cs, lip->get_ptr() - 1,
+                                        lip->get_end_of_query());
+        if (char_length <= 0)
         {
-          int l = my_ismbchar(cs,
-                              lip->get_ptr() -1,
-                              lip->get_end_of_query());
-          if (l == 0) {
-            state = MY_LEX_CHAR;
-            continue;
-          }
-          lip->skip_binary(l - 1);
+          state= MY_LEX_CHAR;
+          continue;
         }
+        lip->skip_binary(char_length - 1);
+
         while (ident_map[c=lip->yyGet()])
         {
-          if (my_mbcharlen(cs, c) > 1)
-          {
-            int l;
-            if ((l = my_ismbchar(cs,
-                                 lip->get_ptr() -1,
-                                 lip->get_end_of_query())) == 0)
-              break;
-            lip->skip_binary(l-1);
-          }
+          char_length= my_charlen(cs, lip->get_ptr() - 1,
+                                      lip->get_end_of_query());
+          if (char_length <= 0)
+            break;
+          lip->skip_binary(char_length - 1);
         }
       }
       else
@@ -1568,15 +1562,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	result_state= IDENT_QUOTED;
         while (ident_map[c=lip->yyGet()])
         {
-          if (my_mbcharlen(cs, c) > 1)
-          {
-            int l;
-            if ((l = my_ismbchar(cs,
-                                 lip->get_ptr() -1,
-                                 lip->get_end_of_query())) == 0)
-              break;
-            lip->skip_binary(l-1);
-          }
+          int char_length= my_charlen(cs, lip->get_ptr() - 1,
+                                          lip->get_end_of_query());
+          if (char_length <= 0)
+            break;
+          lip->skip_binary(char_length - 1);
         }
       }
       else
@@ -1604,8 +1594,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       char quote_char= c;                       // Used char
       while ((c=lip->yyGet()))
       {
-	int var_length;
-	if ((var_length= my_mbcharlen(cs, c)) == 1)
+        int var_length= my_charlen(cs, lip->get_ptr() - 1,
+                                       lip->get_end_of_query());
+        if (var_length == 1)
 	{
 	  if (c == quote_char)
 	  {
@@ -1617,11 +1608,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	  }
 	}
 #ifdef USE_MB
-        else if (use_mb(cs))
+        else if (var_length > 1)
         {
-          if ((var_length= my_ismbchar(cs, lip->get_ptr() - 1,
-                                       lip->get_end_of_query())))
-            lip->skip_binary(var_length-1);
+          lip->skip_binary(var_length - 1);
         }
 #endif
       }
