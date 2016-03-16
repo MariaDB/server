@@ -1084,7 +1084,6 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *get_tmp_table_field() { DBUG_ASSERT(0); return NULL; }
   Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
