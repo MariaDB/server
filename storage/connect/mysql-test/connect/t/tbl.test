@@ -63,7 +63,7 @@ SELECT * FROM t2;
 
 --replace_result $PORT PORT
 --eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
-SELECT * FROM total;
+SELECT * FROM total order by v desc;
 
 DROP TABLE total;
 DROP TABLE t1;
