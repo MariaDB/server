@@ -21874,7 +21874,11 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
   */
   if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item())
   {						/* Order by position */
-    uint count= (uint) order_item->val_int();
+    uint count;
+    if (order->counter_used)
+      count= order->counter; // counter was once resolved
+    else
+      count= (uint) order_item->val_int();
     if (!count || count > fields.elements)
     {
       my_error(ER_BAD_FIELD_ERROR, MYF(0),

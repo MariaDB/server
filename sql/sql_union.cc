@@ -1161,10 +1161,21 @@ List<Item> *st_select_lex_unit::get_unit_column_types()
   return &sl->item_list;
 }
 
+
+static void cleanup_order(ORDER *order)
+{
+  for (; order; order= order->next)
+    order->counter_used= 0;
+}
+
+
 bool st_select_lex::cleanup()
 {
   bool error= FALSE;
   DBUG_ENTER("st_select_lex::cleanup()");
+
+  cleanup_order(order_list.first);
+  cleanup_order(group_list.first);
 
   if (join)
   {
