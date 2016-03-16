@@ -976,7 +976,7 @@ static int sst_flush_tables(THD* thd)
 {
   WSREP_INFO("Flushing tables for SST...");
 
-  int err;
+  int err= 0;
   int not_used;
   /*
     Files created to notify the SST script about the outcome of table flush
