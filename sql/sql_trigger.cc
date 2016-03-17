@@ -1101,6 +1101,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
                                                   table == (*fld)->table)))
           return 1;
 
+        f->flags= (*fld)->flags;
         f->null_ptr= null_ptr;
         f->null_bit= null_bit;
         if (null_bit == 128)
