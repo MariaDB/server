@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -156,11 +156,20 @@ log_blocks_crypt(
 			info ? info->key_version : 0,
 			log_block_start_lsn);
 #endif
+		/* If no key is found from checkpoint assume the log_block
+		to be unencrypted. If checkpoint contains the encryption key
+		compare log_block current checksum, if checksum matches,
+		block can't be encrypted. */
 		if (info == NULL ||
-		    info->key_version == UNENCRYPTED_KEY_VER) {
+		    info->key_version == UNENCRYPTED_KEY_VER ||
+			(log_block_checksum_is_ok_or_old_format(log_block, false) &&
+			 what == ENCRYPTION_FLAG_DECRYPT)) {
 			memcpy(dst_block, log_block, OS_FILE_LOG_BLOCK_SIZE);
 			goto next;
 		}
+
+		ut_ad(what == ENCRYPTION_FLAG_DECRYPT ? !log_block_checksum_is_ok_or_old_format(log_block, false) :
+			log_block_checksum_is_ok_or_old_format(log_block, false));
 
 		// Assume log block header is not encrypted
 		memcpy(dst_block, log_block, LOG_BLOCK_HDR_SIZE);

@@ -28,7 +28,7 @@ begin
   declare current_num int;
   set current_num = 0;
   while current_num < repeat_count do
-    insert into t1 values(current_num, substring(MD5(RAND()), -64), REPEAT('secredsecredsecred',10));
+    insert into t1 values(current_num, substring(MD5(RAND()), -64), REPEAT('privatejanprivate',10));
     set current_num = current_num + 1;
   end while;
 end//
@@ -43,13 +43,15 @@ set autocommit=1;
 update t1 set c1 = c1 +1;
 select count(*) from t1;
 
+-- source include/restart_mysqld.inc
+
 --let $MYSQLD_DATADIR=`select @@datadir`
 --let ib1_IBD = $MYSQLD_DATADIR/ibdata1
 --let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
 --let log0 = $MYSQLD_DATADIR/ib_logfile0
 --let log1 = $MYSQLD_DATADIR/ib_logfile1
 --let SEARCH_RANGE = 10000000
---let SEARCH_PATTERN=secredsecred
+--let SEARCH_PATTERN=privatejanprivate
 
 --echo # ibdata1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
@@ -68,13 +70,13 @@ select count(*) from t1;
 -- let $restart_parameters=--innodb_encrypt_log=0
 -- source include/restart_mysqld.inc
 
-insert into t1 values(5000, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
-insert into t1 values(5001, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
-insert into t1 values(5002, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
-insert into t1 values(5003, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
-insert into t1 values(5004, substring(MD5(RAND()), -64), REPEAT('notsecred',10));
+insert into t1 values(5000, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5001, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5002, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5003, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
+insert into t1 values(5004, substring(MD5(RAND()), -64), REPEAT('publicmessage',10));
 
---let SEARCH_PATTERN=secredsecred
+--let SEARCH_PATTERN=privatejanprivate
 --echo # ibdata1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
@@ -88,7 +90,7 @@ insert into t1 values(5004, substring(MD5(RAND()), -64), REPEAT('notsecred',10))
 -- let SEARCH_FILE=$log1
 -- source include/search_pattern_in_file.inc
 
---let SEARCH_PATTERN=notsecred
+--let SEARCH_PATTERN=publicmessage
 --echo # ibdata1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc

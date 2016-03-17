@@ -923,11 +923,11 @@ block.  We also accept a log block in the old format before
 InnoDB-3.23.52 where the checksum field contains the log block number.
 @return TRUE if ok, or if the log block may be in the format of InnoDB
 version predating 3.23.52 */
-static
 ibool
 log_block_checksum_is_ok_or_old_format(
 /*===================================*/
-	const byte*	block)	/*!< in: pointer to a log block */
+	const byte*	block,	/*!< in: pointer to a log block */
+	bool            print_err) /*!< in print error ? */
 {
 #ifdef UNIV_LOG_DEBUG
 	return(TRUE);
@@ -950,11 +950,13 @@ log_block_checksum_is_ok_or_old_format(
 		return(TRUE);
 	}
 
-	fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
-		log_block_get_hdr_no(block),
-		log_block_get_checkpoint_no(block),
-		log_block_calc_checksum(block),
-		log_block_get_checksum(block));
+	if (print_err) {
+		fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+			log_block_get_hdr_no(block),
+			log_block_get_checkpoint_no(block),
+			log_block_calc_checksum(block),
+			log_block_get_checksum(block));
+	}
 
 	return(FALSE);
 }
@@ -2686,12 +2688,12 @@ recv_scan_log_recs(
 		log_block_convert_lsn_to_no(scanned_lsn));
 		*/
 		if (no != log_block_convert_lsn_to_no(scanned_lsn)
-		    || !log_block_checksum_is_ok_or_old_format(log_block)) {
+		    || !log_block_checksum_is_ok_or_old_format(log_block, true)) {
 			log_crypt_err_t log_crypt_err;
 
 			if (no == log_block_convert_lsn_to_no(scanned_lsn)
 			    && !log_block_checksum_is_ok_or_old_format(
-				    log_block)) {
+				    log_block, true)) {
 				fprintf(stderr,
 					"InnoDB: Log block no %lu at"
 					" lsn " LSN_PF " has\n"
