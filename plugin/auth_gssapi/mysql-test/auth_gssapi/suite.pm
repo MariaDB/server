@@ -19,7 +19,7 @@ else
 {
   if (!$ENV{'GSSAPI_FULLNAME'})
   {
-    my $s = `klist |grep 'Default principal: '`;
+    my $s = `klist 2>/dev/null |grep 'Default principal: '`;
     if ($s)
     {
       chomp($s);
