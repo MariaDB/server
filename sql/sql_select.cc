@@ -2117,7 +2117,8 @@ bool JOIN::make_aggr_tables_info()
     group by handler to evaluate the group by
   */
   group_by_handler *gbh= NULL;
-  if ((tmp_table_param.sum_func_count || group_list) && !procedure)
+  if (tables_list && (tmp_table_param.sum_func_count || group_list) &&
+      !procedure)
   {
     /*
       At the moment we only support push down for queries where
