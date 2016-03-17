@@ -697,3 +697,48 @@ select
 from t1;
 drop table t0, t1;
 
+
+--echo # 
+--echo #  Window function in grouping query 
+--echo # 
+
+create table t1 (
+  username  varchar(32),
+  amount int
+);
+ 
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+ 
+select 
+  username,
+  sum(amount) as s, 
+  rank() over (order by s desc)
+from t1
+group by username;
+
+drop table t1;
+
+--echo # 
+--echo #  mdev-9719: Window function in prepared statement 
+--echo # 
+
+create table t1(a int, b int, x char(32));
+insert into t1 values (2, 10, 'xx');
+insert into t1 values (2, 10, 'zz');
+insert into t1 values (2, 20, 'yy');
+insert into t1 values (3, 10, 'xxx');
+insert into t1 values (3, 20, 'vvv');
+ 
+prepare stmt from 'select a, row_number() over (partition by a order by b) from t1';
+execute stmt;
+
+drop table t1;
+
+
+

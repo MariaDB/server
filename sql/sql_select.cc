@@ -654,9 +654,10 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
-  thd->lex->allow_sum_func= save_allow_sum_func;
+  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
                             win_specs);
+  thd->lex->allow_sum_func= save_allow_sum_func;
   DBUG_RETURN(res);
 }
 

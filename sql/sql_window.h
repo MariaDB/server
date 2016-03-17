@@ -130,6 +130,6 @@ class Window_def : public Window_spec
 
 int setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	          List<Item> &fields, List<Item> &all_fields, 
-                  List<Window_spec> win_specs);
+                  List<Window_spec> &win_specs);
 
 #endif /* SQL_WINDOW_INCLUDED */

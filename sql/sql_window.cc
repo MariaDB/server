@@ -79,7 +79,7 @@ Window_frame::check_frame_bounds()
 int
 setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	      List<Item> &fields, List<Item> &all_fields, 
-              List<Window_spec> win_specs)
+              List<Window_spec> &win_specs)
 {
   Window_spec *win_spec;
   DBUG_ENTER("setup_windows");
@@ -90,6 +90,8 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     We could have avoided it if we had built two separate lists for
     named and unnamed specifications.
   */
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   uint i = 0;
   uint elems= win_specs.elements;
   while ((win_spec= it++) && i++ < elems)
@@ -100,6 +102,9 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       win_specs.push_back(win_spec);
     }
   }
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
   it.rewind();
 
   List_iterator_fast<Window_spec> itp(win_specs);
