@@ -199,7 +199,7 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
   end= cur + dirp->number_of_files;
   while (cur < end)
   {
-    char *octothorp= strrchr(cur->name + 1, '#');
+    char *octothorp= strchr(cur->name + 1, '#');
     char *ext= strchr(octothorp ? octothorp : cur->name, FN_EXTCHAR);
 
     if (ext)
