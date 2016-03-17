@@ -76,6 +76,10 @@ Window_frame::check_frame_bounds()
 }
 
 
+/*
+  Setup window functions in a select
+*/
+
 int
 setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	      List<Item> &fields, List<Item> &all_fields, 
@@ -121,6 +125,80 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
          win_spec->window_frame->check_frame_bounds()))
     {
       DBUG_RETURN(1);
+    }
+    
+    /*
+       For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
+       - ORDER BY order_list must not be ommitted
+       - the list must have a single element.
+    */
+    if (win_spec->window_frame && 
+        win_spec->window_frame->units == Window_frame::UNITS_RANGE)
+    {
+      if (!win_spec->order_list || win_spec->order_list->elements != 1)
+      {
+        my_error(ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY, MYF(0));
+        DBUG_RETURN(1);
+      }
+
+      /*
+        "The declared type of SK shall be numeric, datetime, or interval"
+        we don't support datetime or interval, yet.
+      */
+      Item_result rtype= win_spec->order_list->first->item[0]->result_type();
+      if (rtype != REAL_RESULT && rtype != INT_RESULT && 
+          rtype != DECIMAL_RESULT)
+      {
+        my_error(ER_WRONG_TYPE_FOR_RANGE_FRAME, MYF(0));
+        DBUG_RETURN(1);
+      }
+
+      /*
+        "The declared type of UVS shall be numeric if the declared type of SK 
+        is numeric; otherwise, it shall be an interval type that may be added
+        to or subtracted from the declared type of SK"
+      */
+      Window_frame_bound *bounds[]= {win_spec->window_frame->top_bound,
+                                     win_spec->window_frame->bottom_bound,
+                                     NULL};
+      for (Window_frame_bound **pbound= &bounds[0]; *pbound; pbound++)
+      {
+        if (!(*pbound)->is_unbounded() &&
+            ((*pbound)->precedence_type == Window_frame_bound::FOLLOWING ||
+             (*pbound)->precedence_type == Window_frame_bound::PRECEDING))
+        {
+          Item_result rtype= (*pbound)->offset->result_type();
+          if (rtype != REAL_RESULT && rtype != INT_RESULT && 
+              rtype != DECIMAL_RESULT)
+          {
+            my_error(ER_WRONG_TYPE_FOR_RANGE_FRAME, MYF(0));
+            DBUG_RETURN(1);
+          }
+        }
+      }
+    }
+    
+    /* "ROWS PRECEDING|FOLLOWING $n" must have a numeric $n */
+    if (win_spec->window_frame && 
+        win_spec->window_frame->units == Window_frame::UNITS_ROWS)
+    {
+      Window_frame_bound *bounds[]= {win_spec->window_frame->top_bound,
+                                     win_spec->window_frame->bottom_bound,
+                                     NULL};
+      for (Window_frame_bound **pbound= &bounds[0]; *pbound; pbound++)
+      {
+        if (!(*pbound)->is_unbounded() &&
+            ((*pbound)->precedence_type == Window_frame_bound::FOLLOWING ||
+             (*pbound)->precedence_type == Window_frame_bound::PRECEDING))
+        {
+          Item *offset= (*pbound)->offset;
+          if (offset->result_type() != INT_RESULT)
+          {
+            my_error(ER_WRONG_TYPE_FOR_ROWS_FRAME, MYF(0));
+            DBUG_RETURN(1);
+          }
+        }
+      }
     }
   }
   DBUG_RETURN(0);
@@ -1123,6 +1201,9 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
     if (frame->units == Window_frame::UNITS_ROWS)
     {
       longlong n_rows= bound->offset->val_int();
+      /* These should be handled in the parser */
+      DBUG_ASSERT(!bound->offset->null_value);
+      DBUG_ASSERT(n_rows > 0);
       if (is_preceding)
         return new Frame_n_rows_preceding(is_top_bound, n_rows);
       else

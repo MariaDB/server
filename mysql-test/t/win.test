@@ -697,6 +697,51 @@ select
 from t1;
 drop table t0, t1;
 
+--echo #
+--echo # Error checking for frame bounds
+--echo #
+
+create table t1 (a int, b int, c varchar(32));
+insert into t1 values (1,1,'foo');
+insert into t1 values (2,2,'bar');
+--error ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY
+select 
+  count(*) over (order by a,b
+                 range between unbounded preceding and current row)
+from t1;
+
+--error ER_WRONG_TYPE_FOR_RANGE_FRAME
+select
+  count(*) over (order by c
+                 range between unbounded preceding and current row)
+from t1;
+
+--error ER_WRONG_TYPE_FOR_RANGE_FRAME
+select
+  count(*) over (order by a
+                 range between 'abcd' preceding and current row)
+from t1;
+
+--error ER_WRONG_TYPE_FOR_RANGE_FRAME
+select
+  count(*) over (order by a
+                 range between current row and 'foo' following)
+from t1;
+
+--echo # Try range frame with invalid bounds
+--error ER_WRONG_TYPE_FOR_ROWS_FRAME
+select
+  count(*) over (order by a
+                 rows between 0.5 preceding and current row)
+from t1;
+
+--error ER_WRONG_TYPE_FOR_ROWS_FRAME
+select
+  count(*) over (order by a
+                 rows between current row and 3.14 following)
+from t1;
+
+drop table t1;
 
 --echo # 
 --echo #  Window function in grouping query 
@@ -739,6 +784,11 @@ prepare stmt from 'select a, row_number() over (partition by a order by b) from 
 execute stmt;
 
 drop table t1;
+
+
+
+
+
 
 
 

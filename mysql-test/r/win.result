@@ -1177,6 +1177,44 @@ pk	c	cnt
 9	2	0
 10	2	0
 drop table t0, t1;
+#
+# Error checking for frame bounds
+#
+create table t1 (a int, b int, c varchar(32));
+insert into t1 values (1,1,'foo');
+insert into t1 values (2,2,'bar');
+select 
+count(*) over (order by a,b
+range between unbounded preceding and current row)
+from t1;
+ERROR HY000: RANGE-type frame requires ORDER BY clause with single sort key
+select
+count(*) over (order by c
+range between unbounded preceding and current row)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+select
+count(*) over (order by a
+range between 'abcd' preceding and current row)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+select
+count(*) over (order by a
+range between current row and 'foo' following)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+# Try range frame with invalid bounds
+select
+count(*) over (order by a
+rows between 0.5 preceding and current row)
+from t1;
+ERROR HY000: Integer is required for ROWS-type frame
+select
+count(*) over (order by a
+rows between current row and 3.14 following)
+from t1;
+ERROR HY000: Integer is required for ROWS-type frame
+drop table t1;
 # 
 #  Window function in grouping query 
 # 
