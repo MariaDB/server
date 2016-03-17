@@ -31,23 +31,40 @@ INSERT INTO t4 (message) VALUES ('Testing'),('myisam table'),('t4');
 SELECT * FROM t4;
 
 --replace_result $PORT PORT
---eval CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4' option_list='port=$PORT'
+--eval CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4' OPTION_LIST='port=$PORT'
 
-select * from total;
-select * from total where tabname = 't2';
-select * from total where tabname = 't2' and ta = 3;
-select * from total where tabname in ('t1','t4');
-select * from total where ta = 3 and tabname in ('t1','t2');
-select * from total where tabname <> 't2';
-select * from total where tabname != 't2' and ta = 3;
-select * from total where tabname not in ('t2','t3');
-select * from total where ta = 3 and tabname in ('t2','t3');
-select * from total where ta = 3 or tabname in ('t2','t4');
-select * from total where not tabname = 't2';
-select * from total where tabname = 't2' or tabname = 't1';
+SELECT * FROM total;
+SELECT * FROM total WHERE tabname = 't2';
+SELECT * FROM total WHERE tabname = 't2' AND ta = 3;
+SELECT * FROM total WHERE tabname IN ('t1','t4');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t1','t2');
+SELECT * FROM total WHERE tabname <> 't2';
+SELECT * FROM total WHERE tabname != 't2' AND ta = 3;
+SELECT * FROM total WHERE tabname NOT IN ('t2','t3');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t2','t3');
+SELECT * FROM total WHERE ta = 3 OR tabname IN ('t2','t4');
+SELECT * FROM total WHERE NOT tabname = 't2';
+SELECT * FROM total WHERE tabname = 't2' OR tabname = 't1';
 
 DROP TABLE total;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
+
+--echo #
+--echo # Checking thread TBL tables
+--echo #
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
+SELECT * FROM t2;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
+SELECT * FROM total order by v desc;
+
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;
