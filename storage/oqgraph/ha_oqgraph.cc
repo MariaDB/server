@@ -715,6 +715,10 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 int ha_oqgraph::close(void)
 {
   DBUG_PRINT( "oq-debug", ("close()"));
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("index_next_same g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   oqgraph::free(graph); graph= 0;
   oqgraph::free(graph_share); graph_share= 0;
 
