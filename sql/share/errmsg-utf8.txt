@@ -7156,4 +7156,7 @@ ER_WRONG_TYPE_FOR_ROWS_FRAME
         eng "Integer is required for ROWS-type frame"
 ER_WRONG_TYPE_FOR_RANGE_FRAME
         eng "Numeric datatype is required for RANGE-type frame"
-
+ER_FRAME_EXCLUSION_NOT_SUPPORTED
+        eng "Frame exclusion is not supported yet"
+ER_WINDOW_FUNCTION_DONT_HAVE_FRAME
+        eng "This window function may not have a window frame"

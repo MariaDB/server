@@ -127,6 +127,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       DBUG_RETURN(1);
     }
     
+    if (win_spec->window_frame &&
+        win_spec->window_frame->exclusion != Window_frame::EXCL_NONE)
+    {
+      my_error(ER_FRAME_EXCLUSION_NOT_SUPPORTED, MYF(0));
+      DBUG_RETURN(1);
+    }
     /*
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
        - ORDER BY order_list must not be ommitted

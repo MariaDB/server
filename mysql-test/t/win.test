@@ -762,6 +762,38 @@ select
                  rows between current row and 3.14 following)
 from t1;
 
+--echo #
+--echo # EXCLUDE clause is parsed but not supported 
+--echo #
+
+--error ER_FRAME_EXCLUSION_NOT_SUPPORTED
+select
+  count(*) over (order by a
+                 rows between 1 preceding and 1 following
+                 exclude current row)
+from t1;
+
+--error ER_FRAME_EXCLUSION_NOT_SUPPORTED
+select
+  count(*) over (order by a
+                 range between 1 preceding and 1 following
+                 exclude ties)
+from t1;
+
+--error ER_FRAME_EXCLUSION_NOT_SUPPORTED
+select
+  count(*) over (order by a
+                 range between 1 preceding and 1 following
+                 exclude group)
+from t1;
+
+# EXCLUDE NO OTHERS means 'don't exclude anything'
+select
+  count(*) over (order by a
+                 rows between 1 preceding and 1 following
+                 exclude no others)
+from t1;
+
 drop table t1;
 
 --echo # 

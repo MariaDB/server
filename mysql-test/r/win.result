@@ -1233,6 +1233,37 @@ count(*) over (order by a
 rows between current row and 3.14 following)
 from t1;
 ERROR HY000: Integer is required for ROWS-type frame
+#
+# EXCLUDE clause is parsed but not supported 
+#
+select
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude current row)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+range between 1 preceding and 1 following
+exclude ties)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+range between 1 preceding and 1 following
+exclude group)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude no others)
+from t1;
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude no others)
+2
+2
 drop table t1;
 # 
 #  Window function in grouping query 
