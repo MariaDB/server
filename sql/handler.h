@@ -1293,7 +1293,7 @@ struct handlerton
    };
 
    /*
-     By default (if not implemented by the engine, but the discovery_table() is
+     By default (if not implemented by the engine, but the discover_table() is
      implemented) it will perform a file-based discovery:
 
      - if tablefile_extensions[0] is not null, this will discovers all tables
