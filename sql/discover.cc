@@ -206,7 +206,8 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
     {
       size_t len= (octothorp ? octothorp : ext) - cur->name;
       if (from != cur &&
-          (my_strnncoll(cs, (uchar*)from->name, len, (uchar*)cur->name, len) ||
+          (strlen(from->name) <= len ||
+           my_strnncoll(cs, (uchar*)from->name, len, (uchar*)cur->name, len) ||
            (from->name[len] != FN_EXTCHAR && from->name[len] != '#')))
         advance(from, to, cur, skip);
 
