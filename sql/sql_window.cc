@@ -135,7 +135,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (win_spec->window_frame && 
         win_spec->window_frame->units == Window_frame::UNITS_RANGE)
     {
-      if (!win_spec->order_list || win_spec->order_list->elements != 1)
+      if (win_spec->order_list->elements != 1)
       {
         my_error(ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY, MYF(0));
         DBUG_RETURN(1);
