@@ -7,6 +7,11 @@
 bool
 Item_window_func::resolve_window_name(THD *thd)
 {
+  if (window_spec)
+  {
+    /* The window name has been already resolved */
+    return false;
+  }
   DBUG_ASSERT(window_name != NULL && window_spec == NULL);
   char *ref_name= window_name->str;
 
@@ -15,7 +20,8 @@ Item_window_func::resolve_window_name(THD *thd)
     First look for the deinition of the window with 'window_name'
     in the current select
   */
-  List<Window_spec> curr_window_specs=thd->lex->current_select->window_specs;
+  List<Window_spec> curr_window_specs= 
+    List<Window_spec> (thd->lex->current_select->window_specs);
   List_iterator_fast<Window_spec> it(curr_window_specs);
   Window_spec *win_spec;
   while((win_spec= it++))
