@@ -7,34 +7,19 @@ mtr.test_suppressions                              OK
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
-mysql.event
-Warning  : Engine-independent statistics are not collected for column 'body'
-Warning  : Engine-independent statistics are not collected for column 'body_utf8'
-status   : OK
+mysql.event                                        OK
 mysql.func                                         OK
 mysql.gtid_slave_pos                               OK
-mysql.help_category
-Warning  : Engine-independent statistics are not collected for column 'url'
-status   : OK
+mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
-mysql.help_topic
-Warning  : Engine-independent statistics are not collected for column 'description'
-Warning  : Engine-independent statistics are not collected for column 'example'
-Warning  : Engine-independent statistics are not collected for column 'url'
-status   : OK
+mysql.help_topic                                   OK
 mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.plugin                                       OK
-mysql.proc
-Warning  : Engine-independent statistics are not collected for column 'param_list'
-Warning  : Engine-independent statistics are not collected for column 'returns'
-Warning  : Engine-independent statistics are not collected for column 'body'
-Warning  : Engine-independent statistics are not collected for column 'comment'
-Warning  : Engine-independent statistics are not collected for column 'body_utf8'
-status   : OK
+mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.roles_mapping                                OK
@@ -46,12 +31,7 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
-mysql.user
-Warning  : Engine-independent statistics are not collected for column 'ssl_cipher'
-Warning  : Engine-independent statistics are not collected for column 'x509_issuer'
-Warning  : Engine-independent statistics are not collected for column 'x509_subject'
-Warning  : Engine-independent statistics are not collected for column 'authentication_string'
-status   : OK
+mysql.user                                         OK
 mtr.global_suppressions                            Table is already up to date
 mtr.test_suppressions                              Table is already up to date
 mysql.column_stats                                 OK
@@ -89,34 +69,19 @@ mysql.user                                         OK
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
-mysql.event
-Warning  : Engine-independent statistics are not collected for column 'body'
-Warning  : Engine-independent statistics are not collected for column 'body_utf8'
-status   : OK
+mysql.event                                        OK
 mysql.func                                         OK
 mysql.gtid_slave_pos                               OK
-mysql.help_category
-Warning  : Engine-independent statistics are not collected for column 'url'
-status   : OK
+mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
-mysql.help_topic
-Warning  : Engine-independent statistics are not collected for column 'description'
-Warning  : Engine-independent statistics are not collected for column 'example'
-Warning  : Engine-independent statistics are not collected for column 'url'
-status   : OK
+mysql.help_topic                                   OK
 mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.plugin                                       OK
-mysql.proc
-Warning  : Engine-independent statistics are not collected for column 'param_list'
-Warning  : Engine-independent statistics are not collected for column 'returns'
-Warning  : Engine-independent statistics are not collected for column 'body'
-Warning  : Engine-independent statistics are not collected for column 'comment'
-Warning  : Engine-independent statistics are not collected for column 'body_utf8'
-status   : OK
+mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.roles_mapping                                OK
@@ -128,12 +93,7 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
-mysql.user
-Warning  : Engine-independent statistics are not collected for column 'ssl_cipher'
-Warning  : Engine-independent statistics are not collected for column 'x509_issuer'
-Warning  : Engine-independent statistics are not collected for column 'x509_subject'
-Warning  : Engine-independent statistics are not collected for column 'authentication_string'
-status   : OK
+mysql.user                                         OK
 mysql.column_stats                                 Table is already up to date
 mysql.columns_priv                                 Table is already up to date
 mysql.db                                           Table is already up to date
