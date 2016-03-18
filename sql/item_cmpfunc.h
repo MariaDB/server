@@ -902,7 +902,11 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    set_handler_by_field_type(agg_field_type(args, arg_count, true));
+    fix_attributes(args, arg_count);
+  }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
 };
@@ -915,13 +919,18 @@ public:
 */
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
+protected:
+  void fix_length_and_dec2(Item **items)
+  {
+    set_handler_by_field_type(agg_field_type(items, 2, true));
+    fix_attributes(items, 2);
+  }
+  uint decimal_precision2(Item **args) const;
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b) { }
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b, Item *c):
     Item_func_hybrid_field_type(thd, a, b, c) { }
-  void fix_length_and_dec2(Item **args);
-  uint decimal_precision2(Item **args) const;
 };
 
 
@@ -1454,8 +1463,6 @@ public:
   Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
-  void agg_str_lengths(Item *arg);
-  void agg_num_lengths(Item *arg);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
 };
 

@@ -41,6 +41,14 @@ protected:
   */
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
+
+  void count_only_length(Item **item, uint nitems);
+  void count_real_length(Item **item, uint nitems);
+  void count_decimal_length(Item **item, uint nitems);
+  void count_datetime_length(enum_field_types field_type,
+                             Item **item, uint nitems);
+  bool count_string_result_length(enum_field_types field_type,
+                                  Item **item, uint nitems);
 public:
   table_map not_null_tables_cache;
 
@@ -148,16 +156,10 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
   void print_args(String *str, uint from, enum_query_type query_type);
-  void count_only_length(Item **item, uint nitems);
-  void count_real_length();
-  void count_decimal_length();
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
     return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
   }
-  void count_datetime_length(Item **item, uint nitems);
-  bool count_string_result_length(enum_field_types field_type,
-                                  Item **item, uint nitems);
   inline bool get_arg0_time(MYSQL_TIME *ltime)
   {
     null_value= args[0]->get_time(ltime);
@@ -387,6 +389,8 @@ public:
 class Item_hybrid_func: public Item_func,
                         public Type_handler_hybrid_field_type
 {
+protected:
+  void fix_attributes(Item **item, uint nitems);
 public:
   Item_hybrid_func(THD *thd): Item_func(thd) { }
   Item_hybrid_func(THD *thd, Item *a):  Item_func(thd, a) { }

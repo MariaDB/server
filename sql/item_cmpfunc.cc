@@ -2246,50 +2246,6 @@ void Item_func_between::print(String *str, enum_query_type query_type)
 }
 
 
-void
-Item_func_case_abbreviation2::fix_length_and_dec2(Item **args)
-{
-  uint32 char_length;
-  set_handler_by_field_type(agg_field_type(args, 2, true));
-  maybe_null=args[0]->maybe_null || args[1]->maybe_null;
-  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
-  unsigned_flag= args[0]->unsigned_flag && args[1]->unsigned_flag;
-
-  if (Item_func_case_abbreviation2::result_type() == DECIMAL_RESULT ||
-      Item_func_case_abbreviation2::result_type() == INT_RESULT)
-  {
-    int len0= args[0]->max_char_length() - args[0]->decimals
-      - (args[0]->unsigned_flag ? 0 : 1);
-
-    int len1= args[1]->max_char_length() - args[1]->decimals
-      - (args[1]->unsigned_flag ? 0 : 1);
-
-    char_length= MY_MAX(len0, len1) + decimals + (unsigned_flag ? 0 : 1);
-  }
-  else
-    char_length= MY_MAX(args[0]->max_char_length(), args[1]->max_char_length());
-
-  switch (Item_func_case_abbreviation2::result_type()) {
-  case STRING_RESULT:
-    if (count_string_result_length(Item_func_case_abbreviation2::field_type(),
-                                   args, 2))
-      return;
-    break;
-  case DECIMAL_RESULT:
-  case REAL_RESULT:
-    break;
-  case INT_RESULT:
-    decimals= 0;
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-  }
-  fix_char_length(char_length);
-}
-
-
-
 uint Item_func_case_abbreviation2::decimal_precision2(Item **args) const
 {
   int arg0_int_part= args[0]->decimal_int_part();
@@ -3076,24 +3032,6 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_case::agg_str_lengths(Item* arg)
-{
-  fix_char_length(MY_MAX(max_char_length(), arg->max_char_length()));
-  set_if_bigger(decimals, arg->decimals);
-  unsigned_flag= unsigned_flag && arg->unsigned_flag;
-}
-
-
-void Item_func_case::agg_num_lengths(Item *arg)
-{
-  uint len= my_decimal_length_to_precision(arg->max_length, arg->decimals,
-                                           arg->unsigned_flag) - arg->decimals;
-  set_if_bigger(max_length, len); 
-  set_if_bigger(decimals, arg->decimals);
-  unsigned_flag= unsigned_flag && arg->unsigned_flag; 
-}
-
-
 /**
   Check if (*place) and new_value points to different Items and call
   THD::change_item_tree() if needed.
@@ -3155,18 +3093,7 @@ void Item_func_case::fix_length_and_dec()
   }
   else
   {
-    collation.set_numeric();
-    max_length=0;
-    decimals=0;
-    unsigned_flag= TRUE;
-    for (uint i= 0; i < ncases; i+= 2)
-      agg_num_lengths(args[i + 1]);
-    if (else_expr_num != -1) 
-      agg_num_lengths(args[else_expr_num]);
-    max_length= my_decimal_precision_to_length_no_truncation(max_length +
-                                                             decimals,
-                                                             decimals,
-                                                             unsigned_flag);
+    fix_attributes(agg, nagg);
   }
   
   /*
@@ -3468,23 +3395,25 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_coalesce::fix_length_and_dec()
+void Item_hybrid_func::fix_attributes(Item **items, uint nitems)
 {
-  set_handler_by_field_type(agg_field_type(args, arg_count, true));
-  switch (Item_func_coalesce::result_type()) {
+  switch (Item_hybrid_func::result_type()) {
   case STRING_RESULT:
-    if (count_string_result_length(Item_func_coalesce::field_type(),
-                                   args, arg_count))
+    if (count_string_result_length(Item_hybrid_func::field_type(),
+                                   items, nitems))
       return;          
     break;
   case DECIMAL_RESULT:
-    count_decimal_length();
+    collation.set_numeric();
+    count_decimal_length(items, nitems);
     break;
   case REAL_RESULT:
-    count_real_length();
+    collation.set_numeric();
+    count_real_length(items, nitems);
     break;
   case INT_RESULT:
-    count_only_length(args, arg_count);
+    collation.set_numeric();
+    count_only_length(items, nitems);
     decimals= 0;
     break;
   case ROW_RESULT:
