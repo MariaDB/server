@@ -272,7 +272,7 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
 #define MRN_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info", ("mroonga "title_name" start")); \
+    DBUG_PRINT("info", ("mroonga " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((share->param_name = mrn_get_string_between_quote( \
@@ -284,7 +284,7 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info", ("mroonga "title_name"=%s", share->param_name)); \
+      DBUG_PRINT("info", ("mroonga " title_name "=%s", share->param_name)); \
     } \
     break; \
   }
@@ -292,7 +292,7 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
 #define MRN_PARAM_STR_LIST(title_name, param_name, param_pos) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info", ("mroonga "title_name" start")); \
+    DBUG_PRINT("info", ("mroonga " title_name " start")); \
     if (share->param_name && !share->param_name[param_pos]) \
     { \
       if ((share->param_name[param_pos] = mrn_get_string_between_quote( \
@@ -305,7 +305,7 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info", ("mroonga "title_name"[%d]=%s", param_pos, \
+      DBUG_PRINT("info", ("mroonga " title_name "[%d]=%s", param_pos, \
         share->param_name[param_pos])); \
     } \
     break; \
