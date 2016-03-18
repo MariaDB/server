@@ -59,6 +59,11 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return true;
   }
 
+  if (window_spec->order_list->elements == 0 && is_order_list_mandatory())
+  {
+    my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func->func_name());
+    return true;
+  }
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 

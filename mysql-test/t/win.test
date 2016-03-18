@@ -311,6 +311,19 @@ select
                     rows between 1 preceding and 1 following) as r
 from t1;
 
+--error ER_NO_ORDER_LIST_IN_WINDOW_SPEC
+select 
+  pk, c, 
+  rank() over w1 as r
+from t1
+window w1 as (partition by c);
+
+--error ER_NO_ORDER_LIST_IN_WINDOW_SPEC
+select 
+  pk, c, 
+  dense_rank() over (partition by c) as r
+from t1;
+
 drop table t0,t1;
 
 --echo #

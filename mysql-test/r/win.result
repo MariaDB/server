@@ -470,6 +470,17 @@ dense_rank() over (partition by c order by pk
 rows between 1 preceding and 1 following) as r
 from t1;
 ERROR HY000: Window frame is not allowed with 'dense_rank'
+select 
+pk, c, 
+rank() over w1 as r
+from t1
+window w1 as (partition by c);
+ERROR HY000: No order list in window specification for 'rank'
+select 
+pk, c, 
+dense_rank() over (partition by c) as r
+from t1;
+ERROR HY000: No order list in window specification for 'dense_rank'
 drop table t0,t1;
 #
 # MDEV-9634: Window function produces incorrect value

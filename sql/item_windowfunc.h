@@ -448,6 +448,19 @@ public:
     default: 
       return false;
     }
+  }
+
+  bool is_order_list_mandatory()
+  {
+    switch (window_func->sum_func()) {
+    case Item_sum::RANK_FUNC:
+    case Item_sum::DENSE_RANK_FUNC:
+    case Item_sum::PERCENT_RANK_FUNC:
+    case Item_sum::CUME_DIST_FUNC:
+      return true;
+    default: 
+      return false;
+    }
   }  
 
   /*
