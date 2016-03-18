@@ -1,0 +1,1 @@
+--log-bin --wsrep_forced_binlog_format=ROW
