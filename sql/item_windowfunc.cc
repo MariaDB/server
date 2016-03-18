@@ -53,6 +53,12 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   if (window_name && resolve_window_name(thd))
     return true;
   
+  if (window_spec->window_frame && is_frame_prohibited())
+  {
+    my_error(ER_NOT_ALLOWED_WINDOW_FRAME, MYF(0), window_func->func_name());
+    return true;
+  }
+
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 

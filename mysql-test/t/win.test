@@ -289,6 +289,27 @@ select
 from t1
 window w1 as (partition by c), w2 as (w1 order by pk);
 
+--error ER_NOT_ALLOWED_WINDOW_FRAME
+select 
+  pk, c, 
+  row_number() over (partition by c order by pk 
+                     range between unbounded preceding and current row) as r 
+from t1;
+
+--error ER_NOT_ALLOWED_WINDOW_FRAME
+select 
+  pk, c, 
+  rank() over w1 as r
+from t1
+window w1 as (partition by c order by pk 
+              rows between 2 preceding and 2 following);
+
+--error ER_NOT_ALLOWED_WINDOW_FRAME
+select 
+  pk, c, 
+  dense_rank() over (partition by c order by pk
+                    rows between 1 preceding and 1 following) as r
+from t1;
 
 drop table t0,t1;
 

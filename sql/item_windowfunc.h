@@ -436,6 +436,20 @@ public:
       force_return_blank(true),
       read_value_from_result_field(false) {}
 
+  bool is_frame_prohibited()
+  {
+    switch (window_func->sum_func()) {
+    case Item_sum::ROW_NUMBER_FUNC:
+    case Item_sum::RANK_FUNC:
+    case Item_sum::DENSE_RANK_FUNC:
+    case Item_sum::PERCENT_RANK_FUNC:
+    case Item_sum::CUME_DIST_FUNC:
+      return true;
+    default: 
+      return false;
+    }
+  }  
+
   /*
     Computation functions.
     TODO: consoder merging these with class Group_bound_tracker.
@@ -581,6 +595,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
 
   bool resolve_window_name(THD *thd);
+
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

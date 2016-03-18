@@ -7148,6 +7148,8 @@ ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC
         eng "Referenced window specification '%s' cannot contain window frame"
 ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS
         eng "Unacceptable combination of window frame bound specifications"
+ER_NOT_ALLOWED_WINDOW_FRAME
+        eng "Window frame is not allowed with '%s'"
 ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY
         eng "RANGE-type frame requires ORDER BY clause with single sort key"
 ER_WRONG_TYPE_FOR_ROWS_FRAME
