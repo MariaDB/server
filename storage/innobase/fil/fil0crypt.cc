@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2522,6 +2522,7 @@ fil_space_crypt_get_status(
 		mutex_enter(&crypt_data->mutex);
 		status->keyserver_requests = crypt_data->keyserver_requests;
 		status->min_key_version = crypt_data->min_key_version;
+		status->key_id = crypt_data->key_id;
 
 		if (crypt_data->rotate_state.active_threads > 0 ||
 		    crypt_data->rotate_state.flushing) {

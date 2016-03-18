@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyrigth (c) 2014, 2015, MariaDB Corporation
+Copyrigth (c) 2014, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -8468,6 +8468,15 @@ static ST_FIELD_INFO	innodb_tablespaces_encryption_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#define TABLESPACES_ENCRYPTION_CURRENT_KEY_ID	8
+	{STRUCT_FLD(field_name,		"CURRENT_KEY_ID"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
 	END_OF_ST_FIELD_INFO
 };
 
@@ -8506,6 +8515,8 @@ i_s_dict_fill_tablespaces_encryption(
 		   status.min_key_version));
 	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_VERSION]->store(
 		   status.current_key_version));
+	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(
+		   status.key_id));
 	if (status.rotating) {
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_notnull();
 		OK(fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->store(
