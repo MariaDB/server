@@ -786,16 +786,6 @@ innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
 
-/******************************************************************//**
-Maps a MySQL trx isolation level code to the InnoDB isolation level code
-@return	InnoDB isolation level */
-static inline
-ulint
-innobase_map_isolation_level(
-/*=========================*/
-	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code
-					*/
-
 /*************************************************************//**
 Check for a valid value of innobase_compression_algorithm.
 @return	0 for valid innodb_compression_algorithm. */

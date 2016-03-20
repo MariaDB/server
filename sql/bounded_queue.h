@@ -16,11 +16,11 @@
 #ifndef BOUNDED_QUEUE_INCLUDED
 #define BOUNDED_QUEUE_INCLUDED
 
-#include <string.h>
 #include "my_global.h"
 #include "my_base.h"
 #include "my_sys.h"
 #include "queues.h"
+#include <string.h>
 
 class Sort_param;
 
