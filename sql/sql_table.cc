@@ -9830,8 +9830,8 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                     else
                     {
                       row_crc= my_checksum(row_crc, checksum_start, checksum_length);
-                      checksum_start= NULL;
-                      checksum_length= 0;
+                      checksum_start= f->ptr;
+                      checksum_length= f->pack_length();
                     }
                   }
                   else
