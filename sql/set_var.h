@@ -137,8 +137,9 @@ public:
   bool is_set_stmt_ok() const { return !(flags & NO_SET_STATEMENT); }
   bool is_written_to_binlog(enum_var_type type)
   { return type != OPT_GLOBAL && binlog_status == SESSION_VARIABLE_IN_BINLOG; }
-  bool check_update_type(Item_result type)
+  bool check_update_type(const Item *item)
   {
+    Item_result type= item->result_type();
     switch (option.var_type & GET_TYPE_MASK) {
     case GET_INT:
     case GET_UINT:
@@ -146,7 +147,8 @@ public:
     case GET_ULONG:
     case GET_LL:
     case GET_ULL:
-      return type != INT_RESULT;
+      return type != INT_RESULT &&
+             (type != DECIMAL_RESULT || item->decimals != 0);
     case GET_STR:
     case GET_STR_ALLOC:
       return type != STRING_RESULT;
