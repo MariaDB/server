@@ -82,11 +82,11 @@ alter table t1 add key d(d,a) clustering=yes, add key b(b) clustering=yes;
 explain select * from t1;
 select * from t1;
 
---replace_column 7 NULL 9 NULL;
+--replace_column 4 <type> 7 NULL 9 NULL;
 explain select * from t1 where b > "0";
 select * from t1 where b > "0";
 
---replace_column 7 NULL 9 NULL;
+--replace_column 4 <type> 7 NULL 9 NULL;
 explain select * from t1 where d > "0";
 select * from t1 where d > "0";
 

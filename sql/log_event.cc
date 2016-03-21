@@ -1392,9 +1392,9 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
     if (packet->append(file, data_len - LOG_EVENT_MINIMAL_HEADER_LEN))
     {
       /*
-        Fatal error occured when appending rest of the event
+        Fatal error occurred when appending rest of the event
         to packet, possible failures:
-	1. EOF occured when reading from file, it's really an error
+	1. EOF occurred when reading from file, it's really an error
            as there's supposed to be more bytes available.
            file->error will have been set to number of bytes left to read
         2. Read was interrupted, file->error would normally be set to -1
@@ -11475,7 +11475,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   /* unpack row into table->record[0] */
   if ((error= unpack_current_row(rgi)))
+  {
+    table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
+  }
 
   if (m_curr_row == m_rows_buf && !invoke_triggers)
   {
@@ -12483,8 +12486,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       We need to read the second image in the event of error to be
       able to skip to the next pair of updates
     */
-    m_curr_row= m_curr_row_end;
-    unpack_current_row(rgi, &m_cols_ai);
+    if ((m_curr_row= m_curr_row_end))
+      unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
     return error;
   }

@@ -379,7 +379,7 @@ SELECT * FROM t1 WHERE a=0;
 a
 # Connection con1
 # Sending:
-ALTER TABLE t1 COMMENT 'test';
+ALTER TABLE t1 MODIFY a INT UNSIGNED;;
 # Connection default
 # Wait until ALTER TABLE is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (3);

@@ -632,7 +632,7 @@ void Log_to_csv_event_handler::cleanup()
   indicated in the return value. 
 
   @retval  FALSE   OK
-  @retval  TRUE    error occured
+  @retval  TRUE    error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -797,7 +797,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -1108,7 +1108,7 @@ void Log_to_file_event_handler::flush()
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool LOGGER::error_log_print(enum loglevel level, const char *format,
@@ -1266,7 +1266,7 @@ bool LOGGER::flush_general_log()
 
   RETURN
     FALSE   OK
-    TRUE    error occured
+    TRUE    error occurred
 */
 
 bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
@@ -2839,7 +2839,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 
   RETURN
     FASE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
@@ -2941,7 +2941,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
@@ -6403,7 +6403,7 @@ binlog_checkpoint_callback(void *cookie)
   /*
     For every supporting engine, we increment the xid_count and issue a
     commit_checkpoint_request(). Then we can count when all
-    commit_checkpoint_notify() callbacks have occured, and then log a new
+    commit_checkpoint_notify() callbacks have occurred, and then log a new
     binlog checkpoint event.
   */
   mysql_bin_log.mark_xids_active(entry->binlog_id, 1);

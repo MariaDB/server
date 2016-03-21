@@ -131,7 +131,7 @@ error:
 
   RETURN VALUE
     0   Success
-    -1  An error has occured and 'my_errno' is set
+    -1  An error has occurred and 'my_errno' is set
         to indicate the actual error code.
 */
 
@@ -203,7 +203,7 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
         == MY_FILEPOS_ERROR)
     {
       /*
-        If an error has occured in my_seek then we will already
+        If an error has occurred in my_seek then we will already
         have an error code in my_errno; Just return error code.
       */
       DBUG_RETURN(-1);

@@ -989,7 +989,7 @@ uchar TYPVAL<uchar>::MinMaxVal(bool b)
   {return (b) ? UINT_MAX8 : 0;}
 
 /***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/*  SafeAdd: adds a value and test whether overflow/underflow occurred. */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
@@ -1017,7 +1017,7 @@ inline double TYPVAL<double>::SafeAdd(double n1, double n2)
   } // end of SafeAdd
 
 /***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
+/*  SafeMult: multiply values and test whether overflow occurred.       */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
@@ -1627,6 +1627,12 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
   } // end of CompareValue
 
+static inline void v_strcpy(char *dest, const char *src)
+{
+  if (dest != src)
+    strcpy(dest, src);
+}
+
 /***********************************************************************/
 /*  Compute a function on a string.                                    */
 /***********************************************************************/
@@ -1651,11 +1657,11 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     case OP_MIN:
       assert(np == 2);
-      strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+      v_strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
       break;
     case OP_MAX:
       assert(np == 2);
-      strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+      v_strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
       break;
     default:
 //    sprintf(g->Message, MSG(BAD_EXP_OPER), op);

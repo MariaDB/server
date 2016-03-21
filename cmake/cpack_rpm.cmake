@@ -43,8 +43,8 @@ SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_SUMMARY}
 It is GPL v2 licensed, which means you can use the it free of charge under the
 conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
 
-MariaDB documentation can be found at http://kb.askmonty.org/
-MariaDB bug reports should be submitted through https://mariadb.atlassian.net/
+MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB bug reports should be submitted through https://jira.mariadb.org 
 
 ")
 

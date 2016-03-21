@@ -117,7 +117,7 @@ set optimizer_switch='default,index_merge_intersection=off';
 explain select * from t1 where a=10 and b=10 or c=10;
 
 --echo This will switch to sort-union (intersection will be gone, too,
---echo   thats a known limitation:
+--echo   that's a known limitation:
 set optimizer_switch='default,index_merge_union=off';
 explain select * from t1 where a=10 and b=10 or c=10;
 
