@@ -49,6 +49,7 @@
 #include "transaction.h"
 #include "sql_prepare.h"
 #include "sql_statistics.h"
+#include "sql_cte.h"
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -3919,6 +3920,26 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     tables->db_length= tables->view_db.length;
     tables->table_name= tables->view_name.str;
     tables->table_name_length= tables->view_name.length;
+  }
+  else if (tables->select_lex) 
+  {
+    /*
+      Check whether 'tables' refers to a table defined in a with clause.
+      If so set the reference to the definition in tables->with.
+    */ 
+    if (!tables->with)
+      tables->with= tables->select_lex->find_table_def_in_with_clauses(tables);
+    /*
+      If 'tables' is defined in a with clause set the pointer to the
+      specification from its definition in tables->derived.
+    */
+    if (tables->with)
+    {
+      if (tables->set_as_with_table(thd, tables->with))
+        DBUG_RETURN(1);
+      else
+        goto end;
+    }
   }
   /*
     If this TABLE_LIST object is a placeholder for an information_schema
@@ -8354,7 +8375,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         temporary table. Thus in this case we can be sure that 'item' is an
         Item_field.
       */
-      if (any_privileges)
+      if (any_privileges && !tables->is_with_table() && !tables->is_derived())
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);

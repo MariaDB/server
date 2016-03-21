@@ -7146,3 +7146,11 @@ ER_COMMULTI_BADCONTEXT 0A000
 ER_BAD_COMMAND_IN_MULTI
         eng "Command '%s' is not allowed for COM_MULTI"
         ukr "Команда '%s' не дозволена для COM_MULTI"
+ER_WITH_COL_WRONG_LIST
+        eng "WITH column list and SELECT field list have different column counts"
+ER_DUP_QUERY_NAME
+        eng "Duplicate query name in WITH clause"
+ER_WRONG_ORDER_IN_WITH_CLAUSE
+        eng "The definition of the table '%s' refers to the table '%s' defined later in a non-recursive WITH clause"
+ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+        eng "Recursive queries in WITH clause are not supported yet"
