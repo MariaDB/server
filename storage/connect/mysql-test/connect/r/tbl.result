@@ -44,8 +44,8 @@ ta	message
 1	Testing
 2	myisam table
 3	t4
-CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4' option_list='port=PORT';
-select * from total;
+CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4' OPTION_LIST='port=PORT';
+SELECT * FROM total;
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -59,15 +59,15 @@ t3	3	t3
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where tabname = 't2';
+SELECT * FROM total WHERE tabname = 't2';
 tabname	ta	message
 t2	1	Testing
 t2	2	NULL
 t2	3	t2
-select * from total where tabname = 't2' and ta = 3;
+SELECT * FROM total WHERE tabname = 't2' AND ta = 3;
 tabname	ta	message
 t2	3	t2
-select * from total where tabname in ('t1','t4');
+SELECT * FROM total WHERE tabname IN ('t1','t4');
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -75,11 +75,11 @@ t1	3	t1
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where ta = 3 and tabname in ('t1','t2');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t1','t2');
 tabname	ta	message
 t1	3	t1
 t2	3	t2
-select * from total where tabname <> 't2';
+SELECT * FROM total WHERE tabname <> 't2';
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -90,12 +90,12 @@ t3	3	t3
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where tabname != 't2' and ta = 3;
+SELECT * FROM total WHERE tabname != 't2' AND ta = 3;
 tabname	ta	message
 t1	3	t1
 t3	3	t3
 t4	3	t4
-select * from total where tabname not in ('t2','t3');
+SELECT * FROM total WHERE tabname NOT IN ('t2','t3');
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -103,11 +103,11 @@ t1	3	t1
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where ta = 3 and tabname in ('t2','t3');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t2','t3');
 tabname	ta	message
 t2	3	t2
 t3	3	t3
-select * from total where ta = 3 or tabname in ('t2','t4');
+SELECT * FROM total WHERE ta = 3 OR tabname IN ('t2','t4');
 tabname	ta	message
 t1	3	t1
 t2	1	Testing
@@ -117,7 +117,7 @@ t3	3	t3
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where not tabname = 't2';
+SELECT * FROM total WHERE NOT tabname = 't2';
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -128,7 +128,7 @@ t3	3	t3
 t4	1	Testing
 t4	2	myisam table
 t4	3	t4
-select * from total where tabname = 't2' or tabname = 't1';
+SELECT * FROM total WHERE tabname = 't2' OR tabname = 't1';
 tabname	ta	message
 t1	1	Testing
 t1	2	dos table
@@ -141,3 +141,22 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
+#
+# Checking thread TBL tables
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+v
+11
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
+SELECT * FROM t2;
+v
+22
+CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+SELECT * FROM total order by v desc;
+v
+22
+11
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;

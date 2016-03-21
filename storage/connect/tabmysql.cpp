@@ -334,7 +334,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Database = GetStringCatInfo(g, "Database", Schema ? Schema : (char*)"*");
+    Database = GetStringCatInfo(g, "Database", Schema ? Schema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table

@@ -1344,10 +1344,13 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
-  bool rc;
+  bool rc = false;
 
-  if (p && n > 0) {
-    rc = n > Len;
+  if (!p || n == 0) {
+		Reset();
+		Null = Nullable;
+	} else if (p != Strp) {
+		rc = n > Len;
 
     if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
@@ -1366,10 +1369,6 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
       Reset();
 
     Null = false;
-  } else {
-    rc = false;
-    Reset();
-    Null = Nullable;
   } // endif p
 
   return rc;
@@ -1380,12 +1379,12 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue_psz(PSZ s)
   {
-  if (s) {
-    strncpy(Strp, s, Len);
+  if (!s) {
+		Reset();
+		Null = Nullable;
+	} else if (s != Strp) {
+		strncpy(Strp, s, Len);
     Null = false;
-  } else {
-    Reset();
-    Null = Nullable;
   } // endif s
 
   } // end of SetValue_psz
@@ -1627,12 +1626,6 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
   } // end of CompareValue
 
-static inline void v_strcpy(char *dest, const char *src)
-{
-  if (dest != src)
-    strcpy(dest, src);
-}
-
 /***********************************************************************/
 /*  Compute a function on a string.                                    */
 /***********************************************************************/
@@ -1649,7 +1642,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       assert(np == 1 || np == 2);
 
       if (np == 2)
-        strncpy(Strp, p[0], Len);
+				SetValue_psz(p[0]);
 
       if ((i = Len - (signed)strlen(Strp)) > 0)
         strncat(Strp, p[np - 1], i);
@@ -1657,11 +1650,11 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     case OP_MIN:
       assert(np == 2);
-      v_strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+			SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
       break;
     case OP_MAX:
       assert(np == 2);
-      v_strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+			SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
       break;
     default:
 //    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
