@@ -19,10 +19,12 @@ select (1,2,(3,4)) IN ((3,2,(3,4)), (1,2,(3,4)));
 select row(1,2,row(3,4)) IN (row(3,2,row(3,4)), row(1,2,4));
 select row(1,2,row(3,4)) IN (row(3,2,row(3,4)), row(1,2,row(3,NULL)));
 explain extended select row(1,2,row(3,4)) IN (row(3,2,row(3,4)), row(1,2,row(3,NULL)));
+select row(1,2,row(3,null)) IN (row(3,2,row(3,4)), row(1,2,row(4,5)));
+select row(1,2,row(3,null)) IN (row(3,2,row(3,4)), row(1,2,row(3,5)));
+
 
 SELECT (1,2,3)=(0,NULL,3);
 SELECT (1,2,3)=(1,NULL,3);
-# here's something for Sanja to fix :)
 SELECT (1,2,3)=(1,NULL,0);
 
 SELECT ROW(1,2,3)=ROW(1,2,3);
@@ -299,6 +301,13 @@ INSERT INTO t1 VALUES (10,10),(20,20);
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND b=10 AND a>=10;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE (a,b)=(10,10) AND a>=10;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-9369 IN operator with ( num, NULL ) gives inconsistent result
+--echo #
+SELECT (1,null) NOT IN ((2,2),(3,3)), (1,null) NOT IN ((2,2)), (1,null) NOT IN ((3,3));
+
 
 --echo #
 --echo # End of 10.1 tests

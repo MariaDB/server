@@ -2914,7 +2914,7 @@ Item *Item_func_case::find_item(String *str)
           return else_expr_num != -1 ? args[else_expr_num] : 0;
         value_added_map|= 1U << (uint)cmp_type;
       }
-      if (!cmp_items[(uint)cmp_type]->cmp(args[i]) && !args[i]->null_value)
+      if (cmp_items[(uint)cmp_type]->cmp(args[i]) == FALSE)
         return args[i + 1];
     }
   }
@@ -3545,11 +3545,11 @@ static int cmp_decimal(void *cmp_arg, my_decimal *a, my_decimal *b)
 }
 
 
-int in_vector::find(Item *item)
+bool in_vector::find(Item *item)
 {
   uchar *result=get_value(item);
   if (!result || !used_count)
-    return 0;				// Null value
+    return false;				// Null value
 
   uint start,end;
   start=0; end=used_count-1;
@@ -3558,13 +3558,13 @@ int in_vector::find(Item *item)
     uint mid=(start+end+1)/2;
     int res;
     if ((res=(*compare)(collation, base+mid*size, result)) == 0)
-      return 1;
+      return true;
     if (res < 0)
       start=mid;
     else
       end=mid-1;
   }
-  return (int) ((*compare)(collation, base+start*size, result) == 0);
+  return ((*compare)(collation, base+start*size, result) == 0);
 }
 
 in_string::in_string(uint elements,qsort2_cmp cmp_func, CHARSET_INFO *cs)
@@ -3894,14 +3894,20 @@ int cmp_item_row::cmp(Item *arg)
   arg->bring_value();
   for (uint i=0; i < n; i++)
   {
-    if (comparators[i]->cmp(arg->element_index(i)))
+    const int rc= comparators[i]->cmp(arg->element_index(i));
+    switch (rc)
     {
-      if (!arg->element_index(i)->null_value)
-	return 1;
-      was_null= 1;
+    case UNKNOWN:
+      was_null= true;
+      break;
+    case TRUE:
+      return TRUE;
+    case FALSE:
+      break;                                    // elements #i are equal
     }
+    arg->null_value|= arg->element_index(i)->null_value;
   }
-  return (arg->null_value= was_null);
+  return was_null ? UNKNOWN : FALSE;
 }
 
 
@@ -3924,15 +3930,15 @@ void cmp_item_decimal::store_value(Item *item)
   /* val may be zero if item is nnull */
   if (val && val != &value)
     my_decimal2decimal(val, &value);
+  m_null_value= item->null_value;
 }
 
 
 int cmp_item_decimal::cmp(Item *arg)
 {
   my_decimal tmp_buf, *tmp= arg->val_decimal(&tmp_buf);
-  if (arg->null_value)
-    return 1;
-  return my_decimal_cmp(&value, tmp);
+  return (m_null_value || arg->null_value) ?
+    UNKNOWN : (my_decimal_cmp(&value, tmp) != 0);
 }
 
 
@@ -3956,12 +3962,14 @@ void cmp_item_datetime::store_value(Item *item)
   enum_field_types f_type=
     tmp_item[0]->field_type_for_temporal_comparison(warn_item);
   value= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
+  m_null_value= item->null_value;
 }
 
 
 int cmp_item_datetime::cmp(Item *arg)
 {
-  return value != arg->val_temporal_packed(warn_item);
+  const bool rc= value != arg->val_temporal_packed(warn_item);
+  return (m_null_value || arg->null_value) ? UNKNOWN : rc;
 }
 
 
@@ -3985,10 +3993,10 @@ bool Item_func_in::count_sargable_conds(uchar *arg)
 }
 
 
-bool Item_func_in::nulls_in_row()
+bool Item_func_in::list_contains_null()
 {
   Item **arg,**arg_end;
-  for (arg= args+1, arg_end= args+arg_count; arg != arg_end ; arg++)
+  for (arg= args + 1, arg_end= args+arg_count; arg != arg_end ; arg++)
   {
     if ((*arg)->null_inside())
       return 1;
@@ -4103,6 +4111,32 @@ void Item_func_in::fix_length_and_dec()
     }
   }
 
+  /*
+    First conditions for bisection to be possible:
+     1. All types are similar, and
+     2. All expressions in <in value list> are const
+  */
+  bool bisection_possible=
+    type_cnt == 1 &&                                   // 1
+    const_itm;                                         // 2
+  if (bisection_possible)
+  {
+    /*
+      In the presence of NULLs, the correct result of evaluating this item
+      must be UNKNOWN or FALSE. To achieve that:
+      - If type is scalar, we can use bisection and the "have_null" boolean.
+      - If type is ROW, we will need to scan all of <in value list> when
+        searching, so bisection is impossible. Unless:
+        3. UNKNOWN and FALSE are equivalent results
+        4. Neither left expression nor <in value list> contain any NULL value
+      */
+
+    if (m_compare_type == ROW_RESULT &&
+        ((!is_top_level_item() || negated) &&              // 3
+         (list_contains_null() || args[0]->maybe_null)))   // 4
+      bisection_possible= false;
+  }
+
   if (type_cnt == 1)
   {
     if (m_compare_type == STRING_RESULT &&
@@ -4115,7 +4149,7 @@ void Item_func_in::fix_length_and_dec()
       uint cols= args[0]->cols();
       cmp_item_row *cmp= 0;
 
-      if (const_itm && !nulls_in_row())
+      if (bisection_possible)
       {
         array= new (thd->mem_root) in_row(thd, arg_count-1, 0);
         cmp= &((in_row*)array)->tmp;
@@ -4144,11 +4178,8 @@ void Item_func_in::fix_length_and_dec()
       }
     }
   }
-  /*
-    Row item with NULLs inside can return NULL or FALSE =>
-    they can't be processed as static
-  */
-  if (type_cnt == 1 && const_itm && !nulls_in_row())
+
+  if (bisection_possible)
   {
     /*
       IN must compare INT columns and constants as int values (the same
@@ -4203,20 +4234,25 @@ void Item_func_in::fix_length_and_dec()
       array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
       break;
     }
-    if (array && !(thd->is_fatal_error))		// If not EOM
+    if (!array || thd->is_fatal_error)		// OOM
+      return;
+    uint j=0;
+    for (uint i=1 ; i < arg_count ; i++)
     {
-      uint j=0;
-      for (uint i=1 ; i < arg_count ; i++)
+      array->set(j,args[i]);
+      if (!args[i]->null_value)
+        j++; // include this cell in the array.
+      else
       {
-        array->set(j,args[i]);
-        if (!args[i]->null_value)                      // Skip NULL values
-          j++;
-        else
-          have_null= 1;
+        /*
+          We don't put NULL values in array, to avoid erronous matches in
+          bisection.
+        */
+        have_null= 1;
       }
-      if ((array->used_count= j))
-	array->sort();
     }
+    if ((array->used_count= j))
+      array->sort();
   }
   else
   {
@@ -4284,7 +4320,14 @@ longlong Item_func_in::val_int()
   uint value_added_map= 0;
   if (array)
   {
-    int tmp=array->find(args[0]);
+    bool tmp=array->find(args[0]);
+    /*
+      NULL on left -> UNKNOWN.
+      Found no match, and NULL on right -> UNKNOWN.
+      NULL on right can never give a match, as it is not stored in
+      array.
+      See also the 'bisection_possible' variable in fix_length_and_dec().
+    */
     null_value=args[0]->null_value || (!tmp && have_null);
     return (longlong) (!null_value && tmp != negated);
   }
@@ -4306,13 +4349,12 @@ longlong Item_func_in::val_int()
     if (!(value_added_map & (1U << (uint)cmp_type)))
     {
       in_item->store_value(args[0]);
-      if ((null_value= args[0]->null_value))
-        return 0;
       value_added_map|= 1U << (uint)cmp_type;
     }
-    if (!in_item->cmp(args[i]) && !args[i]->null_value)
+    const int rc= in_item->cmp(args[i]);
+    if (rc == FALSE)
       return (longlong) (!negated);
-    have_null|= args[i]->null_value;
+    have_null|= (rc == UNKNOWN);
   }
 
   null_value= have_null;
@@ -6434,7 +6476,8 @@ longlong Item_equal::val_int()
     /* Skip fields of tables that has not been read yet */
     if (!field->table->status || (field->table->status & STATUS_NULL_ROW))
     {
-      if (eval_item->cmp(item) || (null_value= item->null_value))
+      const int rc= eval_item->cmp(item);
+      if ((rc == TRUE) || (null_value= (rc == UNKNOWN)))
         return 0;
     }
   }
