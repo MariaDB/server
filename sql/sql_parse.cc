@@ -2230,7 +2230,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       /* We have to store next length because it will be destroyed by '\0' */
       uint next_subpacket_length= uint3korr(packet);
       unsigned char *readbuff= net->buff;
-      unsigned long readbuff_max_packet= net->max_packet;
 
       if (net_allocate_new_packet(net, thd, MYF(0)))
         break;
@@ -2266,13 +2265,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
 
 com_multi_end:
-      /* restore buffer to the original one */
+      /* release old buffer */
       DBUG_ASSERT(net->buff == net->write_pos); // nothing to send
-      my_free(net->buff);
-      net->buff= readbuff;
-      net->max_packet= readbuff_max_packet;
-      net->buff_end=net->buff + net->max_packet;
-      net->write_pos=net->read_pos = net->buff;
+      my_free(readbuff);
     }
     break;
   }
