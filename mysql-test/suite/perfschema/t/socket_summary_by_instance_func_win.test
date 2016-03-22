@@ -1663,7 +1663,7 @@ if($print_details)
    --enable_result_log
    --horizontal_results
    --echo # Dump detailed differences after - before statement execution
-   --echo # 1. The statement executing connection and hopefully noone else
+   --echo # 1. The statement executing connection and hopefully no one else
    SELECT @default_object_instance_begin;
    SELECT EVENT_NAME, OBJECT_INSTANCE_BEGIN,
           COUNT_READ,  SUM_NUMBER_OF_BYTES_READ,

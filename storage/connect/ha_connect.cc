@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0005 January 24, 2016";
+       char version[]= "Version 1.04.0006 March 12, 2016";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -5160,7 +5160,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep) ? ',' : (!strcmp(sep, "\\t")) ? '\t' : *sep;
+  spc= (!sep) ? ',' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
@@ -5226,7 +5226,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
     goto err;
     } // endif rc
-
 
   if (!tab) {
     if (ttp == TAB_TBL) {
@@ -5296,8 +5295,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     case TAB_CSV:
       if (!fn && fnc != FNC_NO)
         sprintf(g->Message, "Missing %s file name", topt->type);
-      else
-        ok= true;
+			else if (sep && strlen(sep) > 1)
+				sprintf(g->Message, "Invalid separator %s", sep);
+			else
+				ok= true;
 
       break;
     case TAB_MYSQL:
@@ -5978,7 +5979,19 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif lrecl
 
-    } // endif type
+    } // endif type	JSON
+
+	if (type == TAB_CSV) {
+		const char *sep = options->separator;
+
+		if (sep && strlen(sep) > 1) {
+			sprintf(g->Message, "Invalid separator %s", sep);
+			my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+			rc= HA_ERR_INTERNAL_ERROR;
+			DBUG_RETURN(rc);
+		} // endif sep
+
+	} // endif type	CSV
 
   // Check column types
   for (field= table_arg->field; *field; field++) {
@@ -6766,7 +6779,7 @@ maria_declare_plugin(connect)
   0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.04.0005",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+  "1.04.0006",                                  /* string version */
+  MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

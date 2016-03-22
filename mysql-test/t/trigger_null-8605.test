@@ -360,3 +360,15 @@ create trigger tr1 before update on t1 for each row do 1;
 create trigger tr2 after update on t2 for each row update t1 set a=new.f2;
 update t2 set f2=1 where f1=1;
 drop table t1, t2;
+
+#
+# MDEV-9629 Disappearing PRI from Key column after creating a trigger
+#
+create table t1 (a int not null, primary key (a));
+insert into t1 (a) values (1);
+show columns from t1;
+create trigger t1bu before update on t1 for each row begin end;
+show columns from t1;
+insert into t1 (a) values (3);
+show columns from t1;
+drop table t1;

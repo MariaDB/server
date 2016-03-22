@@ -245,7 +245,7 @@ maria_declare_plugin(wsrep_info)
   NULL,                                         /* Status variables   */
   NULL,                                         /* System variables   */
   "1.0",                                        /* Version (string)   */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* Maturity           */
+  MariaDB_PLUGIN_MATURITY_GAMMA                 /* Maturity           */
 },
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -260,7 +260,7 @@ maria_declare_plugin(wsrep_info)
   NULL,                                         /* Status variables   */
   NULL,                                         /* System variables   */
   "1.0",                                        /* Version (string)   */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* Maturity           */
+  MariaDB_PLUGIN_MATURITY_GAMMA                 /* Maturity           */
 }
 maria_declare_plugin_end;
 

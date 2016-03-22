@@ -658,7 +658,7 @@ static int get_upgrade_info_file_name(char* name)
 /*
   Read the content of mysql_upgrade_info file and
   compare the version number form file against
-  version number wich mysql_upgrade was compiled for
+  version number which mysql_upgrade was compiled for
 
   NOTE
   This is an optimization to avoid running mysql_upgrade

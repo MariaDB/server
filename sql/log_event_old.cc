@@ -248,7 +248,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   }
 
   if (error)
-  {                     /* error has occured during the transaction */
+  {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
@@ -1593,7 +1593,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
   } // if (table)
 
   if (error)
-  {                     /* error has occured during the transaction */
+  {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",

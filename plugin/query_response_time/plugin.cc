@@ -144,7 +144,7 @@ maria_declare_plugin(query_response_time)
   NULL,
   query_response_time_info_vars,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 },
 {
   MYSQL_AUDIT_PLUGIN,

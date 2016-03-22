@@ -7983,7 +7983,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   @retval
     FALSE  if all is OK
   @retval
-    TRUE   if a memory allocation error occured
+    TRUE   if a memory allocation error occurred
 */
 
 bool

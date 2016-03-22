@@ -11,7 +11,7 @@ All tests must pass. If one or more of them fail on your system, please
 read the following manual section for instructions on how to report the
 problem:
 
-http://kb.askmonty.org/v/reporting-bugs
+https://mariadb.com/kb/en/reporting-bugs
 
 If you want to use an already running MySQL server for specific tests,
 use the --extern option to mysql-test-run. Please note that in this mode,

@@ -265,7 +265,7 @@ sub fetch_all_rows
   if (!($sth= $dbh->prepare($query)))
   {
     print "\n" if ($opt_debug);
-    die "Error occured with prepare($query)\n -> $DBI::errstr\n";
+    die "Error occurred with prepare($query)\n -> $DBI::errstr\n";
     return undef;
   }
   if (!$sth->execute)
@@ -282,7 +282,7 @@ sub fetch_all_rows
       print "0\n" if ($opt_debug);
       return 0;
     }
-    die "Error occured with execute($query)\n -> $DBI::errstr\n";
+    die "Error occurred with execute($query)\n -> $DBI::errstr\n";
     $sth->finish;
     return undef;
   }

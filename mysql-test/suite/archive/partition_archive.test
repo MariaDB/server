@@ -147,3 +147,10 @@ SHOW CREATE TABLE t1;
 
 --echo #Cleanup.
 DROP TABLE t1;
+
+create database mysqltest1;
+create table mysqltest1.t1 (a int not null, b int not null) engine=archive
+  partition by list(a) subpartition by hash(b)
+  (partition p1 values in (1),
+   partition p2 values in (2));
+drop database mysqltest1;

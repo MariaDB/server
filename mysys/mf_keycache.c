@@ -274,7 +274,7 @@ struct st_hash_link
 };
 
 /* simple states of a block */
-#define BLOCK_ERROR           1 /* an error occured when performing file i/o */
+#define BLOCK_ERROR           1 /* an error occurred when performing file i/o */
 #define BLOCK_READ            2 /* file block is in the block buffer         */
 #define BLOCK_IN_SWITCH       4 /* block is preparing to read new page       */
 #define BLOCK_REASSIGNED      8 /* blk does not accept requests for old page */

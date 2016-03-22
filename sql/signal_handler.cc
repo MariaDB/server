@@ -100,7 +100,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     "or misconfigured. This error can also be caused by malfunctioning hardware.\n\n");
 
   my_safe_printf_stderr("%s",
-                        "To report this bug, see http://kb.askmonty.org/en/reporting-bugs\n\n");
+                        "To report this bug, see https://mariadb.com/kb/en/reporting-bugs\n\n");
 
   my_safe_printf_stderr("%s",
     "We will try our best to scrape up some info that will hopefully help\n"
@@ -227,7 +227,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   if (calling_initgroups)
   {
     my_safe_printf_stderr("%s", "\n"
-      "This crash occured while the server was calling initgroups(). This is\n"
+      "This crash occurred while the server was calling initgroups(). This is\n"
       "often due to the use of a mysqld that is statically linked against \n"
       "glibc and configured to use LDAP in /etc/nsswitch.conf.\n"
       "You will need to either upgrade to a version of glibc that does not\n"

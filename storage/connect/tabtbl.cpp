@@ -607,7 +607,7 @@ void TDBTBM::ResetDB(void)
   for (PTABLE tabp = Tablist; tabp; tabp = tabp->GetNext())
     ((PTDBASE)tabp->GetTo_Tdb())->ResetDB();
 
-  Tdbp = (PTDBASE)Tablist->GetTo_Tdb();
+  Tdbp = (Tablist) ? (PTDBASE)Tablist->GetTo_Tdb() : NULL;
   Crp = 0;
   } // end of ResetDB
 
@@ -679,7 +679,7 @@ bool TDBTBM::OpenDB(PGLOBAL g)
     /*  Table already open, replace it at its beginning.               */
     /*******************************************************************/
     ResetDB();
-    return Tdbp->OpenDB(g);  // Re-open fist table
+    return (Tdbp) ? Tdbp->OpenDB(g) : false;  // Re-open fist table
     } // endif use
 
 #if 0
