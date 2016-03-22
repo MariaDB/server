@@ -4428,6 +4428,15 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         if (thd->m_digest != NULL)
           thd->m_digest->reset(thd->m_token_array, max_digest_length);
 
+         if (thd->slave_thread)
+         {
+           /*
+             The opt_log_slow_slave_statements variable can be changed
+             dynamically, so we have to set the sql_log_slow respectively.
+           */
+           thd->variables.sql_log_slow= opt_log_slow_slave_statements;
+         }
+
         thd->enable_slow_log= thd->variables.sql_log_slow;
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
         /* Finalize server status flags after executing a statement. */
