@@ -3240,9 +3240,12 @@ fil_create_link_file(
 
 	link_filepath = fil_make_isl_name(tablename);
 
+	/* Note that OS_FILE_READ_WRITE_CACHED used here to avoid
+	unnecessary errors on O_DIRECT, link files are not really
+	a data files. */
 	file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, link_filepath,
-		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success, 0);
+		OS_FILE_CREATE, OS_FILE_READ_WRITE_CACHED, &success, 0);
 
 	if (!success) {
 		/* The following call will print an error message */
