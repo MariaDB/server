@@ -10411,6 +10411,8 @@ window_func_expr:
                                                       thd->lex->win_spec); 
             if ($$ == NULL)
               MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
           }
         ;
 

@@ -20,9 +20,9 @@ select row_number() from t1;
 select rank() from t1;
 
 --echo # Attempt to use window function in the WHERE clause
---error ER_INVALID_GROUP_FUNC_USE
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION 
 select * from t1 where 1=rank() over (order by a);
---error ER_INVALID_GROUP_FUNC_USE
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
 select * from t1 where 1>row_number() over (partition by b order by a);
 drop table t1;
 
@@ -181,7 +181,7 @@ update t1 set c=2 where pk not in (1,2,3,4);
 select * from t1;
 
 select 
-  pk, c, 
+  pk, c,
   count(*) over w1 as CNT
 from t1
 window w1 as (partition by c order by pk 
@@ -288,6 +288,56 @@ select
   count(*) over (w2 rows between 2 following and current row) as CNT
 from t1
 window w1 as (partition by c), w2 as (w1 order by pk);
+
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION 
+select 
+  pk, c 
+from t1 where rank() over w1 > 2
+window w1 as (partition by c order by pk);
+
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION 
+select
+  c, max(pk) as m
+from t1 
+  group by c + rank() over w1
+window w1 as (order by m);
+
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION 
+select
+  c, max(pk) as m, rank() over w1 as r 
+from t1 
+  group by c+r
+window w1 as (order by m);
+
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION 
+select
+  c, max(pk) as m, rank() over w1 as r
+from t1 
+  group by c having c+r > 3
+window w1 as (order by m);
+
+--error ER_WINDOW_FUNCTION_IN_WINDOW_SPEC 
+select
+  c, max(pk) as m, rank() over w1 as r, 
+    rank() over (partition by r+1 order by m) 
+from t1 
+  group by c
+window w1 as (order by m);
+
+--error ER_WINDOW_FUNCTION_IN_WINDOW_SPEC 
+select
+  c, max(pk) as m, rank() over w1 as r, 
+    rank() over (partition by m order by r) 
+from t1 
+  group by c
+window w1 as (order by m);
+
+--error ER_WINDOW_FUNCTION_IN_WINDOW_SPEC 
+select
+  c, max(pk) as m, rank() over w1 as r, dense_rank() over w2 as dr  
+from t1 
+  group by c
+window w1 as (order by m), w2 as (partition by r order by m);
 
 --error ER_NOT_ALLOWED_WINDOW_FRAME
 select 

@@ -1935,6 +1935,7 @@ void st_select_lex::init_query()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   window_specs.empty();
+  window_funcs.empty();
 }
 
 void st_select_lex::init_select()

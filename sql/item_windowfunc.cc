@@ -45,23 +45,52 @@ Item_window_func::resolve_window_name(THD *thd)
 }
 
 
+void
+Item_window_func::update_used_tables()
+{
+  used_tables_cache= 0;
+  window_func()->update_used_tables();
+  used_tables_cache|= window_func()->used_tables();
+  for (ORDER *ord= window_spec->partition_list->first; ord; ord=ord->next)
+  {
+    Item *item= *ord->item;
+    item->update_used_tables();
+    used_tables_cache|= item->used_tables();
+  }
+  for (ORDER *ord= window_spec->order_list->first; ord; ord=ord->next)
+  {
+    Item *item= *ord->item;
+    item->update_used_tables();
+    used_tables_cache|= item->used_tables();
+  }  
+}
+
+
 bool
 Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
+
+  enum_parsing_place place= thd->lex->current_select->parsing_place;
+
+  if (!(place == SELECT_LIST || place == IN_ORDER_BY))
+  {
+    my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
+    return true;
+  }
 
   if (window_name && resolve_window_name(thd))
     return true;
   
   if (window_spec->window_frame && is_frame_prohibited())
   {
-    my_error(ER_NOT_ALLOWED_WINDOW_FRAME, MYF(0), window_func->func_name());
+    my_error(ER_NOT_ALLOWED_WINDOW_FRAME, MYF(0), window_func()->func_name());
     return true;
   }
 
   if (window_spec->order_list->elements == 0 && is_order_list_mandatory())
   {
-    my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func->func_name());
+    my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
     return true;
   }
   /*
@@ -70,13 +99,17 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     This will substitute *this (an Item_window_func object) with Item_sum
     object. Is this the intent?
   */
-  if (window_func->fix_fields(thd, ref))
+  if (window_func()->fix_fields(thd, ref))
     return true;
+
+  const_item_cache= false;
+  with_window_func= true;
+  with_sum_func= false;
 
   fix_length_and_dec();
 
-  max_length= window_func->max_length;
-  maybe_null= window_func->maybe_null;
+  max_length= window_func()->max_length;
+  maybe_null= window_func()->maybe_null;
 
   fixed= 1;
   force_return_blank= true;
@@ -113,9 +146,9 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &fields, uint flags)
 {
-  for (uint i=0; i < window_func->argument_count(); i++)
+  for (uint i=0; i < window_func()->argument_count(); i++)
   {
-    Item **p_item= &window_func->arguments()[i];
+    Item **p_item= &window_func()->arguments()[i];
     (*p_item)->split_sum_func2(thd, ref_pointer_array, fields, p_item, flags);
   }
 }
@@ -138,7 +171,7 @@ void Item_window_func::setup_partition_border_check(THD *thd)
     Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);  
     partition_fields.push_back(tmp);
   }
-  window_func->setup_window_func(thd, window_spec);
+  window_func()->setup_window_func(thd, window_spec);
 }
 
 
@@ -196,9 +229,9 @@ void Item_window_func::advance_window()
   if (changed > -1)
   {
     /* Next partition */
-    window_func->clear();
+    window_func()->clear();
   }
-  window_func->add();
+  window_func()->add();
 }
 
 bool Item_sum_percent_rank::add()
