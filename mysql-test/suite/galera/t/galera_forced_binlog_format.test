@@ -20,6 +20,26 @@ INSERT INTO t1 VALUES (2);
 
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 --replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 249;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9401: wsrep_forced_binlog_format with binlog causes crash
+--echo #
+SET SESSION binlog_format = 'ROW';
+CREATE DATABASE testdb_9401;
+USE testdb_9401;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER dummy@localhost;
+GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR dummy@localhost;
+# Cleanup
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
+DROP USER dummy@localhost;
+DROP DATABASE testdb_9401;
+
+--source include/galera_end.inc
+--echo # End of tests
+
