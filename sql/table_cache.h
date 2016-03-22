@@ -31,7 +31,9 @@ public:
   TABLE_SHARE *share;
 
   typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  typedef I_P_List <TABLE, All_share_tables> All_share_tables_list;
+  typedef I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::share_all_next,
+                                            &TABLE::share_all_prev> >
+          All_share_tables_list;
   /**
     Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
     all_tables_refs.

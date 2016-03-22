@@ -841,7 +841,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                       const char *db, const char *table_name,
                       bool kill_delayed_threads)
 {
-  I_P_List <TABLE, TABLE_share> purge_tables;
+  TDC_element::TABLE_list purge_tables;
   TABLE *table;
   TDC_element *element;
   uint my_refs= 1;

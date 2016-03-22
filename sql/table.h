@@ -491,9 +491,6 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
                                   const LEX_STRING *name);
 
 
-struct TABLE_share;
-struct All_share_tables;
-
 typedef struct st_table_field_type
 {
   LEX_STRING name;
@@ -1009,7 +1006,7 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_all_next, **share_all_prev;
-  friend struct All_share_tables;
+  friend struct TDC_element;
 
 public:
 
@@ -1406,19 +1403,6 @@ struct TABLE_share
   static inline TABLE ***prev_ptr(TABLE *l)
   {
     return (TABLE ***) &l->prev;
-  }
-};
-
-
-struct All_share_tables
-{
-  static inline TABLE **next_ptr(TABLE *l)
-  {
-    return &l->share_all_next;
-  }
-  static inline TABLE ***prev_ptr(TABLE *l)
-  {
-    return &l->share_all_prev;
   }
 };
 
