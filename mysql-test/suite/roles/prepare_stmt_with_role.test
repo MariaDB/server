@@ -18,11 +18,17 @@ SELECT user, host,is_role FROM mysql.user
 WHERE user = 'developers';
 SHOW GRANTS;
 
+--echo # Test reexecution.
+--error ER_CANNOT_USER
+EXECUTE stmtCreateRole;
+
 --echo #
 --echo # Now grant the role to the test user.
 --echo #
 SET @grantRole = 'GRANT developers to test_user';
 PREPARE stmtGrantRole FROM @grantRole;
+EXECUTE stmtGrantRole;
+--echo # Test reexecution.
 EXECUTE stmtGrantRole;
 
 --echo #
@@ -38,7 +44,13 @@ SHOW GRANTS FOR test_user;
 SET @revokeRole = 'REVOKE developers FROM test_user';
 PREPARE stmtRevokeRole FROM @revokeRole;
 EXECUTE stmtRevokeRole;
+--error ER_CANNOT_REVOKE_ROLE
+EXECUTE stmtRevokeRole;
+SHOW GRANTS FOR test_user;
 
+EXECUTE stmtGrantRole;
+SHOW GRANTS FOR test_user;
+EXECUTE stmtRevokeRole;
 SHOW GRANTS FOR test_user;
 
 --echo #
@@ -56,6 +68,18 @@ WHERE user = 'developers';
 SELECT * FROM mysql.roles_mapping;
 SHOW GRANTS;
 SHOW GRANTS FOR test_user;
+
+--echo #
+--echo # Test reexecution.
+--echo #
+EXECUTE stmtCreateRole;
+SELECT user, host,is_role FROM mysql.user
+WHERE user = 'developers';
+SELECT * FROM mysql.roles_mapping;
+
+SHOW GRANTS;
+SHOW GRANTS FOR test_user;
+EXECUTE stmtDropRole;
 
 --echo # Cleanup.
 DROP USER test_user;

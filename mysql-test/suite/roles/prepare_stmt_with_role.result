@@ -20,11 +20,16 @@ Grants for root@localhost
 GRANT developers TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+# Test reexecution.
+EXECUTE stmtCreateRole;
+ERROR HY000: Operation CREATE ROLE failed for 'developers'
 #
 # Now grant the role to the test user.
 #
 SET @grantRole = 'GRANT developers to test_user';
 PREPARE stmtGrantRole FROM @grantRole;
+EXECUTE stmtGrantRole;
+# Test reexecution.
 EXECUTE stmtGrantRole;
 #
 # We should see 2 entries in the roles_mapping table.
@@ -42,6 +47,17 @@ GRANT USAGE ON *.* TO 'test_user'@'%'
 #
 SET @revokeRole = 'REVOKE developers FROM test_user';
 PREPARE stmtRevokeRole FROM @revokeRole;
+EXECUTE stmtRevokeRole;
+EXECUTE stmtRevokeRole;
+ERROR HY000: Cannot revoke role 'developers' from: 'test_user'@'%'.
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT USAGE ON *.* TO 'test_user'@'%'
+EXECUTE stmtGrantRole;
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT developers TO 'test_user'@'%'
+GRANT USAGE ON *.* TO 'test_user'@'%'
 EXECUTE stmtRevokeRole;
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
@@ -67,5 +83,25 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
 GRANT USAGE ON *.* TO 'test_user'@'%'
+#
+# Test reexecution.
+#
+EXECUTE stmtCreateRole;
+SELECT user, host,is_role FROM mysql.user
+WHERE user = 'developers';
+user	host	is_role
+developers		Y
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	developers	Y
+SHOW GRANTS;
+Grants for root@localhost
+GRANT developers TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT USAGE ON *.* TO 'test_user'@'%'
+EXECUTE stmtDropRole;
 # Cleanup.
 DROP USER test_user;
