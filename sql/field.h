@@ -3753,7 +3753,7 @@ public:
                     const char *field_name_arg) const
   {
     return ::make_field(share, mem_root, ptr,
-                        length, null_pos, null_bit,
+                        (uint32)length, null_pos, null_bit,
                         pack_flag, sql_type, charset,
                         geom_type, srid, unireg_check, interval,
                         field_name_arg);

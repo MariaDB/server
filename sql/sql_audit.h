@@ -108,7 +108,7 @@ void mysql_audit_general_log(THD *thd, time_t time,
 
     if (thd)
     {
-      event.general_thread_id= thd->thread_id;
+      event.general_thread_id= (unsigned long)thd->thread_id;
       event.general_charset= thd->variables.character_set_client;
       event.database= thd->db;
       event.database_length= thd->db_length;
@@ -158,7 +158,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
     {
       event.general_user= user_buff;
       event.general_user_length= make_user_name(thd, user_buff);
-      event.general_thread_id= thd->thread_id;
+      event.general_thread_id= (unsigned long)thd->thread_id;
       event.general_query= thd->query_string.str();
       event.general_query_length= thd->query_string.length();
       event.general_charset= thd->query_string.charset();
@@ -194,7 +194,7 @@ void mysql_audit_notify_connection_connect(THD *thd)
     event.event_subclass= MYSQL_AUDIT_CONNECTION_CONNECT;
     event.status= thd->get_stmt_da()->is_error() ?
                   thd->get_stmt_da()->sql_errno() : 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.user_length= safe_strlen(sctx->user);
     event.priv_user= sctx->priv_user;
@@ -224,7 +224,7 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
 
     event.event_subclass= MYSQL_AUDIT_CONNECTION_DISCONNECT;
     event.status= errcode;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.user_length= safe_strlen(sctx->user);
     event.priv_user= sctx->priv_user;
@@ -255,7 +255,7 @@ void mysql_audit_notify_connection_change_user(THD *thd)
     event.event_subclass= MYSQL_AUDIT_CONNECTION_CHANGE_USER;
     event.status= thd->get_stmt_da()->is_error() ?
                   thd->get_stmt_da()->sql_errno() : 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.user_length= safe_strlen(sctx->user);
     event.priv_user= sctx->priv_user;
@@ -285,7 +285,7 @@ void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
 
     event.event_subclass= MYSQL_AUDIT_TABLE_LOCK;
     event.read_only= lock == F_RDLCK;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
@@ -319,7 +319,7 @@ void mysql_audit_create_table(TABLE *table)
 
     event.event_subclass= MYSQL_AUDIT_TABLE_CREATE;
     event.read_only= 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
@@ -351,7 +351,7 @@ void mysql_audit_drop_table(THD *thd, TABLE_LIST *table)
 
     event.event_subclass= MYSQL_AUDIT_TABLE_DROP;
     event.read_only= 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
@@ -384,7 +384,7 @@ void mysql_audit_rename_table(THD *thd, const char *old_db, const char *old_tb,
 
     event.event_subclass= MYSQL_AUDIT_TABLE_RENAME;
     event.read_only= 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
@@ -416,7 +416,7 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
 
     event.event_subclass= MYSQL_AUDIT_TABLE_ALTER;
     event.read_only= 0;
-    event.thread_id= thd->thread_id;
+    event.thread_id= (unsigned long)thd->thread_id;
     event.user= sctx->user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
