@@ -7463,6 +7463,7 @@ bool slave_execute_deferred_events(THD *thd)
     return res;
 
   res= rgi->deferred_events->execute(rgi);
+  rgi->deferred_events->rewind();
 
   return res;
 }
