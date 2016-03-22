@@ -38,6 +38,15 @@ Grants for test_user@%
 GRANT developers TO 'test_user'@'%'
 GRANT USAGE ON *.* TO 'test_user'@'%'
 #
+# Test revoking a role.
+#
+SET @revokeRole = 'REVOKE developers FROM test_user';
+PREPARE stmtRevokeRole FROM @revokeRole;
+EXECUTE stmtRevokeRole;
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT USAGE ON *.* TO 'test_user'@'%'
+#
 # Now drop the role.
 #
 SET @dropRole = 'DROP ROLE developers';

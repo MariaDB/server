@@ -33,6 +33,15 @@ SELECT * FROM mysql.roles_mapping;
 SHOW GRANTS FOR test_user;
 
 --echo #
+--echo # Test revoking a role.
+--echo #
+SET @revokeRole = 'REVOKE developers FROM test_user';
+PREPARE stmtRevokeRole FROM @revokeRole;
+EXECUTE stmtRevokeRole;
+
+SHOW GRANTS FOR test_user;
+
+--echo #
 --echo # Now drop the role.
 --echo #
 SET @dropRole = 'DROP ROLE developers';
