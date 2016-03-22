@@ -2118,7 +2118,7 @@ public:
   int is_current_stmt_binlog_format_row() const {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
-    return (WSREP_FORMAT((ulong)current_stmt_binlog_format) == BINLOG_FORMAT_ROW);
+    return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
   }
 
   enum binlog_filter_state
