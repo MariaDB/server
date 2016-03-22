@@ -2995,6 +2995,7 @@ void unlink_thd(THD *thd)
 
 static bool cache_thread()
 {
+  struct timespec abstime;
   DBUG_ENTER("cache_thread");
 
   mysql_mutex_lock(&LOCK_thread_cache);
@@ -3013,8 +3014,21 @@ static bool cache_thread()
     PSI_THREAD_CALL(delete_current_thread)();
 #endif
 
+    set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
-      mysql_cond_wait(&COND_thread_cache, &LOCK_thread_cache);
+    {
+      int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
+                                       &abstime);
+      if (error == ETIMEDOUT || error == ETIME)
+      {
+        /*
+          If timeout, end thread.
+          If a new thread is requested (wake_thread is set), we will handle
+          the call, even if we got a timeout (as we are already awake and free)
+        */
+        break;
+      }
+    }
     cached_thread_count--;
     if (kill_cached_threads)
       mysql_cond_signal(&COND_flush_thread_cache);

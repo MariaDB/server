@@ -1068,7 +1068,8 @@ The following options may be given as the first argument:
  Decision to use in heuristic recover process. One of: 
  COMMIT, ROLLBACK
  --thread-cache-size=# 
- How many threads we should keep in a cache for reuse
+ How many threads we should keep in a cache for reuse.
+ These are freed after 5 minutes of idle time
  --thread-pool-idle-timeout=# 
  Timeout in seconds for an idle thread in the thread
  pool.Worker thread will be shut down after timeout
@@ -1426,7 +1427,7 @@ table-cache 431
 table-definition-cache 400
 table-open-cache 431
 tc-heuristic-recover COMMIT
-thread-cache-size 0
+thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
