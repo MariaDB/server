@@ -1006,7 +1006,7 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_all_next, **share_all_prev;
-  friend struct TDC_element;
+  friend class TDC_element;
 
 public:
 
