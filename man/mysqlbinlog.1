@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLBINLOG\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
+.TH "\FBMYSQLBINLOG\FR" "1" "22/3/2016" "MariaDB 10\&.2" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -708,6 +708,22 @@ entries in the log\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlbinlog: open-files-limit option
+.\" open-files-limit option: mysqlbinlog
+\fB\-\-open\-files\-limit=\fR\fB\fINUM\fR\fR
+.sp
+Sets the open_files_limit variable, which is used to reserve file descriptors for
+\fBmysqlbinlog\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqlbinlog: password option
 .\" password option: mysqlbinlog
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
@@ -800,12 +816,11 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: open-files-limit option
-.\" open-files-limit option: mysqlbinlog
-\fB\-\-open\-files\-limit=\fR\fB\fINUM\fR\fR
+.\" mysqlbinlog: raw option
+.\" raw option: mysqlbinlog
+\fB\-\-raw\fR
 .sp
-Sets the open_files_limit variable, which is used to reserve file descriptors for
-\fBmysqlbinlog\fR\&.
+Requires \fB-R\fR\&. Output raw binlog data instead of SQL statements\&. Output files named after server logs\&.
 .RE
 .sp
 .RS 4
@@ -845,7 +860,7 @@ This option requires that the remote server be running\&. It works only for bina
 \fB\-\-result\-file=\fR\fB\fIname\fR\fR,
 \fB\-r \fR\fB\fIname\fR\fR
 .sp
-Direct output to the given file\&.
+Direct output to the given file\&. With --raw this is a prefix for the file names\&.
 .RE
 .sp
 .RS 4
@@ -1018,6 +1033,36 @@ option for information about the
 value\&.
 .sp
 This option is useful for point\-in\-time recovery\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlbinlog: stop-never option
+.\" stop-never option: mysqlbinlog
+\fB\-\-stop\-never\fR
+.sp
+Wait for more data from the server instead of stopping at the end of the last log\&. Implies \fB--to-last-log\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlbinlog: stop-never-slave-server-id option
+.\" stop-never-slave-server-id option: mysqlbinlog
+\fB\-\-stop\-never-slave-server-id\fR
+.sp
+The slave server_id used for \fB--read-from-remote-server --stop-never\fR\&.
 .RE
 .sp
 .RS 4
