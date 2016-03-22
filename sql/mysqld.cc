@@ -363,6 +363,7 @@ static bool volatile select_thread_in_use, signal_thread_in_use;
 static volatile bool ready_to_exit;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
+
 uint kill_cached_threads;
 static uint wake_thread;
 ulong max_used_connections;
@@ -389,6 +390,7 @@ static DYNAMIC_ARRAY all_options;
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes;
 static my_bool opt_abort;
 ulonglong log_output_options;
@@ -4085,7 +4087,8 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                             (longlong) thd->status_var.local_memory_used,
                             size));
         thd->status_var.local_memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
+        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
+                    !debug_assert_on_not_freed_memory);
       }
     }
   }
@@ -6050,7 +6053,7 @@ int mysqld_main(int argc, char **argv)
       CloseHandle(hEventShutdown);
   }
 #endif
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if (defined(HAVE_OPENSSL) && !defined(HAVE_YASSL)) && !defined(EMBEDDED_LIBRARY)
   ERR_remove_state(0);
 #endif
   mysqld_exit(0);
@@ -7298,6 +7301,13 @@ struct my_option my_long_options[]=
    &opt_sporadic_binlog_dump_fail, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
 #endif /* HAVE_REPLICATION */
+#ifndef DBUG_OFF
+  {"debug-assert-on-not-freed-memory", 0,
+   "Assert if we found problems with memory allocation",
+   &debug_assert_on_not_freed_memory,
+   &debug_assert_on_not_freed_memory, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
+   0},
+#endif /* DBUG_OFF */
   /* default-storage-engine should have "MyISAM" as def_value. Instead
      of initializing it here it is done in init_common_variables() due
      to a compiler bug in Sun Studio compiler. */

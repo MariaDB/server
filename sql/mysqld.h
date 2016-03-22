@@ -119,6 +119,7 @@ extern bool opt_disable_networking, opt_skip_show_db;
 extern bool opt_skip_name_resolve;
 extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
+extern my_bool debug_assert_on_not_freed_memory;
 extern bool volatile abort_loop;
 extern bool volatile in_bootstrap;
 extern uint connection_count;

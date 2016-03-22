@@ -29,6 +29,7 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "sql_select.h"
+#include "uniques.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique

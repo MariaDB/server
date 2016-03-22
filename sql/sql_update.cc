@@ -270,6 +270,7 @@ int mysql_update(THD *thd,
   key_map	old_covering_keys;
   TABLE		*table;
   SQL_SELECT	*select= NULL;
+  SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
   SELECT_LEX    *select_lex= &thd->lex->select_lex;
   ulonglong     id;
@@ -420,7 +421,7 @@ int mysql_update(THD *thd,
   table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
   set_statistics_for_table(thd, table);
 
-  select= make_select(table, 0, 0, conds, 0, &error);
+  select= make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (error || !limit || thd->is_error() ||
       (select && select->check_quick(thd, safe_update, limit)))
   {
@@ -558,26 +559,18 @@ int mysql_update(THD *thd,
       */
       uint         length= 0;
       SORT_FIELD  *sortorder;
-      ha_rows examined_rows;
-      ha_rows found_rows;
 
-      table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
-						    MYF(MY_FAE | MY_ZEROFILL |
-                                                        MY_THREAD_SPECIFIC));
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
       if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
-          (table->sort.found_records= filesort(thd, table, sortorder, length,
-                                               select, limit,
-                                               true,
-                                               &examined_rows, &found_rows,
-                                               fs_tracker))
-          == HA_POS_ERROR)
-      {
+          !(file_sort= filesort(thd, table, sortorder, length,
+                                select, limit,
+                                true,
+                                fs_tracker)))
 	goto err;
-      }
-      thd->inc_examined_row_count(examined_rows);
+      thd->inc_examined_row_count(file_sort->examined_rows);
+
       /*
 	Filesort has already found and selected the rows we want to update,
 	so we don't need the where clause
@@ -618,7 +611,7 @@ int mysql_update(THD *thd,
       */
 
       if (query_plan.index == MAX_KEY || (select && select->quick))
-        error= init_read_record(&info, thd, table, select, 0, 1, FALSE);
+        error= init_read_record(&info, thd, table, select, NULL, 0, 1, FALSE);
       else
         error= init_read_record_idx(&info, thd, table, 1, query_plan.index,
                                     reverse);
@@ -662,8 +655,9 @@ int mysql_update(THD *thd,
 	else
         {
           /*
-            Don't try unlocking the row if skip_record reported an error since in
-            this case the transaction might have been rolled back already.
+            Don't try unlocking the row if skip_record reported an
+            error since in this case the transaction might have been
+            rolled back already.
           */
           if (error < 0)
           {
@@ -712,7 +706,7 @@ int mysql_update(THD *thd,
   if (select && select->quick && select->quick->reset())
     goto err;
   table->file->try_semi_consistent_read(1);
-  if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
+  if (init_read_record(&info, thd, table, select, file_sort, 0, 1, FALSE))
     goto err;
 
   updated= found= 0;
@@ -1020,6 +1014,7 @@ int mysql_update(THD *thd,
   }
   DBUG_ASSERT(transactional_table || !updated || thd->transaction.stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
+  delete file_sort;
 
   /* If LAST_INSERT_ID(X) was used, report X */
   id= thd->arg_of_last_insert_id_function ?
@@ -1053,6 +1048,7 @@ int mysql_update(THD *thd,
 
 err:
   delete select;
+  delete file_sort;
   free_underlaid_joins(thd, select_lex);
   table->disable_keyread();
   thd->abort_on_warning= 0;

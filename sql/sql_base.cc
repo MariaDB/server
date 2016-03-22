@@ -349,27 +349,11 @@ void intern_close_table(TABLE *table)
                         table->s ? table->s->table_name.str : "?",
                         (long) table));
 
-  free_io_cache(table);
   delete table->triggers;
   if (table->file)                              // Not true if placeholder
     (void) closefrm(table, 1);			// close file
   table->alias.free();
   my_free(table);
-  DBUG_VOID_RETURN;
-}
-
-
-/* Free resources allocated by filesort() and read_record() */
-
-void free_io_cache(TABLE *table)
-{
-  DBUG_ENTER("free_io_cache");
-  if (table->sort.io_cache)
-  {
-    close_cached_file(table->sort.io_cache);
-    my_free(table->sort.io_cache);
-    table->sort.io_cache=0;
-  }
   DBUG_VOID_RETURN;
 }
 
@@ -1812,7 +1796,6 @@ void close_temporary(TABLE *table, bool free_share, bool delete_table)
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  free_io_cache(table);
   closefrm(table, 0);
   if (delete_table)
     rm_temporary_table(table_type, table->s->path.str);

@@ -4739,8 +4739,6 @@ int clear_sj_tmp_tables(JOIN *join)
   {
     if ((res= table->file->ha_delete_all_rows()))
       return res; /* purecov: inspected */
-   free_io_cache(table);
-   filesort_free_buffers(table,0);
   }
 
   SJ_MATERIALIZATION_INFO *sjm;

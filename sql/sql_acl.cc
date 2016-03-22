@@ -1206,7 +1206,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST), 20, 50, MYF(0));
   if ((table= tables[HOST_TABLE].table)) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
-    if (init_read_record(&read_record_info, thd, table, NULL, 1, 1, FALSE))
+    if (init_read_record(&read_record_info, thd, table, NULL, NULL,
+                         1, 1, FALSE))
       goto end;
     table->use_all_columns();
     while (!(read_record_info.read_record(&read_record_info)))
@@ -1261,7 +1262,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   freeze_size(&acl_hosts);
 
   if (init_read_record(&read_record_info, thd, table=tables[USER_TABLE].table,
-                       NULL, 1, 1, FALSE))
+                       NULL, NULL, 1, 1, FALSE))
     goto end;
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
@@ -1523,7 +1524,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   freeze_size(&acl_users);
 
   if (init_read_record(&read_record_info, thd, table=tables[DB_TABLE].table,
-                       NULL, 1, 1, FALSE))
+                       NULL, NULL, 1, 1, FALSE))
     goto end;
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB), 50, 100, MYF(0));
@@ -1593,7 +1594,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   if ((table= tables[PROXIES_PRIV_TABLE].table))
   {
     if (init_read_record(&read_record_info, thd, table,
-                         NULL, 1, 1, FALSE))
+                         NULL, NULL, 1, 1, FALSE))
       goto end;
     table->use_all_columns();
     while (!(read_record_info.read_record(&read_record_info)))
@@ -1622,7 +1623,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
   if ((table= tables[ROLES_MAPPING_TABLE].table))
   {
-    if (init_read_record(&read_record_info, thd, table, NULL, 1, 1, FALSE))
+    if (init_read_record(&read_record_info, thd, table, NULL, NULL, 1, 1,
+                         FALSE))
       goto end;
     table->use_all_columns();
     /* account for every role mapping */

@@ -2683,7 +2683,8 @@ int spider_initinal_xa_recover(
         FALSE, open_tables_backup, TRUE, &error_num))
     )
       goto error_open_table;
-    init_read_record(read_record, thd, table_xa, NULL, TRUE, FALSE, FALSE);
+    init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE, FALSE,
+                     FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   while ((!(read_record->read_record(read_record))) && cnt < (int) len)

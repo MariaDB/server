@@ -60,9 +60,23 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
 class Filesort_buffer
 {
 public:
-  Filesort_buffer() :
-    m_idx_array(), m_record_length(0), m_start_of_data(NULL)
+  Filesort_buffer()
+    : m_idx_array(), m_start_of_data(NULL), allocated_size(0)
   {}
+  
+  ~Filesort_buffer()
+  {
+    my_free(m_idx_array.array());
+  }
+
+  bool is_allocated()
+  {
+    return m_idx_array.array() != 0;
+  }
+  void reset()
+  {
+    m_idx_array.reset();
+  }
 
   /** Sort me... */
   void sort_buffer(const Sort_param *param, uint count);
@@ -84,19 +98,11 @@ public:
   /// Returns total size: pointer array + record buffers.
   size_t sort_buffer_size() const
   {
-    return m_idx_array.size() * (m_record_length + sizeof(uchar*));
+    return allocated_size;
   }
 
   /// Allocates the buffer, but does *not* initialize pointers.
   uchar **alloc_sort_buffer(uint num_records, uint record_length);
-
-
-  /// Check  <num_records, record_length> for the buffer
-  bool check_sort_buffer_properties(uint num_records,  uint record_length)
-  {
-    return (static_cast<uint>(m_idx_array.size()) == num_records &&
-            m_record_length == record_length);
-  }
 
   /// Frees the buffer.
   void free_sort_buffer();
@@ -115,15 +121,17 @@ public:
     m_idx_array= rhs.m_idx_array;
     m_record_length= rhs.m_record_length;
     m_start_of_data= rhs.m_start_of_data;
+    allocated_size=  rhs.allocated_size;
     return *this;
   }
 
 private:
   typedef Bounds_checked_array<uchar*> Idx_array;
 
-  Idx_array  m_idx_array;
+  Idx_array  m_idx_array;                       /* Pointers to key data */
   uint       m_record_length;
-  uchar     *m_start_of_data;
+  uchar     *m_start_of_data;                   /* Start of key data */
+  size_t    allocated_size;
 };
 
 #endif  // FILESORT_UTILS_INCLUDED

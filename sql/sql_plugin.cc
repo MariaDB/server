@@ -1796,7 +1796,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
-  if (init_read_record(&read_record_info, new_thd, table, NULL, 1, 0, FALSE))
+  if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
+                       FALSE))
   {
     sql_print_error("Could not initialize init_read_record; Plugins not "
                     "loaded");

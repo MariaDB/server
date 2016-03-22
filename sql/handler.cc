@@ -30,7 +30,7 @@
 #include "sql_table.h"                   // build_table_filename
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_acl.h"            // SUPER_ACL
-#include "sql_base.h"           // free_io_cache
+#include "sql_base.h"           // TDC_element
 #include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
 #include "create_options.h"
@@ -5863,8 +5863,6 @@ int handler::ha_reset()
   DBUG_ASSERT(table->key_read == 0);
   /* ensure that ha_index_end / ha_rnd_end has been called */
   DBUG_ASSERT(inited == NONE);
-  /* Free cache used by filesort */
-  free_io_cache(table);
   /* reset the bitmaps to point to defaults */
   table->default_column_bitmaps();
   pushed_cond= NULL;

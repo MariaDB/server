@@ -32,6 +32,7 @@
 #include "sql_array.h"                        /* Array */
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
+#include "filesort.h"
 
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1
@@ -236,6 +237,7 @@ typedef struct st_join_table {
     For join tabs that are inside an SJM bush: root of the bush
   */
   st_join_table *bush_root_tab;
+  SORT_INFO *filesort;
 
   /* TRUE <=> This join_tab is inside an SJM bush and is the last leaf tab here */
   bool          last_leaf_in_bush;
