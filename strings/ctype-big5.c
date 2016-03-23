@@ -881,54 +881,6 @@ my_strnxfrm_big5(CHARSET_INFO *cs,
   return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
 }
 
-#if 0
-static int my_strcoll_big5(const uchar *s1, const uchar *s2)
-{
-
-  while (*s1 && *s2)
-  {
-    if (*(s1+1) && *(s2+1) && isbig5code(*s1,*(s1+1)) && isbig5code(*s2, *(s2+1)))
-    {
-      if (*s1 != *s2 || *(s1+1) != *(s2+1))
-	return ((int) big5code(*s1,*(s1+1)) -
-		(int) big5code(*s2,*(s2+1)));
-      s1 +=2;
-      s2 +=2;
-    } else if (sort_order_big5[(uchar) *s1++] != sort_order_big5[(uchar) *s2++])
-      return ((int) sort_order_big5[(uchar) s1[-1]] -
-	      (int) sort_order_big5[(uchar) s2[-1]]);
-  }
-  return 0;
-}
-
-static int my_strxfrm_big5(uchar *dest, const uchar *src, int len)
-{
-  uint16 e;
-  uchar *d = dest;
-
-  if (len < 1) return 0;
-  if (!*src)
-  {
-    *d = '\0';
-    return 0;
-  }
-  while (*src && (len > 1))
-  {
-    if (*(src+1) && isbig5code(*src, *(src+1)))
-    {
-      e = big5strokexfrm((uint16) big5code(*src, *(src+1)));
-      *d++ = big5head(e);
-      *d++ = big5tail(e);
-      src +=2;
-      len--;
-    } else
-      *d++ = sort_order_big5[(uchar) *src++];
-  }
-  *d = '\0';
-  return (int) (d-dest);
-}
-#endif
-
 
 static uint mbcharlen_big5(CHARSET_INFO *cs __attribute__((unused)), uint c)
 {
