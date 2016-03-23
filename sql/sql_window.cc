@@ -1440,22 +1440,10 @@ bool compute_two_pass_window_functions(Item_window_func *item_win,
   return is_error;
 }
 
-
-/*
-  @brief
-    This function is called by JOIN::exec to compute window function values
-  
-  @detail
-    JOIN::exec calls this after it has filled the temporary table with query
-    output. The temporary table has fields to store window function values.
-
-  @return
-    false OK
-    true  Error
-*/
-
-bool JOIN::process_window_functions(List<Item> *curr_fields_list)
-{
+/////////////////////////////////////////////////////////////////////////////
+// Unneeded comments (will be removed when we develop a replacement for
+//  the feature that was attempted here
+/////////////////////////////////////////////////////////////////////////////
   /*
    TODO Get this code to set can_compute_window_function during preparation,
    not during execution.
@@ -1491,14 +1479,10 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
       prefixes, or be a prefix itself. This must hold true for all partitions.
       Analog for the order by clause.  
   */
-
+#if 0
   List<Item_window_func> window_functions;
   SQL_I_List<ORDER> largest_partition;
   SQL_I_List<ORDER> largest_order_by;
-  List_iterator_fast<Item> it(*curr_fields_list);
-  Item *item;
-
-#if 0
   bool can_compute_window_live = !need_tmp;
   // Construct the window_functions item list and check if they can be
   // computed using only one sorting.
@@ -1580,6 +1564,26 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
   }
   else
 #endif
+
+
+/*
+  @brief
+    This function is called by JOIN::exec to compute window function values
+  
+  @detail
+    JOIN::exec calls this after it has filled the temporary table with query
+    output. The temporary table has fields to store window function values.
+
+  @return
+    false OK
+    true  Error
+*/
+
+bool JOIN::process_window_functions(List<Item> *curr_fields_list)
+{
+  List_iterator_fast<Item> it(*curr_fields_list);
+  Item *item;
+
   {
     while ((item= it++))
     {
