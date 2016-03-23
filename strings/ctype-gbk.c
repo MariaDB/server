@@ -3463,7 +3463,7 @@ my_strnxfrm_gbk(CHARSET_INFO *cs,
 
   for (; dst < de && src < se && nweights; nweights--)
   {
-    if (my_charlen(cs, src, se) > 1)
+    if (my_charlen(cs, (const char *) src, (const char *) se) > 1)
     {
       /*
         Note, it is safe not to check (src < se)
