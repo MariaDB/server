@@ -3014,6 +3014,11 @@ static bool cache_thread()
     PSI_THREAD_CALL(delete_current_thread)();
 #endif
 
+#ifndef DBUG_OFF
+    while (_db_is_pushed_())
+      _db_pop_();
+#endif
+
     set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
     {
