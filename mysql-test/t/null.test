@@ -958,6 +958,55 @@ show create view v1;
 drop view v1;
 drop table t1;
 
+#
+# MDEV-9637 select nullif(count(col1),0) gives wrong result if in a view
+#
+create table t1 (col1 varchar(50) default null);
+insert into t1 (col1) values ('hello'), ('hello'), ('hello');
+create view v1 as select nullif(count(col1),0) from t1;
+select * from v1;
+select nullif(count(col1),0) from t1;
+drop view v1;
+drop table t1;
+
+#
+# MDEV-9644 Assertion `args[0] == args[2] || thd->stmt_arena->is_stmt_execute()' failed in Item_func_nullif::fix_length_and_dec()
+#
+select nullif((select 1), (select 2));
+create table t1 (f int);
+insert into t1 values (1),(2);
+select nullif( not f, 1 ) from t1;
+drop table t1;
+
+#
+# MDEV-9641 Assertion `args[0] == args[2] || _current_thd()->lex->context_analysis_only' failed in Item_func_nullif::print(String*, enum_query_type)
+#
+set names utf8;
+create table t1 (f1 varchar(10));
+insert into t1 values ('2015-12-31');
+--error ER_DATA_OUT_OF_RANGE
+select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
+drop table t1;
+
+#
+# MDEV-9682 Assertion `0' failed in Item_cache_row::illegal_method_call on 2nd execution of PS with NULLIF
+#
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+PREPARE stmt FROM "SELECT * FROM t1 WHERE NULLIF( ( 1, 2 ) IN ( SELECT 3, 4 ), 1 )";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
+
+#
+# MDEV-9683 Server crashes in Item::basic_const_item on numerous nested NULLIFs
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(i = ROUND(0), 14), 13), 12), 11), 10), 9), 8), 7), 6), 5), 4), 3), 2), 1);
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

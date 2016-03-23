@@ -37,6 +37,9 @@ umask 077
 # so break my scripts.
 export HOME=/etc/mysql/
 
+# Source default config file.
+[ -r /etc/default/mariadb ] && . /etc/default/mariadb
+
 ## Fetch a particular option from mysql's invocation.
 #
 # Usage: void mysqld_get_param option
@@ -109,7 +112,7 @@ case "${1:-''}" in
   	    /usr/bin/mysqld_safe "${@:2}" > /dev/null 2>&1 &
 
 	    # 6s was reported in #352070 to be too little
-	    for i in $(seq 1 "${MYSQLD_STARTUP_TIMEOUT:-30}"); do
+	    for i in $(seq 1 "${MYSQLD_STARTUP_TIMEOUT:-60}"); do
                 sleep 1
 	        if mysqld_status check_alive nowarn ; then break; fi
 		log_progress_msg "."

@@ -34,11 +34,9 @@ create table t1 (a mediumtext, fulltext key key1(a)) charset utf8 collate utf8_g
 insert into t1 values ('hello');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
 test.t1	analyze	status	OK
 analyze table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
 test.t1	analyze	status	Table is already up to date
 drop table t1;
 CREATE TABLE t1 (a int);

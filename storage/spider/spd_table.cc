@@ -1499,7 +1499,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((share->param_name = spider_get_string_between_quote( \
@@ -1511,7 +1511,7 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%s", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%s", share->param_name)); \
     } \
     break; \
   }
@@ -1520,7 +1520,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_STR_LIST(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1546,7 +1546,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length); \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -1565,7 +1565,7 @@ static int spider_set_ll_value(
       if ((error_num = \
         append_method(&share->param_name[hint_num], hint_str))) \
         goto error; \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%s", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%s", hint_num, \
         share->param_name[hint_num].ptr())); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
@@ -1578,7 +1578,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_NUMHINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length); \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -1597,7 +1597,7 @@ static int spider_set_ll_value(
       if ((error_num = \
         append_method(&share->param_name[hint_num], hint_str))) \
         goto error; \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%lld", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%lld", hint_num, \
         share->param_name[hint_num])); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
@@ -1612,7 +1612,7 @@ static int spider_set_ll_value(
   min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1639,7 +1639,7 @@ static int spider_set_ll_value(
   min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1664,7 +1664,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1681,14 +1681,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1703,14 +1703,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_DOUBLE(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1725,14 +1725,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%f", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%f", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1747,7 +1747,7 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%lld", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%lld", share->param_name)); \
     } \
     break; \
   }

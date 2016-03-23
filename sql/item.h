@@ -428,7 +428,7 @@ public:
 
     RETURN
       FALSE if parameter value has been set,
-      TRUE if error has occured.
+      TRUE if error has occurred.
   */
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it)= 0;
 
@@ -660,9 +660,7 @@ protected:
   Field *tmp_table_field_from_field_type(TABLE *table,
                                          bool fixed_length,
                                          bool set_blob_packlength);
-  Field *create_tmp_field(bool group, TABLE *table,
-                          uint convert_blob_length,
-                          uint convert_int_length);
+  Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
 public:
   /*
@@ -1660,16 +1658,13 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  virtual Field *create_tmp_field(bool group, TABLE *table,
-                                  uint convert_blob_length)
+  virtual Field *create_tmp_field(bool group, TABLE *table)
   {
     /*
       Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into
       Field_long : make them Field_longlong.
     */
-    return create_tmp_field(false, table,
-                            convert_blob_length,
-                            MY_INT32_NUM_DECIMAL_DIGITS - 2);
+    return create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS - 2);
   }
 
   virtual Item_field *field_for_view_update() { return 0; }
@@ -2738,7 +2733,7 @@ public:
 
   /*
     If value for parameter was not set we treat it as non-const
-    so noone will use parameters value in fix_fields still
+    so no one will use parameters value in fix_fields still
     parameter is constant during execution.
   */
   virtual table_map used_tables() const

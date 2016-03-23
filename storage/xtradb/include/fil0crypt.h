@@ -333,6 +333,7 @@ struct fil_space_crypt_status_t {
 	uint  min_key_version;   /*!< min key version */
 	uint  current_key_version;/*!< current key version */
 	uint  keyserver_requests;/*!< no of key requests to key server */
+	ulint key_id;            /*!< current key_id */
 	bool rotating;           /*!< is key rotation ongoing */
 	bool flushing;           /*!< is flush at end of rotation ongoing */
 	ulint rotate_next_page_number; /*!< next page if key rotating */

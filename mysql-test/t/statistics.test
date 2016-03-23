@@ -728,3 +728,16 @@ select db_name, table_name, column_name,
   FROM mysql.column_stats;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-9590: Always print "Engine-independent statistic" warnings and
+--echo # might be filtering columns unintentionally from engines
+--echo #
+
+set use_stat_tables='NEVER';
+create table t1 (test blob);
+show variables like 'use_stat_tables';
+analyze table t1;
+drop table t1;
+
+set use_stat_tables=@save_use_stat_tables;

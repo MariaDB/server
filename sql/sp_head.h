@@ -607,7 +607,7 @@ public:
                        instruction for CONTINUE error handlers.
    
     @retval 0      on success, 
-    @retval other  if some error occured
+    @retval other  if some error occurred
   */
 
   virtual int execute(THD *thd, uint *nextp) = 0;

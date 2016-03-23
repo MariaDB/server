@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,7 +43,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "config.h"
 #ifdef HAVE_ALLOCA_H
 #include "alloca.h"
-#elif defined(HAVE_MALLOC_H) 
+#elif defined(HAVE_MALLOC_H)
 #include "malloc.h"
 #endif
 
@@ -932,7 +932,8 @@ UNIV_INTERN
 ibool
 log_block_checksum_is_ok_or_old_format(
 /*===================================*/
-	const byte*	block)	/*!< in: pointer to a log block */
+	const byte*	block,		/*!< in: pointer to a log block */
+	bool		print_err)	/*!< in print if error found */
 {
 #ifdef UNIV_LOG_DEBUG
 	return(TRUE);
@@ -1015,11 +1016,13 @@ log_block_checksum_is_ok_or_old_format(
 		return(TRUE);
 	}
 
-	fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
-		log_block_get_hdr_no(block),
-		log_block_get_checkpoint_no(block),
-		log_block_calc_checksum(block),
-		log_block_get_checksum(block));
+	if (print_err) {
+		fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+			log_block_get_hdr_no(block),
+			log_block_get_checkpoint_no(block),
+			log_block_calc_checksum(block),
+			log_block_get_checksum(block));
+	}
 
 	return(FALSE);
 }
@@ -2734,6 +2737,7 @@ recv_scan_log_recs(
 	ibool		finished;
 	ulint		data_len;
 	ibool		more_data;
+	bool		maybe_encrypted=false;
 
 	ut_ad(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -2748,6 +2752,8 @@ recv_scan_log_recs(
 	*err = DB_SUCCESS;
 
 	do {
+		log_crypt_err_t log_crypt_err;
+
 		no = log_block_get_hdr_no(log_block);
 		/*
 		fprintf(stderr, "Log block header no %lu\n", no);
@@ -2755,13 +2761,13 @@ recv_scan_log_recs(
 		fprintf(stderr, "Scanned lsn no %lu\n",
 		log_block_convert_lsn_to_no(scanned_lsn));
 		*/
+
 		if (no != log_block_convert_lsn_to_no(scanned_lsn)
-		    || !log_block_checksum_is_ok_or_old_format(log_block)) {
-			log_crypt_err_t log_crypt_err;
+		    || !log_block_checksum_is_ok_or_old_format(log_block, true)) {
 
 			if (no == log_block_convert_lsn_to_no(scanned_lsn)
 			    && !log_block_checksum_is_ok_or_old_format(
-				    log_block)) {
+				    log_block, true)) {
 				fprintf(stderr,
 					"InnoDB: Log block no %lu at"
 					" lsn " LSN_PF " has\n"
@@ -2775,12 +2781,14 @@ recv_scan_log_recs(
 						log_block));
 			}
 
+			maybe_encrypted = log_crypt_block_maybe_encrypted(log_block,
+					&log_crypt_err);
+
 			/* Garbage or an incompletely written log block */
 
 			finished = TRUE;
 
-			if (log_crypt_block_maybe_encrypted(log_block,
-					&log_crypt_err)) {
+			if (maybe_encrypted) {
 				/* Log block maybe encrypted finish processing*/
 				log_crypt_print_error(log_crypt_err);
 				*err = DB_ERROR;
@@ -2790,12 +2798,13 @@ recv_scan_log_recs(
 			/* Stop if we encounter a garbage log block */
 			if (!srv_force_recovery) {
 				fputs("InnoDB: Set innodb_force_recovery"
-				      " to ignore this error.\n", stderr);
+					" to ignore this error.\n", stderr);
 				*err = DB_ERROR;
 				return (TRUE);
 			}
 
 			break;
+
 		}
 
 		if (log_block_get_flush_bit(log_block)) {

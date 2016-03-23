@@ -1,0 +1,85 @@
+--source include/not_embedded.inc
+
+
+--echo #
+--echo # Test user to check if we can grant the created role to it.
+--echo #
+create user test_user;
+--echo #
+--echo # First create the role.
+--echo #
+SET @createRole = 'CREATE ROLE developers';
+PREPARE stmtCreateRole FROM @createRole;
+EXECUTE stmtCreateRole;
+--echo #
+--echo # Test to see if the role is created.
+--echo #
+SELECT user, host,is_role FROM mysql.user
+WHERE user = 'developers';
+SHOW GRANTS;
+
+--echo # Test reexecution.
+--error ER_CANNOT_USER
+EXECUTE stmtCreateRole;
+
+--echo #
+--echo # Now grant the role to the test user.
+--echo #
+SET @grantRole = 'GRANT developers to test_user';
+PREPARE stmtGrantRole FROM @grantRole;
+EXECUTE stmtGrantRole;
+--echo # Test reexecution.
+EXECUTE stmtGrantRole;
+
+--echo #
+--echo # We should see 2 entries in the roles_mapping table.
+--echo #
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+SHOW GRANTS FOR test_user;
+
+--echo #
+--echo # Test revoking a role.
+--echo #
+SET @revokeRole = 'REVOKE developers FROM test_user';
+PREPARE stmtRevokeRole FROM @revokeRole;
+EXECUTE stmtRevokeRole;
+--error ER_CANNOT_REVOKE_ROLE
+EXECUTE stmtRevokeRole;
+SHOW GRANTS FOR test_user;
+
+EXECUTE stmtGrantRole;
+SHOW GRANTS FOR test_user;
+EXECUTE stmtRevokeRole;
+SHOW GRANTS FOR test_user;
+
+--echo #
+--echo # Now drop the role.
+--echo #
+SET @dropRole = 'DROP ROLE developers';
+PREPARE stmtDropRole FROM @dropRole;
+EXECUTE stmtDropRole;
+
+--echo #
+--echo # Check both user and roles_mapping table for traces of our role.
+--echo #
+SELECT user, host,is_role FROM mysql.user
+WHERE user = 'developers';
+SELECT * FROM mysql.roles_mapping;
+SHOW GRANTS;
+SHOW GRANTS FOR test_user;
+
+--echo #
+--echo # Test reexecution.
+--echo #
+EXECUTE stmtCreateRole;
+SELECT user, host,is_role FROM mysql.user
+WHERE user = 'developers';
+SELECT * FROM mysql.roles_mapping;
+
+SHOW GRANTS;
+SHOW GRANTS FOR test_user;
+EXECUTE stmtDropRole;
+
+--echo # Cleanup.
+DROP USER test_user;

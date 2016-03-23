@@ -110,7 +110,7 @@ static int my_win_unlink(const char *name)
   if (handle != INVALID_HANDLE_VALUE)
   {
     /*
-      We opened file without sharing flags (exclusive), noone else has this file
+      We opened file without sharing flags (exclusive), no one else has this file
       opened, thus it is save to close handle to remove it. No renaming is 
       necessary.
     */

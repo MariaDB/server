@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -51,6 +51,9 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0mon.h"
+
+/* Used for debugging */
+// #define DEBUG_CRYPT 1
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -2358,7 +2361,23 @@ loop:
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
 		len, buf, NULL, 0);
 
+#ifdef DEBUG_CRYPT
+	fprintf(stderr, "BEFORE DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx offset %lu\n",
+		log_block_get_hdr_no(buf),
+			log_block_get_checkpoint_no(buf),
+			log_block_calc_checksum(buf),
+		log_block_get_checksum(buf), source_offset);
+#endif
+
 	log_decrypt_after_read(buf, len);
+
+#ifdef DEBUG_CRYPT
+	fprintf(stderr, "AFTER DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+			log_block_get_hdr_no(buf),
+			log_block_get_checkpoint_no(buf),
+			log_block_calc_checksum(buf),
+			log_block_get_checksum(buf));
+#endif
 
 	start_lsn += len;
 	buf += len;

@@ -1220,3 +1220,31 @@ Warning	1292	Truncated incorrect DOUBLE value: '1E+'
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+#
+SELECT NULL+1 AS c0,
+COALESCE(NULL)+1 AS c2,
+COALESCE(COALESCE(NULL))+1 AS c3,
+''+1 AS c4,
+COALESCE('')+1 AS c5,
+COALESCE(COALESCE(''))+1 AS c6;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0	5	17	0	Y	32896	0	63
+def					c2	5	17	0	Y	32896	0	63
+def					c3	5	17	0	Y	32896	0	63
+def					c4	5	23	1	N	32897	31	63
+def					c5	5	17	1	N	32897	0	63
+def					c6	5	17	1	N	32897	0	63
+c0	c2	c3	c4	c5	c6
+NULL	NULL	NULL	1	1	1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DOUBLE value: ''
+#
+# Start of 10.1 tests
+#

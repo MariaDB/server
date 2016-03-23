@@ -1758,7 +1758,9 @@ bool ODBConn::BindParam(ODBCCOL *colp)
   SQLLEN      *strlen = colp->GetStrLen();
   SQLRETURN    rc;
 
+#if 0
   try {
+		// This function is often not or badly implemented by data sources
     rc = SQLDescribeParam(m_hstmt, n, &sqlt, &colsize, &dec, &nul);
 
     if (!Check(rc))
@@ -1766,11 +1768,12 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 
   } catch(DBX *x) {
     sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
+#endif // 0
     colsize = colp->GetPrecision();
     sqlt = GetSQLType(buftype);
-    dec = IsTypeChar(buftype) ? 0 : colp->GetScale();
-    nul = SQL_NULLABLE_UNKNOWN;
-  } // end try/catch
+		dec = IsTypeNum(buftype) ? colp->GetScale() : 0;
+		nul = colp->IsNullable() ? SQL_NULLABLE : SQL_NO_NULLS;
+//} // end try/catch
 
   buf = colp->GetBuffer(0);
   len = IsTypeChar(buftype) ? colp->GetBuflen() : 0;

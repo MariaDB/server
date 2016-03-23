@@ -1,0 +1,85 @@
+# MDEV-717
+#   DROP DATABASE and CREATE PROCEDURE|FUNCTION|EVENT
+#   statements can appear in wrong order in the binlog.
+#   
+#   Note - the test can be undeterministic.
+
+--source include/master-slave.inc
+RESET MASTER;
+
+--disable_warnings
+DROP DATABASE IF EXISTS db_717;
+DROP EVENT IF EXISTS test.e_x1;
+--enable_warnings
+
+set @saved_global_binlog_format = @@global.binlog_format;
+set @saved_local_binlog_format = @@session.binlog_format;
+SET GLOBAL BINLOG_FORMAT = STATEMENT;
+SET SESSION BINLOG_FORMAT = STATEMENT;
+
+# test function creation
+CREATE DATABASE db_717;
+ 
+CREATE FUNCTION db_717.f1() RETURNS INT RETURN 1;
+ 
+--send
+ 
+DROP DATABASE db_717;
+ 
+--connection master1
+ 
+--error 0,ER_BAD_DB_ERROR
+ 
+CREATE FUNCTION db_717.f2() RETURNS INT RETURN 1;
+ 
+--connection master
+ 
+--reap
+ 
+# test event creation
+CREATE DATABASE db_717;
+ 
+CREATE EVENT db_717.e_x1 ON SCHEDULE EVERY 1000 HOUR DO CREATE TABLE t1(id int);
+ 
+--send
+ 
+DROP DATABASE db_717;
+ 
+--connection master1
+ 
+--error 0,ER_BAD_DB_ERROR
+ 
+CREATE EVENT db_717.e_x2 ON SCHEDULE EVERY 1000 HOUR DO CREATE TABLE t1(id int);
+ 
+--connection master
+ 
+--reap
+ 
+# test event modification
+CREATE DATABASE db_717;
+ 
+CREATE EVENT test.e_x1 ON SCHEDULE EVERY 1000 HOUR DO CREATE TABLE t1(id int);
+ 
+--send
+ 
+DROP DATABASE db_717;
+ 
+--connection master1
+ 
+--error 0,ER_BAD_DB_ERROR
+ 
+ALTER EVENT test.e_x1 RENAME TO db_717.e_x2;
+ 
+--connection master
+ 
+--reap
+
+DROP EVENT test.e_x1;
+
+source include/show_binlog_events.inc;
+
+SET GLOBAL BINLOG_FORMAT = @saved_global_binlog_format;
+SET SESSION BINLOG_FORMAT = @saved_local_binlog_format;
+
+--source include/rpl_end.inc
+

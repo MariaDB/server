@@ -178,7 +178,7 @@ struct mysql_async_context {
     resumed, eg. whether we woke up due to connection completed or timeout
     in mysql_real_connect_cont().
   */
-  unsigned int events_occured;
+  unsigned int events_occurred;
   /*
     This is set to the result of the whole asynchronous operation when it
     completes. It uses a union, as different calls have different return

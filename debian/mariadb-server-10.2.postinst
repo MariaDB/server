@@ -240,7 +240,10 @@ db_stop # in case invoke failes
 # Thus MariaDB server is started via init.d script, which in turn redirects to
 # systemctl. If we upgrade from MySQL mysql.service may be masked, which also
 # means init.d script is disabled. Unmask mysql service explicitely.
-deb-systemd-helper unmask mysql.service >/dev/null || true
+# Check first that the command exists, to avoid emitting any warning messages.
+if [ -x "$(command -v deb-systemd-helper)" ]; then
+  deb-systemd-helper unmask mysql.service > /dev/null
+fi
 
 #DEBHELPER#
 

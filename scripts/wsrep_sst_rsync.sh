@@ -127,7 +127,10 @@ then
     then
 
         FLUSHED="$WSREP_SST_OPT_DATA/tables_flushed"
+        ERROR="$WSREP_SST_OPT_DATA/sst_error"
+
         rm -rf "$FLUSHED"
+        rm -rf "$ERROR"
 
         # Use deltaxfer only for WAN
         inv=$(basename $0)
@@ -137,10 +140,20 @@ then
         echo "flush tables"
 
         # Wait for :
-        # (a) tables to be flushed, and
-        # (b) state ID & wsrep_gtid_domain_id to be written to the file.
+        # (a) Tables to be flushed, AND
+        # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
+        # (c) ERROR file, in case flush tables operation failed.
+
         while [ ! -r "$FLUSHED" ] && ! grep -q ':' "$FLUSHED" >/dev/null 2>&1
         do
+            # Check whether ERROR file exists.
+            if [ -f "$ERROR" ]
+            then
+                # Flush tables operation failed.
+                rm -rf "$ERROR"
+                exit 255
+            fi
+
             sleep 0.2
         done
 

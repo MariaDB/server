@@ -8306,7 +8306,7 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 /*
   Note that this function will try rollback failed ADD INDEX by
   executing DROP INDEX for the indexes that were committed (if any)
-  before the error occured. This means that the underlying storage
+  before the error occurred. This means that the underlying storage
   engine must be able to drop index in-place with X-lock held.
   (As X-lock will be held here if new indexes are to be committed)
 */

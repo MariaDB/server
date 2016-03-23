@@ -22,7 +22,7 @@
   if requested.
 
   The functions are documented at
-  http://kb.askmonty.org/en/progress-reporting#how-to-add-support-for-progress-reporting-to-a-storage-engine
+  https://mariadb.com/kb/en/progress-reporting/#how-to-add-support-for-progress-reporting-to-a-storage-engine
 */
 
 #ifdef __cplusplus

@@ -1,11 +1,10 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -8317,8 +8316,8 @@ ha_innobase::write_row(
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -8670,8 +8669,8 @@ func_exit:
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -9090,8 +9089,8 @@ ha_innobase::update_row(
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -9211,8 +9210,8 @@ wsrep_error:
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -12739,8 +12738,8 @@ ha_innobase::truncate()
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -12760,8 +12759,8 @@ ha_innobase::truncate()
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -14156,8 +14155,8 @@ ha_innobase::analyze(
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -14172,8 +14171,8 @@ ha_innobase::analyze(
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -15387,8 +15386,8 @@ ha_innobase::transactional_table_lock(
 
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
-			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %d.",
-			share->ib_table, prebuilt->table, prebuilt->table->name, (int) prebuilt->table->is_corrupt);
+			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
+			share->ib_table, prebuilt->table, prebuilt->table->name, prebuilt->table->is_corrupt);
 	}
 
 	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt)) {
@@ -21124,7 +21123,7 @@ maria_declare_plugin(xtradb)
   innodb_status_variables_export,/* status variables             */
   innobase_system_variables, /* system variables */
   INNODB_VERSION_STR,         /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
+  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
 },
 i_s_xtradb_read_view,
 i_s_xtradb_internal_hash_tables,

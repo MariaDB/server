@@ -337,7 +337,7 @@ START SLAVE;
 --source include/wait_for_slave_to_start.inc
 --replace_result $gtid GTID
 eval SELECT MASTER_GTID_WAIT("$gtid", 30);
-# The bug occured here, the slave would get an out-of-order binlog error
+# The bug occurred here, the slave would get an out-of-order binlog error
 # due to trying to re-apply the 100-x-x transaction.
 
 # Restart stopped multi-source connections, and sync up.

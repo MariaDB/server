@@ -184,7 +184,7 @@ bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   } // end of GetOptFileName
 
 /***********************************************************************/
-/*  After an optimize error occured, remove all set optimize values.   */
+/*  After an optimize error occurred, remove all set optimize values.   */
 /***********************************************************************/
 void DOSDEF::RemoveOptValues(PGLOBAL g)
   {

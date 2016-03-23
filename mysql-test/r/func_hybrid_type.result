@@ -2175,10 +2175,10 @@ def					case_____a_b	12	19	19	Y	128	0	63
 def					case_____b_a	12	19	19	Y	128	0	63
 def					coalesce_a_b	12	19	19	Y	128	0	63
 def					coalesce_b_a	12	19	19	Y	128	0	63
-def					if_______a_b	12	10	19	Y	128	0	63
-def					if_______b_a	12	10	19	Y	128	0	63
-def					ifnull___a_b	12	10	19	Y	128	0	63
-def					ifnull___b_a	12	10	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
 def					least____a_b	12	10	19	Y	128	0	63
 def					least____b_a	12	10	19	Y	128	0	63
 def					greatest_a_b	12	10	19	Y	128	0	63
@@ -3394,6 +3394,37 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					c1	253	1	0	Y	0	0	8
 c1
 DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+#
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END
+NULL
+SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
+CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END
+NULL
+SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
+CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END
+NULL
+SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0	246	4	3	Y	32896	1	63
+def					c1	246	4	3	Y	32896	1	63
+c0	c1
+1.1	1.1
+#
+# MDEV-9752 Wrong data type for COALEASCE(?,1) in prepared statements
+#
+PREPARE stmt FROM "CREATE TABLE t1 AS SELECT CONCAT(COALESCE(?,1)) AS a, CONCAT(CASE WHEN TRUE THEN ? ELSE 1 END) AS b";
+SET @a=1;
+EXECUTE stmt USING @a,@a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(21) DEFAULT NULL,
+  `b` varchar(21) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
 # End of 10.1 tests

@@ -39,17 +39,17 @@ struct show_table_contributors_st show_table_contributors[]= {
   /* MariaDB foundation members, in contribution, size , time order */
   {"Booking.com", "http://www.booking.com", "Founding member of the MariaDB Foundation"},
   {"MariaDB Corporation", "https://mariadb.com", "Founding member of the MariaDB Foundation"},
-  {"Auttomattic", "http://automattic.com", "Member of the MariaDB Foundation"},  
-  {"Parallels", "http://www.parallels.com/products/plesk", "Founding member of the MariaDB Foundation"},
+  {"Auttomattic", "http://automattic.com", "Member of the MariaDB Foundation"},
+  {"Visma", "http://visma.com", "Member of the MariaDB Foundation"},
+  {"Nexedi", "http://www.nexedi.com", "Member of the MariaDB Foundation"},
   {"Acronis", "http://www.acronis.com", "Member of the MariaDB Foundation"},
 
   /* Smaller sponsors, newer per year */
   {"Verkkokauppa.com", "Finland", "Sponsor of the MariaDB Foundation"},
   {"Webyog", "Bangalore", "Sponsor of the MariaDB Foundation"},
-  {"Wikimedia Foundation", "USA", "Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
-  {"Google", "USA", "Sponsoring parallel replication and GTID" },
+  {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},
   {"Facebook", "USA", "Sponsoring non-blocking API, LIMIT ROWS EXAMINED etc"},
 
   /* Individual contributors, names in historical order, newer first */

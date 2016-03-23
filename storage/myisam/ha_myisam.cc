@@ -2409,7 +2409,7 @@ maria_declare_plugin_end;
 
   @return The error code. The engine_data and engine_callback will be set to 0.
     @retval TRUE Success
-    @retval FALSE An error occured
+    @retval FALSE An error occurred
 */
 
 my_bool ha_myisam::register_query_cache_table(THD *thd, char *table_name,

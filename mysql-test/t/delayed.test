@@ -457,7 +457,7 @@ SELECT * FROM t1 WHERE a=0;
 --echo # Connection con1
 connection con1;
 --echo # Sending:
---send ALTER TABLE t1 COMMENT 'test'
+--send ALTER TABLE t1 MODIFY a INT UNSIGNED;
 
 --echo # Connection default
 connection default;
@@ -465,7 +465,7 @@ connection default;
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
   WHERE state = "Waiting for table metadata lock"
-  AND info = "ALTER TABLE t1 COMMENT 'test'";
+  AND info LIKE "ALTER TABLE t1%";
 --source include/wait_condition.inc
 --error ER_LOCK_DEADLOCK
 INSERT DELAYED INTO t1 VALUES (3);

@@ -875,7 +875,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      host, port, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file, uuid_str,
                      (long long)seqno, wsrep_gtid_domain_id,
-                     bypass ? " "WSREP_SST_OPT_BYPASS : "");
+                     bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -896,6 +896,56 @@ static int sst_donate_mysqldump (const char*         addr,
 
 wsrep_seqno_t wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
 
+
+/*
+  Create a file under data directory.
+*/
+static int sst_create_file(const char *name, const char *content)
+{
+  int err= 0;
+  char *real_name;
+  char *tmp_name;
+  ssize_t len;
+  FILE *file;
+
+  len= strlen(mysql_real_data_home) + strlen(name) + 2;
+  real_name= (char *) alloca(len);
+
+  snprintf(real_name, (size_t) len, "%s/%s", mysql_real_data_home, name);
+
+  tmp_name= (char *) alloca(len + 4);
+  snprintf(tmp_name, (size_t) len + 4, "%s.tmp", real_name);
+
+  file= fopen(tmp_name, "w+");
+
+  if (0 == file)
+  {
+    err= errno;
+    WSREP_ERROR("Failed to open '%s': %d (%s)", tmp_name, err, strerror(err));
+  }
+  else
+  {
+    // Write the specified content into the file.
+    if (content != NULL)
+    {
+      fprintf(file, "%s\n", content);
+      fsync(fileno(file));
+    }
+
+    fclose(file);
+
+    if (rename(tmp_name, real_name) == -1)
+    {
+      err= errno;
+      WSREP_ERROR("Failed to rename '%s' to '%s': %d (%s)", tmp_name,
+                  real_name, err, strerror(err));
+    }
+  }
+
+  return err;
+}
+
+
 static int run_sql_command(THD *thd, const char *query)
 {
   thd->set_query((char *)query, strlen(query));
@@ -911,7 +961,7 @@ static int run_sql_command(THD *thd, const char *query)
   if (thd->is_error())
   {
     int const err= thd->get_stmt_da()->sql_errno();
-    WSREP_WARN ("error executing '%s': %d (%s)%s",
+    WSREP_WARN ("Error executing '%s': %d (%s)%s",
                 query, err, thd->get_stmt_da()->message(),
                 err == ER_UNKNOWN_SYSTEM_VARIABLE ?
                 ". Was mysqld built with --with-innodb-disallow-writes ?" : "");
@@ -921,15 +971,21 @@ static int run_sql_command(THD *thd, const char *query)
   return 0;
 }
 
+
 static int sst_flush_tables(THD* thd)
 {
   WSREP_INFO("Flushing tables for SST...");
 
-  int err;
+  int err= 0;
   int not_used;
-  CHARSET_INFO *current_charset;
+  /*
+    Files created to notify the SST script about the outcome of table flush
+    operation.
+  */
+  const char *flush_success= "tables_flushed";
+  const char *flush_error= "sst_error";
 
-  current_charset = thd->variables.character_set_client;
+  CHARSET_INFO *current_charset= thd->variables.character_set_client;
 
   if (!is_supported_parser_charset(current_charset))
   {
@@ -942,60 +998,54 @@ static int sst_flush_tables(THD* thd)
 
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
   {
-    WSREP_ERROR("Failed to flush and lock tables");
-    err = -1;
+    err= -1;
   }
   else
   {
-    /* make sure logs are flushed after global read lock acquired */
-    err= reload_acl_and_cache(thd, REFRESH_ENGINE_LOG | REFRESH_BINARY_LOG,
-			      (TABLE_LIST*) 0, &not_used);
+    /*
+      Make sure logs are flushed after global read lock acquired. In case
+      reload fails, we must also release the acquired FTWRL.
+    */
+    if (reload_acl_and_cache(thd, REFRESH_ENGINE_LOG | REFRESH_BINARY_LOG,
+                             (TABLE_LIST*) 0, &not_used))
+    {
+      thd->global_read_lock.unlock_global_read_lock(thd);
+      err= -1;
+    }
   }
 
   thd->variables.character_set_client = current_charset;
 
-
   if (err)
   {
-    WSREP_ERROR("Failed to flush tables: %d (%s)", err, strerror(err));
+    WSREP_ERROR("Failed to flush and lock tables");
+
+    /*
+      The SST must be aborted as the flush tables failed. Notify this to SST
+      script by creating the error file.
+    */
+    int tmp;
+    if ((tmp= sst_create_file(flush_error, NULL))) {
+      err= tmp;
+    }
   }
   else
   {
     WSREP_INFO("Tables flushed.");
-    const char base_name[]= "tables_flushed";
 
-    ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
-    char *real_name= (char *) alloca(full_len);
-    snprintf(real_name, (size_t) full_len, "%s/%s", mysql_real_data_home,
-             base_name);
-    char *tmp_name= (char *) alloca(full_len + 4);
-    snprintf(tmp_name, (size_t) full_len + 4, "%s.tmp", real_name);
-
-    FILE* file= fopen(tmp_name, "w+");
-    if (0 == file)
-    {
-      err= errno;
-      WSREP_ERROR("Failed to open '%s': %d (%s)", tmp_name, err,strerror(err));
-    }
-    else
-    {
-      // Write cluster state ID and wsrep_gtid_domain_id.
-      fprintf(file, "%s:%lld %d\n",
-              wsrep_cluster_state_uuid, (long long)wsrep_locked_seqno,
-              wsrep_gtid_domain_id);
-      fsync(fileno(file));
-      fclose(file);
-      if (rename(tmp_name, real_name) == -1)
-      {
-        err= errno;
-        WSREP_ERROR("Failed to rename '%s' to '%s': %d (%s)",
-                     tmp_name, real_name, err,strerror(err));
-      }
-    }
+    /*
+      Tables have been flushed. Create a file with cluster state ID and
+      wsrep_gtid_domain_id.
+    */
+    char content[100];
+    snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
+             (long long)wsrep_locked_seqno, wsrep_gtid_domain_id);
+    err= sst_create_file(flush_success, content);
   }
 
   return err;
 }
+
 
 static void sst_disallow_writes (THD* thd, bool yes)
 {
@@ -1170,7 +1220,7 @@ static int sst_donate_other (const char*   method,
                  wsrep_defaults_file,
                  binlog_opt, binlog_opt_val,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
-                 bypass ? " "WSREP_SST_OPT_BYPASS : "");
+                 bypass ? " " WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
 
   if (ret < 0 || ret >= cmd_len)

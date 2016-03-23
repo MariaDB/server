@@ -369,6 +369,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     char* db = table->db;
     bool fatal_error=0;
     bool open_error;
+    bool collect_eis=  FALSE;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", table->db, table->table_name));
     strxmov(table_name, db, ".", table->table_name, NullS);
@@ -697,53 +698,64 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         compl_result_code= result_code= HA_ADMIN_INVALID;
       }
+      collect_eis=
+        (table->table->s->table_category == TABLE_CATEGORY_USER &&
+         (get_use_stat_tables_mode(thd) > NEVER ||
+          lex->with_persistent_for_clause));
 
-      if (!lex->column_list)
+      if (collect_eis)
       {
-        bitmap_clear_all(tab->read_set);
-        for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+        if (!lex->column_list)
         {
-          enum enum_field_types type= (*field_ptr)->type();
-          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-              type > MYSQL_TYPE_BLOB)
-            bitmap_set_bit(tab->read_set, fields);
-          else
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                               ER_NO_EIS_FOR_FIELD,
-                               ER_THD(thd, ER_NO_EIS_FOR_FIELD),
-                               (*field_ptr)->field_name);
+          bitmap_clear_all(tab->read_set);
+          for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+          {
+            enum enum_field_types type= (*field_ptr)->type();
+            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+                type > MYSQL_TYPE_BLOB)
+              bitmap_set_bit(tab->read_set, fields);
+            else if (collect_eis)
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_NO_EIS_FOR_FIELD,
+                                  ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                                  (*field_ptr)->field_name);
+          }
+        }
+        else
+        {
+          int pos;
+          LEX_STRING *column_name;
+          List_iterator_fast<LEX_STRING> it(*lex->column_list);
+
+          bitmap_clear_all(tab->read_set);
+          while ((column_name= it++))
+          {
+            if (tab->s->fieldnames.type_names == 0 ||
+                (pos= find_type(&tab->s->fieldnames, column_name->str,
+                                column_name->length, 1)) <= 0)
+            {
+              compl_result_code= result_code= HA_ADMIN_INVALID;
+              break;
+            }
+            pos--;
+            enum enum_field_types type= tab->field[pos]->type();
+            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+                type > MYSQL_TYPE_BLOB)
+              bitmap_set_bit(tab->read_set, pos);
+            else if (collect_eis)
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_NO_EIS_FOR_FIELD,
+                                  ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                                  column_name->str);
+          }
+          tab->file->column_bitmaps_signal(); 
         }
       }
       else
       {
-        int pos;
-        LEX_STRING *column_name;
-        List_iterator_fast<LEX_STRING> it(*lex->column_list);
-
-        bitmap_clear_all(tab->read_set);
-        while ((column_name= it++))
-	{
-          if (tab->s->fieldnames.type_names == 0 ||
-              (pos= find_type(&tab->s->fieldnames, column_name->str,
-                              column_name->length, 1)) <= 0)
-          {
-            compl_result_code= result_code= HA_ADMIN_INVALID;
-            break;
-          }
-          pos--;
-          enum enum_field_types type= tab->field[pos]->type();
-          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-              type > MYSQL_TYPE_BLOB)
-            bitmap_set_bit(tab->read_set, pos);
-          else
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                               ER_NO_EIS_FOR_FIELD,
-                               ER_THD(thd, ER_NO_EIS_FOR_FIELD),
-                               column_name->str);
-        }
-        tab->file->column_bitmaps_signal(); 
+        DBUG_ASSERT(!lex->column_list);
       }
-      
+
       if (!lex->index_list)
       {
         tab->keys_in_use_for_query.init(tab->s->keys);
@@ -778,11 +790,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
-    if (compl_result_code == HA_ADMIN_OK &&
-        operator_func == &handler::ha_analyze && 
-        table->table->s->table_category == TABLE_CATEGORY_USER &&
-        (get_use_stat_tables_mode(thd) > NEVER ||
-         lex->with_persistent_for_clause)) 
+    if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
       if (!(compl_result_code=
             alloc_statistics_for_table(thd, table->table)) &&

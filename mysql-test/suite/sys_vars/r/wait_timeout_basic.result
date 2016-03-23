@@ -124,5 +124,17 @@ SELECT session.wait_timeout;
 ERROR 42S02: Unknown table 'session' in field list
 SELECT wait_timeout = @@session.wait_timeout;
 ERROR 42S22: Unknown column 'wait_timeout' in 'field list'
+#
+# MDEV-9516 type error when setting session variable
+#
+SET SESSION wait_timeout= 28000;
+SET SESSION wait_timeout= GREATEST(28000, @@wait_timeout);
+SET SESSION wait_timeout= COALESCE(28000, @@wait_timeout);
+SET SESSION wait_timeout= IFNULL(28000, @@wait_timeout);
+SET SESSION wait_timeout= CASE WHEN TRUE THEN 28000 ELSE @@wait_timeout END;
+SET SESSION wait_timeout= 28000.0;
+ERROR 42000: Incorrect argument type to variable 'wait_timeout'
+SET SESSION wait_timeout= 28000.1;
+ERROR 42000: Incorrect argument type to variable 'wait_timeout'
 SET @@global.wait_timeout = @start_global_value;
 SET @@session.wait_timeout = @start_session_value;

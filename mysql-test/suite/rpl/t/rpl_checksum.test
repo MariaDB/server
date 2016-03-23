@@ -299,7 +299,7 @@ if(!$log_error_)
 }
 --let SEARCH_FILE= $log_error_
 --let SEARCH_RANGE=-50000
---let SEARCH_PATTERN= Slave SQL: The incident LOST_EVENTS occured on the master\. Message: error writing to the binary log, Internal MariaDB error code: 1590
+--let SEARCH_PATTERN= Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: error writing to the binary log, Internal MariaDB error code: 1590
 --source include/search_pattern_in_file.inc
 
 SELECT * FROM t4 ORDER BY a;
