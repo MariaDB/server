@@ -132,6 +132,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
   while ((item= li++))
   {
     with_sum_func|= item->with_sum_func;
+    with_window_func|= item->with_window_func;
     with_field|= item->with_field;
   }
 }
@@ -226,6 +227,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
       with_subselect|=        item->has_subquery();

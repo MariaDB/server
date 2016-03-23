@@ -48,6 +48,7 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+class Item_window_func;
 struct sql_digest_state;
 
 #define ALLOC_ROOT_SET 1024
@@ -1081,6 +1082,11 @@ public:
                        SQL_I_List<ORDER> win_partition_list,
                        SQL_I_List<ORDER> win_order_list,
                        Window_frame *win_frame);
+  List<Item_window_func> window_funcs;
+  bool add_window_func(Item_window_func *win_func)
+  {
+    return window_funcs.push_back(win_func);
+  }
 
 private:
   bool m_non_agg_field_used;

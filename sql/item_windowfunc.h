@@ -408,37 +408,40 @@ class Item_sum_cume_dist: public Item_sum_percent_rank
 };
 
 
-class Item_window_func : public Item_result_field
+class Item_window_func : public Item_func_or_sum
 {
   /* Window function parameters as we've got them from the parser */
 public:
-  Item_sum *window_func;
   LEX_STRING *window_name;
 public:
   Window_spec *window_spec;
   
   /*
-    This stores the data bout the partition we're currently in.
+    This stores the data about the partition we're currently in.
     advance_window() uses this to tell when we've left one partition and
-    entered another.
+    entered another
   */
   List<Cached_item> partition_fields;
 public:
   Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
-    : Item_result_field(thd), window_func(win_func),
+    : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+    read_value_from_result_field(false) {}
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
-    : Item_result_field(thd), window_func(win_func),
+    : Item_func_or_sum(thd, (Item *) win_func), 
       window_name(NULL), window_spec(win_spec), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+    read_value_from_result_field(false) {}
+
+  Item_sum *window_func() { return (Item_sum *) args[0]; }
+
+  void update_used_tables();
 
   bool is_frame_prohibited()
   {
-    switch (window_func->sum_func()) {
+    switch (window_func()->sum_func()) {
     case Item_sum::ROW_NUMBER_FUNC:
     case Item_sum::RANK_FUNC:
     case Item_sum::DENSE_RANK_FUNC:
@@ -452,7 +455,7 @@ public:
 
   bool is_order_list_mandatory()
   {
-    switch (window_func->sum_func()) {
+    switch (window_func()->sum_func()) {
     case Item_sum::RANK_FUNC:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
@@ -472,7 +475,10 @@ public:
   void advance_window();
   int check_partition_bound();
 
-  enum_field_types field_type() const { return window_func->field_type(); }
+  enum_field_types field_type() const
+  { 
+    return ((Item_sum *) args[0])->field_type(); 
+  }
   enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
   
   /* 
@@ -485,7 +491,7 @@ public:
     - Phase#2: executor does the scan in {PARTITION, ORDER BY} order of this 
       window function. It calls appropriate methods to inform the window
       function about rows entering/leaving the window. 
-      It calls window_func->val_int() so that current window function value 
+      It calls window_func()->val_int() so that current window function value 
       can be saved and stored in the temp.table.
 
     - Phase#3: the temporary table is read and passed to query output. 
@@ -521,8 +527,8 @@ public:
     }
     else
     {
-      res= window_func->val_real();
-      null_value= window_func->null_value;
+      res= window_func()->val_real();
+      null_value= window_func()->null_value;
     }
     return res;
   }
@@ -542,8 +548,8 @@ public:
     }
     else
     {
-      res= window_func->val_int();
-      null_value= window_func->null_value;
+      res= window_func()->val_int();
+      null_value= window_func()->null_value;
     }
     return res;
   }
@@ -566,8 +572,8 @@ public:
     }
     else
     {
-      res= window_func->val_str(str);
-      null_value= window_func->null_value;
+      res= window_func()->val_str(str);
+      null_value= window_func()->null_value;
     }
     return res;
   }
@@ -590,8 +596,8 @@ public:
     }
     else
     {
-      res= window_func->val_decimal(dec);
-      null_value= window_func->null_value;
+      res= window_func()->val_decimal(dec);
+      null_value= window_func()->null_value;
     }
     return res;
   }
@@ -600,7 +606,7 @@ public:
                               List<Item> &fields, uint flags);
   void fix_length_and_dec()
   {
-    decimals = window_func->decimals;
+    decimals = window_func()->decimals;
   }
 
   const char* func_name() const { return "WF"; }

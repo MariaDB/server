@@ -83,7 +83,7 @@ Window_frame::check_frame_bounds()
 int
 setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	      List<Item> &fields, List<Item> &all_fields, 
-              List<Window_spec> &win_specs)
+              List<Window_spec> &win_specs, List<Item_window_func> &win_funcs)
 {
   Window_spec *win_spec;
   DBUG_ENTER("setup_windows");
@@ -207,6 +207,14 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       }
     }
   }
+
+  List_iterator_fast<Item_window_func> li(win_funcs);
+  Item_window_func *win_func_item;
+  while ((win_func_item= li++))
+  {
+    win_func_item->update_used_tables();
+  }
+  
   DBUG_RETURN(0);
 }
 
@@ -1289,7 +1297,7 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   Frame_cursor *top_bound;
   Frame_cursor *bottom_bound;
 
-  Item_sum *sum_func= item_win->window_func;
+  Item_sum *sum_func= item_win->window_func();
   /* This algorithm doesn't support DISTINCT aggregator */
   sum_func->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
   
@@ -1382,7 +1390,7 @@ bool compute_two_pass_window_functions(Item_window_func *item_win,
   bool first_row= true;
   clone_read_record(info, info2);
   Item_sum_window_with_context *window_func= 
-    static_cast<Item_sum_window_with_context *>(item_win->window_func);
+    static_cast<Item_sum_window_with_context *>(item_win->window_func());
   uchar *rowid_buf= (uchar*) my_malloc(table->file->ref_length, MYF(0));
 
   is_error= window_func->create_window_context();
@@ -1653,7 +1661,7 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
         
         item_win->setup_partition_border_check(thd);
       
-        Item_sum::Sumfunctype type= item_win->window_func->sum_func();
+        Item_sum::Sumfunctype type= item_win->window_func()->sum_func();
         switch (type) {
           case Item_sum::ROW_NUMBER_FUNC:
           case Item_sum::RANK_FUNC:

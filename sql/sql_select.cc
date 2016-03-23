@@ -622,14 +622,16 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
                               ORDER *order,
                               ORDER *group,
                               List<Window_spec> &win_specs,
+		              List<Item_window_func> &win_funcs,
                               bool *hidden_group_fields,
                               uint *reserved)
 {
   int res;
+  enum_parsing_place save_place;
   st_select_lex *const select= thd->lex->current_select;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   /* 
-    Need to save the value, so we can turn off only any new non_agg_field_used
+    Need to stave the value, so we can turn off only any new non_agg_field_used
     additions coming from the WHERE
   */
   const bool saved_non_agg_field_used= select->non_agg_field_used();
@@ -649,14 +651,21 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   select->set_non_agg_field_used(saved_non_agg_field_used);
 
   thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  
+  save_place= thd->lex->current_select->parsing_place;
+  thd->lex->current_select->parsing_place= IN_ORDER_BY;
   res= res || setup_order(thd, ref_pointer_array, tables, fields, all_fields,
                           order);
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->current_select->parsing_place= save_place;
+   thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  save_place= thd->lex->current_select->parsing_place;
+  thd->lex->current_select->parsing_place= IN_GROUP_BY;
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
+  thd->lex->current_select->parsing_place= save_place;
   thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
-                            win_specs);
+                            win_specs, win_funcs);
   thd->lex->allow_sum_func= save_allow_sum_func;
   DBUG_RETURN(res);
 }
@@ -791,14 +800,18 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   ref_ptrs= ref_ptr_array_slice(0);
   
+  enum_parsing_place save_place= thd->lex->current_select->parsing_place;
+  thd->lex->current_select->parsing_place= SELECT_LIST;
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
                    &all_fields, 1))
     DBUG_RETURN(-1);
+  thd->lex->current_select->parsing_place= save_place;
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
                           all_fields, &conds, order, group_list,
                           select_lex->window_specs,
+                          select_lex->window_funcs,
                           &hidden_group_fields,
                           &select_lex->select_n_reserved))
     DBUG_RETURN(-1);
@@ -834,6 +847,12 @@ JOIN::prepare(TABLE_LIST *tables_init,
     if (having_fix_rc || thd->is_error())
       DBUG_RETURN(-1);				/* purecov: inspected */
     thd->lex->allow_sum_func= save_allow_sum_func;
+
+    if (having->with_window_func)
+    {
+      my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
+      DBUG_RETURN(-1); 
+    }
   }
   
   int res= check_and_do_in_subquery_rewrites(this);
@@ -21841,13 +21860,19 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
 
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order)
-{
+{ 
+  enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
 			   all_fields, FALSE))
       return 1;
+    if ((*order->item)->with_window_func && parsing_place != IN_ORDER_BY)
+    {
+      my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
+      return 1;
+    }
   }
   return 0;
 }
@@ -21884,6 +21909,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
 	    bool *hidden_group_fields)
 {
+  enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   *hidden_group_fields=0;
   ORDER *ord;
 
@@ -21893,22 +21919,26 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   uint org_fields=all_fields.elements;
 
   thd->where="group statement";
-  enum_parsing_place save_place= thd->lex->current_select->parsing_place;
-  thd->lex->current_select->parsing_place= IN_GROUP_BY;
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
 			   all_fields, TRUE))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
-    if ((*ord->item)->with_sum_func)
+    if ((*ord->item)->with_sum_func && parsing_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
       return 1;
     }
+    if ((*ord->item)->with_window_func)
+    {
+      if (parsing_place == IN_GROUP_BY)
+        my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
+      else
+        my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
+      return 1;
+    }
   }
-  thd->lex->current_select->parsing_place= save_place;
-
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
   {
     /*

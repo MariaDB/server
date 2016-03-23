@@ -10397,6 +10397,8 @@ window_func_expr:
             $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
           }
         |
           window_func OVER_SYM window_spec
@@ -10410,6 +10412,8 @@ window_func_expr:
             $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
                                                       thd->lex->win_spec); 
             if ($$ == NULL)
+              MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
               MYSQL_YYABORT;
           }
         ;
