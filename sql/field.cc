@@ -5624,6 +5624,18 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
     }
     break;
   case ANY_SUBST:
+    if (!is_temporal_type_with_date(const_item->field_type()))
+    {
+      MYSQL_TIME ltime;
+      if (const_item->get_date_with_conversion(&ltime,
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
+        return NULL;
+      return new (thd->mem_root)
+        Item_datetime_literal_for_invalid_dates(thd, &ltime,
+                                                ltime.second_part ?
+                                                TIME_SECOND_PART_DIGITS : 0);
+    }
     break;
   }
   return const_item;
@@ -5932,7 +5944,10 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     {
       MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
+      if (const_item->get_time_with_conversion(thd, &ltime,
+                                               TIME_TIME_ONLY |
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
