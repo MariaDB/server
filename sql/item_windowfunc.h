@@ -549,28 +549,41 @@ public:
     Window functions are very special functions, so val_() methods have
     special meaning for them:
 
-    - Phase#1: we run the join and put its result into temporary table. For 
-      window functions, we write NULL (or some other) values as placeholders.
+    - Phase#1, "Initial" we run the join and put its result into temporary 
+      table. For window functions, we write the default value (NULL?) as 
+      a placeholder.
       
-    - Phase#2: executor does the scan in {PARTITION, ORDER BY} order of this 
-      window function. It calls appropriate methods to inform the window
-      function about rows entering/leaving the window. 
-      It calls window_func()->val_int() so that current window function value 
+    - Phase#2: "Computation": executor does the scan in {PARTITION, ORDER BY} 
+      order of this window function. It calls appropriate methods to inform 
+      the window function about rows entering/leaving the window. 
+      It calls window_func()->val_int() so that current window function value
       can be saved and stored in the temp.table.
 
-    - Phase#3: the temporary table is read and passed to query output. 
-      However, Item_window_func still remains in the select list, so
-      item_windowfunc->val_int() will be called.
+    - Phase#3: "Retrieval" the temporary table is read and passed to query 
+      output. However, Item_window_func still remains in the select list,
+      so item_windowfunc->val_int() will be called.
       During Phase#3, read_value_from_result_field= true.
   */
-public:
-  // TODO: how to reset this for subquery re-execution??
   bool force_return_blank;
-private:
-
   bool read_value_from_result_field;
 
 public:
+  void set_phase_to_initial()
+  {
+    force_return_blank= true;
+    read_value_from_result_field= false;
+  }
+  void set_phase_to_computation()
+  {
+    force_return_blank= false;
+    read_value_from_result_field= false;
+  }
+  void set_phase_to_retrieval()
+  {
+    force_return_blank= false;
+    read_value_from_result_field= true;
+  }
+
   void set_read_value_from_result_field() 
   {
     read_value_from_result_field= true;

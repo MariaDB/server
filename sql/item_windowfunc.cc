@@ -112,8 +112,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   maybe_null= window_func()->maybe_null;
 
   fixed= 1;
-  force_return_blank= true;
-  read_value_from_result_field= false;
+  set_phase_to_initial();
   return false;
 }
 

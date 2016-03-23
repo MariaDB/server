@@ -1590,7 +1590,7 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
       if (item->type() == Item::WINDOW_FUNC_ITEM)
       {
         Item_window_func *item_win = (Item_window_func *) item;
-        item_win->force_return_blank= false;
+        item_win->set_phase_to_computation();
         Window_spec *spec = item_win->window_spec;
         /*
           The sorting criteria should be 
@@ -1663,7 +1663,7 @@ bool JOIN::process_window_functions(List<Item> *curr_fields_list)
             DBUG_ASSERT(0);
         }
 
-        item_win->set_read_value_from_result_field();
+        item_win->set_phase_to_retrieval();
         /* This calls filesort_free_buffers(): */
         end_read_record(&info);
 
