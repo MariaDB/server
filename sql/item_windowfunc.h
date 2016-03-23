@@ -6,6 +6,54 @@
 
 class Window_spec;
 
+
+int test_if_group_changed(List<Cached_item> &list);
+
+/* A wrapper around test_if_group_changed */
+class Group_bound_tracker
+{
+  List<Cached_item> group_fields;
+public:
+  void init(THD *thd, SQL_I_List<ORDER> *list)
+  {
+    for (ORDER *curr = list->first; curr; curr=curr->next) 
+    {
+      Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
+      group_fields.push_back(tmp);
+    }
+  }
+
+  void cleanup()
+  {
+    group_fields.empty();
+  }
+
+  /*
+    Check if the current row is in a different group than the previous row
+    this function was called for.
+    The new row's group becomes the current row's group.
+  */
+  bool check_if_next_group()
+  {
+    if (test_if_group_changed(group_fields) > -1)
+      return true;
+    return false;
+  }
+
+  int compare_with_cache()
+  {
+    List_iterator<Cached_item> li(group_fields);
+    Cached_item *ptr;
+    int res;
+    while ((ptr= li++))
+    {
+      if ((res= ptr->cmp_read_only()))
+        return res;
+    }
+    return 0;
+  }
+};
+
 /*
   ROW_NUMBER() OVER (...)
 
@@ -74,7 +122,7 @@ protected:
   longlong row_number; // just ROW_NUMBER()
   longlong cur_rank;   // current value
   
-  List<Cached_item> orderby_fields;
+  Group_bound_tracker peer_tracker;
 public:
   void clear()
   {
@@ -111,6 +159,11 @@ public:
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+  void cleanup()
+  {
+    peer_tracker.cleanup();
+    Item_sum_int::cleanup();
+  }
 };
 
 
@@ -136,7 +189,7 @@ public:
 class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
-  List<Cached_item> orderby_fields;
+  Group_bound_tracker peer_tracker;
   /*
      XXX(cvicentiu) This class could potentially be implemented in the rank
      class, with a switch for the DENSE case.
@@ -167,6 +220,11 @@ class Item_sum_dense_rank: public Item_sum_int
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
 
+  void cleanup()
+  {
+    peer_tracker.cleanup();
+    Item_sum_int::cleanup();
+  }
 };
 
 /* TODO-cvicentiu
@@ -365,7 +423,13 @@ class Item_sum_percent_rank: public Item_sum_window_with_context,
   longlong cur_rank;   // Current rank of the current row.
   longlong row_number; // Value if this were ROW_NUMBER() function.
 
-  List<Cached_item> orderby_fields;
+  Group_bound_tracker peer_tracker;
+
+  void cleanup()
+  {
+    peer_tracker.cleanup();
+    Item_sum_window_with_context::cleanup();
+  }
 
   /* Helper function so that we don't cast the context every time. */
   Window_context_row_count* get_context_()

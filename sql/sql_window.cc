@@ -387,46 +387,6 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////
 
-/* A wrapper around test_if_group_changed */
-class Group_bound_tracker
-{
-  List<Cached_item> group_fields;
-public:
-  void init(THD *thd, SQL_I_List<ORDER> *list)
-  {
-    for (ORDER *curr = list->first; curr; curr=curr->next) 
-    {
-      Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
-      group_fields.push_back(tmp);
-    }
-  }
-
-  /*
-    Check if the current row is in a different group than the previous row
-    this function was called for.
-    The new row's group becomes the current row's group.
-  */
-  bool check_if_next_group()
-  {
-    if (test_if_group_changed(group_fields) > -1)
-      return true;
-    return false;
-  }
-
-  int compare_with_cache()
-  {
-    List_iterator<Cached_item> li(group_fields);
-    Cached_item *ptr;
-    int res;
-    while ((ptr= li++))
-    {
-      if ((res= ptr->cmp_read_only()))
-        return res;
-    }
-    return 0;
-  }
-};
-
 
 /*
   Window frame bound cursor. Abstract interface.
