@@ -1071,6 +1071,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   if (!(table= open_proc_table_for_update(thd)))
   {
     my_error(ER_SP_STORE_FAILED, MYF(0), SP_TYPE_STRING(type),sp->m_name.str);
+    goto done;
   }
   else
   {
