@@ -45,8 +45,6 @@
 
 #define isbig5code(c,d) (isbig5head(c) && isbig5tail(d))
 #define big5code(c,d)   (((uchar)(c) <<8) | (uchar)(d))
-#define big5head(e)	((uchar)(e>>8))
-#define big5tail(e)	((uchar)(e&0xff))
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
@@ -847,38 +845,6 @@ static uint16 big5strokexfrm(uint16 i)
   else if (i == 0xF9D4)  return 0xF9D4;
   else if (i == 0xF9D5)  return 0xF9D5;
   return 0xA140;
-}
-
-
-static size_t
-my_strnxfrm_big5(CHARSET_INFO *cs,
-                 uchar *dst, size_t dstlen, uint nweights,
-                 const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-  uchar *de= dst + dstlen;
-  const uchar *se= src + srclen;
-  const uchar *sort_order= cs->sort_order;
-  
-  for (; dst < de && src < se && nweights; nweights--)
-  {
-    if (my_charlen(cs, (const char *) src, (const char *) se) > 1)
-    {
-      /*
-        Note, it is safe not to check (src < se)
-        in the code below, because my_charlen() would
-        not return 2 if src was too short
-      */
-      uint16 e= big5strokexfrm((uint16) big5code(*src, *(src + 1)));
-      *dst++= big5head(e);
-      if (dst < de)
-        *dst++= big5tail(e);
-      src+= 2;
-    }
-    else
-      *dst++= sort_order ? sort_order[*src++] : *src++;
-  }
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
 }
 
 
@@ -6719,6 +6685,8 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_chinese_ci
 #define WEIGHT_MB1(x)        (sort_order_big5[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
+#define WEIGHT_MB2_FRM(x,y)  (big5strokexfrm((uint16) WEIGHT_MB2(x, y)))
+#define DEFINE_STRNXFRM
 #include "strcoll.ic"
 
 
@@ -6733,7 +6701,7 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
   NULL,			/* init */
   my_strnncoll_big5_chinese_ci,
   my_strnncollsp_big5_chinese_ci,
-  my_strnxfrm_big5,
+  my_strnxfrm_big5_chinese_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,
