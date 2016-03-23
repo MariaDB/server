@@ -333,6 +333,10 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
 
+  if (lock_object_name(thd, MDL_key::EVENT,
+                       parse_data->dbname.str, parse_data->name.str))
+    DBUG_RETURN(TRUE);
+
   if (check_db_dir_existence(parse_data->dbname.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), parse_data->dbname.str);
@@ -346,10 +350,6 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     so that all supporting tables are updated for CREATE EVENT command.
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
-
-  if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
-    DBUG_RETURN(TRUE);
 
   if (thd->lex->create_info.or_replace() && event_queue)
     event_queue->drop_event(thd, parse_data->dbname, parse_data->name);
@@ -454,6 +454,16 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
+  if (lock_object_name(thd, MDL_key::EVENT,
+                       parse_data->dbname.str, parse_data->name.str))
+    DBUG_RETURN(TRUE);
+
+  if (check_db_dir_existence(parse_data->dbname.str))
+  {
+    my_error(ER_BAD_DB_ERROR, MYF(0), parse_data->dbname.str);
+    DBUG_RETURN(TRUE);
+  }
+
 
   if (new_dbname)                               /* It's a rename */
   {
@@ -476,6 +486,13 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     if (check_access(thd, EVENT_ACL, new_dbname->str, NULL, NULL, 0, 0))
       DBUG_RETURN(TRUE);
 
+    /*
+     Acquire mdl exclusive lock on target database name.
+    */
+    if (lock_object_name(thd, MDL_key::EVENT,
+                         new_dbname->str, new_name->str))
+      DBUG_RETURN(TRUE);
+
     /* Check that the target database exists */
     if (check_db_dir_existence(new_dbname->str))
     {
@@ -489,10 +506,6 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     so that all supporting tables are updated for UPDATE EVENT command.
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
-
-  if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
-    DBUG_RETURN(TRUE);
 
   /* On error conditions my_error() is called so no need to handle here */
   if (!(ret= db_repository->update_event(thd, parse_data,
