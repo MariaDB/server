@@ -178,29 +178,21 @@ void Item_window_func::setup_partition_border_check(THD *thd)
 void Item_sum_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
-  {
-    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
-    orderby_fields.push_back(tmp);
-  }
+  peer_tracker.init(thd, window_spec->order_list);
   clear();
 }
 
 void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: consider moving this && Item_sum_rank's implementation */
-  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
-  {
-    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
-    orderby_fields.push_back(tmp);
-  }
+  peer_tracker.init(thd, window_spec->order_list);
   clear();
 }
 
 bool Item_sum_dense_rank::add()
 {
-  if (test_if_group_changed(orderby_fields) > -1)
-   dense_rank++;
+  if (peer_tracker.check_if_next_group())
+    dense_rank++;
 
   return false;
 }
@@ -209,7 +201,7 @@ bool Item_sum_dense_rank::add()
 bool Item_sum_rank::add()
 {
   row_number++;
-  if (test_if_group_changed(orderby_fields) > -1)
+  if (peer_tracker.check_if_next_group())
   {
     /* Row value changed */
     cur_rank= row_number;
@@ -237,7 +229,7 @@ void Item_window_func::advance_window()
 bool Item_sum_percent_rank::add()
 {
   row_number++;
-  if (test_if_group_changed(orderby_fields) > -1)
+  if (peer_tracker.check_if_next_group())
   {
     /* Row value changed. */
     cur_rank= row_number;
@@ -248,11 +240,7 @@ bool Item_sum_percent_rank::add()
 void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  for (ORDER *curr= window_spec->order_list->first; curr; curr=curr->next)
-  {
-    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
-    orderby_fields.push_back(tmp);
-  }
+  peer_tracker.init(thd, window_spec->order_list);
   clear();
 }
 
