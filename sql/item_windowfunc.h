@@ -485,7 +485,7 @@ public:
     advance_window() uses this to tell when we've left one partition and
     entered another
   */
-  List<Cached_item> partition_fields;
+  Group_bound_tracker partition_tracker;
 public:
   Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
     : Item_func_or_sum(thd, (Item *) win_func),
@@ -537,7 +537,7 @@ public:
   void setup_partition_border_check(THD *thd);
 
   void advance_window();
-  int check_partition_bound();
+  bool check_if_partition_changed();
 
   enum_field_types field_type() const
   { 

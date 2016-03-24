@@ -164,12 +164,7 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 void Item_window_func::setup_partition_border_check(THD *thd)
 {
-  for (ORDER *curr= window_spec->partition_list->first; curr; curr=curr->next)
-  {
-    //curr->item_ptr->fix_fields(thd, curr->item);
-    Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);  
-    partition_fields.push_back(tmp);
-  }
+  partition_tracker.init(thd, window_spec->partition_list);
   window_func()->setup_window_func(thd, window_spec);
 }
 
@@ -208,16 +203,14 @@ bool Item_sum_rank::add()
   return false; 
 }
 
-int Item_window_func::check_partition_bound()
+bool Item_window_func::check_if_partition_changed()
 {
-  return test_if_group_changed(partition_fields);
+  return partition_tracker.check_if_next_group();
 }
 
 void Item_window_func::advance_window()
 {
-  int changed= check_partition_bound();
-
-  if (changed > -1)
+  if (check_if_partition_changed())
   {
     /* Next partition */
     window_func()->clear();

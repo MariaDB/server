@@ -1281,8 +1281,8 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
     {
       break; /* End of file */
     }
-    bool partition_changed= (item_win->check_partition_bound() > -1)? true:
-                                                                     false;
+    bool partition_changed= item_win->check_if_partition_changed();
+
     tbl->file->position(tbl->record[0]);
     memcpy(rowid_buf, tbl->file->ref, tbl->file->ref_length);
 
@@ -1382,8 +1382,7 @@ bool compute_two_pass_window_functions(Item_window_func *item_win,
       done = true;
     }
 
-    bool partition_changed= (done || item_win->check_partition_bound() > -1) ?
-                              true : false;
+    bool partition_changed= done || item_win->check_if_partition_changed();
     // The first time we always have a partition changed. Ignore it.
     if (first_row)
     {
