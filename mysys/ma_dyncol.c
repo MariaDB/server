@@ -4248,7 +4248,7 @@ mariadb_dyncol_unpack(DYNAMIC_COLUMN *str,
   {
     *names= my_malloc(sizeof(LEX_STRING) * header.column_count +
                       DYNCOL_NUM_CHAR * header.column_count, MYF(0));
-    nm= (char *)(names + sizeof(LEX_STRING) * header.column_count);
+    nm= (char *)((*names) + header.column_count);
   }
   else
   {
