@@ -691,13 +691,54 @@ err:
   mariadb_dyncol_free(&str2);
 }
 
+static void test_mdev_9773()
+{
+  int rc;
+  uint i;
+  uint num_keys[5]= {1,2,3,4,5};
+  char const *strval[]= {"Val1", "Val2", "Val3", "Val4", "Val5"};
+  DYNAMIC_COLUMN_VALUE vals[5];
+  DYNAMIC_COLUMN dynstr;
+  uint unpack_columns= 0;
+  MYSQL_LEX_STRING *unpack_keys= 0;
+  DYNAMIC_COLUMN_VALUE *unpack_vals= 0;
+
+  for (i = 0; i < 5; i++)
+  {
+    vals[i].type= DYN_COL_STRING;
+    vals[i].x.string.value.str= (char *)strval[i];
+    vals[i].x.string.value.length= strlen(strval[i]);
+    vals[i].x.string.charset= &my_charset_latin1;
+  }
+
+  mariadb_dyncol_init(&dynstr);
+
+  /* create numeric */
+  rc= mariadb_dyncol_create_many_num(&dynstr, 5, num_keys, vals, 1);
+
+  if (rc == ER_DYNCOL_OK)
+    rc= mariadb_dyncol_unpack(&dynstr, &unpack_columns, &unpack_keys,
+                              &unpack_vals);
+  ok (rc == ER_DYNCOL_OK && unpack_columns == 5, "5 fields unpacked");
+  for (i = 0; i < unpack_columns; i++)
+  {
+    ok(memcmp(unpack_vals[i].x.string.value.str,
+               vals[i].x.string.value.str, vals[i].x.string.value.length) == 0,
+       "unpack %u", i);
+  }
+
+  my_free(unpack_keys);
+  my_free(unpack_vals);
+  mariadb_dyncol_free(&dynstr);
+}
+
 int main(int argc __attribute__((unused)), char **argv)
 {
   uint i;
   char *big_string= (char *)malloc(1024*1024);
 
   MY_INIT(argv[0]);
-  plan(62);
+  plan(68);
 
   if (!big_string)
     exit(1);
@@ -830,6 +871,7 @@ int main(int argc __attribute__((unused)), char **argv)
   }
   test_mdev_4994();
   test_mdev_4995();
+  test_mdev_9773();
 
   my_end(0);
   return exit_status();
