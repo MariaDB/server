@@ -1150,7 +1150,7 @@ char *ha_connect::GetRealString(const char *s)
 {
   char *sv;
 
-  if (IsPartitioned() && s) {
+  if (IsPartitioned() && s && partname && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1173,7 +1173,9 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                            : table->s->connect_string;
 
     if (cnc.length)
-      opval= GetRealString(strz(xp->g, cnc));
+      opval= strz(xp->g, cnc);
+		else
+			opval= GetListOption(xp->g, opname, options->oplist);
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
