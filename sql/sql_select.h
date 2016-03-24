@@ -1494,7 +1494,7 @@ public:
   int init_execution();
   void exec();
 
-  bool process_window_functions(List<Item> *curr_fields_list);
+  bool process_window_functions(List<Item_window_func> *window_funcs);
 
   void exec_inner();
   bool prepare_result(List<Item> **columns_list);

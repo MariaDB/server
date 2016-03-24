@@ -25898,7 +25898,7 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
-  join->process_window_functions(&join->fields_list); // location #2
+  join->process_window_functions(&join->select_lex->window_funcs);
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;
