@@ -757,7 +757,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
-  *partname= 0;
+  memset(partname, 0, sizeof(partname));
   bzero((char*) &xinfo, sizeof(XINFO));
   valid_info= false;
   valid_query_id= 0;
@@ -1150,7 +1150,7 @@ char *ha_connect::GetRealString(const char *s)
 {
   char *sv;
 
-  if (IsPartitioned() && s) {
+  if (IsPartitioned() && s && partname && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1173,7 +1173,9 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                            : table->s->connect_string;
 
     if (cnc.length)
-      opval= GetRealString(strz(xp->g, cnc));
+      opval= strz(xp->g, cnc);
+		else
+			opval= GetListOption(xp->g, opname, options->oplist);
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
@@ -3121,13 +3123,14 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (table->part_info) {
       if (GetStringOption("Filename") || GetStringOption("Tabname")
-          || GetStringOption("Connect")) {
-        strcpy(partname, decode(g, strrchr(name, '#') + 1));
+                                      || GetStringOption("Connect")) {
+        strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //      strcpy(partname, table->part_info->curr_part_elem->partition_name);
-        part_id= &table->part_info->full_part_field_set;
+//      part_id= &table->part_info->full_part_field_set;
       } else       // Inward table
-        strcpy(partname, strrchr(name, slash) + 1);
-        part_id= &table->part_info->full_part_field_set; // Temporary
+        strncpy(partname, strrchr(name, slash) + 1, sizeof(partname) - 1);
+
+      part_id= &table->part_info->full_part_field_set; // Temporary
       } // endif part_info
 #endif   // WITH_PARTITION_STORAGE_ENGINE
   } else
@@ -6142,7 +6145,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       strcpy(dbpath, name);
       p= strrchr(dbpath, slash);
-      strcpy(partname, ++p);
+      strncpy(partname, ++p, sizeof(partname) - 1);
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
@@ -6193,7 +6196,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
-      strcpy(partname, decode(g, strrchr(name, '#') + 1));
+      strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
@@ -6234,8 +6237,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
-            strcpy(partname, 
-                   decode(g, strrchr(name, (inward ? slash : '#')) + 1));
+            strncpy(partname, 
+                    decode(g, strrchr(name, (inward ? slash : '#')) + 1),
+										sizeof(partname) - 1);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
