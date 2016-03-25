@@ -800,16 +800,6 @@ uint my_instr_mb(CHARSET_INFO *,
                  const char *s, size_t s_length,
                  my_match_t *match, uint nmatch);
 
-int my_strnncoll_mb_bin(CHARSET_INFO * cs,
-                        const uchar *s, size_t slen,
-                        const uchar *t, size_t tlen,
-                        my_bool t_is_prefix);
-
-int my_strnncollsp_mb_bin(CHARSET_INFO *cs,
-                          const uchar *a, size_t a_length,
-                          const uchar *b, size_t b_length,
-                          my_bool diff_if_only_endspace_difference);
-
 int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       const char *str,const char *str_end,
                       const char *wildstr,const char *wildend,
