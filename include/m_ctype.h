@@ -992,7 +992,7 @@ uint my_ismbchar(CHARSET_INFO *cs, const char *str, const char *end)
   Note, inlike my_ismbchar(), 1 is returned for a single byte character.
 */
 static inline
-uint my_charlen(CHARSET_INFO *cs, const char *str, const char *end)
+int my_charlen(CHARSET_INFO *cs, const char *str, const char *end)
 {
   return (cs->cset->charlen)(cs, (const uchar *) str,
                                  (const uchar *) end);
