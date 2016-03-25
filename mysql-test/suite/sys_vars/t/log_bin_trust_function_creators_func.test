@@ -43,7 +43,6 @@ SET @@global.log_bin_trust_function_creators = 0;
 --echo ## Creating new table t2 ##
 CREATE TABLE t2 (a INT);
 
---echo ## Creating & connecting with new connection test_con1 ##
 connect (test_con1,localhost,tt,,);
 connection test_con1;
 
@@ -103,13 +102,11 @@ DROP TABLE t1;
 #    is allowed to create function or not.
 ########################################################################
 
---echo ## Switching to default connection ##
 connection default;
 
 --echo ## Setting value of variable to 1 ##
 SET @@global.log_bin_trust_function_creators = 1;
 
---echo ## Creating and connecting to new connection test_con2 ##
 connect (test_con2,localhost,tt,,);
 connection test_con2;
 
@@ -141,7 +138,6 @@ DROP FUNCTION f1;
 --echo ## Dropping table t1 & t2 ##
 DROP TABLE t1,t2;
 
---echo ## Disconnecting test_con2##
 disconnect test_con2;
 
 connection default;

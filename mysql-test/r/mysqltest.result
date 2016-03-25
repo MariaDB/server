@@ -183,6 +183,8 @@ select 7;
 7
 mysqltest: At line 1: End of line junk detected: "OCNE"
 connect  con1,localhost,root,,;
+connection default;
+disconnect con1;
 select 5 from t1;
 lower
 case
@@ -568,14 +570,24 @@ mysqltest: At line 1: query 'connect  con2,localhost,root,,illegal_db' failed: 1
 mysqltest: At line 1: Illegal argument for port: 'illegal_port'
 mysqltest: At line 1: Illegal option to connect: SMTP
 200 connects succeeded
+connect  test_con1,localhost,root,,;
+disconnect test_con1;
 mysqltest: In included file "MYSQLTEST_VARDIR/tmp/mysqltest.sql": 
 included from <stdin> at line 1:
 At line 3: connection 'test_con1' not found in connection pool
+connect  test_con1,localhost,root,,;
 mysqltest: In included file "MYSQLTEST_VARDIR/tmp/mysqltest.sql": 
 included from <stdin> at line 1:
 At line 2: Connection test_con1 already exists
+connect  con1,localhost,root,,;
+connection default;
+connection con1;
+disconnect con1;
+connect  con2,localhost,root,,*NO-ONE*;
 show tables;
 ERROR 3D000: No database selected
+disconnect con2;
+connection default;
 connect  con1,localhost,root,,;
 connection default;
 connection con1;
@@ -957,13 +969,23 @@ select 1;
 1
 -- a comment for the server;
 mysqltest: At line 1: Found line beginning with --  that didn't contain a valid mysqltest command, check your syntax or use # if you intended to write a comment
+connect  con1,localhost,root,,;
 con1
+connect  con2,localhost,root,,;
 con2
+connection default;
 default
+connection con1;
 con1
+connection con2;
 con2
+connection con1;
 con1
+connection con2;
 con2
+disconnect con1;
 con2
+disconnect con2;
 -closed_connection-
 End of tests
+connection default;

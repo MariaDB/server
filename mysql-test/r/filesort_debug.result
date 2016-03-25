@@ -18,17 +18,21 @@ DROP FUNCTION f1;
 # Bug #11747102
 # 30771: LOG MORE INFO ABOUT THREADS KILL'D AND SORT ABORTED MESSAGES
 #
-# connection 1
+connect  con1, localhost, root;
+connect  con2, localhost, root;
+connection con1;
 CREATE TABLE t1(f0 int auto_increment primary key, f1 int);
 INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
 SET DEBUG_SYNC='filesort_start SIGNAL filesort_started WAIT_FOR filesort_killed';
 # Sending: (not reaped since connection is killed later)
 SELECT * FROM t1 ORDER BY f1 ASC, f0;
-# connection 2
+connection con2;
 SET DEBUG_SYNC='now WAIT_FOR filesort_started';
 KILL @id;
 SET DEBUG_SYNC='now SIGNAL filesort_killed';
-# connection default
+connection default;
+disconnect con1;
+disconnect con2;
 SET DEBUG_SYNC= "RESET";
 DROP TABLE t1;
 #

@@ -30,6 +30,8 @@ b
 x
 x
 x
+connect  con1,localhost,root,,;
+connection con1;
 BEGIN;
 DELETE FROM t1 WHERE a=1;
 INSERT INTO t1 VALUES(1,'X',1);

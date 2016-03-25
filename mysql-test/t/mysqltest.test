@@ -427,7 +427,6 @@ select 7;
 --error 1
 --exec echo "--disable_info OCNE" | $MYSQL_TEST 2>&1
 
---enable_connect_log ONCE
 connect (con1,localhost,root,,);
 connection default;
 disconnect con1;
@@ -1789,12 +1788,14 @@ eval select "$long_rep" as x;
 # Repeat connect/disconnect
 --write_file $MYSQLTEST_VARDIR/tmp/mysqltest.sql
 let $i=200;
+disable_connect_log;
 while ($i)
 {
  connect (test_con1,localhost,root,,);
  disconnect test_con1;
  dec $i;
 }
+enable_connect_log;
 echo 200 connects succeeded;
 EOF
 --exec echo "source $MYSQLTEST_VARDIR/tmp/mysqltest.sql;" | $MYSQL_TEST 2>&1
@@ -1838,7 +1839,6 @@ disconnect con2;
 connection default;
 
 # Test enable_connect_log
---enable_connect_log
 connect (con1,localhost,root,,);
 connection default;
 connection con1;
@@ -1851,7 +1851,6 @@ connection con1;
 --enable_query_log
 disconnect con1;
 connection default;
---disable_connect_log
 
 # ----------------------------------------------------------------------------
 # Test mysqltest arguments

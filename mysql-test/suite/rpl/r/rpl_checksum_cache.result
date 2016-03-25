@@ -2,14 +2,17 @@ include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave. Statement: insert into t2 set data=repeat.*'a', @act_size.*");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave. Statement: insert into t1 values.* NAME_CONST.*'n',.*, @data .*");
+connection master;
 set @save_binlog_cache_size = @@global.binlog_cache_size;
 set @save_binlog_checksum = @@global.binlog_checksum;
 set @save_master_verify_checksum = @@global.master_verify_checksum;
 set @@global.binlog_cache_size = 4096;
 set @@global.binlog_checksum = CRC32;
 set @@global.master_verify_checksum = 1;
+connection slave;
 include/stop_slave.inc
 include/start_slave.inc
+connection master;
 flush status;
 show status like "binlog_cache_use";
 Variable_name	Value
@@ -38,10 +41,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
+connection master;
 begin;
 delete from t1;
 commit;
+connection slave;
+connection master;
 flush status;
 create table t2(a int auto_increment primary key, data VARCHAR(12288)) ENGINE=Innodb;
 show status like "binlog_cache_use";
@@ -51,10 +58,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+connection slave;
 include/diff_tables.inc [master:test.t2, slave:test.t2]
+connection master;
 begin;
 delete from t2;
 commit;
+connection slave;
+connection master;
 flush status;
 create table t3(a int auto_increment primary key, data VARCHAR(8192)) engine=innodb;
 show status like "binlog_cache_use";
@@ -64,10 +75,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+connection slave;
 include/diff_tables.inc [master:test.t3, slave:test.t3]
+connection master;
 begin;
 delete from t3;
 commit;
+connection slave;
+connection master;
 flush status;
 create procedure test.p1 (n int) 
 begin
@@ -102,9 +117,11 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 include/diff_tables.inc [master:test.t3, slave:test.t3]
+connection master;
 begin;
 delete from t1;
 delete from t2;

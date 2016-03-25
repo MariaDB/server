@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-==========MASTER==========
+connection master;
 show global variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
@@ -10,7 +10,7 @@ binlog_format	MIXED
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
-==========SLAVE===========
+connection slave;
 show global variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
@@ -20,6 +20,7 @@ binlog_format	MIXED
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
+connection master;
 
 ******************** DDL for database ********************
 DROP DATABASE IF EXISTS test_rpl;
@@ -29,14 +30,14 @@ ALTER DATABASE test_rpl_1 CHARACTER SET latin1 COLLATE latin1_general_ci;
 DROP DATABASE test_rpl_1;
 CREATE DATABASE test_rpl CHARACTER SET utf8 COLLATE utf8_general_ci;
 ALTER DATABASE test_rpl CHARACTER SET latin1 COLLATE latin1_swedish_ci;
-==========MASTER==========
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
-==========SLAVE===========
+connection slave;
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
+connection master;
 USE test_rpl;
 
 ******************** DDL for tables ********************
@@ -47,7 +48,6 @@ ALTER TABLE t0 ADD INDEX index1 (b);
 ALTER TABLE t0 DROP COLUMN c;
 RENAME TABLE t0 TO t1;
 CREATE TABLE t2 LIKE t1;
-==========MASTER==========
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -64,7 +64,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -82,12 +82,12 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master;
 
 ******************** DDL for indexes ********************
 ALTER TABLE t2 ADD COLUMN d datetime;
 CREATE INDEX index2 on t2 (d);
 CREATE INDEX index3 on t2 (a, d);
-==========MASTER==========
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -107,7 +107,7 @@ t2	CREATE TABLE `t2` (
   KEY `index2` (`d`),
   KEY `index3` (`a`,`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -128,6 +128,7 @@ t2	CREATE TABLE `t2` (
   KEY `index2` (`d`),
   KEY `index3` (`a`,`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master;
 ALTER TABLE t2 DROP COLUMN d;
 
 
@@ -170,5 +171,8 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE INDEX index3 on t2 (a, d)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; ALTER TABLE t2 DROP COLUMN d
+connection slave;
+connection master;
 drop database test_rpl;
+connection slave;
 include/rpl_end.inc

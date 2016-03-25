@@ -10,7 +10,7 @@
 --echo # Check that the option was set by the .opt file.
 SELECT @@tx_read_only;
 
---echo # Also for new connections. Switching to con1
+--echo # Also for new connections.
 connect (con1, localhost, root);
 SELECT @@tx_read_only;
 SET SESSION TRANSACTION READ WRITE;
@@ -18,7 +18,6 @@ SELECT @@tx_read_only;
 disconnect con1;
 --source include/wait_until_disconnected.inc
 
---echo # Connection default
 connection default;
 SELECT @@tx_read_only;
 

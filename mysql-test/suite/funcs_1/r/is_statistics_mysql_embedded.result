@@ -79,7 +79,7 @@ def	mysql	time_zone_transition_type	0	mysql	PRIMARY	1	Time_zone_id	A	#CARD#	NULL
 def	mysql	time_zone_transition_type	0	mysql	PRIMARY	2	Transition_type_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1,localhost,testuser1,,db_datadict;
 SELECT * FROM information_schema.statistics
 WHERE table_schema = 'mysql'
 ORDER BY table_schema, table_name, index_name, seq_in_index, column_name;
@@ -156,6 +156,7 @@ def	mysql	time_zone_transition_type	0	mysql	PRIMARY	1	Time_zone_id	A	#CARD#	NULL
 def	mysql	time_zone_transition_type	0	mysql	PRIMARY	2	Transition_type_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
-# Switch to connection default and close connection testuser1
+connection default;
+disconnect testuser1;
 DROP USER testuser1@localhost;
 DROP DATABASE db_datadict;

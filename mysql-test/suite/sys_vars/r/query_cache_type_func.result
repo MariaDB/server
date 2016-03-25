@@ -1,7 +1,7 @@
 ** Setup **
 
-** Connecting to con0 using root **
-** Connection con0 **
+connect  con0,localhost,root,,;
+connection con0;
 SET @start_global_value = @@GLOBAL.query_cache_type;
 SET @start_session_value = @@SESSION.query_cache_type;
 SET @start_query_cache_size= @@global.query_cache_size;
@@ -191,24 +191,24 @@ Qcache_queries_in_cache	1
 ** TESTING GLOBAL SCOPE **
 '#--------------------FN_DYNVARS_135_10-------------------------#'
 SET @@GLOBAL.query_cache_type = OFF;
-** Connecting con1 using root **
-** Connection con1 **
+connect  con1,localhost,root,,;
+connection con1;
 SELECT @@query_cache_type;
 @@query_cache_type
 OFF
 OFF Expected
 '#--------------------FN_DYNVARS_135_11-------------------------#'
 SET @@GLOBAL.query_cache_type = DEMAND;
-** Connecting con2 using root **
-** Connection con2 **
+connect  con2,localhost,root,,;
+connection con2;
 SELECT @@query_cache_type;
 @@query_cache_type
 DEMAND
 DEMAND Expected
 '#--------------------FN_DYNVARS_135_12-------------------------#'
 SET @@GLOBAL.query_cache_type = ON;
-** Connecting con3 using root **
-** Connection con3 **
+connect  con3,localhost,root,,;
+connection con3;
 SELECT @@query_cache_type;
 @@query_cache_type
 ON
@@ -216,11 +216,13 @@ ON Expected
 
 ** Cleanup **
 
-Disconnecting con1,con2,con3
-** Connection con0 **
+disconnect con1;
+disconnect con2;
+disconnect con3;
+connection con0;
 SET @@GLOBAL.query_cache_type = @start_global_value;
 SET @@SESSION.query_cache_type = @start_session_value;
 SET GLOBAL query_cache_size = @start_query_cache_size;
 DROP TABLE t1;
 DROP PROCEDURE testProcHit;
-Disconnecting con0
+disconnect con0;

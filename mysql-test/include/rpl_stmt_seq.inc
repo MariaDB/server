@@ -70,8 +70,6 @@ let $_log_num_s= `select @aux`;
 ###############################################################
 # INSERT 
 ###############################################################
---echo
---echo -------- switch to master -------
 connection master;
 # Maybe it would be smarter to use a table with an autoincrement column.
 let $MAX= `SELECT MAX(f1) FROM t1` ;
@@ -85,8 +83,6 @@ if ($show_binlog)
 }
 sync_slave_with_master;
 
---echo
---echo -------- switch to slave --------
 connection slave;
 # results before DDL(to be tested)
 SELECT MAX(f1) FROM t1;
@@ -99,8 +95,6 @@ if ($show_binlog)
 ###############################################################
 # command to be tested
 ###############################################################
---echo
---echo -------- switch to master -------
 connection master;
 eval $my_stmt;
 # Devaluate $my_stmt, to detect script bugs
@@ -114,8 +108,6 @@ if ($show_binlog)
 }
 sync_slave_with_master;
 
---echo
---echo -------- switch to slave --------
 connection slave;
 # results after DDL(to be tested)
 SELECT MAX(f1) FROM t1;
@@ -128,8 +120,6 @@ if ($show_binlog)
 ###############################################################
 # ROLLBACK
 ###############################################################
---echo
---echo -------- switch to master -------
 connection master;
 ROLLBACK;
 # results after final ROLLBACK
@@ -151,8 +141,6 @@ if ($show_binlog)
 }
 sync_slave_with_master;
 
---echo
---echo -------- switch to slave --------
 connection slave;
 # results after final ROLLBACK
 SELECT MAX(f1) FROM t1;
@@ -181,16 +169,12 @@ if ($manipulate)
 # - flush the master and the slave log
 #   ---> both start to write into new logs with incremented number
 # - increment $_log_num_n
---echo
---echo -------- switch to master -------
 connection master;
 flush logs;
 # sleep 1;
 # eval SHOW BINLOG EVENTS IN 'master-bin.$_log_num_s';
 sync_slave_with_master;
 
---echo
---echo -------- switch to slave --------
 connection slave;
 # the final content of the binary log
 flush logs;
@@ -202,6 +186,4 @@ flush logs;
 inc $_log_num_n;
 }
 
---echo
---echo -------- switch to master -------
 connection master;

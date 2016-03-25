@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-# On slave
+connection slave;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 
@@ -8,7 +8,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-# On master
+connection master;
 SET @@session.gtid_domain_id= 0;
 CREATE TABLE t1(i INT);
 CREATE TABLE t2(i INT);
@@ -21,14 +21,15 @@ INSERT INTO t2 VALUES(1);
 SELECT * FROM t2;
 i
 1
-# On slave
+connection slave;
+connection slave;
 SELECT * FROM t1;
 i
 1
 SELECT * FROM t2;
 i
 include/rpl_restart_server.inc [server_number=2]
-# On slave
+connection slave;
 DO_DOMAIN_IDS (AFTER RESTART)     : 
 IGNORE_DOMAIN_IDS (AFTER RESTART) : 1
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
@@ -40,7 +41,8 @@ i
 1
 SELECT * FROM t2;
 i
-# On master
+connection master;
 SET @@session.gtid_domain_id= 0;
 DROP TABLE t1, t2;
+connection slave;
 include/rpl_end.inc

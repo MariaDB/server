@@ -152,7 +152,6 @@ SELECT * FROM tp;
 SET AUTOCOMMIT = 1;
 
 connect(con1, localhost, root,,);
---echo # con1
 SET DEBUG_SYNC= 'swap_partition_after_compare_tables SIGNAL swap_in_progress WAIT_FOR goto_verification';
 SET DEBUG_SYNC= 'swap_partition_first_row_read SIGNAL swap_in_progress WAIT_FOR goto_wait';
 SET DEBUG_SYNC= 'swap_partition_after_wait SIGNAL swap_in_progress WAIT_FOR goto_rename';
@@ -160,7 +159,6 @@ SET DEBUG_SYNC= 'swap_partition_before_rename SIGNAL swap_in_progress WAIT_FOR t
 send ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 
 connection default;
---echo # con default
 SET DEBUG_SYNC= 'now WAIT_FOR swap_in_progress';
 --echo # select from t and select/update/delete/insert from tp should work
 SELECT * FROM t WHERE a = 99;
@@ -315,10 +313,8 @@ SHOW CREATE TABLE tp;
 SET DEBUG_SYNC= 'now SIGNAL test_done';
 
 connection con1;
---echo # con1
 --reap
 connection default;
---echo # con default
 --echo # Tables should now be as normal
 SHOW CREATE TABLE t;
 SHOW CREATE TABLE tp;
@@ -347,7 +343,6 @@ eval ALTER TABLE tp ENGINE = $engine;
 
 disconnect con1;
 connection default;
---echo # con default
 SET DEBUG_SYNC= 'RESET';
 SHOW CREATE TABLE t;
 SHOW CREATE TABLE tp;
@@ -357,5 +352,3 @@ SELECT * FROM t;
 SELECT * FROM tp;
 
 DROP TABLE t, tp, tsp;
-
-

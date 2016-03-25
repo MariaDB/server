@@ -63,12 +63,10 @@ source include/wait_for_slave_to_stop.inc;
 
 ###############################################################################
 
---echo # Connection: slave
 --connection slave
 
 START SLAVE;
 
---echo # Connection: master
 --connection master
 
 CREATE DATABASE mysqltest1;
@@ -82,12 +80,10 @@ use mysqltest1;
 
 EXECUTE stmt_d_1;
 
---echo # Connection: slave
 --sync_slave_with_master
 
 SELECT * FROM t1;
 
---echo # Connection: master
 --connection master
 
 DROP DATABASE mysqltest1;

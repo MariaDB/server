@@ -52,7 +52,6 @@ connection slave;
 stop slave;
 wait_for_slave_to_stop;
 
---echo **** On Master ****
 connection master;
 CREATE TEMPORARY TABLE tmp3 (a int);
 DROP TEMPORARY TABLE tmp3;

@@ -1,6 +1,8 @@
 SET @@global.wait_timeout= 2;
 disconnect default;
+connect  wait_con,localhost,root,,test,,;
 connection wait_con;
+connect  default,localhost,root,,test,,;
 connection default;
 --disable_reconnect;
 SELECT 1;
@@ -14,14 +16,15 @@ Got one of the listed errors
 SELECT 3;
 3
 3
-disconnection default;
+disconnect default;
 connection wait_con;
-connection con1;
+connect  con1,127.0.0.1,root,,test,$MASTER_MYPORT,;
 --disable_reconnect;
 SELECT 1;
 1
 1
 connection wait_con;
+disconnect wait_con;
 connection con1;
 SELECT 2;
 Got one of the listed errors
@@ -30,4 +33,5 @@ SELECT 3;
 3
 3
 SET @@global.wait_timeout= <start_value>;
-disconnection con1;
+disconnect con1;
+connect  default,localhost,root,,test,,;

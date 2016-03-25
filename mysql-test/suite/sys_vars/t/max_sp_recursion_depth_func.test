@@ -32,9 +32,7 @@ SET @session_max_recursion_depth = @@SESSION.max_sp_recursion_depth;
 ##########################################################
 #    Test behavior of variable on new connection # 01    #
 ##########################################################
---echo ** Connecting test_con1 using username 'root' **
 CONNECT (test_con1,localhost,root,,);
---echo ** Connection test_con1 **
 CONNECTION test_con1;
 
 
@@ -68,9 +66,7 @@ CALL sp_addRecords(0,8);
 #    Test behavior of variable on new connection # 02    #
 ##########################################################
 
---echo ** Connecting test_con2 using username 'root' **
 CONNECT (test_con2,localhost,root,,);
---echo ** Connection test_con2 **
 connection test_con2;
 
 
@@ -165,10 +161,8 @@ CALL sp_addRecords3(0,8);
 # Cleanup
 #
 
---echo ** Connection default **
 connection default;
 
---echo ** Disconnecting test_con1, test_con2 **
 disconnect test_con1;
 disconnect test_con2;
 

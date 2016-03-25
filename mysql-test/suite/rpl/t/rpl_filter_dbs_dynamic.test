@@ -50,11 +50,9 @@ SHOW DATABASES LIKE 'db%';
 SHOW TABLES IN db1 LIKE 't%';
 
 connection master;
-echo [on master];
 
 # Clean up
 connection master;
-echo [on master];
 DROP DATABASE IF EXISTS db1;
 DROP DATABASE IF EXISTS db2;
 DROP DATABASE IF EXISTS db3;

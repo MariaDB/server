@@ -71,7 +71,6 @@ SELECT * FROM t2;
 
 sync_slave_with_master;
 
-echo # Result on slave;
 SELECT * FROM t1;
 SELECT * FROM t2;
 
@@ -91,7 +90,6 @@ SELECT * FROM t2;
 
 sync_slave_with_master;
 
-echo # Result on slave;
 SELECT * FROM t1;
 SELECT * FROM t2;
 

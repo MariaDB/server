@@ -333,7 +333,6 @@ connect(con1,localhost,root,,);
 set autocommit= 0;
 insert into t1 values (1);
 lock table t1 write;
---echo # Disconnect
 --echo # Ensure that metadata locks will be released if there is an open
 --echo # transaction (autocommit=off) in conjunction with lock tables.
 disconnect con1;
@@ -349,7 +348,6 @@ create table t1 (a int);
 connect(con1,localhost,root,,);
 begin;
 insert into t1 values (1);
---echo # Disconnect
 --echo # Ensure that metadata locks held by the transaction are released.
 disconnect con1;
 connection default;
@@ -556,12 +554,10 @@ connect (con2, localhost, root);
 CREATE TABLE t1 (id INT);
 CREATE TABLE t2 (id INT);
 
---echo # Connection default
 connection default;
 LOCK TABLE t1 WRITE;
 ANALYZE TABLE t1;
 
---echo # Connection con2
 connection con2;
 LOCK TABLE t2 WRITE;
 --echo # This used to hang until the first connection
@@ -570,7 +566,6 @@ FLUSH TABLE t2;
 
 UNLOCK TABLES;
 
---echo # Connection default
 connection default;
 UNLOCK TABLES;
 DROP TABLE t1, t2;

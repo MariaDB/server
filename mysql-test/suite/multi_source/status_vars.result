@@ -1,3 +1,4 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 call mtr.add_suppression("Connection 'master1' already exists");
 change master 'master1' to 
 master_port=MYPORT_1, 
@@ -74,8 +75,10 @@ Slave_received_heartbeats	1
 set default_master_connection = '';
 start slave;
 include/wait_for_slave_to_start.inc
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 set binlog_format = statement;
 create temporary table tmp1 (i int) engine=MyISAM;
+connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	1
@@ -83,8 +86,10 @@ set default_master_connection = 'master1';
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	1
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 set binlog_format = statement;
 create temporary table tmp1 (i int) engine=MyISAM;
+connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	2
@@ -93,5 +98,10 @@ show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	2
 include/reset_master_slave.inc
+disconnect slave;
+connection master1;
 include/reset_master_slave.inc
+disconnect master1;
+connection master2;
 include/reset_master_slave.inc
+disconnect master2;

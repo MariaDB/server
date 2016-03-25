@@ -123,7 +123,6 @@ GRANT ALL ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 let $my_select = SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 let $my_show =   SHOW TRIGGERS FROM db_datadict;
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 --replace_result $engine_type <engine_type>
@@ -138,7 +137,6 @@ GRANT SELECT ON db_datadict.t1 TO 'testuser3'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 SHOW GRANTS FOR 'testuser2'@'localhost';
@@ -146,7 +144,6 @@ SHOW GRANTS FOR 'testuser2'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Establish connection testuser3 (user=testuser3)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser3, localhost, testuser3, , test);
 SHOW GRANTS FOR 'testuser3'@'localhost';
@@ -154,7 +151,6 @@ SHOW GRANTS FOR 'testuser3'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Establish connection testuser4 (user=testuser4)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser4, localhost, testuser4, , test);
 SHOW GRANTS FOR 'testuser4'@'localhost';
@@ -165,7 +161,6 @@ DESC db_datadict.t1;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default and close connections testuser1 - testuser4
 connection default;
 disconnect testuser1;
 disconnect testuser2;

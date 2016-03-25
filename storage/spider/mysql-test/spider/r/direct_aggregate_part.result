@@ -9,22 +9,27 @@ child3_2
 child3_3
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
 
 with partition test
+connection master_1;
 CREATE TABLE ta_l2 (
 a INT,
 b CHAR(1),
@@ -66,8 +71,11 @@ Variable_name	Value
 Spider_direct_aggregate	0
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for master_1
 for child2

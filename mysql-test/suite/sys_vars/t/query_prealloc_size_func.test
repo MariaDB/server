@@ -89,4 +89,3 @@ disconnect con_int2;
 DROP TABLE t1;
 
 SET @@global.query_prealloc_size = @start_value;
-

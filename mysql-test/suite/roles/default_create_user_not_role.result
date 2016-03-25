@@ -1,6 +1,8 @@
+connect  mysql, localhost, root,,;
 use mysql;
 create user 'test'@'localhost';
 select user, host, is_role from user where user='test' and host='localhost';
 user	host	is_role
 test	localhost	N
 drop user 'test'@'localhost';
+disconnect mysql;

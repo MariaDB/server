@@ -14,11 +14,9 @@
 connection slave;
 let $before = query_get_value("SHOW MASTER STATUS", Position, 1);
 
---echo [on master]
 connection master;
 eval $statement;
 
---echo [on slave]
 sync_slave_with_master;
 --echo # Expect 0
 SELECT COUNT(*) FROM t1;

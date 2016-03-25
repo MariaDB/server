@@ -4,12 +4,21 @@ set global thread_cache_size = 0;
 show variables like "thread_cache_size";
 Variable_name	Value
 thread_cache_size	0
+connect  con1, localhost, root, , ;
+connect  con2, localhost, root, , ;
+connection default;
 select @id_increment;
 @id_increment
 1
 select @thread_id_increment;
 @thread_id_increment
 1
+disconnect con2;
+connection default;
+connect  con3, localhost, root, , ;
+disconnect con3;
+disconnect con1;
+connection default;
 select @id_increment;
 @id_increment
 1
@@ -20,12 +29,21 @@ set global thread_cache_size = 100;
 show variables like "thread_cache_size";
 Variable_name	Value
 thread_cache_size	100
+connect  con1, localhost, root, , ;
+connect  con2, localhost, root, , ;
+connection default;
 select @id_increment;
 @id_increment
 1
 select @thread_id_increment;
 @thread_id_increment
 1
+disconnect con2;
+connection default;
+connect  con3, localhost, root, , ;
+disconnect con3;
+disconnect con1;
+connection default;
 select @id_increment;
 @id_increment
 1

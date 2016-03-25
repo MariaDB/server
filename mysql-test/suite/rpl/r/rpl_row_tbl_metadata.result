@@ -154,11 +154,17 @@ PRIMARY KEY (`c1`)
 LOCK TABLES `t1` WRITE;
 INSERT INTO `t1`(c2) VALUES ('1');
 FLUSH LOGS;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match
 include/diff_tables.inc [master:t1, slave:t1]
 DROP TABLE `t1`;
+connection master;
+connection slave;
+connection master;
 === Using mysqlbinlog to detect failure. Before the patch mysqlbinlog would find a corrupted event, thence would fail.
 include/rpl_reset.inc
+connection master;
 ### action: generating several tables with different metadata 
 ###         sizes (resorting to perl)
 ### testing table with 249 field metadata size.
@@ -171,27 +177,59 @@ include/rpl_reset.inc
 ### testing table with 256 field metadata size.
 ### testing table with 257 field metadata size.
 ### testing table with 258 field metadata size.
+connection slave;
+connection master;
 FLUSH LOGS;
 ### assertion: the slave replicated event successfully and tables match for t10
 include/diff_tables.inc [master:t10, slave:t10]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t9
 include/diff_tables.inc [master:t9, slave:t9]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t8
 include/diff_tables.inc [master:t8, slave:t8]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t7
 include/diff_tables.inc [master:t7, slave:t7]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t6
 include/diff_tables.inc [master:t6, slave:t6]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t5
 include/diff_tables.inc [master:t5, slave:t5]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t4
 include/diff_tables.inc [master:t4, slave:t4]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t3
 include/diff_tables.inc [master:t3, slave:t3]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t2
 include/diff_tables.inc [master:t2, slave:t2]
+connection master;
+connection slave;
+connection master;
 ### assertion: the slave replicated event successfully and tables match for t1
 include/diff_tables.inc [master:t1, slave:t1]
+connection master;
+connection slave;
+connection master;
 ### assertion: check that binlog is not corrupt. Using mysqlbinlog to 
 ###            detect failure. Before the patch mysqlbinlog would find 
 ###            a corrupted event, thence would fail.

@@ -30,9 +30,7 @@ SET @session_collation_server = @@session.collation_server;
 
 
 SET @@global.collation_database = latin1_danish_ci;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1; 
 SELECT @@global.collation_database;
 SELECT @@session.collation_database;
@@ -43,7 +41,6 @@ disconnect con1;
 # Begin the functionality Testing of collation_database #
 #########################################################
 
---echo 'connection default'
 connection default;
 
 --disable_warnings

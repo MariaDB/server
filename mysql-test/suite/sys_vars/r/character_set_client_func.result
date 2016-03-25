@@ -2,16 +2,17 @@
 SET @global_character_set_client = @@global.character_set_client;
 SET @session_character_set_client = @@session.character_set_client;
 SET @@global.character_set_client = utf8;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.character_set_client;
 @@global.character_set_client
 utf8
 SELECT @@session.character_set_client;
 @@session.character_set_client
 latin1
+disconnect con1;
 '#--------------------FN_DYNVARS_010_02-------------------------#'
-'connection default'
+connection default;
 SHOW VARIABLES like 'character_set_client';
 Variable_name	Value
 character_set_client	latin1

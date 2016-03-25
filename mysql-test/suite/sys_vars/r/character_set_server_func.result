@@ -2,16 +2,17 @@
 SET @global_character_set_server = @@global.character_set_server;
 SET @session_character_set_server = @@session.character_set_server;
 SET @@global.character_set_server = utf8;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.character_set_server;
 @@global.character_set_server
 utf8
 SELECT @@session.character_set_server;
 @@session.character_set_server
 utf8
+disconnect con1;
 '#--------------------FN_DYNVARS_009_02-------------------------#'
-'connection default'
+connection default;
 '---global character_set_server should not effects current connection---'
 SET @@global.character_set_server = utf8;
 CREATE DATABASE db1;
@@ -35,8 +36,8 @@ select @@character_set_database;
 @@character_set_database
 utf8
 '----test with new connection----'
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@session.character_set_server;
 @@session.character_set_server
 utf8
@@ -60,6 +61,7 @@ DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database
 utf8
-'connection default;'
+disconnect con1;
+connection default;
 SET @@global.character_set_server = @global_character_set_server;
 SET @@session.character_set_server = @session_character_set_server;

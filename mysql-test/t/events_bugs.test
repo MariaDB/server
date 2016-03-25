@@ -919,7 +919,6 @@ GRANT create, insert, select, event ON events_test.* TO evtest1@localhost;
 GRANT select,insert ON test.* TO evtest1@localhost;
 SHOW GRANTS FOR evtest1@localhost;
 
---echo connection e1;
 --replace_result $MASTER_MYPORT MASTER_MYPORT $MASTER_MYSOCK MASTER_MYSOCK
 connect (e1,localhost,evtest1,ev1,events_test,$MASTER_MYPORT,$MASTER_MYSOCK);
 DELIMITER |;
@@ -951,7 +950,6 @@ SELECT COUNT(*) > 0 FROM events_test.event_log;
 --source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS "Expect 1" FROM events_test.event_log;
 #
---echo connection default;
 connection default;
 DROP USER evtest1@localhost;
 # 2. If we meet BUG#28924 again than a server crash happens within the next
@@ -1025,10 +1023,6 @@ SET GLOBAL READ_ONLY = 1;
 
 --echo
 
---echo #
---echo # Connection: u1_con (mysqltest_u1@localhost/events_test).
---echo #
-
 --connect(u1_con,localhost,mysqltest_u1,,events_test)
 
 --echo
@@ -1049,10 +1043,6 @@ DROP EVENT e1;
 --echo
 
 # Check that the super user still can create/update/drop events.
-
---echo #
---echo # Connection: root_con (root@localhost/events_test).
---echo #
 
 --connect(root_con,localhost,root,,events_test)
 
@@ -1079,10 +1069,6 @@ SET GLOBAL READ_ONLY = 0;
 
 --echo
 
---echo #
---echo # Connection: u1_con (mysqltest_u1@localhost/test).
---echo #
-
 --connection u1_con
 
 --echo
@@ -1100,10 +1086,6 @@ FROM INFORMATION_SCHEMA.EVENTS
 WHERE event_schema = 'events_test';
 
 --echo
-
---echo #
---echo # Connection: root_con (root@localhost/events_test).
---echo #
 
 --connection root_con
 
@@ -1169,10 +1151,6 @@ DROP EVENT e2;
 SET GLOBAL READ_ONLY = 0;
 
 --echo
-
---echo #
---echo # Connection: default
---echo #
 
 --disconnect u1_con
 --disconnect root_con

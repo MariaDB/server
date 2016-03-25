@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 call mtr.add_suppression(".*Invalid .* username when attempting to connect to the master server.*");
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USER= '', MASTER_PASSWORD= '';

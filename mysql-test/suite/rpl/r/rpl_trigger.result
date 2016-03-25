@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t3;
@@ -41,8 +42,7 @@ a	name	old_a	old_b	truncate(rand_value,4)
 105	t2	4	0	0.6635
 106	t2	6	0	0.6699
 107	t2	500	0	0.3593
-
---- On slave --
+connection slave;
 select a,b, truncate(rand_value,4) from t1;
 a	b	truncate(rand_value,4)
 1	1	0.4320
@@ -64,10 +64,14 @@ a	name	old_a	old_b	truncate(rand_value,4)
 105	t2	4	0	0.6635
 106	t2	6	0	0.6699
 107	t2	500	0	0.3593
+connection master;
 drop table t1,t2,t3;
+connect  con2,localhost,root,,;
+connection con2;
 select get_lock("bug12480",2);
 get_lock("bug12480",2)
 1
+connection default;
 create table t1 (a datetime,b  datetime, c datetime);
 drop function if exists bug12480;
 create function bug12480() returns datetime
@@ -96,8 +100,7 @@ FROM information_schema.triggers
 WHERE trigger_name = 't1_first';
 trigger_name	definer
 t1_first	root@localhost
-
---- On slave --
+connection slave;
 SELECT routine_name, definer
 FROM information_schema.routines
 WHERE routine_name = 'bug12480';
@@ -113,6 +116,8 @@ a=b && a=c
 1
 test
 1
+connection master;
+disconnect con2;
 truncate table t1;
 drop trigger t1_first;
 insert into t1 values ("2003-03-03","2003-03-03","2003-03-03"),(bug12480(),bug12480(),bug12480()),(now(),now(),now());
@@ -132,6 +137,8 @@ end|
 create database other;
 use other;
 insert into test.t1 values (1);
+connection slave;
+connection master;
 use test;
 drop table t1,t2;
 drop database other;
@@ -139,14 +146,18 @@ test case for BUG#13227
 -------------------
 10
 -------------------
+connection master;
 drop table if exists t110;
+connection slave;
 drop table if exists t210,t310;
+connection master;
 create table t110 (f1 int)  /* 2 replicate */;
 insert into t110 values (-5);
 insert into t110 values (-4);
 insert into t110 values (-3);
 insert into t110 values (-2);
 insert into t110 values (-1);
+connection slave;
 select * from t110;
 f1
 -5
@@ -186,11 +197,13 @@ f1
 SELECT * from t310 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t110 SET f1=5 where f1=-5;
 UPDATE t110 SET f1=4 where f1=-4;
 UPDATE t110 SET f1=3 where f1=-3;
 UPDATE t110 SET f1=2 where f1=-2;
 UPDATE t110 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t110 /* must be f1 5 ... 1 */;
 f1
 5
@@ -207,18 +220,25 @@ f3
 100
 drop trigger trg110;
 drop table t210,t310;
+connection master;
 drop table t110;
+connection slave;
+connection master;
 -------------------
 9
 -------------------
+connection master;
 drop table if exists t19;
+connection slave;
 drop table if exists t29,t39;
+connection master;
 create table t19 (f1 int)  /* 2 replicate */;
 insert into t19 values (-5);
 insert into t19 values (-4);
 insert into t19 values (-3);
 insert into t19 values (-2);
 insert into t19 values (-1);
+connection slave;
 select * from t19;
 f1
 -5
@@ -258,11 +278,13 @@ f1
 SELECT * from t39 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t19 SET f1=5 where f1=-5;
 UPDATE t19 SET f1=4 where f1=-4;
 UPDATE t19 SET f1=3 where f1=-3;
 UPDATE t19 SET f1=2 where f1=-2;
 UPDATE t19 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t19 /* must be f1 5 ... 1 */;
 f1
 5
@@ -279,18 +301,25 @@ f3
 100
 drop trigger trg19;
 drop table t29,t39;
+connection master;
 drop table t19;
+connection slave;
+connection master;
 -------------------
 8
 -------------------
+connection master;
 drop table if exists t18;
+connection slave;
 drop table if exists t28,t38;
+connection master;
 create table t18 (f1 int)  /* 2 replicate */;
 insert into t18 values (-5);
 insert into t18 values (-4);
 insert into t18 values (-3);
 insert into t18 values (-2);
 insert into t18 values (-1);
+connection slave;
 select * from t18;
 f1
 -5
@@ -330,11 +359,13 @@ f1
 SELECT * from t38 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t18 SET f1=5 where f1=-5;
 UPDATE t18 SET f1=4 where f1=-4;
 UPDATE t18 SET f1=3 where f1=-3;
 UPDATE t18 SET f1=2 where f1=-2;
 UPDATE t18 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t18 /* must be f1 5 ... 1 */;
 f1
 5
@@ -351,18 +382,25 @@ f3
 100
 drop trigger trg18;
 drop table t28,t38;
+connection master;
 drop table t18;
+connection slave;
+connection master;
 -------------------
 7
 -------------------
+connection master;
 drop table if exists t17;
+connection slave;
 drop table if exists t27,t37;
+connection master;
 create table t17 (f1 int)  /* 2 replicate */;
 insert into t17 values (-5);
 insert into t17 values (-4);
 insert into t17 values (-3);
 insert into t17 values (-2);
 insert into t17 values (-1);
+connection slave;
 select * from t17;
 f1
 -5
@@ -402,11 +440,13 @@ f1
 SELECT * from t37 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t17 SET f1=5 where f1=-5;
 UPDATE t17 SET f1=4 where f1=-4;
 UPDATE t17 SET f1=3 where f1=-3;
 UPDATE t17 SET f1=2 where f1=-2;
 UPDATE t17 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t17 /* must be f1 5 ... 1 */;
 f1
 5
@@ -423,18 +463,25 @@ f3
 100
 drop trigger trg17;
 drop table t27,t37;
+connection master;
 drop table t17;
+connection slave;
+connection master;
 -------------------
 6
 -------------------
+connection master;
 drop table if exists t16;
+connection slave;
 drop table if exists t26,t36;
+connection master;
 create table t16 (f1 int)  /* 2 replicate */;
 insert into t16 values (-5);
 insert into t16 values (-4);
 insert into t16 values (-3);
 insert into t16 values (-2);
 insert into t16 values (-1);
+connection slave;
 select * from t16;
 f1
 -5
@@ -474,11 +521,13 @@ f1
 SELECT * from t36 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t16 SET f1=5 where f1=-5;
 UPDATE t16 SET f1=4 where f1=-4;
 UPDATE t16 SET f1=3 where f1=-3;
 UPDATE t16 SET f1=2 where f1=-2;
 UPDATE t16 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t16 /* must be f1 5 ... 1 */;
 f1
 5
@@ -495,18 +544,25 @@ f3
 100
 drop trigger trg16;
 drop table t26,t36;
+connection master;
 drop table t16;
+connection slave;
+connection master;
 -------------------
 5
 -------------------
+connection master;
 drop table if exists t15;
+connection slave;
 drop table if exists t25,t35;
+connection master;
 create table t15 (f1 int)  /* 2 replicate */;
 insert into t15 values (-5);
 insert into t15 values (-4);
 insert into t15 values (-3);
 insert into t15 values (-2);
 insert into t15 values (-1);
+connection slave;
 select * from t15;
 f1
 -5
@@ -546,11 +602,13 @@ f1
 SELECT * from t35 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t15 SET f1=5 where f1=-5;
 UPDATE t15 SET f1=4 where f1=-4;
 UPDATE t15 SET f1=3 where f1=-3;
 UPDATE t15 SET f1=2 where f1=-2;
 UPDATE t15 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t15 /* must be f1 5 ... 1 */;
 f1
 5
@@ -567,18 +625,25 @@ f3
 100
 drop trigger trg15;
 drop table t25,t35;
+connection master;
 drop table t15;
+connection slave;
+connection master;
 -------------------
 4
 -------------------
+connection master;
 drop table if exists t14;
+connection slave;
 drop table if exists t24,t34;
+connection master;
 create table t14 (f1 int)  /* 2 replicate */;
 insert into t14 values (-5);
 insert into t14 values (-4);
 insert into t14 values (-3);
 insert into t14 values (-2);
 insert into t14 values (-1);
+connection slave;
 select * from t14;
 f1
 -5
@@ -618,11 +683,13 @@ f1
 SELECT * from t34 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t14 SET f1=5 where f1=-5;
 UPDATE t14 SET f1=4 where f1=-4;
 UPDATE t14 SET f1=3 where f1=-3;
 UPDATE t14 SET f1=2 where f1=-2;
 UPDATE t14 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t14 /* must be f1 5 ... 1 */;
 f1
 5
@@ -639,18 +706,25 @@ f3
 100
 drop trigger trg14;
 drop table t24,t34;
+connection master;
 drop table t14;
+connection slave;
+connection master;
 -------------------
 3
 -------------------
+connection master;
 drop table if exists t13;
+connection slave;
 drop table if exists t23,t33;
+connection master;
 create table t13 (f1 int)  /* 2 replicate */;
 insert into t13 values (-5);
 insert into t13 values (-4);
 insert into t13 values (-3);
 insert into t13 values (-2);
 insert into t13 values (-1);
+connection slave;
 select * from t13;
 f1
 -5
@@ -690,11 +764,13 @@ f1
 SELECT * from t33 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t13 SET f1=5 where f1=-5;
 UPDATE t13 SET f1=4 where f1=-4;
 UPDATE t13 SET f1=3 where f1=-3;
 UPDATE t13 SET f1=2 where f1=-2;
 UPDATE t13 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t13 /* must be f1 5 ... 1 */;
 f1
 5
@@ -711,18 +787,25 @@ f3
 100
 drop trigger trg13;
 drop table t23,t33;
+connection master;
 drop table t13;
+connection slave;
+connection master;
 -------------------
 2
 -------------------
+connection master;
 drop table if exists t12;
+connection slave;
 drop table if exists t22,t32;
+connection master;
 create table t12 (f1 int)  /* 2 replicate */;
 insert into t12 values (-5);
 insert into t12 values (-4);
 insert into t12 values (-3);
 insert into t12 values (-2);
 insert into t12 values (-1);
+connection slave;
 select * from t12;
 f1
 -5
@@ -762,11 +845,13 @@ f1
 SELECT * from t32 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t12 SET f1=5 where f1=-5;
 UPDATE t12 SET f1=4 where f1=-4;
 UPDATE t12 SET f1=3 where f1=-3;
 UPDATE t12 SET f1=2 where f1=-2;
 UPDATE t12 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t12 /* must be f1 5 ... 1 */;
 f1
 5
@@ -783,18 +868,25 @@ f3
 100
 drop trigger trg12;
 drop table t22,t32;
+connection master;
 drop table t12;
+connection slave;
+connection master;
 -------------------
 1
 -------------------
+connection master;
 drop table if exists t11;
+connection slave;
 drop table if exists t21,t31;
+connection master;
 create table t11 (f1 int)  /* 2 replicate */;
 insert into t11 values (-5);
 insert into t11 values (-4);
 insert into t11 values (-3);
 insert into t11 values (-2);
 insert into t11 values (-1);
+connection slave;
 select * from t11;
 f1
 -5
@@ -834,11 +926,13 @@ f1
 SELECT * from t31 /* must be f3 5*100 */;
 f3
 500
+connection master;
 UPDATE t11 SET f1=5 where f1=-5;
 UPDATE t11 SET f1=4 where f1=-4;
 UPDATE t11 SET f1=3 where f1=-3;
 UPDATE t11 SET f1=2 where f1=-2;
 UPDATE t11 SET f1=1 where f1=-1;
+connection slave;
 SELECT * from t11 /* must be f1 5 ... 1 */;
 f1
 5
@@ -855,12 +949,18 @@ f3
 100
 drop trigger trg11;
 drop table t21,t31;
+connection master;
 drop table t11;
+connection slave;
+connection master;
+connection slave;
 STOP SLAVE;
+connection master;
 FLUSH LOGS;
 include/rpl_stop_server.inc [server_number=1]
 include/rpl_start_server.inc [server_number=1]
 --> Master binlog: Server ver: 5.0.16-debug-log, Binlog ver: 4
+connection slave;
 RESET SLAVE;
 START SLAVE;
 SELECT MASTER_POS_WAIT('master-bin.000001', 513) >= 0;
@@ -893,23 +993,26 @@ DROP TABLE t1;
 DROP TABLE t2;
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 SHOW TABLES LIKE 't_';
 Tables_in_test (t_)
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 RESET MASTER;
+connection slave;
 START SLAVE;
 
 ---> Test for BUG#20438
 
 ---> Preparing environment...
----> connection: master
+connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 
 ---> Synchronizing slave with master...
+connection slave;
 
----> connection: master
+connection master;
 
 ---> Creating objects...
 CREATE TABLE t1(c INT);
@@ -930,7 +1033,7 @@ c
 10
 
 ---> Synchronizing slave with master...
----> connection: master
+connection slave;
 
 ---> Checking on slave...
 SELECT * FROM t1;
@@ -940,11 +1043,14 @@ SELECT * FROM t2;
 c
 10
 
----> connection: master
+connection master;
 
 ---> Cleaning up...
 DROP TABLE t1;
 DROP TABLE t2;
+connection slave;
+connection master;
+connection master;
 drop table if exists t1;
 create table t1(a int, b varchar(50));
 drop trigger not_a_trigger;
@@ -966,13 +1072,19 @@ a	b
 1	In trigger t1_bi
 2	b
 3	c
+connection slave;
 select * from t1;
 a	b
 1	In trigger t1_bi
 2	b
 3	c
+connection master;
 drop table t1;
+connection slave;
+connection master;
 include/rpl_reset.inc
+connection slave;
+connection master;
 create table t1 ( f int ) engine = innodb;
 create table log ( r int ) engine = myisam;
 create trigger tr
@@ -983,9 +1095,13 @@ insert into t1 values ( 1 );
 rollback;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:log, slave:log]
+connection master;
 drop table t1, log;
+connection slave;
+connection master;
 drop trigger if exists notexistent;
 Warnings:
 Note	1360	Trigger does not exist
@@ -993,8 +1109,10 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; drop trigger if exists notexistent
+connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; drop trigger if exists notexistent
+connection master;
 include/rpl_end.inc

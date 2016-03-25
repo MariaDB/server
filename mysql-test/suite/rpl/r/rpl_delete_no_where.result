@@ -2,11 +2,16 @@ include/master-slave.inc
 [connection master]
 create table t1 (a int, b int) engine=myisam;
 insert into t1 values(1,1);
+connection slave;
 select * from t1;
 a	b
 1	1
+connection master;
 delete from t1;
+connection slave;
 select * from t1;
 a	b
+connection master;
 drop table t1;
+connection slave;
 include/rpl_end.inc

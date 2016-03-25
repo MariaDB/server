@@ -38,11 +38,12 @@ def	mysql	PRIMARY	mysql	time_zone_name	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_transition	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_transition_type	PRIMARY KEY
 def	mysql	PRIMARY	mysql	user	PRIMARY KEY
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1,localhost,testuser1,,db_datadict;
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'mysql'
 ORDER BY table_schema,table_name,constraint_name;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
-# Switch to connection default and close connection testuser1
+connection default;
+disconnect testuser1;
 DROP USER testuser1@localhost;
 DROP DATABASE db_datadict;

@@ -5,11 +5,9 @@
 # Requirements: 
 #########################################
 
---echo ==========MASTER==========
 SHOW CREATE VIEW v1;
 SELECT * FROM v1 ORDER BY a;
 sync_slave_with_master;
---echo ==========SLAVE===========
 USE test_rpl;
 SHOW CREATE VIEW v1;
 SELECT * FROM v1 ORDER BY a;

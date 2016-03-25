@@ -432,11 +432,18 @@ unlock tables;
 CREATE TABLE t1 (col_int_nokey INT)  ENGINE=InnoDB;
 CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
 LOCK TABLE t1 WRITE;
+connect  con1,localhost,root,,test;
 CREATE OR REPLACE TABLE t1 LIKE tmp;
+connection default;
 KILL QUERY con_id;
+connection con1;
 ERROR 70100: Query execution was interrupted
 CREATE OR REPLACE TABLE t1 (a int);
+connection default;
 KILL QUERY con_id;
+connection con1;
 ERROR 70100: Query execution was interrupted
+disconnect con1;
+connection default;
 drop table t1;
 DROP TABLE t2;

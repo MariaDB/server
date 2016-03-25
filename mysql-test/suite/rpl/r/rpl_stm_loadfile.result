@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP TABLE IF EXISTS test.t1;
 CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, PRIMARY KEY(a));
@@ -119,6 +120,8 @@ Abernathy
 aberrant
 aberration
 
+connection slave;
+connection slave;
 SELECT * FROM test.t1 ORDER BY blob_column;
 a	blob_column
 1	abase
@@ -223,6 +226,8 @@ Abernathy
 aberrant
 aberration
 
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP TABLE test.t1;
+connection slave;
 include/rpl_end.inc

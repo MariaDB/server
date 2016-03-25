@@ -82,7 +82,6 @@ SELECT * from t1;
 SET @@global.auto_increment_increment = 15;
 SET @@global.auto_increment_offset = 36;
 
---echo ## New connection test_con1 ##
 CONNECT (test_con1,localhost,root,,);
 CONNECTION test_con1;
 
@@ -180,10 +179,8 @@ SELECT * from t1;
 --echo ## Dropping table ##
 DROP table if exists t1;
 
---echo ## Disconnecting connection ##
 DISCONNECT test_con1;
 
---echo ## switching to default connection ##
 connection default;
 
 # restore vars

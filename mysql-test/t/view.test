@@ -4643,7 +4643,6 @@ DROP PROCEDURE IF EXISTS p1;
 connect (con2, localhost, root);
 connect (con3, localhost, root);
 
---echo # Connection default
 connection default;
 
 CREATE VIEW v1 AS SELECT schema_name FROM information_schema.schemata;
@@ -4653,17 +4652,14 @@ CREATE PROCEDURE p1() INSERT INTO t1 SELECT * FROM v1;
 --echo # CALL p1() so the view is merged.
 CALL p1();
 
---echo # Connection 3
 connection con3;
 LOCK TABLE t1 READ;
 
---echo # Connection default
 connection default;
 --echo # Try to CALL p1() again, this time it should block for t1.
 --echo # Sending:
 --send CALL p1()
 
---echo # Connection 2
 connection con2;
 let $wait_condition=
   SELECT COUNT(*) = 1 from information_schema.processlist
@@ -4674,7 +4670,6 @@ let $wait_condition=
 --echo # Sending:
 --send DROP VIEW v1
 
---echo # Connection 3
 connection con3;
 let $wait_condition=
   SELECT COUNT(*) = 1 from information_schema.processlist
@@ -4683,17 +4678,14 @@ let $wait_condition=
 --echo # Now allow CALL p1() to complete
 UNLOCK TABLES;
 
---echo # Connection default
 connection default;
 --echo # Reaping: CALL p1()
 --reap
 
---echo # Connection 2
 connection con2;
 --echo # Reaping: DROP VIEW v1
 --reap
 
---echo # Connection default
 connection default;
 DROP PROCEDURE p1;
 DROP TABLE t1;

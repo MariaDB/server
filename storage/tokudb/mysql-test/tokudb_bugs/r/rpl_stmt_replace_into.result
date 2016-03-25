@@ -11,11 +11,13 @@ pk	num	txt
 2	2	twotwo
 3	3	three
 4	4	four
+connection slave;
 select * from testr;
 pk	num	txt
 1	1	one
 2	2	twotwo
 3	3	three
 4	4	four
+connection master;
 drop table testr;
 include/rpl_end.inc

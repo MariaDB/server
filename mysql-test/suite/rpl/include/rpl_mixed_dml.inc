@@ -8,10 +8,8 @@
 
 # Check MIXED on both master and slave
 connection master;
---echo ==========MASTER==========
 --source suite/rpl/include/rpl_mixed_show_binlog_format.inc
 connection slave;
---echo ==========SLAVE===========
 --source suite/rpl/include/rpl_mixed_show_binlog_format.inc
 connection master;
 

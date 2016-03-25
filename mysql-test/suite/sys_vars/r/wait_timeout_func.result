@@ -1,12 +1,14 @@
 SET @start_value= @@global.wait_timeout;
 '#--------------------FN_DYNVARS_186_01-------------------------#'
 SET @start_time= UNIX_TIMESTAMP();
-connect (test_con1, localhost, root,,);
+connect  test_con1, localhost, root,,;
+connection test_con1;
 SELECT @@session.wait_timeout = @@global.wait_timeout AS 'Expect 1';
 Expect 1
 1
 SET @@session.wait_timeout = <session_value>;
-connect (test_con2, localhost, root,,);
+connect  test_con2, localhost, root,,;
+connection test_con2;
 SET @@session.wait_timeout = <session_value> - 1;
 connection default;
 wait until connections ready
@@ -18,7 +20,8 @@ SET @@global.wait_timeout= <global_value>;
 SELECT @@session.wait_timeout = @start_value AS 'Expect 1';
 Expect 1
 1
-connect (test_con3, localhost, root,,);
+connect  test_con3, localhost, root,,;
+connection test_con3;
 SELECT @@session.wait_timeout = @@global.wait_timeout AS 'Expect 1';
 Expect 1
 1

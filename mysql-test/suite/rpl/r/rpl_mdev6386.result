@@ -1,8 +1,11 @@
 include/master-slave.inc
 [connection master]
+connection master;
 ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
+connection slave;
+connection slave;
 include/stop_slave.inc
 SET sql_log_bin= 0;
 INSERT INTO t1 VALUES (1, 2);
@@ -14,6 +17,7 @@ a	b
 1	2
 SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=8;
+connection master;
 CREATE TEMPORARY TABLE t2 LIKE t1;
 INSERT INTO t2 VALUE (1, 1);
 INSERT INTO t2 VALUE (2, 1);
@@ -31,6 +35,7 @@ a	b
 3	1
 4	1
 5	1
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1062]
 STOP SLAVE IO_THREAD;
@@ -51,7 +56,9 @@ a	b
 3	1
 4	1
 5	1
+connection master;
 DROP TABLE t1;
+connection slave;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads= @old_parallel;
 include/start_slave.inc

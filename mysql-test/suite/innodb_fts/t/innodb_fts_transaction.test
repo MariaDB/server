@@ -345,7 +345,6 @@ EVAL CREATE TABLE t1 (
         ) CHARACTER SET = UTF8,ENGINE = InnoDB;
 
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SET NAMES UTF8;
 
@@ -359,7 +358,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Sævör grét', 'áðan því úlpan var ónýt');
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 SET NAMES UTF8;
 
@@ -367,7 +365,6 @@ SET NAMES UTF8;
 CREATE FULLTEXT INDEX idx on t1 (a,b);
 
 
---echo "In connection 1"
 --connection con1
 
 # first and third record expected 
@@ -407,7 +404,6 @@ SELECT * FROM t1
         AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 
 
---echo "In connection 2"
 --connection con2
 
 # one records expected
@@ -461,7 +457,6 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('tutorial' WITH QUERY EXPANSION) ORDER BY 1;
 
---echo "In connection 1"
 --connection con1
 # transaction commit ,now we will be able to see records with FTS index
 COMMIT;
@@ -482,7 +477,6 @@ SELECT * FROM t1
 INSERT INTO t1 (a,b) VALUES (NULL,NULL);
 SELECT * FROM t1 WHERE a IS NULL AND b IS NULL;
 
---echo "In connection 2"
 --connection con2
 
 # one record expected 
@@ -540,7 +534,6 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('request');
 
---echo "In connection 1"
 --connection con1
 
 # no records expected as update tnx is not committed yet.
@@ -557,7 +550,6 @@ SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('+mail +MySQL' IN BOOLEAN MODE);
 
---echo "In connection 2"
 --connection con2
 COMMIT;
 SELECT * FROM t1
@@ -566,7 +558,6 @@ SELECT * FROM t1
 
 
 
---echo "In connection 1"
 --connection con1
 SELECT * FROM t1
         WHERE MATCH (a,b)
@@ -601,7 +592,6 @@ EVAL CREATE TABLE t1 (
         ) CHARACTER SET = UTF8,ENGINE = InnoDB;
 
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SET NAMES UTF8;
 
@@ -615,7 +605,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Sævör grét', 'áðan því úlpan var ónýt');
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 SET NAMES UTF8;
 select @@session.tx_isolation;
@@ -627,7 +616,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Мога да ям стъкло', 'то Mне ми вреди');
 
 
---echo "In connection 1"
 --connection con1
 
 
@@ -650,7 +638,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE
 
 SELECT * FROM t1;
 
---echo "In connection 2"
 --connection con2
 # records expected due to repeatable read 
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -660,7 +647,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE
 
 SELECT * FROM t1;
 
---echo "In connection 1"
 --connection con1
 COMMIT;
 # 1 record expected
@@ -670,7 +656,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('стекло');
 # No record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 
---echo "In connection 2"
 --connection con2
 # 1 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -705,7 +690,6 @@ EVAL CREATE TABLE t1 (
         ) CHARACTER SET = UTF8,ENGINE = InnoDB;
 
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SET NAMES UTF8;
 
@@ -717,7 +701,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Я могу есть стекло', 'оно мне Mне вредит');
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 SET NAMES UTF8;
 select @@session.tx_isolation;
@@ -729,7 +712,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Мога да ям стъкло', 'то Mне ми вреди');
 
 
---echo "In connection 1"
 --connection con1
 
 
@@ -753,7 +735,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"dbms stands"@05' IN BOOLEAN MODE);
 
 SELECT * FROM t1;
 
---echo "In connection 2"
 --connection con2
 # 2 records expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -784,7 +765,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"dbms stands"@05' IN BOOLEAN MODE);
 
 SELECT * FROM t1;
 
---echo "In connection 1"
 --connection con1
 COMMIT;
 # 1 record expected
@@ -794,7 +774,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('стекло');
 # 1 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 
---echo "In connection 2"
 --connection con2
 # 1 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -828,7 +807,6 @@ EVAL CREATE TABLE t1 (
         ) CHARACTER SET = UTF8,ENGINE = InnoDB;
 
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SET NAMES UTF8;
 
@@ -842,7 +820,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Sævör grét', 'áðan því úlpan var ónýt');
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 SET NAMES UTF8;
 select @@session.tx_isolation;
@@ -854,7 +831,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Мога да ям стъкло', 'то Mне ми вреди');
 
 
---echo "In connection 1"
 --connection con1
 
 
@@ -877,7 +853,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE
 
 SELECT * FROM t1;
 
---echo "In connection 2"
 --connection con2
 # records expected due to repeatable read 
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -887,7 +862,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE
 
 SELECT * FROM t1;
 
---echo "In connection 1"
 --connection con1
 ROLLBACK;
 # 2 record expected
@@ -897,7 +871,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('стъкло');
 # 1 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 
---echo "In connection 2"
 --connection con2
 # 2 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -932,7 +905,6 @@ EVAL CREATE TABLE t1 (
         ) CHARACTER SET = UTF8,ENGINE = InnoDB;
 
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SET NAMES UTF8;
 
@@ -944,7 +916,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Я могу есть стекло', 'оно мне Mне вредит');
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 SET NAMES UTF8;
 select @@session.tx_isolation;
@@ -956,7 +927,6 @@ INSERT INTO t1 (a,b) VALUES
         ('Мога да ям стъкло', 'то Mне ми вреди');
 
 
---echo "In connection 1"
 --connection con1
 
 
@@ -980,7 +950,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"dbms stands"@05' IN BOOLEAN MODE);
 
 SELECT * FROM t1;
 
---echo "In connection 2"
 --connection con2
 # 2 records expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
@@ -1010,7 +979,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"dbms stands"@05' IN BOOLEAN MODE);
 
 SELECT * FROM t1;
 
---echo "In connection 1"
 --connection con1
 ROLLBACK;
 # 2 record expected
@@ -1020,7 +988,6 @@ SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('стъкло');
 # no record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 
---echo "In connection 2"
 --connection con2
 # 2 record expected
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);

@@ -1,10 +1,13 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 include/stop_slave.inc
+connection master;
 create table t1 (a int);
 drop table t1;
 create table t1 (a int);
 drop table t1;
+connection slave;
 reset slave;
 start slave io_thread;
 include/wait_for_slave_param.inc [Slave_IO_State]

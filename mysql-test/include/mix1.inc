@@ -647,23 +647,19 @@ CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 CONNECT (c1,localhost,root,,);
 CONNECT (c2,localhost,root,,);
 
---echo switch to connection c1
 CONNECTION c1;
 SET AUTOCOMMIT=0;
 INSERT INTO t2 VALUES (1);
 
---echo switch to connection c2
 CONNECTION c2;
 SET AUTOCOMMIT=0;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t1 READ, t2 READ;
 
---echo switch to connection c1
 CONNECTION c1;
 COMMIT;
 INSERT INTO t1 VALUES (1);
 
---echo switch to connection default
 CONNECTION default;
 SET AUTOCOMMIT=default;
 DISCONNECT c1;
@@ -1327,7 +1323,6 @@ connect (con2,localhost,root,,);
 SET SESSION AUTOCOMMIT = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 set binlog_format=mixed;
---echo # Switch to connection con1
 connection con1;
 
 eval
@@ -1343,7 +1338,6 @@ UPDATE t1 SET b = 12 WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --enable_info
@@ -1352,16 +1346,13 @@ connection con2;
 UPDATE t1 SET b = 21 WHERE a = 1;
 --disable_info
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 ROLLBACK;
 
---echo # Switch to connection con2
 connection con2;
 ROLLBACK;
 
---echo # Switch to connection con1
 connection con1;
 
 --echo # 2. test for serialized update:
@@ -1395,12 +1386,10 @@ UPDATE t1 SET b = CONCAT(b, '+con1') WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --send CALL p1;
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 COMMIT;
@@ -1413,13 +1402,11 @@ while ($bug31310)
 
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 --reap
 SELECT * FROM t1;
 COMMIT;
 
---echo # Switch to connection con1
 connection con1;
 
 --echo # 3. test for updated key column:
@@ -1435,12 +1422,10 @@ UPDATE t1 SET a = 2, b = CONCAT(b, '+con1') WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --send CALL p1;
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 COMMIT;
@@ -1453,7 +1438,6 @@ while ($bug31310)
 
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 --reap
 SELECT * FROM t1;
@@ -1616,23 +1600,18 @@ eval CREATE TABLE t1 (a INT) ENGINE=$engine_type;
 INSERT INTO t1 VALUES (1),(2),(3);
 BEGIN;
 SELECT * FROM t1 ORDER BY a;
---echo # Connection con1
 connect (con1, localhost, root,,);
 --send TRUNCATE TABLE t1;
---echo # Connection default
 connection default;
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
   WHERE state='Waiting for table metadata lock' AND info='TRUNCATE TABLE t1';
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY a;
 ROLLBACK;
---echo # Connection con1
 connection con1;
 --echo # Reaping TRUNCATE TABLE
 --reap
 SELECT * FROM t1;
---echo # Disconnect con1
 disconnect con1;
---echo # Connection default
 connection default;
 DROP TABLE t1;

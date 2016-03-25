@@ -62,6 +62,7 @@ INSERT INTO t1 VALUES ('default', CONNECTION_ID());
 SELECT GET_LOCK('bug16501',600);
 GET_LOCK('bug16501',600)
 1
+connect  con1,localhost,root,,;
 INSERT INTO t1 VALUES ('con1', CONNECTION_ID());
 SELECT IS_USED_LOCK('bug16501') = connection_id
 FROM t1
@@ -69,19 +70,23 @@ WHERE conn = 'default';
 IS_USED_LOCK('bug16501') = connection_id
 1
 SELECT GET_LOCK('bug16501',600);
+connection default;
 SELECT IS_USED_LOCK('bug16501') = CONNECTION_ID();
 IS_USED_LOCK('bug16501') = CONNECTION_ID()
 1
 SELECT RELEASE_LOCK('bug16501');
 RELEASE_LOCK('bug16501')
 1
+connection con1;
 GET_LOCK('bug16501',600)
 1
+connection default;
 SELECT IS_USED_LOCK('bug16501') = connection_id
 FROM t1
 WHERE conn = 'con1';
 IS_USED_LOCK('bug16501') = connection_id
 1
+connection con1;
 SELECT IS_USED_LOCK('bug16501') = CONNECTION_ID();
 IS_USED_LOCK('bug16501') = CONNECTION_ID()
 1
@@ -91,6 +96,8 @@ RELEASE_LOCK('bug16501')
 SELECT IS_USED_LOCK('bug16501');
 IS_USED_LOCK('bug16501')
 NULL
+disconnect con1;
+connection default;
 DROP TABLE t1;
 select export_set(3, _latin1'foo', _utf8'bar', ',', 4);
 export_set(3, _latin1'foo', _utf8'bar', ',', 4)
@@ -595,7 +602,8 @@ is_free_lock('test')
 select is_used_lock('test') = connection_id();
 is_used_lock('test') = connection_id()
 1
-# -> Switching to connection 'con1'
+connect  con1,localhost,root,,;
+connection con1;
 # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired in another
 # connection
 select is_used_lock('test') = connection_id();
@@ -612,7 +620,7 @@ get_lock('test', 0)
 select release_lock('test');
 release_lock('test')
 0
-# -> Switching to connection 'default'
+connection default;
 # RELEASE_LOCK returns 1 if it successfully releases a lock
 select release_lock('test');
 release_lock('test')
@@ -625,18 +633,18 @@ NULL
 select get_lock('test', 0);
 get_lock('test', 0)
 1
-# -> Switching to connection 'con1'
+connection con1;
 create table t1 select connection_id() as id;
 select get_lock('test', 7200);
-# -> Switching to connection 'default'
+connection default;
 select (@id := id) - id from t1;
 (@id := id) - id
 0
 kill query @id;
-# -> Switching to connection 'con1'
+connection con1;
 get_lock('test', 7200)
 NULL
-# -> Switching to connection 'default'
+connection default;
 # GET_LOCK() works recursively 
 select get_lock('test', 0);
 get_lock('test', 0)
@@ -685,18 +693,18 @@ release_lock('test3')
 select get_lock('test1', 0);
 get_lock('test1', 0)
 1
-# -> Switching to connection 'con1'
+connection con1;
 select get_lock('test2', 0);
 get_lock('test2', 0)
 1
 select get_lock('test1', 7200);
-# -> Switching to connection 'default'
+connection default;
 select get_lock('test2', 7200);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select release_lock('test1');
 release_lock('test1')
 1
-# -> Switching to connection 'con1'
+connection con1;
 get_lock('test1', 7200)
 1
 select release_lock('test2');
@@ -705,7 +713,7 @@ release_lock('test2')
 select release_lock('test1');
 release_lock('test1')
 1
-# -> Switching to connection 'default'
+connection default;
 # LOCK/UNLOCK TABLES works fine with a user lock.
 lock table t1 write;
 select get_lock('test', 0);
@@ -755,16 +763,16 @@ release_lock('test2')
 select get_lock('test', 0);
 get_lock('test', 0)
 1
-# -> Switching to connection 'con1'
+connection con1;
 lock table t1 write;
 select get_lock('test', 7200);
-# -> Switching to connection 'default'
+connection default;
 lock table t1 read;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select release_lock('test');
 release_lock('test')
 1
-# -> Switching to connection 'con1'
+connection con1;
 get_lock('test', 7200)
 1
 select release_lock('test');
@@ -772,6 +780,8 @@ release_lock('test')
 1
 unlock tables;
 # cleanup
+disconnect con1;
+connection default;
 drop table t1;
 # check too long identifier names
 select get_lock(repeat('a', 192), 0);
@@ -1382,7 +1392,7 @@ DROP TABLE t2;
 #
 # MDEV-4018 : Microseconds in GET_LOCK()
 #
-# -> Switching to connection 'default'
+connection default;
 select is_used_lock('test') = connection_id();
 is_used_lock('test') = connection_id()
 NULL
@@ -1390,7 +1400,8 @@ NULL
 select get_lock('test', 0);
 get_lock('test', 0)
 1
-# -> Switching to connection 'con1'
+connect  con1,localhost,root,,;
+connection con1;
 select is_used_lock('test') = connection_id();
 is_used_lock('test') = connection_id()
 0
@@ -1412,7 +1423,7 @@ get_lock('test', 0.000001)
 select get_lock('test', 0.0000000000000001);
 get_lock('test', 0.0000000000000001)
 0
-# -> Switching to connection 'default'
+connection default;
 select is_used_lock('test') = connection_id();
 is_used_lock('test') = connection_id()
 1

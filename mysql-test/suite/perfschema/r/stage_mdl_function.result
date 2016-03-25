@@ -1,3 +1,4 @@
+connect  con1, localhost, user1, , ;
 drop function if exists test.f1;
 create function test.f1() returns int
 return 1;
@@ -5,7 +6,9 @@ begin;
 select test.f1();
 test.f1()
 1
+connect  con2, localhost, user2, , ;
 drop function test.f1;
+connection default;
 call dump_one_thread('user1');
 username	event_name	sql_text
 user1	statement/sql/select	select test.f1()
@@ -28,7 +31,12 @@ username	event_name	nesting_event_type
 user2	stage/sql/Waiting for stored function metadata lock	STATEMENT
 username	event_name	nesting_event_type
 user2	stage/sql/init	STATEMENT
+connection con1;
 select f1();
 f1()
 1
 commit;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;

@@ -8,7 +8,7 @@ SET DEBUG_SYNC= 'RESET';
 # by adding a small sleep to verify that the delete waits. This happens
 # only until ALTER tries to upgrade its MDL lock, which ends up in MDL
 # deadlock which is correctly reported.
-# Con 1
+connect con1, localhost, root,,;
 SET DEBUG_SYNC= 'RESET';
 CREATE TABLE t1
 (a INTEGER,
@@ -23,14 +23,16 @@ PARTITION p3 VALUES LESS THAN MAXVALUE ) */;
 SET DEBUG_SYNC= 'alter_table_before_create_table_no_lock SIGNAL removing_partitioning WAIT_FOR waiting_for_alter';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL waiting_for_upgrade';
 ALTER TABLE t1 REMOVE PARTITIONING;
-# Con default
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitioning';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL waiting_for_alter';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table WAIT_FOR waiting_for_upgrade';
 DROP TABLE IF EXISTS t1;
-# Con 1
+connection con1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection default;
 SET DEBUG_SYNC= 'RESET';
+connection con1;
 SET DEBUG_SYNC= 'RESET';
 #
 # Bug#42438: Crash ha_partition::change_table_ptr
@@ -50,15 +52,16 @@ PARTITION p3 VALUES LESS THAN MAXVALUE);
 SET DEBUG_SYNC= 'alter_table_before_open_tables SIGNAL removing_partitions WAIT_FOR waiting_for_alter';
 SET DEBUG_SYNC= 'alter_table_before_rename_result_table WAIT_FOR delete_done';
 ALTER TABLE t2 REMOVE PARTITIONING;
-# Con default
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitions';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_binlog SIGNAL delete_done';
 DROP TABLE IF EXISTS t2;
-# Con 1
+connection con1;
 ERROR 42S02: Table 'test.t2' doesn't exist
 SET DEBUG_SYNC= 'RESET';
-# Con default
+disconnect con1;
+connection default;
 SET DEBUG_SYNC= 'RESET';
 End of 5.1 tests
 #
@@ -68,21 +71,22 @@ CREATE TABLE t1 (a int) ENGINE = InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY)
 ENGINE = InnoDB PARTITION BY HASH (a) PARTITIONS 3;
 HANDLER t1 OPEN;
-# Con1
+connect  con1, localhost, root,,;
 LOCK TABLES t1 WRITE, t2 READ;
-# Default
+connection default;
 SET DEBUG_SYNC="wait_for_lock SIGNAL locking";
 INSERT INTO t2 VALUES (1), (2), (3);
-# Con1
+connection con1;
 SET DEBUG_SYNC="now WAIT_FOR locking";
 ALTER TABLE t1 ADD COLUMN b int;
-# Default
+connection default;
 ERROR HY000: Wait on a lock was aborted due to a pending exclusive lock
 SELECT 1;
 1
 1
-# Con1
+connection con1;
 UNLOCK TABLES;
-# Default
+disconnect con1;
+connection default;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1, t2;

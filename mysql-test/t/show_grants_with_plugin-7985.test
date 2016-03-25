@@ -1,5 +1,4 @@
 --source include/not_embedded.inc
---enable_connect_log
 call mtr.add_suppression("password and an authentication plugin");
 
 --echo #

@@ -1,4 +1,7 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+connection slave;
 start slave;
+connection master;
 include/rpl_end.inc

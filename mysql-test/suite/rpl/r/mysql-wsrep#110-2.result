@@ -21,4 +21,5 @@ DROP TABLE t3;
 DROP TABLE t2;
 DROP TABLE t1;
 DROP PROCEDURE p1;
+connection slave;
 include/rpl_end.inc

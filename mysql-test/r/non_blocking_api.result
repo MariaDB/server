@@ -1,4 +1,7 @@
 drop table if exists t1;
+connect  con_nonblock,localhost,root,,test;
+connect  con_normal,localhost,root,,test;
+connection con_nonblock;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
 SELECT * FROM t1;
@@ -7,4 +10,5 @@ a
 SELECT * FROM t1;
 a
 1
+connection con_normal;
 DROP TABLE t1;

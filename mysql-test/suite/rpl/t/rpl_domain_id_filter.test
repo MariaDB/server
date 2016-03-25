@@ -5,12 +5,10 @@
 # Test for DO_DOMAIN_IDS=(M1, M2, ..) and IGNORE_DOMAIN_IDS=(N1, N2, ..)
 #
 
---echo # On slave
 connection slave;
 call mtr.add_suppression("Both DO_DOMAIN_IDS & IGNORE_DOMAIN_IDS lists can't be non-empty at the same time");
 call mtr.add_suppression("DO_DOMAIN_IDS or IGNORE_DOMAIN_IDS lists can't be non-empty in non-GTID mode.*");
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id= 1;
 SELECT @@session.gtid_domain_id;
@@ -19,7 +17,6 @@ INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 ##### Case 0 : When both DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS are empty.
@@ -41,7 +38,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 # Lets change the session domain_id to 2(not in DO_DOMAIN_IDS).
 SET @@session.gtid_domain_id= 2;
@@ -55,7 +51,6 @@ INSERT INTO t1 VALUES(3);
 SELECT * FROM t1;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1;
@@ -76,7 +71,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 # @@session.gtid_domain_id = 1 (in IGNORE_DOMAIN_IDS)
 SELECT @@session.gtid_domain_id;
@@ -90,7 +84,6 @@ INSERT INTO t1 VALUES(5);
 SELECT * FROM t1;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1;
@@ -128,7 +121,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 # @@session.gtid_domain_id = 1 (in DO_DOMAIN_IDS)
 SELECT @@session.gtid_domain_id;
@@ -151,13 +143,11 @@ INSERT INTO t1 VALUES(14);
 INSERT INTO t1 VALUES(15);
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 
 ##### Case 5: Seconds_Behind_Master
---echo # On slave
 connection slave;
 --echo # Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
 --let $status_items= Seconds_Behind_Master
@@ -166,7 +156,6 @@ connection slave;
 ##### Case 6: Stop slave before a transaction (involving MyISAM and InnoDB
 #             table) being filtered commits.
 
---echo # On slave
 connection slave;
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
@@ -183,7 +172,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 # following statements should not get filtered.
 SET @@session.gtid_domain_id=2;
@@ -196,13 +184,11 @@ INSERT INTO t2 VALUES(1);
 INSERT INTO t3 VALUES(1);
 
 # Now switch to slave to stop replication.
---echo # On slave
 connection slave;
 --source include/stop_slave.inc
 --source include/wait_for_slave_to_stop.inc
 
 # Back to master to finish the transaction.
---echo # On master
 connection master;
 INSERT INTO t2 VALUES(2);
 INSERT INTO t3 VALUES(2);
@@ -210,7 +196,6 @@ COMMIT;
 --source include/save_master_gtid.inc
 
 # On slave to start replication.
---echo # On slave
 connection slave;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
@@ -222,7 +207,6 @@ SELECT * FROM t3;
 #             table) being filtered commits and start it back with filtering
 #             disabled.
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id=1;
 BEGIN;
@@ -230,7 +214,6 @@ INSERT INTO t2 VALUES(3);
 INSERT INTO t3 VALUES(3);
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
@@ -248,14 +231,12 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 INSERT INTO t2 VALUES(4);
 INSERT INTO t3 VALUES(4);
 COMMIT;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t2;
@@ -264,7 +245,6 @@ SELECT * FROM t3;
 ##### Case 8: Stop slave into the middle of a transaction and start it back
 #             with filtering enabled.
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id=1;
 BEGIN;
@@ -272,7 +252,6 @@ INSERT INTO t2 VALUES(5);
 INSERT INTO t3 VALUES(5);
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
@@ -290,14 +269,12 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 INSERT INTO t2 VALUES(6);
 INSERT INTO t3 VALUES(6);
 COMMIT;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t2;
@@ -306,7 +283,6 @@ SELECT * FROM t3;
 ##### Case 9: Initially filter out events belonging to domain_id=2 and then
 #             remove the rule to check if event are not being filtered out.
 
---echo # On slave
 connection slave;
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
@@ -323,7 +299,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id=2;
 BEGIN;
@@ -333,7 +308,6 @@ COMMIT;
 --source include/save_master_gtid.inc
 
 # Clear the filter
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
@@ -351,7 +325,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id=2;
 BEGIN;
@@ -360,14 +333,12 @@ INSERT INTO t3 VALUES(8);
 COMMIT;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t2;
 SELECT * FROM t3;
 
 ##### Case 10: Test CHANGE MASTER with various "incompatible" combinations. 
-# On slave
 connection slave;
 --source include/stop_slave.inc
 
@@ -415,13 +386,11 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), DO_DOMAIN_IDS=(), MASTER_USE_GTID=SLAVE_
 --source include/start_slave.inc
 
 # Cleanup
---echo # On master
 connection master;
 SET @@session.gtid_domain_id=2;
 DROP TABLE t1, t2, t3;
 --source include/save_master_gtid.inc
 
---echo # On slave
 connection slave;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc

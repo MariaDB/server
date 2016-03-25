@@ -1,5 +1,7 @@
 set global aria_page_checksum=1;
 drop table if exists t1;
+connect  con1,localhost,root,,;
+connection con1;
 create table t1 (i int) engine=aria;
 show create table t1;
 Table	Create Table
@@ -19,6 +21,8 @@ i
 select count(*) from t1;
 count(*)
 3
+connect  con2,localhost,root,,;
+connection con2;
 /* should see 0 */
 select i from t1;
 i
@@ -51,6 +55,8 @@ i
 select count(*) from t1;
 count(*)
 4
+connect  con3,localhost,root,,;
+connection con3;
 lock tables t1 write concurrent;
 /* should see 0, 3, 4 */
 select i from t1;
@@ -61,6 +67,7 @@ i
 select count(*) from t1;
 count(*)
 3
+connection con1;
 insert into t1 values (6);
 /* Should see 0, 1, 2, 6 */
 select i from t1;
@@ -86,6 +93,7 @@ i
 select count(*) from t1;
 count(*)
 6
+connection con2;
 /* should see 0, 3, 4, 5 */
 select i from t1;
 i
@@ -110,6 +118,7 @@ i
 select count(*) from t1;
 count(*)
 7
+connection con1;
 unlock tables;
 /* should see 0, 1, 2, 3, 4, 5, 6 */
 select i from t1;
@@ -124,6 +133,7 @@ i
 select count(*) from t1;
 count(*)
 7
+connection con3;
 insert into t1 values (7);
 /* should see 0, 3, 4, 7 */
 select i from t1;
@@ -150,6 +160,7 @@ i
 select count(*) from t1;
 count(*)
 8
+connection default;
 drop table t1;
 CREATE TABLE t1 (fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,    g GEOMETRY NOT NULL,   SPATIAL KEY(g) ) transactional=1 row_format=page engine=aria;
 lock tables t1 write concurrent, t1 as t2 write concurrent;

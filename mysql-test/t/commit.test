@@ -15,7 +15,6 @@ connect (con1,localhost,root,,);
 # provided
 
 # init
---echo connection default;
 connection default;
 
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
@@ -63,13 +62,11 @@ START TRANSACTION;
 SELECT * FROM t1;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 
---echo connection con1
 connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1000);
 COMMIT;
 
---echo connection default
 connection default;
 --echo We should not be able to read the '1000'
 SELECT * FROM t1;
@@ -99,29 +96,24 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 # transaction will have the same tran. iso. level
 # as the first.
 #
---echo connection default
 connection default;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 START TRANSACTION;
 
---echo connection con1
 connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1001);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT COUNT(*) FROM t1 WHERE s1 = 1001;
 --echo Should be 1
 COMMIT AND CHAIN;
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1002);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT COUNT(*) FROM t1 WHERE s1 = 1002;
 --echo Should be 1
@@ -133,29 +125,24 @@ COMMIT;
 #
 # Verify isolation level with ROLLBACK AND CHAIN
 #
---echo connection default
 connection default;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 START TRANSACTION;
 
---echo connection con1
 connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1001);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT COUNT(*) FROM t1 WHERE s1 = 1001;
 --echo Should be 1
 ROLLBACK AND CHAIN;
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1002);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT COUNT(*) FROM t1 WHERE s1 = 1002;
 --echo Should be 1
@@ -176,40 +163,33 @@ COMMIT;
 #
 SET @@completion_type=1;
 
---echo connection default
 connection default;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 START TRANSACTION;
 
---echo connection con1
 connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1001);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001
 COMMIT AND NO CHAIN;
 --echo default transaction is now in REPEATABLE READ
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1002);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001 and 1002
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1003);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001 and 1002, but NOT 1003
@@ -225,42 +205,35 @@ COMMIT;
 # Verify that ROLLBACK AND NO CHAIN  overrides the value
 # of @@completion_type
 #
---echo connection default
 connection default;
 SET @@completion_type=1;
 COMMIT AND NO CHAIN;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 START TRANSACTION;
 
---echo connection con1
 connection con1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1001);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001
 ROLLBACK AND NO CHAIN;
 --echo default transaction is now in REPEATABLE READ
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1002);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001 and 1002
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1003);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1 WHERE s1 >= 1000;
 --echo Should see 1001 and 1002, but NOT 1003
@@ -281,7 +254,6 @@ COMMIT;
 # SET TRANSACTION.  (Note that this is _not_ 
 # in accordance with ISO 9075.)
 #
---echo connection default
 connection default;
 
 SET TRANSACTION ISOLATION LEVEL	READ COMMITTED;
@@ -289,12 +261,10 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 START TRANSACTION;
 SELECT * FROM t1;
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1000);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1;
 --echo Should get same result as above (i.e should not read '1000')
@@ -320,12 +290,10 @@ INSERT INTO t1 VALUES (1000);
 SELECT * FROM t1;
 --echo Should read '1000'
 
---echo connection con1
 connection con1;
 INSERT INTO t1 VALUES (1001);
 COMMIT;
 
---echo connection default
 connection default;
 SELECT * FROM t1;
 --echo Should only read the '1000' as this transaction is now in REP READ

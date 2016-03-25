@@ -25,16 +25,12 @@
 ######################################################################
 
 SET @@global.lc_time_names = "en_CA";
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.lc_time_names;
 SELECT @@session.lc_time_names;
 SET @@global.lc_time_names = "en_IN";
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
---echo 'connection con2'
 connection con2;
 SELECT @@global.lc_time_names;
 SELECT @@session.lc_time_names;
@@ -47,7 +43,6 @@ disconnect con1;
 # Begin the functionality Testing of lc_time_names              #
 #################################################################
 
---echo 'connection default'
 connection default;
 
 SET NAMES 'utf8';
@@ -84,4 +79,3 @@ SET @@global.lc_time_names = "en_US";
 ##########################################################
 # End of functionality Testing for lc_time_names         #
 ##########################################################
-

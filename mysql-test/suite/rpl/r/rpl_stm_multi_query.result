@@ -7,6 +7,7 @@ insert into mysqltest.t1 values(2);
 insert into mysqltest.t1 values(3);
 insert into mysqltest.t1 values(4);
 insert into mysqltest.t1 values(5)/
+connection slave;
 select * from mysqltest.t1;
 n
 1
@@ -14,6 +15,7 @@ n
 3
 4
 5
+connection master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#

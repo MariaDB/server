@@ -27,14 +27,18 @@ create user 'user_with'@'santa.claus.ipv4.example.com'
   identified by 'good_password';
 grant select on test.* to 'user_without'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'user_with'@'santa.claus.ipv4.example.com';
+connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive
 select current_user();
 current_user()
 root@localhost
+disconnect con1;
+connection default;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 ERROR 28000: Access denied for user 'user_without'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -64,6 +68,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_without'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -93,6 +98,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_with'@'santa.claus.ipv4.example.com' (using password: NO)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -122,6 +128,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_with'@'santa.claus.ipv4.example.com' (using password: NO)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -151,6 +158,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_with'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -180,6 +188,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_with'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com

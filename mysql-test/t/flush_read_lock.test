@@ -231,41 +231,30 @@ unlock tables;
 --echo # COMMIT is blocked by active FTWRL in another
 --echo # connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 begin;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Do some work so ROLLBACK is not a no-op.
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 rollback;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 begin;
 --echo # Do some work so COMMIT is not a no-op.
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Send:
 --send commit
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Wait until COMMIT is blocked.
 let $wait_condition=
@@ -274,7 +263,6 @@ let $wait_condition=
         info = "commit";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap COMMIT.
 --reap
@@ -286,11 +274,9 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='ha_commit_trans_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 --send commit
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -299,16 +285,13 @@ let $wait_condition=
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap COMMIT.
 --reap
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap 
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
@@ -574,13 +557,10 @@ unlock tables;
 --echo # Check that active FTWRL in another connection
 --echo # blocks EXECUTE which changes data.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send execute stmt1 
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that EXECUTE is blocked.
 let $wait_condition=
@@ -589,18 +569,15 @@ let $wait_condition=
         info = "insert into t1_base values (1)";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap EXECUTE.
 --reap
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send execute stmt1; 
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -609,16 +586,13 @@ let $wait_condition=
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap EXECUTE.
 --reap
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap 
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 set debug_sync= "RESET";
 delete from t1_base;
@@ -808,23 +782,18 @@ drop trigger t1_bi;
 --echo # Check that FTWRL statements can be run while FTWRL
 --echo # is active in another connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 flush tables with read lock;
 --echo # The second FTWRL in a row is allowed at the moment.
 --echo # It does not make much sense as it does only flush.
 flush tables with read lock;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 flush tables with read lock;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 
 --echo #
@@ -836,23 +805,17 @@ flush tables with read lock;
 --echo # It does not make much sense though.
 flush tables t1_base, t2_base with read lock;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 flush tables t1_base, t2_base with read lock;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 flush tables t1_base, t2_base with read lock;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -860,15 +823,12 @@ let $wait_condition=
   where state = "Waiting for table flush" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
---echo # Switching to connection 'default'.
 connection default;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 
 
@@ -915,18 +875,14 @@ unlock tables;
 --echo # Check that HANDLER statements can be run while FTWRL
 --echo # is active in another connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 handler t1_base open;
 handler t1_base read first;
 handler t1_base close;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 
 
@@ -984,29 +940,23 @@ unlock tables;
 --echo # Check that KILL statements can be run while FTWRL
 --echo # is active in another connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --error ER_QUERY_INTERRUPTED
 kill query @id;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Finally check that KILL doesn't block FTWRL
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send kill query @id
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap KILL. 
 --error ER_QUERY_INTERRUPTED
@@ -1043,17 +993,13 @@ flush tables with read lock;
 lock tables t1_base read;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 lock tables t1_base read;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 
 --echo #
@@ -1064,13 +1010,10 @@ flush tables with read lock;
 lock tables t1_base write;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send lock tables t1_base write 
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that LOCK TABLES WRITE is blocked.
 let $wait_condition=
@@ -1079,7 +1022,6 @@ let $wait_condition=
         info = "lock tables t1_base write";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap LOCK TABLES WRITE
 --reap
@@ -1093,17 +1035,13 @@ flush tables with read lock;
 lock tables t1_temp write;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 lock tables t1_temp write;
 unlock tables;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 
 
@@ -1116,13 +1054,10 @@ flush tables with read lock;
 optimize table t1_base;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send optimize table t1_base
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that OPTIMIZE TABLE is blocked.
 let $wait_condition=
@@ -1131,7 +1066,6 @@ let $wait_condition=
         info = "optimize table t1_base";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap OPTIMIZE TABLE
 --reap
@@ -1191,43 +1125,31 @@ commit;
 --echo # Check that these statements are not blocked by
 --echo # active FTWRL in another connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 begin;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Do some changes to avoid SAVEPOINT and friends
 --echo # being almost no-ops.
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 savepoint sv1;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 insert into t3_trans values (2);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 rollback to savepoint sv1;
 release savepoint sv1;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 rollback;
 --echo # Check that these statements don't block FTWRL in
@@ -1239,38 +1161,32 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send savepoint sv1
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap SAVEPOINT
 --reap
 insert into t3_trans values (2);
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send rollback to savepoint sv1
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap ROLLBACK TO SAVEPOINT
 --reap
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send release savepoint sv1
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap RELEASE SAVEPOINT
 --reap
@@ -1304,13 +1220,10 @@ flush tables with read lock;
 repair table t1_base;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send repair table t1_base
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that REPAIR TABLE is blocked.
 let $wait_condition=
@@ -1319,7 +1232,6 @@ let $wait_condition=
         info = "repair table t1_base";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap REPAIR TABLE
 --reap
@@ -1496,28 +1408,21 @@ delete from t3_temp_trans;
 --echo # SET AUTOCOMMIT=1 is blocked by active FTWRL in
 --echo # another connection.
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 set autocommit= 0;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Do some work so implicit commit in SET AUTOCOMMIT=1 
 --echo # is not a no-op.
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Send:
 --send set autocommit= 1
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Wait until SET AUTOCOMMIT=1 is blocked.
 let $wait_condition=
@@ -1526,7 +1431,6 @@ let $wait_condition=
         info = "set autocommit= 1";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap SET AUTOCOMMIT=1.
 --reap
@@ -1538,11 +1442,9 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='ha_commit_trans_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 --send set autocommit= 1
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -1551,16 +1453,13 @@ let $wait_condition=
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap SET AUTOCOMMIT=1.
 --reap
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap 
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
@@ -1698,44 +1597,33 @@ unlock tables;
 --echo # Check that XA non-COMMIT statements are not and COMMIT is
 --echo # blocked by active FTWRL in another connection
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 xa start 'test1';
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 xa end 'test1';
 xa prepare 'test1';
 xa rollback 'test1';
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 xa start 'test1';
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 connection default;
 xa end 'test1';
 xa prepare 'test1';
 --echo # Send:
 --send xa commit 'test1';
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Wait until XA COMMIT is blocked.
 let $wait_condition=
@@ -1744,7 +1632,6 @@ let $wait_condition=
         info = "xa commit 'test1'";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap XA COMMIT.
 --reap
@@ -1758,11 +1645,9 @@ xa prepare 'test1';
 set debug_sync='RESET';
 set debug_sync='trans_xa_commit_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 --send xa commit 'test1'
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -1771,16 +1656,13 @@ let $wait_condition=
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap XA COMMIT.
 --reap
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap 
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
@@ -1841,13 +1723,10 @@ flush tables with read lock;
 analyze table t3_trans;
 unlock tables;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send analyze table t3_trans
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that ANALYZE TABLE is blocked.
 let $wait_condition=
@@ -1856,7 +1735,6 @@ let $wait_condition=
         info = "analyze table t3_trans";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap ANALYZE TABLE
 --reap
@@ -1920,13 +1798,10 @@ let $cleanup_stmt= alter table t3_temp_trans drop column c1;
 begin;
 insert into t3_trans values (1);
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send check table t1_base
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that CHECK TABLE is blocked.
 let $wait_condition=
@@ -1935,20 +1810,16 @@ let $wait_condition=
         info = "check table t1_base";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap CHECK TABLE
 --reap
 begin;
 delete from t3_trans;
 --echo #
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --send alter table t1_temp add column c1 int
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Check that ALTER TABLE is blocked.
 let $wait_condition=
@@ -1957,7 +1828,6 @@ let $wait_condition=
         info = "alter table t1_temp add column c1 int";
 --source include/wait_condition.inc
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap ALTER TABLE
 --reap
@@ -1974,21 +1844,17 @@ alter table t1_temp drop column c1;
 begin;
 insert into t1_base values (1);
 insert into t3_trans values (1);
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # The below FTWRL should not be blocked by transaction in 'default'.
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 --echo # Transaction still is able to read even with FTWRL active in another
 --echo # connection.
 select * from t1_base;
 select * from t2_base;
 select * from t3_trans;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 commit;
 delete from t1_base;
@@ -2004,11 +1870,9 @@ delete from t3_trans;
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 --send insert into t1_base values (1)
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 set debug_sync='now WAIT_FOR parked';
 --send flush tables with read lock
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
@@ -2018,7 +1882,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # Try to run another INSERT and see that it is blocked.
 --send insert into t2_base values (1);
---echo # Switching to connection 'con3'.
 connection con3;
 --echo # Wait until new INSERT is blocked.
 let $wait_condition=
@@ -2027,20 +1890,16 @@ let $wait_condition=
         info = "insert into t2_base values (1)";
 --echo # Unblock INSERT in the first connection.
 set debug_sync='now SIGNAL go';
---echo # Switching to connection 'default'.
 connection default;
 --echo # Reap first INSERT.
 --reap
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # Reap FTWRL.
 --reap 
 unlock tables;
---echo # Switching to connection '$con_aux2'.
 connection $con_aux2;
 --echo # Reap second INSERT.
 --reap
---echo # Switching to connection 'default'.
 connection default;
 set debug_sync= "RESET";
 delete from t1_base;
@@ -2056,22 +1915,18 @@ delete from t2_base;
 --echo # only taken when there were such modifications.
 --echo 
 flush tables with read lock;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 --echo # The below FTWRL should not be blocked by transaction in 'default'.
 flush tables with read lock;
---echo # Switching to connection 'default'.
 connection default;
 select * from t1_base;
 select * from t3_trans;
 commit;
---echo # Switching to connection '$con_aux1'.
 connection $con_aux1;
 select * from t1_base;
 select * from t3_trans;
 commit;
 unlock tables;
---echo # Switching to connection 'default'.
 connection default;
 unlock tables;
 

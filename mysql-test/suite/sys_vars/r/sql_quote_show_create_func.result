@@ -29,32 +29,33 @@ t1	CREATE TEMPORARY TABLE t1 (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 EXPECTING identifiers a, b, t1 NOT TO BE quoted like 'a','b','t1'
 '#----------------------------FN_DYNVARS_163_03--------------------------------------#'
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_quote_show_create;
 @@SESSION.sql_quote_show_create
 1
 1 / TRUE Expected
 SET SESSION sql_quote_show_create = FALSE;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_quote_show_create;
 @@SESSION.sql_quote_show_create
 1
 1 / TRUE Expected
 SET SESSION sql_quote_show_create = TRUE;
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_quote_show_create;
 @@SESSION.sql_quote_show_create
 1
 1 / TRUE Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_quote_show_create;
 @@SESSION.sql_quote_show_create
 0
 0 / FALSE Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 
 Cleanup
 SET @@sql_quote_show_create = @default_sql_quote_show_create;

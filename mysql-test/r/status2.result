@@ -44,9 +44,13 @@ Assert Questions == 13
 SHOW STATUS LIKE 'Questions';
 Variable_name	Value
 Questions	13
+connect  con1,localhost,root,,;
+connection con1;
 SELECT 1;
 1
 1
+connection default;
+disconnect con1;
 Assert Questions == 14
 SHOW STATUS LIKE 'Questions';
 Variable_name	Value

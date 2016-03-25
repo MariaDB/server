@@ -1,3 +1,4 @@
+connect  mysql, localhost, root,,;
 use mysql;
 create role test_role1@host1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@host1' at line 1
@@ -34,6 +35,8 @@ ERROR HY000: Operation DROP ROLE failed for 'dummy'
 drop user dummy@'';
 select user, host, is_role from user where user like 'test%';
 user	host	is_role
+disconnect mysql;
+connection default;
 create role '';
 ERROR OP000: Invalid role specification ``.
 create role ' ';

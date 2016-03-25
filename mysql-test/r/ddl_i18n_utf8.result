@@ -61,8 +61,7 @@ SELECT * FROM v3|
 
 
 ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
-
----> connection: con2
+connect  con2,localhost,root,,;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -118,8 +117,7 @@ DROP DATABASE mysqltest1|
 
 
 ---> Restoring mysqltest1...
-
----> connection: con3
+connect  con3,localhost,root,,;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -167,8 +165,9 @@ koi8r_general_ci
 SELECT * FROM v3|
 тест
 тест
-
----> connection: default
+connection default;
+disconnect con2;
+disconnect con3;
 use test|
 DROP DATABASE mysqltest1|
 
@@ -477,8 +476,7 @@ utf8_general_ci	utf8_general_ci
 
 ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
 ALTER DATABASE mysqltest2 COLLATE cp866_general_ci|
-
----> connection: con2
+connect  con2,localhost,root,,mysqltest1;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -879,8 +877,7 @@ DROP DATABASE mysqltest2|
 
 ---> Restoring mysqltest1...
 ---> Restoring mysqltest2...
-
----> connection: con3
+connect  con3,localhost,root,,mysqltest1;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -1121,8 +1118,9 @@ utf8_general_ci	utf8_general_ci	koi8r_general_ci	utf8_general_ci	utf8
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8_general_ci	utf8_general_ci
-
----> connection: default
+connection default;
+disconnect con2;
+disconnect con3;
 use test|
 DROP DATABASE mysqltest1|
 DROP DATABASE mysqltest2|
@@ -1459,8 +1457,7 @@ ALTER TABLE t1 ADD COLUMN fake INT|
 ALTER TABLE t1 DROP COLUMN fake|
 ALTER TABLE mysqltest2.t1 ADD COLUMN fake INT|
 ALTER TABLE mysqltest2.t1 DROP COLUMN fake|
-
----> connection: con2
+connect  con2,localhost,root,,;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -1894,8 +1891,7 @@ ALTER TABLE mysqltest1.t1 ADD COLUMN fake INT|
 ALTER TABLE mysqltest1.t1 DROP COLUMN fake|
 ALTER TABLE mysqltest2.t1 ADD COLUMN fake INT|
 ALTER TABLE mysqltest2.t1 DROP COLUMN fake|
-
----> connection: con3
+connect  con3,localhost,root,,;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -2159,8 +2155,9 @@ ca1	ca2	ca3	cb1	cb2	cb3
 utf8_general_ci	utf8_general_ci	koi8r_general_ci	utf8_general_ci	utf8_general_ci	koi8r_general_ci
 
 DELETE FROM mysqltest2.log|
-
----> connection: default
+connection default;
+disconnect con2;
+disconnect con3;
 use test|
 DROP DATABASE mysqltest1|
 DROP DATABASE mysqltest2|
@@ -2348,8 +2345,7 @@ END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREAT
 
 ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
 ALTER DATABASE mysqltest2 COLLATE cp866_general_ci|
-
----> connection: con2
+connect  con2,localhost,root,,mysqltest1;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -2621,8 +2617,7 @@ DROP DATABASE mysqltest2|
 
 ---> Restoring mysqltest1...
 ---> Restoring mysqltest2...
-
----> connection: con3
+connect  con3,localhost,root,,mysqltest1;
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
 SET @@collation_connection= cp1251_general_ci|
@@ -2829,12 +2824,11 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `col1` varchar(10) COLLATE cp1251_general_cs DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
-
----> connection: con2
-
----> connection: con3
-
----> connection: default
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection default;
 USE test;
 DROP DATABASE mysqltest1;
 DROP DATABASE mysqltest2;

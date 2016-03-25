@@ -3650,16 +3650,21 @@ drop user mysqltest_1@localhost;
 #
 # Bug#21424 mysqldump failing to export/import views
 #
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root;
 create database mysqldump_myDB;
 use mysqldump_myDB;
 create user myDB_User@localhost;
 grant create, create view, select, insert on mysqldump_myDB.* to myDB_User@localhost;
 create table t1 (c1 int);
 insert into t1 values (3);
+connect  user1,localhost,myDB_User,,mysqldump_myDB,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection user1;
 use mysqldump_myDB;
 create table u1 (f1 int);
 insert into u1 values (4);
 create view v1 (c1) as select * from t1;
+connection root;
 use mysqldump_myDB;
 drop view v1;
 drop table t1;
@@ -3671,6 +3676,7 @@ flush privileges;
 # Bug#21424 continues from here.
 # Restore. Flush Privileges test ends.
 #
+connection user1;
 use mysqldump_myDB;
 select * from mysqldump_myDB.v1;
 c1
@@ -3678,6 +3684,8 @@ c1
 select * from mysqldump_myDB.u1;
 f1
 4
+connection root;
+disconnect user1;
 use mysqldump_myDB;
 drop view v1;
 drop table t1;
@@ -3685,6 +3693,8 @@ drop table u1;
 revoke all privileges on mysqldump_myDB.* from myDB_User@localhost;
 drop user myDB_User@localhost;
 drop database mysqldump_myDB;
+connection default;
+disconnect root;
 use test;
 #
 # Bug #21527 mysqldump incorrectly tries to LOCK TABLES on the 
@@ -3837,6 +3847,8 @@ use test;
 create database mysqldump_test_db;
 grant all privileges on mysqldump_test_db.*  to user1;
 grant all privileges on mysqldump_test_db.*  to user2;
+connect  user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection user27293;
 create procedure mysqldump_test_db.sp1() select 'hello';
 
 -- insufficient privileges to SHOW CREATE PROCEDURE `sp1`
@@ -3859,6 +3871,8 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 drop procedure sp1;
+connection default;
+disconnect user27293;
 drop user user1;
 drop user user2;
 drop database mysqldump_test_db;
@@ -5038,6 +5052,8 @@ END
 # Test to check 'Insufficient privileges' error.
 
 GRANT ALL PRIVILEGES ON BUG52792.* TO user1;
+connect  conn_1, localhost, user1, , BUG52792, $MASTER_MYPORT, $MASTER_MYSOCK;
+connection conn_1;
 # Running 'replace_regex on timestamp'
 <?xml version="1.0"?>
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -5125,6 +5141,8 @@ CREATE DEFINER=`root`@`localhost` EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '
 <!-- - does user1 have permissions on mysql.proc?
 
  -->
+connection default;
+disconnect conn_1;
 DROP USER user1;
 DROP DATABASE BUG52792;
 # UTF-8

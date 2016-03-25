@@ -105,7 +105,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRAN
 'testuser1'@'localhost'	def	db_datadict	t1	f3	UPDATE	YES
 'testuser2'@'localhost'	def	db_datadict	t1	f2	SELECT	NO
 'testuser3'@'localhost'	def	db_datadict	t1	f3	SELECT	YES
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.column_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -115,13 +115,13 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRAN
 'testuser1'@'localhost'	def	db_datadict	t1	f2	UPDATE	YES
 'testuser1'@'localhost'	def	db_datadict	t1	f3	SELECT	YES
 'testuser1'@'localhost'	def	db_datadict	t1	f3	UPDATE	YES
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.column_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser2'@'localhost'	def	db_datadict	t1	f2	SELECT	NO
-# Establish connection testuser3 (user=testuser3)
+connect  testuser3, localhost, testuser3, , db_datadict;
 # FIXME: Is it correct that granted TABLES do not occur in COLUMN_PRIVILEGES?
 SELECT * FROM information_schema.table_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -163,7 +163,7 @@ WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser3'@'localhost'	def	db_datadict	t1	f3	SELECT	YES
-# Switch to connection testuser2 (user=testuser2)
+connection testuser2;
 SELECT * FROM information_schema.column_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -171,7 +171,10 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRAN
 'testuser2'@'localhost'	def	db_datadict	t1	f1	SELECT	NO
 'testuser2'@'localhost'	def	db_datadict	t1	f2	SELECT	NO
 'testuser2'@'localhost'	def	db_datadict	t1	f3	SELECT	NO
-# Switch to connection default and close connections testuser1,testuser2,testuser3
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 DROP DATABASE db_datadict;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
@@ -194,7 +197,7 @@ SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , test;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -203,7 +206,7 @@ SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
-# Switch to connection default
+connection default;
 GRANT SELECT (f1,f3) ON db_datadict.my_table TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
@@ -216,7 +219,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -228,7 +231,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection default
+connection default;
 ALTER TABLE db_datadict.my_table DROP COLUMN f3;
 GRANT UPDATE (f1) ON db_datadict.my_table TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.column_privileges
@@ -243,7 +246,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -258,7 +261,7 @@ GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
 SELECT f1, f3 FROM db_datadict.my_table;
 ERROR 42S22: Unknown column 'f3' in 'field list'
-# Switch to connection default
+connection default;
 ALTER TABLE db_datadict.my_table CHANGE COLUMN f1 my_col BIGINT;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
@@ -272,7 +275,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -285,7 +288,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection default
+connection default;
 DROP TABLE db_datadict.my_table;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
@@ -299,7 +302,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -312,7 +315,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
 GRANT SELECT (f3, f1), UPDATE (f1) ON `db_datadict`.`my_table` TO 'testuser1'@'localhost'
-# Switch to connection default
+connection default;
 REVOKE ALL ON db_datadict.my_table FROM 'testuser1'@'localhost';
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
@@ -322,7 +325,7 @@ SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.column_privileges
 WHERE table_name = 'my_table'
 ORDER BY grantee, table_schema,table_name,column_name,privilege_type;
@@ -331,7 +334,8 @@ SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT ALL PRIVILEGES ON `test`.* TO 'testuser1'@'localhost'
-# Switch to connection default and close connection testuser1
+connection default;
+disconnect testuser1;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;
 ########################################################################

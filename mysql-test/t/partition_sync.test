@@ -16,22 +16,18 @@ INSERT INTO t1 VALUES (0),(1);
 
 connect(con1,localhost,root);
 
---echo # Connection 2
 connection con1;
 BEGIN;
 SELECT * FROM t1;
 
---echo # Connection 1
 connection default;
 --error ER_DROP_PARTITION_NON_EXISTENT
 ALTER TABLE t1 DROP PARTITION p3;
 
---echo # Connection 2
 connection con1;
 --echo # This failed with deadlock and should not do so.
 SELECT * FROM t1;
 
---echo # Connection 1
 connection default;
 disconnect con1;
 DROP TABLE t1;
@@ -53,34 +49,28 @@ INSERT INTO tbl_with_partitions VALUES (1);
 connect(con2,localhost,root);
 connect(con3,localhost,root);
 
---echo # Connection 3
 connection con3;
 LOCK TABLE tbl_with_partitions READ;
 
---echo # Connection 1
 --echo # Access table with disabled autocommit
 connection default;
 SET AUTOCOMMIT = 0;
 SELECT * FROM tbl_with_partitions;
 
---echo # Connection 2
 --echo # Alter table, abort after prepare
 connection con2;
 set session debug_dbug="+d,abort_copy_table";
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE tbl_with_partitions ADD COLUMN f INT;
 
---echo # Connection 1
 --echo # Try accessing the table after Alter aborted.
 --echo # This used to give ER_LOCK_DEADLOCK.
 connection default;
 SELECT * FROM tbl_with_partitions;
 
---echo # Connection 3
 connection con3;
 UNLOCK TABLES;
 
---echo # Connection 1
 --echo # Cleanup
 connection default;
 disconnect con2;

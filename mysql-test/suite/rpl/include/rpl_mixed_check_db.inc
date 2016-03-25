@@ -5,9 +5,7 @@
 # Requirements: 
 #########################################
 
---echo ==========MASTER==========
 SHOW DATABASES LIKE 'test_rpl%';
 sync_slave_with_master;
---echo ==========SLAVE===========
 SHOW DATABASES LIKE 'test_rpl%';
 connection master;

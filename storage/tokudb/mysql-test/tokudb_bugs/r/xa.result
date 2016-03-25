@@ -28,6 +28,8 @@ begin;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
 create table t2 (a int);
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+connect  con1,localhost,root,,;
+connection con1;
 xa start 'testa','testb';
 ERROR XAE08: XAER_DUPID: The XID already exists
 xa start 'testa','testb', 123;
@@ -41,6 +43,7 @@ ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction
 xa recover;
 formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
+connection default;
 xa prepare 'testa','testb';
 xa recover;
 formatID	gtrid_length	bqual_length	data
@@ -51,20 +54,29 @@ ERROR XAE04: XAER_NOTA: Unknown XID
 xa rollback 'testa','testb';
 xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+connection con1;
 xa rollback  'testb',0x2030405060,11;
+connection default;
 select * from t1;
 a
 20
 drop table t1;
+disconnect con1;
 drop table if exists t1;
 create table t1(a int, b int, c varchar(20), primary key(a)) engine = tokudb;
 insert into t1 values(1, 1, 'a');
 insert into t1 values(2, 2, 'b');
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 xa start 'a','b';
 update t1 set c = 'aa' where a = 1;
+connection con2;
 xa start 'a','c';
 update t1 set c = 'bb' where a = 2;
+connection con1;
 update t1 set c = 'bb' where a = 2;
+connection con2;
 update t1 set c = 'aa' where a = 1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select count(*) from t1;
@@ -72,9 +84,17 @@ count(*)
 2
 xa end 'a','c';
 xa rollback 'a','c';
+disconnect con2;
+connect  con3,localhost,root,,;
+connection con3;
 xa start 'a','c';
+connection con1;
 xa end 'a','b';
 xa rollback 'a','b';
+connection con3;
+disconnect con1;
+disconnect con3;
+connection default;
 drop table t1;
 #
 # BUG#51342 - more xid crashing
@@ -110,20 +130,28 @@ xa prepare 'a';
 xa commit 'a';
 CREATE TABLE t1(a INT, KEY(a)) ENGINE=TokuDB;
 INSERT INTO t1 VALUES(1),(2);
+connect con1,localhost,root,,;
 BEGIN;
 UPDATE t1 SET a=3 WHERE a=1;
+connection default;
 BEGIN;
 UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
 UPDATE t1 SET a=5 WHERE a=2;
+connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 ROLLBACK;
+connection con1;
 ROLLBACK;
 BEGIN;
 UPDATE t1 SET a=3 WHERE a=1;
+connection default;
 XA START 'xid1';
 UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
 UPDATE t1 SET a=5 WHERE a=2;
+connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA END 'xid1';
@@ -131,5 +159,8 @@ XA ROLLBACK 'xid1';
 XA START 'xid1';
 XA END 'xid1';
 XA ROLLBACK 'xid1';
+connection con1;
 commit;
+connection default;
+disconnect con1;
 DROP TABLE t1;

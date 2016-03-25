@@ -41,32 +41,33 @@ aa2	bb	aa2	bb
 aa3	bb	aa3	bb
 This should work
 '#--------------------FN_DYNVARS_154_03-------------------------#'
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_big_selects;
 @@SESSION.sql_big_selects
 1
 1 Expected
 SET SESSION sql_big_selects = 0;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_big_selects;
 @@SESSION.sql_big_selects
 1
 1 Expected
 SET SESSION sql_big_selects = 1;
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_big_selects;
 @@SESSION.sql_big_selects
 0
 0 Expected
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_big_selects;
 @@SESSION.sql_big_selects
 1
 1 Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET @@SESSION.sql_big_selects = @session_sql_big_selects;
 SET @@SESSION.max_join_size = @session_max_join_size;
 SET @@GLOBAL.max_join_size = @global_max_join_size;

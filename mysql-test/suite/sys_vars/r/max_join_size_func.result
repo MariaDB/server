@@ -36,7 +36,8 @@ id	name	id	name
 4	Record_4	4	Record_4_1
 5	Record_5	5	Record_5_1
 '#--------------------FN_DYNVARS_079_02-------------------------#'
-## Creating new connection test_con1 ##
+connect  test_con1, localhost, root,,;
+connection test_con1;
 ## Setting value of max_join_size ## 
 SET @@session.max_join_size=8;
 ## Since total joins are more than max_join_size value so error will occur ##
@@ -45,7 +46,8 @@ ERROR 42000: The SELECT would examine more than MAX_JOIN_SIZE rows; check your W
 '#--------------------FN_DYNVARS_079_03-------------------------#'
 ## Setting global value of variable ##
 SET @@global.max_join_size=8;
-## Creating and switching to new connection test_con2 ## 
+connect  test_con2, localhost, root,,;
+connection test_con2;
 ## Verifying value of max_join_size ##
 SELECT @@global.max_join_size;
 @@global.max_join_size
@@ -58,4 +60,5 @@ Drop table t1, t2;
 ## Restoring values ##
 SET @@global.max_join_size = DEFAULT;
 SET @@session.max_join_size = DEFAULT;
-## Dropping connections ##
+disconnect test_con1;
+disconnect test_con2;

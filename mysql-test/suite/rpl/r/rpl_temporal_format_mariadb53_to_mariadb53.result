@@ -1,13 +1,18 @@
 include/master-slave.inc
 [connection master]
+connection master;
 SET @@global.mysql56_temporal_format=false;;
+connection slave;
 SET @@global.mysql56_temporal_format=false;;
+connection master;
 SELECT @@global.mysql56_temporal_format AS on_master;
 on_master
 0
+connection slave;
 SELECT @@global.mysql56_temporal_format AS on_slave;
 on_slave
 0
+connection master;
 CREATE TABLE t1
 (
 c0 TIME(0),
@@ -47,6 +52,8 @@ TABLE_NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH
 t1	1	33	33
 t2	1	41	41
 t3	1	50	50
+connection slave;
+connection slave;
 SELECT * FROM t1;;
 c0	01:01:01
 c1	01:01:01.1
@@ -77,9 +84,12 @@ TABLE_NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH
 t1	1	33	33
 t2	1	41	41
 t3	1	50	50
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+connection slave;
 SET @@global.mysql56_temporal_format=DEFAULT;
+connection master;
 SET @@global.mysql56_temporal_format=DEFAULT;
 include/rpl_end.inc

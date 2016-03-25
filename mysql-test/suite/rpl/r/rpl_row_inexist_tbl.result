@@ -1,20 +1,19 @@
 include/master-slave.inc
 [connection master]
 ==== Setup table on master but not on slave ====
-[on master]
 CREATE TABLE t1 (a INT);
-[on slave]
+connection slave;
 DROP TABLE t1;
 ==== Modify table on master ====
-[on master]
+connection master;
 INSERT INTO t1 VALUES (1);
 ==== Verify error on slave ====
-[on slave]
+connection slave;
 call mtr.add_suppression("Slave SQL.*Error executing row event: .Table .test.t1. doesn.t exist., error.* 1146");
 include/wait_for_slave_sql_error.inc [errno=1146]
 ==== Clean up ====
 include/stop_slave_io.inc
 RESET SLAVE;
-[on master]
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc

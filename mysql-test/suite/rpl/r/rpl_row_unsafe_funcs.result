@@ -1,9 +1,12 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT, b INT);
 INSERT INTO t1 SELECT 1;
+connection master1;
 INSERT INTO t1 VALUES (2),(3),(4),(5),(6);
+connection master;
 INSERT INTO t2 SELECT 1, ROW_COUNT();
 INSERT INTO t1 VALUES (2),(3),(4);
 INSERT INTO t2 SELECT 2, ROW_COUNT();
@@ -11,9 +14,13 @@ SELECT b FROM t2 ORDER BY a;
 b
 1
 3
+connection slave;
 SELECT b FROM t2 ORDER BY a;
 b
 1
 3
+connection master;
 DROP TABLE t1, t2;
+connection slave;
+connection master;
 include/rpl_end.inc

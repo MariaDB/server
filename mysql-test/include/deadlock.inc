@@ -10,9 +10,7 @@
 #               main code went into include/deadlock.inc
 #
 
---echo # Establish connection con1 (user=root)
 connect (con1,localhost,root,,);
---echo # Establish connection con2 (user=root)
 connect (con2,localhost,root,,);
 
 --disable_warnings
@@ -23,14 +21,12 @@ drop table if exists t1,t2;
 # Testing of FOR UPDATE
 #
 
---echo # Switch to connection con1
 connection con1;
 eval create table t1 (id integer, x integer) engine = $engine_type;
 insert into t1 values(0, 0);
 set autocommit=0;
 SELECT * from t1 where id = 0 FOR UPDATE;
 
---echo # Switch to connection con2
 connection con2;
 set autocommit=0;
 
@@ -39,18 +35,15 @@ set autocommit=0;
 update t1 set x=2 where id = 0;
 --sleep 2
 
---echo # Switch to connection con1
 connection con1;
 update t1 set x=1 where id = 0;
 select * from t1;
 commit;
 
---echo # Switch to connection con2
 connection con2;
 reap;
 commit;
 
---echo # Switch to connection con1
 connection con1;
 select * from t1;
 commit;
@@ -60,7 +53,6 @@ drop table t1;
 # Testing of FOR UPDATE
 #
 
---echo # Switch to connection con1
 connection con1;
 eval create table t1 (id integer, x integer) engine = $engine_type;
 eval create table t2 (b integer, a integer) engine = $engine_type;
@@ -73,7 +65,6 @@ update t2 set a=100 where b=(SELECT x from t1 where id = b FOR UPDATE);
 select * from t2;
 select * from t1;
 
---echo # Switch to connection con2
 connection con2;
 set autocommit=0;
 
@@ -82,18 +73,15 @@ set autocommit=0;
 update t1 set x=2 where id = 0;
 --sleep 2
 
---echo # Switch to connection con1
 connection con1;
 update t1 set x=1 where id = 0;
 select * from t1;
 commit;
 
---echo # Switch to connection con2
 connection con2;
 reap;
 commit;
 
---echo # Switch to connection con1
 connection con1;
 select * from t1;
 commit;
@@ -105,13 +93,11 @@ insert into t1 values(0, 0), (300, 300);
 insert into t2 values(0, 0), (1, 20), (2, 30);
 commit;
 
---echo # Switch to connection con1
 connection con1;
 select a,b from t2 UNION SELECT id, x from t1 FOR UPDATE;
 select * from t2;
 select * from t1;
 
---echo # Switch to connection con2
 connection con2;
 
 # The following query should hang because con1 is locking the record
@@ -121,24 +107,20 @@ select * from t2;
 update t1 set x=2 where id = 0;
 --sleep 2
 
---echo # Switch to connection con1
 connection con1;
 update t1 set x=1 where id = 0;
 select * from t1;
 commit;
 
---echo # Switch to connection con2
 connection con2;
 reap;
 commit;
 
---echo # Switch to connection con1
 connection con1;
 select * from t1;
 commit;
 
 # Cleanup
---echo # Switch to connection default + disconnect con1 and con2
 connection default;
 disconnect con1;
 disconnect con2;

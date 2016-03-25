@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t2;
@@ -38,9 +39,6 @@ INSERT INTO test.t1 VALUES (4,'MySQL'),(20,'ROCKS'),(11,'Texas'),(10,'kyle');
 INSERT INTO test.t2 VALUES (4),(2),(1),(3);
 UPDATE test.t1 SET id=id+4 WHERE id=4;
 END|
-
-< ---- Master selects-- >
--------------------------
 CALL test.p2();
 SELECT * FROM test.t1 ORDER BY id;
 id	data
@@ -54,9 +52,7 @@ id2
 2
 3
 4
-
-< ---- Slave selects-- >
-------------------------
+connection slave;
 SELECT * FROM test.t1 ORDER BY id;
 id	data
 8	MySQL
@@ -69,9 +65,7 @@ id2
 2
 3
 4
-
-< ---- Master selects-- >
--------------------------
+connection master;
 CALL test.p1();
 SELECT * FROM test.t3 ORDER BY id3;
 id3	c
@@ -79,19 +73,20 @@ id3	c
 2	kyle
 3	Texas
 4	ROCKS
-
-< ---- Slave selects-- >
-------------------------
+connection slave;
 SELECT * FROM test.t3 ORDER BY id3;
 id3	c
 1	MySQL
 2	kyle
 3	Texas
 4	ROCKS
+connection master;
 ALTER PROCEDURE test.p1 MODIFIES SQL DATA;
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP TABLE IF EXISTS test.t3;
+connection slave;
 include/rpl_end.inc

@@ -1,3 +1,7 @@
+connect  con1, localhost, root, , ;
+connect  con2, localhost, root, , ;
+connect  con3, localhost, root, , ;
+connection default;
 update performance_schema.setup_instruments set enabled='YES'
   where name like "wait/synch/mutex/mysys/THR_LOCK_myisam";
 drop table if exists test.t1;
@@ -7,13 +11,13 @@ truncate table performance_schema.events_waits_history_long;
 show variables like "thread_handling";
 Variable_name	Value
 thread_handling	one-thread-per-connection
-"----------------- Connection 1"
+connection con1;
 create table test.t1(a int) engine=MYISAM;
-"----------------- Connection 2"
+connection con2;
 create table test.t2(a int) engine=MYISAM;
-"----------------- Connection 3"
+connection con3;
 create table test.t3(a int) engine=MYISAM;
-"----------------- Connection default"
+connection default;
 execute stmt_dump_events using @tid;
 event_name	short_source	operation	number_of_bytes
 wait/synch/mutex/mysys/THR_LOCK_myisam	mi_create.c:	lock	NULL
@@ -36,3 +40,10 @@ drop table test.t1;
 drop table test.t2;
 drop table test.t3;
 update performance_schema.setup_instruments set enabled='YES';
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection default;

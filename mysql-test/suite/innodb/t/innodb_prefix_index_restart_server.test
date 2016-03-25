@@ -43,20 +43,17 @@ INSERT INTO worklog5743 VALUES(REPEAT("a", 3500) , REPEAT("o", 3500));
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text  = REPEAT("o", 3500) FROM
 worklog5743;
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 SELECT COUNT(*) FROM worklog5743;
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("b", 3500) , REPEAT("o", 3500));
 
 
---echo "In connection 1"
 --connection con1
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
@@ -64,7 +61,6 @@ SELECT COUNT(*) FROM worklog5743;
 START TRANSACTION;
 
 
---echo "In connection default ....restarting the server"
 --connection default
 # Restart the server
 -- source include/restart_mysqld.inc
@@ -75,7 +71,6 @@ worklog5743;
 --disconnect con1
 --disconnect con2
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
@@ -86,7 +81,6 @@ DELETE FROM worklog5743 WHERE col_1_text = REPEAT("b", 3500);
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 
---echo "In connection default ....restarting the server"
 --connection default
 # Restart the server
 -- source include/restart_mysqld.inc
@@ -96,7 +90,6 @@ worklog5743;
 
 --disconnect con1
 
---echo "In connection 1"
 --connect (con2,localhost,root,,)
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
@@ -106,7 +99,6 @@ UPDATE worklog5743 SET col_1_text = REPEAT("b", 3500) WHERE col_1_text = REPEAT(
 SELECT col_1_text = REPEAT("b", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 
---echo "In connection default ....restarting the server"
 --connection default
 # Restart the server
 -- source include/restart_mysqld.inc
@@ -122,4 +114,3 @@ DROP TABLE worklog5743;
 eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
 eval SET GLOBAL innodb_large_prefix=$innodb_large_prefix_orig;
-

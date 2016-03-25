@@ -822,7 +822,8 @@ set @@global.lc_time_names=fr_FR;
 select @@global.lc_time_names, @@lc_time_names;
 @@global.lc_time_names	@@lc_time_names
 fr_FR	en_US
-New connection
+connect  con1,localhost,root,,;
+connection con1;
 select @@global.lc_time_names, @@lc_time_names;
 @@global.lc_time_names	@@lc_time_names
 fr_FR	fr_FR
@@ -830,7 +831,8 @@ set @@lc_time_names=ru_RU;
 select @@global.lc_time_names, @@lc_time_names;
 @@global.lc_time_names	@@lc_time_names
 fr_FR	ru_RU
-Returnung to default connection
+disconnect con1;
+connection default;
 select @@global.lc_time_names, @@lc_time_names;
 @@global.lc_time_names	@@lc_time_names
 fr_FR	en_US

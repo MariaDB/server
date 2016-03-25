@@ -23,7 +23,6 @@ call mtr.add_suppression("Slave SQL.*Column [0-9] of table .test.t[0-9]*. cannot
 ### Should Stop Slave                      ###
 ##############################################
 
---echo *** On Slave ***
 sync_slave_with_master;
 STOP SLAVE;
 RESET SLAVE;

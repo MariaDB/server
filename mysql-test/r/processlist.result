@@ -1,22 +1,30 @@
 SET DEBUG_SYNC = 'dispatch_command_before_set_time WAIT_FOR do_set_time';
 SELECT 1;
+connect  con1,localhost,root,,;
 SET DEBUG_SYNC = 'fill_schema_processlist_after_unow SIGNAL do_set_time WAIT_FOR fill_schema_proceed';
 SELECT ID, TIME,TIME_MS FROM INFORMATION_SCHEMA.PROCESSLIST WHERE CONCAT(":", ID, ":") = ":TID:";
+connection default;
 1
 1
 SET DEBUG_SYNC = 'now SIGNAL fill_schema_proceed';
+connection con1;
 ID	TIME	TIME_MS
 TID	0	0.000
 set debug_sync='reset';
+connection default;
+connection con1;
 SET debug_dbug="+d,sleep_inject_query_done_debug_sync";
 select sleep(5);
 sleep(5)
 0
+connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR query_done';
 select command, time < 5 from information_schema.processlist where id != connection_id();
 command	time < 5
 Sleep	1
+disconnect con1;
 set debug_sync='reset';
+connection default;
 #
 # 10.1 tests
 #

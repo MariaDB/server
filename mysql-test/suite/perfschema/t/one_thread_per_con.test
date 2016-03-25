@@ -29,26 +29,17 @@ show variables like "thread_handling";
 # Code to test
 
 connection con1;
-
--- echo "----------------- Connection 1"
 create table test.t1(a int) engine=MYISAM;
 
 connection con2;
-
--- echo "----------------- Connection 2"
 create table test.t2(a int) engine=MYISAM;
 
 connection con3;
-
--- echo "----------------- Connection 3"
 create table test.t3(a int) engine=MYISAM;
 
 # Verification
 
 connection default;
-
--- echo "----------------- Connection default"
-
 --disable_query_log
 eval set @tid= $con1_THREAD_ID;
 --enable_query_log

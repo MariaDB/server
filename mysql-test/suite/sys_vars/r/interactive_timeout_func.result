@@ -9,7 +9,8 @@ name VARCHAR(30)
 '#--------------------FN_DYNVARS_052_01-------------------------#'
 ## Setting initial value of variable to 1 ##
 SET @@global.interactive_timeout = 1;
-## Creating new connection test_con1 ##
+connect  test_con1, localhost, root,,,,,;
+connection test_con1;
 ## Inserting record in table ##
 INSERT into t1(name) values('Record_1');
 ## Setting session value of interactive_timeout ##

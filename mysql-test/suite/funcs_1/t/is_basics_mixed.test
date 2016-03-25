@@ -43,7 +43,6 @@ SHOW DATABASES LIKE 'information_schema';
 #
 # Note: The "for query purposes only" is checked in other tests.
 # High privileged user (root)
---echo # Switch to connection default
 connection default;
 USE test;
 SELECT DATABASE();
@@ -54,14 +53,12 @@ SELECT DATABASE();
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
 # Low privileged user
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 SELECT DATABASE();
 USE information_schema;
 SELECT DATABASE();
 #
---echo # Switch to connection default and close connection testuser1
 connection default;
 disconnect testuser1;
 DROP   USER 'testuser1'@'localhost';
@@ -89,7 +86,6 @@ CREATE DATABASE information_schema;
 #
 
 # 1. High privileged user (root)
---echo # Switch to connection default (user=root)
 connection default;
 --source suite/funcs_1/datadict/basics_mixed1.inc
 
@@ -99,12 +95,10 @@ DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
 GRANT ALL ON *.* TO testuser1@localhost;
 SHOW GRANTS FOR testuser1@localhost;
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 --source suite/funcs_1/datadict/basics_mixed1.inc
 
---echo # Switch to connection default (user=root) and close connection testuser1
 connection default;
 disconnect testuser1;
 DROP   USER 'testuser1'@'localhost';
@@ -270,7 +264,6 @@ GRANT CREATE VIEW ON information_schema.* TO 'u_6_401018'@'localhost';
 
 # Check 1: Show that a "simple" user (<> root) has the permission to SELECT
 #          on some INFORMATION_SCHEMA table.
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 SELECT table_schema,table_name FROM information_schema.tables
@@ -298,7 +291,6 @@ SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
 FROM information_schema.tables WHERE table_schema = 'db_datadict';
 GRANT SELECT ON db_datadict.v2 to testuser2@localhost;
 #
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
@@ -307,7 +299,6 @@ SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
 FROM information_schema.tables WHERE table_schema = 'db_datadict';
 
 # Cleanup
---echo # Switch to connection default and close connections testuser1 and testuser2
 connection default;
 disconnect testuser1;
 disconnect testuser2;
@@ -445,13 +436,11 @@ DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
 GRANT ALL ON test.* TO 'testuser1'@'localhost';
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 --source suite/funcs_1/datadict/basics_mixed3.inc
 
 # Cleanup
---echo # Switch to connection default and close connections testuser1 and testuser2
 connection default;
 disconnect testuser1;
 DROP   USER 'testuser1'@'localhost';

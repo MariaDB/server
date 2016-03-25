@@ -80,9 +80,11 @@ delete from t1 where a=3;
 select * from t1 where a=999;
 a	b
 drop table t1;
+connect  ssl_con,localhost,root,,,,,SSL;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
+connection default;
 create table t1 (a int, primary key (a), b int default 0) engine=innodb;
 begin;
 insert into t1 values(1,1);
@@ -132,6 +134,7 @@ Handler_write	7
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
 9
+disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ

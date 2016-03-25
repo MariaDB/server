@@ -14,8 +14,10 @@ LOCK TABLES t1 WRITE, t2 WRITE;
 INSERT INTO t1(i) VALUES(3);
 UNLOCK TABLES;
 COMMIT;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
+connection master;
 DROP TABLE t1,t2;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 CREATE TABLE t2(id INT AUTO_INCREMENT, i INT, PRIMARY KEY (id)) ENGINE=INNODB;
@@ -29,8 +31,10 @@ LOCK TABLES t2 WRITE, t1 READ;
 INSERT INTO t2(i) SELECT i FROM t1;
 UNLOCK TABLES;
 COMMIT;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
+connection master;
 DROP TABLE t1,t2;
 CREATE TABLE t1(i int, id INT AUTO_INCREMENT, PRIMARY KEY (i, id)) ENGINE=MYISAM;
 INSERT INTO t1 (i) values (1);
@@ -39,7 +43,9 @@ LOCK TABLES t1 WRITE;
 INSERT INTO t1 (i) values (2);
 UNLOCK TABLES;
 COMMIT;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
+connection master;
 DROP TABLE t1;
 CREATE TABLE t1(i INT, j INT, UNIQUE KEY(i), UNIQUE KEY(j)) ENGINE=INNODB;
 INSERT INTO t1 (i,j) VALUES (1,2) ON DUPLICATE KEY UPDATE j=j+1;
@@ -48,6 +54,8 @@ LOCK TABLES t1 WRITE;
 INSERT INTO t1 (i,j) VALUES (1,2) ON DUPLICATE KEY UPDATE j=j+1;
 UNLOCK TABLES;
 COMMIT;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc

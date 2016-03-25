@@ -1,18 +1,22 @@
 include/rpl_init.inc [topology=1->2->3->4]
+connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+connection server_3;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+connection server_4;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
@@ -20,6 +24,7 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
 *** MDEV-6676: Test that @@skip_parallel_replication is preserved in slave binlog ***
+connection server_1;
 INSERT INTO t1 VALUES(1,1);
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
@@ -43,6 +48,7 @@ a	b
 2	11
 3	1
 include/save_master_gtid.inc
+connection server_2;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -52,6 +58,7 @@ a	b
 3	1
 status
 Ok, no retry
+connection server_3;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -61,6 +68,7 @@ a	b
 3	1
 status
 Ok, no retry
+connection server_4;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -71,56 +79,86 @@ a	b
 status
 Ok, no retry
 *** MDEV-6676: Test that the FL_WAITED flag in GTID is preserved in slave binlog ***
+connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET GLOBAL slave_parallel_mode='optimistic';
+connection server_3;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET GLOBAL slave_parallel_mode='optimistic';
+connection server_4;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET GLOBAL slave_parallel_mode='optimistic';
+connection server_1;
 BEGIN;
 UPDATE t1 SET b=b+1 WHERE a=2;
+connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting1";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting1";
+connect  con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting2";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting2";
+connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting3";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting3";
+connect  con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting4";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting4";
+connect  con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting5";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting5";
+connect  con_temp6,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting6";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting6";
+connect  con_temp7,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting7";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting7";
+connect  con_temp8,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync="thd_report_wait_for SIGNAL waiting8";
 UPDATE t1 SET b=b+1 WHERE a=2;
+connection server_1;
 SET debug_sync="now WAIT_FOR waiting8";
 COMMIT;
 SET debug_sync="RESET";
+connection con_temp1;
 COMMIT;
+connection con_temp2;
 COMMIT;
+connection con_temp3;
 COMMIT;
+connection con_temp4;
 COMMIT;
+connection con_temp5;
 COMMIT;
+connection con_temp6;
 COMMIT;
+connection con_temp7;
 COMMIT;
+connection con_temp8;
+connection server_1;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	1
 2	20
 3	1
 include/save_master_gtid.inc
+connection server_2;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -130,6 +168,7 @@ a	b
 3	1
 status
 Ok, no retry
+connection server_3;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -139,6 +178,7 @@ a	b
 3	1
 status
 Ok, no retry
+connection server_4;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -148,17 +188,21 @@ a	b
 3	1
 status
 Ok, no retry
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_3;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_4;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_1;
 DROP TABLE t1;
 include/rpl_end.inc

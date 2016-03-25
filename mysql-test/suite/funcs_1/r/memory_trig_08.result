@@ -69,6 +69,9 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM test_general@localhost;
 create User test_super@localhost;
 set password for test_super@localhost = password('PWD');
 grant ALL on *.* to test_super@localhost with grant OPTION;
+connect  con2_general,localhost,test_general,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con2_super,localhost,test_super,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection default;
 
 Testcase 3.5.8.1: (implied in previous tests)
 ---------------------------------------------
@@ -78,6 +81,7 @@ Testcase 3.5.8.2: (implied in previous tests)
 
 Testcase 3.5.8.3/4:
 -------------------
+connection con2_super;
 create database db_test;
 grant SELECT, INSERT, UPDATE, DELETE on db_test.* to test_general;
 grant LOCK TABLES on db_test.* to test_general;
@@ -124,6 +128,7 @@ delete from db_test.t1_d where d136= new.f136;
 select sum(db_test.t1_u.u163) into @test_var from db_test.t1_u
 where u136= new.f136;
 END//
+connection con2_general;
 Use test;
 set @test_var=0;
 Insert into tb3 (f120, f122, f136, f144, f163)
@@ -153,11 +158,13 @@ select @test_var;
 
 3.5.8.4 - single SQL - insert
 -----------------------------
+connection con2_super;
 Create trigger trg2 BEFORE UPDATE on tb3 for each row
 BEGIN
 insert into db_test.t1_i
 values (new.f120, new.f136, new.f144, new.f163);
 END//
+connection con2_general;
 Select f120, f122, f136, f144, f163 from tb3 where f122 like 'Test 3.5.8.4%';
 f120	f122	f136	f144	f163
 1	Test 3.5.8.4	00222	0000023456	1.050000000000000000000000000000
@@ -176,11 +183,13 @@ I	00222	0000023456	1.050000000000000000000000000000
 
 3.5.8.4 - single SQL - update
 -----------------------------
+connection con2_super;
 drop trigger trg2;
 Create trigger trg3 BEFORE UPDATE on tb3 for each row
 update db_test.t1_u
 set u120=new.f120
 where u136=new.f136;
+connection con2_general;
 update tb3 set f120='U', f122='Test 3.5.8.4-Single Update'
 		 where f122='Test 3.5.8.4-Single Insert';
 Select f120, f122, f136, f144, f163 from tb3 where f122 like 'Test 3.5.8.4%';
@@ -197,9 +206,11 @@ U	00222	0000023456	1.050000000000000000000000000000
 
 3.5.8.3/4 - single SQL - delete
 -------------------------------
+connection con2_super;
 drop trigger trg3;
 Create trigger trg4 AFTER UPDATE on tb3 for each row
 delete from db_test.t1_d where d136= new.f136;
+connection con2_general;
 update tb3 set f120='D', f136=444,
 f122='Test 3.5.8.4-Single Delete'
 		 where f122='Test 3.5.8.4-Single Update';
@@ -213,10 +224,12 @@ c	00333	0000099999	999.990000000000000000000000000000
 
 3.5.8.3/4 - single SQL - select
 -------------------------------
+connection con2_super;
 drop trigger trg4;
 Create trigger trg5 AFTER UPDATE on tb3 for each row
 select sum(db_test.t1_u.u163) into @test_var from db_test.t1_u
 where u136= new.f136;
+connection con2_general;
 set @test_var=0;
 update tb3 set f120='S', f136=111,
 f122='Test 3.5.8.4-Single Select'
@@ -227,6 +240,7 @@ S	Test 3.5.8.4-Single Select	00111	0000023456	1.050000000000000000000000000000
 select @test_var;
 @test_var
 999.990000000000000000000000000000
+connection default;
 drop trigger trg1;
 drop trigger trg5;
 drop database if exists db_test;
@@ -519,6 +533,7 @@ Set @var2=old.f120;
 Rollback;
 END//
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+connection default;
 drop user test_general@localhost;
 drop user test_general;
 drop user test_super@localhost;

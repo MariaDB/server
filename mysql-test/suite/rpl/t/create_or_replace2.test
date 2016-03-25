@@ -2,7 +2,6 @@
 --source include/have_binlog_format_row_or_statement.inc
 --source include/have_metadata_lock_info.inc
 --source include/master-slave.inc
---enable_connect_log
 
 --echo #
 --echo # MDEV-6525 ; Problems with CREATE OR REPLACE under lock
@@ -40,5 +39,4 @@ unlock tables;
 # Cleanup
 drop function f1;
 drop table t1;
---disable_connect_log
 --source include/rpl_end.inc

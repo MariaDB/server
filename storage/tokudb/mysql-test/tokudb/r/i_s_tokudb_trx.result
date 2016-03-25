@@ -12,12 +12,17 @@ TXN_ID_DEFAULT	CLIENT_ID_DEFAULT
 commit;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 trx_id	trx_mysql_thread_id
+connect conn_a,localhost,root,,;
 set autocommit=0;
 insert into t values (2);
+connection default;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 trx_id	trx_mysql_thread_id
 TXN_ID_A	CLIENT_ID_A
+connection conn_a;
 commit;
+connection default;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 trx_id	trx_mysql_thread_id
+disconnect conn_a;
 drop table t;

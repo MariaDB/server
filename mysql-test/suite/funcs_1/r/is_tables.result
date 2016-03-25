@@ -117,7 +117,7 @@ CREATE TABLE db_datadict.tb1 (f1 INT, f2 INT, f3 INT)
 ENGINE = <engine_type>;
 GRANT SELECT ON db_datadict.tb1 TO 'testuser1'@'localhost';
 GRANT ALL    ON db_datadict.tb1 TO 'testuser2'@'localhost' WITH GRANT OPTION;
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 CREATE TABLE tb2 (f1 DECIMAL)
 ENGINE = <engine_type>;
 CREATE TABLE tb3 (f1 VARCHAR(200))
@@ -139,7 +139,7 @@ tb1
 tb2
 tb3
 v3
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
@@ -149,7 +149,7 @@ SHOW TABLES FROM db_datadict;
 Tables_in_db_datadict
 tb1
 tb3
-# Establish connection testuser3 (user=testuser3)
+connect  testuser3, localhost, testuser3, , db_datadict;
 SELECT * FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
@@ -159,7 +159,7 @@ SHOW TABLES FROM db_datadict;
 Tables_in_db_datadict
 tb3
 v3
-# Switch to connection default (user=root)
+connection default;
 SELECT * FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
@@ -173,7 +173,9 @@ tb1
 tb2
 tb3
 v3
-# Close connection testuser1, testuser2, testuser3
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';

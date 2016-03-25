@@ -1055,6 +1055,9 @@ t2	CREATE TABLE `t2` (
 affected rows: 1
 DROP TABLE t2;
 DROP TABLE t1;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 CREATE TABLE t1 (a INT, b CHAR(1)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (3,'a'),(3,'b'),(1,'c'),(0,'d'),(1,'e');
 CREATE TABLE t2 (a INT, b CHAR(1)) ENGINE=InnoDB;
@@ -1063,6 +1066,7 @@ CREATE TABLE t2c (a INT, b CHAR(1) NOT NULL) ENGINE=InnoDB;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2i SELECT * FROM t1;
 INSERT INTO t2c SELECT * FROM t1;
+connection b;
 BEGIN;
 SELECT * FROM t1;
 a	b
@@ -1071,6 +1075,7 @@ a	b
 1	c
 0	d
 1	e
+connection a;
 SET lock_wait_timeout=1;
 CREATE INDEX t1a ON t1(a);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -1086,6 +1091,7 @@ set @@sql_mode = @old_sql_mode;
 ALTER TABLE t2c ADD PRIMARY KEY(a,b), ADD INDEX t2a(a), ALGORITHM=COPY;
 affected rows: 5
 info: Records: 5  Duplicates: 0  Warnings: 0
+connection b;
 SELECT * FROM t2i;
 ERROR HY000: Table definition has changed, please retry transaction
 SELECT * FROM t2i FORCE INDEX(t2a) ORDER BY a;
@@ -1153,6 +1159,9 @@ a	b
 1	e
 3	a
 3	b
+connection default;
+disconnect a;
+disconnect b;
 alter table t2 add index t2a(b);
 ERROR 42000: Duplicate key name 't2a'
 alter table t2 drop index t2a, add index t2a(b);

@@ -1121,31 +1121,46 @@ c1
 2
 UNLOCK TABLES;
 DROP TABLE t1, t2, t3, t4;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
 CREATE TABLE t1 (c1 INT) ENGINE= MyISAM;
 CREATE TABLE t2 (c1 INT) ENGINE= MRG_MYISAM UNION= (t1) INSERT_METHOD= LAST;
 REPAIR TABLE t1;
+connection con1;
 INSERT INTO t2 VALUES (1);
+connection default;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 DROP TABLE t1, t2;
 CREATE TABLE t1 (c1 INT) ENGINE= MyISAM;
 CREATE TABLE t2 (c1 INT) ENGINE= MRG_MYISAM UNION= (t1) INSERT_METHOD= LAST;
 LOCK TABLE t1 WRITE;
+connection con1;
 INSERT INTO t2 VALUES (1);
+connection default;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 UNLOCK TABLES;
+connection con1;
+connection default;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (c1 INT) ENGINE= MyISAM;
 LOCK TABLE t1 WRITE;
+connection con1;
 INSERT INTO t1 VALUES (1);
+connection default;
 FLUSH TABLES;
 FLUSH TABLES;
 SELECT * FROM t1;
 c1
 UNLOCK TABLES;
+connection con1;
+connection default;
 DROP TABLE t1;
+disconnect con1;
+disconnect con2;
 #
 # Extra tests for Bug#26379 - Combination of FLUSH TABLE and
 #                             REPAIR TABLE corrupts a MERGE table
@@ -1964,9 +1979,14 @@ COUNT(*)
 SELECT COUNT(*) FROM t3;
 COUNT(*)
 210
+connect  con1,localhost,root,,;
 SELECT COUNT(DISTINCT a1.id) FROM t3 AS a1, t3 AS a2
 WHERE a1.id = a2.id GROUP BY a2.grp;
+connection default;
 TRUNCATE TABLE t1;
+connection con1;
+disconnect con1;
+connection default;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
@@ -2824,10 +2844,15 @@ INSERT INTO t2 VALUES(2);
 INSERT INTO t3 VALUES(3);
 INSERT INTO t4 VALUES(4);
 INSERT INTO t5 VALUES(5);
+connect  con1,localhost,root,,;
 UPDATE t2, tm1 SET t2.c1=f1();
+connection default;
 FLUSH TABLES;
 FLUSH TABLES;
 UNLOCK TABLES;
+connection con1;
+disconnect con1;
+connection default;
 SELECT * FROM tm1;
 c1
 1
@@ -3556,7 +3581,7 @@ DROP TABLE t1, t2, t3, t4, m1, m2;
 # HANDLER ... OPEN.
 # The general case.
 DROP TABLE IF EXISTS t1, t2, t3;
-# Connection con1.
+connect  con1,localhost,root,,;
 CREATE TABLE t1 (c1 int);
 CREATE TABLE t2 (c1 int);
 CREATE TABLE t3 (c1 int) ENGINE = MERGE UNION (t1,t2);
@@ -3564,10 +3589,11 @@ START TRANSACTION;
 HANDLER t3 OPEN;
 ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t3` doesn't have this option
 DROP TABLE t1, t2, t3;
-# Connection default.
-# Disconnecting con1, all mdl_tickets must have been released.
+connection default;
+# all mdl_tickets must have been released.
+disconnect con1;
 # The bug-specific case.
-# Connection con1.
+connect  con1,localhost,root,,;
 CREATE TABLE t1 (c1 int);
 CREATE TABLE t2 (c1 int);
 CREATE TABLE t3 (c1 int) ENGINE = MERGE UNION (t1,t2);
@@ -3576,8 +3602,9 @@ START TRANSACTION;
 HANDLER t3 OPEN;
 ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
 DROP TABLE t1, t3;
-# Connection default.
-# Disconnecting con1, all mdl_tickets must have been released.
+connection default;
+# all mdl_tickets must have been released.
+disconnect con1;
 #
 # A test case for Bug#47648   main.merge fails sporadically
 #

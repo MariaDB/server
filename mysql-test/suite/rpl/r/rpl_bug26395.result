@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 ==== Initialize ====
-[on master]
+connection master;
 CREATE TABLE tinnodb (a INT) ENGINE = INNODB;
 SHOW CREATE TABLE tinnodb;
 Table	Create Table
@@ -31,9 +31,9 @@ Last_IO_Error
 SELECT * FROM tinnodb ORDER BY a;
 a
 ==== Clean up ====
-[on master]
+connection master;
 DROP TABLE tinnodb;
 set @@debug_dbug= @old_debug;
-[on slave]
+connection slave;
 DROP TABLE tinnodb;
 include/rpl_end.inc

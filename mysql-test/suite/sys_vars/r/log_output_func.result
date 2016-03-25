@@ -2,14 +2,14 @@ SET @start_value= @@global.log_output;
 SET @start_general_log= @@global.general_log;
 '#--------------------FN_DYNVARS_065_01-------------------------#'
 SET @@global.log_output = 'NONE';
-'connect (con1,localhost,root,,,,)'
+connect  con1,localhost,root,,,,;
 SET @@global.log_output = 'TABLE,FILE';
-'connect (con2,localhost,root,,,,)'
+connect  con2,localhost,root,,,,;
 SELECT @@global.log_output;
 @@global.log_output
 FILE,TABLE
 '#--------------------FN_DYNVARS_065_02-------------------------#'
-'connection con1'
+connection con1;
 '---Checking general_log when log_output is NONE---'
 SET @@global.log_output = 'NONE';
 TRUNCATE TABLE mysql.general_log;

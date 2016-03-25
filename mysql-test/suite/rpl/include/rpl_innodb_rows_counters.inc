@@ -6,7 +6,6 @@
 #########################################
 
 --connection master
---echo ==========MASTER==========
 
 select variable_value into @rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
 select @rows_read - @master_rows_read;
@@ -27,7 +26,6 @@ select variable_value into @system_rows_inserted from information_schema.global_
 select @system_rows_inserted - @master_system_rows_inserted;
 
 --sync_slave_with_master
---echo ==========SLAVE===========
 
 select variable_value into @rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
 select @rows_read - @slave_rows_read;

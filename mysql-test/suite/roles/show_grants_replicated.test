@@ -1,7 +1,5 @@
 --source include/master-slave.inc
 
---enable_connect_log
-
 create user u1;
 create role r1;
 --echo #
@@ -36,6 +34,5 @@ show grants for r1;
 connection master;
 drop role r1;
 drop user u1;
---disable_connect_log
 --sync_slave_with_master
 --source include/rpl_end.inc

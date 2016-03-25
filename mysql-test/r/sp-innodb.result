@@ -71,6 +71,7 @@ END//
 
 # Open another connection, create and initialize a table
 # to be used for provoking deadlock, put a lock on the table:
+connect  con1,localhost,root,,;
 CREATE TABLE t1 (i INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 SET AUTOCOMMIT= 0;
@@ -79,6 +80,7 @@ UPDATE t1 SET i=1 WHERE i=1;
 # On the default connection, do an update to provoke a
 # deadlock, then call the function with handler. This case
 # fails without the patch (with error ER_NO_SUCH_TABLE):
+connection default;
 SET AUTOCOMMIT= 0;
 UPDATE t1 SET i=1 WHERE i=1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -118,6 +120,7 @@ f1():
 No such table
 
 # Disconnect, drop functions and table:
+disconnect con1;
 DROP FUNCTION f4;
 DROP FUNCTION f3;
 DROP FUNCTION f2;

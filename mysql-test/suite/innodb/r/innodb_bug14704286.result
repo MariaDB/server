@@ -6,8 +6,13 @@ insert into t1 values
 (10,10,10,10),(11,11,11,11),(12,12,12,12),(13,13,13,13),(14,14,14,14),
 (15,15,15,15),(16,16,16,16),(17,17,17,17),(18,18,18,18),(19,19,19,19),
 (20,20,20,20);
+connect  conn1, localhost, root,,;
+connect  conn2, localhost, root,,;
+connect  conn3, localhost, root,,;
+connection conn1;
 use test;
 start transaction with consistent snapshot;
+connection conn2;
 use test;
 CREATE PROCEDURE update_t1()
 BEGIN
@@ -46,8 +51,15 @@ id	value	value2	value3
 18	18	18	18
 19	19	19	19
 20	20	20	20
+connection conn1;
 select * from t1 force index(value) where value=12;
+connection conn3;
 kill query @id;
+connection conn1;
 ERROR 70100: Query execution was interrupted
+connection default;
+disconnect conn1;
+disconnect conn2;
+disconnect conn3;
 drop procedure if exists update_t1;
 drop table if exists t1;

@@ -4,10 +4,12 @@ include/rpl_init.inc [topology=1->2->1]
 # 
 # Server 1
 # Stop replication 2->1
+connection server_1;
 include/stop_slave.inc
 # 
 # Server 2
 # Use GTID for replication 1->2
+connection server_2;
 include/stop_slave.inc
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
@@ -42,6 +44,7 @@ slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 # 
 # Server 1
 # Start replication 2->1 using GTID, 
+connection server_1;
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
 select * from t1 order by i;
@@ -51,6 +54,7 @@ i
 select * from t2 order by i;
 i
 1
+connection server_2;
 select * from t1 order by i;
 i
 1
@@ -58,6 +62,8 @@ i
 select * from t2 order by i;
 i
 1
+connection server_1;
 drop table t1;
+connection server_2;
 drop table t2;
 include/rpl_end.inc

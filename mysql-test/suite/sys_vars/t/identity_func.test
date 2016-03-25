@@ -54,7 +54,6 @@ name VARCHAR(30)
 --echo ## It should be zero ## 
 SELECT @@identity = 0;
 
---echo ## Creating and connecting with new connection test_con1 ##
 connect (test_con1, localhost, root,,);
 connection test_con1;
 SET @@autocommit = 0;
@@ -80,7 +79,6 @@ SELECT @@identity from t2;
 #    Verifying value of identity with new connection     #     
 ##########################################################
 
---echo ## Creating and connecting with new connection test_con2 ##
 connect (test_con2, localhost, root,,);
 connection test_con2;
 SELECT * from t1;
@@ -110,7 +108,6 @@ SELECT @@identity from t2;
 #    Verifying identity value by using commit in connectio # 01   #     
 ###################################################################
 
---echo ## Switching to connection test_con1 ##
 connection test_con1;
 
 --echo ## Commiting rows added in test_con1 ##
@@ -134,11 +131,5 @@ SELECT @@identity from t1;
 --echo ## Dropping tables t1 & t2 ##
 drop table t1, t2;
 
---echo ## Disconnecting both the connections ##
 disconnect test_con1;
 disconnect test_con2;
-
-
-
-
-

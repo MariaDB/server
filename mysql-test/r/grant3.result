@@ -1,6 +1,8 @@
 set global sql_mode="";
 set local sql_mode="";
 SET NAMES binary;
+connect  master,localhost,root,,;
+connection master;
 drop table if exists t1;
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
@@ -10,9 +12,14 @@ flush privileges;
 create user mysqltest_1@localhost;
 grant create user on *.* to mysqltest_1@localhost;
 grant select on `my\_1`.* to mysqltest_1@localhost with grant option;
+connect  user_a,localhost,mysqltest_1,,;
+connection user_a;
 grant select on `my\_1`.* to mysqltest_2@localhost;
 ERROR 42000: You are not allowed to create a user with GRANT
 create user mysqltest_2@localhost;
+disconnect user_a;
+disconnect master;
+connection default;
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
 delete from mysql.tables_priv where user like 'mysqltest\_%';
@@ -132,6 +139,8 @@ GRANT SELECT, UPDATE ON `mysqltest_1`.* TO 'mysqltest1'@'%';
 REVOKE SELECT ON `mysqltest_1`.* FROM 'mysqltest1'@'%';
 GRANT SELECT, UPDATE ON `mysqltest\_1`.* TO 'mysqltest1'@'%';
 FLUSH PRIVILEGES;
+connect  conn1,localhost,mysqltest1,,;
+connection conn1;
 SHOW GRANTS;
 Grants for mysqltest1@%
 GRANT USAGE ON *.* TO 'mysqltest1'@'%'
@@ -139,6 +148,8 @@ GRANT SELECT, UPDATE ON `mysqltest\_1`.* TO 'mysqltest1'@'%'
 GRANT UPDATE ON `mysqltest_1`.* TO 'mysqltest1'@'%'
 SELECT * FROM mysqltest_1.t1;
 a
+disconnect conn1;
+connection default;
 DROP USER 'mysqltest1'@'%';
 DROP DATABASE mysqltest_1;
 #
@@ -163,6 +174,8 @@ Grants for user2@%
 GRANT USAGE ON *.* TO 'user2'@'%'
 GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO 'user2'@'%'
 # Connect as the renamed user
+connect  conn1, localhost, user2,,;
+connection conn1;
 SHOW GRANTS;
 Grants for user2@%
 GRANT USAGE ON *.* TO 'user2'@'%'
@@ -177,6 +190,8 @@ a
 # access this column.
 SELECT b FROM temp.t1;
 ERROR 42000: SELECT command denied to user 'user2'@'localhost' for column 'b' in table 't1'
+disconnect conn1;
+connection default;
 DROP USER 'user2'@'%';
 DROP DATABASE temp;
 set global sql_mode=default;

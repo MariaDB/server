@@ -1,7 +1,7 @@
 CREATE USER test2@localhost;
 GRANT USAGE ON *.* TO test2@localhost;
 GRANT CREATE, DROP, ALTER, UPDATE, INSERT, SELECT ON test.* TO test2@localhost;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for test2@localhost
@@ -56,7 +56,7 @@ a	b
 disconnect test2;
 connection default;
 REVOKE INSERT ON test.* FROM test2@localhost;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for test2@localhost
@@ -68,7 +68,7 @@ disconnect test2;
 connection default;
 GRANT INSERT ON test.* TO test2@localhost;
 REVOKE CREATE ON test.* FROM test2@localhost;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for test2@localhost
@@ -80,7 +80,7 @@ disconnect test2;
 connection default;
 GRANT CREATE ON test.* TO test2@localhost;
 REVOKE DROP ON test.* FROM test2@localhost;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for test2@localhost

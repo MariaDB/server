@@ -14,7 +14,11 @@ t1	CREATE TABLE `t1` (
   KEY `i2` (`f2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into `t1` (rowid, f1, f2) values (1, 1, 10), (2, 1, NULL);
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 start transaction with consistent snapshot;
+connection b;
 start transaction;
 update t1 set f2 = 4  where f1 = 1 and f2 is null;
 (b) Number of rows updated:
@@ -29,6 +33,7 @@ rowid	f1	f2
 2	1	4
 3	1	NULL
 commit;
+connection a;
 (a) Before the update statement is executed.
 select rowid, f1, f2 from t1;
 rowid	f1	f2
@@ -53,4 +58,7 @@ rowid	f1	f2
 1	1	10
 2	1	4
 3	1	6
+connection default;
+disconnect a;
+disconnect b;
 drop table t1;

@@ -573,6 +573,8 @@ INSERT INTO test.t1 VALUES (1), (2);
 CREATE TABLE test.t2 SELECT * FROM test.t1;
 USE test;
 DROP TABLES t1, t2;
+connect  fresh,localhost,root,,test;
+connection fresh;
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 BINLOG '
@@ -665,3 +667,4 @@ SHOW SESSION VARIABLES LIKE "unique_checks";
 Variable_name	Value
 unique_checks	OFF
 DROP TABLE t1;
+disconnect fresh;

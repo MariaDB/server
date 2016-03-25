@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 SET @debug_saved= @@GLOBAL.DEBUG_DBUG;
 CREATE TABLE t (i INT);
 SET GLOBAL DEBUG_DBUG= "d,wait_after_binlog_EOF";
@@ -7,7 +8,9 @@ INSERT INTO t VALUES (1);
 INSERT INTO t VALUES (2);
 FLUSH LOGS;
 SET DEBUG_SYNC= 'now SIGNAL signal.rotate_finished';
+connection slave;
 include/diff_tables.inc [master:t,slave:t]
+connection master;
 SET @@GLOBAL.DEBUG_DBUG= @debug_saved;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t;

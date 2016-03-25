@@ -131,9 +131,10 @@ select t1.* from t1, t2, t3 where t3.state & 1 = 0 and t3.t1_id = t1.id and t3.t
 id	a
 1	me
 drop table t3,t2,t1;
+connect  connection1,localhost,root,,;
 SET SESSION STORAGE_ENGINE = InnoDB;
 SET @@autocommit=1;
-connection default
+connection default;
 SHOW VARIABLES LIKE 'have_query_cache';
 Variable_name	Value
 have_query_cache	YES
@@ -155,7 +156,7 @@ count(*)
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
-connection connection1
+connection connection1;
 START TRANSACTION;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
@@ -171,7 +172,7 @@ count(*)
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
-connection default
+connection default;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
 1
@@ -185,7 +186,7 @@ count(*)
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
-connection connection1
+connection connection1;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
 2
@@ -197,7 +198,7 @@ INSERT INTO t2 VALUES (6,'w');
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
 3
-connection default
+connection default;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
 2
@@ -210,7 +211,7 @@ SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
 1
 COMMIT;
-connection connection1
+connection connection1;
 COMMIT;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 count(*)
@@ -221,6 +222,8 @@ Qcache_queries_in_cache	1
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	1
+disconnect connection1;
+connection default;
 set @@global.query_cache_size = @save_query_cache_size;
 drop table t2;
 SET global query_cache_type=default;

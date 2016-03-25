@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP TRIGGER test.t1_bi_t2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
@@ -15,13 +16,17 @@ n	d
 select * from test.t2;
 n	f
 1	0
+connection slave;
+connection slave;
 select * from test.t1;
 n	d
 1	1.234
 select * from test.t2;
 n	f
 1	0
+connection master;
 DROP TRIGGER test.t1_bi_t2;
 DROP TABLE test.t1;
 DROP TABLE test.t2;
+connection slave;
 include/rpl_end.inc

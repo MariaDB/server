@@ -1,3 +1,5 @@
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
 CREATE TABLE bug47622(
 `rule_key` int(11) NOT NULL DEFAULT '0',
 `seq` smallint(6) NOT NULL DEFAULT '0',
@@ -6,8 +8,10 @@ CREATE TABLE bug47622(
 `else_ind` TINYINT NOT NULL,
 KEY IDX_A (`arg_id`)
 ) ENGINE=InnoDB;
+connection a;
 ALTER TABLE bug47622 ADD UNIQUE IDX_B (rule_key,else_ind,seq,action,arg_id);
 drop index IDX_B on bug47622;
+connection b;
 create index idx on bug47622(seq, arg_id);
 ALTER TABLE bug47622 ADD UNIQUE IDX_X (rule_key,else_ind,seq,action);
 drop table bug47622;

@@ -1,3 +1,4 @@
+connect  ssl_con,localhost,root,,,,,SSL;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
@@ -2172,3 +2173,5 @@ NULL
 select 'still connected?';
 still connected?
 still connected?
+connection default;
+disconnect ssl_con;

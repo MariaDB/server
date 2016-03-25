@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 ==== Initialize ====
+connection slave;
 include/stop_slave.inc
 RESET SLAVE;
 include/setup_fake_relay_log.inc

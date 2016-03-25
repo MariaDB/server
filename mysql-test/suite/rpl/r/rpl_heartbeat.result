@@ -1,4 +1,8 @@
+connect  master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK;
+connection master;
 reset master;
+connection slave;
 set @restore_slave_net_timeout= @@global.slave_net_timeout;
 set @@global.slave_net_timeout= 10;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
@@ -10,6 +14,7 @@ ERROR HY000: The requested value for the heartbeat period is either negative or 
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	5.000
+connection slave;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_heartbeat_period= 0.0009999;
 Warnings:
 Warning	1703	The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled.
@@ -42,20 +47,26 @@ Variable_name	Slave_heartbeat_period
 Value	4.000
 set @@global.slave_net_timeout= 3 /* must be a warning */;
 reset slave;
+connection master;
 drop table if exists t1;
+connection slave;
 set @@global.slave_net_timeout= 10;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_heartbeat_period= 0.5;
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	0.500
 start slave;
+connection master;
 create table t1 (f1 int);
+connection slave;
 include/check_slave_param.inc [Relay_Log_File]
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	0.500
 A heartbeat has been received by the slave
+connection master;
 drop table t1;
+connection slave;
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
 include/stop_slave.inc
 End of tests

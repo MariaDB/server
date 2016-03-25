@@ -13,6 +13,8 @@ show grants for second_user@localhost ;
 Grants for second_user@localhost
 GRANT USAGE ON *.* TO 'second_user'@'localhost' IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO 'second_user'@'localhost'
+connect  con3,localhost,second_user,looser,mysqltest;
+connection con3;
 select current_user();
 current_user()
 second_user@localhost
@@ -27,6 +29,7 @@ my_col
 1
 select a as my_col from t1;
 ERROR 42000: SELECT command denied to user 'second_user'@'localhost' for table 't1'
+connection default;
 grant select on mysqltest.t1 to second_user@localhost
 identified by 'looser' ;
 show grants for second_user@localhost ;
@@ -40,6 +43,7 @@ Grants for second_user@localhost
 GRANT USAGE ON *.* TO 'second_user'@'localhost' IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO 'second_user'@'localhost'
 GRANT SELECT ON `mysqltest`.`t1` TO 'second_user'@'localhost'
+connection con3;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
 GRANT USAGE ON *.* TO 'second_user'@'localhost' IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
@@ -55,17 +59,21 @@ my_col
 execute s_t9 ;
 ERROR 42S02: Table 'mysqltest.t9' doesn't exist
 deallocate prepare s_t9;
+connection default;
 revoke all privileges on mysqltest.t1 from second_user@localhost;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
 GRANT USAGE ON *.* TO 'second_user'@'localhost' IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO 'second_user'@'localhost'
+connection con3;
 show grants for second_user@localhost ;
 Grants for second_user@localhost
 GRANT USAGE ON *.* TO 'second_user'@'localhost' IDENTIFIED BY PASSWORD '*13843FE600B19A81E32AF50D4A6FED25875FF1F3'
 GRANT SELECT ON `mysqltest`.`t9` TO 'second_user'@'localhost'
 execute s_t1 ;
 ERROR 42000: SELECT command denied to user 'second_user'@'localhost' for table 't1'
+connection default;
+disconnect con3;
 revoke all privileges, grant option from second_user@localhost ;
 show grants for second_user@localhost ;
 Grants for second_user@localhost

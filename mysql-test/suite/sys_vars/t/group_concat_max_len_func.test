@@ -66,7 +66,6 @@ INSERT INTO t1(rollno, name) VALUES(4, 'Record_8');
 #   caused by the MyISAM feature "concurrent_inserts".
 SELECT * FROM t1 ORDER BY id;
 
---echo ## Creating two new connections ##
 connect (test_con1,localhost,root,,);
 connect (test_con2,localhost,root,,);
 
@@ -76,7 +75,6 @@ connect (test_con2,localhost,root,,);
 # Verifying initial behavior of variable by concatinating values greater than 4
 ###############################################################################
 
---echo ## Connecting with test_con1 ##
 connection test_con1;
 
 --echo ## Accessing data and using group_concat on column whose value is greater than 4 ##
@@ -94,7 +92,6 @@ SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
 #    Verifying behavior of variable by increasing session value of variable  #
 ##############################################################################
 
---echo ## Connecting with new connection test_con2 ##
 connection test_con2;
 
 --echo ## Verifying initial value of variable. It should be 4 ##
@@ -130,11 +127,9 @@ SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
 --echo ## Dropping table t1 ##
 DROP TABLE t1;
 
---echo ## Disconnecting both the connection ##
 disconnect test_con2;
 disconnect test_con1;
 
 connection default;
 
 SET @@global.group_concat_max_len = @save;
-

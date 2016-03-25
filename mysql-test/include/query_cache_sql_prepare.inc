@@ -23,9 +23,7 @@
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 
---echo ---- establish connection con1 (root) ----
 connect (con1,localhost,root,,test,$MASTER_MYPORT,);
---echo ---- switch to connection default ----
 connection default;
 
 set @initial_query_cache_size = @@global.query_cache_size;
@@ -55,7 +53,6 @@ show status like 'Qcache_hits';
 execute stmt2;
 show status like 'Qcache_hits';
 # Another prepared statement (same text, other connection), should hit the QC
---echo ---- switch to connection con1 ----
 connection con1;
 prepare stmt3 from "select * from t1 where c1=10";
 execute stmt3;
@@ -64,7 +61,6 @@ execute stmt3;
 show status like 'Qcache_hits';
 execute stmt3;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 
 # Mixup tests, where statements without PREPARE.../EXECUTE.... meet statements
@@ -89,20 +85,16 @@ execute stmt10;
 show status like 'Qcache_hits';
 eval $my_stmt;
 show status like 'Qcache_hits';
---echo ---- switch to connection con1 ----
 connection con1;
 eval $my_stmt;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 #
 # Statement without PREPARE.../EXECUTE.... first
 let $my_stmt= SELECT * FROM t1 WHERE c1 = 1;
 eval prepare stmt11 from "$my_stmt";
---echo ---- switch to connection con1 ----
 connection con1;
 eval prepare stmt12 from "$my_stmt";
---echo ---- switch to connection default ----
 connection default;
 eval $my_stmt;
 show status like 'Qcache_hits';
@@ -110,11 +102,9 @@ eval $my_stmt;
 show status like 'Qcache_hits';
 execute stmt11;
 show status like 'Qcache_hits';
---echo ---- switch to connection con1 ----
 connection con1;
 execute stmt12;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 
 # Query caching also works when statement has parameters
@@ -127,7 +117,6 @@ execute stmt1 using @a;
 show status like 'Qcache_hits';
 execute stmt1 using @a;
 show status like 'Qcache_hits';
---echo ---- switch to connection con1 ----
 connection con1;
 set @a=1;
 prepare stmt4 from "select * from t1 where c1=?";
@@ -139,7 +128,6 @@ execute stmt4 using @a;
 show status like 'Qcache_hits';
 execute stmt4 using @a;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 
 # See if enabling/disabling the query cache between PREPARE and
@@ -168,7 +156,6 @@ execute stmt1;
 show status like 'Qcache_hits';
 # The QC is global = affects also other connections.
 # Expect to see no additional Qcache_hits.
---echo ---- switch to connection con1 ----
 connection con1;
 execute stmt3;
 show status like 'Qcache_hits';
@@ -178,7 +165,6 @@ execute stmt3;
 show status like 'Qcache_hits';
 #
 # then QC is re-enabled for more EXECUTE.
---echo ---- switch to connection default ----
 connection default;
 set global query_cache_size=102400;
 # Expect to see additional Qcache_hits.
@@ -193,7 +179,6 @@ show status like 'Qcache_hits';
 execute stmt1;
 show status like 'Qcache_hits';
 # The QC is global = affects also other connections.
---echo ---- switch to connection con1 ----
 connection con1;
 execute stmt3;
 show status like 'Qcache_hits';
@@ -201,7 +186,6 @@ execute stmt3;
 show status like 'Qcache_hits';
 execute stmt3;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 #
 # then QC is re-disabled for more EXECUTE.
@@ -216,7 +200,6 @@ show status like 'Qcache_hits';
 execute stmt1;
 show status like 'Qcache_hits';
 # The QC is global = affects also other connections.
---echo ---- switch to connection con1 ----
 connection con1;
 execute stmt3;
 show status like 'Qcache_hits';
@@ -226,15 +209,12 @@ execute stmt3;
 show status like 'Qcache_hits';
 #
 
---echo ---- switch to connection default ----
 connection default;
 # QC is disabled at PREPARE
 set global query_cache_size=0;
 prepare stmt1 from "select * from t1 where c1=10";
---echo ---- switch to connection con1 ----
 connection con1;
 prepare stmt3 from "select * from t1 where c1=10";
---echo ---- switch to connection default ----
 connection default;
 # then QC is enabled at EXECUTE
 set global query_cache_size=102400;
@@ -246,7 +226,6 @@ show status like 'Qcache_hits';
 execute stmt1;
 show status like 'Qcache_hits';
 # The QC is global = affects also other connections.
---echo ---- switch to connection con1 ----
 connection con1;
 show status like 'Qcache_hits';
 execute stmt3;
@@ -255,7 +234,6 @@ execute stmt3;
 show status like 'Qcache_hits';
 execute stmt3;
 show status like 'Qcache_hits';
---echo ---- switch to connection default ----
 connection default;
 #
 # QC is disabled at PREPARE
@@ -276,7 +254,6 @@ show status like 'Qcache_hits';
 
 
 drop table t1;
---echo ---- disconnect connection con1 ----
 disconnect con1;
 
 #

@@ -1,14 +1,24 @@
 set global aria_log_file_size=4294959104;
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
 use mysqltest;
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 create table t1 (a varchar(1000)) engine=aria;
 * TEST of REDO: see if recovery can reconstruct if we give it an old table
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 insert into t1 values ("00000000");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -22,16 +32,20 @@ mysqltest.t1	check	status	OK
 Checksum-check
 ok
 * compared t1 to old version
+connection default;
 use mysqltest;
 select * from t1;
 a
 00000000
 * TEST of REDO+UNDO: normal recovery test (no moving tables under its feet)
 insert into t1 values ("00000000");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values ("aaaaaaaaa");
+connection admin;
 SET SESSION debug_dbug="+d,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -43,16 +57,20 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 select * from t1;
 a
 00000000
 00000000
 insert into t1 values ("00000000");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values ("aaaaaaaaa");
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_page_cache,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -64,6 +82,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 select * from t1;
 a
@@ -71,10 +90,13 @@ a
 00000000
 00000000
 insert into t1 values ("00000000");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values ("aaaaaaaaa");
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_states,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -86,6 +108,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 select * from t1;
 a
@@ -94,10 +117,13 @@ a
 00000000
 00000000
 insert into t1 values ("00000000");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values ("aaaaaaaaa");
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -109,6 +135,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 select * from t1;
 a
@@ -119,20 +146,28 @@ a
 00000000
 drop table t1;
 * TEST of two REDOs for same page in one REDO group
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 CREATE TABLE t1 (
 i int,
 b blob default NULL,
 c varchar(6000) default NULL
 ) ENGINE=ARIA CHECKSUM=1;
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 INSERT INTO t1 VALUES (1, REPEAT('a', 5000), REPEAT('b', 5000));
 UPDATE t1 SET i=3, b=CONCAT(b,'c') WHERE i=1;
 SELECT LENGTH(b) FROM t1 WHERE i=3;
 LENGTH(b)
 5001
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -145,24 +180,33 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 SELECT LENGTH(b) FROM t1 WHERE i=3;
 LENGTH(b)
 5001
 drop table t1;
 * TEST of INSERT vs state.auto_increment
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 CREATE TABLE t1 (
 i int auto_increment primary key,
 c varchar(6),
 key(c)
 ) ENGINE=ARIA;
 insert into t1 values(null,"b");
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 insert into t1 values(null,"a"), (null,"c"), (null,"d");
 delete from t1 where c="d";
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -175,6 +219,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show create table t1;
 Table	Create Table
@@ -185,10 +230,15 @@ t1	CREATE TABLE `t1` (
   KEY `c` (`c`)
 ) ENGINE=Aria AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 * TEST of UPDATE vs state.auto_increment
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 update t1 set i=15 where c="a";
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -201,6 +251,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show create table t1;
 Table	Create Table
@@ -211,10 +262,13 @@ t1	CREATE TABLE `t1` (
   KEY `c` (`c`)
 ) ENGINE=Aria AUTO_INCREMENT=16 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 * TEST of INSERT's rollback vs state.auto_increment
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values(null, "e");
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -226,6 +280,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show create table t1;
 Table	Create Table

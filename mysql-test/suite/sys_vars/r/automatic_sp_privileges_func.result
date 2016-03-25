@@ -4,10 +4,10 @@ CREATE TABLE t1 (a varchar(200));
 INSERT INTO t1 VALUES('Procedure Executed.');
 CREATE USER 'userTest'@'localhost';
 CREATE USER 'userTest1'@'localhost';
-** Connection default **
+connection default;
 SET GLOBAL automatic_sp_privileges = TRUE;
-** Connecting using userTest **
-** Connection conUser **
+connect  conUser,localhost,userTest,,;
+connection conUser;
 CREATE PROCEDURE testProc ()
 BEGIN
 SELECT * FROM t1;
@@ -16,10 +16,10 @@ CALL testProc();
 a
 Procedure Executed.
 Expecting SELECT executed
-** Connection default**
+connection default;
 SET GLOBAL automatic_sp_privileges = FALSE;
-** Connecting using userTest1 **
-** Connection conUser1 **
+connect  conUser1,localhost,userTest1,,;
+connection conUser1;
 CREATE PROCEDURE testProc1 ()
 BEGIN
 SELECT * FROM t1;
@@ -36,9 +36,9 @@ ERROR 42000: alter routine command denied to user 'userTest1'@'localhost' for ro
 Expected error access denied
 DROP PROCEDURE testProc1;
 ERROR 42000: alter routine command denied to user 'userTest1'@'localhost' for routine 'test.testProc1'
-** Connection default **
+connection default;
 GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE testProc1 TO 'userTest1'@'localhost';
-** Connection conUser1 **
+connection conUser1;
 CALL testProc1();
 a
 Procedure Executed.
@@ -46,8 +46,9 @@ Expecting seelect executed
 ALTER PROCEDURE testProc1 COMMENT 'My Comment';
 
 ** Cleanup **
-** Connection default **
-disconnecting connections
+connection default;
+disconnect conUser;
+disconnect conUser1;
 SET GLOBAL automatic_sp_privileges = @global_automatic_sp_privileges;
 REVOKE EXECUTE, ALTER ROUTINE ON PROCEDURE testProc FROM 'userTest'@'localhost';
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'userTest'@'localhost';

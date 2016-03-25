@@ -73,7 +73,7 @@ CREATE USER 'testuser2'@'localhost';
 GRANT ALL    ON db_datadict.tb1 TO 'testuser2'@'localhost' WITH GRANT OPTION;
 DROP   USER 'testuser3'@'localhost';
 CREATE USER 'testuser3'@'localhost';
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 CREATE TABLE tb3 (f1 TEXT)
 ENGINE = <other_engine_type>;
 GRANT SELECT ON db_datadict.tb3 TO 'testuser3'@'localhost';
@@ -87,7 +87,7 @@ Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
 GRANT SELECT, CREATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
 GRANT SELECT ON `db_datadict`.`tb1` TO 'testuser1'@'localhost'
-# Establish connection testuser2 (user=testuser3)
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.table_privileges
 WHERE table_name LIKE 'tb%'
 ORDER BY grantee,table_schema,table_name,privilege_type;
@@ -108,7 +108,7 @@ SHOW GRANTS FOR 'testuser2'@'localhost';
 Grants for testuser2@localhost
 GRANT USAGE ON *.* TO 'testuser2'@'localhost'
 GRANT ALL PRIVILEGES ON `db_datadict`.`tb1` TO 'testuser2'@'localhost' WITH GRANT OPTION
-# Establish connection testuser3 (user=testuser3)
+connect  testuser3, localhost, testuser3, , db_datadict;
 SELECT * FROM information_schema.table_privileges
 WHERE table_name LIKE 'tb%'
 ORDER BY grantee,table_schema,table_name,privilege_type;
@@ -118,7 +118,10 @@ SHOW GRANTS FOR 'testuser3'@'localhost';
 Grants for testuser3@localhost
 GRANT USAGE ON *.* TO 'testuser3'@'localhost'
 GRANT SELECT ON `db_datadict`.`tb3` TO 'testuser3'@'localhost'
-# Switch to connection default and close the other connections
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 SELECT * FROM information_schema.table_privileges
 WHERE table_name LIKE 'tb%'
 ORDER BY grantee,table_schema,table_name,privilege_type;

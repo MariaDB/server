@@ -2,13 +2,16 @@ include/master-slave.inc
 [connection master]
 
 *** Preparing ***
+connection slave;
 include/stop_slave.inc
 RESET SLAVE;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
+connection master;
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 SET @restore_event_scheduler=@@global.event_scheduler;
 
+connection slave;
 *** Default value ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root';
 slave_net_timeout/slave_heartbeat_timeout=2.0000
@@ -62,11 +65,15 @@ SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 RESET SLAVE;
 
 *** Update slave_net_timeout on master ***
+connection master;
 SET @@global.slave_net_timeout=500;
+connection slave;
 SET @@global.slave_net_timeout=200;
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20;
 include/start_slave.inc
+connection master;
+connection slave;
 SHOW VARIABLES LIKE 'slave_net_timeout';
 Variable_name	Value
 slave_net_timeout	200
@@ -76,12 +83,16 @@ Slave_heartbeat_period	100.000
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 include/stop_slave.inc
 RESET SLAVE;
+connection master;
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 
 *** Start/stop slave ***
+connection slave;
 SET @@global.slave_net_timeout=100;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=20;
 include/start_slave.inc
+connection master;
+connection slave;
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	20.000
@@ -91,6 +102,7 @@ Variable_name	Value
 Slave_heartbeat_period	20.000
 
 *** Reload slave ***
+connection slave;
 SET @@global.slave_net_timeout=50;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=30;
 include/rpl_restart_server.inc [server_number=2]
@@ -108,6 +120,8 @@ SHOW STATUS LIKE 'slave_received_heartbeats';
 Variable_name	Value
 Slave_received_heartbeats	0
 include/start_slave.inc
+connection master;
+connection slave;
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	0.000
@@ -172,6 +186,8 @@ RESET SLAVE;
 *** Running slave ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
+connection master;
+connection slave;
 Heartbeat event received
 
 *** Stopped slave ***
@@ -201,9 +217,13 @@ include/wait_for_slave_sql_to_start.inc
 Heartbeat event received
 
 *** Stopped SQL thread by error ***
+connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10), c LONGTEXT);
+connection slave;
 INSERT INTO t1 VALUES (1, 'on slave', NULL);
+connection master;
 INSERT INTO t1 VALUES (1, 'on master', NULL);
+connection slave;
 call mtr.add_suppression("Slave SQL.*Duplicate entry .1. for key .PRIMARY.. on query.* error.* 1062");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 Heartbeat events are received while sql thread stopped (1 means 'yes'): 1
@@ -211,32 +231,42 @@ include/stop_slave.inc
 DROP TABLE t1;
 
 *** Master send to slave ***
+connection master;
 CREATE EVENT e1 
 ON SCHEDULE EVERY 1 SECOND
 DO
 BEGIN
 UPDATE test.t1 SET a = a + 1 WHERE a < 10;
 END|
+connection slave;
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
 include/start_slave.inc
+connection master;
 SET @@global.event_scheduler=1;
+connection slave;
 Number of received heartbeat events: 0
+connection master;
 DELETE FROM t1;
 DROP EVENT e1;
+connection slave;
 
 *** Flush logs on slave ***
 STOP SLAVE;
 RESET SLAVE;
 DROP TABLE t1;
+connection master;
 DROP TABLE t1;
 RESET MASTER;
+connection slave;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.5;
 include/start_slave.inc
 Heartbeat events are received while rotation of relay logs (1 means 'yes'): 1
 
 *** Compressed protocol ***
+connection master;
 SET @@global.slave_compressed_protocol=1;
+connection slave;
 include/stop_slave.inc
 RESET SLAVE;
 SET @@global.slave_compressed_protocol=1;
@@ -244,17 +274,22 @@ CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='
 include/start_slave.inc
 Heartbeat event received
 SET @@global.slave_compressed_protocol=0;
+connection master;
 SET @@global.slave_compressed_protocol=0;
 
 *** Reset master ***
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
+connection master;
 RESET MASTER;
+connection slave;
 Heartbeat events are received after reset of master (1 means 'yes'): 1
 
 *** Reload master ***
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
@@ -268,24 +303,32 @@ Heartbeat event received
 include/rpl_reset.inc
 include/stop_slave.inc
 include/rpl_change_topology.inc [new topology=1->2->1]
+connection master;
 CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=1;
 include/start_slave.inc
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
 INSERT INTO t1 VALUES(1, 'on master');
+connection slave;
 CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
 INSERT INTO t1 VALUES(2, 'on slave');
+connection master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	on master
 2	on slave
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	on master
 2	on slave
+connection master;
 Heartbeat event received on master
+connection slave;
 Heartbeat event received on slave
 *** Clean up ***
+connection master;
 DROP TABLE t1;
+connection slave;
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 include/rpl_end.inc

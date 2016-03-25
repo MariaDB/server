@@ -12,6 +12,7 @@ include/master-slave.inc
 
 ***** Testing more columns on the Master *****
 
+connection master;
 CREATE TABLE t1 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
 /* extra */
 f5 FLOAT DEFAULT '2.00', 
@@ -24,10 +25,12 @@ f11 VARBINARY(64))ENGINE=TokuDB;
 
 * Alter Table on Slave and drop columns f5 through f11 *
 
+connection slave;
 alter table t1 drop f5, drop f6, drop f7, drop f8, drop f9, drop f10, drop f11;
 
 * Insert data in Master then update and delete some rows*
 
+connection master;
 * Select count and 20 rows from Master *
 
 SELECT COUNT(*) FROM t1;
@@ -57,6 +60,7 @@ f1	f2	f3	f4	f5	f6	f7	f8	f9	hex(f10)	hex(f11)
 27	27	27	next	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
 29	29	29	second	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
 30	30	30	next	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
+connection slave;
 
 * Select count and 20 rows from Slave *
 
@@ -90,6 +94,7 @@ include/check_slave_is_running.inc
 
 ***** Testing Altering table def scenario *****
 
+connection master;
 CREATE TABLE t2 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
 /* extra */
 f5 DOUBLE DEFAULT '2.00', 
@@ -164,6 +169,7 @@ f35 VARCHAR(257)
 
 ** Alter tables on slave and drop columns **
 
+connection slave;
 alter table t2 drop f5, drop f6, drop f7, drop f8, drop f9, drop f10, drop f11, drop
 f12;
 alter table t3 drop f5, drop f6, drop f8, drop f10, drop f11, drop f12;
@@ -176,6 +182,7 @@ drop f26, drop f27, drop f28, drop f29, drop f30, drop f31, drop f32,
 drop f33, drop f34, drop f35;
 
 ** Insert Data into Master **
+connection master;
 INSERT into t2 set f1=1, f2=1, f3=1, f4='first', f8='f8: medium size blob', f10='f10:
 some var char';
 INSERT into t2 values (2, 2, 2, 'second',
@@ -340,6 +347,7 @@ Warning	1264	Out of range value for column 'f24' at row 3
 ** Sync slave with master ** 
 ** Do selects from tables **
 
+connection slave;
 select * from t1 order by f3;
 f1	f2	f3	f4
 2	2	2	second
@@ -401,6 +409,7 @@ f1	f2	f3	f4
 1	1	4	fourth
 1	1	5	fifth
 1	1	6	sixth
+connection master;
 
 ** Do updates master **
 
@@ -418,12 +427,14 @@ delete from t2;
 delete from t3;
 delete from t4;
 delete from t31;
+connection slave;
 select * from t31;
 f1	f2	f3	f4
 
 ** Check slave status **
 
 include/check_slave_is_running.inc
+connection master;
 
 ****************************************
 * columns in master at middle of table *
@@ -441,14 +452,17 @@ CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
 
 ** Connect to master and create table **
 
+connection master;
 CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233',
 c CHAR(5), e INT DEFAULT '1')ENGINE=TokuDB;
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t10 () VALUES(1,@b1,DEFAULT,'Kyle',DEFAULT),
@@ -459,11 +473,14 @@ INSERT INTO t10 () VALUES(1,@b1,DEFAULT,'Kyle',DEFAULT),
 *** Expect slave to fail with Error 1677 ***
 ********************************************
 
+connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'double' to type 'char(5)''
 
 *** Drop t10  ***
+connection master;
 DROP TABLE t10;
+connection slave;
 
 *********************************************
 * More columns in master at middle of table *
@@ -477,14 +494,17 @@ CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
 ) ENGINE=TokuDB;
 
 *** Create t11 on Master ***
+connection master;
 CREATE TABLE t11 (a INT KEY, b BLOB, f TEXT,
 c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=TokuDB;
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t11 () VALUES(1,@b1,'Testing is fun','Kyle',DEFAULT),
@@ -495,11 +515,14 @@ INSERT INTO t11 () VALUES(1,@b1,'Testing is fun','Kyle',DEFAULT),
 *** Expect slave to fail with Error 1677 ***
 ********************************************
 
+connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'tinyblob' to type 'varchar(254)''
 
 *** Drop t11  ***
+connection master;
 DROP TABLE t11;
+connection slave;
 
 *********************************************
 * More columns in master at middle of table *
@@ -513,14 +536,17 @@ CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
 ) ENGINE=TokuDB;
 
 *** Create t12 on Master ***
+connection master;
 CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
 c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=TokuDB;
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t12 () VALUES(1,@b1,'Kyle',DEFAULT,DEFAULT),
@@ -534,6 +560,7 @@ a	hex(b)	f	c	e
 3	62316231623162316231623162316231	QA	test	1
 
 *** Select on Slave ***
+connection slave;
 SELECT a,hex(b),c FROM t12 ORDER BY a;
 a	hex(b)	c
 1	62316231623162316231623162316231	Kyle
@@ -541,7 +568,9 @@ a	hex(b)	c
 3	62316231623162316231623162316231	QA
 
 *** Drop t12  ***
+connection master;
 DROP TABLE t12;
+connection slave;
 
 ****************************************************
 * - Alter Master adding columns at middle of table *
@@ -556,6 +585,7 @@ CREATE TABLE t14 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t14 on Master ***
+connection master;
 CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -563,9 +593,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 ALTER TABLE t14 ADD COLUMN c2 DECIMAL(8,2) AFTER c1;
 ALTER TABLE t14 ADD COLUMN c3 TEXT AFTER c2;
 
@@ -582,6 +614,7 @@ c1	c2	c3	hex(c4)	c5	c6	c7
 3	3.00	If is does not, I will open a bug	62316231623162316231623162316231	QA	1	CURRENT_TIMESTAMP
 
 *** Select on Slave ****
+connection slave;
 SELECT c1,c2,c3,hex(c4),c5 FROM t14 ORDER BY c1;
 c1	c2	c3	hex(c4)	c5
 1	1.00	Replication Testing Extra Col	62316231623162316231623162316231	Kyle
@@ -594,6 +627,7 @@ c1	c2	c3	hex(c4)	c5
 ****************************************************
 
 *** connect to master and drop columns ***
+connection master;
 ALTER TABLE t14 DROP COLUMN c2;
 ALTER TABLE t14 DROP COLUMN c7;
 
@@ -607,6 +641,7 @@ c1	c3	hex(c4)	c5	c6
 ************
 * Bug30415 *
 ************
+connection slave;
 include/wait_for_slave_sql_error.inc [errno=1091]
 Last_SQL_Error = 'Error 'Can't DROP 'c7'; check that column/key exists' on query. Default database: 'test'. Query: 'ALTER TABLE t14 DROP COLUMN c7''
 STOP SLAVE;
@@ -614,8 +649,10 @@ RESET SLAVE;
 
 *** Drop t14  ***
 DROP TABLE t14;
+connection master;
 DROP TABLE t14;
 RESET MASTER;
+connection slave;
 START SLAVE;
 
 *************************************************
@@ -630,6 +667,7 @@ CREATE TABLE t15 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t15 on Master ***
+connection master;
 CREATE TABLE t15 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -637,9 +675,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 ALTER TABLE t15 ADD COLUMN c2 DECIMAL(8,2) AFTER c7;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
@@ -656,6 +696,7 @@ c1	hex(c4)	c5	c6	c7	c2
 *** Expect slave to fail with Error 1054 ***
 ********************************************
 
+connection slave;
 include/wait_for_slave_sql_error.inc [errno=1054]
 Last_SQL_Error = 'Error 'Unknown column 'c7' in 't15'' on query. Default database: 'test'. Query: 'ALTER TABLE t15 ADD COLUMN c2 DECIMAL(8,2) AFTER c7''
 STOP SLAVE;
@@ -663,8 +704,10 @@ RESET SLAVE;
 
 *** Drop t15  ***
 DROP TABLE t15;
+connection master;
 DROP TABLE t15;
 RESET MASTER;
+connection slave;
 START SLAVE;
 
 ************************************************
@@ -679,6 +722,7 @@ CREATE TABLE t16 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t16 on Master ***
+connection master;
 CREATE TABLE t16 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -686,9 +730,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Create Index and Data Insert ***
+connection master;
 CREATE INDEX part_of_c6 ON t16 (c6);
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
@@ -705,6 +751,7 @@ c1	hex(c4)	c5	c6	c7
 *** BUG 30434 ***
 *****************
 
+connection slave;
 include/wait_for_slave_sql_error.inc [errno=1072]
 Last_SQL_Error = 'Error 'Key column 'c6' doesn't exist in table' on query. Default database: 'test'. Query: 'CREATE INDEX part_of_c6 ON t16 (c6)''
 STOP SLAVE;
@@ -712,8 +759,10 @@ RESET SLAVE;
 
 *** Drop t16  ***
 DROP TABLE t16;
+connection master;
 DROP TABLE t16;
 RESET MASTER;
+connection slave;
 START SLAVE;
 
 *****************************************************
@@ -728,6 +777,7 @@ CREATE TABLE t17 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t17 on Master ***
+connection master;
 CREATE TABLE t17 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -735,9 +785,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t17 () VALUES(1,@b1,'Kyle',DEFAULT,DEFAULT),
@@ -750,6 +802,7 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	QA	3	CURRENT_TIMESTAMP
 
 ** Select * from Slave **
+connection slave;
 SELECT c1,hex(c4),c5 FROM t17 ORDER BY c1;
 c1	hex(c4)	c5
 1	62316231623162316231623162316231	Kyle
@@ -757,6 +810,7 @@ c1	hex(c4)	c5
 3	62316231623162316231623162316231	QA
 
 ** Delete from master **
+connection master;
 DELETE FROM t17 WHERE c6 = 3;
 SELECT c1,hex(c4),c5,c6,c7 FROM t17 ORDER BY c1;
 c1	hex(c4)	c5	c6	c7
@@ -764,11 +818,14 @@ c1	hex(c4)	c5	c6	c7
 2	62316231623162316231623162316231	JOE	2	CURRENT_TIMESTAMP
 
 ** Check slave **
+connection slave;
 SELECT c1,hex(c4),c5 FROM t17 ORDER BY c1;
 c1	hex(c4)	c5
 1	62316231623162316231623162316231	Kyle
 2	62316231623162316231623162316231	JOE
+connection master;
 DROP TABLE t17;
+connection slave;
 
 
 *****************************************************
@@ -786,6 +843,7 @@ CREATE TABLE t18 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t18 on Master ***
+connection master;
 CREATE TABLE t18 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -793,9 +851,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t18 () VALUES(1,@b1,'Kyle',DEFAULT,DEFAULT),
@@ -808,6 +868,7 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	QA	3	CURRENT_TIMESTAMP
 
 ** Select * from Slave **
+connection slave;
 SELECT c1,hex(c4),c5 FROM t18 ORDER BY c1;
 c1	hex(c4)	c5
 1	62316231623162316231623162316231	Kyle
@@ -815,6 +876,7 @@ c1	hex(c4)	c5
 3	62316231623162316231623162316231	QA
 
 ** update from master **
+connection master;
 UPDATE t18 SET c5 = 'TEST' WHERE c6 = 3;
 SELECT c1,hex(c4),c5,c6,c7 FROM t18 ORDER BY c1;
 c1	hex(c4)	c5	c6	c7
@@ -823,12 +885,15 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	TEST	3	CURRENT_TIMESTAMP
 
 ** Check slave **
+connection slave;
 SELECT c1,hex(c4),c5 FROM t18 ORDER BY c1;
 c1	hex(c4)	c5
 1	62316231623162316231623162316231	Kyle
 2	62316231623162316231623162316231	JOE
 3	62316231623162316231623162316231	TEST
+connection master;
 DROP TABLE t18;
+connection slave;
 
 
 *****************************************************
@@ -843,6 +908,7 @@ CREATE TABLE t5 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE=TokuDB;
 
 *** Create t5 on Master ***
+connection master;
 CREATE TABLE t5 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 LONG, 
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -850,9 +916,11 @@ c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 RESET MASTER;
 
 *** Start Slave ***
+connection slave;
 START SLAVE;
 
 *** Master Data Insert ***
+connection master;
 set @b1 = 'b1b1b1b1';
 INSERT INTO t5 () VALUES(1,@b1,'Kyle',UUID(),DEFAULT),
 (2,@b1,'JOE',UUID(),DEFAULT),
@@ -864,10 +932,14 @@ c1	hex(c4)	c5	c6	c7
 3	6231623162316231	QA	UUID	TIME
 
 ** Select * from Slave **
+connection slave;
 SELECT c1,hex(c4),c5 FROM t5 ORDER BY c1;
 c1	hex(c4)	c5
 1	6231623162316231	Kyle
 2	6231623162316231	JOE
 3	6231623162316231	QA
+connection master;
 DROP TABLE t5;
+connection slave;
+connection master;
 include/rpl_end.inc

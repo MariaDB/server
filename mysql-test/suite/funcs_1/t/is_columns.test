@@ -148,7 +148,6 @@ eval $my_show1;
 eval $my_show2;
 eval $my_show3;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 --source suite/funcs_1/datadict/datadict_bug_12777.inc
@@ -158,7 +157,6 @@ eval $my_show1;
 eval $my_show2;
 eval $my_show3;
 
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 --source suite/funcs_1/datadict/datadict_bug_12777.inc
@@ -169,7 +167,6 @@ eval $my_show2;
 --error ER_TABLEACCESS_DENIED_ERROR
 eval $my_show3;
 
---echo # Switch to connection default and close connections testuser1, testuser2
 connection default;
 disconnect testuser1;
 disconnect testuser2;

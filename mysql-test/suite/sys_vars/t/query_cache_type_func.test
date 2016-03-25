@@ -29,9 +29,7 @@
 # Save initial value
 #
 
---echo ** Connecting to con0 using root **
 connect (con0,localhost,root,,);
---echo ** Connection con0 **
 connection con0;
 
 SET @start_global_value = @@GLOBAL.query_cache_type;
@@ -254,10 +252,8 @@ SHOW STATUS LIKE 'Qcache_queries_in_cache';
 
 SET @@GLOBAL.query_cache_type = OFF;
 
---echo ** Connecting con1 using root **
 connect (con1,localhost,root,,);
 
---echo ** Connection con1 **
 connection con1;
 
 SELECT @@query_cache_type;
@@ -269,10 +265,8 @@ SELECT @@query_cache_type;
 #
 SET @@GLOBAL.query_cache_type = DEMAND;
 
---echo ** Connecting con2 using root **
 connect (con2,localhost,root,,);
 
---echo ** Connection con2 **
 connection con2;
 
 SELECT @@query_cache_type;
@@ -284,9 +278,7 @@ SELECT @@query_cache_type;
 #
 SET @@GLOBAL.query_cache_type = ON;
 
---echo ** Connecting con3 using root **
 connect (con3,localhost,root,,);
---echo ** Connection con3 **
 connection con3;
 
 SELECT @@query_cache_type;
@@ -299,12 +291,10 @@ SELECT @@query_cache_type;
 # Cleanup
 #
 
---echo Disconnecting con1,con2,con3
 disconnect con1;
 disconnect con2;
 disconnect con3;
 
---echo ** Connection con0 **
 connection con0;
 
 SET @@GLOBAL.query_cache_type = @start_global_value;
@@ -315,6 +305,4 @@ DROP TABLE t1;
 
 DROP PROCEDURE testProcHit;
 
---echo Disconnecting con0
 disconnect con0;
-

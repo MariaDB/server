@@ -140,11 +140,11 @@ CREATE TABLE t1 (a INT );
 sync_slave_with_master;
 
 --connection slave1
---echo # Slave1: lock table for synchronization
+--echo # lock table for synchronization
 LOCK TABLES t1 WRITE;
 
 --connection master
---echo # Master: insert into the table
+--echo # insert into the table
 INSERT INTO t1 SELECT SLEEP(4);
 
 --connection slave
@@ -155,11 +155,11 @@ let $wait_condition=
   AND INFO = "INSERT INTO t1 SELECT SLEEP(4)";
 --source include/wait_condition.inc
 
---echo # Slave: send slave stop
+--echo # send slave stop
 --send STOP SLAVE
 
 --connection slave1
---echo # Slave1: wait for stop slave
+--echo # wait for stop slave
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
   WHERE INFO = "STOP SLAVE";
@@ -169,7 +169,7 @@ let $wait_condition=
 UNLOCK TABLES;
 
 --connection slave
---echo # Slave: wait for the slave to stop
+--echo # wait for the slave to stop
 --reap
 --source include/wait_for_slave_to_stop.inc
 

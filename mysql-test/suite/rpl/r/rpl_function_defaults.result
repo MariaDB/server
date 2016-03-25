@@ -3,19 +3,19 @@
 #
 include/master-slave.inc
 [connection master]
-connection master
+connection master;
 SET TIME_ZONE="+10:30";
 SET TIMESTAMP=123456.789123;
 SELECT CURRENT_TIMESTAMP;
 CURRENT_TIMESTAMP
 1970-01-02 20:47:36
-connection slave
+connection slave;
 SET TIME_ZONE="+00:00";
 SET TIMESTAMP=987654321.123456;
 SELECT CURRENT_TIMESTAMP;
 CURRENT_TIMESTAMP
 2001-04-19 04:25:21
-connection master
+connection master;
 CREATE TABLE t1 (
 a TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 b TIMESTAMP(1) NOT NULL DEFAULT CURRENT_TIMESTAMP(1),
@@ -53,7 +53,8 @@ o INT
 );
 INSERT INTO t2 ( o ) VALUES ( 1 );
 sync_slave_with_master
-connection slave
+connection slave;
+connection slave;
 SELECT * FROM t1;
 a	1970-01-02 10:17:36
 b	1970-01-02 10:17:36.7
@@ -86,7 +87,7 @@ l	NULL
 m	NULL
 n	NULL
 o	1
-connection master
+connection master;
 SET TIMESTAMP=1234567890.123456;
 SELECT CURRENT_TIMESTAMP;
 CURRENT_TIMESTAMP
@@ -94,7 +95,8 @@ CURRENT_TIMESTAMP
 UPDATE t1 SET o = 2;
 UPDATE t2 SET o = 2;
 sync_slave_with_master
-connection slave
+connection slave;
+connection slave;
 SELECT * FROM t1;
 a	1970-01-02 10:17:36
 b	1970-01-02 10:17:36.7
@@ -127,6 +129,6 @@ l	2009-02-14 10:01:30.1234
 m	2009-02-14 10:01:30.12345
 n	2009-02-14 10:01:30.123456
 o	2
-connection master
+connection master;
 DROP TABLE t1, t2;
 include/rpl_end.inc

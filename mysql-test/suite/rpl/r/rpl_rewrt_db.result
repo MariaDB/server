@@ -8,16 +8,21 @@ insert into t1 values(9);
 select * from mysqltest1.t1;
 a
 9
+connection slave;
 show databases like 'mysqltest1';
 Database (mysqltest1)
 mysqltest1
 select * from test.t1;
 a
 9
+connection master;
 drop table t1;
 drop database mysqltest1;
+connection slave;
+connection slave;
 drop database if exists rewrite;
 create database rewrite;
+connection master;
 use test;
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',';
@@ -29,12 +34,15 @@ Warning	1265	Data truncated for column 'a' at row 2
 Warning	1265	Data truncated for column 'b' at row 2
 Warning	1265	Data truncated for column 'd' at row 2
 load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' IGNORE 2 LINES;
+connection slave;
+connection slave;
 select * from rewrite.t1;
 a	b	c	d
 0000-00-00	NULL	0000-00-00	0000-00-00
 0000-00-00	0000-00-00	0000-00-00	0000-00-00
 2003-03-03	2003-03-03	2003-03-03	NULL
 2003-03-03	2003-03-03	2003-03-03	NULL
+connection master;
 truncate table t1;
 load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
 Warnings:
@@ -42,16 +50,21 @@ Warning	1265	Data truncated for column 'c' at row 1
 Warning	1265	Data truncated for column 'd' at row 1
 Warning	1265	Data truncated for column 'b' at row 2
 Warning	1265	Data truncated for column 'd' at row 2
+connection slave;
+connection slave;
 select * from rewrite.t1;
 a	b	c	d
 NULL	NULL	0000-00-00	0000-00-00
 NULL	0000-00-00	0000-00-00	0000-00-00
 NULL	2003-03-03	2003-03-03	NULL
+connection master;
 drop table t1;
 create table t1 (a text, b text);
 load data infile '../../std_data/loaddata2.dat' into table t1 fields terminated by ',' enclosed by '''';
 Warnings:
 Warning	1261	Row 3 doesn't contain data for all columns
+connection slave;
+connection slave;
 select concat('|',a,'|'), concat('|',b,'|') from rewrite.t1;
 concat('|',a,'|')	concat('|',b,'|')
 |Field A|	|Field B|
@@ -59,6 +72,7 @@ concat('|',a,'|')	concat('|',b,'|')
 Field 3,'Field 4|
 |Field 5' ,'Field 6|	NULL
 |Field 6|	| 'Field 7'|
+connection master;
 drop table t1;
 create table t1 (a int, b char(10));
 load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated by '' enclosed by '' ignore 1 lines;
@@ -70,6 +84,8 @@ Warning	1262	Row 3 was truncated; it contained more data than there were input c
 Note	1265	Data truncated for column 'a' at row 4
 Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 5
 Warning	1262	Row 5 was truncated; it contained more data than there were input columns
+connection slave;
+connection slave;
 select * from rewrite.t1;
 a	b
 1	row 1
@@ -77,6 +93,7 @@ a	b
 0	1234567890
 3	row 3
 0	1234567890
+connection master;
 truncate table t1;
 load data infile '../../std_data/loaddata4.dat' into table t1 fields terminated by '' enclosed by '' lines terminated by '' ignore 1 lines;
 Warnings:
@@ -86,6 +103,8 @@ Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: '
 ' for column 'a' at row 4
 Warning	1261	Row 4 doesn't contain data for all columns
+connection slave;
+connection slave;
 select * from rewrite.t1;
 a	b
 1	row 1
@@ -95,6 +114,7 @@ a	b
 set sql_log_bin= 0;
 drop database rewrite;
 set sql_log_bin= 1;
+connection master;
 set sql_log_bin= 0;
 drop table t1;
 set sql_log_bin= 1;
@@ -106,11 +126,17 @@ set sql_log_bin= 1;
 ****
 **** Preparing the environment
 ****
+connection master;
+connect  con_temp_03,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  con_temp_02,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  con_temp_01,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection master;
 SET sql_log_bin= 0;
 CREATE DATABASE database_master_temp_01;
 CREATE DATABASE database_master_temp_02;
 CREATE DATABASE database_master_temp_03;
 SET sql_log_bin= 1;
+connection slave;
 SET sql_log_bin= 0;
 CREATE DATABASE database_slave_temp_01;
 CREATE DATABASE database_slave_temp_02;
@@ -132,15 +158,11 @@ SET sql_log_bin= 1;
 ****                  t_02_01_temp, t_02_02_temp on database_master_temp_02
 ****                  t_03_01_temp, t_03_02_temp, t_03_03_temp on database_master_temp_03
 ****
-
-con_temp_01
-
+connection con_temp_01;
 USE database_master_temp_01;
 CREATE TEMPORARY TABLE t_01_01_temp(a int);
 INSERT INTO t_01_01_temp VALUES(1);
-
-con_temp_02
-
+connection con_temp_02;
 USE database_master_temp_01;
 CREATE TEMPORARY TABLE t_01_01_temp(a int);
 INSERT INTO t_01_01_temp VALUES(1);
@@ -149,9 +171,7 @@ CREATE TEMPORARY TABLE t_02_01_temp(a int);
 INSERT INTO t_02_01_temp VALUES(1);
 CREATE TEMPORARY TABLE t_02_02_temp(a int);
 INSERT INTO t_02_02_temp VALUES(1);
-
-con_temp_03
-
+connection con_temp_03;
 USE database_master_temp_01;
 CREATE TEMPORARY TABLE t_01_01_temp(a int);
 INSERT INTO t_01_01_temp VALUES(1);
@@ -173,33 +193,50 @@ INSERT INTO t_03_03_temp VALUES(1);
 **** guarantee that logging of the terminated con1 has been done yet.a  To be 
 **** sure that logging has been done, we use a user lock.
 
+connection master;
+connection slave;
+connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	10
+connection master;
+connection con_temp_01;
 select get_lock("con_01",10);
 get_lock("con_01",10)
 1
+connection master;
+disconnect con_temp_01;
 select get_lock("con_01",10);
 get_lock("con_01",10)
 1
+connection con_temp_02;
 select get_lock("con_02",10);
 get_lock("con_02",10)
 1
+connection master;
+disconnect con_temp_02;
 select get_lock("con_02",10);
 get_lock("con_02",10)
 1
+connection con_temp_03;
 select get_lock("con_03",10);
 get_lock("con_03",10)
 1
+connection master;
+disconnect con_temp_03;
 select get_lock("con_03",10);
 get_lock("con_03",10)
 1
 
 **** Checking the binary log and temporary tables
 
+connection master;
+connection slave;
+connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
+connection master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
@@ -217,14 +254,18 @@ master-bin.000001	#	Query	#	#	use `database_master_temp_01`; DROP /*!40005 TEMPO
 ****
 **** Cleaning up the test case
 ****
+connection master;
 SET sql_log_bin= 0;
 DROP DATABASE database_master_temp_01;
 DROP DATABASE database_master_temp_02;
 DROP DATABASE database_master_temp_03;
 SET sql_log_bin= 1;
+connection slave;
 SET sql_log_bin= 0;
 DROP DATABASE database_slave_temp_01;
 DROP DATABASE database_slave_temp_02;
 DROP DATABASE database_slave_temp_03;
 SET sql_log_bin= 1;
+connection master;
+connection slave;
 include/rpl_end.inc

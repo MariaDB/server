@@ -6,6 +6,7 @@ create user mysqltest_user1@localhost;
 grant create, insert, select, delete on mysqltest_db2.*
 to mysqltest_user1@localhost;
 create database mysqltest_db2;
+connect  conn1,localhost,mysqltest_user1,,mysqltest_db2;
 set autocommit=off;
 select @@autocommit;
 @@autocommit
@@ -41,6 +42,8 @@ a
 OK: drop event: insufficient privileges
 delete from t1;
 commit work;
+disconnect conn1;
+connection default;
 drop user mysqltest_user1@localhost;
 drop database mysqltest_db2;
 drop database events_test;

@@ -447,7 +447,6 @@ DROP PROCEDURE p1;
 
 --echo
 --echo ---> Preparing environment...
---echo ---> connection: master
 --connection master
 
 --disable_warnings
@@ -460,8 +459,6 @@ DROP FUNCTION IF EXISTS f1;
 
 --sync_slave_with_master
 
---echo
---echo ---> connection: master
 --connection master
 
 # Test.
@@ -484,8 +481,6 @@ SHOW CREATE FUNCTION f1;
 
 --sync_slave_with_master
 
---echo ---> connection: master
-
 --echo
 --echo ---> Checking on slave...
 
@@ -494,8 +489,6 @@ SHOW CREATE FUNCTION f1;
 
 # Cleanup.
 
---echo
---echo ---> connection: master
 --connection master
 
 --echo
@@ -640,7 +633,6 @@ drop function mysqltestbug36570_f1;
 --echo # identical data. Statements in the binrary log must be
 --echo # consistent with data in the table.
 --echo #
---echo # --> connection default
 connection default;
 --disable_warnings
 drop table if exists t1, t2;
@@ -650,7 +642,6 @@ create table t1 (a int);
 create table t2 (a int) as select 1 as a;
 create function f1() returns int deterministic return (select max(a) from t2);
 lock table t2 write;
---echo # --> connection master
 connection master;
 --echo # Sending 'insert into t1 (a) values (f1())'...
 --send insert into t1 (a) values (f1())
@@ -662,7 +653,6 @@ where state='Waiting for table metadata lock' and
 --source include/wait_condition.inc
 --echo # Sending 'drop function f1'. It will wait till insert finishes.
 --send drop function f1;
---echo # --> connection default
 connection default;
 --echo # Check that 'drop function f1' gets blocked.
 let $wait_condition=select count(*)=1 from information_schema.processlist
@@ -670,15 +660,12 @@ where state='Waiting for stored function metadata lock' and info='drop function 
 --source include/wait_condition.inc
 --echo # Now let's let 'insert' go through...
 unlock tables;
---echo # --> connection master
 connection master;
 --echo # Reaping 'insert into t1 (a) values (f1())'...
 --reap
---echo # --> connection master1
 connection master1;
 --echo # Reaping 'drop function f1'
 --reap
---echo # --> connection master
 connection master;
 select * from t1;
 sync_slave_with_master;

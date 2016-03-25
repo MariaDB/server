@@ -2,16 +2,17 @@
 SET @global_collation_server = @@global.collation_server;
 SET @session_collation_server = @@session.collation_server;
 SET @@global.collation_server = latin1_danish_ci;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.collation_server;
 @@global.collation_server
 latin1_danish_ci
 SELECT @@session.collation_server;
 @@session.collation_server
 latin1_danish_ci
+disconnect con1;
 '#--------------------FN_DYNVARS_014_02-------------------------#'
-'connection default'
+connection default;
 DROP TABLE IF EXISTS t1,t2;
 '---check if setting collation_server update character_set_server---'
 SET @@session.collation_server = utf8_spanish_ci;

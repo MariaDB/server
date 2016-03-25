@@ -9,6 +9,7 @@ a
 1
 2
 3
+connect conn1, localhost, root;
 select * from t;
 a
 1
@@ -27,18 +28,22 @@ replace into t values (1);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert ignore t values (3);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
 commit;
+connection default;
 begin;
 select * from t;
 a
 1
 2
 3
+connection conn1;
 select * from t for update;
 a
 1
 2
 3
+connection default;
 commit;
 drop table t;
 set global transaction isolation level repeatable read;

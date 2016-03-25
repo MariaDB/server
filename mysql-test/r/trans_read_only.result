@@ -7,7 +7,8 @@
 SELECT @@tx_read_only;
 @@tx_read_only
 1
-# Also for new connections. Switching to con1
+# Also for new connections.
+connect  con1, localhost, root;
 SELECT @@tx_read_only;
 @@tx_read_only
 1
@@ -15,7 +16,8 @@ SET SESSION TRANSACTION READ WRITE;
 SELECT @@tx_read_only;
 @@tx_read_only
 0
-# Connection default
+disconnect con1;
+connection default;
 SELECT @@tx_read_only;
 @@tx_read_only
 1

@@ -31,11 +31,9 @@ SET @@default_regex_flags=DEFAULT;
 SET @@global.default_regex_flags='MULTILINE';
 SELECT @@session.default_regex_flags;
 connect (con1,localhost,root,,);
---echo # connection con1
 connection con1;
 SELECT @@session.default_regex_flags;
 connection default;
---echo # connection default
 disconnect con1;
 SELECT @@session.default_regex_flags;
 SET @@global.default_regex_flags=DEFAULT;

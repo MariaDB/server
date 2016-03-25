@@ -43,5 +43,7 @@ if ($_include_file_depth)
     --echo [connection $rpl_connection_name]
   }
 }
+disable_connect_log;
 --connection $rpl_connection_name
+enable_connect_log;
 --let $rpl_connection_name=

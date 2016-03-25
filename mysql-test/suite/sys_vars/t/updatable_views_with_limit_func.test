@@ -52,9 +52,7 @@ INSERT INTO t1 VALUES (10,2,-1), (20,3,-2),
 CREATE VIEW v1 (x,y) AS SELECT a, c FROM t1;
 
 
---echo ** Connecting test_con1 using username 'root' **
 CONNECT (test_con1,localhost,root,,);
---echo ** Connection test_con1 **
 CONNECTION test_con1;
 
 SET @@Session.UPDATABLE_VIEWS_WITH_LIMIT=YES;
@@ -76,9 +74,7 @@ UPDATE v1 SET x=x+5;
 
 SELECT * FROM t1;
 
---echo ** Connecting test_con2 using username 'root' **
 CONNECT (test_con2,localhost,root,,);
---echo ** Connection test_con2 **
 CONNECTION test_con2;
 
 SET @@Session.UPDATABLE_VIEWS_WITH_LIMIT=NO;
@@ -127,10 +123,8 @@ UPDATE v1 SET x=x+2 LIMIT 1;
 # Cleanup
 #
 
---echo ** Connection default **
 connection default;
 
---echo ** Disconnecting test_con1, test_con2 **
 disconnect test_con1;
 disconnect test_con2;
 
@@ -140,4 +134,3 @@ SET @@SESSION.updatable_views_with_limit = @session_updatable_views_with_limit;
 DROP VIEW IF EXISTS v1;
 DROP TABLE IF EXISTS t1;
 --enable_warnings
-

@@ -97,4 +97,3 @@ disconnect test_con2;
 DROP TABLE t1;
 
 SET @@global.max_seeks_for_key= @start_value;
-

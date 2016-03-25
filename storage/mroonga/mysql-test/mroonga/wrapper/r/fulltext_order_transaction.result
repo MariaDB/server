@@ -27,12 +27,15 @@ id	title	body
 1	survey	will start groonga!
 2	groonga (1)	starting groonga...
 3	groonga (2)	started groonga.
+CONNECT search_connection, localhost, root;
 USE test;
 SELECT * FROM diaries
 WHERE MATCH(body) AGAINST("groonga")
 ORDER BY id;
 id	title	body
+connection default;
 COMMIT;
+connection search_connection;
 SELECT * FROM diaries
 WHERE MATCH(body) AGAINST("groonga")
 ORDER BY id;
@@ -40,6 +43,8 @@ id	title	body
 1	survey	will start groonga!
 2	groonga (1)	starting groonga...
 3	groonga (2)	started groonga.
+disconnect search_connection;
+connection default;
 SELECT * FROM diaries
 WHERE MATCH(body) AGAINST("groonga")
 ORDER BY id;

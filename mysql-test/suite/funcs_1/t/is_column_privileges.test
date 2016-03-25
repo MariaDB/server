@@ -131,17 +131,14 @@ WITH GRANT OPTION;
 
 eval $select;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 eval $select;
 
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 eval $select;
 
---echo # Establish connection testuser3 (user=testuser3)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser3, localhost, testuser3, , db_datadict);
 
@@ -158,12 +155,10 @@ GRANT SELECT(f1, f3) ON db_datadict.t1 TO 'testuser2'@'localhost';
 --echo # FIXME: Is it intended that *my* grants to others are *NOT* shown here?
 eval $select;
 
---echo # Switch to connection testuser2 (user=testuser2)
 connection testuser2;
 eval $select;
 
 # Cleanup
---echo # Switch to connection default and close connections testuser1,testuser2,testuser3
 connection default;
 disconnect testuser1;
 disconnect testuser2;
@@ -214,71 +209,59 @@ let $my_show = SHOW GRANTS FOR 'testuser1'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default
 connection default;
 GRANT SELECT (f1,f3) ON db_datadict.my_table TO 'testuser1'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection testuser1
 connection testuser1;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default
 connection default;
 ALTER TABLE db_datadict.my_table DROP COLUMN f3;
 GRANT UPDATE (f1) ON db_datadict.my_table TO 'testuser1'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection testuser1
 connection testuser1;
 eval $my_select;
 eval $my_show;
 --error ER_BAD_FIELD_ERROR
 SELECT f1, f3 FROM db_datadict.my_table;
 
---echo # Switch to connection default
 connection default;
 ALTER TABLE db_datadict.my_table CHANGE COLUMN f1 my_col BIGINT;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection testuser1
 connection testuser1;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default
 connection default;
 DROP TABLE db_datadict.my_table;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection testuser1
 connection testuser1;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default
 connection default;
 REVOKE ALL ON db_datadict.my_table FROM 'testuser1'@'localhost';
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection testuser1
 connection testuser1;
 eval $my_select;
 eval $my_show;
 
---echo # Switch to connection default and close connection testuser1
 connection default;
 disconnect testuser1;
 DROP USER 'testuser1'@'localhost';

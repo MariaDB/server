@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 drop database if exists mysqltest1;
 create database mysqltest1;
 use mysqltest1;
@@ -10,6 +11,7 @@ insert into t1 values("GUI");
 insert into t2 values("LIL");
 insert into t2 values("ABE");
 insert into t2 values("ANG");
+connection slave;
 use mysqltest1;
 select * from t1 order by a;
 a
@@ -20,5 +22,7 @@ a
 ABE
 ANG
 LIL
+connection master;
 DROP DATABASE mysqltest1;
+connection slave;
 include/rpl_end.inc

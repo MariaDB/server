@@ -42,8 +42,6 @@ GRANT CREATE, TRIGGER ON mysqltest_db1.* TO mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 CREATE TABLE t1(num_value INT);
 CREATE TABLE t2(user_str TEXT);

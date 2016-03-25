@@ -330,23 +330,19 @@ SHOW VARIABLES LIKE 'DEBUG_SYNC';
 #
 CREATE USER mysqltest_1@localhost;
 GRANT SUPER ON *.* TO mysqltest_1@localhost;
---echo connection con1, mysqltest_1
 connect (con1,localhost,mysqltest_1,,);
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
---echo connection default
 connection default;
 DROP USER mysqltest_1@localhost;
 #
 CREATE USER mysqltest_2@localhost;
 GRANT ALL ON *.* TO mysqltest_2@localhost;
 REVOKE SUPER ON *.* FROM mysqltest_2@localhost;
---echo connection con1, mysqltest_2
 connect (con1,localhost,mysqltest_2,,);
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
---echo connection default
 connection default;
 DROP USER mysqltest_2@localhost;
 
@@ -361,21 +357,17 @@ DROP TABLE IF EXISTS t1;
 #
 # Test.
 CREATE TABLE t1 (c1 INT);
-    --echo connection con1
     connect (con1,localhost,root,,);
     SET DEBUG_SYNC= 'before_lock_tables_takes_lock
       SIGNAL opened WAIT_FOR flushed';
     send INSERT INTO t1 VALUES(1);
---echo connection default
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'after_flush_unlock SIGNAL flushed';
 FLUSH TABLE t1;
-    --echo connection con1
     connection con1;
     reap;
     disconnect con1;
---echo connection default
 connection default;
 DROP TABLE t1;
 
@@ -391,23 +383,19 @@ DROP TABLE IF EXISTS t1;
 # Test.
 CREATE TABLE t1 (c1 INT);
 LOCK TABLE t1 READ;
-    --echo connection con1
     connect (con1,localhost,root,,);
     # Retain action after use. First used by general_log.
     SET DEBUG_SYNC= 'wait_for_lock SIGNAL locked EXECUTE 2';
     send INSERT INTO t1 VALUES (1);
---echo connection default
 connection default;
 # Wait until INSERT waits for lock.
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # let INSERT continue.
 UNLOCK TABLES;
-    --echo connection con1
     connection con1;
     --echo retrieve INSERT result.
     reap;
     disconnect con1;
---echo connection default
 connection default;
 DROP TABLE t1;
 

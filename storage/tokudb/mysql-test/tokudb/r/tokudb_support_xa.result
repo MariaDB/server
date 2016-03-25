@@ -88,6 +88,8 @@ begin;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
 create table t2 (a int);
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+connect  con1,localhost,root,,;
+connection con1;
 xa start 'testa','testb';
 ERROR XAE08: XAER_DUPID: The XID already exists
 xa start 'testa','testb', 123;
@@ -101,6 +103,7 @@ ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction
 xa recover;
 formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
+connection default;
 xa prepare 'testa','testb';
 xa recover;
 formatID	gtrid_length	bqual_length	data
@@ -114,6 +117,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 select * from t1;
 a
 20
+disconnect con1;
+connection default;
 drop table t1;
 '#--------------------end------------------------#'
 SET @@session.tokudb_support_xa = @session_start_value;

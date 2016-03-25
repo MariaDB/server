@@ -24,7 +24,6 @@ SET DEBUG_SYNC= 'RESET';
 
 connect (con2, localhost, root);
 
---echo # Connection default
 connection default;
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
 --echo # Get f1 cached
@@ -34,7 +33,6 @@ SET DEBUG_SYNC= 'before_execute_sql_command SIGNAL before WAIT_FOR changed';
 --echo # Sending:
 --send SELECT f1()
 
---echo # Connection 2
 connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR before';
 --echo # ... but before f1 is locked, change it.
@@ -42,7 +40,6 @@ DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS INT RETURN 2;
 SET DEBUG_SYNC= 'now SIGNAL changed';
 
---echo # Connection default
 --echo # We should now get '2' and not '1'.
 connection default;
 --echo # Reaping: SELECT f1()
@@ -66,25 +63,21 @@ DROP FUNCTION IF EXISTS f1;
 connect (con2, localhost, root);
 connect (con3, localhost, root);
 
---echo # Connection default
 connection default;
 CREATE FUNCTION f1() RETURNS INT RETURN 0;
 
---echo # Connection con2
 connection con2;
 SET DEBUG_SYNC= 'after_wait_locked_pname SIGNAL locked WAIT_FOR issued';
 --echo # con2 will now have an x-lock on f1
 --echo # Sending:
 --send ALTER FUNCTION f1 COMMENT 'comment'
 
---echo # Connection default
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 --disable_result_log
 --echo # This query will block due to the x-lock on f1 and back-off
 --send SHOW OPEN TABLES WHERE f1()=0
 
---echo # Connection con3
 connection con3;
 let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
   WHERE state= 'Waiting for stored function metadata lock' 
@@ -93,7 +86,6 @@ let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
 --echo # Check that the IS query is blocked before releasing the x-lock
 SET DEBUG_SYNC= 'now SIGNAL issued';
 
---echo # Connection default
 connection default;
 --echo # Reaping: ALTER FUNCTION f1 COMMENT 'comment'
 --reap
@@ -116,7 +108,6 @@ CREATE PROCEDURE p1() SELECT COUNT(f1(a)) FROM t1, t0;
 INSERT INTO t0 VALUES(1);
 INSERT INTO t1 VALUES(1), (2);
 
---echo # Connection 2
 connect (con2, localhost, root);
 CALL p1();
 
@@ -128,7 +119,6 @@ SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL locked_t1 WAIT_FOR go_for_t0
 --echo # Sending:
 --send CALL p1()
 
---echo # Connection default
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR locked_t1';
 --echo # Issue LOCK TABLES statement which will enter in MDL deadlock
@@ -138,12 +128,10 @@ SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL go_for_t0';
 LOCK TABLES t0 WRITE, t1 WRITE;
 UNLOCK TABLES;
 
---echo # Connection 2
 connection con2;
 --echo # Reaping: CALL p1()
 --reap;
 
---echo # Connection default
 connection default;
 disconnect con2;
 DROP PROCEDURE p1;

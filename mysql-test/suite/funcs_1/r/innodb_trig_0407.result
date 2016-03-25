@@ -69,13 +69,18 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM test_general@localhost;
 create User test_super@localhost;
 set password for test_super@localhost = password('PWD');
 grant ALL on *.* to test_super@localhost with grant OPTION;
+connect  con1_general,localhost,test_general,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con1_super,localhost,test_super,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection default;
 
 Testcase 3.5.4:
 ---------------
+connection default;
 use test;
 
 Testcase 3.5.4.1:
 -----------------
+connection con1_super;
 create database db_drop;
 Use db_drop;
 create table t1 (f1 char(30)) engine = <engine_to_be_used>;
@@ -83,28 +88,33 @@ grant INSERT, SELECT on db_drop.t1 to test_general;
 Use db_drop;
 Create trigger trg1 BEFORE INSERT on t1
 for each row set new.f1='Trigger 3.5.4.1';
+connection con1_general;
 Use db_drop;
 Insert into t1 values ('Insert error 3.5.4.1');
 Select * from t1 order by f1;
 f1
 Trigger 3.5.4.1
+connection con1_super;
 drop trigger trg1;
 select trigger_schema, trigger_name, event_object_table
 from information_schema.triggers
 where trigger_schema = 'db_drop'
         order by trigger_name;
 trigger_schema	trigger_name	event_object_table
+connection con1_general;
 Insert into t1 values ('Insert no trigger 3.5.4.1');
 Select * from t1 order by f1;
 f1
 Insert no trigger 3.5.4.1
 Trigger 3.5.4.1
+connection con1_super;
 drop trigger trg1;
 drop database if exists db_drop;
 revoke ALL PRIVILEGES, GRANT OPTION FROM 'test_general'@'localhost';
 
 Testcase 3.5.4.2:
 -----------------
+connection con1_super;
 create database db_drop2;
 Use db_drop2;
 drop table if exists t1_432 ;
@@ -116,6 +126,7 @@ drop database  if exists db_drop2;
 
 Testcase 3.5.4.3:
 -----------------
+connection con1_super;
 create database db_drop3;
 Use db_drop3;
 drop table if exists t1_433 ;
@@ -139,17 +150,20 @@ drop database if exists db_drop3;
 
 Testcase 3.5.4.4:
 -----------------
+connection con1_super;
 create database db_drop4;
 Use db_drop4;
 create table t1 (f1 char(30)) engine = <engine_to_be_used>;
 grant INSERT, SELECT on db_drop4.t1 to test_general;
 Create trigger trg4 BEFORE INSERT on t1
 for each row set new.f1='Trigger 3.5.4.4';
+connection con1_general;
 Use db_drop4;
 Insert into t1 values ('Insert 3.5.4.4');
 Select * from t1;
 f1
 Trigger 3.5.4.4
+connection con1_super;
 Drop database db_drop4;
 Show databases like 'db_drop4';
 Database (db_drop4)
@@ -161,10 +175,12 @@ create database db_drop4;
 Use db_drop4;
 create table t1 (f1 char(30)) engine = <engine_to_be_used>;
 grant INSERT, SELECT on db_drop4.t1 to test_general;
+connection con1_general;
 Insert into t1 values ('2nd Insert 3.5.4.4');
 Select * from t1;
 f1
 2nd Insert 3.5.4.4
+connection con1_super;
 drop trigger trg4;
 ERROR HY000: Trigger does not exist
 drop database if exists db_drop4;
@@ -172,17 +188,20 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM 'test_general'@'localhost';
 
 Testcase 3.5.4.5:
 -----------------
+connection con1_super;
 create database db_drop5;
 Use db_drop5;
 create table t1 (f1 char(50)) engine = <engine_to_be_used>;
 grant INSERT, SELECT on t1 to test_general;
 Create trigger trg5 BEFORE INSERT on t1
 for each row set new.f1='Trigger 3.5.4.5';
+connection con1_general;
 Use db_drop5;
 Insert into t1 values ('Insert 3.5.4.5');
 Select * from t1;
 f1
 Trigger 3.5.4.5
+connection con1_super;
 Drop table t1;
 Show tables;
 Tables_in_db_drop5
@@ -192,10 +211,12 @@ where information_schema.triggers.trigger_name='trg5';
 trigger_schema	trigger_name	event_object_table
 create table t1 (f1 char(50)) engine = <engine_to_be_used>;
 grant INSERT, SELECT on t1 to test_general;
+connection con1_general;
 Insert into t1 values ('2nd Insert 3.5.4.5');
 Select * from t1;
 f1
 2nd Insert 3.5.4.5
+connection con1_super;
 drop trigger trg5;
 ERROR HY000: Trigger does not exist
 drop database if exists db_drop5;
@@ -203,6 +224,7 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM 'test_general'@'localhost';
 
 Testcase 3.5.5:
 ---------------
+connection default;
 use test;
 
 Testcase 3.5.5.1:
@@ -228,6 +250,7 @@ drop view vw3;
 
 Testcase 3.5.5.4:
 -----------------
+connection con1_super;
 create database dbtest_one;
 create database dbtest_two;
 use dbtest_two;
@@ -238,6 +261,7 @@ on dbtest_two.t2 for each row set new.f1='trig 3.5.5.4';
 ERROR HY000: Trigger in wrong schema
 grant INSERT, SELECT on dbtest_two.t2 to test_general;
 grant SELECT on dbtest_one.* to test_general;
+connection con1_general;
 use dbtest_two;
 Insert into t2 values ('1st Insert 3.5.5.4');
 Warnings:
@@ -253,12 +277,14 @@ Select * from dbtest_two.t2 order by f1;
 f1
 1st Insert 3.5.
 2nd Insert 3.5.
+connection con1_super;
 revoke ALL PRIVILEGES, GRANT OPTION FROM 'test_general'@'localhost';
 DROP DATABASE if exists dbtest_one;
 drop database if EXISTS dbtest_two;
 
 Testcase 3.5.6:
 ---------------
+connection default;
 use test;
 
 Testcase 3.5.6.1 (see Testcase 3.5.1.1)
@@ -466,6 +492,7 @@ delete from tb3 where f121='Test 3.5.7.15/16';
 
 Testcase 3.5.7.17 (see Testcase 3.5.1.1)
 ----------------------------------------
+connection default;
 drop user test_general@localhost;
 drop user test_general;
 drop user test_super@localhost;

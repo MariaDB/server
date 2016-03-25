@@ -10,24 +10,32 @@ child3_3
 for slave1_1
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
 auto_increment with partition
+connection master_1;
+connection slave1_1;
+connection master_1;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (
 id int(11) NOT NULL AUTO_INCREMENT,
@@ -180,6 +188,7 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t2;
 MAX(id)
 10000
+connection slave1_1;
 SELECT id FROM t1 ORDER BY id;
 id
 777
@@ -188,11 +197,16 @@ id
 3108
 5000
 10000
+connection master_1;
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for slave1_1
 for master_1

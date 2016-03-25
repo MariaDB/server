@@ -1,7 +1,10 @@
 # connect with read timeout so SLEEP() should timeout
+connect  ssl_con,localhost,root,,,,,SSL read_timeout=5;
 # Check ssl turned on
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
 SELECT SLEEP(600);
 ERROR HY000: Lost connection to MySQL server during query
+connection default;
+disconnect ssl_con;

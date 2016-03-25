@@ -242,6 +242,8 @@ insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 select database();
 database()
 test
+connect  con1,localhost,root,,*NO-ONE*;
+connection con1;
 select database();
 database()
 NULL
@@ -265,6 +267,8 @@ ANALYZE
     }
   }
 }
+disconnect con1;
+connection default;
 drop table t1;
 #
 # MDEV-7812: ANALYZE FORMAT=JSON UPDATE/DELETE doesnt print

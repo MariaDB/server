@@ -5,7 +5,6 @@
 #
 
 
---echo # On slave
 connection slave;
 
 source include/stop_slave.inc;
@@ -23,7 +22,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id= 0;
 CREATE TABLE t1(i INT);
@@ -39,7 +37,6 @@ SELECT * FROM t2;
 
 sync_slave_with_master;
 
---echo # On slave
 connection slave;
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -48,7 +45,6 @@ SELECT * FROM t2;
 --let $rpl_server_number= 2
 --source include/rpl_restart_server.inc
 
---echo # On slave
 # Replicate_Do_Domain_Ids/Replicate_Ignore_Domain_Ids should reinitialize
 # properly on restart.
 connection slave;
@@ -69,11 +65,9 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 SELECT * FROM t1;
 SELECT * FROM t2;
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id= 0;
 DROP TABLE t1, t2;
 sync_slave_with_master;
 
 --source include/rpl_end.inc
-

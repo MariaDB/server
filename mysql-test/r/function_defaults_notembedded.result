@@ -48,15 +48,19 @@ DROP TABLE t1;
 # with different sets of active defaults.
 #
 CREATE TABLE t1 ( a INT, b TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+connect con1, localhost, root,,;
 # 2011-04-19 08:04:01 UTC
 SET TIMESTAMP = 1303200241.345678;
 SET debug_sync = 'before_write_delayed SIGNAL parked WAIT_FOR go';
 INSERT DELAYED INTO t1 ( a ) VALUES (1), (2), (3);
+connection default;
 SET debug_sync = 'now WAIT_FOR parked';
+connect con2, localhost, root,,;
 # 2011-04-19 08:04:01 UTC
 SET TIME_ZONE="+03:00";
 SET TIMESTAMP = 1303200241.456789;
 INSERT DELAYED INTO t1 ( a, b ) VALUES (4, '1977-12-19 12:34:56.789123'), (5, '1977-12-19 12:34:57.891234'), (6, '1977-12-19 12:34:58.912345');
+connection default;
 SET debug_sync = 'now SIGNAL go';
 SELECT * FROM t1;
 a	b
@@ -66,6 +70,8 @@ a	b
 4	1977-12-19 09:34:56
 5	1977-12-19 09:34:57
 6	1977-12-19 09:34:58
+disconnect con1;
+disconnect con2;
 DROP TABLE t1;
 #
 # Test of early activation of function defaults.
@@ -133,15 +139,19 @@ DROP TABLE t1;
 # with different sets of active defaults.
 #
 CREATE TABLE t1 ( a INT, b TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6));
+connect con1, localhost, root,,;
 # 2011-04-19 08:04:01 UTC
 SET TIMESTAMP = 1303200241.345678;
 SET debug_sync = 'before_write_delayed SIGNAL parked WAIT_FOR go';
 INSERT DELAYED INTO t1 ( a ) VALUES (1), (2), (3);
+connection default;
 SET debug_sync = 'now WAIT_FOR parked';
+connect con2, localhost, root,,;
 # 2011-04-19 08:04:01 UTC
 SET TIME_ZONE="+03:00";
 SET TIMESTAMP = 1303200241.456789;
 INSERT DELAYED INTO t1 ( a, b ) VALUES (4, '1977-12-19 12:34:56.789123'), (5, '1977-12-19 12:34:57.891234'), (6, '1977-12-19 12:34:58.912345');
+connection default;
 SET debug_sync = 'now SIGNAL go';
 SELECT * FROM t1;
 a	b
@@ -151,6 +161,8 @@ a	b
 4	1977-12-19 09:34:56.789123
 5	1977-12-19 09:34:57.891234
 6	1977-12-19 09:34:58.912345
+disconnect con1;
+disconnect con2;
 DROP TABLE t1;
 #
 # Test of early activation of function defaults.

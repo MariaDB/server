@@ -1,12 +1,12 @@
 include/rpl_init.inc [topology=1->2]
-# On slave
+connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
-# On slave
+connection server_2;
 CHANGE MASTER TO master_use_gtid=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
 include/start_slave.inc
-# On master
+connection server_1;
 SELECT @@session.gtid_domain_id;
 @@session.gtid_domain_id
 0
@@ -15,10 +15,10 @@ CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
-# On slave
-# New connection 'con_temp1'
+connection server_2;
+connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 LOCK TABLE t1 WRITE;
-# On master
+connection server_1;
 SET @@session.gtid_domain_id=1;
 INSERT INTO t1 VALUES (2);
 SET @@session.gtid_domain_id=0;
@@ -29,7 +29,7 @@ INSERT INTO t2 VALUES (4);
 INSERT INTO t2 VALUES (5);
 COMMIT;
 INSERT INTO t2 VALUES (6);
-# On slave
+connection server_2;
 SELECT * FROM t2 ORDER by a;
 a
 1
@@ -38,17 +38,17 @@ a
 4
 5
 6
-# On con_temp1
+connection con_temp1;
 SELECT * FROM t1;
 a
 1
 UNLOCK TABLES;
-# On slave
+connection server_2;
 SELECT * FROM t1 ORDER BY a;
 a
 1
 2
-# On slave
+connection server_2;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 
@@ -56,10 +56,10 @@ CHANGE MASTER TO DO_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 1
 IGNORE_DOMAIN_IDS (AFTER) : 
-# On slave
-# On con_temp1
+connection server_2;
+connection con_temp1;
 LOCK TABLE t1 WRITE;
-# On master
+connection server_1;
 SET @@session.gtid_domain_id=0;
 INSERT INTO t1 VALUES (3);
 SET @@session.gtid_domain_id=1;
@@ -70,7 +70,7 @@ INSERT INTO t2 VALUES (9);
 INSERT INTO t2 VALUES (10);
 COMMIT;
 INSERT INTO t2 VALUES (11);
-# On slave
+connection server_2;
 SELECT * FROM t2 ORDER by a;
 a
 1
@@ -84,18 +84,18 @@ a
 9
 10
 11
-# On con_temp1
+connection con_temp1;
 SELECT * FROM t1;
 a
 1
 2
 UNLOCK TABLES;
-# On slave
+connection server_2;
 SELECT * FROM t1 ORDER BY a;
 a
 1
 2
-# On slave
+connection server_2;
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 1
 IGNORE_DOMAIN_IDS (BEFORE) : 
@@ -103,10 +103,10 @@ CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-# On slave
-# On con_temp1
+connection server_2;
+connection con_temp1;
 LOCK TABLE t1 WRITE;
-# On master
+connection server_1;
 SET @@session.gtid_domain_id=1;
 INSERT INTO t1 VALUES (4);
 SET @@session.gtid_domain_id=0;
@@ -117,7 +117,7 @@ INSERT INTO t2 VALUES (14);
 INSERT INTO t2 VALUES (15);
 COMMIT;
 INSERT INTO t2 VALUES (16);
-# On slave
+connection server_2;
 SELECT * FROM t2 ORDER by a;
 a
 1
@@ -136,13 +136,13 @@ a
 14
 15
 16
-# On con_temp1
+connection con_temp1;
 SELECT * FROM t1;
 a
 1
 2
 UNLOCK TABLES;
-# On slave
+connection server_2;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -166,10 +166,10 @@ a
 15
 16
 # Restore original settings.
-# On master
+connection server_1;
 SET @@session.gtid_domain_id=0;
 DROP TABLE t1, t2;
-# On slave
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads= @old_parallel_threads;
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();

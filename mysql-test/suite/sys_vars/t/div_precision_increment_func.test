@@ -83,7 +83,6 @@ salary INT,
 income_tax FLOAT
 );
 
---echo ## Creating new connection test_con1 ##
 connect (test_con1, localhost, root,,);
 connection test_con1;
 
@@ -99,7 +98,6 @@ INSERT into t1(name, salary, income_tax) values('Record_2', 501, 501*2.5/1000);
 INSERT into t1(name, salary, income_tax) values('Record_3', 210, 210*2.5/1000);
 SELECT * from t1;
 
---echo ## Creating new connection ## 
 connect (test_con2, localhost, root,,);
 connection test_con2;
 
@@ -116,13 +114,8 @@ SELECT * from t1;
 --echo ## Dropping table t1 ##
 drop table t1;
 
---echo ## Disconnection both the connections ##
 disconnect test_con1;
 disconnect test_con2;
 
 connection default;
 eval SET @@global.div_precision_increment = $save_div_precision_increment;
-
-
-
-

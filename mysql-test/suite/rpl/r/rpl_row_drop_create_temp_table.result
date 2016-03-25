@@ -5,6 +5,7 @@ include/master-slave.inc
 #########################################################################
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 SET @commands= 'configure';
+connection master;
 CREATE TABLE tt_xx_1 ( id INT ) ENGINE = Innodb;
 CREATE TABLE nt_xx_1 ( id INT ) ENGINE = MyIsam;
 CREATE TABLE tt_error_1 ( id INT, PRIMARY KEY (id) ) ENGINE = Innodb;
@@ -54,6 +55,7 @@ SET @commands= '';
 #########################################################################
 #           1 - Tables dropped by "DROP TEMPORARY TABLE"
 #########################################################################
+connection master;
 
 #
 #1) Generates in the binlog what follows:
@@ -1143,6 +1145,7 @@ master-bin.000001	#	Query	#	#	ROLLBACK
 #########################################################################
 #                   2 - Tables dropped by "DROP TABLE"
 #########################################################################
+connection master;
 
 #
 #1) Generates in the binlog what follows:
@@ -1474,6 +1477,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 #########################################################################
 #                      3 - CREATE TEMPORARY TABLE
 #########################################################################
+connection master;
 
 #
 #1) Generates in the binlog what follows:
@@ -1675,6 +1679,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 #########################################################################
 #                     4 -  CHANGING TEMPORARY TABLES
 #########################################################################
+connection master;
 
 #
 #1) Generates in the binlog what follows:
@@ -1965,10 +1970,13 @@ master-bin.000001	#	Query	#	#	COMMIT
 ###################################################################################
 #                               CHECK CONSISTENCY
 ###################################################################################
+connection master;
+connection slave;
 #########################################################################
 #                           CLEAN
 #########################################################################
 SET @commands= 'clean';
+connection master;
 DROP TABLE IF EXISTS tt_xx_1;
 DROP TABLE IF EXISTS nt_xx_1;
 DROP TABLE IF EXISTS tt_error_1;
@@ -1985,5 +1993,6 @@ DROP TEMPORARY TABLE IF EXISTS tt_tmp_1;
 DROP TEMPORARY TABLE IF EXISTS nt_tmp_1;
 DROP TABLE IF EXISTS tt_2;
 DROP TABLE IF EXISTS tt_1;
+connection slave;
 SET @commands= '';
 include/rpl_end.inc

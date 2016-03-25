@@ -524,9 +524,15 @@ DROP TABLE t1;
 # Bug #52512 : Assertion `! is_set()' in 
 #  Diagnostics_area::set_ok_status on LOAD DATA
 #
+connect  con1,localhost,root,,test;
 CREATE TABLE t1 (id INT NOT NULL);
 LOAD DATA LOCAL INFILE 'tb.txt' INTO TABLE t1;
+connection default;
+disconnect con1;
+connect  con1,localhost,root,,test;
 DROP TABLE t1;
+connection default;
+disconnect con1;
 #
 # Bug#11765139  58069: LOAD DATA INFILE: VALGRIND REPORTS INVALID MEMORY READS AND WRITES WITH U
 #

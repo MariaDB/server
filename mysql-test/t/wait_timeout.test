@@ -19,14 +19,12 @@
 
 let $start_value= `SELECT @@global.wait_timeout`;
 SET @@global.wait_timeout= 2;
---echo disconnect default;
 disconnect default;
 
 # Connect with another connection and reset counters
---disable_query_log
 connect (wait_con,localhost,root,,test,,);
---echo connection wait_con;
 connection wait_con;
+--disable_query_log
 SET SESSION wait_timeout=100;
 let $retries=300;
 SET @aborted_clients= 0;
@@ -34,16 +32,14 @@ SET @aborted_clients= 0;
 
 # Disable reconnect and do the query
 connect (default,localhost,root,,test,,);
---echo connection default;
 connection default;
 --echo --disable_reconnect;
 --disable_reconnect
 SELECT 1;
 
 # Switch to wait_con and wait until server has aborted the connection
---disable_query_log
---echo connection wait_con;
 connection wait_con;
+--disable_query_log
 while (!`select @aborted_clients`)
 {
   real_sleep 0.1;
@@ -61,7 +57,6 @@ while (!`select @aborted_clients`)
 # the disconnect has reached client
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist;
 --source include/wait_condition.inc
---echo connection default;
 connection default;
 # When the connection is closed in this way, the error code should
 # be consistent see Bug#2845 for an explanation
@@ -73,7 +68,6 @@ SELECT 2;
 SELECT 3;
 # Disconnect so that we will not be confused by a future abort from this
 # connection.
---echo disconnection default;
 disconnect default;
 
 #
@@ -81,24 +75,21 @@ disconnect default;
 # (which we get by specifying an ip adress)
 
 # Connect with another connection and reset counters
---disable_query_log
---echo connection wait_con;
 connection wait_con;
+--disable_query_log
 FLUSH STATUS; # Reset counters
 let $retries=300;
 SET @aborted_clients= 0;
 --enable_query_log
 
---echo connection con1;
 connect (con1,127.0.0.1,root,,test,$MASTER_MYPORT,);
 --echo --disable_reconnect;
 --disable_reconnect
 SELECT 1;
 
 # Switch to wait_con and wait until server has aborted the connection
---disable_query_log
---echo connection wait_con;
 connection wait_con;
+--disable_query_log
 while (!`select @aborted_clients`)
 {
   real_sleep 0.1;
@@ -118,7 +109,6 @@ let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist;
 --source include/wait_condition.inc
 disconnect wait_con;
 
---echo connection con1;
 connection con1;
 # When the connection is closed in this way, the error code should
 # be consistent see Bug#2845 for an explanation
@@ -130,7 +120,6 @@ SELECT 2;
 SELECT 3;
 --replace_result $start_value <start_value>
 eval SET @@global.wait_timeout= $start_value;
---echo disconnection con1;
 disconnect con1;
 
 

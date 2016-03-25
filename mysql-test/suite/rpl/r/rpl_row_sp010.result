@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP PROCEDURE IF EXISTS test.p3;
@@ -22,8 +23,10 @@ SELECT * FROM test.t1 ORDER BY a;
 a
 1
 2
+connection slave;
 show tables;
 Tables_in_test
+connection master;
 CREATE PROCEDURE test.p3()
 BEGIN
 INSERT INTO test.t2 VALUES(7);
@@ -40,14 +43,17 @@ SELECT * FROM test.t2 ORDER BY a;
 a
 6
 7
+connection slave;
 SELECT * FROM test.t2 ORDER BY a;
 a
 6
 7
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP PROCEDURE IF EXISTS test.p3;
 DROP PROCEDURE IF EXISTS test.p4;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
+connection slave;
 include/rpl_end.inc

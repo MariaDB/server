@@ -4,6 +4,7 @@ use test;
 create table t1 (a int primary key);
 insert into t1 values (1),(2),(3),(4),(5);
 update t1 set a=a*10;
+connection slave;
 use test;
 select * from t1;
 a
@@ -24,5 +25,6 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 slave-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
+connection master;
 drop table t1;
 include/rpl_end.inc

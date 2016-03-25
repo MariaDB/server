@@ -2,6 +2,8 @@ SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
 PREPARE stmt_start FROM "SELECT UNIX_TIMESTAMP() INTO @start";
 SET @runtime = <intended_runtime>;
 PREPARE stmt_break FROM "SELECT UNIX_TIMESTAMP() - @start > @runtime - 1";
+connect  con2,localhost,root,,;
+connection default;
 DROP TABLE IF EXISTS t1;
 # Subtest 2A (one connection, no PREPARE/EXECUTE)
 #    connection  action
@@ -75,5 +77,6 @@ DROP TABLE IF EXISTS t1;
 #    con2:       INSERT INTO t1 SET f2 = 9
 #    default:    SELECT f1 <> 1 OR f1 IS NULL FROM t1 WHERE f2 = 9
 #    con2:       DROP TABLE t1
+disconnect con2;
 DEALLOCATE PREPARE stmt_start;
 DEALLOCATE PREPARE stmt_break;

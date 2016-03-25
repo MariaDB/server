@@ -104,7 +104,7 @@ GRANT INSERT ON db_datadict_2.t1 TO 'testuser1'@'localhost';
 GRANT SELECT ON db_datadict_4.*  TO 'testuser1'@'localhost' WITH GRANT OPTION;
 GRANT SELECT ON db_datadict_3.*  TO 'testuser2'@'localhost';
 GRANT SELECT ON db_datadict_1.*  TO 'testuser2'@'localhost';
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , test;
 GRANT SELECT ON db_datadict_4.*  TO 'testuser2'@'localhost';
 # Root granted INSERT db_datadict_1 to me     -> visible
 # Root granted SELECT db_datadict_1 to testuser2 -> invisible
@@ -128,7 +128,7 @@ GRANT SELECT ON `db_datadict_4`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
 GRANT INSERT ON `db_datadict_2`.`t1` TO 'testuser1'@'localhost'
 SHOW GRANTS FOR 'testuser2'@'localhost';
 ERROR 42000: Access denied for user 'testuser1'@'localhost' to database 'mysql'
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , test;
 # Root granted SELECT db_datadict_1 to me     -> visible
 # Root granted INSERT db_datadict_1 to testuser1 -> invisible
 # Root granted INSERT db_datadict_2.t1 but not db_datadict_1 to testuser1 -> invisible
@@ -149,7 +149,9 @@ GRANT USAGE ON *.* TO 'testuser2'@'localhost'
 GRANT SELECT ON `db_datadict_3`.* TO 'testuser2'@'localhost'
 GRANT SELECT ON `db_datadict_1`.* TO 'testuser2'@'localhost'
 GRANT SELECT ON `db_datadict_4`.* TO 'testuser2'@'localhost'
-# Switch to connection default and close connections testuser1 and testuser2
+connection default;
+disconnect testuser1;
+disconnect testuser2;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema LIKE 'db_datadict%'
 ORDER BY grantee,table_schema,privilege_type;
@@ -189,25 +191,24 @@ SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , test;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
-# Switch to connection default
+connection default;
 GRANT UPDATE ON db_datadict.* TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	UPDATE	NO
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	UPDATE	NO
-# Switch to connection default
+connection default;
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
@@ -215,7 +216,6 @@ ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	NO
 'testuser1'@'localhost'	def	db_datadict	UPDATE	NO
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
@@ -223,6 +223,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	NO
 'testuser1'@'localhost'	def	db_datadict	UPDATE	NO
 # Switch to connection default
+connection default;
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
@@ -230,14 +231,13 @@ ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
 'testuser1'@'localhost'	def	db_datadict	UPDATE	YES
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
 'testuser1'@'localhost'	def	db_datadict	UPDATE	YES
-# Switch to connection default
+connection default;
 DROP SCHEMA db_datadict;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
@@ -245,48 +245,45 @@ ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
 'testuser1'@'localhost'	def	db_datadict	UPDATE	YES
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
 'testuser1'@'localhost'	def	db_datadict	UPDATE	YES
-# Switch to connection default
+connection default;
 REVOKE UPDATE ON db_datadict.* FROM 'testuser1'@'localhost';
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	db_datadict	SELECT	YES
-# Switch to connection default
+connection default;
 RENAME USER 'testuser1'@'localhost' TO 'the_user'@'localhost';
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'the_user'@'localhost'	def	db_datadict	SELECT	YES
-# Switch to connection testuser1
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'the_user'@'localhost'	def	db_datadict	SELECT	YES
-# Close connection testuser1
-# Establish connection the_user (user=the_user)
+disconnect testuser1;
+connect  the_user, localhost, the_user, , test;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'the_user'@'localhost'	def	db_datadict	SELECT	YES
-# Close connection the_user
-# Switch to connection default
+disconnect the_user;
+connection default;
 SELECT * FROM information_schema.schema_privileges
 WHERE table_schema = 'db_datadict'
 ORDER BY grantee,table_schema,privilege_type;

@@ -1,6 +1,7 @@
 include/rpl_init.inc [topology=1->2->3]
 include/rpl_connect.inc [creating master]
 include/rpl_connect.inc [creating slave]
+connection master;
 CREATE TABLE t1(c1 char(100));
 CREATE VIEW test.v_user AS SELECT * FROM mysql.user WHERE User LIKE 'bug48321%';
 CREATE VIEW test.v_tables_priv AS SELECT * FROM mysql.tables_priv WHERE User LIKE 'bug48321%';
@@ -20,7 +21,8 @@ GRANT CREATE USER ON *.* TO 'fakename'@'0123456789012345678901234567890123456789
 ERROR HY000: String '0123456789012345678901234567890123456789012345678901234567890' is too long for host name (should be no longer than 60)
 
 # User 'bug48321_1-01234' connects to master by conn1
-# [On conn1]
+connect  conn1, 127.0.0.1, 'bug48321_1-01234'@'localhost',,;
+connection conn1;
 # Verify 'REVOKE ALL' statement
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM CURRENT_USER();
 include/rpl_sync.inc
@@ -74,14 +76,19 @@ include/diff_tables.inc [server_1:v_tables_priv, server_2:v_tables_priv, server_
 RENAME USER CURRENT_USER TO 'bug48321_2'@'localhost';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
+disconnect conn1;
 
 # Verify 'DROP USER ...' statement
+connection master;
 GRANT CREATE USER ON *.* TO 'bug48321_2'@'localhost';
+connect  conn1, 127.0.0.1, 'bug48321_2'@'localhost',,;
+connection conn1;
 DROP USER CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
 
 # Verify 'ALTER EVENT...' statement
+connection master;
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT * FROM t1;
 # Explicitly assign CURRENT_USER() to definer
 ALTER DEFINER=CURRENT_USER() EVENT e1 ENABLE;
@@ -96,7 +103,7 @@ include/diff_tables.inc [server_1:v_event, server_2:v_event, server_3:v_event]
 
 # Verify that this patch does not affect the calling of CURRENT_USER() 
 # in the other statements
-# [On master]
+connection master;
 INSERT INTO t1 VALUES(CURRENT_USER()), ('1234');
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
@@ -104,17 +111,17 @@ SELECT * FROM t1;
 c1
 root@localhost
 1234
-# [On slave]
+connection slave;
 SELECT * FROM t1;
 c1
 @
 1234
-# [On server_3]
+connection server_3;
 SELECT * FROM t1;
 c1
 @
 1234
-# [On master]
+connection master;
 UPDATE t1 SET c1=CURRENT_USER() WHERE c1='1234';
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
@@ -122,29 +129,29 @@ SELECT * FROM t1;
 c1
 root@localhost
 root@localhost
-# [On slave]
+connection slave;
 SELECT * FROM t1;
 c1
 @
 @
-# [On server_3]
+connection server_3;
 SELECT * FROM t1;
 c1
 @
 @
-# [On master]
+connection master;
 DELETE FROM t1 WHERE c1=CURRENT_USER();
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
 SELECT * FROM t1;
 c1
-# [On slave]
+connection slave;
 SELECT * FROM t1;
 c1
-# [On server_3]
+connection server_3;
 SELECT * FROM t1;
 c1
-# [On master]
+connection master;
 CREATE TABLE t2(c1 char(100));
 CREATE FUNCTION my_user() RETURNS VARCHAR(64) 
 SQL SECURITY INVOKER 
@@ -161,14 +168,14 @@ root@localhost
 SELECT * FROM t2;
 c1
 root@localhost
-# [On slave]
+connection slave;
 SELECT * FROM t1;
 c1
 @
 SELECT * FROM t2;
 c1
 @
-# [On server_3]
+connection server_3;
 SELECT * FROM t1;
 c1
 @
@@ -177,6 +184,7 @@ c1
 @
 
 # END
+connection master;
 DROP TABLE t1, t2;
 DROP VIEW v_user, v_tables_priv, v_procs_priv, v_event;
 DROP PROCEDURE p1;

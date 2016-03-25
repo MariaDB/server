@@ -6,6 +6,7 @@ include/master-slave.inc
 # Check the bug where if an error occurs in mysql_register_view the view
 # is still replicated to the slave
 #
+connection master;
 create table t1 (a int);
 insert into t1 values (1);
 create view v1 as select a from t1;
@@ -14,10 +15,12 @@ select * from v1 order by a;
 a
 1
 2
+connection slave;
 show tables;
 Tables_in_test
 t1
 v1
+connection master;
 set @@debug_dbug="d,simulate_register_view_failure";
 CREATE VIEW v2 as SELECT * FROM t1;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
@@ -25,10 +28,12 @@ show tables;
 Tables_in_test
 t1
 v1
+connection slave;
 show tables;
 Tables_in_test
 t1
 v1
+connection master;
 DROP VIEW IF EXISTS v1;
 DROP TABLE t1;
 include/rpl_end.inc

@@ -1,3 +1,4 @@
+connect  con1,localhost,root,,;
 CREATE TABLE oq_backing (
 origid INT UNSIGNED NOT NULL,
 destid INT UNSIGNED NOT NULL,
@@ -25,6 +26,8 @@ destid	bigint(20) unsigned	YES		NULL
 weight	double	YES		NULL	
 seq	bigint(20) unsigned	YES		NULL	
 linkid	bigint(20) unsigned	YES		NULL	
+disconnect con1;
+connection default;
 show tables;
 Tables_in_test
 oq_backing

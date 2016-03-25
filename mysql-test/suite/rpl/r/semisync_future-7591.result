@@ -3,17 +3,23 @@ include/master-slave.inc
 call mtr.add_suppression("Timeout waiting for reply of binlog*");
 create table t1 (i int);
 set global rpl_semi_sync_master_enabled = ON;
+connection slave;
 include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = ON;
 change master to master_log_file='master-bin.000002', master_log_pos = 320;
 start slave;
 include/wait_for_slave_io_error.inc [errno=1236]
+connection master;
 insert into t1 values (1);
 reset master;
+connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
 set global rpl_semi_sync_slave_enabled = OFF;
+connection master;
 drop table t1;
+connection slave;
+connection master;
 set global rpl_semi_sync_master_enabled = OFF;
 include/rpl_end.inc

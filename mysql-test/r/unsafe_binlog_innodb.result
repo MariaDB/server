@@ -14,6 +14,9 @@ select ml.* from t1 as ml left join t2 as mm on (mm.id=ml.id)
 where mm.id is null lock in share mode;
 id	f_id	f
 drop table t1,t2;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine = InnoDB;
 insert into t1 values(1,1),(2,2),(3,1),(4,2),(5,1),(6,2),(7,3);
 commit;
@@ -28,24 +31,41 @@ a	b
 6	2
 7	3
 update t1 set b = 5 where b = 1;
+connection b;
 set autocommit = 0;
 select * from t1 where a = 2 and b = 2 for update;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection a;
 commit;
+connection b;
 commit;
 drop table t1;
+connection default;
+disconnect a;
+disconnect b;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine = InnoDB;
 insert into t1 values(1,1),(2,2),(3,1),(4,2),(5,1),(6,2),(7,3);
 commit;
 set autocommit = 0;
 update t1 set b = 5 where b = 1;
+connection b;
 set autocommit = 0;
 select * from t1 where a = 7 and b = 3 for update;
 a	b
 7	3
 commit;
+connection a;
 commit;
 drop table t1;
+connection default;
+disconnect a;
+disconnect b;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine = InnoDB;
 insert into t1 values (1,2),(5,3),(4,2);
 create table t2(d int not null, e int, primary key(d)) engine = InnoDB;
@@ -57,17 +77,33 @@ d	e
 3	1
 8	6
 12	1
+connection b;
 set autocommit = 0;
 insert into t1 select * from t2;
 update t1 set b = (select e from t2 where a = d);
 create table t3(d int not null, e int, primary key(d)) engine = InnoDB
 select * from t2;
 commit;
+connection a;
 commit;
+connection default;
+disconnect a;
+disconnect b;
 drop table t1, t2, t3;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connect  c,localhost,root,,;
+connect  d,localhost,root,,;
 SET SESSION STORAGE_ENGINE = InnoDB;
+connect  e,localhost,root,,;
+connect  f,localhost,root,,;
+connect  g,localhost,root,,;
 SET SESSION STORAGE_ENGINE = InnoDB;
+connect  h,localhost,root,,;
+connect  i,localhost,root,,;
+connect  j,localhost,root,,;
 SET SESSION STORAGE_ENGINE = InnoDB;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine = InnoDB;
 insert into t1 values (1,2),(5,3),(4,2);
 create table t2(a int not null, b int, primary key(a)) engine = InnoDB;
@@ -89,35 +125,65 @@ a	b
 3	1
 8	6
 12	1
+connection b;
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 insert into t1 select * from t2;
+connection c;
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 update t3 set b = (select b from t2 where a = d);
+connection d;
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 create table t4(a int not null, b int, primary key(a)) select * from t2;
+connection e;
 set autocommit = 0;
 insert into t5 (select * from t2 lock in share mode);
+connection f;
 set autocommit = 0;
 update t6 set e = (select b from t2 where a = d lock in share mode);
+connection g;
 set autocommit = 0;
 create table t7(a int not null, b int, primary key(a)) select * from t2 lock in share mode;
+connection h;
 set autocommit = 0;
 insert into t8 (select * from t2 for update);
+connection i;
 set autocommit = 0;
 update t9 set e = (select b from t2 where a = d for update);
+connection j;
 set autocommit = 0;
 create table t10(a int not null, b int, primary key(a)) select * from t2 for update;
+connection b;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection c;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection d;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection e;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection f;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection g;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection h;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection i;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection j;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection a;
 commit;
+connection default;
+disconnect a;
+disconnect b;
+disconnect c;
+disconnect d;
+disconnect e;
+disconnect f;
+disconnect g;
+disconnect h;
+disconnect i;
+disconnect j;
 drop table t1, t2, t3, t5, t6, t8, t9;

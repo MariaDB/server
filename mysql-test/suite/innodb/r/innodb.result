@@ -2492,34 +2492,46 @@ SET FOREIGN_KEY_CHECKS=1;
 INSERT INTO t2 VALUES(3);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `c1` FOREIGN KEY (`v`) REFERENCES `t1` (`id`))
 DROP TABLE t2;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null) engine=innodb DEFAULT CHARSET=latin1;
 insert into t1 values (1),(2);
 set autocommit=0;
 checksum table t1;
 Table	Checksum
 test.t1	1531596814
+connection b;
 insert into t1 values(3);
+connection a;
 checksum table t1;
 Table	Checksum
 test.t1	1531596814
+connection a;
 commit;
 checksum table t1;
 Table	Checksum
 test.t1	2050879373
 commit;
 drop table t1;
+connection a;
 create table t1(a int not null) engine=innodb DEFAULT CHARSET=latin1;
 insert into t1 values (1),(2);
 set autocommit=1;
 checksum table t1;
 Table	Checksum
 test.t1	1531596814
+connection b;
 set autocommit=1;
 insert into t1 values(3);
+connection a;
 checksum table t1;
 Table	Checksum
 test.t1	2050879373
 drop table t1;
+connection default;
+disconnect a;
+disconnect b;
 set foreign_key_checks=0;
 create table t2 (a int primary key, b int, foreign key (b) references t1(a)) engine = innodb;
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
@@ -2784,6 +2796,9 @@ select ml.* from t1 as ml left join t2 as mm on (mm.id=ml.id)
 where mm.id is null lock in share mode;
 id	f_id	f
 drop table t1,t2;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine=innodb;
 insert into t1 values(1,1),(2,2),(3,1),(4,2),(5,1),(6,2),(7,3);
 commit;
@@ -2791,15 +2806,24 @@ SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 update t1 set b = 5 where b = 1;
+connection b;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 select * from t1 where a = 7 and b = 3 for update;
 a	b
 7	3
+connection a;
 commit;
+connection b;
 commit;
 drop table t1;
+connection default;
+disconnect a;
+disconnect b;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine=innodb;
 insert into t1 values(1,1),(2,2),(3,1),(4,2),(5,1),(6,2);
 commit;
@@ -2813,12 +2837,21 @@ a	b
 5	1
 6	2
 update t1 set b = 5 where b = 1;
+connection b;
 set autocommit = 0;
 select * from t1 where a = 2 and b = 2 for update;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection a;
 commit;
+connection b;
 commit;
+connection default;
+disconnect a;
+disconnect b;
 drop table t1;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine=innodb;
 insert into t1 values (1,2),(5,3),(4,2);
 create table t2(d int not null, e int, primary key(d)) engine=innodb;
@@ -2830,6 +2863,7 @@ d	e
 3	1
 8	6
 12	1
+connection b;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
@@ -2838,8 +2872,23 @@ update t1 set b = (select e from t2 where a = d);
 create table t3(d int not null, e int, primary key(d)) engine=innodb
 select * from t2;
 commit;
+connection a;
 commit;
+connection default;
+disconnect a;
+disconnect b;
 drop table t1, t2, t3;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connect  c,localhost,root,,;
+connect  d,localhost,root,,;
+connect  e,localhost,root,,;
+connect  f,localhost,root,,;
+connect  g,localhost,root,,;
+connect  h,localhost,root,,;
+connect  i,localhost,root,,;
+connect  j,localhost,root,,;
+connection a;
 create table t1(a int not null, b int, primary key(a)) engine=innodb;
 insert into t1 values (1,2),(5,3),(4,2);
 create table t2(a int not null, b int, primary key(a)) engine=innodb;
@@ -2861,52 +2910,82 @@ a	b
 3	1
 8	6
 12	1
+connection b;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 insert into t1 select * from t2;
+connection c;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 update t3 set b = (select b from t2 where a = d);
+connection d;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 create table t4(a int not null, b int, primary key(a)) engine=innodb select * from t2;
+connection e;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 insert into t5 (select * from t2 lock in share mode);
+connection f;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 update t6 set e = (select b from t2 where a = d lock in share mode);
+connection g;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 create table t7(a int not null, b int, primary key(a)) engine=innodb select * from t2 lock in share mode;
+connection h;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 insert into t8 (select * from t2 for update);
+connection i;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 update t9 set e = (select b from t2 where a = d for update);
+connection j;
 SET binlog_format='MIXED';
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 create table t10(a int not null, b int, primary key(a)) engine=innodb select * from t2 for update;
+connection b;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection c;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection d;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection e;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection f;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection g;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection h;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection i;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection j;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection a;
 commit;
+connection default;
+disconnect a;
+disconnect b;
+disconnect c;
+disconnect d;
+disconnect e;
+disconnect f;
+disconnect g;
+disconnect h;
+disconnect i;
+disconnect j;
 drop table t1, t2, t3, t5, t6, t8, t9;
 CREATE TABLE t1 (DB_ROW_ID int) engine=innodb;
 ERROR 42000: Incorrect column name 'DB_ROW_ID'
@@ -3044,6 +3123,9 @@ id
 -10
 1
 DROP TABLE t1;
+CONNECT  c1,localhost,root,,;
+CONNECT  c2,localhost,root,,;
+connection c1;
 SET binlog_format='MIXED';
 SET TX_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
@@ -3055,24 +3137,33 @@ CREATE TABLE t1 ( a int ) ENGINE=InnoDB;
 CREATE TABLE t2 LIKE t1;
 SELECT * FROM t2;
 a
+connection c2;
 SET binlog_format='MIXED';
 SET TX_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (1);
 COMMIT;
+connection c1;
 SELECT * FROM t1 WHERE a=1;
 a
 1
+disconnect c1;
+disconnect c2;
+CONNECT  c1,localhost,root,,;
+CONNECT  c2,localhost,root,,;
+connection c1;
 SET binlog_format='MIXED';
 SET TX_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 SELECT * FROM t2;
 a
+connection c2;
 SET binlog_format='MIXED';
 SET TX_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (2);
 COMMIT;
+connection c1;
 SELECT * FROM t1 WHERE a=2;
 a
 2
@@ -3081,6 +3172,9 @@ a
 2
 DROP TABLE t1;
 DROP TABLE t2;
+disconnect c1;
+disconnect c2;
+connection default;
 create table t1 (i int, j int) engine=innodb;
 insert into t1 (i, j) values (1, 1), (2, 2);
 update t1 set j = 2;
@@ -3094,6 +3188,7 @@ where table_schema='test' and table_name = 't1';
 table_comment	data_free_is_set
 this is a comment	1
 drop table t1;
+connection default;
 CREATE TABLE t1 (
 c1 INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
 c2 VARCHAR(128) NOT NULL,
@@ -3113,6 +3208,7 @@ AUTO_INCREMENT
 200
 DROP TABLE t2;
 DROP TABLE t1;
+connection default;
 CREATE TABLE t1 (c1 int default NULL,
 c2 int default NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;

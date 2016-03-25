@@ -12,9 +12,6 @@
 --echo # For that, we set the table cache to minimal size and populate it
 --echo # in a concurrent connection.
 connect(con1,localhost,root,,test,,);
---echo #
---echo # Switching to connection con1
---echo #
 connection con1;
 --echo #
 --echo # Minimal values.
@@ -56,9 +53,6 @@ drop procedure p_create;
 let $lock=`select @lock_table_stmt`;
 eval $lock;
 --enable_query_log
---echo #
---echo # Switching to connection 'default'
---echo #
 connection default;
 --echo #
 --echo # We have to disable the ps-protocol, to avoid
@@ -102,9 +96,6 @@ select * from t1_mrg;
 --echo # Cleanup
 --echo #
 drop table t1, t1_mrg;
---echo #
---echo # Switching to connection con1
---echo #
 connection con1;
 unlock tables;
 prepare stmt from @drop_table_stmt;

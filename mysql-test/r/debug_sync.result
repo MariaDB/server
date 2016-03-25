@@ -234,44 +234,48 @@ Variable_name	Value
 debug_sync	ON - current signal: ''
 CREATE USER mysqltest_1@localhost;
 GRANT SUPER ON *.* TO mysqltest_1@localhost;
-connection con1, mysqltest_1
+connect  con1,localhost,mysqltest_1,,;
 SET DEBUG_SYNC= 'RESET';
-connection default
+disconnect con1;
+connection default;
 DROP USER mysqltest_1@localhost;
 CREATE USER mysqltest_2@localhost;
 GRANT ALL ON *.* TO mysqltest_2@localhost;
 REVOKE SUPER ON *.* FROM mysqltest_2@localhost;
-connection con1, mysqltest_2
+connect  con1,localhost,mysqltest_2,,;
 SET DEBUG_SYNC= 'RESET';
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-connection default
+disconnect con1;
+connection default;
 DROP USER mysqltest_2@localhost;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (c1 INT);
-connection con1
+connect  con1,localhost,root,,;
 SET DEBUG_SYNC= 'before_lock_tables_takes_lock
       SIGNAL opened WAIT_FOR flushed';
 INSERT INTO t1 VALUES(1);
-connection default
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'after_flush_unlock SIGNAL flushed';
 FLUSH TABLE t1;
-connection con1
-connection default
+connection con1;
+disconnect con1;
+connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (c1 INT);
 LOCK TABLE t1 READ;
-connection con1
+connect  con1,localhost,root,,;
 SET DEBUG_SYNC= 'wait_for_lock SIGNAL locked EXECUTE 2';
 INSERT INTO t1 VALUES (1);
-connection default
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 UNLOCK TABLES;
-connection con1
+connection con1;
 retrieve INSERT result.
-connection default
+disconnect con1;
+connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';

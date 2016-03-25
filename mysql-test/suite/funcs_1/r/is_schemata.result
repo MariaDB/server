@@ -83,7 +83,7 @@ SHOW DATABASES LIKE 'db_datadict_%';
 Database (db_datadict_%)
 db_datadict_1
 db_datadict_2
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict_1;
 SELECT * FROM information_schema.schemata
 WHERE schema_name LIKE 'db_datadict_%' ORDER BY schema_name;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH
@@ -91,7 +91,7 @@ def	db_datadict_1	latin1	latin1_swedish_ci	NULL
 SHOW DATABASES LIKE 'db_datadict_%';
 Database (db_datadict_%)
 db_datadict_1
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , db_datadict_2;
 SELECT * FROM information_schema.schemata
 WHERE schema_name LIKE 'db_datadict_%' ORDER BY schema_name;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH
@@ -101,13 +101,16 @@ SHOW DATABASES LIKE 'db_datadict_%';
 Database (db_datadict_%)
 db_datadict_1
 db_datadict_2
-# Establish connection testuser3 (user=testuser3)
+connect  testuser3, localhost, testuser3, , test;
 SELECT * FROM information_schema.schemata
 WHERE schema_name LIKE 'db_datadict_%' ORDER BY schema_name;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH
 SHOW DATABASES LIKE 'db_datadict_%';
 Database (db_datadict_%)
-# Switch to connection default and close connections testuser1,testuser2,testuser3
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';

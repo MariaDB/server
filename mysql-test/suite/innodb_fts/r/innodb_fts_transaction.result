@@ -316,7 +316,7 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
 b TEXT
 ) CHARACTER SET = UTF8,ENGINE = InnoDB;
-"In connection 1"
+connect  con1,localhost,root,,;
 SET NAMES UTF8;
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
@@ -325,12 +325,12 @@ INSERT INTO t1 (a,b) VALUES
 ('Я могу есть стекло', 'оно мне Mне вредит'),
 ('Μπορῶ νὰ φάω σπασμένα' ,'γυαλιὰ χωρὶς νὰ πάθω τίποτα'),
 ('Sævör grét', 'áðan því úlpan var ónýt');
-"In connection 2"
+connect  con2,localhost,root,,;
 SET NAMES UTF8;
 CREATE FULLTEXT INDEX idx on t1 (a,b);
 Warnings:
 Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
-"In connection 1"
+connection con1;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('tutorial' IN NATURAL LANGUAGE MODE);
@@ -365,7 +365,7 @@ WHERE MATCH (a,b)
 AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 id	a	b
 6	Sævör grét	áðan því úlpan var ónýt
-"In connection 2"
+connection con2;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('+record +multiple' IN BOOLEAN MODE);
@@ -422,7 +422,7 @@ id	a	b
 1	MySQL from Tutorial	DBMS stands for DataBase ...
 2	when To Use MySQL Well	After that you went through a ...
 3	where will Optimizing MySQL	what In this tutorial we will show ...
-"In connection 1"
+connection con1;
 COMMIT;
 SELECT * FROM t1
 WHERE MATCH (a,b)
@@ -443,7 +443,7 @@ INSERT INTO t1 (a,b) VALUES (NULL,NULL);
 SELECT * FROM t1 WHERE a IS NULL AND b IS NULL;
 id	a	b
 11	NULL	NULL
-"In connection 2"
+connection con2;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('usin* multipl*' IN BOOLEAN MODE);
@@ -487,7 +487,7 @@ SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('request');
 id	a	b
-"In connection 1"
+connection con1;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('query performace' IN BOOLEAN MODE);
@@ -500,14 +500,14 @@ SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('+mail +MySQL' IN BOOLEAN MODE);
 id	a	b
-"In connection 2"
+connection con2;
 COMMIT;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('+query +performace' IN BOOLEAN MODE);
 id	a	b
 9	TRIAL VERSION PŘÍLIŠ ŽLUŤOUČKÝ	query performace 1255 minute on 2.1Hz Memory 2GB...
-"In connection 1"
+connection con1;
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('+query +performace' IN BOOLEAN MODE);
@@ -521,6 +521,9 @@ AGAINST ('well free') ORDER BY 1;
 id	a	b
 2	when To Use MySQL Well	After that you went through a ...
 5	when To Use MySQL Well	for free faq  xyz.com ...
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;
 SET NAMES UTF8;
 CREATE TABLE t1 (
@@ -528,7 +531,7 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
 b TEXT
 ) CHARACTER SET = UTF8,ENGINE = InnoDB;
-"In connection 1"
+connect  con1,localhost,root,,;
 SET NAMES UTF8;
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
@@ -537,7 +540,7 @@ INSERT INTO t1 (a,b) VALUES
 ('Я могу есть стекло', 'оно мне Mне вредит'),
 ('Μπορῶ νὰ φάω σπασμένα' ,'γυαλιὰ χωρὶς νὰ πάθω τίποτα'),
 ('Sævör grét', 'áðan því úlpan var ónýt');
-"In connection 2"
+connect  con2,localhost,root,,;
 SET NAMES UTF8;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -548,7 +551,7 @@ Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('adding record using session 1','for verifying multiple concurrent transactions'),
 ('Мога да ям стъкло', 'то Mне ми вреди');
-"In connection 1"
+connection con1;
 SELECT * FROM t1;
 id	a	b
 1	MySQL from Tutorial	DBMS stands for DataBase ...
@@ -589,7 +592,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	Μπορῶ νὰ φάω σπασμένα	γυαλιὰ χωρὶς νὰ πάθω τίποτα
 7	adding record using session 1	for verifying multiple concurrent transactions
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -610,7 +613,7 @@ id	a	b
 6	Sævör grét	áðan því úlpan var ónýt
 7	adding record using session 1	for verifying multiple concurrent transactions
 8	Мога да ям стъкло	то Mне ми вреди
-"In connection 1"
+connection con1;
 COMMIT;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
@@ -620,7 +623,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 id	a	b
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -637,6 +640,9 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	Μπορῶ νὰ φάω σπασμένα	γυαλιὰ χωρὶς νὰ πάθω τίποτα
 7	adding record using session 1	for verifying multiple concurrent transactions
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;
 SET NAMES UTF8;
 CREATE TABLE t1 (
@@ -644,14 +650,14 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
 b TEXT
 ) CHARACTER SET = UTF8,ENGINE = InnoDB;
-"In connection 1"
+connect  con1,localhost,root,,;
 SET NAMES UTF8;
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),
 ('where will Optimizing MySQL','what In this tutorial we will show ...'),
 ('Я могу есть стекло', 'оно мне Mне вредит');
-"In connection 2"
+connect  con2,localhost,root,,;
 SET NAMES UTF8;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -662,7 +668,7 @@ Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('adding record using session 1','for verifying multiple concurrent transactions'),
 ('Мога да ям стъкло', 'то Mне ми вреди');
-"In connection 1"
+connection con1;
 SELECT * FROM t1;
 id	a	b
 1	MySQL from Tutorial	DBMS stands for DataBase ...
@@ -703,7 +709,7 @@ id	a	b
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
 7	Sævör grét	áðan því úlpan var ónýt
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -751,7 +757,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
-"In connection 1"
+connection con1;
 COMMIT;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
@@ -761,7 +767,7 @@ id	a	b
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 id	a	b
 7	Sævör grét	áðan því úlpan var ónýt
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 6	Мога да ям стъкло	то Mне ми вреди
@@ -779,6 +785,9 @@ id	a	b
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
 7	Sævör grét	áðan því úlpan var ónýt
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;
 SET NAMES UTF8;
 CREATE TABLE t1 (
@@ -786,7 +795,7 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
 b TEXT
 ) CHARACTER SET = UTF8,ENGINE = InnoDB;
-"In connection 1"
+connect  con1,localhost,root,,;
 SET NAMES UTF8;
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
@@ -795,7 +804,7 @@ INSERT INTO t1 (a,b) VALUES
 ('Я могу есть стекло', 'оно мне Mне вредит'),
 ('Μπορῶ νὰ φάω σπασμένα' ,'γυαλιὰ χωρὶς νὰ πάθω τίποτα'),
 ('Sævör grét', 'áðan því úlpan var ónýt');
-"In connection 2"
+connect  con2,localhost,root,,;
 SET NAMES UTF8;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -806,7 +815,7 @@ Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('adding record using session 1','for verifying multiple concurrent transactions'),
 ('Мога да ям стъкло', 'то Mне ми вреди');
-"In connection 1"
+connection con1;
 SELECT * FROM t1;
 id	a	b
 1	MySQL from Tutorial	DBMS stands for DataBase ...
@@ -846,7 +855,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	Μπορῶ νὰ φάω σπασμένα	γυαλιὰ χωρὶς νὰ πάθω τίποτα
 7	adding record using session 1	for verifying multiple concurrent transactions
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -867,7 +876,7 @@ id	a	b
 6	Sævör grét	áðan því úlpan var ónýt
 7	adding record using session 1	for verifying multiple concurrent transactions
 8	Мога да ям стъкло	то Mне ми вреди
-"In connection 1"
+connection con1;
 ROLLBACK;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
@@ -879,7 +888,7 @@ id	a	b
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 id	a	b
 6	Sævör grét	áðan því úlpan var ónýt
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -900,6 +909,9 @@ id	a	b
 6	Sævör grét	áðan því úlpan var ónýt
 7	adding record using session 1	for verifying multiple concurrent transactions
 8	Мога да ям стъкло	то Mне ми вреди
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;
 SET NAMES UTF8;
 CREATE TABLE t1 (
@@ -907,14 +919,14 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
 b TEXT
 ) CHARACTER SET = UTF8,ENGINE = InnoDB;
-"In connection 1"
+connect  con1,localhost,root,,;
 SET NAMES UTF8;
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),
 ('where will Optimizing MySQL','what In this tutorial we will show ...'),
 ('Я могу есть стекло', 'оно мне Mне вредит');
-"In connection 2"
+connect  con2,localhost,root,,;
 SET NAMES UTF8;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -925,7 +937,7 @@ Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('adding record using session 1','for verifying multiple concurrent transactions'),
 ('Мога да ям стъкло', 'то Mне ми вреди');
-"In connection 1"
+connection con1;
 SELECT * FROM t1;
 id	a	b
 1	MySQL from Tutorial	DBMS stands for DataBase ...
@@ -967,7 +979,7 @@ id	a	b
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
 7	Sævör grét	áðan því úlpan var ónýt
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -1016,7 +1028,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
-"In connection 1"
+connection con1;
 ROLLBACK;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
@@ -1027,7 +1039,7 @@ id	a	b
 6	Мога да ям стъкло	то Mне ми вреди
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('"Sævör grét"@18' IN BOOLEAN MODE);
 id	a	b
-"In connection 2"
+connection con2;
 SELECT * FROM t1 WHERE MATCH (a,b) AGAINST ('+Mне' IN BOOLEAN MODE);
 id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
@@ -1045,4 +1057,7 @@ id	a	b
 4	Я могу есть стекло	оно мне Mне вредит
 5	adding record using session 1	for verifying multiple concurrent transactions
 6	Мога да ям стъкло	то Mне ми вреди
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;

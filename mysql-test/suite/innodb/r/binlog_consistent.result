@@ -1,5 +1,9 @@
 RESET MASTER;
-# Connection default
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
+connect con4,localhost,root,,;
+connection default;
 CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
@@ -10,28 +14,28 @@ Binlog_snapshot_file	master-bin.000001
 Binlog_snapshot_position	<pos>
 BEGIN;
 INSERT INTO t1 VALUES (0, "");
-# Connection con1
+connection con1;
 BEGIN;
 INSERT INTO t1 VALUES (1, "");
-# Connection con2
+connection con2;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=myisam;
 BEGIN;
 INSERT INTO t1 VALUES (2, "first");
 INSERT INTO t2 VALUES (2);
 INSERT INTO t1 VALUES (2, "second");
-# Connection default
+connection default;
 COMMIT;
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
-# Connection con3
+connection con3;
 BEGIN;
 INSERT INTO t1 VALUES (3, "");
 INSERT INTO t2 VALUES (3);
-# Connection con4
+connection con4;
 BEGIN;
 INSERT INTO t1 VALUES (4, "");
 COMMIT;
-# Connection default
+connection default;
 SELECT * FROM t1 ORDER BY a,b;
 a	b
 0	
@@ -46,14 +50,14 @@ SELECT * FROM t2 ORDER BY a;
 a
 2
 3
-# Connection con1
+connection con1;
 COMMIT;
-# Connection con2
+connection con2;
 COMMIT;
-# Connection con3
+connection con3;
 COMMIT;
 FLUSH LOGS;
-# Connection default
+connection default;
 SELECT * FROM t1 ORDER BY a,b;
 a	b
 0	

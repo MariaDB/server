@@ -35,10 +35,8 @@ CREATE TABLE t1 (`tinyint` TINYINT,
 -- eval INSERT INTO t1 VALUES ($max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long,$max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long);
 
 -- echo #########################################
--- echo #### [ on master ]
 -- query_vertical SELECT * FROM t1
 -- sync_slave_with_master
--- echo #### [ on slave ]
 -- query_vertical SELECT * FROM t1
 -- echo #########################################
 -- connection master
@@ -65,10 +63,8 @@ INSERT INTO t1 VALUES (@positive,
                        @positive);
 
 -- echo #########################################
--- echo #### [ on master ]
 -- query_vertical SELECT * FROM t1
 -- sync_slave_with_master
--- echo #### [ on slave ]
 -- query_vertical SELECT * FROM t1
 -- echo #########################################
 -- connection master
@@ -84,10 +80,8 @@ TRUNCATE t1;
 -- eval INSERT INTO t1 VALUES ($min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long,$min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long);
 
 -- echo #########################################
--- echo #### [ on master ]
 -- query_vertical SELECT * FROM t1
 -- sync_slave_with_master
--- echo #### [ on slave ]
 -- query_vertical SELECT * FROM t1
 -- echo #########################################
 -- connection master
@@ -114,10 +108,8 @@ INSERT INTO t1 VALUES (@negative,
                        @negative);
 
 -- echo #########################################
--- echo #### [ on master ]
 -- query_vertical SELECT * FROM t1
 -- sync_slave_with_master
--- echo #### [ on slave ]
 -- query_vertical SELECT * FROM t1
 -- echo #########################################
 -- connection master
@@ -195,7 +187,7 @@ CALL p1();
 -- sync_slave_with_master
 
 connection slave;
---echo # On slave, check if the statement was replicated.
+--echo # check if the statement was replicated.
 SELECT * FROM t1 ORDER BY a;
 
 connection master;

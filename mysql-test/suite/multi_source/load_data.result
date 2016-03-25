@@ -1,3 +1,7 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connection slave;
 change master '' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
 change master 'master2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
 start all slaves;
@@ -9,22 +13,38 @@ include/wait_for_slave_to_start.inc
 set default_master_connection = 'master2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
+connection master1;
 create table t1 (a varchar(10) character set utf8);
 load data infile '../../std_data/loaddata6.dat' into table t1;
+connection slave;
+connection master2;
 create table t2 (a varchar(10) character set utf8);
 load data infile '../../std_data/loaddata6.dat' into table t2;
+connection slave;
 select count(*) from t1;
 count(*)
 1
 select count(*) from t2;
 count(*)
 1
+connection master1;
 drop table t1;
+connection master2;
 drop table t2;
+connection master1;
+connection slave;
+connection master2;
+connection slave;
+connection slave;
 stop all slaves;
 Warnings:
 Note	1938	SLAVE '' stopped
 Note	1938	SLAVE 'master2' stopped
 include/reset_master_slave.inc
+disconnect slave;
+connection master1;
 include/reset_master_slave.inc
+disconnect master1;
+connection master2;
 include/reset_master_slave.inc
+disconnect master2;

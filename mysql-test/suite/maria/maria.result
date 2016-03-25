@@ -581,8 +581,11 @@ select straight_join * from t1,t2 force index (primary) where t1.a=t2.a;
 a	a	b
 1	1	1
 2	2	1
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 insert into t2 values(2,0);
 commit;
+disconnect root;
+connection default;
 select straight_join * from t1,t2 force index (primary) where t1.a=t2.a;
 a	a	b
 1	1	1
@@ -598,7 +601,11 @@ LOCK TABLES t1 READ LOCAL, t2 READ LOCAL;
 SELECT t1.c1 AS t1c1, t2.c1 AS t2c1 FROM t1, t2
 WHERE t1.c1 = t2.c1 HAVING t1c1 != t2c1;
 t1c1	t2c1
+connect  con1,localhost,root,,;
+connection con1;
 INSERT INTO t2 VALUES ('test000001'), ('test000005');
+disconnect con1;
+connection default;
 SELECT t1.c1 AS t1c1, t2.c1 AS t2c1 FROM t1, t2
 WHERE t1.c1 = t2.c1 HAVING t1c1 != t2c1;
 t1c1	t2c1
@@ -1601,12 +1608,17 @@ set global concurrent_insert=1;
 create table t1 (a int) ROW_FORMAT=FIXED;
 insert into t1 values (1),(2),(3),(4),(5);
 lock table t1 read local;
+connect  con1,localhost,root,,;
+connection con1;
 insert into t1 values(6),(7);
+connection default;
 unlock tables;
 delete from t1 where a>=3 and a<=4;
 lock table t1 read local;
+connection con1;
 set global concurrent_insert=2;
 insert into t1 values (8),(9);
+connection default;
 unlock tables;
 insert into t1 values (10),(11),(12);
 select * from t1;
@@ -1625,15 +1637,21 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
+disconnect con1;
 create table t1 (a int, b varchar(30) default "hello") ROW_FORMAT=DYNAMIC;
 insert into t1 (a) values (1),(2),(3),(4),(5);
 lock table t1 read local;
+connect  con1,localhost,root,,;
+connection con1;
 insert into t1 (a) values(6),(7);
+connection default;
 unlock tables;
 delete from t1 where a>=3 and a<=4;
 lock table t1 read local;
+connection con1;
 set global concurrent_insert=2;
 insert into t1 (a) values (8),(9);
+connection default;
 unlock tables;
 insert into t1 (a) values (10),(11),(12);
 select a from t1;
@@ -1652,6 +1670,7 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
+disconnect con1;
 set global concurrent_insert=@save_concurrent_insert;
 create table t1 (a int, key(a));
 insert into t1 values (1),(2),(3),(4),(NULL),(NULL),(NULL),(NULL);
@@ -1670,15 +1689,25 @@ show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	a	1	a	A	8	NULL	NULL	YES	BTREE		
 drop table t1;
+connect  session1,localhost,root,,;
+connect  session2,localhost,root,,;
+connection session1;
 show create table t1;
+connection session2;
 show create table t1;
+connection default;
 create table t1 (a int) select 42 a;
+connection session1;
 select * from t1;
 a
 9
+disconnect session1;
+connection session2;
 select * from t1;
 a
 99
+disconnect session2;
+connection default;
 select * from t1;
 a
 42

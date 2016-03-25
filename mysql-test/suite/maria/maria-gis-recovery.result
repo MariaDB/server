@@ -3,18 +3,28 @@ Warnings:
 Warning	1292	Truncated incorrect aria_log_file_size value: '4294967295'
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
 use mysqltest;
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 CREATE TABLE t1 (
 i int,
 shape GEOMETRY NOT NULL,
 SPATIAL (shape)
 ) ENGINE=ARIA;
 insert into t1 values(1,POINT(1, 1));
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 insert into t1 values(2,POINT(2, 2)), (3,POINT(3, 3)), (4,POINT(4, 4));
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -27,6 +37,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show create table t1;
 Table	Create Table
@@ -36,10 +47,15 @@ t1	CREATE TABLE `t1` (
   SPATIAL KEY `shape` (`shape`)
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 * TEST of UPDATE vs state.auto_increment
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 update t1 set shape=POINT(5, 5) where i=2;
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -52,6 +68,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show create table t1;
 Table	Create Table

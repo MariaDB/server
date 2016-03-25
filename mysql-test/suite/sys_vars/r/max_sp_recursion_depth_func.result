@@ -1,7 +1,7 @@
 SET @session_max_recursion_depth = @@SESSION.max_sp_recursion_depth;
 '#--------------------FN_DYNVARS_099_01-------------------------#'
-** Connecting test_con1 using username 'root' **
-** Connection test_con1 **
+CONNECT  test_con1,localhost,root,,;
+connection test_con1;
 SET @@session.max_sp_recursion_depth = 10;
 SELECT @@session.max_sp_recursion_depth;
 @@session.max_sp_recursion_depth
@@ -51,8 +51,8 @@ var1	var2
 var1	var2
 0	8
 '#--------------------FN_DYNVARS_099_02-------------------------#'
-** Connecting test_con2 using username 'root' **
-** Connection test_con2 **
+CONNECT  test_con2,localhost,root,,;
+connection test_con2;
 SET @@session.max_sp_recursion_depth = 4;
 SELECT @@session.max_sp_recursion_depth;
 @@session.max_sp_recursion_depth
@@ -155,8 +155,9 @@ var1	var2
 var1	var2
 4	8
 ERROR HY000: Recursive limit 4 (as set by the max_sp_recursion_depth variable) was exceeded for routine sp_addRecords3
-** Connection default **
-** Disconnecting test_con1, test_con2 **
+connection default;
+disconnect test_con1;
+disconnect test_con2;
 DROP PROCEDURE IF EXISTS sp_addRecords;
 DROP PROCEDURE IF EXISTS sp_addRecords1;
 DROP PROCEDURE IF EXISTS sp_addRecords2;

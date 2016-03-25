@@ -6,6 +6,7 @@ grant all on mysqltest1.* to r1;
 grant all on mysqltest2.* to r2;
 grant r1 to r2;
 grant r2 to foo@localhost;
+connect  foo,localhost,foo,,;
 select current_user;
 current_user
 foo@localhost
@@ -27,6 +28,7 @@ GRANT USAGE ON *.* TO 'r2'
 GRANT ALL PRIVILEGES ON `mysqltest2`.* TO 'r2'
 GRANT USAGE ON *.* TO 'r1'
 GRANT ALL PRIVILEGES ON `mysqltest1`.* TO 'r1'
+connection default;
 drop user foo@localhost;
 drop role r1;
 drop role r2;

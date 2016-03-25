@@ -23,16 +23,10 @@ CREATE TABLE t1(
 
 --connection con1
 
---echo #
---echo # Connection 1
---echo #
 SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
 --send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
 
 --connection con2
---echo #
---echo # Connection 2
---echo #
 SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
 SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';

@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 Master_Host = '127.0.0.1' (expected '127.0.0.1')

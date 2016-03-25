@@ -15,20 +15,26 @@ id	val
 SET SESSION query_prealloc_size = 8192;
 '#----------------------------FN_DYNVARS_137_05-----------------#'
 SET GLOBAL query_prealloc_size = 8192;
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.query_prealloc_size;
 @@SESSION.query_prealloc_size
 8192
 Expected Value : 8192;
 SET SESSION query_prealloc_size = 16384;
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.query_prealloc_size;
 @@SESSION.query_prealloc_size
 8192
 Expected Value : 8192;
 SET SESSION query_prealloc_size = 8192;
+connection con_int1;
 SELECT @@SESSION.query_prealloc_size;
 @@SESSION.query_prealloc_size
 16384
 Expected Value : 16384;
+connection con_int2;
 SELECT @@SESSION.query_prealloc_size;
 @@SESSION.query_prealloc_size
 8192
@@ -37,5 +43,8 @@ SELECT @@GLOBAL.query_prealloc_size;
 @@GLOBAL.query_prealloc_size
 8192
 Expected Value : 8192;
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 DROP TABLE t1;
 SET @@global.query_prealloc_size = @start_value;

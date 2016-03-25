@@ -22,7 +22,7 @@ mysql
 SHOW DATABASES LIKE 'test';
 Database (test)
 test
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.schemata
 WHERE schema_name IN ('information_schema','mysql','test')
 ORDER BY schema_name;
@@ -37,6 +37,6 @@ Database (mysql)
 SHOW DATABASES LIKE 'test';
 Database (test)
 test
-# Switch to connection default and close connection testuser1
+connection default;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;

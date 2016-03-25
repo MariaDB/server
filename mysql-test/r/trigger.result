@@ -4,6 +4,10 @@ drop database if exists mysqltest;
 drop function if exists f1;
 drop function if exists f2;
 drop procedure if exists p1;
+connect  addconroot1, localhost, root,,;
+connect  addconroot2, localhost, root,,;
+connect  addconwithoutdb, localhost, root,,*NO-ONE*;
+connection default;
 create table t1 (i int);
 create trigger trg before insert on t1 for each row set @a:=1;
 set @a:=0;
@@ -733,7 +737,9 @@ set NEW.username = user;
 select count(*) from ((select 1) union (select 2)) as d1 into i;
 end|
 update t1 set data = 1;
+connection addconroot1;
 update t1 set data = 2;
+connection default;
 drop table t1;
 create table t1 (c1 int, c2 datetime);
 create trigger tr1 before insert on t1 for each row 
@@ -848,12 +854,14 @@ end//
 CALL p1();
 drop procedure p1;
 drop table t1;
+connection addconwithoutdb;
 create trigger t1_bi before insert on test.t1 for each row set @a:=0;
 ERROR 3D000: No database selected
 create trigger test.t1_bi before insert on t1 for each row set @a:=0;
 ERROR 42S02: Table 'test.t1' doesn't exist
 drop trigger t1_bi;
 ERROR 3D000: No database selected
+connection default;
 create table t1 (id int);
 create trigger t1_bi before insert on t1 for each row set @a:=new.id;
 create trigger t1_ai after insert on test.t1 for each row set @b:=new.id;
@@ -1061,7 +1069,10 @@ trigger_conn_id INT
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 SET NEW.trigger_conn_id = CONNECTION_ID();
 INSERT INTO t1 (conn_id, trigger_conn_id) VALUES (CONNECTION_ID(), -1);
+connect  con1,localhost,root,,;
 INSERT INTO t1 (conn_id, trigger_conn_id) VALUES (CONNECTION_ID(), -1);
+connection default;
+disconnect con1;
 SELECT * FROM t1 WHERE conn_id != trigger_conn_id;
 conn_id	trigger_conn_id
 DROP TRIGGER t1_bi;
@@ -1275,10 +1286,12 @@ insert into t1 values ();
 select @a;
 @a
 20
+connection addconroot1;
 insert into t1 values ();
 select @a;
 @a
 20
+connection default;
 drop table t1;
 drop function f1;
 drop table if exists t1;
@@ -1445,6 +1458,9 @@ isave
 1
 2
 drop table t1, t2, t3;
+disconnect addconroot1;
+disconnect addconroot2;
+disconnect addconwithoutdb;
 
 Bug#28502 Triggers that update another innodb table will block
 on X lock unnecessarily
@@ -1464,7 +1480,10 @@ end if;
 end|
 insert into t1 (id, count) values (1, 0);
 lock table t1 write;
+connect  connection_insert, localhost, root, , test, , ;
+connection connection_insert;
 insert into t2 set id=1;
+connection default;
 unlock tables;
 update t2 set id=1 where id=1;
 select * from t1;
@@ -1474,6 +1493,7 @@ select * from t2;
 id
 1
 drop table t1, t2;
+disconnect connection_insert;
 
 Additionally, provide test coverage for triggers and 
 all MySQL data changing commands.
@@ -2245,9 +2265,12 @@ VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9);
 INSERT INTO t2
 VALUES (0),(0),(0),(0),(0),(0),(0),(0),(0);
 UPDATE t1 SET a = 3;
+connect con1,localhost,root,,;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 9
+disconnect con1;
+connection default;
 SELECT * FROM t2;
 b
 9

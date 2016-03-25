@@ -116,8 +116,6 @@ ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
 #   - Change connection to flush cache;
 
 --connect (con2,localhost,root,,)
---echo
---echo ---> connection: con2
 
 #   - Switch environment variables and trigger loading views;
 
@@ -178,8 +176,6 @@ DROP DATABASE mysqltest1|
 #   - Change connection to flush cache;
 
 --connect (con3,localhost,root,,)
---echo
---echo ---> connection: con3
 
 #   - Switch environment variables and trigger loading views;
 
@@ -208,8 +204,6 @@ set names utf8|
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 --disconnect con2
 --disconnect con3
@@ -378,8 +372,6 @@ ALTER DATABASE mysqltest2 COLLATE cp866_general_ci|
 #   - Change connection to flush SP-cache;
 
 --connect (con2,localhost,root,,mysqltest1)
---echo
---echo ---> connection: con2
 
 #   - Switch environment variables and trigger loading stored procedures;
 
@@ -458,8 +450,6 @@ DROP DATABASE mysqltest2|
 #   - Change connection to flush SP-cache;
 
 --connect (con3,localhost,root,,mysqltest1)
---echo
---echo ---> connection: con3
 
 #   - Switch environment variables and trigger loading stored procedures;
 
@@ -485,8 +475,6 @@ set names utf8|
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 --disconnect con2
 --disconnect con3
@@ -654,8 +642,6 @@ ALTER TABLE mysqltest2.t1 DROP COLUMN fake|
 #     (connect using NULL database);
 
 --connect (con2,localhost,root,,)
---echo
---echo ---> connection: con2
 
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
@@ -744,8 +730,6 @@ ALTER TABLE mysqltest2.t1 DROP COLUMN fake|
 #     (connect using NULL database);
 
 --connect (con3,localhost,root,,)
---echo
---echo ---> connection: con3
 
 SET @@character_set_client= cp1251|
 SET @@character_set_results= cp1251|
@@ -772,8 +756,6 @@ use mysqltest1|
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 --disconnect con2
 --disconnect con3
@@ -914,8 +896,6 @@ ALTER DATABASE mysqltest2 COLLATE cp866_general_ci|
 #   - Change connection to flush cache;
 
 --connect (con2,localhost,root,,mysqltest1)
---echo
---echo ---> connection: con2
 
 #   - Switch environment variables and trigger loading stored procedures;
 
@@ -996,8 +976,6 @@ DROP DATABASE mysqltest2|
 #   - Change connection to flush cache;
 
 --connect (con3,localhost,root,,mysqltest1)
---echo
---echo ---> connection: con3
 
 #   - Switch environment variables and trigger loading stored procedures;
 
@@ -1135,19 +1113,12 @@ SHOW CREATE TABLE mysqltest2.t2|
 delimiter ;|
 
 --connection con2
---echo
---echo ---> connection: con2
 --disconnect con2
 --source include/wait_until_disconnected.inc
 --connection con3
---echo
---echo ---> connection: con3
 --disconnect con3
 --source include/wait_until_disconnected.inc
 --connection default
---echo
---echo ---> connection: default
 USE test;
 DROP DATABASE mysqltest1;
 DROP DATABASE mysqltest2;
-

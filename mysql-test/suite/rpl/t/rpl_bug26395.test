@@ -37,7 +37,6 @@ source include/master-slave.inc;
 
 --echo ==== Initialize ====
 
---echo [on master]
 --connection master
 
 CREATE TABLE tinnodb (a INT) ENGINE = INNODB;
@@ -82,12 +81,10 @@ SELECT * FROM tinnodb ORDER BY a;
 # Easiest to clean up master and slave separately, without
 # replication, since master and slave are out of sync.
 
---echo [on master]
 connection master;
 DROP TABLE tinnodb;
 set @@debug_dbug= @old_debug;
 
---echo [on slave]
 connection slave;
 DROP TABLE tinnodb;
 

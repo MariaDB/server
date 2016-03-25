@@ -21,6 +21,7 @@ test	justonce	ENABLED	1
 "Checking event data on the master"
 ONE
 1
+connection slave;
 "Checking event data on the slave"
 ZERO
 0
@@ -38,6 +39,7 @@ db	name	status	originator
 test	slave_once	ENABLED	2
 "Dropping event test.slave_once on the slave"
 DROP EVENT IF EXISTS test.slave_once;
+connection master;
 "Dropping event test.justonce on the master"
 DROP EVENT IF EXISTS test.justonce;
 "Creating event test.er on the master"
@@ -47,10 +49,12 @@ INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er');
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	ENABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er')
+connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	SLAVESIDE_DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er')
+connection master;
 "Altering event test.er on the master"
 ALTER EVENT test.er ON SCHEDULE EVERY 5 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO 
 INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er');
@@ -58,15 +62,18 @@ INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er');
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	ENABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er')
+connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	SLAVESIDE_DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er')
+connection master;
 "Dropping event test.er on the master"
 DROP EVENT test.er;
 "Checking event status on the master"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
 db	name	status	originator
+connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
 db	name	status	originator
@@ -89,13 +96,19 @@ test	slave_terminate	SLAVESIDE_DISABLED	2
 "Dropping event test.slave_terminate on the slave"
 DROP EVENT test.slave_terminate;
 "Cleanup"
+connection master;
 DROP TABLE t1;
+connection slave;
+connection master;
+connection master;
 CREATE TABLE t28953 (a INT);
 CREATE EVENT event1 ON SCHEDULE EVERY 1 YEAR
 DO BEGIN
 select * from t28953;
 END;|
 ALTER EVENT event1 RENAME TO event2;
+connection slave;
+connection master;
 DROP EVENT event2;
 CREATE TABLE test.t1(details CHAR(30));
 CREATE EVENT /*!50000 event44331_1 */
@@ -122,7 +135,6 @@ ABC
 ABC
 123
 123
-#on master 
 select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_1';
 EVENT_SCHEMA	EVENT_NAME	DEFINER
@@ -139,7 +151,8 @@ select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_4';
 EVENT_SCHEMA	EVENT_NAME	DEFINER
 test	event44331_4	user44331@%
-#on slave
+connection slave;
+connection slave;
 select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_1';
 EVENT_SCHEMA	EVENT_NAME	DEFINER
@@ -156,6 +169,7 @@ select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_4';
 EVENT_SCHEMA	EVENT_NAME	DEFINER
 test	event44331_4	user44331@%
+connection master;
 SET @@global.event_scheduler= @old_event_scheduler;
 DROP TABLE t28953;
 DROP TABLE t1;
@@ -163,4 +177,5 @@ DROP EVENT event44331_1;
 DROP EVENT event44331_2;
 DROP EVENT event44331_3;
 DROP EVENT event44331_4;
+connection slave;
 include/rpl_end.inc

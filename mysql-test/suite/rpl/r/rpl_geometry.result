@@ -11,5 +11,7 @@ create table t2 (a int(11) not null auto_increment primary key,
 b geometrycollection default null,
 c decimal(10,0));
 insert into t2(c) values (null);
+connection slave;
+connection master;
 drop table t1, t2;
 include/rpl_end.inc

@@ -118,7 +118,6 @@ let $connection_name= master1;
 let $connection_id= `SELECT CONNECTION_ID()`;
 
 connection master;
-echo [on master];
 
 # This will block the execution of a statement at the DBUG_SYNC_POINT
 # with given lock name
@@ -136,7 +135,6 @@ if ($debug_lock)
 ######## START TEST ########
 
 connection master1;
-echo [on master1];
 
 disable_warnings;
 

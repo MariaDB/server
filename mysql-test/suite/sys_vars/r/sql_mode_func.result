@@ -69,26 +69,26 @@ a	b
 Should return no rows in columns a,b;
 '#-------------------FN_DYNVARS_153_04-------------------------#'
 SET GLOBAL sql_mode = '';
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_mode;
 @@SESSION.sql_mode
 
 '' Expected
 SET SESSION sql_mode = 'TRADITIONAL';
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_mode;
 @@SESSION.sql_mode
 
 '' Expected
 SET SESSION sql_mode = 'ANSI';
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_mode;
 @@SESSION.sql_mode
 REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
 'REAL_AS_FLOAT, PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, ANSI' Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_mode;
 @@SESSION.sql_mode
 STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
@@ -97,8 +97,9 @@ SELECT @@GLOBAL.sql_mode;
 @@GLOBAL.sql_mode
 
 '' Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET SESSION sql_mode = @sql_mode_session;
 SET GLOBAL sql_mode = @sql_mode_global;
 DROP TABLE t1;

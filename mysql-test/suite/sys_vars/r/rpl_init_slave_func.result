@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-connection slave
+connection slave;
 SET @start_max_connections= @@global.max_connections;
 SET @start_init_slave= @@global.init_slave;
 SET NAMES utf8;

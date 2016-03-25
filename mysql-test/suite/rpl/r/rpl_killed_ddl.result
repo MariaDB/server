@@ -51,95 +51,175 @@ END;
 //
 CREATE INDEX i1 ON t1 (a);
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE a < 100;
-[on master]
-[on master1]
+connection slave;
+connection master1;
+connection master;
+connection master1;
 CREATE DATABASE d2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP DATABASE d1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP DATABASE IF EXISTS d2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE EVENT e2
 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 DAY
 DO INSERT INTO test.t1 VALUES (2);
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP EVENT e1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP EVENT IF EXISTS e2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE FUNCTION f2 () RETURNS INT DETERMINISTIC
 RETURN 1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 ALTER FUNCTION f1 SQL SECURITY INVOKER;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP FUNCTION f1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE PROCEDURE p2 (OUT rows INT)
 BEGIN
 SELECT COUNT(*) INTO rows FROM t2;
 END;
 //
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 ALTER PROCEDURE p1 SQL SECURITY INVOKER COMMENT 'return rows of table t1';
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP PROCEDURE p1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE TABLE t2 (b int);
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 ALTER TABLE t1 ADD (d int);
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 RENAME TABLE t3 TO t4;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE INDEX i2 on t1 (a);
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP INDEX i1 on t1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
+connection master;
 CREATE TABLE IF NOT EXISTS t4 (a int);
+connection master1;
 CREATE TRIGGER tr2 BEFORE INSERT ON t4
 FOR EACH ROW BEGIN
 DELETE FROM t1 WHERE a=NEW.a;
 END;
 //
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP TRIGGER tr1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP TRIGGER IF EXISTS tr2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE VIEW v2 AS SELECT a FROM t1 WHERE a > 100;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP VIEW v1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP VIEW IF EXISTS v2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP TABLE t1;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
 DROP TABLE IF EXISTS t2;
 source include/kill_query.inc;
+connection master;
 include/rpl_diff.inc
+connection master;
+connection master1;
+connection master;
 DROP DATABASE IF EXISTS d1;
 DROP DATABASE IF EXISTS d2;
 DROP DATABASE IF EXISTS d3;

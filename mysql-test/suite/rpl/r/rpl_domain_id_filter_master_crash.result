@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-# On master
+connection master;
 call mtr.add_suppression("mysqld: Table './mysql/gtid_slave_pos' is marked as crashed and should be repaired");
 call mtr.add_suppression("Checking table:   './mysql/gtid_slave_pos'");
 call mtr.add_suppression("mysql.gtid_slave_pos: 1 client is using or hasn't closed the table properly");
@@ -9,7 +9,7 @@ create table ti (a int auto_increment primary key) engine=innodb;
 create table tm (a int auto_increment primary key) engine=myisam;
 insert into ti set a=null;
 insert into tm set a=null;
-# On slave
+connection slave;
 include/stop_slave.inc
 select * from ti;
 a
@@ -17,7 +17,7 @@ a
 select * from tm;
 a
 1
-# On master
+connection master;
 SET @@session.gtid_domain_id= 1;
 begin;
 insert into ti set a=null;
@@ -27,18 +27,18 @@ SET @@session.gtid_domain_id= 0;
 insert into ti set a=null;
 insert into tm set a=null;
 set @@global.debug_dbug="+d,crash_before_send_xid";
-# On slave
+connection slave;
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
-# On master
+connection master;
 include/rpl_start_server.inc [server_number=1]
 # Master has restarted successfully
 set @@global.debug_dbug="-d";
-# On slave
+connection slave;
 include/stop_slave.inc
 include/start_slave.inc
 select * from ti;
@@ -49,10 +49,11 @@ select * from tm;
 a
 1
 3
-# On master
+connection master;
 drop table ti;
 drop table tm;
-# On slave
+connection slave;
+connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;
 include/start_slave.inc

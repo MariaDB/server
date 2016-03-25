@@ -2,10 +2,10 @@ include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Deadlock found");
 call mtr.add_suppression("Can't find record in 't.'");
-**** On Master ****
+connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
-**** On Slave ****
+connection slave;
 SHOW STATUS LIKE 'Slave_retried_transactions';
 Variable_name	Value
 Slave_retried_transactions	0
@@ -17,7 +17,7 @@ a	b
 2	2
 3	3
 4	4
-**** On Master ****
+connection master;
 UPDATE t1 SET a = 5, b = 5 WHERE a = 1;
 SELECT * FROM t1;
 a	b
@@ -25,7 +25,7 @@ a	b
 2	2
 3	3
 4	4
-**** On Slave ****
+connection slave;
 set @@global.slave_exec_mode= default;
 SHOW STATUS LIKE 'Slave_retried_transactions';
 Variable_name	Value
@@ -37,7 +37,10 @@ a	b
 3	3
 4	4
 include/check_slave_is_running.inc
+connection slave;
 call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.t1");
-**** On Master ****
+connection master;
 DROP TABLE t1;
+connection slave;
+connection master;
 include/rpl_end.inc

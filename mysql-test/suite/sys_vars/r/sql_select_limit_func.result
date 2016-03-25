@@ -144,26 +144,26 @@ info: Records: 9  Duplicates: 0  Warnings: 0
 Expecting Records: 9
 '#-----------------------------FN_DYNVARS_165_06---------------------#'
 SET GLOBAL sql_select_limit = 2;
-** Connecting con_int2 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_select_limit;
 @@SESSION.sql_select_limit
 2
 2 Expected
 SET SESSION sql_select_limit = 10;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_select_limit;
 @@SESSION.sql_select_limit
 2
 2 Expected
 SET SESSION sql_select_limit = 12;
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_select_limit;
 @@SESSION.sql_select_limit
 12
 12 Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_select_limit;
 @@SESSION.sql_select_limit
 10
@@ -172,8 +172,9 @@ SELECT @@GLOBAL.sql_select_limit;
 @@GLOBAL.sql_select_limit
 2
 2 Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET @@SESSION.sql_select_limit = @session_sql_select_limit;
 SET @@GLOBAL.sql_select_limit = @global_sql_select_limit;
 DROP TABLE t1;

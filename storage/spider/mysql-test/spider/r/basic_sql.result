@@ -9,22 +9,27 @@ child3_2
 child3_3
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
 
 create table select test
+connection master_1;
 DROP TABLE IF EXISTS tb_l;
 CREATE TABLE tb_l (
 a INT,
@@ -43,6 +48,7 @@ CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 SELECT a, b, c FROM tb_l
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -52,6 +58,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	c	2001-12-31 23:59:59
 
 create table ignore select test
+connection master_1;
 DROP TABLE IF EXISTS ta_l;
 DROP TABLE IF EXISTS tb_l;
 CREATE TABLE tb_l (
@@ -76,6 +83,7 @@ Warning	1062	Duplicate entry '2' for key 'PRIMARY'
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
 Warning	1062	Duplicate entry '4' for key 'PRIMARY'
 Warning	1062	Duplicate entry '5' for key 'PRIMARY'
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -85,11 +93,13 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	c	2001-12-31 23:59:59
 
 create table ignore select test
+connection master_1;
 DROP TABLE IF EXISTS ta_l;
 CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 REPLACE SELECT a, b, c FROM tb_l
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -99,10 +109,12 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 create no index table
+connection master_1;
 DROP TABLE IF EXISTS ta_l_no_idx;
 CREATE TABLE ta_l_no_idx
 MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
 SELECT a, b, c FROM tb_l
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l_no_idx ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -112,6 +124,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select table
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -121,6 +134,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select table shared mode
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a
 LOCK IN SHARE MODE;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -131,6 +145,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select table for update
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a
 FOR UPDATE;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -141,6 +156,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select table join
+connection master_1;
 SELECT a.a, a.b, date_format(b.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a, tb_l b
 WHERE a.a = b.a ORDER BY a.a;
 a	b	date_format(b.c, '%Y-%m-%d %H:%i:%s')
@@ -151,6 +167,7 @@ a	b	date_format(b.c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select table straight_join
+connection master_1;
 SELECT STRAIGHT_JOIN a.a, a.b, date_format(b.c, '%Y-%m-%d %H:%i:%s')
 FROM ta_l a, tb_l b WHERE a.a = b.a ORDER BY a.a;
 a	b	date_format(b.c, '%Y-%m-%d %H:%i:%s')
@@ -161,6 +178,7 @@ a	b	date_format(b.c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_small_result
+connection master_1;
 SELECT SQL_SMALL_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -171,6 +189,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_big_result
+connection master_1;
 SELECT SQL_BIG_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -181,6 +200,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_buffer_result
+connection master_1;
 SELECT SQL_BUFFER_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -191,6 +211,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_cache
+connection master_1;
 SELECT SQL_CACHE a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -201,6 +222,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_no_cache
+connection master_1;
 SELECT SQL_NO_CACHE a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -211,6 +233,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select sql_calc_found_rows
+connection master_1;
 SELECT SQL_CALC_FOUND_ROWS a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a LIMIT 4;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -218,11 +241,13 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	g	2000-02-01 00:00:00
 3	j	2007-05-04 20:03:11
 4	i	2003-10-30 05:01:03
+connection master_1;
 SELECT found_rows();
 found_rows()
 5
 
 select high_priority
+connection master_1;
 SELECT HIGH_PRIORITY a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -233,6 +258,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select distinct
+connection master_1;
 SELECT DISTINCT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -243,11 +269,13 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select count
+connection master_1;
 SELECT count(*) FROM ta_l ORDER BY a;
 count(*)
 5
 
 select table join not use index
+connection master_1;
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM tb_l a WHERE
 EXISTS (SELECT * FROM ta_l b WHERE b.b = a.b) ORDER BY a.a;
 a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
@@ -258,27 +286,35 @@ a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select using pushdown
+connection master_1;
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a WHERE
 a.b = 'g' ORDER BY a.a;
 a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 2	g	2000-02-01 00:00:00
 
 select using index and pushdown
+connection master_1;
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a WHERE
 a.a > 0 AND a.b = 'g' ORDER BY a.a;
 a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 2	g	2000-02-01 00:00:00
 
 insert
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
 
 insert select
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT INTO ta_l (a, b, c) SELECT a, b, c FROM tb_l;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -288,61 +324,82 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 insert select a
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES ((SELECT a FROM tb_l ORDER BY a LIMIT 1),
 'e', '2008-01-01 23:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
 
 insert low_priority
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT LOW_PRIORITY INTO ta_l (a, b, c) values (2, 'e', '2008-01-01 23:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
 
 insert high_priority
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT HIGH_PRIORITY INTO ta_l (a, b, c) VALUES (2, 'e',
 '2008-01-01 23:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
 
 insert ignore
+connection master_1;
 INSERT IGNORE INTO ta_l (a, b, c) VALUES (2, 'd', '2009-02-02 01:01:01');
 Warnings:
 Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
 
 insert update (insert)
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59') ON DUPLICATE
 KEY UPDATE b = 'f', c = '2005-08-08 11:11:11';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
 
 insert update (update)
+connection master_1;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59') ON DUPLICATE
 KEY UPDATE b = 'f', c = '2005-08-08 11:11:11';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	f	2005-08-08 11:11:11
 
 replace
+connection master_1;
 TRUNCATE TABLE ta_l;
 INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
+connection master_1;
 REPLACE INTO ta_l (a, b, c) VALUES (2, 'f', '2008-02-02 02:02:02');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	f	2008-02-02 02:02:02
 
 replace select
+connection master_1;
 REPLACE INTO ta_l (a, b, c) SELECT a, b, c FROM tb_l;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -352,8 +409,10 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 replace select a
+connection master_1;
 REPLACE INTO ta_l (a, b, c) VALUES ((SELECT a FROM tb_l ORDER BY a LIMIT 1),
 'e', '2008-01-01 23:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -363,8 +422,10 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 replace low_priority
+connection master_1;
 REPLACE LOW_PRIORITY INTO ta_l (a, b, c) VALUES (3, 'g',
 '2009-03-03 03:03:03');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -377,66 +438,84 @@ update
 TRUNCATE TABLE ta_l;
 INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (2, 'e', '2008-01-01 23:59:59');
+connection master_1;
 UPDATE ta_l SET b = 'f', c = '2008-02-02 02:02:02' WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
 2	f	2008-02-02 02:02:02
 
 update select
+connection master_1;
 UPDATE ta_l SET b = 'g', c = '2009-03-03 03:03:03' WHERE a IN (SELECT a FROM
 tb_l);
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
 2	g	2009-03-03 03:03:03
 
 update select a
+connection master_1;
 UPDATE ta_l SET b = 'h', c = '2010-04-04 04:04:04' WHERE a = (SELECT a FROM
 tb_l ORDER BY a LIMIT 1);
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	h	2010-04-04 04:04:04
 2	g	2009-03-03 03:03:03
 
 update join
+connection master_1;
 UPDATE ta_l a, tb_l b SET a.b = b.b, a.c = b.c WHERE a.a = b.a;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
 2	g	2000-02-01 00:00:00
 
 update join a
+connection master_1;
 UPDATE ta_l a, tb_l b SET a.b = 'g', a.c = '2009-03-03 03:03:03' WHERE
 a.a = b.a;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
 2	g	2009-03-03 03:03:03
 
 update low_priority
+connection master_1;
 UPDATE LOW_PRIORITY ta_l SET b = 'f', c = '2008-02-02 02:02:02' WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
 2	f	2008-02-02 02:02:02
 
 update ignore
+connection master_1;
 UPDATE IGNORE ta_l SET a = 1, b = 'g', c = '2009-03-03 03:03:03' WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
 2	f	2008-02-02 02:02:02
 
 update pushdown
+connection master_1;
 update ta_l set b = 'j', c = '2009-03-03 03:03:03' where b = 'f';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
 2	j	2009-03-03 03:03:03
 
 update index pushdown
+connection master_1;
 UPDATE ta_l SET b = 'g', c = '2009-03-03 03:03:03' WHERE a > 0 AND b = 'j';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	g	2009-03-03 03:03:03
@@ -450,7 +529,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE FROM ta_l WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -464,7 +545,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 10	j	2008-01-01 23:59:59
 
 delete all
+connection master_1;
 DELETE FROM ta_l;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
@@ -476,7 +559,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE FROM ta_l WHERE a IN (SELECT a FROM tb_l);
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 6	e	2008-01-01 23:59:59
@@ -493,7 +578,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE FROM ta_l WHERE a = (SELECT a FROM tb_l ORDER BY a LIMIT 1);
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59
@@ -514,7 +601,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE a FROM ta_l a, (SELECT a FROM tb_l ORDER BY a) b WHERE a.a = b.a;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 6	e	2008-01-01 23:59:59
@@ -531,7 +620,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE LOW_PRIORITY FROM ta_l WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -552,7 +643,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE IGNORE FROM ta_l WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -573,7 +666,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE QUICK FROM ta_l WHERE a = 2;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	e	2008-01-01 23:59:59
@@ -594,7 +689,9 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE FROM ta_l WHERE b = 'e';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 10	j	2008-01-01 23:59:59
@@ -607,19 +704,26 @@ INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
 (6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
 (8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
 (10, 'j', '2008-01-01 23:59:59');
+connection master_1;
 DELETE FROM ta_l WHERE a > 0 AND b = 'e';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 10	j	2008-01-01 23:59:59
 
 truncate
+connection master_1;
 TRUNCATE TABLE ta_l;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for master_1
 for child2

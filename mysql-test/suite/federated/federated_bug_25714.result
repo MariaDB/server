@@ -1,7 +1,13 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
 CREATE DATABASE federated;
+connection slave;
 CREATE DATABASE federated;
+connection master;
 SET @OLD_MASTER_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
+connection slave;
 SET @OLD_SLAVE_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
 DROP TABLE IF EXISTS federated.bug_13118_table;
@@ -12,6 +18,7 @@ CREATE TABLE federated.t1 (
 INSERT INTO federated.t1 SET value=1;
 INSERT INTO federated.t1 SET value=2;
 INSERT INTO federated.t1 SET value=2;
+connection master;
 DROP TABLE IF EXISTS federated.t1;
 CREATE TABLE federated.t1 (
 `id` int auto_increment primary key, 
@@ -45,9 +52,12 @@ id	value
 8	55
 DROP TABLE federated.t1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_MASTER_CONCURRENT_INSERT;
+connection slave;
 DROP TABLE federated.t1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
+connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

@@ -99,22 +99,16 @@ CREATE USER plug_user
   IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
---echo connect(plug_user,localhost,plug_user,plug_dest);
 connect(plug_user,localhost,plug_user,plug_dest);
 select USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect plug_user;
 disconnect plug_user;
 RENAME USER plug_user TO new_user;
---echo connect(plug_user,localhost,new_user,plug_dest);
 connect(plug_user,localhost,new_user,plug_dest);
 select USER(),CURRENT_USER();
---echo connection default;
 connection default;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo disconnect plug_user;
 disconnect plug_user;
 UPDATE mysql.user SET user='plug_user' WHERE user='new_user';
 FLUSH PRIVILEGES;
@@ -128,12 +122,9 @@ CREATE USER plug_user
   IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
---echo connect(plug_user,localhost,plug_user,plug_dest);
 connect(plug_user,localhost,plug_user,plug_dest);
 select USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect plug_user;
 disconnect plug_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
@@ -149,7 +140,6 @@ UPDATE mysql.user SET plugin='new_plugin_server' WHERE user='new_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo connect(plug_user,localhost,new_user,new_dest);
 --disable_query_log
 --error ER_PLUGIN_IS_NOT_LOADED
 connect(plug_user,localhost,new_user,new_dest);
@@ -160,12 +150,9 @@ FLUSH PRIVILEGES;
 GRANT PROXY ON new_dest TO new_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo connect(plug_user,localhost,new_user,new_dest);
 connect(plug_user,localhost,new_user,new_dest);
 select USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect plug_user;
 disconnect plug_user;
 UPDATE mysql.user SET USER='plug_dest' WHERE user='new_dest';
 FLUSH PRIVILEGES;
@@ -173,12 +160,9 @@ CREATE USER new_dest IDENTIFIED BY 'new_dest_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 GRANT ALL PRIVILEGES ON test.* TO new_user;
---echo connect(plug_user,localhost,new_dest,new_dest_passwd);
 connect(plug_user,localhost,new_dest,new_dest_passwd);
 select USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect plug_user;
 disconnect plug_user;
 DROP USER new_user,new_dest,plug_dest;
 
@@ -188,36 +172,26 @@ CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
 --echo ========== test 2.2.1 ======================================
 SELECT @@proxy_user;
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
---echo connect(proxy_con,localhost,proxy_user,proxied_user);
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR : this should fail : no grant
 connect(proxy_con,localhost,proxy_user,proxied_user);
 --enable_query_log
 GRANT PROXY ON proxied_user TO ''@'%%';
---echo connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
---echo connect(proxy_con,localhost,proxy_user,proxied_user);
 connect(proxy_con,localhost,proxy_user,proxied_user);
 SELECT USER(),CURRENT_USER();
 --echo ========== test 2.2.1 ======================================
 SELECT @@proxy_user;
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
 DROP USER ''@'%%',proxied_user;
 #
@@ -226,34 +200,24 @@ GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'%%'
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
---echo connect(proxy_con,localhost,proxy_user,proxied_user);
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR : this should fail : no grant
 connect(proxy_con,localhost,proxy_user,proxied_user);
 --enable_query_log
 GRANT PROXY ON proxied_user TO ''@'%%';
---echo connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
 SELECT USER(),CURRENT_USER();
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
---echo connect(proxy_con,localhost,proxy_user,proxied_user);
 connect(proxy_con,localhost,proxy_user,proxied_user);
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection default;
 connection default;
---echo disconnect proxy_con;
 disconnect proxy_con;
 DROP USER ''@'%%',proxied_user;
 #
@@ -270,47 +234,31 @@ GRANT PROXY ON proxied_user_4 TO ''@'%%';
 GRANT PROXY ON proxied_user_5 TO ''@'%%';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
---echo connect(proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd');
 connect(proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd');
---echo connect(proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd);
 connect(proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd);
---echo connect(proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd);
 connect(proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd);
---echo connect(proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd);
 connect(proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd);
---echo connect(proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd);
 connect(proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd);
---echo connection proxy_con_1;
 connection proxy_con_1;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection proxy_con_2;
 connection proxy_con_2;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection proxy_con_3;
 connection proxy_con_3;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection proxy_con_4;
 connection proxy_con_4;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection proxy_con_5;
 connection proxy_con_5;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
---echo connection default;
 connection default;
---echo disconnect proxy_con_1;
 disconnect proxy_con_1;
---echo disconnect proxy_con_2;
 disconnect proxy_con_2;
---echo disconnect proxy_con_3;
 disconnect proxy_con_3;
---echo disconnect proxy_con_4;
 disconnect proxy_con_4;
---echo disconnect proxy_con_5;
 disconnect proxy_con_5;
 DROP USER ''@'%%',proxied_user_1,proxied_user_2,proxied_user_3,proxied_user_4,proxied_user_5;
 

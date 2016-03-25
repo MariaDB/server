@@ -30,6 +30,7 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	0
 2	1
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	4
@@ -38,16 +39,23 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	0
 2	1
+connection master;
 drop table t1,t2;
+connection slave;
 reset master;
+connection master;
 CREATE TABLE t1 ( a INT );
 INSERT INTO t1 VALUES (0);
 UPDATE t1, (SELECT 3 as b) AS x SET t1.a = x.b;
 select * from t1;
 a
 3
+connection slave;
+connection slave;
 select * from t1;
 a
 3
+connection master;
 drop table t1;
+connection slave;
 include/rpl_end.inc

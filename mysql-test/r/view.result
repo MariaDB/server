@@ -2912,17 +2912,24 @@ set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 CREATE DATABASE bug21261DB;
 USE bug21261DB;
+connect  root,localhost,root,,bug21261DB;
+connection root;
 CREATE TABLE t1 (x INT);
 CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT x FROM t1;
 GRANT INSERT, UPDATE ON v1 TO 'user21261'@'localhost';
 GRANT INSERT, UPDATE ON t1 TO 'user21261'@'localhost';
 CREATE TABLE t2 (y INT);
 GRANT SELECT ON t2 TO 'user21261'@'localhost';
+connect  user21261, localhost, user21261,, bug21261DB;
+connection user21261;
 INSERT INTO v1 (x) VALUES (5);
 UPDATE v1 SET x=1;
+connection root;
 GRANT SELECT ON v1 TO 'user21261'@'localhost';
 GRANT SELECT ON t1 TO 'user21261'@'localhost';
+connection user21261;
 UPDATE v1,t2 SET x=1 WHERE x=y;
+connection root;
 SELECT * FROM t1;
 x
 1
@@ -2931,7 +2938,10 @@ DROP USER 'user21261'@'localhost';
 DROP VIEW v1;
 DROP TABLE t1;
 DROP DATABASE bug21261DB;
+connection default;
 USE test;
+disconnect root;
+disconnect user21261;
 set GLOBAL sql_mode=default;
 set LOCAL sql_mode=default;
 create table t1 (f1 datetime);
@@ -4787,32 +4797,36 @@ DROP TABLE t1, t2;
 DROP TABLE IF EXISTS t1;
 DROP VIEW IF EXISTS v1;
 DROP PROCEDURE IF EXISTS p1;
-# Connection default
+connect  con2, localhost, root;
+connect  con3, localhost, root;
+connection default;
 CREATE VIEW v1 AS SELECT schema_name FROM information_schema.schemata;
 CREATE TABLE t1 (str VARCHAR(50));
 CREATE PROCEDURE p1() INSERT INTO t1 SELECT * FROM v1;
 # CALL p1() so the view is merged.
 CALL p1();
-# Connection 3
+connection con3;
 LOCK TABLE t1 READ;
-# Connection default
+connection default;
 # Try to CALL p1() again, this time it should block for t1.
 # Sending:
 CALL p1();
-# Connection 2
+connection con2;
 # ... then try to drop the view. This should block.
 # Sending:
 DROP VIEW v1;
-# Connection 3
+connection con3;
 # Now allow CALL p1() to complete
 UNLOCK TABLES;
-# Connection default
+connection default;
 # Reaping: CALL p1()
-# Connection 2
+connection con2;
 # Reaping: DROP VIEW v1
-# Connection default
+connection default;
 DROP PROCEDURE p1;
 DROP TABLE t1;
+disconnect con2;
+disconnect con3;
 #
 # Bug#12626844: WRONG ERROR MESSAGE WHILE CREATING A VIEW ON A
 #               NON EXISTING DATABASE

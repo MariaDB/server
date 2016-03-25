@@ -10,16 +10,13 @@
 # Only test for innodb
 --source include/have_innodb.inc
 
---echo # Establish connection con1 (user=root)
 connect (con1,localhost,root,,);
---echo # Establish connection con2 (user=root)
 connect (con2,localhost,root,,);
 
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
---echo # Switch to connection con1
 connection con1;
 eval create table t1 (id integer, x integer) engine = InnoDB;
 insert into t1 values(0, 0);
@@ -38,7 +35,6 @@ SELECT * from t1 where id = 0 FOR UPDATE;
 # To make sure con1 holding the lock table mutex and sleeping
 --sleep 2
 
---echo # Switch to connection con2
 connection con2;
 set autocommit=0;
 
@@ -66,7 +62,6 @@ SELECT * from t1 where id = 0 FOR UPDATE;
 # so mysqld will abort after 600 * 10 + 1 * 10 = 6010 seconds
 # in debug mode and 600 + 1 * 10 = 610 seconds in release mode.
 
---echo # Switched to the default connection
 connection default;
 
 --disable_result_log

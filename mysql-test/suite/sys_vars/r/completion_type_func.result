@@ -6,7 +6,9 @@ id INT NOT NULL,
 PRIMARY KEY (id),
 name VARCHAR(30)
 ) ENGINE = INNODB;
-## Creating new connections test_con1, test_con2 ##
+connect  test_con1,localhost,root,,;
+connect  test_con2,localhost,root,,;
+connection default;
 #########################################################
 #    Setting initial value of completion_type to zero   #
 #########################################################
@@ -26,12 +28,12 @@ id	name
 1	Record_1
 2	Record_2
 3	Record_3
-Switching to connection test_con1
+connection test_con1;
 ## Don't expect to see id's 2 and 3 in the table w/o COMMIT ##
 SELECT * FROM t1;
 id	name
 1	Record_1
-Switching to default connection
+connection default;
 COMMIT;
 ## test rollback ##
 START TRANSACTION;
@@ -44,7 +46,7 @@ id	name
 3	Record_3
 4	Record_4
 5	Record_5
-Switching to connection test_con1
+connection test_con1;
 ## Don't expect to see id's 4 and 5 here ##
 ## Expect to see 3, Record_3 ##
 SELECT * FROM t1;
@@ -52,7 +54,7 @@ id	name
 1	Record_1
 2	Record_2
 3	Record_3
-Switching to connection default;
+connection default;
 ROLLBACK;
 ## Don't expect to see id's 4 and 5 now ##
 SELECT * FROM t1;
@@ -64,7 +66,7 @@ id	name
 #########################################################
 #    Setting initial value of completion_type to one    #
 #########################################################
-Switching to connection test_con1;
+connection test_con1;
 SET @@session.completion_type = 1;
 START TRANSACTION;
 SELECT * FROM t1;
@@ -85,7 +87,7 @@ id	name
 6	Record_6
 7	Record_7
 8	Record_8
-switching to test_con2
+connection test_con2;
 ## Do not expect to see 8, Record_8 as no COMMIT has occurred ##
 SELECT * FROM t1;
 id	name
@@ -94,7 +96,7 @@ id	name
 3	Record_3
 6	Record_6
 7	Record_7
-switch to connection test_con1
+connection test_con1;
 ## Testing ROLLBACK behavior
 START TRANSACTION;
 INSERT INTO t1 VALUES(9, 'Record_9');
@@ -123,7 +125,7 @@ id	name
 8	Record_8
 ## Expect a new transaction ##
 INSERT INTO t1 VALUES(9, 'Record_9');
-Switching to connection test_con2
+connection test_con2;
 ## Don't expect to see 9, Record_9 due to no COMMIT yet ##
 SELECT * FROM t1;
 id	name
@@ -133,7 +135,7 @@ id	name
 6	Record_6
 7	Record_7
 8	Record_8
-Switching to connection test_con1
+connection test_con1;
 ROLLBACK;
 ## Don't expect to see 9, Record_9
 SELECT * FROM t1;
@@ -165,7 +167,7 @@ COMMIT;
 ## disconnect after using COMMIT ##
 INSERT INTO t1 VALUES(4,'Record_4');
 Got one of the listed errors
-switch to connection test_con2
+connection test_con2;
 SET @@session.completion_type = 2;
 ## Inserting rows and using Rollback which should Rollback & release ##
 START TRANSACTION;
@@ -185,4 +187,7 @@ ROLLBACK;
 ## Expect a failure due to COMMIT/ROLLBACK AND RELEASE behavior ##
 INSERT INTO t1 VALUES(4,'Record_4');
 Got one of the listed errors
+connection default;
+disconnect test_con1;
+disconnect test_con2;
 DROP TABLE t1;

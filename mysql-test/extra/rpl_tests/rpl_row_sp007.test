@@ -22,25 +22,16 @@ BEGIN
 END|
 delimiter ;|
 
-let $message=< ---- Master selects-- >;
---source include/show_msg.inc
 CALL test.p1(12);
 SELECT * FROM test.t1;
 
-
-let $message=< ---- Slave selects-- >;
---source include/show_msg.inc
 sync_slave_with_master;
 SELECT * FROM test.t1;
 
-let $message=< ---- Master selects-- >;
---source include/show_msg.inc
 connection master;
 CALL test.p1(13);
 SELECT * FROM test.t1;
 
-let $message=< ---- Slave selects-- >;
---source include/show_msg.inc
 sync_slave_with_master;
 SELECT * FROM test.t1;
 

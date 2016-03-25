@@ -27,15 +27,19 @@ CREATE USER 'plug'@'santa.claus.ipv4.example.com'
 CREATE USER 'plug_dest'@'santa.claus.ipv4.example.com'
   IDENTIFIED BY 'plug_test_passwd';
 GRANT SELECT ON test.* TO 'plug_dest'@'santa.claus.ipv4.example.com';
+connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive
 select current_user();
 current_user()
 root@localhost
+disconnect con1;
+connection default;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 uninstall plugin test_plugin_server;
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -65,6 +69,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -95,6 +100,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 install plugin test_plugin_server soname 'PLUGIN_AUTH';
 ERROR 28000: Access denied for user 'plug'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -124,6 +130,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'plug'@'santa.claus.ipv4.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -154,6 +161,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 GRANT PROXY ON 'plug_dest'@'santa.claus.ipv4.example.com'
   TO 'plug'@'santa.claus.ipv4.example.com';
+connect  con4,"127.0.0.1",plug,plug_dest,test,$MASTER_MYPORT,,,auth_test_plugin;
 select "Con4 is alive";
 Con4 is alive
 Con4 is alive
@@ -163,6 +171,8 @@ plug@santa.claus.ipv4.example.com
 select current_user();
 current_user()
 plug_dest@santa.claus.ipv4.example.com
+disconnect con4;
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com

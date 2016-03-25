@@ -13,6 +13,8 @@ BEGIN;
 SELECT b FROM t2 WHERE b=7 FOR UPDATE;
 b
 7
+CONNECT  addconroot, localhost, root,,;
+connection addconroot;
 BEGIN;
 SELECT b FROM t2 WHERE b=7 FOR UPDATE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -25,6 +27,8 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SELECT * FROM t1;
 a	b
 1070109	99
+connection default;
+disconnect addconroot;
 DROP TABLE t2, t1;
 # End of 5.0 tests
 #
@@ -40,10 +44,14 @@ begin;
 select * from t1 where b=5 for update;
 a	b
 5	5
+connect  con1, localhost, root,,;
+connection con1;
 insert ignore into t1 (b) select a as b from t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
 # Cleanup
 #
+disconnect con1;
 commit;
 set autocommit=default;
 drop table t1;
@@ -51,19 +59,27 @@ drop table t1;
 # Bug #37183 insert ignore into .. select ... hangs 
 #            after deadlock was encountered
 #
+connect  con1,localhost,root,,;
 create table t1(id int primary key,v int)engine=innodb;
 insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
 create table t2 like t1;
+connection con1;
 begin;
 update t1 set v=id*2 where id=1;
+connection default;
 begin;
 update t1 set v=id*2 where id=2;
+connection con1;
 update t1 set v=id*2 where id=2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
 insert ignore into t2 select * from t1 where id=1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 rollback;
+connection con1;
 rollback;
+connection default;
+disconnect con1;
 drop table t1, t2;
 #
 # Bug#41756 Strange error messages about locks from InnoDB
@@ -162,8 +178,8 @@ begin;
 select 1 from t1 natural join (select 2 as a, 1 as b union all
 select 2 as a, 2 as b) as t2 for update;
 1
-#
-# Switching to connection con1
+connect  con1,localhost,root,,;
+connection con1;
 # We should be able to delete all records from t1 except (2, null),
 # since they were not locked.
 begin;
@@ -184,8 +200,7 @@ delete from t1 where a in (19,20);
 delete from t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 rollback;
-#
-# Switching to connection default
+connection default;
 #
 # Show that the original contents of t1 is intact:
 select * from t1;
@@ -247,8 +262,7 @@ a	b
 18	1
 19	1
 20	1
-#
-# Switching to connection con1
+connection con1;
 begin;
 # Since there is another distinct record in the derived table
 # the previous matching record in t1 -- (2,null) -- was unlocked.
@@ -278,8 +292,7 @@ a	b
 19	1
 20	1
 commit;
-#
-# Switching to connection default
+connection default;
 rollback;
 begin;
 #
@@ -339,15 +352,16 @@ select 1 from t1 natural join (select 3 as a, 2 as b union all
 select 3 as a, 1 as b) as t2 for update;
 1
 1
-# Switching to connection con1
+connection con1;
 #
 # We should not be able to delete record (3,1) from t1,
 # (previously it was possible).
 #
 delete from t1 where a=3;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-# Switching to connection default
+connection default;
 commit;
+disconnect con1;
 set @@session.tx_isolation=default;
 drop table t1;
 #

@@ -365,26 +365,18 @@ drop table t5;
 #
 create table t1 (c1 int);
 insert into t1 values (1);
-# client 1
 handler t1 open;
 handler t1 read first;
-# client 2
 connect (con2,localhost,root,,);
 connection con2;
 --echo send the below to another connection, do not wait for the result
 send optimize table t1;
 --sleep 1
-# client 1
---echo proceed with the normal connection
 connection default;
 handler t1 read next;
 handler t1 close;
-# client 2
---echo read the result from the other connection
 connection con2;
 reap;
-# client 1
---echo proceed with the normal connection
 connection default;
 drop table t1;
 
@@ -411,34 +403,27 @@ flush tables with read lock;
 --error 1223
 drop table t1;
 #
-# client 2
 # We need a second connection to try the drop.
 # The drop waits for the global read lock to go away.
 # Without the addendum fix it locked LOCK_open before entering the wait loop.
 connection con2;
---echo send the below to another connection, do not wait for the result
 send drop table t1;
 --sleep 1
 #
-# client 1
 # Now we need something that wants LOCK_open. A simple table access which
 # opens the table does the trick.
---echo proceed with the normal connection
 connection default;
 # This would hang on LOCK_open without the 5.0 addendum fix.
 select * from t1;
 # Release the read lock. This should make the DROP go through.
 unlock tables;
 #
-# client 2
 # Read the result of the drop command.
 connection con2;
 --echo read the result from the other connection
 reap;
 #
-# client 1
 # Now back to normal operation. The table should not exist any more.
---echo proceed with the normal connection
 connection default;
 --error 1146
 select * from t1;
@@ -449,11 +434,9 @@ drop table if exists t1;
 # Bug#25856 - HANDLER table OPEN in one connection lock DROP TABLE in another one
 #
 create table t1 (a int not null) ENGINE=csv;
---echo --> client 2
 connection con2;
 --error 1031
 handler t1 open;
---echo --> client 1
 connection default;
 drop table t1;
 disconnect con2;
@@ -777,33 +760,27 @@ handler t1 close;
 --echo # Explore the effect of HANDLER locks on concurrent DDL
 --echo #
 handler t1 open;
---echo # Establishing auxiliary connections con1, con2, con3
 connect(con1, localhost, root,,);
 connect(con2, localhost, root,,);
 connect(con3, localhost, root,,);
---echo # --> connection con1;
 connection con1;
 --echo # Sending:
 --send drop table t1 
 --echo # We can't use connection 'default' as wait_condition will 
 --echo # autoclose handlers.
---echo # --> connection con2 
 connection con2;
 --echo # Waitng for 'drop table t1' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='drop table t1';
 --source include/wait_condition.inc
---echo # --> connection default
 connection default;
 handler t1 read a prev;
 handler t1 read a prev;
 handler t1 close;
---echo # --> connection con1
 connection con1;
 --echo # Reaping 'drop table t1'...
 --reap
---echo # --> connection default
 connection default;
 --echo #
 --echo # Explore the effect of HANDLER locks in parallel with SELECT 
@@ -816,18 +793,15 @@ handler t1 open;
 handler t1 read a prev;
 handler t1 read a prev;
 handler t1 close;
---echo # --> connection con1;
 connection con1;
 --echo # Sending:
 --send drop table t1 
---echo # --> connection con2 
 connection con2;
 --echo # Waiting for 'drop table t1' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='drop table t1';
 --source include/wait_condition.inc
---echo # --> connection default
 connection default;
 --echo # We can still use the table, it's part of the transaction
 select * from t1;
@@ -841,12 +815,10 @@ handler t1 read a prev;
 handler t1 read a prev;
 handler t1 read a prev;
 handler t1 close;
---echo # --> connection con1
 connection con1;
 --echo # Now drop can proceed
 --echo # Reaping 'drop table t1'...
 --reap
---echo # --> connection default
 connection default;
 --echo #
 --echo # Demonstrate that HANDLER locks and transaction locks
@@ -858,18 +830,15 @@ create table t0 (a int, key a using btree (a));
 insert into t0 (a) values (1), (2), (3), (4), (5);
 begin;
 select * from t1;
---echo # --> connection con2 
 connection con2;
 --echo # Sending:
 send rename table t0 to t3, t1 to t0, t3 to t1;
---echo # --> connection con1 
 connection con1;
 --echo # Waiting for 'rename table ...' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='rename table t0 to t3, t1 to t0, t3 to t1';
 --source include/wait_condition.inc
---echo # --> connection default
 connection default;
 --echo # We back-off on hitting deadlock condition.
 --error ER_LOCK_DEADLOCK
@@ -878,11 +847,9 @@ select * from t0;
 handler t1 open;
 commit;
 handler t1 close;
---echo # --> connection con2
 connection con2;
 --echo # Reaping 'rename table ...'...
 --reap
---echo # --> connection default
 connection default;
 handler t1 open;
 handler t1 read a prev;
@@ -897,36 +864,29 @@ drop table t0;
 --echo #
 create table t2 (a int, key a (a));
 handler t1 open;
---echo # --> connection con1
 connection con1;
 lock tables t2 read;
---echo # --> connection con2
 connection con2;
 --echo # Sending 'drop table t2'...
 --send drop table t2
---echo # --> connection con1
 connection con1;
 --echo # Waiting for 'drop table t2' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='drop table t2';
 --source include/wait_condition.inc
---echo # --> connection default
 connection default;
 --echo # Sending 'select * from t2'
 send select * from t2;
---echo # --> connection con1
 connection con1;
 --echo # Waiting for 'select * from t2' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='select * from t2';
 unlock tables;
---echo # --> connection con2
 connection con2;
 --echo # Reaping 'drop table t2'...
 --reap
---echo # --> connection default
 connection default;
 --echo # Reaping 'select * from t2'
 --error ER_NO_SUCH_TABLE
@@ -947,21 +907,17 @@ handler t1 open;
 handler t1 read a first;
 handler t1 read a next;
 select * from t2;
---echo # --> connection con1
 connection con1;
 --echo # Sending:
 --send drop table t1
---echo # --> connection con2
 connection con2;
 --echo # Sending:
 --send drop table t2
---echo # --> connection default
 connection default;
 --echo # Let DROP TABLE statements sync in. We must use
 --echo # a separate connection for that, because otherwise SELECT
 --echo # will auto-close the HANDLERs, becaues there are pending
 --echo # exclusive locks against them.
---echo # --> connection con3
 connection con3;
 --echo # Waiting for 'drop table t1' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
@@ -975,27 +931,22 @@ let $wait_condition=select count(*)=1 from information_schema.processlist
 --source include/wait_condition.inc
 --echo # Demonstrate that t2 lock was released and t2 was dropped
 --echo # after ROLLBACK TO SAVEPOINT
---echo # --> connection default
 connection default;
 rollback to savepoint sv;
---echo # --> connection con2
 connection con2;
 --echo # Reaping 'drop table t2'...
 --reap
 --echo # Demonstrate that ROLLBACK TO SAVEPOINT didn't release the handler
 --echo # lock.
---echo # --> connection default
 connection default;
 handler t1 read a next;
 handler t1 read a next;
 --echo # Demonstrate that the drop will go through as soon as we close the 
 --echo # HANDLER
 handler t1 close;
---echo # connection con1
 connection con1;
 --echo # Reaping 'drop table t1'...
 --reap
---echo # --> connection default
 connection default;
 commit;
 drop table t3;
@@ -1016,21 +967,17 @@ handler t1 open;
 handler t1 read a first;
 handler t1 read a next;
 select * from t2;
---echo # --> connection con1
 connection con1;
 --echo # Sending:
 --send drop table t1
---echo # --> connection con2
 connection con2;
 --echo # Sending:
 --send drop table t2
---echo # --> connection default
 connection default;
 --echo # Let DROP TABLE statements sync in. We must use
 --echo # a separate connection for that, because otherwise SELECT
 --echo # will auto-close the HANDLERs, becaues there are pending
 --echo # exclusive locks against them.
---echo # --> connection con3
 connection con3;
 --echo # Waiting for 'drop table t1' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
@@ -1044,27 +991,22 @@ let $wait_condition=select count(*)=1 from information_schema.processlist
 --source include/wait_condition.inc
 --echo # Demonstrate that t2 lock was released and t2 was dropped
 --echo # after ROLLBACK TO SAVEPOINT
---echo # --> connection default
 connection default;
 rollback to savepoint sv;
---echo # --> connection con2
 connection con2;
 --echo # Reaping 'drop table t2'...
 --reap
 --echo # Demonstrate that ROLLBACK TO SAVEPOINT didn't release the handler
 --echo # lock.
---echo # --> connection default
 connection default;
 handler t1 read a next;
 handler t1 read a next;
 --echo # Demonstrate that the drop will go through as soon as we close the 
 --echo # HANDLER
 handler t1 close;
---echo # connection con1
 connection con1;
 --echo # Reaping 'drop table t1'...
 --reap
---echo # --> connection default
 connection default;
 commit;
 --echo #
@@ -1087,13 +1029,11 @@ handler t1 close;
 handler t3 open;
 handler t3 read a first;
 rollback to savepoint sv;
---echo # --> connection con1
 connection con1;
 drop table t1, t2;
 --echo # Sending:
 --send drop table t3
 --echo # Let DROP TABLE statement sync in.
---echo # --> connection con2
 connection con2;
 --echo # Waiting for 'drop table t3' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
@@ -1102,17 +1042,14 @@ let $wait_condition=select count(*)=1 from information_schema.processlist
 --source include/wait_condition.inc
 --echo # Demonstrate that ROLLBACK TO SAVEPOINT didn't release the handler
 --echo # lock.
---echo # --> connection default
 connection default;
 handler t3 read a next;
 --echo # Demonstrate that the drop will go through as soon as we close the 
 --echo # HANDLER
 handler t3 close;
---echo # connection con1
 connection con1;
 --echo # Reaping 'drop table t3'...
 --reap
---echo # --> connection default
 connection default;
 commit;
 
@@ -1123,25 +1060,20 @@ commit;
 create table t1 (a int, key a(a));
 create  table t2 like t1;
 handler t1 open;
---echo # --> connection con1
 connection con1;
 lock table t1 write, t2 write;
---echo # --> connection default
 connection default;
 send drop table t2;
---echo # --> connection con2
 connection con2;
 --echo # Waiting for 'drop table t2' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
                     where state='Waiting for table metadata lock' and
                           info='drop table t2';
 --source include/wait_condition.inc
---echo # --> connection con1
 connection con1;
 --error ER_LOCK_DEADLOCK
 drop table t1;
 unlock tables;
---echo # --> connection default 
 connection default;
 reap;
 
@@ -1150,13 +1082,10 @@ reap;
 create table t2 like t1;
 --echo # Sending:
 --send flush table t2
---echo # --> connection con2
 connection con2;
 drop table t1;
---echo # --> connection con1
 connection con1;
 unlock tables;
---echo # --> connection default
 connection default;
 --echo # Reaping 'flush table t2'...
 --reap
@@ -1169,18 +1098,15 @@ drop table t2;
 create table t1 (a int, key using btree (a));
 insert into t1 values (1), (2);
 
---echo # --> connection default
 connection default;
 begin;
 select * from t1;
 handler t1 open;
 
---echo # --> connection con1
 connection con1;
 --echo # Sending:
 --send lock tables t1 write
 
---echo # --> connection con2
 connection con2;
 --echo # Check that 'lock tables t1 write' waits until transaction which
 --echo # has read from the table commits.
@@ -1190,7 +1116,6 @@ let $wait_condition=
         info = "lock tables t1 write";
 --source include/wait_condition.inc
 
---echo # --> connection default
 connection default;
 --echo # The below 'handler t1 read ...' should not be blocked as
 --echo # 'lock tables t1 write' has not succeeded yet.
@@ -1199,17 +1124,14 @@ handler t1 read a next;
 --echo # Unblock 'lock tables t1 write'.
 commit;
 
---echo # --> connection con1
 connection con1;
 --echo # Reap 'lock tables t1 write'.
 --reap
 
---echo # --> connection default
 connection default;
 --echo # Sending:
 --send handler t1 read a next
 
---echo # --> connection con1
 connection con1;
 --echo # Waiting for 'handler t1 read a next' to get blocked...
 let $wait_condition=
@@ -1223,22 +1145,18 @@ let $wait_condition=
 drop table t1;
 unlock tables;
 
---echo # --> connection default 
 connection default;
 --echo # Reaping 'handler t1 read a next'...
 --error ER_NO_SUCH_TABLE
 --reap
 handler t1 close;
 
---echo # --> connection con1
 connection con1;
 disconnect con1;
 --source include/wait_until_disconnected.inc
---echo # --> connection con2
 connection con2;
 disconnect con2;
 --source include/wait_until_disconnected.inc
---echo # --> connection con3
 connection con3;
 disconnect con3;
 --source include/wait_until_disconnected.inc
@@ -1335,9 +1253,7 @@ drop table t2, t3;
 --echo # Check that when we clone a ticket for HANDLER we downrade
 --echo # the lock.
 --echo #
---echo # Establish an auxiliary connection con1.
 connect (con1,localhost,root,,);
---echo # -> connection default
 connection default;
 create table t1 (a int, b int, key using btree (a));
 insert into t1 (a, b) values (1, 1), (2, 1), (3, 2), (4, 2), (5, 5);
@@ -1348,22 +1264,18 @@ handler t1 read a last;
 insert into t1 (a, b) values (7, 7);
 handler t1 read a last;
 commit;
---echo # -> connection con1
 connection con1;
 --echo # Demonstrate that the HANDLER doesn't hold MDL_SHARED_WRITE.
 lock table t1 write;
 unlock tables;
---echo # -> connection default
 connection default;
 handler t1 read a prev;
 handler t1 close;
 --echo # Cleanup.
 drop table t1;
---echo # -> connection con1
 connection con1;
 disconnect con1;
 --source include/wait_until_disconnected.inc
---echo # -> connection default
 connection default;
 
 --echo #
@@ -1503,17 +1415,14 @@ DROP TABLE IF EXISTS t1;
 
 connect(con51355, localhost, root);
 
---echo # Connection default
 connection default;
 CREATE TABLE t1(id INT, KEY id(id));
 HANDLER t1 OPEN;
 
---echo # Connection con51355
 connection con51355;
 --echo # Sending:
 --send DROP TABLE t1
 
---echo # Connection default
 connection default;
 --echo # This I_S query will cause the handler table to be closed and
 --echo # the metadata lock to be released. This will allow DROP TABLE
@@ -1522,12 +1431,10 @@ let $wait_condition=
   SELECT COUNT(*) = 0 FROM information_schema.tables WHERE table_name = "t1";
 --source include/wait_condition.inc
 
---echo # Connection con51355
 connection con51355;
 --echo # Reaping: DROP TABLE t1
 --reap
 
---echo # Connection default
 connection default;
 --error ER_NO_SUCH_TABLE
 HANDLER t1 READ id NEXT;
@@ -1536,11 +1443,9 @@ HANDLER t1 READ id NEXT;
 HANDLER t1 READ id NEXT;
 
 HANDLER t1 CLOSE;
---echo # Connection con51355
 connection con51355;
 disconnect con51355;
 --source include/wait_until_disconnected.inc
---echo # Connection default
 connection default;
 
 
