@@ -306,25 +306,24 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_system_lock);
-  if (sql_lock->table_count && lock_external(thd, sql_lock->table,
-                                             sql_lock->table_count))
-    goto end;
+  if (!(sql_lock->table_count && lock_external(thd, sql_lock->table,
+                                               sql_lock->table_count)))
+  {
+    THD_STAGE_INFO(thd, stage_table_lock);
 
-  THD_STAGE_INFO(thd, stage_table_lock);
+    /* Copy the lock data array. thr_multi_lock() reorders its contents. */
+    memmove(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
+            sql_lock->lock_count * sizeof(*sql_lock->locks));
 
-  /* Copy the lock data array. thr_multi_lock() reorders its contents. */
-  memmove(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
-          sql_lock->lock_count * sizeof(*sql_lock->locks));
+    /* Lock on the copied half of the lock data array. */
+    rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
+                                                     sql_lock->lock_count,
+                                                     sql_lock->lock_count,
+                                                     &thd->lock_info, timeout)];
+    if (rc && sql_lock->table_count)
+      (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
+  }
 
-  /* Lock on the copied half of the lock data array. */
-  rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
-                                                   sql_lock->lock_count,
-                                                   sql_lock->lock_count,
-                                                   &thd->lock_info, timeout)];
-  if (rc && sql_lock->table_count)
-    (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
-
-end:
   THD_STAGE_INFO(thd, org_stage);
 
   if (thd->killed)
