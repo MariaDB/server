@@ -121,6 +121,8 @@ extern my_bool thd_net_is_killed();
 
 static my_bool net_write_buff(NET *, const uchar *, ulong);
 
+my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
+
 /** Init with packet info. */
 
 my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
@@ -129,14 +131,12 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   DBUG_PRINT("enter", ("my_flags: %u", my_flags));
   net->vio = vio;
   my_net_local_init(net);			/* Set some limits */
-  if (!(net->buff=(uchar*) my_malloc((size_t) net->max_packet+
-				     NET_HEADER_SIZE + COMP_HEADER_SIZE +1,
-				     MYF(MY_WME | my_flags))))
+
+  if (net_allocate_new_packet(net, thd, my_flags))
     DBUG_RETURN(1);
-  net->buff_end=net->buff+net->max_packet;
+
   net->error=0; net->return_status=0;
   net->pkt_nr=net->compress_pkt_nr=0;
-  net->write_pos=net->read_pos = net->buff;
   net->last_error[0]=0;
   net->compress=0; net->reading_or_writing=0;
   net->where_b = net->remain_in_buf=0;
@@ -162,6 +162,18 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
 #endif
     vio_fastsend(vio);
   }
+  DBUG_RETURN(0);
+}
+
+my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags)
+{
+  DBUG_ENTER("net_allocate_new_packet");
+  if (!(net->buff=(uchar*) my_malloc((size_t) net->max_packet+
+				     NET_HEADER_SIZE + COMP_HEADER_SIZE +1,
+				     MYF(MY_WME | my_flags))))
+    DBUG_RETURN(1);
+  net->buff_end=net->buff+net->max_packet;
+  net->write_pos=net->read_pos = net->buff;
   DBUG_RETURN(0);
 }
 

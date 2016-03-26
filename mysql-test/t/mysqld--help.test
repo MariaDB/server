@@ -31,7 +31,7 @@ perl;
               connect null-audit aria oqgraph sphinx thread-handling
               test-sql-discovery rpl-semi-sync query-cache-info
               query-response-time metadata-lock-info locales unix-socket
-              wsrep file-key-management cracklib-password-check/;
+              wsrep file-key-management cracklib-password-check user-variables/;
 
   # And substitute the content some environment variables with their
   # names:

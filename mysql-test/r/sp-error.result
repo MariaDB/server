@@ -779,7 +779,7 @@ drop procedure bug11394|
 CREATE PROCEDURE BUG_12490() HELP CONTENTS;
 ERROR 0A000: HELP is not allowed in stored procedures
 CREATE FUNCTION BUG_12490() RETURNS INT HELP CONTENTS;
-ERROR 0A000: HELP is not allowed in stored procedures
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'HELP CONTENTS' at line 1
 CREATE TABLE t_bug_12490(a int);
 CREATE TRIGGER BUG_12490 BEFORE UPDATE ON t_bug_12490 FOR EACH ROW HELP CONTENTS;
 ERROR 0A000: HELP is not allowed in stored procedures

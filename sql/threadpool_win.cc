@@ -226,11 +226,12 @@ struct connection_t
   PTP_WAIT shm_read;
   /* Callback instance, used to inform treadpool about long callbacks */
   PTP_CALLBACK_INSTANCE callback_instance;
+  CONNECT* connect;
   bool logged_in;
 };
 
 
-void init_connection(connection_t *connection)
+void init_connection(connection_t *connection, CONNECT *connect)
 {
   connection->logged_in = false;
   connection->handle= 0;
@@ -240,10 +241,11 @@ void init_connection(connection_t *connection)
   connection->logged_in = false;
   connection->timeout= ULONGLONG_MAX;
   connection->callback_instance= 0;
+  connection->thd= 0;
   memset(&connection->overlapped, 0, sizeof(OVERLAPPED));
   InitializeThreadpoolEnvironment(&connection->callback_environ);
   SetThreadpoolCallbackPool(&connection->callback_environ, pool);
-  connection->thd = 0;
+  connection->connect= connect;
 }
 
 
@@ -396,8 +398,8 @@ int start_io(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 
 int login(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 {
-  if (threadpool_add_connection(connection->thd) == 0
-      && init_io(connection, connection->thd) == 0 
+  if ((connection->thd= threadpool_add_connection(connection->connect, connection))
+      && init_io(connection, connection->thd) == 0
       && start_io(connection, instance) == 0)
   {
     return 0;
@@ -465,7 +467,7 @@ static void check_thread_init()
   if (FlsGetValue(fls) == NULL)
   {
     FlsSetValue(fls, (void *)1);
-    thread_created++;
+    statistic_increment(thread_created, &LOCK_status);
     InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
   }
 }
@@ -543,7 +545,6 @@ void tp_end(void)
     CloseThreadpool(pool);
   }
 }
-
 
 /*
   Handle read completion/notification.
@@ -656,24 +657,21 @@ static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
 
 /*
   Notify the thread pool about a new connection.
-  NOTE: LOCK_thread_count is locked on entry. This function must unlock it.
 */
-void tp_add_connection(THD *thd)
-{
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
-  connection_t *con = (connection_t *)malloc(sizeof(connection_t));
-  if(!con)
+void tp_add_connection(CONNECT *connect)
+{
+  connection_t *con;  
+  con= (connection_t *)malloc(sizeof(connection_t));
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", free(con);con= 0; );
+  if (!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    threadpool_cleanup_connection(thd);
+    connect->close_and_delete();
     return;
   }
 
-  init_connection(con);
-  con->thd= thd;
-  thd->event_scheduler.data= con;
+  init_connection(con, connect);
 
   /* Try to login asynchronously, using threads in the pool */
   PTP_WORK wrk =  CreateThreadpoolWork(login_callback,con, &con->callback_environ);
@@ -685,7 +683,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Likely memory pressure */
-    threadpool_cleanup_connection(thd);
+    connect->close_and_delete();
   }
 }
 

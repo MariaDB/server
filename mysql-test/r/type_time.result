@@ -1217,3 +1217,32 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9393 Split Copy_field::get_copy_func() into virtual methods in Field
+#
+CREATE TABLE t1 (a YEAR, b TIME, c YEAR);
+CREATE TABLE t2 (a YEAR);
+INSERT INTO t2 VALUES (0),(1999),(2000),(2030),(2050),(2070);
+INSERT INTO t1 (a,b,c) SELECT a,a,a FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 2
+Warning	1265	Data truncated for column 'b' at row 6
+ALTER TABLE t1 MODIFY c TIME;
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 2
+Warning	1265	Data truncated for column 'c' at row 6
+SELECT * FROM t1;
+a	b	c
+0000	00:00:00	00:00:00
+1999	00:00:00	00:00:00
+2000	00:20:00	00:20:00
+2030	00:20:30	00:20:30
+2050	00:20:50	00:20:50
+2070	00:00:00	00:00:00
+DROP TABLE t1,t2;
+#
+# End of 10.2 tests
+#

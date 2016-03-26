@@ -48,6 +48,8 @@ class Item_func_match;
 class File_parser;
 class Key_part_spec;
 struct sql_digest_state;
+class With_clause;
+
 
 #define ALLOC_ROOT_SET 1024
 
@@ -178,6 +180,7 @@ const LEX_STRING sp_data_access_name[]=
 
 #define DERIVED_SUBQUERY	1
 #define DERIVED_VIEW		2
+#define DERIVED_WITH            4
 
 enum enum_view_create_mode
 {
@@ -496,10 +499,6 @@ public:
   enum sub_select_type linkage;
   bool no_table_names_allowed; /* used for global order by */
 
-  static void *operator new(size_t size) throw ()
-  {
-    return sql_alloc(size);
-  }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
@@ -544,7 +543,9 @@ public:
                                         List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
-
+  void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
+                                          st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
@@ -642,6 +643,10 @@ public:
     derived tables/views handling.
   */
   TABLE_LIST *derived;
+  /* With clause attached to this unit (if any) */
+  With_clause *with_clause;
+  /* With element where this unit is used as the specification (if any) */
+  With_element *with_element;
   /* thread handler */
   THD *thd;
   /*
@@ -650,7 +655,7 @@ public:
   */
   st_select_lex *fake_select_lex;
   /**
-    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when noq
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
@@ -666,12 +671,15 @@ public:
   */
   TABLE *insert_table_with_stored_vcol;
 
+  bool columns_are_renamed;
+
   void init_query();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
+  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -1066,6 +1074,19 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
+  void set_with_clause(With_clause *with_clause)
+  {
+    master_unit()->with_clause= with_clause;
+  }
+  With_clause *get_with_clause()
+  {
+    return master_unit()->with_clause;
+  }
+  With_element *get_with_element()
+  {
+    return master_unit()->with_element;
+  }
+  With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
 
 private:
   bool m_non_agg_field_used;
@@ -2413,12 +2434,20 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-  
+  /* current with clause in parsing if any, otherwise 0*/
+  With_clause *curr_with_clause;  
+  /* pointer to the first with clause in the current statemant */
+  With_clause *with_clauses_list;
+  /*
+    (*with_clauses_list_last_next) contains a pointer to the last
+     with clause in the current statement
+  */
+  With_clause **with_clauses_list_last_next;
+
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
   // type information
-  char *length,*dec;
   CHARSET_INFO *charset;
 
   LEX_STRING name;
@@ -2480,6 +2509,7 @@ public:
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_STRING>    with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*
@@ -2499,7 +2529,7 @@ public:
 
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
-  Create_field	      *last_field;
+  Column_definition *last_field;
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
@@ -2877,8 +2907,8 @@ public:
                     bool is_analyze, bool *printed_anything);
   void restore_set_statement_var();
 
-  void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
-  void set_last_field_type(enum enum_field_types type);
+  void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
+  void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)

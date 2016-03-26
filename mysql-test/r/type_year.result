@@ -438,3 +438,48 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
+#
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (-0.1);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DECIMAL(10,1));
+INSERT INTO t2 VALUES (-0.1);
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (-0.1);
+ALTER TABLE t1 MODIFY a YEAR;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (-0.1e0);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES (-0.1);
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-0.1);
+ALTER TABLE t1 MODIFY a YEAR;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

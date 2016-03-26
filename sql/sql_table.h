@@ -23,6 +23,7 @@
 
 class Alter_info;
 class Alter_table_ctx;
+class Column_definition;
 class Create_field;
 struct TABLE_LIST;
 class THD;
@@ -249,8 +250,8 @@ bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
 bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags);
 void close_cached_table(THD *thd, TABLE *table);
-void sp_prepare_create_field(THD *thd, Create_field *sql_field);
-int prepare_create_field(Create_field *sql_field,
+void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
+int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns,
 			 longlong table_flags);
 CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,

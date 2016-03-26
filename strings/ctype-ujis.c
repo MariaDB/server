@@ -219,16 +219,6 @@ static const uchar sort_order_ujis[]=
 #include "strcoll.ic"
 
 
-static uint ismbchar_ujis(CHARSET_INFO *cs __attribute__((unused)),
-		  const char* p, const char *e)
-{
-  return ((*(uchar*)(p)<0x80)? 0:\
-    isujis(*(p)) && (e)-(p)>1 && isujis(*((p)+1))? 2:\
-    isujis_ss2(*(p)) && (e)-(p)>1 && iskata(*((p)+1))? 2:\
-    isujis_ss3(*(p)) && (e)-(p)>2 && isujis(*((p)+1)) && isujis(*((p)+2))? 3:\
-    0);
-}
-
 static uint mbcharlen_ujis(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
   return (isujis(c)? 2: isujis_ss2(c)? 2: isujis_ss3(c)? 3: 1);
@@ -67264,7 +67254,6 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    ismbchar_ujis,
     mbcharlen_ujis,
     my_numchars_mb,
     my_charpos_mb,

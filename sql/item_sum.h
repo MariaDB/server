@@ -481,7 +481,10 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
+  }
   virtual bool collect_outer_ref_processor(uchar *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
@@ -714,15 +717,16 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; }
 };
 
 
-class Item_sum_sum :public Item_sum_num
+class Item_sum_sum :public Item_sum_num,
+                    public Type_handler_hybrid_field_type
 {
 protected:
-  Item_result hybrid_type;
   double sum;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
@@ -745,7 +749,12 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return hybrid_type; }
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -1084,7 +1093,6 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
 };
@@ -1255,6 +1263,9 @@ class Item_sum_udf_float :public Item_udf_sum
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  enum Item_result result_type () const { return REAL_RESULT; }
+  enum Item_result cmp_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1275,6 +1286,7 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() { decimals=0; max_length=21; }
   Item *copy_or_same(THD* thd);
 };
@@ -1314,6 +1326,7 @@ public:
   }
   my_decimal *val_decimal(my_decimal *dec);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void fix_length_and_dec();
   Item *copy_or_same(THD* thd);
 };
@@ -1333,6 +1346,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1468,6 +1482,8 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+protected:
+  virtual Field *make_string_field(TABLE *table);
 
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
@@ -1481,7 +1497,7 @@ public:
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
   const char *func_name() const { return "group_concat"; }
   virtual Item_result result_type () const { return STRING_RESULT; }
-  virtual Field *make_string_field(TABLE *table);
+  virtual Item_result cmp_type () const { return STRING_RESULT; }
   enum_field_types field_type() const
   {
     if (too_big_for_varchar())

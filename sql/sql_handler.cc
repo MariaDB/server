@@ -31,7 +31,7 @@
   then do { handler_items=concat(handler_items, free_list); free_list=0; }
 
   But !!! do_command calls free_root at the end of every query and frees up
-  all the sql_alloc'ed memory. It's harder to work around...
+  all the memory allocated on THD::mem_root. It's harder to work around...
 */
 
 /*

@@ -559,10 +559,7 @@ The following options may be given as the first argument:
  a query. Values smaller than the number of tables in a
  relation result in faster optimization, but may produce
  very bad query plans. If set to 0, the system will
- automatically pick a reasonable value; if set to 63, the
- optimizer will switch to the original find_best search.
- NOTE: The value 63 and its associated behaviour is
- deprecated
+ automatically pick a reasonable value
  --optimizer-selectivity-sampling-limit=# 
  Controls number of record samples to check condition
  selectivity
@@ -977,6 +974,8 @@ The following options may be given as the first argument:
  replication domains. Note that these threads are in
  addition to the IO and SQL threads, which are always
  created by a replication slave
+ --slave-parallel-workers=# 
+ Alias for slave_parallel_threads
  --slave-run-triggers-for-rbr=name 
  Modes for how triggers in row-base replication on slave
  side will be executed. Legal values are NO (default), YES
@@ -1069,7 +1068,8 @@ The following options may be given as the first argument:
  Decision to use in heuristic recover process. One of: 
  COMMIT, ROLLBACK
  --thread-cache-size=# 
- How many threads we should keep in a cache for reuse
+ How many threads we should keep in a cache for reuse.
+ These are freed after 5 minutes of idle time
  --thread-pool-idle-timeout=# 
  Timeout in seconds for an idle thread in the thread
  pool.Worker thread will be shut down after timeout
@@ -1127,7 +1127,8 @@ The following options may be given as the first argument:
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
  tables in the INFORMATION_SCHEMA
  -v, --verbose       Used with --help option for detailed help.
- -V, --version       Output version information and exit.
+ -V, --version[=name] 
+ Output version information and exit.
  --wait-timeout=#    The number of seconds the server waits for activity on a
  connection before closing it
 
@@ -1340,7 +1341,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 178
+performance-schema-max-statement-classes 181
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1402,6 +1403,7 @@ slave-net-timeout 3600
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
 slave-parallel-threads 0
+slave-parallel-workers 0
 slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
@@ -1425,12 +1427,12 @@ table-cache 431
 table-definition-cache 400
 table-open-cache 431
 tc-heuristic-recover COMMIT
-thread-cache-size 0
+thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
-thread-stack 295936
+thread-stack 296960
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216

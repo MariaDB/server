@@ -173,7 +173,8 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
 
 
 /**
-  Reset and empty the temporary table that stores the materialized query result.
+  Reset and empty the temporary table that stores the materialized query
+  result.
 
   @note The cleanup performed here is exactly the same as for the two temp
   tables of JOIN - exec_tmp_table_[1 | 2].
@@ -183,8 +184,6 @@ void select_union::cleanup()
 {
   table->file->extra(HA_EXTRA_RESET_STATE);
   table->file->ha_delete_all_rows();
-  free_io_cache(table);
-  filesort_free_buffers(table,0);
 }
 
 
@@ -534,7 +533,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
     while ((type= tp++))
     {
-      if (type->result_type() == STRING_RESULT &&
+      if (type->cmp_type() == STRING_RESULT &&
           type->collation.derivation == DERIVATION_NONE)
       {
         my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");

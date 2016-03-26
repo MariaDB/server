@@ -24,9 +24,10 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "thr_malloc.h"                         /* sql_memdup */
 #include "records.h"                            /* READ_RECORD */
 #include "queues.h"                             /* QUEUE */
+#include "filesort.h"                           /* SORT_INFO */
+
 /*
   It is necessary to include set_var.h instead of item.h because there
   are dependencies on include order for set_var.h and item.h. This
@@ -1659,6 +1660,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
                                              ha_rows records);
 SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 			table_map read_tables, COND *conds,
+                        SORT_INFO* filesort,
                         bool allow_null_cond,  int *error);
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);

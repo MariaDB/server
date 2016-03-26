@@ -2131,7 +2131,7 @@ sub mysqld_client_arguments () {
 
 
 sub have_maria_support () {
-  my $maria_var= $mysqld_variables{'aria-recover'};
+  my $maria_var= $mysqld_variables{'aria-recover-options'};
   return defined $maria_var;
 }
 

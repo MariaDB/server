@@ -35,8 +35,7 @@ extern void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask);
 
 
 #ifndef EMBEDDED_LIBRARY
-extern void mysql_audit_notify(THD *thd, uint event_class,
-                               uint event_subtype, ...);
+extern void mysql_audit_notify(THD *thd, uint event_class, const void *event);
 
 static inline bool mysql_audit_general_enabled()
 {
@@ -55,7 +54,7 @@ static inline bool mysql_audit_table_enabled()
 
 #else
 static inline void mysql_audit_notify(THD *thd, uint event_class,
-                                      uint event_subtype, ...) { }
+                                      const void *event) {}
 #define mysql_audit_general_enabled() 0
 #define mysql_audit_connection_enabled() 0
 #define mysql_audit_table_enabled() 0
@@ -94,15 +93,37 @@ void mysql_audit_general_log(THD *thd, time_t time,
 {
   if (mysql_audit_general_enabled())
   {
-    CHARSET_INFO *clientcs= thd ? thd->variables.character_set_client
-                                : global_system_variables.character_set_client;
-    const char *db= thd ? thd->db : "";
-    size_t db_length= thd ? thd->db_length : 0;
+    mysql_event_general event;
 
-    mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, MYSQL_AUDIT_GENERAL_LOG,
-                       0, time, user, userlen, cmd, cmdlen,
-                       query, querylen, clientcs, (ha_rows) 0,
-                       db, db_length);
+    event.event_subclass= MYSQL_AUDIT_GENERAL_LOG;
+    event.general_error_code= 0;
+    event.general_time= time;
+    event.general_user= user;
+    event.general_user_length= userlen;
+    event.general_command= cmd;
+    event.general_command_length= cmdlen;
+    event.general_query= query;
+    event.general_query_length= querylen;
+    event.general_rows= 0;
+
+    if (thd)
+    {
+      event.general_thread_id= (unsigned long)thd->thread_id;
+      event.general_charset= thd->variables.character_set_client;
+      event.database= thd->db;
+      event.database_length= thd->db_length;
+      event.query_id= thd->query_id;
+    }
+    else
+    {
+      event.general_thread_id= 0;
+      event.general_charset= global_system_variables.character_set_client;
+      event.database= "";
+      event.database_length= 0;
+      event.query_id= 0;
+    }
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);
   }
 }
 
@@ -124,38 +145,41 @@ void mysql_audit_general(THD *thd, uint event_subtype,
 {
   if (mysql_audit_general_enabled())
   {
-    time_t time= my_time(0);
-    uint msglen= msg ? strlen(msg) : 0;
-    const char *user;
-    uint userlen;
     char user_buff[MAX_USER_HOST_SIZE];
-    CSET_STRING query;
-    ha_rows rows;
-    const char *db;
-    size_t db_length;
+    mysql_event_general event;
+
+    event.event_subclass= event_subtype;
+    event.general_error_code= error_code;
+    event.general_time= my_time(0);
+    event.general_command= msg;
+    event.general_command_length= safe_strlen(msg);
 
     if (thd)
     {
-      query= thd->query_string;
-      user= user_buff;
-      userlen= make_user_name(thd, user_buff);
-      rows= thd->get_stmt_da()->current_row_for_warning();
-      db= thd->db;
-      db_length= thd->db_length;
+      event.general_user= user_buff;
+      event.general_user_length= make_user_name(thd, user_buff);
+      event.general_thread_id= (unsigned long)thd->thread_id;
+      event.general_query= thd->query_string.str();
+      event.general_query_length= thd->query_string.length();
+      event.general_charset= thd->query_string.charset();
+      event.general_rows= thd->get_stmt_da()->current_row_for_warning();
+      event.database= thd->db;
+      event.database_length= thd->db_length;
+      event.query_id= thd->query_id;
     }
     else
     {
-      user= 0;
-      userlen= 0;
-      rows= 0;
-      db= "";
-      db_length= 0;
+      event.general_thread_id= 0;
+      event.general_query= NULL;
+      event.general_query_length= 0;
+      event.general_charset= &my_charset_bin;
+      event.general_rows= 0;
+      event.database= "";
+      event.database_length= 0;
+      event.query_id= 0;
     }
 
-    mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, event_subtype,
-                       error_code, time, user, userlen, msg, msglen,
-                       query.str(), query.length(), query.charset(), rows,
-                       db, db_length);
+    mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);
   }
 }
 
@@ -165,19 +189,28 @@ void mysql_audit_notify_connection_connect(THD *thd)
   if (mysql_audit_connection_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    Diagnostics_area *da= thd->get_stmt_da();
-    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
-                       MYSQL_AUDIT_CONNECTION_CONNECT,
-                       da->is_error() ? da->sql_errno() : 0,
-                       thd->thread_id,
-                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
-                       sctx->priv_user, strlen(sctx->priv_user),
-                       sctx->external_user,
-                       sctx->external_user ?  strlen(sctx->external_user) : 0,
-                       sctx->proxy_user, strlen(sctx->proxy_user),
-                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
-                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
-                       thd->db, thd->db ? strlen(thd->db) : 0);
+    mysql_event_connection event;
+
+    event.event_subclass= MYSQL_AUDIT_CONNECTION_CONNECT;
+    event.status= thd->get_stmt_da()->is_error() ?
+                  thd->get_stmt_da()->sql_errno() : 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.user_length= safe_strlen(sctx->user);
+    event.priv_user= sctx->priv_user;
+    event.priv_user_length= strlen(sctx->priv_user);
+    event.external_user= sctx->external_user;
+    event.external_user_length= safe_strlen(sctx->external_user);
+    event.proxy_user= sctx->proxy_user;
+    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.host= sctx->host;
+    event.host_length= safe_strlen(sctx->host);
+    event.ip= sctx->ip;
+    event.ip_length= safe_strlen(sctx->ip);
+    event.database= thd->db;
+    event.database_length= safe_strlen(thd->db);
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
 }
 
@@ -187,17 +220,27 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
   if (mysql_audit_connection_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
-                       MYSQL_AUDIT_CONNECTION_DISCONNECT,
-                       errcode, thd->thread_id,
-                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
-                       sctx->priv_user, strlen(sctx->priv_user),
-                       sctx->external_user,
-                       sctx->external_user ?  strlen(sctx->external_user) : 0,
-                       sctx->proxy_user, strlen(sctx->proxy_user),
-                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
-                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
-                       thd->db, thd->db ? strlen(thd->db) : 0);
+    mysql_event_connection event;
+
+    event.event_subclass= MYSQL_AUDIT_CONNECTION_DISCONNECT;
+    event.status= errcode;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.user_length= safe_strlen(sctx->user);
+    event.priv_user= sctx->priv_user;
+    event.priv_user_length= strlen(sctx->priv_user);
+    event.external_user= sctx->external_user;
+    event.external_user_length= safe_strlen(sctx->external_user);
+    event.proxy_user= sctx->proxy_user;
+    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.host= sctx->host;
+    event.host_length= safe_strlen(sctx->host);
+    event.ip= sctx->ip;
+    event.ip_length= safe_strlen(sctx->ip) ;
+    event.database= thd->db;
+    event.database_length= safe_strlen(thd->db);
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
 }
 
@@ -207,19 +250,28 @@ void mysql_audit_notify_connection_change_user(THD *thd)
   if (mysql_audit_connection_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    Diagnostics_area *da= thd->get_stmt_da();
-    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
-                       MYSQL_AUDIT_CONNECTION_CHANGE_USER,
-                       da->is_error() ? da->sql_errno() : 0,
-                       thd->thread_id,
-                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
-                       sctx->priv_user, strlen(sctx->priv_user),
-                       sctx->external_user,
-                       sctx->external_user ?  strlen(sctx->external_user) : 0,
-                       sctx->proxy_user, strlen(sctx->proxy_user),
-                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
-                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
-                       thd->db, thd->db ? strlen(thd->db) : 0);
+    mysql_event_connection event;
+
+    event.event_subclass= MYSQL_AUDIT_CONNECTION_CHANGE_USER;
+    event.status= thd->get_stmt_da()->is_error() ?
+                  thd->get_stmt_da()->sql_errno() : 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.user_length= safe_strlen(sctx->user);
+    event.priv_user= sctx->priv_user;
+    event.priv_user_length= strlen(sctx->priv_user);
+    event.external_user= sctx->external_user;
+    event.external_user_length= safe_strlen(sctx->external_user);
+    event.proxy_user= sctx->proxy_user;
+    event.proxy_user_length= strlen(sctx->proxy_user);
+    event.host= sctx->host;
+    event.host_length= safe_strlen(sctx->host);
+    event.ip= sctx->ip;
+    event.ip_length= safe_strlen(sctx->ip);
+    event.database= thd->db;
+    event.database_length= safe_strlen(thd->db);
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
 }
 
@@ -229,13 +281,29 @@ void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
   if (lock != F_UNLCK && mysql_audit_table_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, MYSQL_AUDIT_TABLE_LOCK,
-                       (int)(lock == F_RDLCK), (ulong)thd->thread_id,
-                       sctx->user, sctx->priv_user, sctx->priv_host,
-                       sctx->external_user, sctx->proxy_user, sctx->host,
-                       sctx->ip, share->db.str, (uint)share->db.length,
-                       share->table_name.str, (uint)share->table_name.length,
-                       0,0,0,0);
+    mysql_event_table event;
+
+    event.event_subclass= MYSQL_AUDIT_TABLE_LOCK;
+    event.read_only= lock == F_RDLCK;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.priv_user= sctx->priv_user;
+    event.priv_host= sctx->priv_host;
+    event.external_user= sctx->external_user;
+    event.proxy_user= sctx->proxy_user;
+    event.host= sctx->host;
+    event.ip= sctx->ip;
+    event.database= share->db.str;
+    event.database_length= share->db.length;
+    event.table= share->table_name.str;
+    event.table_length= share->table_name.length;
+    event.new_database= 0;
+    event.new_database_length= 0;
+    event.new_table= 0;
+    event.new_table_length= 0;
+    event.query_id= thd->query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 
@@ -247,13 +315,29 @@ void mysql_audit_create_table(TABLE *table)
     THD *thd= table->in_use;
     const TABLE_SHARE *share= table->s;
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, MYSQL_AUDIT_TABLE_CREATE,
-                       0, (ulong)thd->thread_id,
-                       sctx->user, sctx->priv_user, sctx->priv_host,
-                       sctx->external_user, sctx->proxy_user, sctx->host,
-                       sctx->ip, share->db.str, (uint)share->db.length,
-                       share->table_name.str, (uint)share->table_name.length,
-                       0,0,0,0);
+    mysql_event_table event;
+
+    event.event_subclass= MYSQL_AUDIT_TABLE_CREATE;
+    event.read_only= 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.priv_user= sctx->priv_user;
+    event.priv_host= sctx->priv_host;
+    event.external_user= sctx->external_user;
+    event.proxy_user= sctx->proxy_user;
+    event.host= sctx->host;
+    event.ip= sctx->ip;
+    event.database= share->db.str;
+    event.database_length= share->db.length;
+    event.table= share->table_name.str;
+    event.table_length= share->table_name.length;
+    event.new_database= 0;
+    event.new_database_length= 0;
+    event.new_table= 0;
+    event.new_table_length= 0;
+    event.query_id= thd->query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 
@@ -263,13 +347,29 @@ void mysql_audit_drop_table(THD *thd, TABLE_LIST *table)
   if (mysql_audit_table_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, MYSQL_AUDIT_TABLE_DROP,
-                       0, (ulong)thd->thread_id,
-                       sctx->user, sctx->priv_user, sctx->priv_host,
-                       sctx->external_user, sctx->proxy_user, sctx->host,
-                       sctx->ip, table->db, (uint)table->db_length,
-                       table->table_name, (uint)table->table_name_length,
-                       0,0,0,0);
+    mysql_event_table event;
+
+    event.event_subclass= MYSQL_AUDIT_TABLE_DROP;
+    event.read_only= 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.priv_user= sctx->priv_user;
+    event.priv_host= sctx->priv_host;
+    event.external_user= sctx->external_user;
+    event.proxy_user= sctx->proxy_user;
+    event.host= sctx->host;
+    event.ip= sctx->ip;
+    event.database= table->db;
+    event.database_length= table->db_length;
+    event.table= table->table_name;
+    event.table_length= table->table_name_length;
+    event.new_database= 0;
+    event.new_database_length= 0;
+    event.new_table= 0;
+    event.new_table_length= 0;
+    event.query_id= thd->query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 
@@ -280,13 +380,29 @@ void mysql_audit_rename_table(THD *thd, const char *old_db, const char *old_tb,
   if (mysql_audit_table_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, MYSQL_AUDIT_TABLE_RENAME,
-                       0, (ulong)thd->thread_id,
-                       sctx->user, sctx->priv_user, sctx->priv_host,
-                       sctx->external_user, sctx->proxy_user, sctx->host,
-                       sctx->ip,
-                       old_db, (uint)strlen(old_db), old_tb, (uint)strlen(old_tb),
-                       new_db, (uint)strlen(new_db), new_tb, (uint)strlen(new_tb));
+    mysql_event_table event;
+
+    event.event_subclass= MYSQL_AUDIT_TABLE_RENAME;
+    event.read_only= 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.priv_user= sctx->priv_user;
+    event.priv_host= sctx->priv_host;
+    event.external_user= sctx->external_user;
+    event.proxy_user= sctx->proxy_user;
+    event.host= sctx->host;
+    event.ip= sctx->ip;
+    event.database= old_db;
+    event.database_length= strlen(old_db);
+    event.table= old_tb;
+    event.table_length= strlen(old_tb);
+    event.new_database= new_db;
+    event.new_database_length= strlen(new_db);
+    event.new_table= new_tb;
+    event.new_table_length= strlen(new_tb);
+    event.query_id= thd->query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 
@@ -296,13 +412,29 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
   if (mysql_audit_table_enabled())
   {
     const Security_context *sctx= thd->security_ctx;
-    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, MYSQL_AUDIT_TABLE_ALTER,
-                       0, (ulong)thd->thread_id,
-                       sctx->user, sctx->priv_user, sctx->priv_host,
-                       sctx->external_user, sctx->proxy_user, sctx->host,
-                       sctx->ip, table->db, (uint)table->db_length,
-                       table->table_name, (uint)table->table_name_length,
-                       0,0,0,0);
+    mysql_event_table event;
+
+    event.event_subclass= MYSQL_AUDIT_TABLE_ALTER;
+    event.read_only= 0;
+    event.thread_id= (unsigned long)thd->thread_id;
+    event.user= sctx->user;
+    event.priv_user= sctx->priv_user;
+    event.priv_host= sctx->priv_host;
+    event.external_user= sctx->external_user;
+    event.proxy_user= sctx->proxy_user;
+    event.host= sctx->host;
+    event.ip= sctx->ip;
+    event.database= table->db;
+    event.database_length= table->db_length;
+    event.table= table->table_name;
+    event.table_length= table->table_name_length;
+    event.new_database= 0;
+    event.new_database_length= 0;
+    event.new_table= 0;
+    event.new_table_length= 0;
+    event.query_id= thd->query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 

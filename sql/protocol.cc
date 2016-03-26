@@ -754,7 +754,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     char *pos;
     CHARSET_INFO *cs= system_charset_info;
     Send_field field;
-    item->make_field(&field);
+    item->make_field(thd, &field);
 
     /* Keep things compatible for old clients */
     if (field.type == MYSQL_TYPE_VARCHAR)

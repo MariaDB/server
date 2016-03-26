@@ -283,7 +283,7 @@ static Sys_var_long Sys_pfs_events_stages_history_size(
 /**
   Variable performance_schema_max_statement_classes.
   The default number of statement classes is the sum of:
-  - COM_END for all regular "statement/com/...",
+  - (COM_END - mariadb gap) for all regular "statement/com/...",
   - 1 for "statement/com/new_packet", for unknown enum_server_command
   - 1 for "statement/com/Error", for invalid enum_server_command
   - SQLCOM_END for all regular "statement/sql/...",
@@ -295,7 +295,8 @@ static Sys_var_ulong Sys_pfs_max_statement_classes(
        "Maximum number of statement instruments.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
-       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 4),
+       DEFAULT((ulong) SQLCOM_END +
+               (ulong) (COM_END -(COM_MDB_GAP_END - COM_MDB_GAP_BEG + 1)) + 4),
        BLOCK_SIZE(1));
 
 static Sys_var_long Sys_pfs_events_statements_history_long_size(
@@ -1450,16 +1451,11 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1));
 
-/*
-  "pseudo_thread_id" variable used in the test suite to detect 32/64bit
-  systems.  If you change it to something else then ulong then fix the tests
-  in mysql-test/include/have_32bit.inc and have_64bit.inc.
-*/
-static Sys_var_ulong Sys_pseudo_thread_id(
+static Sys_var_ulonglong Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, ULONG_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
@@ -1856,6 +1852,15 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        "with GTID in different replication domains. Note that these threads "
        "are in addition to the IO and SQL threads, which are always created "
        "by a replication slave",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+
+/* Alias for @@slave_parallel_threads to match what MySQL 5.7 uses. */
+static Sys_var_ulong Sys_slave_parallel_workers(
+       "slave_parallel_workers",
+       "Alias for slave_parallel_threads",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
@@ -2341,17 +2346,6 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 5), DEFAULT(1), BLOCK_SIZE(1));
 
-/** Warns about deprecated value 63 */
-static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
-                                       enum_var_type type)
-{
-  SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;
-  if (sv->optimizer_search_depth == MAX_TABLES+2)
-    WARN_DEPRECATED(thd, 10, 2, "optimizer-search-depth=63",
-                    "a search depth less than 63");
-  return false;
-}
-
 static Sys_var_ulong Sys_optimizer_search_depth(
        "optimizer_search_depth",
        "Maximum depth of search performed by the query optimizer. Values "
@@ -2359,13 +2353,10 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        "query plans, but take longer to compile a query. Values smaller "
        "than the number of tables in a relation result in faster "
        "optimization, but may produce very bad query plans. If set to 0, "
-       "the system will automatically pick a reasonable value; if set to "
-       "63, the optimizer will switch to the original find_best search. "
-       "NOTE: The value 63 and its associated behaviour is deprecated",
+       "the system will automatically pick a reasonable value",
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, MAX_TABLES+2), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_optimizer_search_depth));
+       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
 
 /* this is used in the sigsegv handler */
 export const char *optimizer_switch_names[]=
@@ -3216,9 +3207,9 @@ static Sys_var_ulong Sys_table_cache_size(
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",
-       "How many threads we should keep in a cache for reuse",
+       "How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time",
        GLOBAL_VAR(thread_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 16384), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 16384), DEFAULT(256), BLOCK_SIZE(1));
 
 #ifdef HAVE_POOL_OF_THREADS
 static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
@@ -3395,7 +3386,6 @@ static Sys_var_mybool Sys_timed_mutexes(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL), ON_UPDATE(NULL),
        DEPRECATED(""));
 
-static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
        READ_ONLY GLOBAL_VAR(server_version_ptr),
@@ -3544,7 +3534,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
       thd->mdl_context.release_transactional_locks();
-      WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+      WSREP_DEBUG("autocommit, MDL TRX lock released: %lld",
+                  (longlong) thd->thread_id);
       return true;
     }
     /*

@@ -3816,7 +3816,7 @@ return 1' at line 1
 CREATE FUNCTION fn1(a char) returns int lang sql return 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sql return 1' at line 1
 CREATE FUNCTION fn1(a char) returns int deterministic( return 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'return 1)' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '( return 1)' at line 1
 CREATE FUNCTION fn1(a char) returns int non deterministic return 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'deterministic return 1' at line 1
 CREATE FUNCTION fn1(a char) returns int not deterministic comment 'abc' language sql sql security refiner return 1;

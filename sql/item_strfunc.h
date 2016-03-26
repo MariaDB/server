@@ -65,6 +65,7 @@ public:
   double val_real();
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
   void update_null_value()
@@ -1197,7 +1198,7 @@ protected:
   uint *keys_num;
   LEX_STRING *keys_str;
   bool names, force_names;
-  bool prepare_arguments(bool force_names);
+  bool prepare_arguments(THD *thd, bool force_names);
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(THD *thd, List<Item> &args, DYNCALL_CREATE_DEF *dfs);
@@ -1255,7 +1256,7 @@ public:
   longlong val_int();
   double val_real();
   my_decimal *val_decimal(my_decimal *);
-  bool get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp);
+  bool get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val, String *tmp);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void print(String *str, enum_query_type query_type);
 };

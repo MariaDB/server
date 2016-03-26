@@ -15,7 +15,7 @@ SET(fail_patterns
     )
 
 MACRO (MY_CHECK_C_COMPILER_FLAG flag)
-  STRING(REGEX REPLACE "[-,= ]" "_" result "HAVE_C_${flag}")
+  STRING(REGEX REPLACE "[-,= ]" "_" result "have_C_${flag}")
   SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
   SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${flag}")
   CHECK_C_SOURCE_COMPILES("int main(void) { return 0; }" ${result}
@@ -24,7 +24,7 @@ MACRO (MY_CHECK_C_COMPILER_FLAG flag)
 ENDMACRO()
 
 MACRO (MY_CHECK_CXX_COMPILER_FLAG flag)
-  STRING(REGEX REPLACE "[-,= ]" "_" result "HAVE_CXX_${flag}")
+  STRING(REGEX REPLACE "[-,= ]" "_" result "have_CXX_${flag}")
   SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
   SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${flag}")
   CHECK_CXX_SOURCE_COMPILES("int main(void) { return 0; }" ${result}
@@ -42,7 +42,7 @@ FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG flag)
   MY_CHECK_CXX_COMPILER_FLAG(${flag})
   STRING(REGEX REPLACE "[-,= ]" "_" result "${flag}")
   FOREACH(lang C CXX)
-    IF (HAVE_${lang}_${result})
+    IF (have_${lang}_${result})
       IF(ARGN)
         FOREACH(type ${ARGN})
           SET(CMAKE_${lang}_FLAGS_${type} "${CMAKE_${lang}_FLAGS_${type}} ${flag}" PARENT_SCOPE)

@@ -28,6 +28,7 @@
 #include "key.h"
 #include "sql_statistics.h"
 #include "opt_range.h"
+#include "uniques.h"
 #include "my_atomic.h"
 
 /*
@@ -1656,7 +1657,7 @@ public:
 
   bool is_single_comp_pk;
 
-  Index_prefix_calc(TABLE *table, KEY *key_info)
+  Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
   {
     uint i;
@@ -1677,7 +1678,7 @@ public:
     }
         
     if ((calc_state=
-         (Prefix_calc_state *) sql_alloc(sizeof(Prefix_calc_state)*key_parts)))
+         (Prefix_calc_state *) thd->alloc(sizeof(Prefix_calc_state)*key_parts)))
     {
       uint keyno= key_info-table->key_info;
       for (i= 0, state= calc_state; i < key_parts; i++, state++)
@@ -1691,7 +1692,8 @@ public:
           break;
 
         if (!(state->last_prefix=
-              new Cached_item_field(key_info->key_part[i].field)))
+              new (thd->mem_root) Cached_item_field(thd,
+                                    key_info->key_part[i].field)))
           break;
         state->entry_count= state->prefix_count= 0;
         prefixes++;
@@ -2475,7 +2477,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   if (key_info->flags & HA_FULLTEXT)
     DBUG_RETURN(rc);
 
-  Index_prefix_calc index_prefix_calc(table, key_info);
+  Index_prefix_calc index_prefix_calc(thd, table, key_info);
 
   DEBUG_SYNC(table->in_use, "statistics_collection_start1");
   DEBUG_SYNC(table->in_use, "statistics_collection_start2");

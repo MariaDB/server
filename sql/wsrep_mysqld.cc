@@ -1566,8 +1566,8 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 
   if (thd->wsrep_conflict_state == MUST_ABORT)
   {
-    WSREP_INFO("thread: %lu, schema: %s, query: %s has been aborted due to multi-master conflict",
-               thd->thread_id,
+    WSREP_INFO("thread: %lld  schema: %s  query: %s has been aborted due to multi-master conflict",
+               (longlong) thd->thread_id,
                (thd->db ? thd->db : "(null)"),
                thd->query());
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -1580,15 +1580,15 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 
   if (thd->global_read_lock.can_acquire_protection())
   {
-    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lu",
-                thd->query(), thd->thread_id);
+    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lld",
+                thd->query(), (longlong) thd->thread_id);
     return -1;
   }
 
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
-    WSREP_DEBUG("thread holds MDL locks at TI begin: %s %lu",
-                thd->query(), thd->thread_id);
+    WSREP_DEBUG("thread holds MDL locks at TI begin: %s %lld",
+                thd->query(), (longlong) thd->thread_id);
   }
 
   /*
@@ -1651,13 +1651,13 @@ void wsrep_to_isolation_end(THD *thd)
     WSREP_##severity(                                                          \
       "%s\n"                                                                   \
       "schema:  %.*s\n"                                                        \
-      "request: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)\n"      \
-      "granted: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)",       \
+      "request: (%lld \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)\n"      \
+      "granted: (%lld \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)",       \
       msg, schema_len, schema,                                                 \
-      req->thread_id, (long long)wsrep_thd_trx_seqno(req),                     \
+      (longlong) req->thread_id, (long long)wsrep_thd_trx_seqno(req),                     \
       req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
       req->get_command(), req->lex->sql_command, req->query(),                 \
-      gra->thread_id, (long long)wsrep_thd_trx_seqno(gra),                     \
+      (longlong) gra->thread_id, (long long)wsrep_thd_trx_seqno(gra),                     \
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
       gra->get_command(), gra->lex->sql_command, gra->query());
 
@@ -1757,8 +1757,9 @@ pthread_handler_t start_wsrep_THD(void *arg)
     goto error;
   }
 
+  thd->thread_id= next_thread_id();
+
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id=thread_id++;
 
   if (wsrep_gtid_mode)
   {
@@ -1859,14 +1860,15 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // at server shutdown
   }
 
-  my_thread_end();
   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
   {
     mysql_mutex_lock(&LOCK_thread_count);
-    delete thd;
-    thread_count--;
+    thd->unlink();
     mysql_mutex_unlock(&LOCK_thread_count);
+    delete thd;
+    dec_thread_count();
   }
+  my_thread_end();
   return(NULL);
 
 error:
@@ -1933,8 +1935,8 @@ static bool have_client_connections()
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
-                        tmp->thread_id));
+    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
+                       (longlong) tmp->thread_id));
     if (is_client_connection(tmp) && tmp->killed == KILL_CONNECTION)
     {
       (void)abort_replicated(tmp);
@@ -2018,8 +2020,8 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
-                        tmp->thread_id));
+    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
+                       (longlong) tmp->thread_id));
     /* We skip slave threads & scheduler on this first loop through. */
     if (!is_client_connection(tmp))
       continue;
@@ -2034,7 +2036,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
     if (abort_replicated(tmp))
       continue;
 
-    WSREP_DEBUG("closing connection %ld", tmp->thread_id);
+    WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
     wsrep_close_thread(tmp);
   }
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -2055,7 +2057,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
         !abort_replicated(tmp)    &&
 	!is_replaying_connection(tmp))
     {
-      WSREP_INFO("killing local connection: %ld",tmp->thread_id);
+      WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
       close_connection(tmp,0);
     }
 #endif
@@ -2080,7 +2082,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
 
 void wsrep_close_applier(THD *thd)
 {
-  WSREP_DEBUG("closing applier %ld", thd->thread_id);
+  WSREP_DEBUG("closing applier %lld", (longlong) thd->thread_id);
   wsrep_close_thread(thd);
 }
 
@@ -2093,12 +2095,12 @@ void wsrep_close_threads(THD *thd)
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
-                       tmp->thread_id));
+    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
+                       (longlong) tmp->thread_id));
     /* We skip slave threads & scheduler on this first loop through. */
     if (tmp->wsrep_applier && tmp != thd)
     {
-      WSREP_DEBUG("closing wsrep thread %ld", tmp->thread_id);
+      WSREP_DEBUG("closing wsrep thread %lld", (longlong) tmp->thread_id);
       wsrep_close_thread (tmp);
     }
   }

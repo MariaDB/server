@@ -4691,6 +4691,9 @@ FROM t1 LEFT JOIN
 (t2 LEFT OUTER JOIN t3 ON t2.b = t3.b) ON t2.a = t1.b
 WHERE t3.a BETWEEN 3 AND 11 OR t1.a <= t2.c;
 a
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'h'
+Warning	1292	Truncated incorrect INTEGER value: 'j'
 SET SESSION optimizer_switch = 'outer_join_with_cache=off';
 SET SESSION join_cache_level = DEFAULT;
 DROP TABLE t1,t2,t3;

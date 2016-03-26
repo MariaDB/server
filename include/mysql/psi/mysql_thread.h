@@ -71,8 +71,6 @@ struct st_mysql_mutex
   /** The real mutex. */
 #ifdef SAFE_MUTEX
   safe_mutex_t m_mutex;
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  my_pthread_fastmutex_t m_mutex;
 #else
   pthread_mutex_t m_mutex;
 #endif
@@ -619,8 +617,6 @@ static inline int inline_mysql_mutex_init(
 #endif
 #ifdef SAFE_MUTEX
   return safe_mutex_init(&that->m_mutex, attr, src_name, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  return my_pthread_fastmutex_init(&that->m_mutex, attr);
 #else
   return pthread_mutex_init(&that->m_mutex, attr);
 #endif
@@ -642,8 +638,6 @@ static inline int inline_mysql_mutex_destroy(
 #endif
 #ifdef SAFE_MUTEX
   return safe_mutex_destroy(&that->m_mutex, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  return pthread_mutex_destroy(&that->m_mutex.mutex);
 #else
   return pthread_mutex_destroy(&that->m_mutex);
 #endif
@@ -670,8 +664,6 @@ static inline int inline_mysql_mutex_lock(
     /* Instrumented code */
 #ifdef SAFE_MUTEX
     result= safe_mutex_lock(&that->m_mutex, FALSE, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-    result= my_pthread_fastmutex_lock(&that->m_mutex);
 #else
     result= pthread_mutex_lock(&that->m_mutex);
 #endif
@@ -687,8 +679,6 @@ static inline int inline_mysql_mutex_lock(
   /* Non instrumented code */
 #ifdef SAFE_MUTEX
   result= safe_mutex_lock(&that->m_mutex, FALSE, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  result= my_pthread_fastmutex_lock(&that->m_mutex);
 #else
   result= pthread_mutex_lock(&that->m_mutex);
 #endif
@@ -717,8 +707,6 @@ static inline int inline_mysql_mutex_trylock(
     /* Instrumented code */
 #ifdef SAFE_MUTEX
     result= safe_mutex_lock(&that->m_mutex, TRUE, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-    result= pthread_mutex_trylock(&that->m_mutex.mutex);
 #else
     result= pthread_mutex_trylock(&that->m_mutex);
 #endif
@@ -734,8 +722,6 @@ static inline int inline_mysql_mutex_trylock(
   /* Non instrumented code */
 #ifdef SAFE_MUTEX
   result= safe_mutex_lock(&that->m_mutex, TRUE, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  result= pthread_mutex_trylock(&that->m_mutex.mutex);
 #else
   result= pthread_mutex_trylock(&that->m_mutex);
 #endif
@@ -759,8 +745,6 @@ static inline int inline_mysql_mutex_unlock(
 
 #ifdef SAFE_MUTEX
   result= safe_mutex_unlock(&that->m_mutex, src_file, src_line);
-#elif defined(MY_PTHREAD_FASTMUTEX)
-  result= pthread_mutex_unlock(&that->m_mutex.mutex);
 #else
   result= pthread_mutex_unlock(&that->m_mutex);
 #endif
@@ -1256,7 +1240,7 @@ static inline int inline_mysql_thread_create(
   return result;
 }
 
-static inline void inline_mysql_thread_set_psi_id(ulong id)
+static inline void inline_mysql_thread_set_psi_id(my_thread_id id)
 {
   struct PSI_thread *psi= PSI_THREAD_CALL(get_thread)();
   PSI_THREAD_CALL(set_thread_id)(psi, id);

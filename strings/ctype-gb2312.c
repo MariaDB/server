@@ -173,12 +173,6 @@ static const uchar sort_order_gb2312[]=
 #include "ctype-mb.ic"
 
 
-static uint ismbchar_gb2312(CHARSET_INFO *cs __attribute__((unused)),
-		    const char* p, const char *e)
-{
-  return (isgb2312head(*(p)) && (e)-(p)>1 && isgb2312tail(*((p)+1))? 2: 0);
-}
-
 static uint mbcharlen_gb2312(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
   return (isgb2312head(c)? 2 : 1);
@@ -6391,7 +6385,6 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  ismbchar_gb2312,
   mbcharlen_gb2312,
   my_numchars_mb,
   my_charpos_mb,

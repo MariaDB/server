@@ -114,12 +114,11 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_partition.h"    // get_part_id_func, PARTITION_ITERATOR,
                               // struct partition_info, NOT_A_PARTITION_ID
-#include "sql_base.h"         // free_io_cache
 #include "records.h"          // init_read_record, end_read_record
 #include <m_ctype.h>
 #include "sql_select.h"
 #include "sql_statistics.h"
-#include "filesort.h"         // filesort_free_buffers
+#include "uniques.h"
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}
@@ -1154,6 +1153,7 @@ int imerge_list_and_tree(RANGE_OPT_PARAM *param,
 
 SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 			table_map read_tables, COND *conds,
+                        SORT_INFO *filesort,
                         bool allow_null_cond,
                         int *error)
 {
@@ -1174,13 +1174,16 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
   select->head=head;
   select->cond= conds;
 
-  if (head->sort.io_cache)
+  if (filesort && my_b_inited(&filesort->io_cache))
   {
-    select->file= *head->sort.io_cache;
+    /*
+      Hijack the filesort io_cache for make_select
+      SQL_SELECT will be responsible for ensuring that it's properly freed.
+    */
+    select->file= filesort->io_cache;
     select->records=(ha_rows) (select->file.end_of_file/
 			       head->file->ref_length);
-    my_free(head->sort.io_cache);
-    head->sort.io_cache=0;
+    my_b_clear(&filesort->io_cache);
   }
   DBUG_RETURN(select);
 }
@@ -1393,7 +1396,6 @@ QUICK_INDEX_SORT_SELECT::~QUICK_INDEX_SORT_SELECT()
   delete pk_quick_select;
   /* It's ok to call the next two even if they are already deinitialized */
   end_read_record(&read_record);
-  free_io_cache(head);
   free_root(&alloc,MYF(0));
   DBUG_VOID_RETURN;
 }
@@ -10674,7 +10676,6 @@ int read_keys_and_merge_scans(THD *thd,
   else
   {
     unique->reset();
-    filesort_free_buffers(head, false);
   }
 
   DBUG_ASSERT(file->ref_length == unique->get_size());
@@ -10727,7 +10728,7 @@ int read_keys_and_merge_scans(THD *thd,
 
   /*
     Ok all rowids are in the Unique now. The next call will initialize
-    head->sort structure so it can be used to iterate through the rowids
+    the unique structure so it can be used to iterate through the rowids
     sequence.
   */
   result= unique->get(head);
@@ -10736,7 +10737,8 @@ int read_keys_and_merge_scans(THD *thd,
   */
   if (enabled_keyread)
     head->disable_keyread();
-  if (init_read_record(read_record, thd, head, (SQL_SELECT*) 0, 1 , 1, TRUE))
+  if (init_read_record(read_record, thd, head, (SQL_SELECT*) 0,
+                       &unique->sort, 1 , 1, TRUE))
     result= 1;
  DBUG_RETURN(result);
 
@@ -10779,7 +10781,8 @@ int QUICK_INDEX_MERGE_SELECT::get_next()
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
-    free_io_cache(head);
+    // Free things used by sort early. Shouldn't be strictly necessary
+    unique->sort.reset();
     /* All rows from Unique have been retrieved, do a clustered PK scan */
     if (pk_quick_select)
     {
@@ -10814,7 +10817,7 @@ int QUICK_INDEX_INTERSECT_SELECT::get_next()
   {
     result= HA_ERR_END_OF_FILE;
     end_read_record(&read_record);
-    free_io_cache(head);
+    unique->sort.reset();                       // Free things early
   }
 
   DBUG_RETURN(result);
@@ -14618,6 +14621,4 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
   }
 }
 
-
 #endif /* !DBUG_OFF */
-

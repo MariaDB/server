@@ -1926,7 +1926,6 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
 MY_CHARSET_HANDLER my_charset_8bit_handler=
 {
     my_cset_init_8bit,
-    NULL,			/* ismbchar      */
     my_mbcharlen_8bit,		/* mbcharlen     */
     my_numchars_8bit,
     my_charpos_8bit,

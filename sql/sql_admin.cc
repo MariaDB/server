@@ -131,7 +131,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    share= tdc_acquire_share_shortlived(thd, table_list, GTS_TABLE);
+    share= tdc_acquire_share(thd, table_list, GTS_TABLE);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 

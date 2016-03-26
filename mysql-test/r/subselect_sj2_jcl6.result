@@ -952,6 +952,8 @@ SELECT d FROM t2, t1
 WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
 a	b	c
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
 DROP TABLE t1, t2;
 #
 # BUG#951937: Wrong result (missing rows) with semijoin+materialization, IN subquery, InnoDB, TEMPTABLE view

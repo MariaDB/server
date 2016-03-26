@@ -63,7 +63,8 @@
 const char *primary_key_name="PRIMARY";
 
 static bool check_if_keyname_exists(const char *name,KEY *start, KEY *end);
-static char *make_unique_key_name(const char *field_name,KEY *start,KEY *end);
+static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
+                                  KEY *end);
 static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     List<Create_field> &create, bool ignore,
 				    uint order_num, ORDER *order,
@@ -71,7 +72,7 @@ static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     Alter_info::enum_enable_or_disable keys_onoff,
                                     Alter_table_ctx *alter_ctx);
 
-static bool prepare_blob_field(THD *thd, Create_field *sql_field);
+static bool prepare_blob_field(THD *thd, Column_definition *sql_field);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -89,7 +90,7 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
 {
   uint res;
   uint errors;
-  const char *conv_name;
+  const char *conv_name, *conv_name_end;
   char tmp_name[FN_REFLEN];
   char conv_string[FN_REFLEN];
   int quote;
@@ -110,11 +111,13 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
   {
     DBUG_PRINT("error", ("strconvert of '%s' failed with %u (errors: %u)", conv_name, res, errors));
     conv_name= name;
+    conv_name_end= name + name_len;
   }
   else
   {
     DBUG_PRINT("info", ("conv '%s' -> '%s'", conv_name, conv_string));
     conv_name= conv_string;
+    conv_name_end= conv_string + res;
   }
 
   quote = thd ? get_quote_char_for_identifier(thd, conv_name, res - 1) : '"';
@@ -124,8 +127,8 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     *(to_p++)= (char) quote;
     while (*conv_name && (end_p - to_p - 1) > 0)
     {
-      uint length= my_mbcharlen(system_charset_info, *conv_name);
-      if (!length)
+      int length= my_charlen(system_charset_info, conv_name, conv_name_end);
+      if (length <= 0)
         length= 1;
       if (length == 1 && *conv_name == (char) quote)
       { 
@@ -572,7 +575,7 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   DBUG_ENTER("build_tmptable_filename");
 
   char *p= strnmov(buff, mysql_tmpdir, bufflen);
-  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%lx_%x",
+  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%llx_%x",
               tmp_file_prefix, current_pid,
               thd->thread_id, thd->tmp_table++);
 
@@ -1813,7 +1816,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       partition_info *part_info= lpt->table->part_info;
       if (part_info)
       {
-        if (!(part_syntax_buf= generate_partition_syntax(part_info,
+        if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
                                                          &syntax_len,
                                                          TRUE, TRUE,
                                                          lpt->create_info,
@@ -1896,7 +1899,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     {
       TABLE_SHARE *share= lpt->table->s;
       char *tmp_part_syntax_str;
-      if (!(part_syntax_buf= generate_partition_syntax(part_info,
+      if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
                                                        &syntax_len,
                                                        TRUE, TRUE,
                                                        lpt->create_info,
@@ -2875,7 +2878,7 @@ void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
    1	Error
 */
 
-int prepare_create_field(Create_field *sql_field, 
+int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns, 
 			 longlong table_flags)
 {
@@ -3491,7 +3494,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  sql_field->flags=		dup_field->flags;
           sql_field->interval=          dup_field->interval;
           sql_field->vcol_info=         dup_field->vcol_info;
-          sql_field->stored_in_db=      dup_field->stored_in_db;
 	  it2.remove();			// Remove first (create) definition
 	  select_field_pos--;
 	  break;
@@ -3533,14 +3535,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       (virtual fields) and update their offset later 
       (see the next loop).
     */
-    if (sql_field->stored_in_db)
+    if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
   }
   /* Update virtual fields' offset*/
   it.rewind();
   while ((sql_field=it++))
   {
-    if (!sql_field->stored_in_db)
+    if (!sql_field->stored_in_db())
     {
       sql_field->offset= record_offset;
       record_offset+= sql_field->pack_length;
@@ -3893,7 +3895,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  }
 	}
 #endif
-        if (!sql_field->stored_in_db)
+        if (!sql_field->stored_in_db())
         {
           /* Key fields must always be physically stored. */
           my_error(ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN, MYF(0));
@@ -4052,7 +4054,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  primary_key=1;
 	}
 	else if (!(key_name= key->name.str))
-	  key_name=make_unique_key_name(sql_field->field_name,
+	  key_name=make_unique_key_name(thd, sql_field->field_name,
 					*key_info_buffer, key_info);
 	if (check_if_keyname_exists(key_name, *key_info_buffer, key_info))
 	{
@@ -4261,7 +4263,7 @@ static void set_table_default_charset(THD *thd,
         In this case the error is given
 */
 
-static bool prepare_blob_field(THD *thd, Create_field *sql_field)
+static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
 {
   DBUG_ENTER("prepare_blob_field");
 
@@ -4320,7 +4322,7 @@ static bool prepare_blob_field(THD *thd, Create_field *sql_field)
 
 */
 
-void sp_prepare_create_field(THD *thd, Create_field *sql_field)
+void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
 {
   if (sql_field->sql_type == MYSQL_TYPE_SET ||
       sql_field->sql_type == MYSQL_TYPE_ENUM)
@@ -4502,7 +4504,7 @@ handler *mysql_create_frm_image(THD *thd,
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
     */
-    if (!(part_syntax_buf= generate_partition_syntax(part_info,
+    if (!(part_syntax_buf= generate_partition_syntax(thd, part_info,
                                                      &syntax_len,
                                                      TRUE, TRUE,
                                                      create_info,
@@ -5094,7 +5096,7 @@ check_if_keyname_exists(const char *name, KEY *start, KEY *end)
 
 
 static char *
-make_unique_key_name(const char *field_name,KEY *start,KEY *end)
+make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
 {
   char buff[MAX_FIELD_NAME],*buff_end;
 
@@ -5112,7 +5114,7 @@ make_unique_key_name(const char *field_name,KEY *start,KEY *end)
     *buff_end= '_';
     int10_to_str(i, buff_end+1, 10);
     if (!check_if_keyname_exists(buff,start,end))
-      return sql_strdup(buff);
+      return thd->strdup(buff);
   }
   return (char*) "not_specified";		// Should never happen
 }
@@ -6272,7 +6274,7 @@ static bool fill_alter_inplace_info(THD *thd,
         is stored or is used in the partitioning expression.
       */
       if (field->vcol_info && 
-          (field->stored_in_db || field->vcol_info->is_in_partitioning_expr()))
+          (field->stored_in_db() || field->vcol_info->is_in_partitioning_expr()))
       {
         if (is_equal == IS_EQUAL_NO ||
             !field->vcol_info->is_equal(new_field->vcol_info))
@@ -6371,11 +6373,10 @@ static bool fill_alter_inplace_info(THD *thd,
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::ADD_COLUMN);
 
       if (new_field->vcol_info && 
-          (new_field->stored_in_db || new_field->vcol_info->is_in_partitioning_expr()))
+          (new_field->stored_in_db() || new_field->vcol_info->is_in_partitioning_expr()))
       {
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
       }
-      break;
     }
   }
 
@@ -7438,7 +7439,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         of the list for now. Their positions will be corrected later.
       */
       new_create_list.push_back(def, thd->mem_root);
-      if (field->stored_in_db != def->stored_in_db)
+      if (field->stored_in_db() != def->stored_in_db())
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
         goto err;
@@ -9350,15 +9351,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
   ha_rows found_count= 0, delete_count= 0;
-  uint length= 0;
   SORT_FIELD *sortorder;
+  SORT_INFO  *file_sort= 0;
   READ_RECORD info;
   TABLE_LIST   tables;
   List<Item>   fields;
   List<Item>   all_fields;
-  ha_rows examined_rows;
-  ha_rows found_rows;
   bool auto_increment_field_copied= 0;
+  bool init_read_record_done= 0;
   ulonglong save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
@@ -9441,9 +9441,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
-      from->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                                MYF(MY_FAE | MY_ZEROFILL |
-                                                    MY_THREAD_SPECIFIC));
+      uint length= 0;
       bzero((char *) &tables, sizeof(tables));
       tables.table= from;
       tables.alias= tables.table_name= from->s->table_name.str;
@@ -9455,12 +9453,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
           !(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
-          (from->sort.found_records= filesort(thd, from, sortorder, length,
-                                              NULL, HA_POS_ERROR,
-                                              true,
-                                              &examined_rows, &found_rows,
-                                              &dummy_tracker)) ==
-          HA_POS_ERROR)
+          !(file_sort= filesort(thd, from, sortorder, length,
+                               NULL, HA_POS_ERROR,
+                               true,
+                                &dummy_tracker)))
         goto err;
     }
     thd_progress_next_stage(thd);
@@ -9470,8 +9466,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   to->mark_virtual_columns_for_write(TRUE);
-  if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, 1, 1, FALSE))
+  if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, file_sort, 1, 1,
+                       FALSE))
     goto err;
+  init_read_record_done= 1;
 
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -9586,9 +9584,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       found_count++;
     thd->get_stmt_da()->inc_current_row_for_warning();
   }
-  end_read_record(&info);
-  free_io_cache(from);
-  delete [] copy;
 
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
@@ -9609,6 +9604,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     error= 1;
 
  err:
+  /* Free resources */
+  if (init_read_record_done)
+    end_read_record(&info);
+  delete [] copy;
+  delete file_sort;
+
   thd->variables.sql_mode= save_sql_mode;
   thd->abort_on_warning= 0;
   *copied= found_count;

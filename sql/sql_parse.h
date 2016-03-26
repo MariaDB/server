@@ -35,6 +35,7 @@ enum enum_mysql_completiontype {
 
 extern "C" int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
+my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
@@ -87,7 +88,7 @@ bool is_log_table_write_query(enum enum_sql_command command);
 bool alloc_query(THD *thd, const char *packet, uint packet_length);
 void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
-                 Parser_state *parser_state);
+                 Parser_state *parser_state, bool is_com_multi);
 bool mysql_new_select(LEX *lex, bool move_down);
 void create_select_for_variable(const char *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
@@ -99,7 +100,8 @@ int mysql_execute_command(THD *thd);
 bool do_command(THD *thd);
 void do_handle_bootstrap(THD *thd);
 bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length);
+		      char* packet, uint packet_length,
+                      bool is_com_multi, bool is_next_command);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const char *table_name);
@@ -115,7 +117,6 @@ bool add_proc_to_list(THD *thd, Item *item);
 bool push_new_name_resolution_context(THD *thd,
                                       TABLE_LIST *left_op,
                                       TABLE_LIST *right_op);
-void store_position_for_column(const char *name);
 void init_update_queries(void);
 bool check_simple_select();
 Item *normalize_cond(THD *thd, Item *cond);

@@ -153,13 +153,11 @@
 */
 #if defined(__APPLE__) && defined(__MACH__)
 #  undef SIZEOF_CHARP 
-#  undef SIZEOF_SHORT 
 #  undef SIZEOF_INT 
 #  undef SIZEOF_LONG 
 #  undef SIZEOF_LONG_LONG 
 #  undef SIZEOF_OFF_T 
 #  undef WORDS_BIGENDIAN
-#  define SIZEOF_SHORT 2
 #  define SIZEOF_INT 4
 #  define SIZEOF_LONG_LONG 8
 #  define SIZEOF_OFF_T 8

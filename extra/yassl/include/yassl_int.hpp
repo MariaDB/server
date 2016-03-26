@@ -342,6 +342,7 @@ private:
 Sessions&   GetSessions();      // forward singletons
 sslFactory& GetSSL_Factory();
 Errors&     GetErrors();
+bool        HasErrors();
 
 
 // openSSL method and context types

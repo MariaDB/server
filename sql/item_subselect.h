@@ -95,6 +95,9 @@ public:
   subselect_engine *engine;
   /* unit of subquery */
   st_select_lex_unit *unit;
+  /* Cached buffers used when calling filesort in sub queries */
+  Filesort_buffer filesort_buffer;
+  LEX_STRING sortbuffer;
   /* A reference from inside subquery predicate to somewhere outside of it */
   class Ref_to_outside : public Sql_alloc
   {
@@ -378,6 +381,7 @@ public:
   void no_rows_in_result();
 
   enum Item_result result_type() const { return INT_RESULT;}
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   longlong val_int();
   double val_real();
   String *val_str(String*);

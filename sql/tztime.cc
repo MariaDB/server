@@ -1800,8 +1800,6 @@ end:
   delete thd;
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
-  else
-    my_pthread_setspecific_ptr(THR_MALLOC,  0);
   
   default_tz= default_tz_name ? global_system_variables.time_zone
                               : my_tz_SYSTEM;

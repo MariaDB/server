@@ -2424,9 +2424,9 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	62
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value; if set to 63, the optimizer will switch to the original find_best search. NOTE: The value 63 and its associated behaviour is deprecated
+VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	63
+NUMERIC_MAX_VALUE	62
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -2797,9 +2797,9 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_STATEMENT_CLASSES
 SESSION_VALUE	NULL
-GLOBAL_VALUE	178
+GLOBAL_VALUE	181
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	178
+DEFAULT_VALUE	181
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Maximum number of statement instruments.
@@ -3847,12 +3847,12 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_CACHE_SIZE
 SESSION_VALUE	NULL
-GLOBAL_VALUE	0
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	0
+GLOBAL_VALUE	151
+GLOBAL_VALUE_ORIGIN	AUTO
+DEFAULT_VALUE	256
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	How many threads we should keep in a cache for reuse
+VARIABLE_COMMENT	How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -3889,9 +3889,9 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_STACK
 SESSION_VALUE	NULL
-GLOBAL_VALUE	295936
+GLOBAL_VALUE	296960
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	295936
+DEFAULT_VALUE	296960
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The stack size for each thread

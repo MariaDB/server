@@ -3955,7 +3955,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   {
     /* if we run out of slots or we are not using tempool */
     sprintf(path,"%s%lx_%lx_%x", tmp_file_prefix,current_pid,
-            thd->thread_id, thd->tmp_table++);
+            (ulong) thd->thread_id, thd->tmp_table++);
   }
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
@@ -4739,8 +4739,6 @@ int clear_sj_tmp_tables(JOIN *join)
   {
     if ((res= table->file->ha_delete_all_rows()))
       return res; /* purecov: inspected */
-   free_io_cache(table);
-   filesort_free_buffers(table,0);
   }
 
   SJ_MATERIALIZATION_INFO *sjm;

@@ -601,7 +601,7 @@ restart:
       uint last_errno=uint2korr(pos);
 
       if (last_errno == 65535 &&
-          (mysql->server_capabilities & CLIENT_PROGRESS))
+          (mysql->server_capabilities & CLIENT_PROGRESS_OBSOLETE))
       {
         if (cli_report_progress(mysql, pos+2, (uint) (len-3)))
         {

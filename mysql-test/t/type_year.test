@@ -210,3 +210,45 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
+--echo #
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (-0.1);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DECIMAL(10,1));
+INSERT INTO t2 VALUES (-0.1);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (-0.1);
+ALTER TABLE t1 MODIFY a YEAR;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (-0.1e0);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES (-0.1);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-0.1);
+ALTER TABLE t1 MODIFY a YEAR;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

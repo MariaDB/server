@@ -104,7 +104,7 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 
 bool sp_rcontext::init_var_table(THD *thd)
 {
-  List<Create_field> field_def_lst;
+  List<Column_definition> field_def_lst;
 
   if (!m_root_parsing_ctx->max_var_index())
     return false;

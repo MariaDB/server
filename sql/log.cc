@@ -1674,14 +1674,14 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     uchar *buf;
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lu",
-               len, thd->thread_id);
+    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lld",
+               len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
 
     cache = cache_mngr->get_binlog_cache_log(false);
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lu",
-               len, thd->thread_id);
+    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lld",
+               len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */
@@ -6582,7 +6582,6 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate)
   DBUG_ENTER("MYSQL_BIN_LOG::rotate_and_purge");
   bool check_purge= false;
 
-  //todo: fix the macro def and restore safe_mutex_assert_not_owner(&LOCK_log);
   mysql_mutex_lock(&LOCK_log);
   prev_binlog_id= current_binlog_id;
   if ((error= rotate(force_rotate, &check_purge)))
@@ -9508,9 +9507,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd= new THD;
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->thread_id= next_thread_id();
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -9597,9 +9594,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  /* No need to use mutex as thd is not linked into other threads */
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   my_thread_end();
 
@@ -10183,7 +10179,8 @@ IO_CACHE * get_trans_log(THD * thd)
   if (cache_mngr)
     return cache_mngr->get_binlog_cache_log(true);
 
-  WSREP_DEBUG("binlog cache not initialized, conn :%ld", thd->thread_id);
+  WSREP_DEBUG("binlog cache not initialized, conn: %lld",
+              (longlong) thd->thread_id);
   return NULL;
 }
 
@@ -10221,7 +10218,8 @@ void thd_binlog_trx_reset(THD * thd)
 
 void thd_binlog_rollback_stmt(THD * thd)
 {
-  WSREP_DEBUG("thd_binlog_rollback_stmt :%ld", thd->thread_id);
+  WSREP_DEBUG("thd_binlog_rollback_stmt connection: %lld",
+              (longlong) thd->thread_id);
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)

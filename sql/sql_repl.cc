@@ -2181,9 +2181,7 @@ static int init_binlog_sender(binlog_send_info *info,
   linfo->pos= *pos;
 
   // note: publish that we use file, before we open it
-  mysql_mutex_lock(&LOCK_thread_count);
   thd->current_linfo= linfo;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (check_start_offset(info, linfo->log_file_name, *pos))
     return 1;
@@ -2922,9 +2920,7 @@ err:
     mysql_file_close(file, MYF(MY_WME));
   }
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->reset_current_linfo();
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
 
@@ -3379,9 +3375,7 @@ err:
   SYNOPSIS
     kill_zombie_dump_threads()
     slave_server_id     the slave's server id
-
 */
-
 
 void kill_zombie_dump_threads(uint32 slave_server_id)
 {
@@ -3946,9 +3940,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
-    mysql_mutex_lock(&LOCK_thread_count);
-    thd->current_linfo = &linfo;
-    mysql_mutex_unlock(&LOCK_thread_count);
+    thd->current_linfo= &linfo;
 
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;
@@ -4080,9 +4072,7 @@ err:
   else
     my_eof(thd);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->reset_current_linfo();
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   DBUG_RETURN(ret);
 }

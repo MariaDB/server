@@ -49,14 +49,17 @@ static int validate(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
          others < min_others;
 }
 
-static void fix_min_length(MYSQL_THD thd __attribute__((unused)),
-                           struct st_mysql_sys_var *var,
-                           void *var_ptr, const void *save)
+
+static void
+fix_min_length(MYSQL_THD thd __attribute__((unused)),
+               struct st_mysql_sys_var *var __attribute__((unused)),
+               void *var_ptr, const void *save)
 {
   *((unsigned int *)var_ptr)= *((unsigned int *)save);
   if (min_length < min_digits + 2 * min_letters + min_others)
     min_length= min_digits + 2 * min_letters + min_others;
 }
+
 
 static MYSQL_SYSVAR_UINT(minimal_length, min_length, PLUGIN_VAR_RQCMDARG,
   "Minimal required password length", NULL, fix_min_length, 8, 0, 1000, 1);

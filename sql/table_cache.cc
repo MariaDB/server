@@ -67,7 +67,6 @@ I_P_List <TDC_element,
           I_P_List_fast_push_back<TDC_element> > unused_shares;
 
 static int64 tdc_version;  /* Increments on each reload */
-static int64 last_table_id;
 static bool tdc_inited;
 
 static int32 tc_count; /**< Number of TABLE objects in table cache. */
@@ -599,13 +598,14 @@ void tdc_unlock_share(TDC_element *element)
    #  Share for table
 */
 
-TABLE_SHARE *tdc_acquire_share(THD *thd, const char *db, const char *table_name,
-                               const char *key, uint key_length,
-                               my_hash_value_type hash_value, uint flags,
+TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
                                TABLE **out_table)
 {
   TABLE_SHARE *share;
   TDC_element *element;
+  const char *key;
+  uint key_length= get_table_def_key(tl, &key);
+  my_hash_value_type hash_value= tl->mdl_request.key.tc_hash_value();
   bool was_unused;
   DBUG_ENTER("tdc_acquire_share");
 
@@ -629,7 +629,7 @@ retry:
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 
-    if (!(share= alloc_table_share(db, table_name, key, key_length)))
+    if (!(share= alloc_table_share(tl->db, tl->table_name, key, key_length)))
     {
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);
@@ -841,7 +841,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                       const char *db, const char *table_name,
                       bool kill_delayed_threads)
 {
-  I_P_List <TABLE, TABLE_share> purge_tables;
+  TDC_element::TABLE_list purge_tables;
   TABLE *table;
   TDC_element *element;
   uint my_refs= 1;
@@ -1090,57 +1090,4 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
     free_root(&no_dups_argument.root, MYF(0));
   }
   return res;
-}
-
-
-/*
-  Function to assign a new table map id to a table share.
-
-  PARAMETERS
-
-    share - Pointer to table share structure
-
-  DESCRIPTION
-
-    We are intentionally not checking that share->mutex is locked
-    since this function should only be called when opening a table
-    share and before it is entered into the table definition cache
-    (meaning that it cannot be fetched by another thread, even
-    accidentally).
-
-  PRE-CONDITION(S)
-
-    share is non-NULL
-    last_table_id_lock initialized (tdc_inited)
-
-  POST-CONDITION(S)
-
-    share->table_map_id is given a value that with a high certainty is
-    not used by any other table (the only case where a table id can be
-    reused is on wrap-around, which means more than 4 billion table
-    share opens have been executed while one table was open all the
-    time).
-
-    share->table_map_id is not ~0UL.
-*/
-
-void tdc_assign_new_table_id(TABLE_SHARE *share)
-{
-  ulong tid;
-  DBUG_ENTER("assign_new_table_id");
-  DBUG_ASSERT(share);
-  DBUG_ASSERT(tdc_inited);
-
-  /*
-    There is one reserved number that cannot be used.  Remember to
-    change this when 6-byte global table id's are introduced.
-  */
-  do
-  {
-    tid= my_atomic_add64_explicit(&last_table_id, 1, MY_MEMORY_ORDER_RELAXED);
-  } while (unlikely(tid == ~0UL));
-
-  share->table_map_id= tid;
-  DBUG_PRINT("info", ("table_id= %lu", share->table_map_id));
-  DBUG_VOID_RETURN;
 }

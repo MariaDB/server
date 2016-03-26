@@ -726,3 +726,25 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-9393 Split Copy_field::get_copy_func() into virtual methods in Field
+--echo #
+
+CREATE TABLE t1 (a YEAR, b TIME, c YEAR);
+CREATE TABLE t2 (a YEAR);
+INSERT INTO t2 VALUES (0),(1999),(2000),(2030),(2050),(2070);
+INSERT INTO t1 (a,b,c) SELECT a,a,a FROM t2;
+ALTER TABLE t1 MODIFY c TIME;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

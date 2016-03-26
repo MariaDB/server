@@ -32,6 +32,7 @@
 #include "sql_array.h"                        /* Array */
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
+#include "filesort.h"
 
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1
@@ -236,6 +237,7 @@ typedef struct st_join_table {
     For join tabs that are inside an SJM bush: root of the bush
   */
   st_join_table *bush_root_tab;
+  SORT_INFO *filesort;
 
   /* TRUE <=> This join_tab is inside an SJM bush and is the last leaf tab here */
   bool          last_leaf_in_bush;
@@ -1859,7 +1861,180 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   All methods presume that there is at least one field to change.
 */
 
-TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list);
+
+class Virtual_tmp_table: public TABLE
+{
+  /**
+    Destruct collected fields. This method is called on errors only,
+    when we could not make the virtual temporary table completely,
+    e.g. when some of the fields could not be created or added.
+
+    This is needed to avoid memory leaks, as some fields can be BLOB
+    variants and thus can have String onboard. Strings must be destructed
+    as they store data not the heap (not on MEM_ROOT).
+  */
+  void destruct_fields()
+  {
+    for (uint i= 0; i < s->fields; i++)
+      delete field[i];  // to invoke the field destructor
+    s->fields= 0;       // safety
+  }
+
+protected:
+  /**
+     The number of the fields that are going to be in the table.
+     We remember the number of the fields at init() time, and
+     at open() we check that all of the fields were really added.
+  */
+  uint m_alloced_field_count;
+
+  /**
+    Setup field pointers and null-bit pointers.
+  */
+  void setup_field_pointers();
+
+public:
+  /**
+    Create a new empty virtual temporary table on the thread mem_root.
+    After creation, the caller must:
+    - call init()
+    - populate the table with new fields using add().
+    - call open().
+    @param thd         - Current thread.
+  */
+  static void *operator new(size_t size, THD *thd) throw();
+
+  Virtual_tmp_table(THD *thd)
+  {
+    bzero(this, sizeof(*this));
+    temp_pool_slot= MY_BIT_NONE;
+    in_use= thd;
+  }
+
+  ~Virtual_tmp_table()
+  {
+    destruct_fields();
+  }
+
+  /**
+    Allocate components for the given number of fields.
+     - fields[]
+     - s->blob_fields[],
+     - bitmaps: def_read_set, def_write_set, tmp_set, eq_join_set, cond_set.
+    @param field_count - The number of fields we plan to add to the table.
+    @returns false     - on success.
+    @returns true      - on error.
+  */
+  bool init(uint field_count);
+
+  /**
+    Add one Field to the end of the field array, update members:
+    s->reclength, s->fields, s->blob_fields, s->null_fuelds.
+  */
+  bool add(Field *new_field)
+  {
+    DBUG_ASSERT(s->fields < m_alloced_field_count);
+    new_field->init(this);
+    field[s->fields]= new_field;
+    s->reclength+= new_field->pack_length();
+    if (!(new_field->flags & NOT_NULL_FLAG))
+      s->null_fields++;
+    if (new_field->flags & BLOB_FLAG)
+    {
+      // Note, s->blob_fields was incremented in Field_blob::Field_blob
+      DBUG_ASSERT(s->blob_fields);
+      DBUG_ASSERT(s->blob_fields <= m_alloced_field_count);
+      s->blob_field[s->blob_fields - 1]= s->fields;
+    }
+    s->fields++;
+    return false;
+  }
+
+  /**
+    Add fields from a Column_definition list
+    @returns false - on success.
+    @returns true  - on error.
+  */
+  bool add(List<Column_definition> &field_list);
+
+  /**
+    Open a virtual table for read/write:
+    - Setup end markers in TABLE::field and TABLE_SHARE::blob_fields,
+    - Allocate a buffer in TABLE::record[0].
+    - Set field pointers (Field::ptr, Field::null_pos, Field::null_bit) to
+      the allocated record.
+    This method is called when all of the fields have been added to the table.
+    After calling this method the table is ready for read and write operations.
+    @return false - on success
+    @return true  - on error (e.g. could not allocate the record buffer).
+  */
+  bool open();
+};
+
+
+/**
+  Create a reduced TABLE object with properly set up Field list from a
+  list of field definitions.
+
+    The created table doesn't have a table handler associated with
+    it, has no keys, no group/distinct, no copy_funcs array.
+    The sole purpose of this TABLE object is to use the power of Field
+    class to read/write data to/from table->record[0]. Then one can store
+    the record in any container (RB tree, hash, etc).
+    The table is created in THD mem_root, so are the table's fields.
+    Consequently, if you don't BLOB fields, you don't need to free it.
+
+  @param thd         connection handle
+  @param field_list  list of column definitions
+
+  @return
+    0 if out of memory, or a
+    TABLE object ready for read and write in case of success
+*/
+
+inline TABLE *
+create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
+{
+  Virtual_tmp_table *table;
+  if (!(table= new(thd) Virtual_tmp_table(thd)))
+    return NULL;
+  if (table->init(field_list.elements) ||
+      table->add(field_list) ||
+      table->open())
+  {
+    delete table;
+    return NULL;
+  }
+  return table;
+}
+
+
+/**
+  Create a new virtual temporary table consisting of a single field.
+  SUM(DISTINCT expr) and similar numeric aggregate functions use this.
+  @param thd    - Current thread
+  @param field  - The field that will be added into the table.
+  @return NULL  - On error.
+  @return !NULL - A pointer to the created table that is ready
+                  for read and write.
+*/
+inline TABLE *
+create_virtual_tmp_table(THD *thd, Field *field)
+{
+  Virtual_tmp_table *table;
+  DBUG_ASSERT(field);
+  if (!(table= new(thd) Virtual_tmp_table(thd)))
+    return NULL;
+  if (table->init(1) ||
+      table->add(field) ||
+      table->open())
+  {
+    delete table;
+    return NULL;
+  }
+  return table;
+}
+
 
 int test_if_item_cache_changed(List<Cached_item> &list);
 int join_init_read_record(JOIN_TAB *tab);

@@ -2134,3 +2134,84 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-9340 Copying from INT/DOUBLE to ENUM is inconsistent
+#
+CREATE TABLE t1 (a ENUM('9e200','9e100'));
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES ('9e100');
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (9e100);
+ALTER TABLE t1 MODIFY a ENUM('9e200','9e100');
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '9e100'
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('200','100'));
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES ('100');
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a ENUM('200','100'));
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES ('100');
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES ('200');
+ALTER TABLE t1 MODIFY a ENUM('200','100');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT *FROM t1;
+a
+
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('200','100'));
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES ('100');
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a ENUM('2001','2002'));
+CREATE TABLE t2 (a YEAR);
+INSERT INTO t2 VALUES ('2001');
+INSERT INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES ('2001');
+ALTER TABLE t1 MODIFY a ENUM('2001','2002');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+
+DROP TABLE t1;

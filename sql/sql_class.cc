@@ -370,16 +370,6 @@ void thd_close_connection(THD *thd)
 }
 
 /**
-  Get current THD object from thread local data
-
-  @retval     The THD object for the thread, NULL if not connection thread
-*/
-THD *thd_get_current_thd()
-{
-  return current_thd;
-}
-
-/**
   Lock data that needs protection in THD object
 
   @param thd                   THD object
@@ -467,6 +457,16 @@ my_socket thd_get_fd(THD *thd)
   return mysql_socket_getfd(thd->net.vio->mysql_socket);
 }
 #endif
+
+/**
+  Get current THD object from thread local data
+
+  @retval     The THD object for the thread, NULL if not connection thread
+*/
+THD *thd_get_current_thd()
+{
+  return current_thd;
+}
 
 /**
   Get thread attributes for connection threads
@@ -702,12 +702,6 @@ extern "C"
   @param length length of buffer
   @param max_query_len how many chars of query to copy (0 for all)
 
-  @req LOCK_thread_count
-  
-  @note LOCK_thread_count mutex is not necessary when the function is invoked on
-   the currently running thread (current_thd) or if the caller in some other
-   way guarantees that access to thd->query is serialized.
- 
   @return Pointer to string
 */
 
@@ -953,7 +947,7 @@ THD::THD(bool is_wsrep_applier)
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
   user_time.val= start_time= start_time_sec_part= 0;
-  start_utime= utime_after_query= prior_thr_create_utime= 0L;
+  start_utime= utime_after_query= 0;
   utime_after_lock= 0L;
   progress.arena= 0;
   progress.report_to_client= 0;
@@ -1379,6 +1373,12 @@ extern "C"   THD *_current_thd_noinline(void)
 {
   return my_pthread_getspecific_ptr(THD*,THR_THD);
 }
+
+extern "C" my_thread_id next_thread_id_noinline()
+{
+#undef next_thread_id
+  return next_thread_id();
+}
 #endif
 
 /*
@@ -1426,6 +1426,7 @@ void THD::init(void)
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
   last_commit_gtid.seq_no= 0;
+  last_stmt= NULL;
   status_in_global= 0;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
@@ -1630,6 +1631,10 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+  /* Check that we have already called thd->unlink() */
+  DBUG_ASSERT(prev == 0 && next == 0);
+  /* This takes a long time so we should not do this under LOCK_thread_count */
+  mysql_mutex_assert_not_owner(&LOCK_thread_count);
 
   /*
     In error cases, thd may not be current thd. We have to fix this so
@@ -1701,8 +1706,9 @@ THD::~THD()
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
-    SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
-    DBUG_ASSERT(status_var.local_memory_used == 0);
+    SAFEMALLOC_REPORT_MEMORY(thread_id);
+    DBUG_ASSERT(status_var.local_memory_used == 0 ||
+                !debug_assert_on_not_freed_memory);
   }
 
   set_current_thd(orig_thd == this ? 0 : orig_thd);
@@ -2047,7 +2053,7 @@ int killed_errno(killed_state killed)
 
 /*
   Remember the location of thread info, the structure needed for
-  sql_alloc() and the structure for the net buffer
+  the structure for the net buffer
 */
 
 bool THD::store_globals()
@@ -2058,8 +2064,7 @@ bool THD::store_globals()
   */
   DBUG_ASSERT(thread_stack);
 
-  if (set_current_thd(this) ||
-      my_pthread_setspecific_ptr(THR_MALLOC, &mem_root))
+  if (set_current_thd(this))
     return 1;
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2112,7 +2117,6 @@ void THD::reset_globals()
 
   /* Undocking the thread specific data. */
   set_current_thd(0);
-  my_pthread_setspecific_ptr(THR_MALLOC, NULL);
   net.thd= 0;
 }
 
@@ -3555,7 +3559,7 @@ void Query_arena::free_items()
 {
   Item *next;
   DBUG_ENTER("Query_arena::free_items");
-  /* This works because items are allocated with sql_alloc() */
+  /* This works because items are allocated on THD::mem_root */
   for (; free_list; free_list= next)
   {
     next= free_list->next;
@@ -4081,7 +4085,7 @@ void Security_context::destroy()
   // If not pointer to constant
   if (host != my_localhost)
   {
-    my_free(host);
+    my_free((char*) host);
     host= NULL;
   }
   if (user != delayed_user)
@@ -4344,7 +4348,7 @@ extern "C" void thd_progress_init(MYSQL_THD thd, uint max_stage)
     is a high level command (like ALTER TABLE) and we are not in a
     stored procedure
   */
-  thd->progress.report= ((thd->client_capabilities & CLIENT_PROGRESS) &&
+  thd->progress.report= ((thd->client_capabilities & MARIADB_CLIENT_PROGRESS) &&
                          thd->progress.report_to_client &&
                          !thd->in_sub_stmt);
   thd->progress.next_report_time= 0;

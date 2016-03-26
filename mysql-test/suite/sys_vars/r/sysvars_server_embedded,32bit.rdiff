@@ -1,5 +1,5 @@
---- suite/sys_vars/r/sysvars_server_embedded.result	2016-03-23 01:02:33.000000000 +0100
-+++ suite/sys_vars/r/sysvars_server_embedded.reject	2016-03-23 01:09:44.000000000 +0100
+--- suite/sys_vars/r/sysvars_server_embedded.result
++++ suite/sys_vars/r/sysvars_server_embedded,32bit.reject
 @@ -57,7 +57,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	1
@@ -664,9 +664,9 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value; if set to 63, the optimizer will switch to the original find_best search. NOTE: The value 63 and its associated behaviour is deprecated
+ VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value
  NUMERIC_MIN_VALUE	0
- NUMERIC_MAX_VALUE	63
+ NUMERIC_MAX_VALUE	62
 @@ -2437,7 +2437,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	100
@@ -885,7 +885,7 @@
  NUMERIC_MAX_VALUE	256
 @@ -2801,7 +2801,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
- DEFAULT_VALUE	178
+ DEFAULT_VALUE	181
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
@@ -1153,12 +1153,12 @@
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	524288
 @@ -3851,7 +3851,7 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
- DEFAULT_VALUE	0
+ GLOBAL_VALUE_ORIGIN	AUTO
+ DEFAULT_VALUE	256
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	How many threads we should keep in a cache for reuse
+ VARIABLE_COMMENT	How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
 @@ -3865,7 +3865,7 @@

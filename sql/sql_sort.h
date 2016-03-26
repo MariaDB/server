@@ -16,15 +16,13 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include "m_string.h"                           /* memset */
-#include "my_global.h"                          /* uchar */
 #include "my_base.h"                            /* ha_rows */
 #include "my_sys.h"                             /* qsort2_cmp */
 #include "queues.h"
 
 typedef struct st_buffpek BUFFPEK;
-typedef struct st_sort_field SORT_FIELD;
 
+struct SORT_FIELD;
 class Field;
 struct TABLE;
 
@@ -71,7 +69,6 @@ public:
   uint rec_length;            // Length of sorted records.
   uint sort_length;           // Length of sorted columns.
   uint ref_length;            // Length of record ref.
-  uint addon_length;          // Length of added packed fields.
   uint res_length;            // Length of records in final sorted file/buffer.
   uint max_keys_per_buffer;   // Max keys / buffer.
   uint min_dupl_count;
@@ -81,6 +78,8 @@ public:
   SORT_FIELD *local_sortorder;
   SORT_FIELD *end;
   SORT_ADDON_FIELD *addon_field; // Descriptors for companion fields.
+  LEX_STRING addon_buf;          // Buffer & length of added packed fields.
+
   uchar *unique_buff;
   bool not_killable;
   char* tmp_buffer;

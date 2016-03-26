@@ -22,7 +22,8 @@
 #include "my_sys.h"                    /* alloc_root, TRASH, MY_WME,
                                           MY_FAE, MY_ALLOW_ZERO_PTR */
 #include "m_string.h"                           /* bfill */
-#include "thr_malloc.h"                         /* sql_alloc */
+
+THD *thd_get_current_thd();
 
 /* mysql standard class memory allocator */
 
@@ -31,11 +32,11 @@ class Sql_alloc
 public:
   static void *operator new(size_t size) throw ()
   {
-    return sql_alloc(size);
+    return thd_alloc(thd_get_current_thd(), size);
   }
   static void *operator new[](size_t size) throw ()
   {
-    return sql_alloc(size);
+    return thd_alloc(thd_get_current_thd(), size);
   }
   static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
@@ -648,6 +649,10 @@ struct ilink
     if (prev) *prev= next;
     if (next) next->prev=prev;
     prev=0 ; next=0;
+  }
+  inline void assert_if_linked()
+  {
+    DBUG_ASSERT(prev != 0 && next != 0);
   }
   virtual ~ilink() { unlink(); }		/*lint -e1740 */
 };

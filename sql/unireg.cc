@@ -874,7 +874,7 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
       {
         *buff++= (uchar) (1 + MY_TEST(field->interval));
         *buff++= (uchar) field->sql_type;
-        *buff++= (uchar) field->stored_in_db;
+        *buff++= (uchar) field->vcol_info->stored_in_db;
         if (field->interval)
           *buff++= (uchar) field->interval_id;
         memcpy(buff, field->vcol_info->expr_str.str, field->vcol_info->expr_str.length);
@@ -921,9 +921,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
   while ((field=it++))
   {
-    /*
-      regfield don't have to be deleted as it's allocated with sql_alloc()
-    */
+    /* regfield don't have to be deleted as it's allocated on THD::mem_root */
     Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
                                 field->length,

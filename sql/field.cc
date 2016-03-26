@@ -1322,6 +1322,31 @@ bool Field::can_optimize_range(const Item_bool_func *cond,
 }
 
 
+int Field::store_hex_hybrid(const char *str, uint length)
+{
+  DBUG_ASSERT(result_type() != STRING_RESULT);
+  ulonglong nr;
+
+  if (length > 8)
+  {
+    nr= flags & UNSIGNED_FLAG ? ULONGLONG_MAX : LONGLONG_MAX;
+    goto warn;
+  }
+  nr= (ulonglong) longlong_from_hex_hybrid(str, length);
+  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
+  {
+    nr= LONGLONG_MAX;
+    goto warn;
+  }
+  return store((longlong) nr, true);  // Assume hex numbers are unsigned
+
+warn:
+  if (!store((longlong) nr, true))
+    set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
+  return 1;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -1648,9 +1673,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   part_of_key_not_clustered(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
-  read_stats(NULL), collected_stats(0),
-  vcol_info(0),
-  stored_in_db(TRUE)
+  read_stats(NULL), collected_stats(0), vcol_info(0)
 {
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
@@ -8905,7 +8928,7 @@ void Field_set::sql_type(String &res) const
     0  if the fields are unequally defined
 */
 
-bool Field::eq_def(Field *field)
+bool Field::eq_def(const Field *field) const
 {
   if (real_type() != field->real_type() || charset() != field->charset() ||
       pack_length() != field->pack_length())
@@ -8937,7 +8960,7 @@ static bool compare_type_names(CHARSET_INFO *charset, TYPELIB *t1, TYPELIB *t2)
   returns 1 if the fields are equally defined
 */
 
-bool Field_enum::eq_def(Field *field)
+bool Field_enum::eq_def(const Field *field) const
 {
   TYPELIB *values;
 
@@ -9014,7 +9037,7 @@ const uchar *Field_enum::unpack(uchar *to, const uchar *from,
   @return
   returns 1 if the fields are equally defined
 */
-bool Field_num::eq_def(Field *field)
+bool Field_num::eq_def(const Field *field) const
 {
   if (!Field::eq_def(field))
     return 0;
@@ -9670,7 +9693,7 @@ void Field_bit_as_char::sql_type(String &res) const
   Convert create_field::length from number of characters to number of bytes.
 */
 
-void Create_field::create_length_to_internal_length(void)
+void Column_definition::create_length_to_internal_length(void)
 {
   switch (sql_type) {
   case MYSQL_TYPE_TINY_BLOB:
@@ -9718,135 +9741,34 @@ void Create_field::create_length_to_internal_length(void)
 }
 
 
-/**
-  Init for a tmp table field. To be extended if need be.
-*/
-void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
-                                      uint32 length_arg, uint32 decimals_arg,
-                                      bool maybe_null, bool is_unsigned,
-                                      uint pack_length_arg)
-{
-  DBUG_ENTER("Create_field::init_for_tmp_table");
-
-  field_name= "";
-  sql_type= sql_type_arg;
-  char_length= length= length_arg;;
-  unireg_check= Field::NONE;
-  interval= 0;
-  charset= &my_charset_bin;
-  geom_type= Field::GEOM_GEOMETRY;
-
-  DBUG_PRINT("enter", ("sql_type: %d, length: %u, pack_length: %u",
-                       sql_type_arg, length_arg, pack_length_arg));
-
-  /*
-    These pack flags are crafted to get it correctly through the
-    branches of make_field().
-   */
-  switch (sql_type_arg)
-  {
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_SET:
-    pack_flag= 0;
-    break;
-
-  case MYSQL_TYPE_GEOMETRY:
-    pack_flag= FIELDFLAG_GEOM;
-    break;
-
-  case MYSQL_TYPE_ENUM:
-    pack_flag= FIELDFLAG_INTERVAL;
-    break;
-
-  case MYSQL_TYPE_NEWDECIMAL:
-    DBUG_ASSERT(decimals_arg <= DECIMAL_MAX_SCALE);
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    pack_flag= FIELDFLAG_NUMBER |
-      (decimals_arg & FIELDFLAG_MAX_DEC) << FIELDFLAG_DEC_SHIFT;
-    break;
-
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-    pack_flag= FIELDFLAG_BLOB;
-    break;
-
-  case MYSQL_TYPE_BIT:
-    pack_flag= FIELDFLAG_NUMBER | FIELDFLAG_TREAT_BIT_AS_CHAR;
-    break;
-
-  default:
-    pack_flag= FIELDFLAG_NUMBER;
-    break;
-  }
-
-  /*
-    Set the pack flag correctly for the blob-like types. This sets the
-    packtype to something that make_field can use. If the pack type is
-    not set correctly, the packlength will be reeeeally wierd (like
-    129 or so).
-   */
-  switch (sql_type_arg)
-  {
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_GEOMETRY:
-    // If you are going to use the above types, you have to pass a
-    // pack_length as parameter. Assert that is really done.
-    DBUG_ASSERT(pack_length_arg != ~0U);
-    pack_flag|= pack_length_to_packflag(pack_length_arg);
-    break;
-  default:
-    /* Nothing */
-    break;
-  }
-
-  pack_flag|=
-    (maybe_null ? FIELDFLAG_MAYBE_NULL : 0) |
-    (is_unsigned ? 0 : FIELDFLAG_DECIMAL);
-
-  DBUG_PRINT("debug", ("pack_flag: %s%s%s%s%s%s, pack_type: %d",
-                       FLAGSTR(pack_flag, FIELDFLAG_BINARY),
-                       FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
-                       FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
-                       FLAGSTR(pack_flag, FIELDFLAG_GEOM),
-                       FLAGSTR(pack_flag, FIELDFLAG_BLOB),
-                       FLAGSTR(pack_flag, FIELDFLAG_DECIMAL),
-                       f_packtype(pack_flag)));
-  vcol_info= 0;
-  create_if_not_exists= FALSE;
-  stored_in_db= TRUE;
-
-  DBUG_VOID_RETURN;
-}
-
-
 static inline bool is_item_func(Item* x)
 {
   return x != NULL && x->type() == Item::FUNC_ITEM;
 }
 
 
-bool Create_field::check(THD *thd)
+bool Column_definition::check(THD *thd)
 {
   const uint conditional_type_modifiers= AUTO_INCREMENT_FLAG;
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
   DBUG_ENTER("Create_field::check");
 
+  /* Initialize data for a computed field */
   if (vcol_info)
   {
+    DBUG_ASSERT(vcol_info->expr_item);
+
     vcol_info->set_field_type(sql_type);
-    sql_type= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
+    /*
+      Walk through the Item tree checking if all items are valid
+      to be part of the virtual column
+    */
+    if (vcol_info->expr_item->walk(&Item::check_vcol_func_processor, 0, NULL))
+    {
+      my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), field_name);
+      DBUG_RETURN(TRUE);
+    }
   }
 
   if (length > MAX_FIELD_BLOBLENGTH)
@@ -9920,30 +9842,6 @@ bool Create_field::check(THD *thd)
   {
     my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
     DBUG_RETURN(1);
-  }
-
-  /* Initialize data for a computed field */
-  if (sql_type == MYSQL_TYPE_VIRTUAL)
-  {
-    DBUG_ASSERT(vcol_info && vcol_info->expr_item);
-    stored_in_db= vcol_info->is_stored();
-    /*
-      Walk through the Item tree checking if all items are valid
-      to be part of the virtual column
-    */
-    if (vcol_info->expr_item->walk(&Item::check_vcol_func_processor, 0, NULL))
-    {
-      my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), field_name);
-      DBUG_RETURN(TRUE);
-    }
-
-    /*
-      Make a field created for the real type.
-      Note that regular and computed fields differ from each other only by
-      Field::vcol_info. It is is always NULL for a column that is not
-      computed.
-    */
-    sql_type= vcol_info->get_real_type();
   }
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
@@ -10506,10 +10404,10 @@ Field *make_field(TABLE_SHARE *share,
 
 /** Create a field suitable for create of table. */
 
-Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
+Column_definition::Column_definition(THD *thd, Field *old_field,
+                                               Field *orig_field)
 {
-  field=      old_field;
-  field_name=change=old_field->field_name;
+  field_name= old_field->field_name;
   length=     old_field->field_length;
   flags=      old_field->flags;
   unireg_check=old_field->unireg_check;
@@ -10520,10 +10418,7 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
-  create_if_not_exists= FALSE;
-  stored_in_db= old_field->stored_in_db;
   option_list= old_field->option_list;
-  option_struct= old_field->option_struct;
 
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:
@@ -10614,7 +10509,7 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
       {
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
-        char *pos= (char*) sql_strmake(res->ptr(), res->length());
+        char *pos= (char*) thd->strmake(res->ptr(), res->length());
         def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
     }
