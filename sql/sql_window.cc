@@ -1556,8 +1556,9 @@ bool Window_func_runner::exec(JOIN *join)
     first_run= false;
   }
 
-  if (create_sort_index(thd, join, &join->join_tab[join->top_join_tab_count], 
-                        filesort));
+  if (create_sort_index(thd, join, &join->join_tab[join->top_join_tab_count],
+                        filesort))
+    return true;
 
   win_func->set_phase_to_computation();
 
