@@ -2278,22 +2278,14 @@ bool JOIN::make_aggr_tables_info()
     tmp_table_param.hidden_field_count= 
       all_fields.elements - fields_list.elements;
 
-    if (!gbh)
-    {
-      distinct= select_distinct && !group_list;
-      keep_row_order= false;
-    }
+    distinct= select_distinct && !group_list;
+    keep_row_order= false;
     if (create_postjoin_aggr_table(curr_tab,
                                    &all_fields, tmp_group, 
                                    group_list && simple_group,
                                    distinct, keep_row_order))
       DBUG_RETURN(true);
     exec_tmp_table= curr_tab->table;
-    if (gbh)
-    {
-      /* Give storage engine access to temporary table */
-      gbh->table= exec_tmp_table;
-    }
 
     if (exec_tmp_table->distinct)
       optimize_distinct();
