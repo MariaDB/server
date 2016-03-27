@@ -19137,7 +19137,7 @@ int join_init_read_record(JOIN_TAB *tab)
 
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
-  if (tab->filesort && !tab->used_for_window_func && tab->sort_table())     // Sort table.
+  if (tab->filesort && tab->sort_table())     // Sort table.
     return 1;
 
   if (tab->select && tab->select->quick && (error= tab->select->quick->reset()))

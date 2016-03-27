@@ -430,8 +430,6 @@ typedef struct st_join_table {
   */
   Window_funcs_computation* window_funcs;
 
-  bool used_for_window_func;
-
   /**
     List of topmost expressions in the select list. The *next* JOIN TAB
     in the plan should use it to obtain correct values. Same applicable to
