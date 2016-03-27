@@ -159,7 +159,6 @@ class Window_func_runner : public Sql_alloc
   /* The function to use for computation*/
   window_compute_func_t compute_func;
   
-  bool first_run;
 public:
   Window_func_runner(Item_window_func *win_func_arg) :
     win_func(win_func_arg)

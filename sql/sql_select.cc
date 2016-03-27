@@ -2334,6 +2334,14 @@ bool JOIN::make_aggr_tables_info()
     curr_tab->fields= &tmp_fields_list1;
     set_postjoin_aggr_write_func(curr_tab);
 
+    // psergey-todo: this is probably an incorrect place:
+    if (select_lex->window_funcs.elements)
+    {
+      curr_tab->window_funcs= new Window_funcs_computation;
+      if (curr_tab->window_funcs->setup(thd, &select_lex->window_funcs))
+        DBUG_RETURN(true);
+    }
+
     tmp_table_param.func_count= 0;
     tmp_table_param.field_count+= tmp_table_param.func_count;
     if (sort_and_group || curr_tab->table->group)
@@ -2698,14 +2706,6 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tab->table= table;
   table->reginfo.join_tab= tab;
 
-  // psergey-todo: this is probably an incorrect place:
-  if (select_lex->window_funcs.elements)
-  {
-    tab->window_funcs= new Window_funcs_computation;
-    if (tab->window_funcs->setup(thd, &select_lex->window_funcs))
-      goto err;
-  }
-
   /* if group or order on first table, sort first */
   if (group_list && simple_group)
   {
@@ -2749,6 +2749,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       order= NULL;
     }
   }
+
   DBUG_RETURN(false);
 
 err:

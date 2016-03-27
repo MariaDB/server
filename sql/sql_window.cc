@@ -1485,6 +1485,8 @@ bool Window_func_runner::setup(THD *thd)
                                         spec->order_list->first);
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
 
+  win_func->setup_partition_border_check(thd);
+
   Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
   switch (type) 
   {
@@ -1521,7 +1523,6 @@ bool Window_func_runner::setup(THD *thd)
       DBUG_ASSERT(0);
   }
 
-  first_run= true;
   return false;
 }
 
@@ -1532,29 +1533,6 @@ bool Window_func_runner::setup(THD *thd)
 bool Window_func_runner::exec(JOIN *join)
 {
   THD *thd= join->thd;
-
-  /*
-    We have to call setup_partition_border_check here.
-    
-    The reason is as follows: 
-    When computing the value of sorting criteria from OVER (PARTITION ...
-    ORDER BY ...) clauses, we need to read temp.table fields.
-
-    This is achieved by ORDER::item being Item** object, which points into
-    ref_pointer_array.
-    Ref_pointer_array initially points to source table fields. 
-    At execution phase, it is set to point to the temp.table fields.
-     
-    We need to use items after this step is done.
-    TODO: an alternative is to use something that points into
-    ref_pointer_array, too. Something like wrap order->item in an Item_ref
-    object.
-  */
-  if (first_run)
-  {
-    win_func->setup_partition_border_check(thd);
-    first_run= false;
-  }
 
   if (create_sort_index(thd, join, &join->join_tab[join->top_join_tab_count],
                         filesort))
