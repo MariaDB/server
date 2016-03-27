@@ -1439,6 +1439,197 @@ bool compute_two_pass_window_functions(Item_window_func *item_win,
   return is_error;
 }
 
+
+/* Make a list that is a concation of two lists of ORDER elements */
+
+static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
+{
+  if (!list1)
+  {
+    list1= list2;
+    list2= NULL;
+  }
+
+  ORDER *res= NULL; // first element in the new list
+  ORDER *prev= NULL; // last element in the new list 
+  ORDER *cur_list= list1; // this goes through list1, list2
+  while (cur_list)
+  {
+    for (ORDER *cur= cur_list; cur; cur= cur->next)
+    {
+      ORDER *copy= (ORDER*)alloc_root(mem_root, sizeof(ORDER));
+      memcpy(copy, cur, sizeof(ORDER));
+      if (prev)
+        prev->next= copy;
+      prev= copy;
+      if (!res)
+        res= copy;
+    }
+
+    cur_list= (cur_list == list1)? list2: NULL;
+  }
+
+  if (prev)
+    prev->next= NULL;
+
+  return res;
+}
+
+
+bool Window_func_runner::setup(THD *thd)
+{
+  Window_spec *spec = win_func->window_spec;
+
+  ORDER* sort_order= concat_order_lists(thd->mem_root, 
+                                        spec->partition_list->first,
+                                        spec->order_list->first);
+  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
+
+  Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
+  switch (type) 
+  {
+    case Item_sum::ROW_NUMBER_FUNC:
+    case Item_sum::RANK_FUNC:
+    case Item_sum::DENSE_RANK_FUNC:
+    {
+      /*
+        One-pass window function computation, walk through the rows and
+        assign values.
+      */
+      compute_func= compute_window_func_values;
+      break;
+    }
+    case Item_sum::PERCENT_RANK_FUNC:
+    case Item_sum::CUME_DIST_FUNC:
+    {
+      compute_func= compute_two_pass_window_functions;
+      break;
+    }
+    case Item_sum::COUNT_FUNC:
+    case Item_sum::SUM_BIT_FUNC:
+    case Item_sum::SUM_FUNC:
+    case Item_sum::AVG_FUNC:
+    {
+      /*
+        Frame-aware window function computation. It does one pass, but
+        uses three cursors -frame_start, current_row, and frame_end.
+      */
+      compute_func= compute_window_func_with_frames;
+      break;
+    }
+    default:
+      DBUG_ASSERT(0);
+  }
+
+  first_run= true;
+  return false;
+}
+
+
+/*
+  Compute the value of window function for all rows.
+*/
+bool Window_func_runner::exec(JOIN *join)
+{
+  THD *thd= join->thd;
+
+  /*
+    We have to call setup_partition_border_check here.
+    
+    The reason is as follows: 
+    When computing the value of sorting criteria from OVER (PARTITION ...
+    ORDER BY ...) clauses, we need to read temp.table fields.
+
+    This is achieved by ORDER::item being Item** object, which points into
+    ref_pointer_array.
+    Ref_pointer_array initially points to source table fields. 
+    At execution phase, it is set to point to the temp.table fields.
+     
+    We need to use items after this step is done.
+    TODO: an alternative is to use something that points into
+    ref_pointer_array, too. Something like wrap order->item in an Item_ref
+    object.
+  */
+  if (first_run)
+  {
+    win_func->setup_partition_border_check(thd);
+    first_run= false;
+  }
+
+  if (create_sort_index(thd, join, &join->join_tab[join->top_join_tab_count], 
+                        filesort));
+
+  win_func->set_phase_to_computation();
+
+  /*
+    Go through the sorted array and compute the window function
+  */
+  READ_RECORD info;
+  TABLE *tbl= join->join_tab[join->top_join_tab_count].table;
+
+  if (init_read_record(&info, thd, tbl, NULL/*select*/, 0, 1, FALSE))
+    return true;
+
+  bool is_error= compute_func(win_func, tbl, &info);
+
+  /* This calls filesort_free_buffers(): */
+  end_read_record(&info);
+  
+  //TODO: should this be moved to cleanup: ?
+  free_io_cache(tbl);
+
+  win_func->set_phase_to_retrieval();
+
+  return is_error;
+}
+
+
+bool Window_funcs_computation::setup(THD *thd,
+                                     List<Item_window_func> *window_funcs)
+{
+  List_iterator_fast<Item_window_func> it(*window_funcs);
+  Item_window_func *item_win;
+  Window_func_runner *runner;
+  // for each window function
+  while ((item_win= it++))
+  {
+    // Create a runner and call setup for it
+    if (!(runner= new Window_func_runner(item_win)) ||
+        runner->setup(thd))
+    {
+      return true;
+    }
+    win_func_runners.push_back(runner, thd->mem_root);
+  }
+  return false;
+}
+
+
+bool Window_funcs_computation::exec(JOIN *join)
+{
+  List_iterator<Window_func_runner> it(win_func_runners);
+  Window_func_runner *runner;
+  /* Execute each runner */
+  while ((runner = it++))
+  {
+    if (runner->exec(join))
+      return true;
+  }
+  return false;
+}
+
+
+void Window_funcs_computation::cleanup()
+{
+  List_iterator<Window_func_runner> it(win_func_runners);
+  Window_func_runner *runner;
+  while ((runner = it++))
+  {
+    runner->cleanup();
+    delete runner;
+  }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Unneeded comments (will be removed when we develop a replacement for
 //  the feature that was attempted here
@@ -1563,113 +1754,4 @@ bool compute_two_pass_window_functions(Item_window_func *item_win,
   }
   else
 #endif
-
-
-/*
-  @brief
-    This function is called by JOIN::exec to compute window function values
-  
-  @detail
-    JOIN::exec calls this after it has filled the temporary table with query
-    output. The temporary table has fields to store window function values.
-
-  @return
-    false OK
-    true  Error
-*/
-
-bool JOIN::process_window_functions(List<Item_window_func> *window_funcs)
-{
-  List_iterator_fast<Item_window_func> it(*window_funcs);
-  Item_window_func *item_win;
-
-  while ((item_win= it++))
-  {
-    item_win->set_phase_to_computation();
-    Window_spec *spec = item_win->window_spec;
-    /*
-      The sorting criteria should be 
-       (spec->partition_list, spec->order_list)
-
-      Connect the two lists for the duration of add_sorting_to_table()
-      call.
-    */
-    DBUG_ASSERT(spec->partition_list->next[0] == NULL);
-    *(spec->partition_list->next)= spec->order_list->first;
-
-    /*
-       join_tab[top_join_tab_count].table is the temp. table where join
-       output was stored.
-    */
-    // CAUTION: The sorting criteria list is not yet connected
-    add_sorting_to_table(&join_tab[top_join_tab_count],
-                         spec->partition_list->first);
-    join_tab[top_join_tab_count].used_for_window_func= true;
-
-    create_sort_index(this->thd, this, &join_tab[top_join_tab_count]);
-    /* Disconnect order_list from partition_list */
-    *(spec->partition_list->next)= NULL;
-
-   /*
-      Go through the sorted array and compute the window function
-    */
-    READ_RECORD info;
-    TABLE *tbl= join_tab[top_join_tab_count].table;
-    if (init_read_record(&info, thd, tbl, select, 0, 1, FALSE))
-      return true;
-    bool is_error= false;
-    
-    item_win->setup_partition_border_check(thd);
-  
-    Item_sum::Sumfunctype type= item_win->window_func()->sum_func();
-    switch (type) {
-      case Item_sum::ROW_NUMBER_FUNC:
-      case Item_sum::RANK_FUNC:
-      case Item_sum::DENSE_RANK_FUNC:
-        {
-          /*
-            One-pass window function computation, walk through the rows and
-            assign values.
-          */
-          if (compute_window_func_values(item_win, tbl, &info))
-            is_error= true;
-          break;
-        }
-      case Item_sum::PERCENT_RANK_FUNC:
-      case Item_sum::CUME_DIST_FUNC:
-        {
-          if (compute_two_pass_window_functions(item_win, tbl, &info))
-            is_error= true;
-          break;
-        }
-      case Item_sum::COUNT_FUNC:
-      case Item_sum::SUM_BIT_FUNC:
-      case Item_sum::SUM_FUNC:
-      case Item_sum::AVG_FUNC:
-      {
-        /*
-          Frame-aware window function computation. It does one pass, but
-          uses three cursors -frame_start, current_row, and frame_end.
-        */
-        if (compute_window_func_with_frames(item_win, tbl, &info))
-          is_error= true;
-        break;
-      }
-      default:
-        DBUG_ASSERT(0);
-    }
-
-    item_win->set_phase_to_retrieval();
-    /* This calls filesort_free_buffers(): */
-    end_read_record(&info);
-
-    delete join_tab[top_join_tab_count].filesort;
-    join_tab[top_join_tab_count].filesort= NULL;
-    free_io_cache(tbl);
-
-    if (is_error)
-      return true;
-  }
-  return false;
-}
 

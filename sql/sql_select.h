@@ -423,6 +423,12 @@ typedef struct st_join_table {
 
   /* Sorting related info */
   Filesort *filesort;
+  
+  /*
+    Non-NULL value means this join_tab must do window function computation
+    before reading.
+  */
+  Window_funcs_computation* window_funcs;
 
   bool used_for_window_func;
 
@@ -1494,8 +1500,6 @@ public:
   int init_execution();
   void exec();
 
-  bool process_window_functions(List<Item_window_func> *window_funcs);
-
   void exec_inner();
   bool prepare_result(List<Item> **columns_list);
   int destroy();
@@ -2270,5 +2274,5 @@ public:
 
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);
-int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab);
+int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 #endif /* SQL_SELECT_INCLUDED */

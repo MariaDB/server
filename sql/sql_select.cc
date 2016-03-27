@@ -233,7 +233,7 @@ static bool list_contains_unique_index(TABLE *table,
                           bool (*find_func) (Field *, void *), void *data);
 static bool find_field_in_item_list (Field *field, void *data);
 static bool find_field_in_order_list (Field *field, void *data);
-int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab);
+int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 static int remove_dup_with_compare(THD *thd, TABLE *entry, Field **field,
 				   Item *having);
 static int remove_dup_with_hash_index(THD *thd,TABLE *table,
@@ -2705,6 +2705,14 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     goto err;
   tab->table= table;
   table->reginfo.join_tab= tab;
+
+  // psergey-todo: this is probably an incorrect place:
+  if (select_lex->window_funcs.elements)
+  {
+    tab->window_funcs= new Window_funcs_computation;
+    if (tab->window_funcs->setup(thd, &select_lex->window_funcs))
+      goto err;
+  }
 
   /* if group or order on first table, sort first */
   if (group_list && simple_group)
@@ -19189,7 +19197,7 @@ JOIN_TAB::sort_table()
   DBUG_ASSERT(join->ordered_index_usage != (filesort->order == join->order ?
                                             JOIN::ordered_index_order_by :
                                             JOIN::ordered_index_group_by));
-  rc= create_sort_index(join->thd, join, this);
+  rc= create_sort_index(join->thd, join, this, NULL);
   return (rc != 0);
 }
 
@@ -21160,8 +21168,8 @@ use_filesort:
      thd		Thread handler
      join		Join with table to sort
      join_tab		What table to sort
-
-
+     fsort              Filesort object.  NULL means "use tab->filesort".
+ 
   IMPLEMENTATION
    - If there is an index that can be used, the first non-const join_tab in
      'join' is modified to use this index.
@@ -21177,16 +21185,18 @@ use_filesort:
 */
 
 int
-create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab)
+create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 {
   ha_rows examined_rows;
   ha_rows found_rows;
   ha_rows filesort_retval= HA_POS_ERROR;
   TABLE *table;
   SQL_SELECT *select;
-  Filesort *fsort= tab->filesort;
   bool quick_created= FALSE;
   DBUG_ENTER("create_sort_index");
+
+  if (fsort == NULL)
+    fsort= tab->filesort;
 
   // One row, no need to sort. make_tmp_tables_info should already handle this.
   DBUG_ASSERT(!join->only_const_tables() && fsort);
@@ -25898,7 +25908,11 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
-  join->process_window_functions(&join->select_lex->window_funcs);
+  if (join_tab->window_funcs)
+  {
+    join_tab->window_funcs->exec(join);
+  }
+
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;

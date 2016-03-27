@@ -4,6 +4,8 @@
 
 #include "my_global.h"
 #include "item.h"
+#include "filesort.h"
+#include "records.h"
 
 class Item_window_func;
 
@@ -133,5 +135,63 @@ class Window_def : public Window_spec
 int setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	          List<Item> &fields, List<Item> &all_fields, 
                   List<Window_spec> &win_specs, List<Item_window_func> &win_funcs);
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Classes that make window functions computation a part of SELECT's query plan
+//////////////////////////////////////////////////////////////////////////////
+
+typedef bool (*window_compute_func_t)(Item_window_func *item_win,
+                                      TABLE *tbl, READ_RECORD *info);
+
+/*
+  This handles computation of one window function.
+
+  Currently, we make a spearate filesort() call for each window function.
+*/
+
+class Window_func_runner : public Sql_alloc 
+{
+  Item_window_func *win_func;
+  /* Window function can be computed over this sorting */
+  Filesort *filesort;
+
+  /* The function to use for computation*/
+  window_compute_func_t compute_func;
+  
+  bool first_run;
+public:
+  Window_func_runner(Item_window_func *win_func_arg) :
+    win_func(win_func_arg)
+  {}
+
+  // Set things up. Create filesort structures, etc
+  bool setup(THD *thd);
+ 
+  // This sorts and runs the window function.
+  bool exec(JOIN *join);
+
+  void cleanup() { delete filesort; }
+};
+
+
+/*
+  This is a "window function computation phase": a single object of this class
+  takes care of computing all window functions in a SELECT.
+
+  - JOIN optimizer is exected to call setup() during query optimization.
+  - JOIN::exec() should call exec() once it has collected join output in a
+    temporary table.
+*/
+
+class Window_funcs_computation : public Sql_alloc
+{
+  List<Window_func_runner> win_func_runners;
+public:
+  bool setup(THD *thd, List<Item_window_func> *window_funcs);
+  bool exec(JOIN *join);
+  void cleanup();
+};
+
 
 #endif /* SQL_WINDOW_INCLUDED */
