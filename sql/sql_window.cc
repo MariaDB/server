@@ -865,15 +865,18 @@ public:
   }
 };
 
+
 /*
   UNBOUNDED FOLLOWING frame bound
 */
 
 class Frame_unbounded_following : public Frame_cursor
 {
-  Table_read_cursor cursor;
 
+protected:
+  Table_read_cursor cursor;
   Group_bound_tracker bound_tracker;
+
 public:
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
@@ -909,6 +912,35 @@ public:
   }
 };
 
+
+class Frame_unbounded_following_set_count : public Frame_unbounded_following
+{
+  void next_partition(longlong rownum, Item_sum* item)
+  {
+    ulonglong num_rows_in_partition= 0;
+    if (!rownum)
+    {
+      /* Read the first row */
+      if (cursor.get_next())
+        return;
+    }
+    num_rows_in_partition++;
+
+    /* Remember which partition we are in */
+    bound_tracker.check_if_next_group();
+    /* Walk to the end of the partition, find how many rows there are. */
+    while (!cursor.get_next())
+    {
+      if (bound_tracker.check_if_next_group())
+        break;
+      num_rows_in_partition++;
+    }
+
+    Item_sum_window_with_row_count* item_with_row_count =
+      static_cast<Item_sum_window_with_row_count *>(item);
+    item_with_row_count->set_row_count(num_rows_in_partition);
+  }
+};
 
 /////////////////////////////////////////////////////////////////////////////
 // ROWS-type frame bounds
@@ -1212,6 +1244,47 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
   return NULL;
 }
 
+void add_extra_frame_cursors(List<Frame_cursor> *cursors,
+                             const Item_sum *window_func)
+{
+  switch (window_func->sum_func())
+  {
+    case Item_sum::CUME_DIST_FUNC:
+      cursors->push_back(new Frame_unbounded_preceding);
+      cursors->push_back(new Frame_range_current_row_bottom);
+      break;
+    default:
+      cursors->push_back(new Frame_unbounded_preceding);
+      cursors->push_back(new Frame_rows_current_row_bottom);
+  }
+}
+
+List<Frame_cursor> get_window_func_required_cursors(
+    const Item_window_func* item_win)
+{
+  List<Frame_cursor> result;
+
+  if (item_win->requires_partition_size())
+    result.push_back(new Frame_unbounded_following_set_count);
+
+  /*
+    If it is not a regular window function that follows frame specifications,
+    specific cursors are required.
+  */
+  if (item_win->is_frame_prohibited())
+  {
+    add_extra_frame_cursors(&result, item_win->window_func());
+    return result;
+  }
+
+  /* A regular window function follows the frame specification. */
+  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                    false));
+  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                    true));
+
+  return result;
+}
 
 /*
   Streamed window function computation with window frames.
@@ -1254,21 +1327,20 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
 {
   THD *thd= current_thd;
   int err= 0;
-  Frame_cursor *top_bound;
-  Frame_cursor *bottom_bound;
 
   Item_sum *sum_func= item_win->window_func();
   /* This algorithm doesn't support DISTINCT aggregator */
   sum_func->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
-  
-  Window_frame *window_frame= item_win->window_spec->window_frame;
-  top_bound= get_frame_cursor(window_frame, true);
-  bottom_bound= get_frame_cursor(window_frame, false);
-    
-  top_bound->init(thd, info, item_win->window_spec->partition_list,
-                  item_win->window_spec->order_list);
-  bottom_bound->init(thd, info, item_win->window_spec->partition_list,
-                     item_win->window_spec->order_list);
+
+  List<Frame_cursor> cursors= get_window_func_required_cursors(item_win);
+
+  List_iterator_fast<Frame_cursor> it(cursors);
+  Frame_cursor *c;
+  while((c= it++))
+  {
+    c->init(thd, info, item_win->window_spec->partition_list,
+            item_win->window_spec->order_list);
+  }
 
   bool is_error= false;
   longlong rownum= 0;
@@ -1293,24 +1365,28 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
         pre_XXX functions assume that tbl->record[0] contains current_row, and 
         they may not change it.
       */
-      bottom_bound->pre_next_partition(rownum, sum_func);
-      top_bound->pre_next_partition(rownum, sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->pre_next_partition(rownum, sum_func);
       /*
         We move bottom_bound first, because we want rows to be added into the
         aggregate before top_bound attempts to remove them.
       */
-      bottom_bound->next_partition(rownum, sum_func);
-      top_bound->next_partition(rownum, sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->next_partition(rownum, sum_func);
     }
     else
     {
       /* Again, both pre_XXX function can find current_row in tbl->record[0] */
-      bottom_bound->pre_next_row(sum_func);
-      top_bound->pre_next_row(sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->pre_next_row(sum_func);
 
       /* These make no assumptions about tbl->record[0] and may change it */
-      bottom_bound->next_row(sum_func);
-      top_bound->next_row(sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->next_row(sum_func);
     }
     rownum++;
 
@@ -1331,112 +1407,8 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   }
 
   my_free(rowid_buf);
-  delete top_bound;
-  delete bottom_bound;
+  cursors.delete_elements();
   return is_error? true: false;
-}
-
-
-bool compute_two_pass_window_functions(Item_window_func *item_win,
-                                       TABLE *table, READ_RECORD *info)
-{
-  /* Perform first pass. */
-
-  // TODO-cvicentiu why not initialize the record for when we need, _in_
-  // this function.
-  READ_RECORD *info2= new READ_RECORD();
-  int err;
-  bool is_error = false;
-  bool first_row= true;
-  clone_read_record(info, info2);
-  Item_sum_window_with_context *window_func= 
-    static_cast<Item_sum_window_with_context *>(item_win->window_func());
-  uchar *rowid_buf= (uchar*) my_malloc(table->file->ref_length, MYF(0));
-
-  is_error= window_func->create_window_context();
-  /* Unable to allocate a new context. */
-  if (is_error)
-    return true;
-
-  Window_context *context = window_func->get_window_context();
-  /*
-     The two pass algorithm is as follows:
-     We have a sorted table according to the partition and order by clauses.
-     1. Scan through the table till we reach a partition boundary.
-     2. For each row that we scan, add it to the context.
-     3. Once the partition boundary is met, do a second scan through the
-     current partition and use the context information to compute the value for
-     the window function for that partition.
-     4. Reset the context.
-     5. Repeat from 1 till end of table.
-  */
-
-  bool done = false;
-  longlong rows_in_current_partition = 0;
-  // TODO handle end of table updating.
-  while (!done)
-  {
-
-    if ((err= info->read_record(info)))
-    {
-      done = true;
-    }
-
-    bool partition_changed= done || item_win->check_if_partition_changed();
-    // The first time we always have a partition changed. Ignore it.
-    if (first_row)
-    {
-      partition_changed= false;
-      first_row= false;
-    }
-
-    if (partition_changed)
-    {
-      /*
-         We are now looking at the first row for the next partition, or at the
-         end of the table. Either way, we must remember this position for when
-         we finish doing the second pass.
-      */
-      table->file->position(table->record[0]);
-      memcpy(rowid_buf, table->file->ref, table->file->ref_length);
-
-      for (longlong row_number = 0; row_number < rows_in_current_partition;
-          row_number++)
-      {
-        if ((err= info2->read_record(info2)))
-        {
-          is_error= true;
-          break;
-        }
-        window_func->add();
-        // Save the window function into the table.
-        item_win->save_in_field(item_win->result_field, true);
-        err= table->file->ha_update_row(table->record[1], table->record[0]);
-        if (err && err != HA_ERR_RECORD_IS_THE_SAME)
-        {
-          is_error= true;
-          break;
-        }
-      }
-
-      if (is_error)
-        break;
-
-      rows_in_current_partition= 0;
-      window_func->clear();
-      context->reset();
-
-      // Return to the beginning of the new partition.
-      table->file->ha_rnd_pos(table->record[0], rowid_buf);
-    }
-    rows_in_current_partition++;
-    context->add_field_to_context(item_win->result_field);
-  }
-
-  window_func->delete_window_context();
-  delete info2;
-  my_free(rowid_buf);
-  return is_error;
 }
 
 
@@ -1502,16 +1474,12 @@ bool Window_func_runner::setup(THD *thd)
       compute_func= compute_window_func_values;
       break;
     }
-    case Item_sum::PERCENT_RANK_FUNC:
-    case Item_sum::CUME_DIST_FUNC:
-    {
-      compute_func= compute_two_pass_window_functions;
-      break;
-    }
     case Item_sum::COUNT_FUNC:
     case Item_sum::SUM_BIT_FUNC:
     case Item_sum::SUM_FUNC:
     case Item_sum::AVG_FUNC:
+    case Item_sum::PERCENT_RANK_FUNC:
+    case Item_sum::CUME_DIST_FUNC:
     {
       /*
         Frame-aware window function computation. It does one pass, but
