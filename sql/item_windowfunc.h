@@ -317,12 +317,18 @@ class Item_context
   NOTE: All two pass window functions need to implement
   this interface.
 */
-class Item_sum_window_with_context : public Item_sum_num,
-                                     public Item_context
+class Item_sum_window_with_row_count : public Item_sum_num
 {
  public:
-  Item_sum_window_with_context(THD *thd)
-   : Item_sum_num(thd), Item_context() {}
+  Item_sum_window_with_row_count(THD *thd) : Item_sum_num(thd),
+                                             partition_row_count_(0){}
+
+  void set_row_count(ulonglong count) { partition_row_count_ = count; }
+
+ protected:
+  longlong get_row_count() { return partition_row_count_; }
+ private:
+  ulonglong partition_row_count_;
 };
 
 /*
@@ -336,12 +342,11 @@ class Item_sum_window_with_context : public Item_sum_num,
     This is held within the row_count context.
   - Second pass to compute rank of current row and the value of the function
 */
-class Item_sum_percent_rank: public Item_sum_window_with_context,
-                             public Window_context_row_count
+class Item_sum_percent_rank: public Item_sum_window_with_row_count
 {
  public:
   Item_sum_percent_rank(THD *thd)
-    : Item_sum_window_with_context(thd), cur_rank(1) {}
+    : Item_sum_window_with_row_count(thd), cur_rank(1) {}
 
   longlong val_int()
   {
@@ -359,14 +364,9 @@ class Item_sum_percent_rank: public Item_sum_window_with_context,
      We can not get the real value without knowing the number of rows
      in the partition. Don't divide by 0.
    */
-   if (!get_context_())
-   {
-     // Calling this kind of function with a context makes no sense.
-     DBUG_ASSERT(0);
-     return 0;
-   }
+   ulonglong partition_rows = get_row_count();
+   null_value= partition_rows > 0 ? false : true;
 
-   longlong partition_rows = get_context_()->get_field_context(result_field);
    return partition_rows > 1 ?
              static_cast<double>(cur_rank - 1) / (partition_rows - 1) : 0;
   }
@@ -379,25 +379,6 @@ class Item_sum_percent_rank: public Item_sum_window_with_context,
   const char*func_name() const
   {
     return "percent_rank";
-  }
-
-  bool create_window_context()
-  {
-    // TODO-cvicentiu: Currently this means we must make sure to delete
-    // the window context. We can potentially allocate this on the THD memroot.
-    // At the same time, this is only necessary for a small portion of the
-    // query execution and it does not make sense to keep it for all of it.
-    context_ = new Window_context_row_count();
-    if (context_ == NULL)
-      return true;
-    return false;
-  }
-
-  void delete_window_context()
-  {
-    if (context_)
-      delete get_context_();
-    context_ = NULL;
   }
 
   void update_field() {}
@@ -428,13 +409,6 @@ class Item_sum_percent_rank: public Item_sum_window_with_context,
   void cleanup()
   {
     peer_tracker.cleanup();
-    Item_sum_window_with_context::cleanup();
-  }
-
-  /* Helper function so that we don't cast the context every time. */
-  Window_context_row_count* get_context_()
-  {
-    return static_cast<Window_context_row_count *>(context_);
   }
 };
 
@@ -513,6 +487,27 @@ public:
     case Item_sum::CUME_DIST_FUNC:
       return true;
     default: 
+      return false;
+    }
+  }
+
+  bool requires_partition_size() const
+  {
+    switch (window_func()->sum_func()) {
+    case Item_sum::PERCENT_RANK_FUNC:
+    case Item_sum::CUME_DIST_FUNC:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  bool requires_peer_size() const
+  {
+    switch (window_func()->sum_func()) {
+    case Item_sum::CUME_DIST_FUNC:
+      return true;
+    default:
       return false;
     }
   }
