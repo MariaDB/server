@@ -499,11 +499,11 @@ public:
       force_return_blank(true),
       read_value_from_result_field(false) {}
 
-  Item_sum *window_func() { return (Item_sum *) args[0]; }
+  Item_sum *window_func() const { return (Item_sum *) args[0]; }
 
   void update_used_tables();
 
-  bool is_frame_prohibited()
+  bool is_frame_prohibited() const
   {
     switch (window_func()->sum_func()) {
     case Item_sum::ROW_NUMBER_FUNC:
@@ -517,7 +517,7 @@ public:
     }
   }
 
-  bool is_order_list_mandatory()
+  bool is_order_list_mandatory() const
   {
     switch (window_func()->sum_func()) {
     case Item_sum::RANK_FUNC:

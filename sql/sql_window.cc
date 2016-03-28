@@ -1212,6 +1212,28 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
   return NULL;
 }
 
+List<Frame_cursor> get_window_func_required_cursors(
+    const Item_window_func* item_win)
+{
+  List<Frame_cursor> result;
+
+  /*
+    If it is not a regular window function that follows frame specifications,
+    specific cursors are required.
+  */
+  if (item_win->is_frame_prohibited())
+  {
+    DBUG_ASSERT(0); // TODO-cvicentiu not-implemented yet.
+  }
+
+  /* A regular window function follows the frame specification. */
+  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                    false));
+  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                    true));
+
+  return result;
+}
 
 /*
   Streamed window function computation with window frames.
@@ -1254,21 +1276,21 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
 {
   THD *thd= current_thd;
   int err= 0;
-  Frame_cursor *top_bound;
-  Frame_cursor *bottom_bound;
 
   Item_sum *sum_func= item_win->window_func();
   /* This algorithm doesn't support DISTINCT aggregator */
   sum_func->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
-  
-  Window_frame *window_frame= item_win->window_spec->window_frame;
-  top_bound= get_frame_cursor(window_frame, true);
-  bottom_bound= get_frame_cursor(window_frame, false);
-    
-  top_bound->init(thd, info, item_win->window_spec->partition_list,
-                  item_win->window_spec->order_list);
-  bottom_bound->init(thd, info, item_win->window_spec->partition_list,
-                     item_win->window_spec->order_list);
+
+  List<Frame_cursor> cursors= get_window_func_required_cursors(item_win);
+
+
+  List_iterator_fast<Frame_cursor> it(cursors);
+  Frame_cursor *c;
+  while((c= it++))
+  {
+    c->init(thd, info, item_win->window_spec->partition_list,
+            item_win->window_spec->order_list);
+  }
 
   bool is_error= false;
   longlong rownum= 0;
@@ -1293,24 +1315,28 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
         pre_XXX functions assume that tbl->record[0] contains current_row, and 
         they may not change it.
       */
-      bottom_bound->pre_next_partition(rownum, sum_func);
-      top_bound->pre_next_partition(rownum, sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->pre_next_partition(rownum, sum_func);
       /*
         We move bottom_bound first, because we want rows to be added into the
         aggregate before top_bound attempts to remove them.
       */
-      bottom_bound->next_partition(rownum, sum_func);
-      top_bound->next_partition(rownum, sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->next_partition(rownum, sum_func);
     }
     else
     {
       /* Again, both pre_XXX function can find current_row in tbl->record[0] */
-      bottom_bound->pre_next_row(sum_func);
-      top_bound->pre_next_row(sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->pre_next_row(sum_func);
 
       /* These make no assumptions about tbl->record[0] and may change it */
-      bottom_bound->next_row(sum_func);
-      top_bound->next_row(sum_func);
+      it.rewind();
+      while ((c= it++))
+        c->next_row(sum_func);
     }
     rownum++;
 
@@ -1331,8 +1357,7 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   }
 
   my_free(rowid_buf);
-  delete top_bound;
-  delete bottom_bound;
+  cursors.delete_elements();
   return is_error? true: false;
 }
 

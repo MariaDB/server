@@ -150,7 +150,7 @@ typedef bool (*window_compute_func_t)(Item_window_func *item_win,
   Currently, we make a spearate filesort() call for each window function.
 */
 
-class Window_func_runner : public Sql_alloc 
+class Window_func_runner : public Sql_alloc
 {
   Item_window_func *win_func;
   /* Window function can be computed over this sorting */
