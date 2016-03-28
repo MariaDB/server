@@ -171,9 +171,11 @@ public:
   bool exec(JOIN *join);
 
   void cleanup() { delete filesort; }
+
+  friend class Window_funcs_computation;
 };
 
-
+struct st_join_table;
 /*
   This is a "window function computation phase": a single object of this class
   takes care of computing all window functions in a SELECT.
@@ -187,7 +189,7 @@ class Window_funcs_computation : public Sql_alloc
 {
   List<Window_func_runner> win_func_runners;
 public:
-  bool setup(THD *thd, List<Item_window_func> *window_funcs);
+  bool setup(THD *thd, List<Item_window_func> *window_funcs, st_join_table *tab);
   bool exec(JOIN *join);
   void cleanup();
 };

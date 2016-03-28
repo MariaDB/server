@@ -1565,11 +1565,20 @@ bool Window_func_runner::exec(JOIN *join)
 
 
 bool Window_funcs_computation::setup(THD *thd,
-                                     List<Item_window_func> *window_funcs)
+                                     List<Item_window_func> *window_funcs,
+                                     JOIN_TAB *tab)
 {
   List_iterator_fast<Item_window_func> it(*window_funcs);
   Item_window_func *item_win;
   Window_func_runner *runner;
+
+  SQL_SELECT *sel= NULL;
+  if (tab->filesort && tab->filesort->select)
+  {
+    sel= tab->filesort->select;
+    DBUG_ASSERT(!sel->quick);
+  }
+
   // for each window function
   while ((item_win= it++))
   {
@@ -1579,6 +1588,8 @@ bool Window_funcs_computation::setup(THD *thd,
     {
       return true;
     }
+    /* Apply the same condition that the subsequent sort will */
+    runner->filesort->select= sel;
     win_func_runners.push_back(runner, thd->mem_root);
   }
   return false;

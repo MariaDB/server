@@ -265,7 +265,8 @@ typedef enum
   AGGR_OP_TEMP_TABLE,
   AGGR_OP_FILESORT,
   //AGGR_OP_READ_SORTED_FILE, // need this?
-  AGGR_OP_REMOVE_DUPLICATES
+  AGGR_OP_REMOVE_DUPLICATES,
+  AGGR_OP_WINDOW_FUNCS
   //AGGR_OP_JOIN // Need this?
 } enum_explain_aggr_node_type;
 
@@ -297,6 +298,11 @@ public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_REMOVE_DUPLICATES; }
 };
 
+class Explain_aggr_window_funcs : public Explain_aggr_node
+{
+public:
+  enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
+};
 
 /////////////////////////////////////////////////////////////////////////////
 

@@ -884,6 +884,9 @@ void Explain_select::print_explain_json(Explain_query *query,
         case AGGR_OP_REMOVE_DUPLICATES:
           writer->add_member("duplicate_removal").start_object();
           break;
+        case AGGR_OP_WINDOW_FUNCS:
+          writer->add_member("window_functions_computation").start_object();
+          break;
         default:
           DBUG_ASSERT(0);
       }

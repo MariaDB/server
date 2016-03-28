@@ -428,7 +428,7 @@ typedef struct st_join_table {
     Non-NULL value means this join_tab must do window function computation
     before reading.
   */
-  Window_funcs_computation* window_funcs;
+  Window_funcs_computation* window_funcs_step;
 
   /**
     List of topmost expressions in the select list. The *next* JOIN TAB

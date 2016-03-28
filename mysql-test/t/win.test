@@ -924,8 +924,40 @@ execute stmt;
 
 drop table t0,t1;
 
+--echo #
+--echo # EXPLAIN FORMAT=JSON support for window functions
+--echo #
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+explain format=json select rank() over (order by a) from t0;
 
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from t0;
 
+explain format=json
+select
+  a,
+  rank() over (order by sum(b))
+from t1
+group by a;
 
+explain format=json
+select
+  a,
+  rank() over (order by sum(b))
+from t1
+group by a
+order by null;
+
+--echo #
+--echo # Check how window function works together with GROUP BY and HAVING
+--echo #
+
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+explain format=json
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+
+drop table t1;
+drop table t0;
 
