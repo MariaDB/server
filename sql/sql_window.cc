@@ -923,8 +923,8 @@ class Frame_unbounded_following_set_count : public Frame_unbounded_following
       /* Read the first row */
       if (cursor.get_next())
         return;
-      num_rows_in_partition++;
     }
+    num_rows_in_partition++;
 
     /* Remember which partition we are in */
     bound_tracker.check_if_next_group();
@@ -1410,8 +1410,6 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   cursors.delete_elements();
   return is_error? true: false;
 }
-
-
 
 
 /* Make a list that is a concation of two lists of ORDER elements */

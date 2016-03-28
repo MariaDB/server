@@ -422,27 +422,62 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
     window ordering of the window partition of R
   - NR is defined to be the number of rows in the window partition of R.
 
-  Just like with Item_sum_percent_rank, compuation of this function requires
+  Just like with Item_sum_percent_rank, computation of this function requires
   two passes.
 */
 
-class Item_sum_cume_dist: public Item_sum_percent_rank
+class Item_sum_cume_dist: public Item_sum_window_with_row_count
 {
  public:
-  Item_sum_cume_dist(THD *thd)
-    : Item_sum_percent_rank(thd) {}
+  Item_sum_cume_dist(THD *thd) : Item_sum_window_with_row_count(thd),
+                                 current_row_count_(0) {}
 
-  double val_real() { return 0; }
+  double val_real()
+  {
+    if (get_row_count() == 0)
+    {
+      null_value= true;
+      return 0;
+    }
+    ulonglong partition_row_count= get_row_count();
+    null_value= false;
+    return static_cast<double>(current_row_count_) / partition_row_count;
+  }
+
+  bool add()
+  {
+    current_row_count_++;
+    return false;
+  }
 
   enum Sumfunctype sum_func () const
   {
     return CUME_DIST_FUNC;
   }
 
+  void clear()
+  {
+    current_row_count_= 0;
+    set_row_count(0);
+  }
+
   const char*func_name() const
   {
     return "cume_dist";
   }
+
+  void update_field() {}
+  enum Item_result result_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+
+  void fix_length_and_dec()
+  {
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
+                    // requires.
+  }
+
+ private:
+  ulonglong current_row_count_;
 };
 
 
