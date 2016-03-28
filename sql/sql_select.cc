@@ -2135,7 +2135,6 @@ bool JOIN::make_aggr_tables_info()
     All optimization is done. Check if we can use the storage engines
     group by handler to evaluate the group by
   */
-  group_by_handler *gbh= NULL;
   if (tables_list && (tmp_table_param.sum_func_count || group_list) &&
       !procedure)
   {
@@ -2337,8 +2336,8 @@ bool JOIN::make_aggr_tables_info()
     // psergey-todo: this is probably an incorrect place:
     if (select_lex->window_funcs.elements)
     {
-      curr_tab->window_funcs= new Window_funcs_computation;
-      if (curr_tab->window_funcs->setup(thd, &select_lex->window_funcs))
+      curr_tab->window_funcs_step= new Window_funcs_computation;
+      if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs))
         DBUG_RETURN(true);
     }
 
@@ -19137,7 +19136,10 @@ bool test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
 int join_init_read_record(JOIN_TAB *tab)
 {
   int error;
-
+  /* 
+    Note: the query plan tree for the below operations is constructed in
+    save_agg_explain_data.
+  */
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
   if (tab->filesort && tab->sort_table())     // Sort table.
@@ -24158,6 +24160,14 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     node= new Explain_aggr_tmp_table;
     node->child= prev_node;
 
+    if (join_tab->window_funcs_step)
+    {
+      prev_node=node;
+      node= new Explain_aggr_window_funcs;
+      node->child= prev_node;
+    }
+
+    /* The below matches execution in join_init_read_record() */
     if (join_tab->distinct)
     {
       prev_node= node;
@@ -25919,9 +25929,10 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
-  if (join_tab->window_funcs)
+  if (join_tab->window_funcs_step)
   {
-    join_tab->window_funcs->exec(join);
+    if (join_tab->window_funcs_step->exec(join))
+      return NESTED_LOOP_ERROR;
   }
 
   table->reginfo.lock_type= TL_UNLOCK;

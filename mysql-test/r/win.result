@@ -1401,3 +1401,76 @@ pk	c	CNT
 9	2	4
 10	2	3
 drop table t0,t1;
+#
+# EXPLAIN FORMAT=JSON support for window functions
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain format=json select rank() over (order by a) from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from t0;
+explain format=json
+select
+a,
+rank() over (order by sum(b))
+from t1
+group by a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "window_functions_computation": {
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+explain format=json
+select
+a,
+rank() over (order by sum(b))
+from t1
+group by a
+order by null;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;
+drop table t0;
