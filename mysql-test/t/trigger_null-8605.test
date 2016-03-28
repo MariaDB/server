@@ -325,3 +325,50 @@ insert t1 values (9, 9, 2);
 insert t1 (a,c) values (9, 3);
 select * from t1;
 drop table t1;
+
+#
+# MDEV-9428 NO_AUTO_VALUE_ON_ZERO is ignored when a trigger before insert is defined
+#
+set session sql_mode ='no_auto_value_on_zero';
+create table t1 (id int unsigned auto_increment primary key);
+insert t1 values (0);
+select * from t1;
+delete from t1;
+create trigger t1_bi before insert on t1 for each row begin end;
+insert t1 values (0);
+select * from t1;
+drop table t1;
+
+#
+# MDEV-9500 Bug after upgrade to 10.1.10 (and 10.1.11)
+#
+create table t1 (a int not null, b int);
+create trigger trgi before update on t1 for each row do 1;
+insert t1 values (1,1),(2,2),(3,3),(1,4);
+create table t2 select a as c, b as d from t1;
+update t1 set a=(select count(c) from t2 where c+1=a+1 group by a);
+select * from t1;
+drop table t1, t2;
+
+#
+# MDEV-9535 Trigger doing "SET NEW.auctionStart = NOW();" on a timestamp kills MariaDB server.
+#
+create table t1 (a int not null);
+create table t2 (f1 int unsigned not null, f2 int);
+insert into t2 values (1, null);
+create trigger tr1 before update on t1 for each row do 1;
+create trigger tr2 after update on t2 for each row update t1 set a=new.f2;
+update t2 set f2=1 where f1=1;
+drop table t1, t2;
+
+#
+# MDEV-9629 Disappearing PRI from Key column after creating a trigger
+#
+create table t1 (a int not null, primary key (a));
+insert into t1 (a) values (1);
+show columns from t1;
+create trigger t1bu before update on t1 for each row begin end;
+show columns from t1;
+insert into t1 (a) values (3);
+show columns from t1;
+drop table t1;

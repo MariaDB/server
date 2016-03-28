@@ -50,34 +50,36 @@ if (my_b_write((file),(uchar*) (from),param->ref_length)) \
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
                                      uchar *buf);
 static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             Filesort_info *fs_info,
+                             SORT_INFO *fs_info,
                              IO_CACHE *buffer_file,
                              IO_CACHE *tempfile,
                              Bounded_queue<uchar, uchar> *pq,
                              ha_rows *found_rows);
-static bool write_keys(Sort_param *param, Filesort_info *fs_info,
+static bool write_keys(Sort_param *param, SORT_INFO *fs_info,
                       uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
 static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static void register_used_fields(Sort_param *param);
 static bool save_index(Sort_param *param, uint count,
-                       Filesort_info *table_sort);
+                       SORT_INFO *table_sort);
 static uint suffix_length(ulong string_length);
 static uint sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 		       bool *multi_byte_charset);
 static SORT_ADDON_FIELD *get_addon_fields(ulong max_length_for_sort_data,
                                           Field **ptabfield,
-                                          uint sortlength, uint *plength);
+                                          uint sortlength,
+                                          LEX_STRING *addon_buf);
 static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
                                 uchar *buff, uchar *buff_end);
-static bool check_if_pq_applicable(Sort_param *param, Filesort_info *info,
+static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
                                    TABLE *table,
                                    ha_rows records, ulong memory_available);
-
 
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ulong max_length_for_sort_data,
                                    ha_rows maxrows, bool sort_positions)
 {
+  DBUG_ASSERT(addon_field == 0 && addon_buf.length == 0);
+
   sort_length= sortlen;
   ref_length= table->file->ref_length;
   if (!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
@@ -85,13 +87,13 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
   {
     /* 
       Get the descriptors of all fields whose values are appended 
-      to sorted fields and get its total length in addon_length.
+      to sorted fields and get its total length in addon_buf.length
     */
     addon_field= get_addon_fields(max_length_for_sort_data,
-                                  table->field, sort_length, &addon_length);
+                                  table->field, sort_length, &addon_buf);
   }
   if (addon_field)
-    res_length= addon_length;
+    res_length= addon_buf.length;
   else
   {
     res_length= ref_length;
@@ -101,7 +103,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     */
     sort_length+= ref_length;
   }
-  rec_length= sort_length + addon_length;
+  rec_length= sort_length + addon_buf.length;
   max_rows= maxrows;
 }
 
@@ -115,35 +117,33 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
   Before calling filesort, one must have done
   table->file->info(HA_STATUS_VARIABLE)
 
-  The result set is stored in table->io_cache or
-  table->record_pointers.
+  The result set is stored in
+  filesort_info->io_cache or
+  filesort_info->record_pointers.
 
   @param      thd            Current thread
   @param      table          Table to sort
   @param      filesort       How to sort the table
-  @param      sort_positions Set to TRUE if we want to force sorting by position
+  @param      sort_positions Set to TRUE if we want to force sorting by
+			     position
                              (Needed by UPDATE/INSERT or ALTER TABLE or
                               when rowids are required by executor)
-  @param[out] examined_rows  Store number of examined rows here
-                             This is the number of found rows before
                              applying WHERE condition.
   @param[out] found_rows     Store the number of found rows here.
                              This is the number of found rows after
                              applying WHERE condition.
-
   @note
     If we sort by position (like if sort_positions is 1) filesort() will
     call table->prepare_for_position().
 
   @retval
-    HA_POS_ERROR	Error
-  @retval
-    \#			Number of rows
+    0			Error
+    #			SORT_INFO
 */
 
-ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
-                 bool sort_positions, ha_rows *examined_rows,
-                 ha_rows *found_rows, Filesort_tracker* tracker)
+SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
+                    bool sort_positions,
+                    Filesort_tracker* tracker)
 {
   int error;
   size_t memory_available= thd->variables.sortbuff_size;
@@ -161,18 +161,31 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   DBUG_ENTER("filesort");
 
   if (!(s_length= filesort->make_sortorder(thd)))
-    DBUG_RETURN(HA_POS_ERROR);  /* purecov: inspected */
+    DBUG_RETURN(NULL);  /* purecov: inspected */
 
   DBUG_EXECUTE("info",TEST_filesort(filesort->sortorder,s_length););
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_PUSH("");		/* No DBUG here */
 #endif
-  Filesort_info table_sort= table->sort;
+  SORT_INFO *sort;
   TABLE_LIST *tab= table->pos_in_table_list;
   Item_subselect *subselect= tab ? tab->containing_subselect() : 0;
-
   MYSQL_FILESORT_START(table->s->db.str, table->s->table_name.str);
   DEBUG_SYNC(thd, "filesort_start");
+
+  if (!(sort= new SORT_INFO))
+    return 0;
+
+  if (subselect && subselect->filesort_buffer.is_allocated())
+  {
+    /* Reuse cache from last call */
+    sort->filesort_buffer= subselect->filesort_buffer;
+    sort->buffpek= subselect->sortbuffer;
+    subselect->filesort_buffer.reset();
+    subselect->sortbuffer.str=0;
+  }
+
+  outfile= &sort->io_cache;
 
   /*
    Release InnoDB's adaptive hash index latch (if holding) before
@@ -180,20 +193,11 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   */
   ha_release_temporary_latches(thd);
 
-  /* 
-    Don't use table->sort in filesort as it is also used by 
-    QUICK_INDEX_MERGE_SELECT. Work with a copy and put it back at the end 
-    when index_merge select has finished with it.
-  */
-  table->sort.io_cache= NULL;
-  DBUG_ASSERT(table_sort.record_pointers == NULL);
-  
-  outfile= table_sort.io_cache;
   my_b_clear(&tempfile);
   my_b_clear(&buffpek_pointers);
   buffpek=0;
   error= 1;
-  *found_rows= HA_POS_ERROR;
+  sort->found_rows= HA_POS_ERROR;
 
   param.init_for_filesort(sortlength(thd, filesort->sortorder, s_length,
                                      &multi_byte_charset),
@@ -201,14 +205,12 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
                           thd->variables.max_length_for_sort_data,
                           max_rows, sort_positions);
 
-  table_sort.addon_buf= 0;
-  table_sort.addon_length= param.addon_length;
-  table_sort.addon_field= param.addon_field;
-  table_sort.unpack= unpack_addon_fields;
-  if (param.addon_field &&
-      !(table_sort.addon_buf=
-        (uchar *) my_malloc(param.addon_length, MYF(MY_WME |
-                                                    MY_THREAD_SPECIFIC))))
+  sort->addon_buf=    param.addon_buf;
+  sort->addon_field=  param.addon_field;
+  sort->unpack=       unpack_addon_fields;
+  if (multi_byte_charset &&
+      !(param.tmp_buffer= (char*) my_malloc(param.sort_length,
+                                            MYF(MY_WME | MY_THREAD_SPECIFIC))))
     goto err;
 
   if (select && select->quick)
@@ -221,12 +223,7 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
 
-  if (multi_byte_charset &&
-      !(param.tmp_buffer= (char*) my_malloc(param.sort_length,
-                                            MYF(MY_WME | MY_THREAD_SPECIFIC))))
-    goto err;
-
-  if (check_if_pq_applicable(&param, &table_sort,
+  if (check_if_pq_applicable(&param, sort,
                              table, num_rows, memory_available))
   {
     DBUG_PRINT("info", ("filesort PQ is applicable"));
@@ -238,45 +235,31 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
                 true,                           // max_at_top
                 NULL,                           // compare_function
                 compare_length,
-                &make_sortkey, &param, table_sort.get_sort_keys()))
+                &make_sortkey, &param, sort->get_sort_keys()))
     {
       /*
        If we fail to init pq, we have to give up:
        out of memory means my_malloc() will call my_error().
       */
       DBUG_PRINT("info", ("failed to allocate PQ"));
-      table_sort.free_sort_buffer();
       DBUG_ASSERT(thd->is_error());
       goto err;
     }
     // For PQ queries (with limit) we initialize all pointers.
-    table_sort.init_record_pointers();
+    sort->init_record_pointers();
   }
   else
   {
     DBUG_PRINT("info", ("filesort PQ is not applicable"));
 
-    size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
+    size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
+                                   param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(BUFFPEK*)*MERGEBUFF2);
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
       param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
-      if (table_sort.get_sort_keys())
-      {
-        // If we have already allocated a buffer, it better have same size!
-        if (!table_sort.check_sort_buffer_properties(param.max_keys_per_buffer,
-                                                     param.rec_length))
-        {
-          /*
-            table->sort will still have a pointer to the same buffer,
-            but that will be overwritten by the assignment below.
-          */
-          table_sort.free_sort_buffer();
-        }
-      }
-      table_sort.alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length);
-      if (table_sort.get_sort_keys())
+      if (sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
         break;
       size_t old_memory_available= memory_available;
       memory_available= memory_available/4*3;
@@ -289,7 +272,7 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
       my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR + ME_FATALERROR));
       goto err;
     }
-    tracker->report_sort_buffer_size(table_sort.sort_buffer_size());
+    tracker->report_sort_buffer_size(sort->sort_buffer_size());
   }
 
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
@@ -299,21 +282,21 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   param.sort_form= table;
   param.end=(param.local_sortorder=filesort->sortorder)+s_length;
   num_rows= find_all_keys(thd, &param, select,
-                          &table_sort,
+                          sort,
                           &buffpek_pointers,
                           &tempfile, 
                           pq.is_initialized() ? &pq : NULL,
-                          found_rows);
+                          &sort->found_rows);
   if (num_rows == HA_POS_ERROR)
     goto err;
 
   maxbuffer= (uint) (my_b_tell(&buffpek_pointers)/sizeof(*buffpek));
   tracker->report_merge_passes_at_start(thd->query_plan_fsort_passes);
-  tracker->report_row_numbers(param.examined_rows, *found_rows, num_rows);
+  tracker->report_row_numbers(param.examined_rows, sort->found_rows, num_rows);
 
   if (maxbuffer == 0)			// The whole set is in memory
   {
-    if (save_index(&param, (uint) num_rows, &table_sort))
+    if (save_index(&param, (uint) num_rows, sort))
       goto err;
   }
   else
@@ -321,17 +304,17 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
     /* filesort cannot handle zero-length records during merge. */
     DBUG_ASSERT(param.sort_length != 0);
 
-    if (table_sort.buffpek && table_sort.buffpek_len < maxbuffer)
+    if (sort->buffpek.str && sort->buffpek.length < maxbuffer)
     {
-      my_free(table_sort.buffpek);
-      table_sort.buffpek= 0;
+      my_free(sort->buffpek.str);
+      sort->buffpek.str= 0;
     }
-    if (!(table_sort.buffpek=
-          (uchar *) read_buffpek_from_file(&buffpek_pointers, maxbuffer,
-                                 table_sort.buffpek)))
+    if (!(sort->buffpek.str=
+          (char *) read_buffpek_from_file(&buffpek_pointers, maxbuffer,
+                                          (uchar*) sort->buffpek.str)))
       goto err;
-    buffpek= (BUFFPEK *) table_sort.buffpek;
-    table_sort.buffpek_len= maxbuffer;
+    sort->buffpek.length= maxbuffer;
+    buffpek= (BUFFPEK *) sort->buffpek.str;
     close_cached_file(&buffpek_pointers);
 	/* Open cached file if it isn't open */
     if (! my_b_inited(outfile) &&
@@ -350,7 +333,7 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
                                param.rec_length - 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,
-                        (uchar*) table_sort.get_sort_keys(),
+                        (uchar*) sort->get_sort_keys(),
                         buffpek,&maxbuffer,
 			&tempfile))
       goto err;
@@ -358,7 +341,7 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
 	reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
       goto err;
     if (merge_index(&param,
-                    (uchar*) table_sort.get_sort_keys(),
+                    (uchar*) sort->get_sort_keys(),
                     buffpek,
                     maxbuffer,
                     &tempfile,
@@ -377,11 +360,18 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   my_free(param.tmp_buffer);
   if (!subselect || !subselect->is_uncacheable())
   {
-    table_sort.free_sort_buffer();
-    my_free(buffpek);
-    table_sort.buffpek= 0;
-    table_sort.buffpek_len= 0;
+    sort->free_sort_buffer();
+    my_free(sort->buffpek.str);
   }
+  else
+  {
+    /* Remember sort buffers for next subquery call */
+    subselect->filesort_buffer= sort->filesort_buffer;
+    subselect->sortbuffer=      sort->buffpek;
+    sort->filesort_buffer.reset();              // Don't free this
+  }
+  sort->buffpek.str= 0;
+
   close_cached_file(&tempfile);
   close_cached_file(&buffpek_pointers);
   if (my_b_inited(outfile))
@@ -401,13 +391,6 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   {
     int kill_errno= thd->killed_errno();
     DBUG_ASSERT(thd->is_error() || kill_errno || thd->killed == ABORT_QUERY);
-
-    /*
-      We replace the table->sort at the end.
-      Hence calling free_io_cache to make sure table->sort.io_cache
-      used for QUICK_INDEX_MERGE_SELECT is free.
-    */
-    free_io_cache(table);
 
     my_printf_error(ER_FILSORT_ABORT,
                     "%s: %s",
@@ -429,50 +412,26 @@ ha_rows filesort(THD *thd, TABLE *table, Filesort *filesort,
   }
   else
     thd->inc_status_sort_rows(num_rows);
-  *examined_rows= param.examined_rows;
+
+  sort->examined_rows= param.examined_rows;
+  sort->return_rows= num_rows;
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_POP();			/* Ok to DBUG */
 #endif
 
-  /* table->sort.io_cache should be free by this time */
-  DBUG_ASSERT(NULL == table->sort.io_cache);
-
-  // Assign the copy back!
-  table->sort= table_sort;
-
   DBUG_PRINT("exit",
-             ("num_rows: %ld examined_rows: %ld found_rows: %ld",
-              (long) num_rows, (long) *examined_rows, (long) *found_rows));
+             ("num_rows: %lld examined_rows: %lld found_rows: %lld",
+              (longlong) sort->return_rows, (longlong) sort->examined_rows,
+              (longlong) sort->found_rows));
   MYSQL_FILESORT_DONE(error, num_rows);
-  DBUG_RETURN(error ? HA_POS_ERROR : num_rows);
+
+  if (error)
+  {
+    delete sort;
+    sort= 0;
+  }
+  DBUG_RETURN(sort);
 } /* filesort */
-
-
-void filesort_free_buffers(TABLE *table, bool full)
-{
-  DBUG_ENTER("filesort_free_buffers");
-
-  my_free(table->sort.record_pointers);
-  table->sort.record_pointers= NULL;
-
-  if (unlikely(full))
-  {
-    table->sort.free_sort_buffer();
-    my_free(table->sort.buffpek);
-    table->sort.buffpek= NULL;
-    table->sort.buffpek_len= 0;
-  }
-
-  /* addon_buf is only allocated if addon_field is set */
-  if (unlikely(table->sort.addon_field))
-  {
-    my_free(table->sort.addon_field);
-    my_free(table->sort.addon_buf);
-    table->sort.addon_buf= NULL;
-    table->sort.addon_field= NULL;
-  }
-  DBUG_VOID_RETURN;
-}
 
 
 void Filesort::cleanup()
@@ -521,7 +480,7 @@ uint Filesort::make_sortorder(THD *thd)
     DBUG_ASSERT(pos->field != NULL || pos->item != NULL);
   }
   DBUG_RETURN(count);
-}
+  }
 
 
 /** Read 'count' number of buffer pointers into memory. */
@@ -726,7 +685,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
 */
 
 static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
-                             Filesort_info *fs_info,
+                             SORT_INFO *fs_info,
 			     IO_CACHE *buffpek_pointers,
                              IO_CACHE *tempfile,
                              Bounded_queue<uchar, uchar> *pq,
@@ -931,7 +890,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   const ha_rows retval=
     my_b_inited(tempfile) ?
     (ha_rows) (my_b_tell(tempfile)/param->rec_length) : idx;
-  DBUG_PRINT("info", ("find_all_keys return %u", (uint) retval));
+  DBUG_PRINT("info", ("find_all_keys return %llu", (ulonglong) retval));
   DBUG_RETURN(retval);
 } /* find_all_keys */
 
@@ -959,7 +918,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
 */
 
 static bool
-write_keys(Sort_param *param,  Filesort_info *fs_info, uint count,
+write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
            IO_CACHE *buffpek_pointers, IO_CACHE *tempfile)
 {
   size_t rec_length;
@@ -1328,11 +1287,13 @@ static void register_used_fields(Sort_param *param)
 }
 
 
-static bool save_index(Sort_param *param, uint count, Filesort_info *table_sort)
+static bool save_index(Sort_param *param, uint count,
+                       SORT_INFO *table_sort)
 {
   uint offset,res_length;
   uchar *to;
   DBUG_ENTER("save_index");
+  DBUG_ASSERT(table_sort->record_pointers == 0);
 
   table_sort->sort_buffer(param, count);
   res_length= param->res_length;
@@ -1381,7 +1342,7 @@ static bool save_index(Sort_param *param, uint count, Filesort_info *table_sort)
 */
 
 bool check_if_pq_applicable(Sort_param *param,
-                            Filesort_info *filesort_info,
+                            SORT_INFO *filesort_info,
                             TABLE *table, ha_rows num_rows,
                             ulong memory_available)
 {
@@ -1415,9 +1376,8 @@ bool check_if_pq_applicable(Sort_param *param,
     // The whole source set fits into memory.
     if (param->max_rows < num_rows/PQ_slowness )
     {
-      filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                       param->rec_length);
-      DBUG_RETURN(filesort_info->get_sort_keys() != NULL);
+      DBUG_RETURN(filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
+                                                   param->rec_length) != NULL);
     }
     else
     {
@@ -1429,9 +1389,8 @@ bool check_if_pq_applicable(Sort_param *param,
   // Do we have space for LIMIT rows in memory?
   if (param->max_keys_per_buffer < num_available_keys)
   {
-    filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                     param->rec_length);
-    DBUG_RETURN(filesort_info->get_sort_keys() != NULL);
+    DBUG_RETURN(filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
+                                                 param->rec_length) != NULL);
   }
 
   // Try to strip off addon fields.
@@ -1467,17 +1426,14 @@ bool check_if_pq_applicable(Sort_param *param,
       if (sort_merge_cost < pq_cost)
         DBUG_RETURN(false);
 
-      filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
-                                       param->sort_length + param->ref_length);
-      if (filesort_info->get_sort_keys())
+      if (filesort_info->alloc_sort_buffer(param->max_keys_per_buffer,
+                                           param->sort_length +
+                                           param->ref_length))
       {
-        // Make attached data to be references instead of fields.
-        my_free(filesort_info->addon_buf);
+        /* Make attached data to be references instead of fields. */
         my_free(filesort_info->addon_field);
-        filesort_info->addon_buf= NULL;
         filesort_info->addon_field= NULL;
         param->addon_field= NULL;
-        param->addon_length= 0;
 
         param->res_length= param->ref_length;
         param->sort_length+= param->ref_length;
@@ -2047,7 +2003,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
   @param thd                 Current thread
   @param ptabfield           Array of references to the table fields
   @param sortlength          Total length of sorted fields
-  @param[out] plength        Total length of appended fields
+  @param [out] addon_buf     Buffer to us for appended fields
 
   @note
     The null bits for the appended values are supposed to be put together
@@ -2061,7 +2017,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 
 static SORT_ADDON_FIELD *
 get_addon_fields(ulong max_length_for_sort_data,
-                 Field **ptabfield, uint sortlength, uint *plength)
+                 Field **ptabfield, uint sortlength, LEX_STRING *addon_buf)
 {
   Field **pfield;
   Field *field;
@@ -2070,6 +2026,7 @@ get_addon_fields(ulong max_length_for_sort_data,
   uint fields= 0;
   uint null_fields= 0;
   MY_BITMAP *read_set= (*ptabfield)->table->read_set;
+  DBUG_ENTER("get_addon_fields");
 
   /*
     If there is a reference to a field in the query add it
@@ -2081,31 +2038,33 @@ get_addon_fields(ulong max_length_for_sort_data,
     the values directly from sorted fields.
     But beware the case when item->cmp_type() != item->result_type()
   */
-  *plength= 0;
+  addon_buf->str= 0;
+  addon_buf->length= 0;
 
   for (pfield= ptabfield; (field= *pfield) ; pfield++)
   {
     if (!bitmap_is_set(read_set, field->field_index))
       continue;
     if (field->flags & BLOB_FLAG)
-      return 0;
+      DBUG_RETURN(0);
     length+= field->max_packed_col_length(field->pack_length());
     if (field->maybe_null())
       null_fields++;
     fields++;
   } 
   if (!fields)
-    return 0;
+    DBUG_RETURN(0);
   length+= (null_fields+7)/8;
 
   if (length+sortlength > max_length_for_sort_data ||
-      !(addonf= (SORT_ADDON_FIELD *) my_malloc(sizeof(SORT_ADDON_FIELD)*
-                                               (fields+1),
-                                               MYF(MY_WME |
-                                                   MY_THREAD_SPECIFIC))))
-    return 0;
+      !my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC),
+                       &addonf, sizeof(SORT_ADDON_FIELD) * (fields+1),
+                       &addon_buf->str, length,
+                       NullS))
 
-  *plength= length;
+    DBUG_RETURN(0);
+
+  addon_buf->length= length;
   length= (null_fields+7)/8;
   null_fields= 0;
   for (pfield= ptabfield; (field= *pfield) ; pfield++)
@@ -2132,7 +2091,7 @@ get_addon_fields(ulong max_length_for_sort_data,
   addonf->field= 0;     // Put end marker
   
   DBUG_PRINT("info",("addon_length: %d",length));
-  return (addonf-fields);
+  DBUG_RETURN(addonf-fields);
 }
 
 
@@ -2218,3 +2177,13 @@ void change_double_for_sort(double nr,uchar *to)
   }
 }
 
+/**
+   Free SORT_INFO
+*/
+
+SORT_INFO::~SORT_INFO()
+{
+  DBUG_ENTER("~SORT_INFO::SORT_INFO()");
+  free_data();
+  DBUG_VOID_RETURN;
+}

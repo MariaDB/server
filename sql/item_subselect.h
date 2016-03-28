@@ -95,6 +95,9 @@ public:
   subselect_engine *engine;
   /* unit of subquery */
   st_select_lex_unit *unit;
+  /* Cached buffers used when calling filesort in sub queries */
+  Filesort_buffer filesort_buffer;
+  LEX_STRING sortbuffer;
   /* A reference from inside subquery predicate to somewhere outside of it */
   class Ref_to_outside : public Sql_alloc
   {

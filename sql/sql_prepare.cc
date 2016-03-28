@@ -102,7 +102,11 @@ When one supplies long data for a placeholder:
 #include "sql_acl.h"    // *_ACL
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
+#include "sql_cte.h"
 #include "sql_cursor.h"
+#include "sql_show.h"
+#include "sql_repl.h"
+#include "slave.h"
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
@@ -323,8 +327,14 @@ find_prepared_statement(THD *thd, ulong id)
     To strictly separate namespaces of SQL prepared statements and C API
     prepared statements find() will return 0 if there is a named prepared
     statement with such id.
+
+    LAST_STMT_ID is special value which mean last prepared statement ID
+    (it was made for COM_MULTI to allow prepare and execute a statement
+    in the same command but usage is not limited by COM_MULTI only).
   */
-  Statement *stmt= thd->stmt_map.find(id);
+  Statement *stmt= ((id == LAST_STMT_ID) ?
+                    thd->last_stmt :
+                    thd->stmt_map.find(id));
 
   if (stmt == 0 || stmt->type() != Query_arena::PREPARED_STATEMENT)
     return NULL;
@@ -1499,6 +1509,8 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
@@ -1802,6 +1814,191 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 }
 
 
+static int send_stmt_metadata(THD *thd, Prepared_statement *stmt, List<Item> *fields)
+{
+  if (stmt->is_sql_prepare())
+    return 0;
+
+  if (send_prep_stmt(stmt, fields->elements) ||
+      thd->protocol->send_result_set_metadata(fields, Protocol::SEND_EOF) ||
+      thd->protocol->flush())
+    return 1;
+
+  return 2;
+}
+
+
+/**
+  Validate and prepare for execution SHOW CREATE TABLE statement.
+
+  @param stmt               prepared statement
+  @param tables             list of tables used in this query
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_create_table(Prepared_statement *stmt,
+                                        TABLE_LIST *tables)
+{
+  DBUG_ENTER("mysql_test_show_create_table");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+  char buff[2048];
+  String buffer(buff, sizeof(buff), system_charset_info);
+
+  if (mysqld_show_create_get_fields(thd, tables, &fields, &buffer))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
+  Validate and prepare for execution SHOW CREATE DATABASE statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_create_db(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_create_db");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  mysqld_show_create_db_get_fields(thd, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+/**
+  Validate and prepare for execution SHOW GRANTS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_grants(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_grants");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  mysql_show_grants_get_fields(thd, &fields, "Grants for");
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
+
+#ifndef EMBEDDED_LIBRARY
+/**
+  Validate and prepare for execution SHOW SLAVE STATUS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_slave_status(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_slave_status");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  show_master_info_get_fields(thd, &fields, 0, 0);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
+  Validate and prepare for execution SHOW MASTER STATUS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_master_status(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_master_status");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  show_binlog_info_get_fields(thd, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
+/**
+  Validate and prepare for execution SHOW BINLOGS statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_binlogs(Prepared_statement *stmt)
+{
+  DBUG_ENTER("mysql_test_show_binlogs");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  show_binlogs_get_fields(thd, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+#endif /* EMBEDDED_LIBRARY */
+
+
+/**
+  Validate and prepare for execution SHOW CREATE PROC/FUNC statement.
+
+  @param stmt               prepared statement
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static int mysql_test_show_create_routine(Prepared_statement *stmt, int type)
+{
+  DBUG_ENTER("mysql_test_show_binlogs");
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  sp_head::show_create_routine_get_fields(thd, type, &fields);
+    
+  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
+}
+
+
 /**
   @brief Validate and prepare for execution CREATE VIEW statement
 
@@ -1810,7 +2007,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   @note This function handles create view commands.
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 static bool mysql_test_create_view(Prepared_statement *stmt)
@@ -2135,7 +2332,66 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_TABLE:
     res= mysql_test_create_table(stmt);
     break;
-
+  case SQLCOM_SHOW_CREATE:
+    if ((res= mysql_test_show_create_table(stmt, tables)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_DB:
+    if ((res= mysql_test_show_create_db(stmt)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  case SQLCOM_SHOW_GRANTS:
+    if ((res= mysql_test_show_grants(stmt)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+#ifndef EMBEDDED_LIBRARY
+  case SQLCOM_SHOW_SLAVE_STAT:
+    if ((res= mysql_test_show_slave_status(stmt)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_MASTER_STAT:
+    if ((res= mysql_test_show_master_status(stmt)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_BINLOGS:
+    if ((res= mysql_test_show_binlogs(stmt)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+#endif /* EMBEDDED_LIBRARY */
+  case SQLCOM_SHOW_CREATE_PROC:
+    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_PROCEDURE)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
+  case SQLCOM_SHOW_CREATE_FUNC:
+    if ((res= mysql_test_show_create_routine(stmt, TYPE_ENUM_FUNCTION)) == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    break;
   case SQLCOM_CREATE_VIEW:
     if (lex->create_view_mode == VIEW_ALTER)
     {
@@ -2202,10 +2458,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_USER:
   case SQLCOM_RENAME_USER:
   case SQLCOM_DROP_USER:
+  case SQLCOM_CREATE_ROLE:
+  case SQLCOM_DROP_ROLE:
   case SQLCOM_ASSIGN_TO_KEYCACHE:
   case SQLCOM_PRELOAD_KEYS:
   case SQLCOM_GRANT:
+  case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ROLE:
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
   case SQLCOM_SHUTDOWN:
@@ -2325,7 +2585,10 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   {
     /* Statement map deletes statement on erase */
     thd->stmt_map.erase(stmt);
+    thd->clear_last_stmt();
   }
+  else
+    thd->set_last_stmt(stmt);
 
   thd->protocol= save_protocol;
 
@@ -2911,6 +3174,9 @@ void mysqld_stmt_close(THD *thd, char *packet)
   stmt->deallocate();
   general_log_print(thd, thd->get_command(), NullS);
 
+  if (thd->last_stmt == stmt)
+    thd->clear_last_stmt();
+
   DBUG_VOID_RETURN;
 }
 
@@ -3173,7 +3439,8 @@ end:
 
 Prepared_statement::Prepared_statement(THD *thd_arg)
   :Statement(NULL, &main_mem_root,
-             STMT_INITIALIZED, ++thd_arg->statement_id_counter),
+             STMT_INITIALIZED,
+             ((++thd_arg->statement_id_counter) & STMT_ID_MASK)),
   thd(thd_arg),
   result(thd_arg),
   param_array(0),
@@ -3649,8 +3916,9 @@ reexecute:
     switch (thd->wsrep_conflict_state)
     {
       case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %ld err: %d",
-	            thd->thread_id, thd->get_stmt_da()->sql_errno() );
+        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
+	            (longlong) thd->thread_id,
+                    thd->get_stmt_da()->sql_errno() );
         thd->wsrep_conflict_state = NO_CONFLICT;
         break;
 

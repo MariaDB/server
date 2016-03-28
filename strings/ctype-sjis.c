@@ -192,12 +192,6 @@ static const uchar sort_order_sjis[]=
 #include "ctype-mb.ic"
 
 
-static uint ismbchar_sjis(CHARSET_INFO *cs __attribute__((unused)),
-			 const char* p, const char *e)
-{
-  return (issjishead((uchar) *p) && (e-p)>1 && issjistail((uchar)p[1]) ? 2: 0);
-}
-
 static uint mbcharlen_sjis(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
   return (issjishead((uchar) c) ? 2 : 1);
@@ -34072,7 +34066,6 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  ismbchar_sjis,
   mbcharlen_sjis,
   my_numchars_mb,
   my_charpos_mb,

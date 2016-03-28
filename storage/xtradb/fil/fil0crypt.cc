@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -662,7 +662,7 @@ fil_space_encrypt(
 		return src_frame;
 	}
 
-	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+	ut_a(crypt_data != NULL && crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
 
 	byte* tmp = fil_encrypt_buf(crypt_data, space, offset, lsn, src_frame, zip_size, dst_frame);
 
@@ -712,21 +712,37 @@ fil_space_decrypt(
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-
+	ulint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
+	ulint space = mach_read_from_4(src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 	*err = DB_SUCCESS;
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		return false;
 	}
 
-	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+	if (crypt_data == NULL) {
+		if (!(space == 0 && offset == 0) && key_version != 0) {
+			/* FIL_PAGE_FILE_FLUSH_LSN field i.e.
+			FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			should be only defined for the
+			first page in a system tablespace
+			data file (ibdata*, not *.ibd), if not
+			clear it. */
+#ifdef UNIV_DEBUG
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Page on space %lu offset %lu has key_version %u"
+				" when it shoud be undefined.",
+				space, offset, key_version);
+#endif
+			mach_write_to_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0);
+		}
+		return false;
+	}
 
-	/* read space & offset & lsn */
-	ulint space = mach_read_from_4(
-		src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	ulint offset = mach_read_from_4(
-		src_frame + FIL_PAGE_OFFSET);
-	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
+	ut_a(crypt_data != NULL && crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+
+	/* read space & lsn */
 	ulint header_len = FIL_PAGE_DATA;
 
 	if (page_compressed) {
@@ -799,6 +815,7 @@ fil_space_decrypt(
 	byte*		src_frame)	/*!< in/out: page buffer */
 {
 	dberr_t err = DB_SUCCESS;
+	byte* res = NULL;
 
 	bool encrypted = fil_space_decrypt(
 				fil_space_get_crypt_data(space),
@@ -807,13 +824,17 @@ fil_space_decrypt(
 				src_frame,
 				&err);
 
-	if (encrypted) {
-		/* Copy the decrypted page back to page buffer, not
-		really any other options. */
-		memcpy(src_frame, tmp_frame, page_size);
+	if (err == DB_SUCCESS) {
+		if (encrypted) {
+			/* Copy the decrypted page back to page buffer, not
+			really any other options. */
+			memcpy(src_frame, tmp_frame, page_size);
+		}
+
+		res = src_frame;
 	}
 
-	return src_frame;
+	return res;
 }
 
 /******************************************************************
@@ -2294,6 +2315,10 @@ fil_crypt_set_thread_cnt(
 /*=====================*/
 	uint	new_cnt)	/*!< in: New key rotation thread count */
 {
+	if (!fil_crypt_threads_inited) {
+		fil_crypt_threads_init();
+	}
+
 	if (new_cnt > srv_n_fil_crypt_threads) {
 		uint add = new_cnt - srv_n_fil_crypt_threads;
 		srv_n_fil_crypt_threads = new_cnt;
@@ -2358,15 +2383,18 @@ void
 fil_crypt_threads_init()
 /*====================*/
 {
-	fil_crypt_event = os_event_create();
-	fil_crypt_threads_event = os_event_create();
-	mutex_create(fil_crypt_threads_mutex_key,
-		     &fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
+	ut_ad(mutex_own(&fil_system->mutex));
+	if (!fil_crypt_threads_inited) {
+		fil_crypt_event = os_event_create();
+		fil_crypt_threads_event = os_event_create();
+		mutex_create(fil_crypt_threads_mutex_key,
+			&fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
 
-	uint cnt = srv_n_fil_crypt_threads;
-	srv_n_fil_crypt_threads = 0;
-	fil_crypt_set_thread_cnt(cnt);
-	fil_crypt_threads_inited = true;
+		uint cnt = srv_n_fil_crypt_threads;
+		srv_n_fil_crypt_threads = 0;
+		fil_crypt_threads_inited = true;
+		fil_crypt_set_thread_cnt(cnt);
+	}
 }
 
 /*********************************************************************
@@ -2389,6 +2417,7 @@ fil_crypt_threads_cleanup()
 {
 	os_event_free(fil_crypt_event);
 	os_event_free(fil_crypt_threads_event);
+	fil_crypt_threads_inited = false;
 }
 
 /*********************************************************************
@@ -2493,6 +2522,7 @@ fil_space_crypt_get_status(
 		mutex_enter(&crypt_data->mutex);
 		status->keyserver_requests = crypt_data->keyserver_requests;
 		status->min_key_version = crypt_data->min_key_version;
+		status->key_id = crypt_data->key_id;
 
 		if (crypt_data->rotate_state.active_threads > 0 ||
 		    crypt_data->rotate_state.flushing) {

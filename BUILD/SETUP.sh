@@ -31,6 +31,7 @@ Usage: $0 [-h|-n] [configure-options]
   -h, --help              Show this help message.
   -n, --just-print        Don't actually run any commands; just print them.
   -c, --just-configure    Stop after running configure.
+                          Combined with --just-print shows configure options.
   --extra-configs=xxx     Add this to configure options
   --extra-flags=xxx       Add this C and CXX flags
   --extra-cflags=xxx      Add this to C flags

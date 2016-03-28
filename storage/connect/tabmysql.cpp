@@ -334,7 +334,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Database = GetStringCatInfo(g, "Database", "*");
+    Database = GetStringCatInfo(g, "Database", Schema ? Schema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
@@ -806,7 +806,7 @@ int TDBMYSQL::GetMaxSize(PGLOBAL g)
     else if (!Cardinality(NULL))
       MaxSize = 10;   // To make MySQL happy
     else if ((MaxSize = Cardinality(g)) < 0)
-      MaxSize = 12;   // So we can see an error occured
+      MaxSize = 12;   // So we can see an error occurred
 
     } // endif MaxSize
 

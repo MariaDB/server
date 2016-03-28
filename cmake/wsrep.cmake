@@ -26,7 +26,7 @@ ENDIF()
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ${with_wsrep_default})
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "11")
+SET(WSREP_PATCH_VERSION "13")
 
 # Obtain wsrep API version
 FILE(STRINGS "${MySQL_SOURCE_DIR}/wsrep/wsrep_api.h" WSREP_API_VERSION

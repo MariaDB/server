@@ -23,7 +23,8 @@ SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 
 # Block the commit
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
-SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
 
 --connection node_1
 --send COMMIT;
@@ -31,8 +32,7 @@ SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
 # Wait until commit is blocked
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'commit_monitor_enter_sync'
---source include/wait_condition.inc
+--source include/galera_wait_sync_point.inc
 
 # Issue a conflicting update on node #2
 --connection node_2
@@ -48,8 +48,8 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 
 # Unblock the commit
 --connection node_1a
-SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
 
 # Commit succeeds
 --connection node_1

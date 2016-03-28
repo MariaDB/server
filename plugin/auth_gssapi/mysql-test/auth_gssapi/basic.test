@@ -1,0 +1,45 @@
+INSTALL SONAME 'auth_gssapi';
+
+#
+# CREATE USER without 'AS' clause
+#
+--replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+--replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+
+connection default;
+--replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME
+eval DROP USER '$GSSAPI_SHORTNAME';
+
+CREATE USER nosuchuser IDENTIFIED WITH gssapi;
+--disable_query_log
+--replace_regex /actual name '.*'/actual name 'GSSAPI_SHORTNAME'/
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,nosuchuser,,);
+--enable_query_log
+DROP USER nosuchuser;
+
+#
+# CREATE USER with 'AS' clause
+#
+--replace_result $GSSAPI_FULLNAME GSSAPI_FULLNAME
+eval CREATE USER usr1 IDENTIFIED WITH gssapi as '$GSSAPI_FULLNAME';
+connect (con1,localhost,usr1,,);
+--replace_result $GSSAPI_FULLNAME GSSAPI_FULLNAME
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+DROP USER usr1;
+
+CREATE USER nosuchuser IDENTIFIED WITH gssapi AS 'nosuchuser@EXAMPLE.COM';
+--disable_query_log
+--replace_regex /actual name '.*'/actual name 'GSSAPI_FULLNAME'/
+--error ER_ACCESS_DENIED_ERROR
+connect (con1,localhost,nosuchuser,,);
+--enable_query_log
+DROP USER nosuchuser;
+
+UNINSTALL SONAME 'auth_gssapi';

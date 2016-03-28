@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,6 +50,8 @@ class File_parser;
 class Key_part_spec;
 class Item_window_func;
 struct sql_digest_state;
+class With_clause;
+
 
 #define ALLOC_ROOT_SET 1024
 
@@ -180,6 +182,7 @@ const LEX_STRING sp_data_access_name[]=
 
 #define DERIVED_SUBQUERY	1
 #define DERIVED_VIEW		2
+#define DERIVED_WITH            4
 
 enum enum_view_create_mode
 {
@@ -542,7 +545,9 @@ public:
                                         List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
-
+  void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
+                                          st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
@@ -629,7 +634,7 @@ public:
       return saved_fake_select_lex;
     return first_select();
   };
-  //node on wich we should return current_select pointer after parsing subquery
+  //node on which we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
   ha_rows select_limit_cnt, offset_limit_cnt;
@@ -640,6 +645,10 @@ public:
     derived tables/views handling.
   */
   TABLE_LIST *derived;
+  /* With clause attached to this unit (if any) */
+  With_clause *with_clause;
+  /* With element where this unit is used as the specification (if any) */
+  With_element *with_element;
   /* thread handler */
   THD *thd;
   /*
@@ -648,7 +657,7 @@ public:
   */
   st_select_lex *fake_select_lex;
   /**
-    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when noq
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
@@ -664,12 +673,15 @@ public:
   */
   TABLE *insert_table_with_stored_vcol;
 
+  bool columns_are_renamed;
+
   void init_query();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
+  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -1071,6 +1083,19 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
+  void set_with_clause(With_clause *with_clause)
+  {
+    master_unit()->with_clause= with_clause;
+  }
+  With_clause *get_with_clause()
+  {
+    return master_unit()->with_clause;
+  }
+  With_element *get_with_element()
+  {
+    return master_unit()->with_element;
+  }
+  With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
 
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
@@ -1097,6 +1122,13 @@ private:
   index_clause_map current_index_hint_clause;
   /* a list of USE/FORCE/IGNORE INDEX */
   List<Index_hint> *index_hints;
+
+public:
+  inline void add_where_field(st_select_lex *sel)
+  {
+    DBUG_ASSERT(this != sel);
+    select_n_where_fields+= sel->select_n_where_fields;
+  }
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -1430,6 +1462,11 @@ public:
   */
   inline bool is_stmt_unsafe() const {
     return get_stmt_unsafe_flags() != 0;
+  }
+
+  inline bool is_stmt_unsafe(enum_binlog_stmt_unsafe unsafe)
+  {
+    return binlog_stmt_flags & (1 << unsafe);
   }
 
   /**
@@ -1828,6 +1865,7 @@ class Lex_input_stream
 {
   size_t unescape(CHARSET_INFO *cs, char *to,
                   const char *str, const char *end, int sep);
+  my_charset_conv_wc_mb get_escape_func(THD *thd, my_wc_t sep) const;
 public:
   Lex_input_stream()
   {
@@ -2098,14 +2136,23 @@ public:
     return (uint) (m_body_utf8_ptr - m_body_utf8);
   }
 
+  /**
+    Get the maximum length of the utf8-body buffer.
+    The utf8 body can grow because of the character set conversion and escaping.
+  */
+  uint get_body_utf8_maximum_length(THD *thd);
+
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
   void body_utf8_append(const char *ptr, const char *end_ptr);
-  void body_utf8_append_literal(THD *thd,
-                                const LEX_STRING *txt,
-                                CHARSET_INFO *txt_cs,
-                                const char *end_ptr);
-
+  void body_utf8_append_ident(THD *thd,
+                              const LEX_STRING *txt,
+                              const char *end_ptr);
+  void body_utf8_append_escape(THD *thd,
+                               const LEX_STRING *txt,
+                               CHARSET_INFO *txt_cs,
+                               const char *end_ptr,
+                               my_wc_t sep);
   /** Current thread. */
   THD *m_thd;
 
@@ -2126,7 +2173,7 @@ public:
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
 
-  bool get_text(LEX_STRING *to, int pre_skip, int post_skip);
+  bool get_text(LEX_STRING *to, uint sep, int pre_skip, int post_skip);
 
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 
@@ -2412,7 +2459,16 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-  
+  /* current with clause in parsing if any, otherwise 0*/
+  With_clause *curr_with_clause;  
+  /* pointer to the first with clause in the current statemant */
+  With_clause *with_clauses_list;
+  /*
+    (*with_clauses_list_last_next) contains a pointer to the last
+     with clause in the current statement
+  */
+  With_clause **with_clauses_list_last_next;
+
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
@@ -2478,6 +2534,7 @@ public:
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_STRING>    with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*

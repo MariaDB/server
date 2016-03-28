@@ -167,7 +167,7 @@ err:
   @param item_list  List of Items which should be checked
 */
 
-static void make_valid_column_names(THD *thd, List<Item> &item_list)
+void make_valid_column_names(THD *thd, List<Item> &item_list)
 {
   Item *item;
   uint name_len;
@@ -215,7 +215,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  if (tdc_open_view(thd, &decoy, decoy.alias, OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
@@ -244,7 +244,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   @param mode VIEW_CREATE_NEW, VIEW_ALTER, VIEW_CREATE_OR_REPLACE
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
@@ -387,7 +387,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   @note This function handles both create and alter view commands.
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 bool mysql_create_view(THD *thd, TABLE_LIST *views,
@@ -901,9 +901,11 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     ulong sql_mode= thd->variables.sql_mode & MODE_ANSI_QUOTES;
     thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
 
-    lex->unit.print(&view_query, QT_VIEW_INTERNAL);
-    lex->unit.print(&is_query,
-                    enum_query_type(QT_TO_SYSTEM_CHARSET | QT_WITHOUT_INTRODUCERS));
+    lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
+                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                               QT_WITHOUT_INTRODUCERS |
+                                               QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
     thd->variables.sql_mode|= sql_mode;
   }
@@ -1535,8 +1537,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
       /* Fields in this view can be used in upper select in case of merge.  */
       if (table->select_lex)
-        table->select_lex->select_n_where_fields+=
-          lex->select_lex.select_n_where_fields;
+        table->select_lex->add_where_field(&lex->select_lex);
     }
     /*
       This method has a dependency on the proper lock type being set,

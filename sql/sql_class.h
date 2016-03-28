@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -695,6 +695,7 @@ typedef struct system_status_var
   ulong com_create_tmp_table;
   ulong com_drop_tmp_table;
   ulong com_other;
+  ulong com_multi;
 
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -704,6 +705,7 @@ typedef struct system_status_var
   ulong com_stmt_reset;
   ulong com_stmt_close;
 
+  ulong com_register_slave;
   ulong created_tmp_disk_tables_;
   ulong created_tmp_tables_;
   ulong ha_commit_count;
@@ -1184,7 +1186,8 @@ public:
     priv_user - The user privilege we are using. May be "" for anonymous user.
     ip - client IP
   */
-  char   *host, *user, *ip;
+  const char *host;
+  char   *user, *ip;
   char   priv_user[USERNAME_LENGTH];
   char   proxy_user[USERNAME_LENGTH + MAX_HOSTNAME + 5];
   /* The host privilege we are using */
@@ -1411,7 +1414,7 @@ public:
   Discrete_intervals_list auto_inc_intervals_forced;
   ulonglong limit_found_rows;
   ha_rows    cuted_fields, sent_row_count, examined_row_count;
-  ulong client_capabilities;
+  ulonglong client_capabilities;
   ulong query_plan_flags; 
   uint in_sub_stmt;
   bool enable_slow_log;
@@ -1962,6 +1965,13 @@ public:
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
+
+  /* Last created prepared statement */
+  Statement *last_stmt;
+  inline void set_last_stmt(Statement *stmt)
+  { last_stmt= (is_error() ? NULL : stmt); }
+  inline void clear_last_stmt() { last_stmt= NULL; }
+
   /*
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
@@ -2044,7 +2054,7 @@ public:
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
 
-  ulong client_capabilities;		/* What the client supports */
+  ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
   HASH		handler_tables_hash;
@@ -2086,7 +2096,7 @@ public:
     bool       report_to_client;
     /*
       true, if we will send progress report packets to a client
-      (client has requested them, see CLIENT_PROGRESS; report_to_client
+      (client has requested them, see MARIADB_CLIENT_PROGRESS; report_to_client
       is true; not in sub-statement)
     */
     bool       report;
@@ -2177,7 +2187,7 @@ public:
   int is_current_stmt_binlog_format_row() const {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
-    return WSREP_FORMAT(current_stmt_binlog_format) == BINLOG_FORMAT_ROW;
+    return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
   }
 
   enum binlog_filter_state
@@ -3990,7 +4000,13 @@ public:
 #endif /*  GTID_SUPPORT */
   void                      *wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
-  bool                      wsrep_skip_append_keys;
+  /*
+    When enabled, do not replicate/binlog updates from the current table that's
+    being processed. At the moment, it is used to keep mysql.gtid_slave_pos
+    table updates from being replicated to other nodes via galera replication.
+  */
+  bool                      wsrep_ignore_table;
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -4026,8 +4042,41 @@ public:
   {
     main_lex.restore_set_statement_var();
   }
+
+  /*
+    Reset current_linfo
+    Setting current_linfo to 0 needs to be done with LOCK_thread_count to
+    ensure that adjust_linfo_offsets doesn't use a structure that may
+    be deleted.
+  */
+  inline void reset_current_linfo()
+  {
+    mysql_mutex_lock(&LOCK_thread_count);
+    current_linfo= 0;
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
 };
 
+inline void add_to_active_threads(THD *thd)
+{
+  mysql_mutex_lock(&LOCK_thread_count);
+  threads.append(thd);
+  mysql_mutex_unlock(&LOCK_thread_count);
+}
+
+/*
+  This should be called when you want to delete a thd that was not
+  running any queries.
+  This function will assert if the THD was not linked.
+*/
+
+inline void unlink_not_visible_thd(THD *thd)
+{
+  thd->assert_if_linked();
+  mysql_mutex_lock(&LOCK_thread_count);
+  thd->unlink();
+  mysql_mutex_unlock(&LOCK_thread_count);
+}
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */
 
@@ -4460,10 +4509,14 @@ public:
 #define TMP_ENGINE_COLUMNDEF MARIA_COLUMNDEF
 #define TMP_ENGINE_HTON maria_hton
 #define TMP_ENGINE_NAME "Aria"
+inline uint tmp_table_max_key_length() { return maria_max_key_length(); }
+inline uint tmp_table_max_key_parts() { return maria_max_key_segments(); }
 #else
 #define TMP_ENGINE_COLUMNDEF MI_COLUMNDEF
 #define TMP_ENGINE_HTON myisam_hton
 #define TMP_ENGINE_NAME "MyISAM"
+inline uint tmp_table_max_key_length() { return MI_MAX_KEY_LENGTH; }
+inline uint tmp_table_max_key_parts() { return MI_MAX_KEY_SEG; }
 #endif
 
 /*
@@ -4511,8 +4564,6 @@ public:
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
   uint	quick_group;
-  /* If >0 convert all blob fields to varchar(convert_blob_length) */
-  uint  convert_blob_length;
   /**
     Enabled when we have atleast one outer_sum_func. Needed when used
     along with distinct.
@@ -4548,7 +4599,7 @@ public:
 
   TMP_TABLE_PARAM()
     :copy_field(0), group_parts(0),
-     group_length(0), group_null_parts(0), convert_blob_length(0),
+     group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
      precomputed_group_by(0),
@@ -4973,85 +5024,7 @@ class user_var_entry
 user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
 				    bool create_if_not_exists);
 
-/*
-   Unique -- class for unique (removing of duplicates).
-   Puts all values to the TREE. If the tree becomes too big,
-   it's dumped to the file. User can request sorted values, or
-   just iterate through them. In the last case tree merging is performed in
-   memory simultaneously with iteration, so it should be ~2-3x faster.
- */
-
-class Unique :public Sql_alloc
-{
-  DYNAMIC_ARRAY file_ptrs;
-  ulong max_elements;
-  ulonglong max_in_memory_size;
-  IO_CACHE file;
-  TREE tree;
-  uchar *record_pointers;
-  ulong filtered_out_elems;
-  bool flush();
-  uint size;
-  uint full_size;
-  uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
-  bool with_counters;
-
-  bool merge(TABLE *table, uchar *buff, bool without_last_merge);
-
-public:
-  ulong elements;
-  Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-	 uint size_arg, ulonglong max_in_memory_size_arg,
-         uint min_dupl_count_arg= 0);
-  ~Unique();
-  ulong elements_in_tree() { return tree.elements_in_tree; }
-  inline bool unique_add(void *ptr)
-  {
-    DBUG_ENTER("unique_add");
-    DBUG_PRINT("info", ("tree %u - %lu", tree.elements_in_tree, max_elements));
-    if (!(tree.flag & TREE_ONLY_DUPS) && 
-        tree.elements_in_tree >= max_elements && flush())
-      DBUG_RETURN(1);
-    DBUG_RETURN(!tree_insert(&tree, ptr, 0, tree.custom_arg));
-  }
-
-  bool is_in_memory() { return (my_b_tell(&file) == 0); }
-  void close_for_expansion() { tree.flag= TREE_ONLY_DUPS; }
-
-  bool get(TABLE *table);
-  
-  /* Cost of searching for an element in the tree */
-  inline static double get_search_cost(ulonglong tree_elems, uint compare_factor)
-  {
-    return log((double) tree_elems) / (compare_factor * M_LN2);
-  }  
-
-  static double get_use_cost(uint *buffer, size_t nkeys, uint key_size,
-                             ulonglong max_in_memory_size, uint compare_factor,
-                             bool intersect_fl, bool *in_memory);
-  inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
-                                            ulonglong max_in_memory_size)
-  {
-    register ulonglong max_elems_in_tree=
-      max_in_memory_size / ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size);
-    return (int) (sizeof(uint)*(1 + nkeys/max_elems_in_tree));
-  }
-
-  void reset();
-  bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
-
-  uint get_size() const { return size; }
-  ulonglong get_max_in_memory_size() const { return max_in_memory_size; }
-
-  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
-  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
-
-  friend int unique_write_to_file_with_count(uchar* key, element_count count,
-                                             Unique *unique);
-  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count, 
-				            Unique *unique);
-};
-
+class SORT_INFO;
 
 class multi_delete :public select_result_interceptor
 {
@@ -5079,7 +5052,7 @@ public:
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
   int do_deletes();
-  int do_table_deletes(TABLE *table, bool ignore);
+  int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof();
   inline ha_rows num_deleted()
   {
@@ -5319,6 +5292,10 @@ public:
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
+/**
+  Do not allow it for COM_MULTI batch
+*/
+#define CF_NO_COM_MULTI         (1U << 3)
 
 /* Inline functions */
 

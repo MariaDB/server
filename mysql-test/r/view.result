@@ -826,6 +826,9 @@ drop table t2;
 create table t1 (a int);
 insert into t1 values (1), (2);
 create view v1 as select 5 from t1 order by 1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 5 AS `5` from `t1` order by 1	latin1	latin1_swedish_ci
 select * from v1;
 5
 5
@@ -2425,28 +2428,28 @@ CREATE VIEW v1 AS SELECT id FROM t1;
 OPTIMIZE TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	optimize	Error	'test.v1' is not BASE TABLE
-test.v1	optimize	error	Corrupt
+test.v1	optimize	status	Operation failed
 ANALYZE TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	analyze	Error	'test.v1' is not BASE TABLE
-test.v1	analyze	error	Corrupt
+test.v1	analyze	status	Operation failed
 REPAIR TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	repair	Error	'test.v1' is not BASE TABLE
-test.v1	repair	error	Corrupt
+test.v1	repair	status	Operation failed
 DROP TABLE t1;
 OPTIMIZE TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	optimize	Error	'test.v1' is not BASE TABLE
-test.v1	optimize	error	Corrupt
+test.v1	optimize	status	Operation failed
 ANALYZE TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	analyze	Error	'test.v1' is not BASE TABLE
-test.v1	analyze	error	Corrupt
+test.v1	analyze	status	Operation failed
 REPAIR TABLE v1;
 Table	Op	Msg_type	Msg_text
 test.v1	repair	Error	'test.v1' is not BASE TABLE
-test.v1	repair	error	Corrupt
+test.v1	repair	status	Operation failed
 DROP VIEW v1;
 create definer = current_user() sql security invoker view v1 as select 1;
 show create view v1;
@@ -5540,6 +5543,14 @@ execute stmt;
 deallocate prepare stmt;
 drop view v1,v2;
 drop table `t1`;
+create table t1 (a int, b int);
+create view v1 as select a+b from t1;
+alter table v1 check partition p1;
+Table	Op	Msg_type	Msg_text
+test.v1	check	Error	'test.v1' is not BASE TABLE
+test.v1	check	status	Operation failed
+drop view v1;
+drop table t1;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -5875,6 +5886,22 @@ a
 a
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-9701: CREATE VIEW with GROUP BY or ORDER BY and constant
+# produces invalid definition
+#
+CREATE TABLE t1 ( i INT );
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS
+SELECT 3 AS three, COUNT(*) FROM t1 GROUP BY three;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 3 AS `three`,count(0) AS `COUNT(*)` from `t1` group by ''	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+three	COUNT(*)
+3	2
+drop view v1;
+drop table t1;
 #
 # End of 10.1 tests
 #

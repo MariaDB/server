@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,8 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 
 #include "my_crypt.h"
 
+/* Used for debugging */
+// #define DEBUG_CRYPT 1
 #define UNENCRYPTED_KEY_VER	0
 
 /* If true, enable redo log encryption. */
@@ -97,16 +99,24 @@ get_crypt_info(
 {
 	/* so that no one is modifying array while we search */
 	ut_ad(mutex_own(&(log_sys->mutex)));
+	size_t items = crypt_info.size();
 
 	/* a log block only stores 4-bytes of checkpoint no */
 	checkpoint_no &= 0xFFFFFFFF;
-	for (size_t i = 0; i < crypt_info.size(); i++) {
+	for (size_t i = 0; i < items; i++) {
 		struct crypt_info_t* it = &crypt_info[i];
 
 		if (it->checkpoint_no == checkpoint_no) {
 			return it;
 		}
 	}
+
+	/* If checkpoint contains more than one key and we did not
+	find the correct one use the first one. */
+	if (items) {
+		return (&crypt_info[0]);
+	}
+
 	return NULL;
 }
 
@@ -131,7 +141,8 @@ log_blocks_crypt(
 	const byte* block,	/*!< in: blocks before encrypt/decrypt*/
 	ulint size,		/*!< in: size of block */
 	byte* dst_block,	/*!< out: blocks after encrypt/decrypt */
-	int what)		/*!< in: encrypt or decrypt*/
+	int what,		/*!< in: encrypt or decrypt*/
+	const crypt_info_t* crypt_info) /*!< in: crypt info or NULL */
 {
 	byte *log_block = (byte*)block;
 	Crypt_result rc = MY_AES_OK;
@@ -146,7 +157,8 @@ log_blocks_crypt(
 		lsn_t log_block_start_lsn = log_block_get_start_lsn(
 			lsn, log_block_no);
 
-		const crypt_info_t* info = get_crypt_info(log_block);
+		const crypt_info_t* info = crypt_info == NULL ? get_crypt_info(log_block) :
+			crypt_info;
 #ifdef DEBUG_CRYPT
 		fprintf(stderr,
 			"%s %lu chkpt: %lu key: %u lsn: %lu\n",
@@ -156,11 +168,20 @@ log_blocks_crypt(
 			info ? info->key_version : 0,
 			log_block_start_lsn);
 #endif
+		/* If no key is found from checkpoint assume the log_block
+		to be unencrypted. If checkpoint contains the encryption key
+		compare log_block current checksum, if checksum matches,
+		block can't be encrypted. */
 		if (info == NULL ||
-		    info->key_version == UNENCRYPTED_KEY_VER) {
+		    info->key_version == UNENCRYPTED_KEY_VER ||
+			(log_block_checksum_is_ok_or_old_format(log_block, false) &&
+			 what == ENCRYPTION_FLAG_DECRYPT)) {
 			memcpy(dst_block, log_block, OS_FILE_LOG_BLOCK_SIZE);
 			goto next;
 		}
+
+		ut_ad(what == ENCRYPTION_FLAG_DECRYPT ? !log_block_checksum_is_ok_or_old_format(log_block, false) :
+			log_block_checksum_is_ok_or_old_format(log_block, false));
 
 		// Assume log block header is not encrypted
 		memcpy(dst_block, log_block, LOG_BLOCK_HDR_SIZE);
@@ -292,7 +313,7 @@ log_blocks_encrypt(
 	const ulint size,		/*!< in: size of blocks, must be multiple of a log block */
 	byte* dst_block)		/*!< out: blocks after encryption */
 {
-	return log_blocks_crypt(block, size, dst_block, ENCRYPTION_FLAG_ENCRYPT);
+	return log_blocks_crypt(block, size, dst_block, ENCRYPTION_FLAG_ENCRYPT, NULL);
 }
 
 /*********************************************************************//**
@@ -355,14 +376,16 @@ log_encrypt_before_write(
 		return;
 	}
 
-	if (info->key_version == UNENCRYPTED_KEY_VER) {
+	/* If the key is not encrypted or user has requested not to
+	encrypt, do not change log block. */
+	if (info->key_version == UNENCRYPTED_KEY_VER || !srv_encrypt_log) {
 		return;
 	}
 
 	byte* dst_frame = (byte*)malloc(size);
 
 	//encrypt log blocks content
-	Crypt_result result = log_blocks_crypt(block, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT);
+	Crypt_result result = log_blocks_crypt(block, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT, NULL);
 
 	if (result == MY_AES_OK) {
 		ut_ad(block[0] == dst_frame[0]);
@@ -388,7 +411,7 @@ log_decrypt_after_read(
 	byte* dst_frame = (byte*)malloc(size);
 
 	// decrypt log blocks content
-	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, ENCRYPTION_FLAG_DECRYPT);
+	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, ENCRYPTION_FLAG_DECRYPT, NULL);
 
 	if (result == MY_AES_OK) {
 		memcpy(frame, dst_frame, size);

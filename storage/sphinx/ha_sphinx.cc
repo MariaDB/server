@@ -634,8 +634,10 @@ protected:
 	void			SendFloat ( float v )			{ SendDword ( sphF2DW(v) ); }
 };
 
+#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
 template int CSphSEQuery::ParseArray<uint32> ( uint32 **, const char * );
 template int CSphSEQuery::ParseArray<longlong> ( longlong **, const char * );
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1411,6 +1413,14 @@ static bool myismagic ( char c )
 	return c=='@';
 }
 
+static bool myisjson ( char c )
+{
+	return
+		c=='.' ||
+		c=='[' ||
+		c==']';
+}
+
 
 bool CSphSEQuery::ParseField ( char * sField )
 {
@@ -1622,7 +1632,7 @@ bool CSphSEQuery::ParseField ( char * sField )
 				break;
 
 			tFilter.m_sAttrName = sValue;
-			while ( (*sValue) && ( myisattr(*sValue) || myismagic(*sValue) ) )
+			while ( (*sValue) && ( myisattr(*sValue) || myismagic(*sValue) || myisjson(*sValue) ) )
 				sValue++;
 			if ( !*sValue )
 				break;

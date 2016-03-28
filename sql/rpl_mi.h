@@ -345,7 +345,7 @@ public:
   Master_info *get_master_info(const LEX_STRING *connection_name,
                                Sql_condition::enum_warning_level warning);
   bool give_error_if_slave_running();
-  bool any_slave_sql_running();
+  uint any_slave_sql_running();
   bool start_all_slaves(THD *thd);
   bool stop_all_slaves(THD *thd);
 };

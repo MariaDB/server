@@ -39,6 +39,6 @@ a
 4
 5
 FOUND /Slave SQL: Error 'Duplicate entry .* on query\. .*Query: '.*', Gtid 0-1-100, Internal MariaDB error code:|Slave SQL: Could not execute Write_rows.*table test.t1; Duplicate entry.*, Gtid 0-1-100, Internal MariaDB error/ in mysqld.2.err
-FOUND /Slave SQL: The incident LOST_EVENTS occured on the master\. Message: <none>, Internal MariaDB error code: 1590/ in mysqld.2.err
+FOUND /Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: <none>, Internal MariaDB error code: 1590/ in mysqld.2.err
 DROP TABLE t1;
 include/rpl_end.inc

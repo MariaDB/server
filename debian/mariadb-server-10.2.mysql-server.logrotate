@@ -10,18 +10,11 @@
 	compress
 	sharedscripts
 	postrotate
-		test -x /usr/bin/mysqladmin || exit 0
+          test -x /usr/bin/mysqladmin || exit 0
 
-		# If this fails, check debian.conf! 
-		MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
-		if [ -z "`$MYADMIN ping 2>/dev/null`" ]; then
-		  # Really no mysqld or rather a missing debian-sys-maint user?
-		  # If this occurs and is not a error please report a bug.
-		  if ps cax | grep -q mysqld; then
- 		    exit 1
-		  fi 
-		else
-		  $MYADMIN flush-logs
-		fi
+          if [ -f `my_print_defaults --mysqld | grep -oP "pid-file=\K[^$]+"` ]; then
+            # If this fails, check debian.conf!
+            mysqladmin --defaults-file=/etc/mysql/debian.cnf flush-logs
+          fi
 	endscript
 }

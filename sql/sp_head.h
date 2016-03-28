@@ -337,6 +337,9 @@ public:
   bool
   execute_procedure(THD *thd, List<Item> *args);
 
+  static void
+  show_create_routine_get_fields(THD *thd, int type, List<Item> *fields);
+
   bool
   show_create_routine(THD *thd, int type);
 
@@ -604,7 +607,7 @@ public:
                        instruction for CONTINUE error handlers.
    
     @retval 0      on success, 
-    @retval other  if some error occured
+    @retval other  if some error occurred
   */
 
   virtual int execute(THD *thd, uint *nextp) = 0;

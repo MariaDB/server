@@ -184,7 +184,8 @@ static const char *load_default_groups[]=
 static void free_used_memory(void)
 {
   /* Free memory allocated by 'load_defaults' */
-  free_defaults(defaults_argv);
+  if (defaults_argv)
+    free_defaults(defaults_argv);
 
   dynstr_free(&ds_args);
   dynstr_free(&conn_args);
@@ -657,7 +658,7 @@ static int get_upgrade_info_file_name(char* name)
 /*
   Read the content of mysql_upgrade_info file and
   compare the version number form file against
-  version number wich mysql_upgrade was compiled for
+  version number which mysql_upgrade was compiled for
 
   NOTE
   This is an optimization to avoid running mysql_upgrade
@@ -1109,7 +1110,6 @@ int main(int argc, char **argv)
 
   if (opt_systables_only && !opt_silent)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
-
 
   /*
     Read the mysql_upgrade_info file to check if mysql_upgrade

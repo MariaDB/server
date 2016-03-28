@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -173,15 +173,6 @@ struct srv_stats_t {
 
 	/** Number of system rows inserted */
 	ulint_ctr_64_t		n_system_rows_inserted;
-
-	/** Number of merge buffers written */
-	ulint_ctr_64_t		merge_buffers_written;
-
-	/** Number of merge buffers read */
-	ulint_ctr_64_t		merge_buffers_read;
-
-	/** Number of merge buffers merged */
-	ulint_ctr_64_t		merge_buffers_merged;
 
 	/** Number of times secondary index lookup triggered cluster lookup */
 	ulint_ctr_64_t		n_sec_rec_cluster_reads;
@@ -1001,9 +992,6 @@ struct export_var_t{
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
 						- purged view's min trx_id */
 #endif /* UNIV_DEBUG */
-	ib_int64_t innodb_merge_buffers_written;
-	ib_int64_t innodb_merge_buffers_read;
-	ib_int64_t innodb_merge_buffers_merged;
 
 	ib_int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */

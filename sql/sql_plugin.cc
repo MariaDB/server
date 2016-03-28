@@ -1796,7 +1796,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
-  if (init_read_record(&read_record_info, new_thd, table, NULL, 1, 0, FALSE))
+  if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
+                       FALSE))
   {
     sql_print_error("Could not initialize init_read_record; Plugins not "
                     "loaded");
@@ -2152,7 +2153,8 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
   error= plugin_add(thd->mem_root, name, &dl, REPORT_TO_USER);
@@ -2282,7 +2284,8 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
 

@@ -2181,9 +2181,7 @@ static int init_binlog_sender(binlog_send_info *info,
   linfo->pos= *pos;
 
   // note: publish that we use file, before we open it
-  mysql_mutex_lock(&LOCK_thread_count);
   thd->current_linfo= linfo;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (check_start_offset(info, linfo->log_file_name, *pos))
     return 1;
@@ -2922,9 +2920,7 @@ err:
     mysql_file_close(file, MYF(MY_WME));
   }
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->reset_current_linfo();
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
 
@@ -3285,7 +3281,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occured while reseting slave";
+  const char* errmsg= "Unknown error occurred while reseting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3379,9 +3375,7 @@ err:
   SYNOPSIS
     kill_zombie_dump_threads()
     slave_server_id     the slave's server id
-
 */
-
 
 void kill_zombie_dump_threads(uint32 slave_server_id)
 {
@@ -3890,7 +3884,7 @@ bool mysql_show_binlog_events(THD* thd)
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS ||
               thd->lex->sql_command == SQLCOM_SHOW_RELAYLOG_EVENTS);
 
-  /* select wich binary log to use: binlog or relay */
+  /* select which binary log to use: binlog or relay */
   if ( thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS )
   {
     binary_log= &mysql_bin_log;
@@ -3946,9 +3940,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
-    mysql_mutex_lock(&LOCK_thread_count);
-    thd->current_linfo = &linfo;
-    mysql_mutex_unlock(&LOCK_thread_count);
+    thd->current_linfo= &linfo;
 
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;
@@ -4080,11 +4072,28 @@ err:
   else
     my_eof(thd);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->reset_current_linfo();
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   DBUG_RETURN(ret);
+}
+
+
+void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Position", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Do_DB", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Ignore_DB", 255),
+                        mem_root);
 }
 
 
@@ -4100,23 +4109,10 @@ err:
 bool show_binlog_info(THD* thd)
 {
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlog_info");
 
   List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "File", FN_REFLEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Position", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Do_DB", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Ignore_DB", 255),
-                       mem_root);
+  show_binlog_info_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -4140,6 +4136,19 @@ bool show_binlog_info(THD* thd)
 }
 
 
+void show_binlogs_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Log_name", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "File_size", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+}
+
+
 /**
   Execute a SHOW BINARY LOGS statement.
 
@@ -4159,7 +4168,6 @@ bool show_binlogs(THD* thd)
   uint length;
   int cur_dir_len;
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4168,13 +4176,8 @@ bool show_binlogs(THD* thd)
     DBUG_RETURN(TRUE);
   }
 
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Log_name", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "File_size", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
+  show_binlogs_get_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

@@ -1444,7 +1444,9 @@ static void register_statement_v1(const char *category,
 
   for (; count>0; count--, info++)
   {
-    DBUG_ASSERT(info->m_name != NULL);
+    if (info->m_name == NULL)
+      continue;
+
     len= strlen(info->m_name);
     full_length= prefix_length + len;
     if (likely(full_length <= PFS_MAX_INFO_NAME_LENGTH))

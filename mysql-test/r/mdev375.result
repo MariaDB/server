@@ -10,5 +10,8 @@ ERROR HY000: Too many connections
 SELECT 0;
 0
 0
+show status like "Threads_connected";
+Variable_name	Value
+Threads_connected	3
 SET GLOBAL log_warnings=default;
 SET GLOBAL max_connections=default;

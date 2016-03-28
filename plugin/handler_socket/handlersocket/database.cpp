@@ -304,15 +304,14 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       thd->db = 0;
       thd->db = my_strdup("handlersocket", MYF(0));
     }
+    thd->variables.option_bits |= OPTION_TABLE_LOCK;
     my_pthread_setspecific_ptr(THR_THD, thd);
     DBG_THR(fprintf(stderr, "HNDSOCK x0 %p\n", thd));
   }
   {
-    pthread_mutex_lock(&LOCK_thread_count);
-    thd->thread_id = thread_id++;
-    threads.append(thd);
-    ++thread_count;
-    pthread_mutex_unlock(&LOCK_thread_count);
+    thd->thread_id = next_thread_id();
+    thread_safe_increment32(&thread_count);
+    add_to_active_threads(thd);
   }
 
   DBG_THR(fprintf(stderr, "HNDSOCK init thread wsts\n"));
@@ -343,7 +342,7 @@ void
 dbcontext::term_thread()
 {
   DBG_THR(fprintf(stderr, "HNDSOCK thread end %p\n", thd));
-  unlock_tables_if();
+  close_tables_if();
   my_pthread_setspecific_ptr(THR_THD, 0);
   {
     pthread_mutex_lock(&LOCK_thread_count);

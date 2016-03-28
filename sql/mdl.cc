@@ -1064,7 +1064,16 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
 #ifdef WITH_WSREP
-    if (wsrep_thd_is_BF(owner->get_thd(), true))
+    // Allow tests to block the applier thread using the DBUG facilities
+    DBUG_EXECUTE_IF("sync.wsrep_before_mdl_wait",
+                 {
+                   const char act[]=
+                     "now "
+                     "wait_for signal.wsrep_before_mdl_wait";
+                   DBUG_ASSERT(!debug_sync_set_action((owner->get_thd()),
+                                                      STRING_WITH_LEN(act)));
+                 };);
+    if (wsrep_thd_is_BF(owner->get_thd(), false))
     {
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }

@@ -165,7 +165,8 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     arg_length= header_length;
   }
 
-  result= dispatch_command(command, thd, (char *) arg, arg_length);
+  result= dispatch_command(command, thd, (char *) arg, arg_length, FALSE,
+                           FALSE);
   thd->cur_data= 0;
   thd->mysys_var= NULL;
 
@@ -428,8 +429,8 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   thread_count--;
   thd->store_globals();
   thd->unlink();
-  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  delete thd;
   my_pthread_setspecific_ptr(THR_THD,  0);
   mysql->thd=0;
 }
@@ -664,7 +665,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
 void *create_embedded_thd(int client_flag)
 {
   THD * thd= new THD;
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
 
   thd->thread_stack= (char*) &thd;
   if (thd->store_globals())

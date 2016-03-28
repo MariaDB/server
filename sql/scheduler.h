@@ -37,7 +37,7 @@ struct scheduler_functions
   ulong *max_connections;
   bool (*init)(void);
   bool (*init_new_connection_thread)(void);
-  void (*add_connection)(THD *thd);
+  void (*add_connection)(CONNECT *connect);
   void (*thd_wait_begin)(THD *thd, int wait_type);
   void (*thd_wait_end)(THD *thd);
   void (*post_kill_notification)(THD *thd);

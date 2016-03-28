@@ -35,7 +35,6 @@
 #include "filesort.h"
 
 typedef struct st_join_table JOIN_TAB;
-
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1
 #define KEY_OPTIMIZE_REF_OR_NULL	2
@@ -423,6 +422,7 @@ typedef struct st_join_table {
 
   /* Sorting related info */
   Filesort *filesort;
+  SORT_INFO *filesort_result;
   
   /*
     Non-NULL value means this join_tab must do window function computation
@@ -1042,7 +1042,7 @@ protected:
   enum enum_reopt_result {
     REOPT_NEW_PLAN, /* there is a new reoptimized plan */
     REOPT_OLD_PLAN, /* no new improved plan can be found, use the old one */
-    REOPT_ERROR,    /* an irrecovarable error occured during reoptimization */
+    REOPT_ERROR,    /* an irrecovarable error occurred during reoptimization */
     REOPT_NONE      /* not yet reoptimized */
   };
 
@@ -1708,8 +1708,8 @@ bool copy_funcs(Item **func_ptr, const THD *thd);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
 Field* create_tmp_field_from_field(THD *thd, Field* org_field,
                                    const char *name, TABLE *table,
-                                   Item_field *item, uint convert_blob_length);
-                                                                      
+                                   Item_field *item);
+
 bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);
 
 /* functions from opt_sum.cc */
@@ -1967,8 +1967,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                         Field **def_field,
 			bool group, bool modify_item,
 			bool table_cant_handle_bit_fields,
-                        bool make_copy_field,
-                        uint convert_blob_length);
+                        bool make_copy_field);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

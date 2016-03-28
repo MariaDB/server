@@ -88,7 +88,7 @@ static my_bool print_cached_tables_callback(TDC_element *element,
     THD *in_use= entry->in_use;
     printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
            entry->s->db.str, entry->s->table_name.str, element->version,
-           in_use ? in_use->thread_id : 0,
+           in_use ? (long) in_use->thread_id : (long) 0,
            entry->db_stat ? 1 : 0,
            in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
                     "Not in use");

@@ -85,31 +85,66 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
   return total_cost;
 }
 
-uchar **Filesort_buffer::alloc_sort_buffer(uint num_records, uint record_length)
+/*
+  alloc_sort_buffer()
+
+  Allocate buffer for sorting keys.
+  Try to reuse old buffer if possible.
+
+  @return
+    0   Error
+    #   Pointer to allocated buffer
+*/
+
+uchar **Filesort_buffer::alloc_sort_buffer(uint num_records,
+                                           uint record_length)
 {
-  ulong sort_buff_sz;
-
+  size_t buff_size;
+  uchar **sort_keys, **start_of_data;
   DBUG_ENTER("alloc_sort_buffer");
-
   DBUG_EXECUTE_IF("alloc_sort_buffer_fail",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  if (m_idx_array.is_null())
+  buff_size= num_records * (record_length + sizeof(uchar*));
+  set_if_bigger(buff_size, record_length * MERGEBUFF2); 
+
+  if (!m_idx_array.is_null())
   {
-    sort_buff_sz= num_records * (record_length + sizeof(uchar*));
-    set_if_bigger(sort_buff_sz, record_length * MERGEBUFF2); 
-    uchar **sort_keys=
-      (uchar**) my_malloc(sort_buff_sz, MYF(MY_THREAD_SPECIFIC));
-    m_idx_array= Idx_array(sort_keys, num_records);
-    m_record_length= record_length;
-    uchar **start_of_data= m_idx_array.array() + m_idx_array.size();
-    m_start_of_data= reinterpret_cast<uchar*>(start_of_data);
+    /*
+      Reuse old buffer if exists and is large enough
+      Note that we don't make the buffer smaller, as we want to be
+      prepared for next subquery iteration.
+    */
+
+    sort_keys= m_idx_array.array();
+    if (buff_size > allocated_size)
+    {
+      /*
+        Better to free and alloc than realloc as we don't have to remember
+        the old values
+      */
+      my_free(sort_keys);
+      if (!(sort_keys= (uchar**) my_malloc(buff_size,
+                                           MYF(MY_THREAD_SPECIFIC))))
+      {
+        reset();
+        DBUG_RETURN(0);
+      }
+      allocated_size= buff_size;
+    }
   }
   else
   {
-    DBUG_ASSERT(num_records == m_idx_array.size());
-    DBUG_ASSERT(record_length == m_record_length);
+    if (!(sort_keys= (uchar**) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
+      DBUG_RETURN(0);
+    allocated_size= buff_size;
   }
+
+  m_idx_array= Idx_array(sort_keys, num_records);
+  m_record_length= record_length;
+  start_of_data= m_idx_array.array() + m_idx_array.size();
+  m_start_of_data= reinterpret_cast<uchar*>(start_of_data);
+
   DBUG_RETURN(m_idx_array.array());
 }
 
@@ -117,8 +152,7 @@ uchar **Filesort_buffer::alloc_sort_buffer(uint num_records, uint record_length)
 void Filesort_buffer::free_sort_buffer()
 {
   my_free(m_idx_array.array());
-  m_idx_array= Idx_array();
-  m_record_length= 0;
+  m_idx_array.reset();
   m_start_of_data= NULL;
 }
 

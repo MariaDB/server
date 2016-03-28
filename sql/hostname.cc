@@ -412,7 +412,7 @@ static inline bool is_hostname_valid(const char *hostname)
 
 int ip_to_hostname(struct sockaddr_storage *ip_storage,
                    const char *ip_string,
-                   char **hostname,
+                   const char **hostname,
                    uint *connect_errors)
 {
   const struct sockaddr *ip= (const sockaddr *) ip_storage;
@@ -436,7 +436,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
     DBUG_PRINT("info", ("Loopback address detected."));
 
     /* Do not count connect errors from localhost. */
-    *hostname= (char *) my_localhost;
+    *hostname= my_localhost;
 
     DBUG_RETURN(0);
   }

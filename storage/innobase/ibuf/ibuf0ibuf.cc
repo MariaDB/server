@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -383,12 +384,18 @@ ibuf_header_page_get(
 	buf_block_t*	block;
 
 	ut_ad(!ibuf_inside(mtr));
+	page_t* page = NULL;
 
 	block = buf_page_get(
 		IBUF_SPACE_ID, 0, FSP_IBUF_HEADER_PAGE_NO, RW_X_LATCH, mtr);
-	buf_block_dbg_add_level(block, SYNC_IBUF_HEADER);
 
-	return(buf_block_get_frame(block));
+	if (!block->page.encrypted) {
+		buf_block_dbg_add_level(block, SYNC_IBUF_HEADER);
+
+		page = buf_block_get_frame(block);
+	}
+
+	return page;
 }
 
 /******************************************************************//**
@@ -500,9 +507,10 @@ ibuf_size_update(
 
 /******************************************************************//**
 Creates the insert buffer data structure at a database startup and initializes
-the data structures for the insert buffer. */
+the data structures for the insert buffer.
+@return DB_SUCCESS or failure */
 UNIV_INTERN
-void
+dberr_t
 ibuf_init_at_db_start(void)
 /*=======================*/
 {
@@ -513,7 +521,7 @@ ibuf_init_at_db_start(void)
 	dict_index_t*	index;
 	ulint		n_used;
 	page_t*		header_page;
-	dberr_t		error;
+	dberr_t		error= DB_SUCCESS;
 
 	ibuf = static_cast<ibuf_t*>(mem_zalloc(sizeof(ibuf_t)));
 
@@ -542,6 +550,10 @@ ibuf_init_at_db_start(void)
 	mtr_x_lock(fil_space_get_latch(IBUF_SPACE_ID, NULL), &mtr);
 
 	header_page = ibuf_header_page_get(&mtr);
+
+	if (!header_page) {
+		return (DB_DECRYPTION_FAILED);
+	}
 
 	fseg_n_reserved_pages(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 			      &n_used, &mtr);
@@ -593,6 +605,7 @@ ibuf_init_at_db_start(void)
 	ut_a(error == DB_SUCCESS);
 
 	ibuf->index = dict_table_get_first_index(table);
+	return (error);
 }
 
 /*********************************************************************//**

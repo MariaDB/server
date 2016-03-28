@@ -2298,6 +2298,15 @@ id	avg	cast_avg
 2	9223372036854775807.0000	9223372036854775807
 DROP TABLE t1;
 #
+# MDEV-9656 Assertion `0' failed in Item_sum_field::get_tmp_table_field()
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT VAR_POP(1) FROM t1 GROUP BY @a := 's';
+VAR_POP(1)
+0.0000
+DROP TABLE t1;
+#
 # MDEV-8921 Wrong result for CAST(AVG(double_column) AS SIGNED)
 #
 CREATE TABLE t1 (id INT, a DOUBLE);

@@ -116,6 +116,7 @@ struct connection_t
   connection_t *next_in_queue;
   connection_t **prev_in_queue;
   ulonglong abs_wait_timeout;
+  CONNECT* connect;
   bool logged_in;
   bool bound_to_poll_descriptor;
   bool waiting;
@@ -809,7 +810,7 @@ static int create_worker(thread_group_t *thread_group)
   if (!err)
   {
     thread_group->last_thread_creation_time=microsecond_interval_timer();
-    thread_created++;
+    statistic_increment(thread_created,&LOCK_status);
     add_thread_count(thread_group, 1);
   }
   else
@@ -1203,18 +1204,19 @@ void wait_end(thread_group_t *thread_group)
   Allocate/initialize a new connection structure.
 */
 
-connection_t *alloc_connection(THD *thd)
+connection_t *alloc_connection()
 {
+  connection_t* connection;
   DBUG_ENTER("alloc_connection");
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", DBUG_RETURN(0); );
   
-  connection_t* connection = (connection_t *)my_malloc(sizeof(connection_t),0);
-  if (connection)
+  if ((connection = (connection_t *)my_malloc(sizeof(connection_t),0)))
   {
-    connection->thd = thd;
     connection->waiting= false;
     connection->logged_in= false;
     connection->bound_to_poll_descriptor= false;
     connection->abs_wait_timeout= ULONGLONG_MAX;
+    connection->thd= 0;
   }
   DBUG_RETURN(connection);
 }
@@ -1225,38 +1227,34 @@ connection_t *alloc_connection(THD *thd)
   Add a new connection to thread pool..
 */
 
-void tp_add_connection(THD *thd)
+void tp_add_connection(CONNECT *connect)
 {
+  connection_t *connection;
   DBUG_ENTER("tp_add_connection");
-  
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
-  connection_t *connection= alloc_connection(thd);
-  if (connection)
+
+  connection=  alloc_connection();
+  if (!connection)
   {
-    thd->event_scheduler.data= connection;
-      
-    /* Assign connection to a group. */
-    thread_group_t *group= 
-      &all_groups[thd->thread_id%group_count];
-    
-    connection->thread_group=group;
-      
-    mysql_mutex_lock(&group->mutex);
-    group->connection_count++;
-    mysql_mutex_unlock(&group->mutex);
-    
-    /*
-       Add connection to the work queue.Actual logon 
-       will be done by a worker thread.
-    */
-    queue_put(group, connection);
+    connect->close_and_delete();
+    DBUG_VOID_RETURN;
   }
-  else
-  {
-    /* Allocation failed */
-    threadpool_cleanup_connection(thd);
-  } 
+  connection->connect= connect;
+
+  /* Assign connection to a group. */
+  thread_group_t *group= 
+    &all_groups[connect->thread_id%group_count];
+
+  connection->thread_group=group;
+      
+  mysql_mutex_lock(&group->mutex);
+  group->connection_count++;
+  mysql_mutex_unlock(&group->mutex);
+    
+  /*
+    Add connection to the work queue.Actual logon 
+    will be done by a worker thread.
+  */
+  queue_put(group, connection);
   DBUG_VOID_RETURN;
 }
 
@@ -1269,9 +1267,12 @@ static void connection_abort(connection_t *connection)
 {
   DBUG_ENTER("connection_abort");
   thread_group_t *group= connection->thread_group;
-  
-  threadpool_remove_connection(connection->thd); 
-  
+
+  if (connection->thd)
+  {
+    threadpool_remove_connection(connection->thd);
+  }
+
   mysql_mutex_lock(&group->mutex);
   group->connection_count--;
   mysql_mutex_unlock(&group->mutex);
@@ -1440,7 +1441,8 @@ static void handle_event(connection_t *connection)
 
   if (!connection->logged_in)
   {
-    err= threadpool_add_connection(connection->thd);
+    connection->thd = threadpool_add_connection(connection->connect, connection);
+    err= (connection->thd == NULL);
     connection->logged_in= true;
   }
   else 
@@ -1547,7 +1549,6 @@ bool tp_init()
   start_timer(&pool_timer);
   DBUG_RETURN(0);
 }
-
 
 void tp_end()
 {

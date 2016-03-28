@@ -216,6 +216,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_CREATE_PROC:
   case SQLCOM_SHOW_CREATE_EVENT:
   case SQLCOM_SHOW_CREATE_TRIGGER:
+  case SQLCOM_SHOW_CREATE_USER:
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_ERRORS:
   case SQLCOM_SHOW_EXPLAIN:
@@ -283,6 +284,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_CREATE_USER:
   case SQLCOM_CREATE_ROLE:
   case SQLCOM_ALTER_TABLE:
+  case SQLCOM_ALTER_USER:
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
@@ -2534,6 +2536,69 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
 
 
 /**
+  Collect metadata for SHOW CREATE statement for stored routines.
+
+  @param thd  Thread context.
+  @param type         Stored routine type
+  @param type         Stored routine type
+                      (TYPE_ENUM_PROCEDURE or TYPE_ENUM_FUNCTION)
+
+  @return Error status.
+    @retval FALSE on success
+    @retval TRUE on error
+*/
+
+void
+sp_head::show_create_routine_get_fields(THD *thd, int type, List<Item> *fields)
+{
+  const char *col1_caption= type == TYPE_ENUM_PROCEDURE ?
+                            "Procedure" : "Function";
+
+  const char *col3_caption= type == TYPE_ENUM_PROCEDURE ?
+                            "Create Procedure" : "Create Function";
+
+  MEM_ROOT *mem_root= thd->mem_root;
+
+  /* Send header. */
+
+  fields->push_back(new (mem_root)
+                    Item_empty_string(thd, col1_caption, NAME_CHAR_LEN),
+                    mem_root);
+  fields->push_back(new (mem_root)
+                    Item_empty_string(thd, "sql_mode", 256),
+                    mem_root);
+
+  {
+    /*
+      NOTE: SQL statement field must be not less than 1024 in order not to
+      confuse old clients.
+    */
+
+    Item_empty_string *stmt_fld=
+      new (mem_root) Item_empty_string(thd, col3_caption, 1024);
+    stmt_fld->maybe_null= TRUE;
+
+    fields->push_back(stmt_fld, mem_root);
+  }
+
+  fields->push_back(new (mem_root)
+                   Item_empty_string(thd, "character_set_client",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
+
+  fields->push_back(new (mem_root)
+                   Item_empty_string(thd, "collation_connection",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
+
+  fields->push_back(new (mem_root)
+                   Item_empty_string(thd, "Database Collation",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
+}
+
+
+/**
   Implement SHOW CREATE statement for stored routines.
 
   @param thd  Thread context.
@@ -3211,7 +3276,8 @@ sp_instr_set::print(String *str)
   }
   str->qs_append(m_offset);
   str->qs_append(' ');
-  m_value->print(str, QT_ORDINARY);
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
 
@@ -3243,9 +3309,11 @@ void
 sp_instr_set_trigger_field::print(String *str)
 {
   str->append(STRING_WITH_LEN("set_trigger_field "));
-  trigger_field->print(str, QT_ORDINARY);
+  trigger_field->print(str, enum_query_type(QT_ORDINARY |
+                                            QT_ITEM_ORIGINAL_FUNC_NULLIF));
   str->append(STRING_WITH_LEN(":="));
-  value->print(str, QT_ORDINARY);
+  value->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
 /*
@@ -3371,7 +3439,8 @@ sp_instr_jump_if_not::print(String *str)
   str->qs_append('(');
   str->qs_append(m_cont_dest);
   str->qs_append(STRING_WITH_LEN(") "));
-  m_expr->print(str, QT_ORDINARY);
+  m_expr->print(str, enum_query_type(QT_ORDINARY |
+                                     QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
 
@@ -3467,7 +3536,8 @@ sp_instr_freturn::print(String *str)
   str->qs_append(STRING_WITH_LEN("freturn "));
   str->qs_append((uint)m_type);
   str->qs_append(' ');
-  m_value->print(str, QT_ORDINARY);
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
 /*
@@ -3939,7 +4009,8 @@ sp_instr_set_case_expr::print(String *str)
   str->qs_append(STRING_WITH_LEN(") "));
   str->qs_append(m_case_expr_id);
   str->qs_append(' ');
-  m_case_expr->print(str, QT_ORDINARY);
+  m_case_expr->print(str, enum_query_type(QT_ORDINARY |
+                                          QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
 uint

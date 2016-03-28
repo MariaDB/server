@@ -42,7 +42,7 @@ to be retrieved are specified by the 5th argument for the
 corresponding open_index call.
 
 The execute_single method always returns an arrayref. The first
-element is the error code, which is 0 when no error is occured.
+element is the error code, which is 0 when no error is occurred.
 The remaining are the field values. If more than one record is
 returned, it is flatten to an 1-dimensional array. For example,
 when 5 records that have 3 columns are returned, you can retrieve
@@ -125,9 +125,9 @@ methods.
   die $hs->get_error() if $res->[0] != 0;
 
 -----------------------------------------------------------------
-When an error is occured, the first element of the returned
+When an error is occurred, the first element of the returned
 arrayref becomes a non-zero value. A negative value indicates
-that an I/O error is occured and the Net::HandlerSocket object
+that an I/O error is occurred and the Net::HandlerSocket object
 should be disposed. A positive value means that the connection is
 still active and the Net::HandlerSocket object can be reused
 later.

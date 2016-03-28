@@ -1,18 +1,15 @@
 SET(TOKUDB_VERSION 5.6.26-74.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
-IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND
-    NOT CMAKE_VERSION VERSION_LESS "2.8.9")
+IF(CMAKE_VERSION VERSION_LESS "2.8.9")
+  MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
+ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
+       CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 CHECK_CXX_SOURCE_COMPILES(
 "
 struct a {int b; int c; };
 struct a d = { .b=1, .c=2 };
 int main() { return 0; }
 " TOKUDB_OK)
-ELSE()
-  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"  AND
-     CMAKE_VERSION VERSION_LESS "2.8.9")
-    MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
-  ENDIF()
 ENDIF()
 
 IF(NOT TOKUDB_OK)
@@ -34,7 +31,7 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 
 ############################################
-SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.2/README-TOKUDB\nusr/share/doc/mariadb-server-10.2/README.md" PARENT_SCOPE)
+SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)
 MARK_AS_ADVANCED(BUILDNAME)
 MARK_AS_ADVANCED(BUILD_TESTING)
 MARK_AS_ADVANCED(CMAKE_TOKUDB_REVISION)

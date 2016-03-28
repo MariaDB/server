@@ -52,11 +52,16 @@
                                    (((uint32) (((const uchar*) (A))[2])) << 8) +\
                                    (((uint32) (((const uchar*) (A))[1])) << 16) +\
                                    (((uint32) (((const uchar*) (A))[0])) << 24)))
+
+#ifndef HAVE_mi_uint5korr
 #define mi_uint5korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[4])) +\
                                     (((uint32) (((const uchar*) (A))[3])) << 8) +\
                                     (((uint32) (((const uchar*) (A))[2])) << 16) +\
                                     (((uint32) (((const uchar*) (A))[1])) << 24)) +\
                                     (((ulonglong) (((const uchar*) (A))[0])) << 32))
+#endif /* HAVE_mi_uint5korr */
+
+#ifndef HAVE_mi_uint6korr
 #define mi_uint6korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[5])) +\
                                     (((uint32) (((const uchar*) (A))[4])) << 8) +\
                                     (((uint32) (((const uchar*) (A))[3])) << 16) +\
@@ -64,6 +69,9 @@
                         (((ulonglong) (((uint32) (((const uchar*) (A))[1])) +\
                                     (((uint32) (((const uchar*) (A))[0]) << 8)))) <<\
                                      32))
+#endif /* HAVE_mi_uint6korr */
+
+#ifndef HAVE_mi_uint7korr
 #define mi_uint7korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[6])) +\
                                     (((uint32) (((const uchar*) (A))[5])) << 8) +\
                                     (((uint32) (((const uchar*) (A))[4])) << 16) +\
@@ -72,6 +80,9 @@
                                     (((uint32) (((const uchar*) (A))[1])) << 8) +\
                                     (((uint32) (((const uchar*) (A))[0])) << 16))) <<\
                                      32))
+#endif /* HAVE_mi_uint7korr */
+
+#ifndef HAVE_mi_uint8korr
 #define mi_uint8korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[7])) +\
                                     (((uint32) (((const uchar*) (A))[6])) << 8) +\
                                     (((uint32) (((const uchar*) (A))[5])) << 16) +\
@@ -81,6 +92,7 @@
                                     (((uint32) (((const uchar*) (A))[1])) << 16) +\
                                     (((uint32) (((const uchar*) (A))[0])) << 24))) <<\
                                     32))
+#endif /* HAVE_mi_uint8korr */
 
 /* This one is for uniformity */
 #define mi_int1store(T,A) *((uchar*)(T))= (uchar) (A)

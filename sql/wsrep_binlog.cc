@@ -319,9 +319,9 @@ int wsrep_write_cache(wsrep_t*  const wsrep,
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
 {
   char filename[PATH_MAX]= {0};
-  int len= snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld.log",
-                    wsrep_data_home_dir, thd->thread_id,
-                    (long long)wsrep_thd_trx_seqno(thd));
+  int len= snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld.log",
+                    wsrep_data_home_dir, (longlong) thd->thread_id,
+                    (longlong) wsrep_thd_trx_seqno(thd));
   if (len >= PATH_MAX)
   {
     WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
@@ -374,9 +374,9 @@ int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
 void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
 {
   char filename[PATH_MAX]= {0};
-  int len= snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld.log",
-                    wsrep_data_home_dir, thd->thread_id,
-                    (long long)wsrep_thd_trx_seqno(thd));
+  int len= snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld.log",
+                    wsrep_data_home_dir, (longlong) thd->thread_id,
+                    (longlong) wsrep_thd_trx_seqno(thd));
   size_t bytes_in_cache = 0;
   // check path
   if (len >= PATH_MAX)
@@ -448,8 +448,8 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   Log_event_writer writer(&cache);
   Format_description_log_event *ev= wsrep_get_apply_format(thd);
 
-  int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld_v2.log",
-                       wsrep_data_home_dir, thd->thread_id,
+  int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld_v2.log",
+                       wsrep_data_home_dir, (longlong) thd->thread_id,
                        (long long) wsrep_thd_trx_seqno(thd));
 
   if (len >= PATH_MAX)

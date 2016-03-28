@@ -48,6 +48,7 @@ class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
 class Table_statistics;
+class With_element;
 class TDC_element;
 
 /*
@@ -326,56 +327,6 @@ enum enum_vcol_update_mode
   VCOL_UPDATE_ALL
 };
 
-class Filesort_info
-{
-  /// Buffer for sorting keys.
-  Filesort_buffer filesort_buffer;
-
-public:
-  IO_CACHE *io_cache;           /* If sorted through filesort */
-  uchar     *buffpek;           /* Buffer for buffpek structures */
-  uint      buffpek_len;        /* Max number of buffpeks in the buffer */
-  uchar     *addon_buf;         /* Pointer to a buffer if sorted with fields */
-  size_t    addon_length;       /* Length of the buffer */
-  struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
-  void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *); /* To unpack back */
-  uchar     *record_pointers;    /* If sorted in memory */
-  ha_rows   found_records;      /* How many records in sort */
-
-  Filesort_info(): record_pointers(0) {};
-  /** Sort filesort_buffer */
-  void sort_buffer(Sort_param *param, uint count)
-  { filesort_buffer.sort_buffer(param, count); }
-
-  /**
-     Accessors for Filesort_buffer (which @c).
-  */
-  uchar *get_record_buffer(uint idx)
-  { return filesort_buffer.get_record_buffer(idx); }
-
-  uchar **get_sort_keys()
-  { return filesort_buffer.get_sort_keys(); }
-
-  uchar **alloc_sort_buffer(uint num_records, uint record_length)
-  { return filesort_buffer.alloc_sort_buffer(num_records, record_length); }
-
-  bool check_sort_buffer_properties(uint num_records, uint record_length)
-  {
-    return filesort_buffer.check_sort_buffer_properties(num_records,
-                                                        record_length);
-  }
-
-  void free_sort_buffer()
-  { filesort_buffer.free_sort_buffer(); }
-
-  void init_record_pointers()
-  { filesort_buffer.init_record_pointers(); }
-
-  size_t sort_buffer_size() const
-  { return filesort_buffer.sort_buffer_size(); }
-};
-
-
 class Field_blob;
 class Table_triggers_list;
 
@@ -495,9 +446,6 @@ typedef enum enum_table_category TABLE_CATEGORY;
 TABLE_CATEGORY get_table_category(const LEX_STRING *db,
                                   const LEX_STRING *name);
 
-
-struct TABLE_share;
-struct All_share_tables;
 
 typedef struct st_table_field_type
 {
@@ -983,6 +931,57 @@ struct TABLE_SHARE
 };
 
 
+/**
+   Class is used as a BLOB field value storage for
+   intermediate GROUP_CONCAT results. Used only for
+   GROUP_CONCAT with  DISTINCT or ORDER BY options.
+ */
+
+class Blob_mem_storage: public Sql_alloc
+{
+private:
+  MEM_ROOT storage;
+  /**
+    Sign that some values were cut
+    during saving into the storage.
+  */
+  bool truncated_value;
+public:
+  Blob_mem_storage() :truncated_value(false)
+  {
+    init_alloc_root(&storage, MAX_FIELD_VARCHARLENGTH, 0, MYF(0));
+  }
+  ~ Blob_mem_storage()
+  {
+    free_root(&storage, MYF(0));
+  }
+  void reset()
+  {
+    free_root(&storage, MYF(MY_MARK_BLOCKS_FREE));
+    truncated_value= false;
+  }
+  /**
+     Fuction creates duplicate of 'from'
+     string in 'storage' MEM_ROOT.
+
+     @param from           string to copy
+     @param length         string length
+
+     @retval Pointer to the copied string.
+     @retval 0 if an error occured.
+  */
+  char *store(const char *from, uint length)
+  {
+    return (char*) memdup_root(&storage, from, length);
+  }
+  void set_truncated_value(bool is_truncated_value)
+  {
+    truncated_value= is_truncated_value;
+  }
+  bool is_truncated_value() { return truncated_value; }
+};
+
+
 /* Information for one open table */
 enum index_hint_type
 {
@@ -1014,7 +1013,7 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_all_next, **share_all_prev;
-  friend struct All_share_tables;
+  friend class TDC_element;
 
 public:
 
@@ -1255,8 +1254,13 @@ public:
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
+  /**
+     Initialized in Item_func_group_concat::setup for appropriate
+     temporary table if GROUP_CONCAT is used with ORDER BY | DISTINCT
+     and BLOB field count > 0.
+   */
+  Blob_mem_storage *blob_storage;
   GRANT_INFO grant;
-  Filesort_info sort;
   /*
     The arena which the items for expressions from the table definition
     are associated with.  
@@ -1429,19 +1433,6 @@ struct TABLE_share
   static inline TABLE ***prev_ptr(TABLE *l)
   {
     return (TABLE ***) &l->prev;
-  }
-};
-
-
-struct All_share_tables
-{
-  static inline TABLE **next_ptr(TABLE *l)
-  {
-    return &l->share_all_next;
-  }
-  static inline TABLE ***prev_ptr(TABLE *l)
-  {
-    return &l->share_all_prev;
   }
 };
 
@@ -1864,6 +1855,7 @@ struct TABLE_LIST
      derived tables. Use TABLE_LIST::is_anonymous_derived_table().
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
+  With_element *with;                   /* With element of with_table */
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2233,6 +2225,7 @@ struct TABLE_LIST
   {
     return (derived_type & DTYPE_TABLE);
   }
+  bool is_with_table();
   inline void set_view()
   {
     derived_type= DTYPE_VIEW;
@@ -2273,6 +2266,7 @@ struct TABLE_LIST
   {
     derived_type|= DTYPE_MULTITABLE;
   }
+  bool set_as_with_table(THD *thd, With_element *with_elem);
   void reset_const_table();
   bool handle_derived(LEX *lex, uint phases);
 

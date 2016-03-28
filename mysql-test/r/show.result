@@ -1,0 +1,12 @@
+show statistics;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'statistics' at line 1
+show spatial_ref_sys
+--error ER_PARSE_ERROR
+show system_variables;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'spatial_ref_sys
+--error ER_PARSE_ERROR
+show system_variables' at line 2
+show geometry_columns;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'geometry_columns' at line 1
+show nonexistent;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'nonexistent' at line 1

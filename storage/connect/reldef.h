@@ -1,7 +1,7 @@
 /*************** RelDef H Declares Source Code File (.H) ***************/
-/*  Name: RELDEF.H  Version 1.5                                        */
+/*  Name: RELDEF.H  Version 1.6                                        */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2016    */
 /*                                                                     */
 /*  This file contains the DEF classes definitions.                    */
 /***********************************************************************/
@@ -50,7 +50,8 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
   char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
   virtual int  Indexable(void) {return 0;}
-  virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
+  virtual bool Define(PGLOBAL g, PCATLG cat, 
+		                  LPCSTR name, LPCSTR schema, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
 
  protected:
@@ -97,8 +98,9 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
           int  GetColCatInfo(PGLOBAL g);
           void SetIndexInfo(void);
           bool DropTable(PGLOBAL g, PSZ name);
-  virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am);
-  virtual bool DefineAM(PGLOBAL, LPCSTR, int) = 0;
+	virtual bool Define(PGLOBAL g, PCATLG cat,
+						          LPCSTR name, LPCSTR schema, LPCSTR am);
+	virtual bool DefineAM(PGLOBAL, LPCSTR, int) = 0;
 
  protected:
   // Members

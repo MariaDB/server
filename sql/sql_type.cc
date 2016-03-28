@@ -433,10 +433,8 @@ Field *Type_handler_timestamp::make_conversion_table_field(TABLE *table,
                                                            const Field *target)
                                                            const
 {
-  // We assume TIMESTAMP(0)
-  return new(table->in_use->mem_root)
-         Field_timestamp(NULL, MAX_DATETIME_WIDTH, (uchar *) "", 1,
-                         Field::NONE, TMPNAME, table->s);
+  return new_Field_timestamp(table->in_use->mem_root, NULL, (uchar *) "", 1,
+                           Field::NONE, TMPNAME, table->s, target->decimals());
 }
 
 
@@ -476,9 +474,8 @@ Field *Type_handler_time::make_conversion_table_field(TABLE *table,
                                                       const Field *target)
                                                       const
 {
-  return new(table->in_use->mem_root)
-         Field_time(NULL, MAX_TIME_WIDTH, (uchar *) "", 1,
-                    Field::NONE, TMPNAME);
+  return new_Field_time(table->in_use->mem_root, NULL, (uchar *) "", 1,
+                        Field::NONE, TMPNAME, target->decimals());
 }
 
 
@@ -497,9 +494,8 @@ Field *Type_handler_datetime::make_conversion_table_field(TABLE *table,
                                                           const Field *target)
                                                           const
 {
-  return new(table->in_use->mem_root)
-         Field_datetime(NULL, MAX_DATETIME_WIDTH, (uchar *) "", 1,
-                        Field::NONE, TMPNAME);
+  return new_Field_datetime(table->in_use->mem_root, NULL, (uchar *) "", 1,
+                            Field::NONE, TMPNAME, target->decimals());
 }
 
 

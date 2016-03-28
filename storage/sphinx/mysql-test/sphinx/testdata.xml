@@ -5,12 +5,14 @@
 <sphinx:field name="title"/> 
 <sphinx:field name="content"/>
 <sphinx:attr name="gid" type="int"/>
+<sphinx:attr name="meta" type="json"/>
 </sphinx:schema>
 
 <sphinx:document id="1">
 <title>test one</title>
 <content>this is my test document number one. also checking search within phrases.</content>
 <gid>1</gid>
+<meta>{ "foo_count": 100 }</meta>
 </sphinx:document>
 
 <sphinx:document id="2">
@@ -29,6 +31,13 @@
 <title>doc number four</title>
 <content>this is to test groups</content>
 <gid>2</gid>
+</sphinx:document>
+
+<sphinx:document id="5">
+<title>doc number five</title>
+<content>this is to test json filtering</content>
+<gid>1</gid>
+<meta>{ "foo_count": 200, "sub": { "list": [ 3, 4 ], "int": 7 } }</meta>
 </sphinx:document>
 
 </sphinx:docset>

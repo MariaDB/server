@@ -265,7 +265,7 @@ int rr_from_pointers(READ_RECORD *info);
 */
 bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
 {
-  DBUG_ASSERT(src->table->sort.record_pointers);
+  //DBUG_ASSERT(src->table->sort.record_pointers);
   DBUG_ASSERT(src->read_record == rr_from_pointers);
   memcpy(dst, src, sizeof(READ_RECORD));
   return false;
@@ -1534,8 +1534,9 @@ bool Window_func_runner::setup(THD *thd)
 bool Window_func_runner::exec(JOIN *join)
 {
   THD *thd= join->thd;
+  JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
 
-  if (create_sort_index(thd, join, &join->join_tab[join->top_join_tab_count],
+  if (create_sort_index(thd, join, join_tab,
                         filesort))
     return true;
 
@@ -1545,19 +1546,18 @@ bool Window_func_runner::exec(JOIN *join)
     Go through the sorted array and compute the window function
   */
   READ_RECORD info;
-  TABLE *tbl= join->join_tab[join->top_join_tab_count].table;
+  TABLE *tbl= join_tab->table;
 
-  if (init_read_record(&info, thd, tbl, NULL/*select*/, 0, 1, FALSE))
+  if (init_read_record(&info, thd, tbl, NULL/*select*/, join_tab->filesort_result,
+                       0, 1, FALSE))
     return true;
 
   bool is_error= compute_func(win_func, tbl, &info);
 
   /* This calls filesort_free_buffers(): */
   end_read_record(&info);
-  
-  //TODO: should this be moved to cleanup: ?
-  free_io_cache(tbl);
-
+  delete join_tab->filesort_result;
+  join_tab->filesort_result= NULL;
   win_func->set_phase_to_retrieval();
 
   return is_error;

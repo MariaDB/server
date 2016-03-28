@@ -76,9 +76,9 @@ bool String::real_alloc(uint32 length)
 
    @retval false Either the copy operation is complete or, if the size of the
    new buffer is smaller than the currently allocated buffer (if one exists),
-   no allocation occured.
+   no allocation occurred.
 
-   @retval true An error occured when attempting to allocate memory.
+   @retval true An error occurred when attempting to allocate memory.
 */
 bool String::realloc_raw(uint32 alloc_length)
 {
@@ -789,12 +789,114 @@ int stringcmp(const String *s,const String *t)
 }
 
 
+/**
+  Return a string which has the same value with "from" and
+  which is safe to modify, trying to avoid unnecessary allocation
+  and copying when possible.
+
+  @param to           Buffer. Must not be a constant string.
+  @param from         Some existing value. We'll try to reuse it.
+                      Can be a constant or a variable string.
+  @param from_length  The total size that will be possibly needed.
+                      Note, can be 0.
+
+  Note, in some cases "from" and "to" can point to the same object.
+
+  If "from" is a variable string and its allocated memory is enough
+  to store "from_length" bytes, then "from" is returned as is.
+
+  If "from" is a variable string and its allocated memory is not enough
+  to store "from_length" bytes, then "from" is reallocated and returned.
+
+  Otherwise (if "from" is a constant string, or looks like a constant string),
+  then "to" is reallocated to fit "from_length" bytes, the value is copied
+  from "from" to "to", then "to" is returned.
+*/
 String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
 {
-  if (from->Alloced_length >= from_length)
-    return from;
-  if ((from->alloced && (from->Alloced_length != 0)) || !to || from == to)
+  DBUG_ASSERT(to);
+  /*
+    If "from" is a constant string, e.g.:
+       SELECT INSERT('', <pos>, <length>, <replacement>);
+    we should not return it. See MDEV-9332.
+
+    The code below detects different string types:
+
+    a. All constant strings have Alloced_length==0 and alloced==false.
+       They point to a static memory array, or a mem_root memory,
+       and should stay untouched until the end of their life cycle.
+       Not safe to reuse.
+
+    b. Some variable string have Alloced_length==0 and alloced==false initially,
+       they are not bound to any char array and allocate space on the first use
+       (and become #d). A typical example of such String is Item::str_value.
+       This type of string could be reused, but there is no a way to distinguish
+       them from the true constant strings (#a).
+       Not safe to reuse.
+
+    c. Some variable strings have Alloced_length>0 and alloced==false.
+       They point to a fixed size writtable char array (typically on stack)
+       initially but can later allocate more space on the heap when the
+       fixed size array is too small (these strings become #d after allocation).
+       Safe to reuse.
+
+    d. Some variable strings have Alloced_length>0 and alloced==true.
+       They already store data on the heap.
+       Safe to reuse.
+
+    e. Some strings can have Alloced_length==0 and alloced==true.
+       This type of strings allocate space on the heap, but then are marked
+       as constant strings using String::mark_as_const().
+       A typical example - the result of a character set conversion
+       of a constant string.
+       Not safe to reuse.
+  */
+  if (from->Alloced_length > 0) // "from" is  #c or #d (not a constant)
   {
+    if (from->Alloced_length >= from_length)
+      return from; // #c or #d (large enough to store from_length bytes)
+
+    if (from->alloced)
+    {
+      (void) from->realloc(from_length);
+      return from; // #d (reallocated to fit from_length bytes)
+    }
+    /*
+      "from" is of type #c. It currently points to a writtable char array
+      (typically on stack), but is too small for "from_length" bytes.
+      We need to reallocate either "from" or "to".
+
+      "from" typically points to a temporary buffer inside Item_xxx::val_str(),
+      or to Item::str_value, and thus is "less permanent" than "to".
+
+      Reallocating "to" may give more benifits:
+      - "to" can point to a "more permanent" storage and can be reused
+        for multiple rows, e.g. str_buffer in Protocol::send_result_set_row(),
+        which is passed to val_str() for all string type rows.
+      - "from" can stay pointing to its original fixed size stack char array,
+        and thus reduce the total amount of my_alloc/my_free.
+    */
+  }
+
+  if (from == to)
+  {
+    /*
+      Possible string types:
+      #a  not possible (constants should not be passed as "to")
+      #b  possible     (a fresh variable with no associated char buffer)
+      #c  possible     (a variable with a char buffer,
+                        in case it's smaller than fixed_length)
+      #d  not possible (handled earlier)
+      #e  not possible (constants should not be passed as "to")
+
+      If a string of types #a or #e appears here, that means the caller made
+      something wrong. Otherwise, it's safe to reallocate and return "to".
+
+      Note, as we can't distinguish between #a and #b for sure,
+      so we can't assert "not #a", but we can at least assert "not #e".
+    */
+    DBUG_ASSERT(!from->alloced || from->Alloced_length > 0); // Not #e
+
     (void) from->realloc(from_length);
     return from;
   }
@@ -803,7 +905,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
   if ((to->str_length=MY_MIN(from->str_length,from_length)))
     memcpy(to->Ptr,from->Ptr,to->str_length);
   to->str_charset=from->str_charset;
-  return to;
+  return to; // "from" was of types #a, #b, #e, or small #c.
 }
 
 

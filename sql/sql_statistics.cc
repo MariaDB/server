@@ -28,6 +28,7 @@
 #include "key.h"
 #include "sql_statistics.h"
 #include "opt_range.h"
+#include "uniques.h"
 #include "my_atomic.h"
 
 /*

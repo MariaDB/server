@@ -57,3 +57,84 @@ while ($num)
 ALTER TABLE moodle19.mdl_course_modules ADD stefantest LONGTEXT CHARACTER SET utf8 COLLATE utf8_general_ci AFTER showdescription;
 
 drop database moodle19;
+
+#
+# Mdev-9469: Incorrect key file on alter table
+#
+use test;
+
+CREATE TABLE `w_findispmon05u` (
+`atpkey` INT(11) NOT NULL DEFAULT '0',
+`atzo05` INT(11) NULL DEFAULT NULL,
+`pos` BIGINT(21) NULL DEFAULT NULL,
+`f5BnvB` INT(9) NULL DEFAULT NULL,
+`f5atbvb` INT(11) NULL DEFAULT NULL,
+`f5atbwmg` INT(11) NULL DEFAULT NULL,
+`f5pBneu` BIGINT(12) NULL DEFAULT NULL,
+`atbwdt` INT(11) NULL DEFAULT NULL,
+`atbwzt` INT(11) NULL DEFAULT NULL,
+`atbart` VARCHAR(10) NULL DEFAULT NULL
+)
+COLLATE='utf8_general_ci'
+ENGINE=InnoDB;
+ALTER TABLE `w_findispmon05u`
+CHANGE COLUMN `atpkey` `f5atpkey` INT(11) NOT NULL DEFAULT '0' FIRST,
+CHANGE COLUMN `atzo05` `f5atzo05` INT(11) NULL DEFAULT NULL AFTER `f5atpkey`,
+CHANGE COLUMN `atbwdt` `f5atbwdt` INT(11) NULL DEFAULT NULL AFTER `f5pBneu`,
+CHANGE COLUMN `atbwzt` `f5atbwzt` INT(11) NULL DEFAULT NULL AFTER `f5atbwdt`,
+CHANGE COLUMN `atbart` `f5atbart` VARCHAR(10) NULL DEFAULT NULL AFTER `f5atbwzt`,
+ADD INDEX `atpkey` (`f5atpkey`),
+ADD INDEX `inatkey` (`f5atzo05`, `pos`),
+ADD INDEX `pos` (`pos`, `f5atzo05`);
+
+SHOW WARNINGS;
+SHOW CREATE TABLE `w_findispmon05u`;
+
+DROP TABLE `w_findispmon05u`;
+
+CREATE TABLE t (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+ALTER TABLE t
+        CHANGE COLUMN b c INT NOT NULL,
+        ADD UNIQUE INDEX (c);
+
+SHOW WARNINGS;
+SHOW CREATE TABLE t;
+
+# this should fail
+--error 1072
+ALTER TABLE t
+        CHANGE COLUMN c b INT NOT NULL,
+        ADD UNIQUE INDEX (c);
+
+DROP TABLE t;
+
+#
+# Check Foreign Keys
+#
+CREATE TABLE parent (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+CREATE TABLE child (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+ALTER TABLE child
+        CHANGE COLUMN b c INT NOT NULL,
+        ADD FOREIGN KEY (c) REFERENCES parent(a);
+
+SHOW WARNINGS;
+
+SHOW CREATE TABLE child;
+
+DROP TABLE child, parent;
+

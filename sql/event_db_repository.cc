@@ -499,7 +499,8 @@ Event_db_repository::table_scan_all_for_i_s(THD *thd, TABLE *schema_table,
   READ_RECORD read_record_info;
   DBUG_ENTER("Event_db_repository::table_scan_all_for_i_s");
 
-  if (init_read_record(&read_record_info, thd, event_table, NULL, 1, 0, FALSE))
+  if (init_read_record(&read_record_info, thd, event_table, NULL, NULL, 1, 0,
+                       FALSE))
     DBUG_RETURN(TRUE);
 
   /*
@@ -947,7 +948,7 @@ end:
 
 
   @retval FALSE  an event with such db/name key exists
-  @retval  TRUE   no record found or an error occured.
+  @retval  TRUE   no record found or an error occurred.
 */
 
 bool
@@ -1015,7 +1016,7 @@ Event_db_repository::drop_schema_events(THD *thd, LEX_STRING schema)
     DBUG_VOID_RETURN;
 
   /* only enabled events are in memory, so we go now and delete the rest */
-  if (init_read_record(&read_record_info, thd, table, NULL, 1, 0, FALSE))
+  if (init_read_record(&read_record_info, thd, table, NULL, NULL, 1, 0, FALSE))
     goto end;
 
   while (!ret && !(read_record_info.read_record(&read_record_info)) )

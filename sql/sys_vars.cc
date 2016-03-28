@@ -283,7 +283,7 @@ static Sys_var_long Sys_pfs_events_stages_history_size(
 /**
   Variable performance_schema_max_statement_classes.
   The default number of statement classes is the sum of:
-  - COM_END for all regular "statement/com/...",
+  - (COM_END - mariadb gap) for all regular "statement/com/...",
   - 1 for "statement/com/new_packet", for unknown enum_server_command
   - 1 for "statement/com/Error", for invalid enum_server_command
   - SQLCOM_END for all regular "statement/sql/...",
@@ -295,7 +295,8 @@ static Sys_var_ulong Sys_pfs_max_statement_classes(
        "Maximum number of statement instruments.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
-       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 4),
+       DEFAULT((ulong) SQLCOM_END +
+               (ulong) (COM_END -(COM_MDB_GAP_END - COM_MDB_GAP_BEG + 1)) + 4),
        BLOCK_SIZE(1));
 
 static Sys_var_long Sys_pfs_events_statements_history_long_size(
@@ -1183,6 +1184,19 @@ static Sys_var_mybool Sys_log_queries_not_using_indexes(
        GLOBAL_VAR(opt_log_queries_not_using_indexes),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_log_slow_admin_statements(
+       "log_slow_admin_statements",
+       "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to "
+       "the slow log if it is open.",
+       GLOBAL_VAR(opt_log_slow_admin_statements),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_log_slow_slave_statements(
+       "log_slow_slave_statements",
+       "Log slow statements executed by slave thread to the slow log if it is open.",
+       GLOBAL_VAR(opt_log_slow_slave_statements),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
        "Log some not critical warnings to the general log file."
@@ -1437,16 +1451,11 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1));
 
-/*
-  "pseudo_thread_id" variable used in the test suite to detect 32/64bit
-  systems.  If you change it to something else then ulong then fix the tests
-  in mysql-test/include/have_32bit.inc and have_64bit.inc.
-*/
-static Sys_var_ulong Sys_pseudo_thread_id(
+static Sys_var_ulonglong Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, ULONG_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
@@ -1843,6 +1852,15 @@ static Sys_var_ulong Sys_slave_parallel_threads(
        "with GTID in different replication domains. Note that these threads "
        "are in addition to the IO and SQL threads, which are always created "
        "by a replication slave",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+
+/* Alias for @@slave_parallel_threads to match what MySQL 5.7 uses. */
+static Sys_var_ulong Sys_slave_parallel_workers(
+       "slave_parallel_workers",
+       "Alias for slave_parallel_threads",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
@@ -3189,9 +3207,9 @@ static Sys_var_ulong Sys_table_cache_size(
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",
-       "How many threads we should keep in a cache for reuse",
+       "How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time",
        GLOBAL_VAR(thread_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 16384), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 16384), DEFAULT(256), BLOCK_SIZE(1));
 
 #ifdef HAVE_POOL_OF_THREADS
 static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
@@ -3516,7 +3534,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
       thd->mdl_context.release_transactional_locks();
-      WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+      WSREP_DEBUG("autocommit, MDL TRX lock released: %lld",
+                  (longlong) thd->thread_id);
       return true;
     }
     /*
@@ -4474,6 +4493,28 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
              mi->connection_name.str);
     return true;
   }
+  if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel())
+  {
+    ulong domain_count;
+    mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    domain_count= rpl_global_gtid_slave_state->count();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    if (domain_count > 1)
+    {
+      /*
+        With domain-based parallel replication, the slave position is
+        multi-dimensional, so the relay log position is not very meaningful.
+        It might not even correspond to the next GTID to execute in _any_
+        domain (the case after error stop). So slave_skip_counter will most
+        likely not do what the user intends. Instead give an error, with a
+        suggestion to instead set @@gtid_slave_pos past the point of error;
+        this works reliably also in the case of multiple domains.
+      */
+      my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
+      return true;
+    }
+  }
+
   /* The value was stored temporarily in thd */
   mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
   return false;
@@ -5032,7 +5073,7 @@ static Sys_var_set Sys_log_slow_filter(
        "Log only certain types of queries",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
-       DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
+       DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1)));
 
 static const char *default_regex_flags_names[]= 
 {

@@ -731,6 +731,7 @@ drop table t2;
 create table t1 (a int);
 insert into t1 values (1), (2);
 create view v1 as select 5 from t1 order by 1;
+show create view v1;
 select * from v1;
 drop view v1;
 drop table t1;
@@ -5491,6 +5492,16 @@ deallocate prepare stmt;
 
 drop view v1,v2;
 drop table `t1`;
+
+#
+# Bug#19817021
+#
+create table t1 (a int, b int);
+create view v1 as select a+b from t1;
+alter table v1 check partition p1;
+drop view v1;
+drop table t1;
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
 --echo # -----------------------------------------------------------------
@@ -5737,6 +5748,22 @@ SELECT * FROM v1 WHERE a=_latin1'a' COLLATE latin1_bin;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9701: CREATE VIEW with GROUP BY or ORDER BY and constant
+--echo # produces invalid definition
+--echo #
+CREATE TABLE t1 ( i INT );
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE VIEW v1 AS
+SELECT 3 AS three, COUNT(*) FROM t1 GROUP BY three;
+
+show create view v1;
+
+SELECT * FROM v1;
+
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.1 tests

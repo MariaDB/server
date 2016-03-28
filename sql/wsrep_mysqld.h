@@ -86,7 +86,6 @@ extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_running_threads;
 extern bool        wsrep_new_cluster;
-extern my_bool     wsrep_creating_startup_threads;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 
@@ -161,6 +160,7 @@ extern void wsrep_kill_mysql(THD *thd);
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication();
+extern bool wsrep_must_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait(THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
@@ -328,6 +328,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define wsrep_prepend_PATH(X)
 #define wsrep_before_SE() (0)
 #define wsrep_init_startup(X)
+#define wsrep_must_sync_wait(...) (0)
 #define wsrep_sync_wait(...) (0)
 #define wsrep_to_isolation_begin(...) (0)
 #define wsrep_register_hton(...) do { } while(0)
@@ -341,7 +342,6 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define wsrep_thr_init() do {} while(0)
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_running_threads (0)
-#define wsrep_creating_startup_threads (0)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

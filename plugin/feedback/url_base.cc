@@ -48,7 +48,6 @@ Url* Url::create(const char *url, size_t url_length)
   return self;
 }
 
-
 int Url::parse_proxy_server(const char *proxy_server, size_t proxy_length,
                             LEX_STRING *host, LEX_STRING *port)
 {

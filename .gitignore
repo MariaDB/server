@@ -59,6 +59,9 @@ include/mysql_version.h
 include/mysqld_ername.h
 include/mysqld_error.h
 include/sql_state.h
+include/probes_mysql.d
+include/probes_mysql_dtrace.h
+include/probes_mysql_nodtrace.h
 info_macros.cmake
 libmysql*/libmysql*_exports_file.cc
 libmysql*/merge_archives_mysql*.cmake
@@ -112,6 +115,8 @@ scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
+scripts/maria_add_gis_sp.sql
+scripts/maria_add_gis_sp_bootstrap.sql
 sql-bench/bench-count-distinct
 sql-bench/bench-init.pl
 sql-bench/compare-results

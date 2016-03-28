@@ -117,7 +117,7 @@ static const char *reconnect_messages[SLAVE_RECON_ACT_MAX][SLAVE_RECON_MSG_MAX]=
 {
   {
     "Waiting to reconnect after a failed registration on master",
-    "Slave I/O thread killed while waitnig to reconnect after a failed \
+    "Slave I/O thread killed while waiting to reconnect after a failed \
 registration on master",
     "Reconnecting after a failed registration on master",
     "failed registering on master, reconnecting to try again, \
@@ -163,7 +163,6 @@ static int queue_event(Master_info* mi,const char* buf,ulong event_len);
 static int terminate_slave_thread(THD *, mysql_mutex_t *, mysql_cond_t *,
                                   volatile uint *, bool);
 static bool check_io_slave_killed(Master_info *mi, const char *info);
-static bool send_show_master_info_header(THD *, bool, size_t);
 static bool send_show_master_info_data(THD *, Master_info *, bool, String *);
 /*
   Function to set the slave's max_allowed_packet based on the value
@@ -295,9 +294,7 @@ handle_slave_init(void *arg __attribute__((unused)))
   my_thread_init();
   thd= new THD;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->thread_id= next_thread_id();
   thd->system_thread = SYSTEM_THREAD_SLAVE_INIT;
   thread_safe_increment32(&service_thread_count);
   thd->store_globals();
@@ -311,19 +308,17 @@ handle_slave_init(void *arg __attribute__((unused)))
                       rpl_gtid_slave_state_table_name.str,
                       thd->get_stmt_da()->sql_errno(),
                       thd->get_stmt_da()->message());
-
-  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
   thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
-  my_thread_end();
 
-  mysql_mutex_lock(&LOCK_slave_init);
+  /* Signal run_slave_init_thread() that we are done */
+
+  mysql_mutex_lock(&LOCK_start_thread);
   slave_init_thread_running= false;
-  mysql_cond_broadcast(&COND_slave_init);
-  mysql_mutex_unlock(&LOCK_slave_init);
+  mysql_cond_broadcast(&COND_start_thread);
+  mysql_mutex_unlock(&LOCK_start_thread);
 
+  my_thread_end();
   return 0;
 }
 
@@ -348,11 +343,10 @@ run_slave_init_thread()
     return 1;
   }
 
-  mysql_mutex_lock(&LOCK_slave_init);
+  mysql_mutex_lock(&LOCK_start_thread);
   while (slave_init_thread_running)
-    mysql_cond_wait(&COND_slave_init, &LOCK_slave_init);
-  mysql_mutex_unlock(&LOCK_slave_init);
-
+    mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
+  mysql_mutex_unlock(&LOCK_start_thread);
   return 0;
 }
 
@@ -2497,10 +2491,13 @@ bool show_master_info(THD *thd, Master_info *mi, bool full)
 {
   DBUG_ENTER("show_master_info");
   String gtid_pos;
+  List<Item> field_list;
 
   if (full && rpl_global_gtid_slave_state->tostring(&gtid_pos, NULL, 0))
     DBUG_RETURN(TRUE);
-  if (send_show_master_info_header(thd, full, gtid_pos.length()))
+  show_master_info_get_fields(thd, &field_list, full, gtid_pos.length());
+  if (thd->protocol->send_result_set_metadata(&field_list,
+                       Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
   if (send_show_master_info_data(thd, mi, full, &gtid_pos))
     DBUG_RETURN(TRUE);
@@ -2508,226 +2505,222 @@ bool show_master_info(THD *thd, Master_info *mi, bool full)
   DBUG_RETURN(FALSE);
 }
 
-static bool send_show_master_info_header(THD *thd, bool full,
-                                         size_t gtid_pos_length)
+void show_master_info_get_fields(THD *thd, List<Item> *field_list,
+                                 bool full, size_t gtid_pos_length)
 {
-  List<Item> field_list;
-  Protocol *protocol= thd->protocol;
   Master_info *mi;
   MEM_ROOT *mem_root= thd->mem_root;
-  DBUG_ENTER("show_master_info_header");
+  DBUG_ENTER("show_master_info_get_fields");
 
   if (full)
   {
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Connection_name",
-                                           MAX_CONNECTION_NAME),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Slave_SQL_State", 30),
-                         thd->mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_empty_string(thd, "Connection_name",
+                                            MAX_CONNECTION_NAME),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_empty_string(thd, "Slave_SQL_State", 30),
+                          mem_root);
   }
 
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Slave_IO_State", 30),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_Host", sizeof(mi->host)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_User", sizeof(mi->user)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Master_Port", 7, MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Connect_Retry", 10,
-                                       MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_Log_File", FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Read_Master_Log_Pos", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Relay_Log_File", FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Relay_Log_Pos", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Relay_Master_Log_File",
-                                         FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Slave_IO_Running", 3),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Slave_SQL_Running", 3),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Do_DB", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Ignore_DB", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Do_Table", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Ignore_Table", 23),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Wild_Do_Table", 24),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Wild_Ignore_Table",
-                                         28),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Last_Errno", 4, MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Last_Error", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Skip_Counter", 10,
-                                       MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Exec_Master_Log_Pos", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Relay_Log_Space", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Until_Condition", 6),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Until_Log_File", FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Until_Log_Pos", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Allowed", 7),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_CA_File",
-                                         sizeof(mi->ssl_ca)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_CA_Path",
-                                         sizeof(mi->ssl_capath)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Cert",
-                                         sizeof(mi->ssl_cert)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Cipher",
-                                         sizeof(mi->ssl_cipher)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Key",
-                                         sizeof(mi->ssl_key)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Seconds_Behind_Master", 10,
-                                       MYSQL_TYPE_LONGLONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Verify_Server_Cert",
-                                         3),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Last_IO_Errno", 4,
-                                       MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Last_IO_Error", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Last_SQL_Errno", 4,
-                                       MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Last_SQL_Error", 20),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Ignore_Server_Ids",
-                                         FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Master_Server_Id", sizeof(ulong),
-                                           MYSQL_TYPE_LONG),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Crl",
-                                         sizeof(mi->ssl_crl)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Master_SSL_Crlpath",
-                                         sizeof(mi->ssl_crlpath)),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Using_Gtid",
-                                         sizeof("Current_Pos")-1),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Gtid_IO_Pos", 30),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Do_Domain_Ids",
-                                         FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Replicate_Ignore_Domain_Ids",
-                                         FN_REFLEN),
-                       thd->mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Parallel_Mode",
-                                         sizeof("conservative")-1),
-                       thd->mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Slave_IO_State", 30),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_Host", sizeof(mi->host)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_User", sizeof(mi->user)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Master_Port", 7, MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Connect_Retry", 10,
+                                        MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_Log_File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Read_Master_Log_Pos", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Relay_Log_File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Relay_Log_Pos", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Relay_Master_Log_File",
+                                          FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Slave_IO_Running", 3),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Slave_SQL_Running", 3),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Do_DB", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Ignore_DB", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Do_Table", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Ignore_Table", 23),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Wild_Do_Table", 24),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Wild_Ignore_Table",
+                                          28),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Last_Errno", 4, MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Last_Error", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Skip_Counter", 10,
+                                        MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Exec_Master_Log_Pos", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Relay_Log_Space", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Until_Condition", 6),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Until_Log_File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Until_Log_Pos", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Allowed", 7),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_CA_File",
+                                          sizeof(mi->ssl_ca)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_CA_Path",
+                                          sizeof(mi->ssl_capath)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Cert",
+                                          sizeof(mi->ssl_cert)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Cipher",
+                                          sizeof(mi->ssl_cipher)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Key",
+                                          sizeof(mi->ssl_key)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Seconds_Behind_Master", 10,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Verify_Server_Cert",
+                                          3),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Last_IO_Errno", 4,
+                                        MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Last_IO_Error", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Last_SQL_Errno", 4,
+                                        MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Last_SQL_Error", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Ignore_Server_Ids",
+                                          FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Master_Server_Id", sizeof(ulong),
+                                            MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Crl",
+                                          sizeof(mi->ssl_crl)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Master_SSL_Crlpath",
+                                          sizeof(mi->ssl_crlpath)),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Using_Gtid",
+                                          sizeof("Current_Pos")-1),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_IO_Pos", 30),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Do_Domain_Ids",
+                                          FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Ignore_Domain_Ids",
+                                          FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Parallel_Mode",
+                                          sizeof("conservative")-1),
+                        mem_root);
   if (full)
   {
-    field_list.push_back(new (mem_root)
-                         Item_return_int(thd, "Retried_transactions", 10,
-                                         MYSQL_TYPE_LONG),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_return_int(thd, "Max_relay_log_size", 10,
-                                         MYSQL_TYPE_LONGLONG),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_return_int(thd, "Executed_log_entries", 10,
-                                         MYSQL_TYPE_LONG),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_return_int(thd, "Slave_received_heartbeats", 10,
-                                         MYSQL_TYPE_LONG),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_float(thd, "Slave_heartbeat_period", 0.0, 3, 10),
-                         thd->mem_root);
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "Gtid_Slave_Pos",
-                                           gtid_pos_length),
-                         thd->mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Retried_transactions", 10,
+                                          MYSQL_TYPE_LONG),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Max_relay_log_size", 10,
+                                          MYSQL_TYPE_LONGLONG),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Executed_log_entries", 10,
+                                          MYSQL_TYPE_LONG),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Slave_received_heartbeats", 10,
+                                          MYSQL_TYPE_LONG),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_float(thd, "Slave_heartbeat_period", 0.0, 3, 10),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_empty_string(thd, "Gtid_Slave_Pos",
+                                            gtid_pos_length),
+                          mem_root);
   }
-
-  if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-    DBUG_RETURN(TRUE);
-  DBUG_RETURN(FALSE);
+  DBUG_VOID_RETURN;
 }
 
+/* Text for Slave_IO_Running */
+static const char *slave_running[]= { "No", "Connecting", "Preparing", "Yes" };
 
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                        String *gtid_pos)
@@ -2780,9 +2773,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                     &my_charset_bin);
     protocol->store((ulonglong) mi->rli.group_relay_log_pos);
     protocol->store(mi->rli.group_master_log_name, &my_charset_bin);
-    protocol->store(mi->slave_running == MYSQL_SLAVE_RUN_CONNECT ?
-                    "Yes" : (mi->slave_running == MYSQL_SLAVE_RUN_NOT_CONNECT ?
-                             "Connecting" : "No"), &my_charset_bin);
+    protocol->store(slave_running[mi->slave_running], &my_charset_bin);
     protocol->store(mi->rli.slave_running ? "Yes":"No", &my_charset_bin);
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
@@ -2825,7 +2816,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       Seconds_Behind_Master: if SQL thread is running and I/O thread is
       connected, we can compute it otherwise show NULL (i.e. unknown).
     */
-    if ((mi->slave_running == MYSQL_SLAVE_RUN_CONNECT) &&
+    if ((mi->slave_running == MYSQL_SLAVE_RUN_READING) &&
         mi->rli.slave_running)
     {
       long time_diff;
@@ -2962,6 +2953,7 @@ bool show_all_master_info(THD* thd)
   uint i, elements;
   String gtid_pos;
   Master_info **tmp;
+  List<Item> field_list;
   DBUG_ENTER("show_master_info");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
@@ -2972,7 +2964,9 @@ bool show_all_master_info(THD* thd)
     DBUG_RETURN(TRUE);
   }
 
-  if (send_show_master_info_header(thd, 1, gtid_pos.length()))
+  show_master_info_get_fields(thd, &field_list, 1, gtid_pos.length());
+  if (thd->protocol->send_result_set_metadata(&field_list,
+                       Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
   if (!master_info_index ||
@@ -3077,9 +3071,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
 
   if (thd_type == SLAVE_THD_SQL)
     THD_STAGE_INFO(thd, stage_waiting_for_the_next_event_in_relay_log);
@@ -3971,9 +3963,7 @@ pthread_handler_t handle_slave_io(void *arg)
     goto err_during_init;
   }
   thd->system_thread_info.rpl_io_info= &io_info;
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  add_to_active_threads(thd);
   mi->slave_running = MYSQL_SLAVE_RUN_NOT_CONNECT;
   mi->abort_slave = 0;
   mysql_mutex_unlock(&mi->run_lock);
@@ -4128,16 +4118,16 @@ connected:
     if (request_dump(thd, mysql, mi, &suppress_warnings))
     {
       sql_print_error("Failed on request_dump()");
-      if (check_io_slave_killed(mi, "Slave I/O thread killed while \
-requesting master dump") ||
-          try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                           reconnect_messages[SLAVE_RECON_ACT_DUMP]))
+      if (check_io_slave_killed(mi, NullS) ||
+        try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
+                         reconnect_messages[SLAVE_RECON_ACT_DUMP]))
         goto err;
       goto connected;
     }
 
     const char *event_buf;
 
+    mi->slave_running= MYSQL_SLAVE_RUN_READING;
     DBUG_ASSERT(mi->last_error().number == 0);
     while (!io_slave_killed(mi))
     {
@@ -4150,8 +4140,7 @@ requesting master dump") ||
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
       event_len= read_event(mysql, mi, &suppress_warnings);
-      if (check_io_slave_killed(mi, "Slave I/O thread killed while \
-reading event"))
+      if (check_io_slave_killed(mi, NullS))
         goto err;
 
       if (event_len == packet_error)
@@ -4297,6 +4286,7 @@ err:
     flush_master_info(mi, TRUE, TRUE);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
   mysql_mutex_lock(&mi->run_lock);
 
 err_during_init:
@@ -4356,7 +4346,8 @@ int check_temp_dir(char* tmp_file)
   size_t tmp_dir_size;
   DBUG_ENTER("check_temp_dir");
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  /* This look is safe to use as this function is only called once */
+  mysql_mutex_lock(&LOCK_start_thread);
   if (check_temp_dir_run)
   {
     result= check_temp_dir_result;
@@ -4395,7 +4386,7 @@ int check_temp_dir(char* tmp_file)
 
 end:
   check_temp_dir_result= result;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_start_thread);
   DBUG_RETURN(result);
 }
 
@@ -4573,9 +4564,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     applied. In all other cases it must be FALSE.
   */
   thd->variables.binlog_annotate_row_events= 0;
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  add_to_active_threads(thd);
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -4607,15 +4596,6 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    /*
-      We initialize the relay log state from the know starting position.
-      It will then be updated as required by GTID and GTID_LIST events found
-      while applying events read from relay logs.
-    */
-    rli->relay_log_state.load(rpl_global_gtid_slave_state);
-  }
   rli->gtid_skip_flag = GTID_SKIP_NOT;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
@@ -4886,13 +4866,16 @@ pthread_handler_t handle_slave_sql(void *arg)
           }
           strmake_buf(rli->group_relay_log_name, ir->name);
           rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+          rli->relay_log_state.load(ir->relay_log_state, ir->relay_log_state_count);
         }
       }
     }
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
   mysql_mutex_lock(&rli->run_lock);
+
 err_during_init:
   /* We need data_lock, at least to wake up any waiting master_pos_wait() */
   mysql_mutex_lock(&rli->data_lock);
@@ -4916,12 +4899,8 @@ err_during_init:
     to avoid unneeded position re-init
   */
   thd->temporary_tables = 0; // remove tempation from destructor to close them
-  THD_CHECK_SENTRY(thd);
   rli->sql_driver_thd= 0;
-  mysql_mutex_lock(&LOCK_thread_count);
   thd->rgi_fake= thd->rgi_slave= NULL;
-  delete serial_rgi;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
 #ifdef WITH_WSREP
   /*
@@ -4950,10 +4929,11 @@ err_during_init:
 #endif /* WITH_WSREP */
 
  /*
-  Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
-  is important. Otherwise a killer_thread can execute between the calls and
-  delete the mi structure leading to a crash! (see BUG#25306 for details)
- */ 
+   Note: the order of the broadcast and unlock calls below (first
+   broadcast, then unlock) is important. Otherwise a killer_thread can
+   execute between the calls and delete the mi structure leading to a
+   crash! (see BUG#25306 for details)
+ */
   mysql_cond_broadcast(&rli->stop_cond);
   DBUG_EXECUTE_IF("simulate_slave_delay_at_terminate_bug38694", sleep(5););
   mysql_mutex_unlock(&rli->run_lock);  // tell the world we are done
@@ -4965,13 +4945,18 @@ err_during_init:
   */
   mysql_mutex_lock(&LOCK_active_mi);
   if (opt_slave_parallel_threads > 0 &&
+      master_info_index &&// master_info_index is set to NULL on server shutdown
       !master_info_index->any_slave_sql_running())
     rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   mysql_mutex_unlock(&LOCK_active_mi);
 
+  /* TODO: Check if this lock is needed */
   mysql_mutex_lock(&LOCK_thread_count);
-  delete thd;
+  delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
+
+  THD_CHECK_SENTRY(thd);
+  delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
 

@@ -422,6 +422,55 @@ static void test_prepare_simple()
 
   mysql_stmt_close(stmt);
 
+  /* show create */
+  strmov(query, "SHOW CREATE TABLE test_prepare_simple");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
+  mysql_stmt_close(stmt);
+
+  /* show create database */
+  strmov(query, "SHOW CREATE DATABASE test");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 2);
+  mysql_stmt_close(stmt);
+
+  /* show grants */
+  strmov(query, "SHOW GRANTS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
+  mysql_stmt_close(stmt);
+
+  /* show slave status */
+  strmov(query, "SHOW SLAVE STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 47);
+  mysql_stmt_close(stmt);
+
+  /* show master status */
+  strmov(query, "SHOW MASTER STATUS");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 4);
+  mysql_stmt_close(stmt);
+
+  /* show create procedure */
+  strmov(query, "SHOW CREATE PROCEDURE e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
+  /* show create function */
+  strmov(query, "SHOW CREATE FUNCTION e1;");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 6);
+  mysql_stmt_close(stmt);
+
   /* now fetch the results ..*/
   rc= mysql_commit(mysql);
   myquery(rc);
@@ -11732,10 +11781,10 @@ static void test_bug5315()
   rc= mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
   DIE_UNLESS(rc == 0);
   if (!opt_silent)
-    printf("Excuting mysql_change_user\n");
+    printf("Executing mysql_change_user\n");
   mysql_change_user(mysql, opt_user, opt_password, current_db);
   if (!opt_silent)
-    printf("Excuting mysql_stmt_execute\n");
+    printf("Executing mysql_stmt_execute\n");
   rc= mysql_stmt_execute(stmt);
   DIE_UNLESS(rc != 0);
   if (rc)
@@ -11745,10 +11794,10 @@ static void test_bug5315()
   }
   /* check that connection is OK */
   if (!opt_silent)
-    printf("Excuting mysql_stmt_close\n");
+    printf("Executing mysql_stmt_close\n");
   mysql_stmt_close(stmt);
   if (!opt_silent)
-    printf("Excuting mysql_stmt_init\n");
+    printf("Executing mysql_stmt_init\n");
   stmt= mysql_stmt_init(mysql);
   rc= mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
   DIE_UNLESS(rc == 0);
@@ -15336,7 +15385,7 @@ static void test_mysql_insert_id()
 
   myheader("test_mysql_insert_id");
 
-  rc= mysql_query(mysql, "drop table if exists t1");
+  rc= mysql_query(mysql, "drop table if exists t1,t2");
   myquery(rc);
   /* table without auto_increment column */
   rc= mysql_query(mysql, "create table t1 (f1 int, f2 varchar(255), key(f1))");
@@ -18699,8 +18748,11 @@ static void test_progress_reporting()
 
   myheader("test_progress_reporting");
 
-  conn= client_connect(CLIENT_PROGRESS, MYSQL_PROTOCOL_TCP, 0);
-  DIE_UNLESS(conn->client_flag & CLIENT_PROGRESS);
+
+  conn= client_connect(CLIENT_PROGRESS_OBSOLETE, MYSQL_PROTOCOL_TCP, 0);
+  if (!(conn->server_capabilities & CLIENT_PROGRESS_OBSOLETE))
+    return;
+  DIE_UNLESS(conn->client_flag & CLIENT_PROGRESS_OBSOLETE);
 
   mysql_options(conn, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
   rc= mysql_query(conn, "set @save=@@global.progress_report_time");

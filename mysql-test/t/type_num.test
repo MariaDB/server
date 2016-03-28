@@ -681,3 +681,27 @@ SELECT
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+--echo #
+
+--disable_ps_protocol
+--enable_metadata
+SELECT NULL+1 AS c0,
+       COALESCE(NULL)+1 AS c2,
+       COALESCE(COALESCE(NULL))+1 AS c3,
+       ''+1 AS c4,
+       COALESCE('')+1 AS c5,
+       COALESCE(COALESCE(''))+1 AS c6;
+--disable_metadata
+--enable_ps_protocol
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #

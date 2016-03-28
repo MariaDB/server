@@ -2071,6 +2071,7 @@ public:
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     mysql_mutex_unlock(&LOCK_thread_count);
+    thread_safe_increment32(&thread_count);
     DBUG_VOID_RETURN;
   }
   ~Delayed_insert()
@@ -2084,17 +2085,24 @@ public:
       close_thread_tables(&thd);
       thd.mdl_context.release_transactional_locks();
     }
-    mysql_mutex_lock(&LOCK_thread_count);
     mysql_mutex_destroy(&mutex);
     mysql_cond_destroy(&cond);
     mysql_cond_destroy(&cond_client);
+
+    /*
+      We could use unlink_not_visible_threads() here, but as
+      delayed_insert_threads also needs to be protected by
+      the LOCK_thread_count mutex, we open code this.
+    */
+    mysql_mutex_lock(&LOCK_thread_count);
     thd.unlink();				// Must be unlinked under lock
-    my_free(thd.query());
-    thd.security_ctx->user= thd.security_ctx->host=0;
     delayed_insert_threads--;
     mysql_mutex_unlock(&LOCK_thread_count);
-    thread_safe_decrement32(&thread_count);
-    mysql_cond_broadcast(&COND_thread_count); /* Tell main we are ready */
+
+    my_free(thd.query());
+    thd.security_ctx->user= 0;
+    thd.security_ctx->host= 0;
+    dec_thread_count();
   }
 
   /* The following is for checking when we can delete ourselves */
@@ -2228,8 +2236,6 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     {
       if (!(di= new Delayed_insert(thd->lex->current_select)))
         goto end_create;
-
-      thread_safe_increment32(&thread_count);
 
       /*
         Annotating delayed inserts is not supported.
@@ -2806,15 +2812,13 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
   pthread_detach_this_thread();
   /* Add thread to THD list so that's it's visible in 'show processlist' */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
+  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   thd->set_current_time();
-  threads.append(thd);
+  add_to_active_threads(thd);
   if (abort_loop)
     thd->killed= KILL_CONNECTION;
   else
     thd->reset_killed();
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   mysql_thread_set_psi_id(thd->thread_id);
 
@@ -3896,7 +3900,7 @@ Field *Item::create_field_for_create_select(THD *thd, TABLE *table)
 {
   Field *def_field, *tmp_field;
   return ::create_tmp_field(thd, table, this, type(),
-                            (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0, 0);
+                            (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
 }
 
 
@@ -4256,6 +4260,8 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     DBUG_RETURN(1);
   table->mark_columns_needed_for_insert();
   table->file->extra(HA_EXTRA_WRITE_CACHE);
+  // Mark table as used
+  table->query_id= thd->query_id;
   DBUG_RETURN(0);
 }
 
@@ -4342,8 +4348,9 @@ bool select_create::send_eof()
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       if (thd->wsrep_conflict_state != NO_CONFLICT)
       {
-        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s",
-                    thd->thread_id, thd->wsrep_conflict_state, thd->query());
+        WSREP_DEBUG("select_create commit failed, thd: %lld  err: %d %s",
+                    (longlong) thd->thread_id, thd->wsrep_conflict_state,
+                    thd->query());
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();
         DBUG_RETURN(true);

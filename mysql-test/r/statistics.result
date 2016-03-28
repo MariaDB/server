@@ -1212,6 +1212,7 @@ test	t2	PRIMARY	1	1.0000
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -1225,7 +1226,6 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t1	b	NULL	NULL	0.2000	17.1250	NULL	NULL	NULL	NULL
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx2	1	7.0000
@@ -1265,6 +1265,7 @@ set use_stat_tables='never';
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -1276,7 +1277,6 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t1	b	NULL	NULL	0.2000	17.1250	NULL	NULL	NULL	NULL
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
@@ -1288,6 +1288,28 @@ test	t1	idx1	2	NULL
 test	t1	idx4	1	6.2000
 test	t1	idx4	2	NULL
 test	t1	idx4	3	NULL
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns(a,b) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns(b) indexes(idx2);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns() indexes(idx2);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
@@ -1641,3 +1663,17 @@ FROM mysql.column_stats;
 db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
+#
+# MDEV-9590: Always print "Engine-independent statistic" warnings and
+# might be filtering columns unintentionally from engines
+#
+set use_stat_tables='NEVER';
+create table t1 (test blob);
+show variables like 'use_stat_tables';
+Variable_name	Value
+use_stat_tables	NEVER
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+drop table t1;
+set use_stat_tables=@save_use_stat_tables;

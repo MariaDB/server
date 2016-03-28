@@ -571,93 +571,6 @@ uint my_instr_mb(CHARSET_INFO *cs,
 }
 
 
-/* BINARY collations handlers for MB charsets */
-
-int
-my_strnncoll_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
-                    const uchar *s, size_t slen,
-                    const uchar *t, size_t tlen,
-                    my_bool t_is_prefix)
-{
-  size_t len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
-  return cmp ? cmp : (int) ((t_is_prefix ? len : slen) - tlen);
-}
-
-
-/*
-  Compare two strings. 
-  
-  SYNOPSIS
-    my_strnncollsp_mb_bin()
-    cs			Chararacter set
-    s			String to compare
-    slen		Length of 's'
-    t			String to compare
-    tlen		Length of 't'
-    diff_if_only_endspace_difference
-		        Set to 1 if the strings should be regarded as different
-                        if they only difference in end space
-
-  NOTE
-   This function is used for character strings with binary collations.
-   The shorter string is extended with end space to be as long as the longer
-   one.
-
-  RETURN
-    A negative number if s < t
-    A positive number if s > t
-    0 if strings are equal
-*/
-
-int
-my_strnncollsp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
-                      const uchar *a, size_t a_length, 
-                      const uchar *b, size_t b_length,
-                      my_bool diff_if_only_endspace_difference)
-{
-  const uchar *end;
-  size_t length;
-  int res;
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-  
-  end= a + (length= MY_MIN(a_length, b_length));
-  while (a < end)
-  {
-    if (*a++ != *b++)
-      return ((int) a[-1] - (int) b[-1]);
-  }
-  res= 0;
-  if (a_length != b_length)
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    /*
-      Check the next not space character of the longer key. If it's < ' ',
-      then it's smaller than the other key.
-    */
-    if (a_length < b_length)
-    {
-      /* put shorter key in s */
-      a_length= b_length;
-      a= b;
-      swap= -1;					/* swap sign of result */
-      res= -res;
-    }
-    for (end= a + a_length-length; a < end ; a++)
-    {
-      if (*a != ' ')
-	return (*a < ' ') ? -swap : swap;
-    }
-  }
-  return res;
-}
-
-
 /*
   Copy one non-ascii character.
   "dst" must have enough room for the character.
@@ -668,7 +581,7 @@ my_strnncollsp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
 */
 #define my_strnxfrm_mb_non_ascii_char(cs, dst, src, se)                  \
 {                                                                        \
-  switch (cs->cset->ismbchar(cs, (const char*) src, (const char*) se)) { \
+  switch (my_ismbchar(cs, (const char *) src, (const char *) se)) {      \
   case 4:                                                                \
     *dst++= *src++;                                                      \
     /* fall through */                                                   \
@@ -740,8 +653,8 @@ my_strnxfrm_mb(CHARSET_INFO *cs,
   for (; src < se && nweights && dst < de; nweights--)
   {
     int chlen;
-    if (*src < 128 ||
-        !(chlen= cs->cset->ismbchar(cs, (const char*) src, (const char*) se)))
+    if (*src < 128 || !(chlen= my_ismbchar(cs, (const char *) src,
+                                               (const char *) se)))
     {
       /* Single byte character */
       *dst++= sort_order ? sort_order[*src++] : *src++;

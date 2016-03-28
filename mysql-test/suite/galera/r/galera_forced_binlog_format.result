@@ -1,18 +1,43 @@
 RESET MASTER;
 SET SESSION binlog_format = 'STATEMENT';
+Warnings:
+Warning	1105	MariaDB Galera does not support binlog format: STATEMENT
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 SET SESSION binlog_format = 'MIXED';
+Warnings:
+Warning	1105	MariaDB Galera does not support binlog format: MIXED
 INSERT INTO t1 VALUES (2);
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 249;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	<Pos>	Gtid_list	1	<End_log_pos>	[]
+mysqld-bin.000001	<Pos>	Binlog_checkpoint	1	<End_log_pos>	mysqld-bin.000001
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	GTID 0-1-1
 mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB
-mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-2
 mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
-mysqld-bin.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
 mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
-mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-3
 mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
-mysqld-bin.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
 mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
 DROP TABLE t1;
+#
+# MDEV-9401: wsrep_forced_binlog_format with binlog causes crash
+#
+SET SESSION binlog_format = 'ROW';
+CREATE DATABASE testdb_9401;
+USE testdb_9401;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER dummy@localhost;
+GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR dummy@localhost;
+Grants for dummy@localhost
+GRANT USAGE ON *.* TO 'dummy'@'localhost'
+GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO 'dummy'@'localhost'
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
+DROP USER dummy@localhost;
+DROP DATABASE testdb_9401;
+# End of tests

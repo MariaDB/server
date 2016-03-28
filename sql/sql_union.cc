@@ -173,7 +173,8 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
 
 
 /**
-  Reset and empty the temporary table that stores the materialized query result.
+  Reset and empty the temporary table that stores the materialized query
+  result.
 
   @note The cleanup performed here is exactly the same as for the two temp
   tables of JOIN - exec_tmp_table_[1 | 2].
@@ -183,8 +184,6 @@ void select_union::cleanup()
 {
   table->file->extra(HA_EXTRA_RESET_STATE);
   table->file->ha_delete_all_rows();
-  free_io_cache(table);
-  filesort_free_buffers(table,0);
 }
 
 
@@ -1152,10 +1151,21 @@ List<Item> *st_select_lex_unit::get_unit_column_types()
   return &sl->item_list;
 }
 
+
+static void cleanup_order(ORDER *order)
+{
+  for (; order; order= order->next)
+    order->counter_used= 0;
+}
+
+
 bool st_select_lex::cleanup()
 {
   bool error= FALSE;
   DBUG_ENTER("st_select_lex::cleanup()");
+
+  cleanup_order(order_list.first);
+  cleanup_order(group_list.first);
 
   if (join)
   {

@@ -29,6 +29,7 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "sql_select.h"
+#include "uniques.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -1187,8 +1188,7 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 }
 
 
-Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
-					 uint convert_blob_length)
+Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 {
   Field *field;
   MEM_ROOT *mem_root;
@@ -1196,9 +1196,9 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     field= ((Item_field*) args[0])->field;
-    
+
     if ((field= create_tmp_field_from_field(table->in_use, field, name, table,
-					    NULL, convert_blob_length)))
+					    NULL)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
@@ -1224,7 +1224,7 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
                               Field::NONE, name, decimals);
     break;
   default:
-    return Item_sum::create_tmp_field(group, table, convert_blob_length);
+    return Item_sum::create_tmp_field(group, table);
   }
   if (field)
     field->init(table);
@@ -1636,8 +1636,7 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 }
 
 
-Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table,
-                                      uint convert_blob_len)
+Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
 {
   Field *field;
   MEM_ROOT *mem_root= table->in_use->mem_root;
@@ -1873,8 +1872,7 @@ Item *Item_sum_variance::copy_or_same(THD* thd)
   If we're grouping, then we need some space to serialize variables into, to
   pass around.
 */
-Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table,
-                                           uint convert_blob_len)
+Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
 {
   Field *field;
   if (group)
@@ -3150,6 +3148,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
                         ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
                         item->row_count);
 
+    /**
+       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    */
+    if (table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
     return 1;
   }
   return 0;
@@ -3287,6 +3290,8 @@ void Item_func_group_concat::cleanup()
     if (table)
     {
       THD *thd= table->in_use;
+      if (table->blob_storage)
+        delete table->blob_storage;
       free_tmp_table(thd, table);
       table= 0;
       if (tree)
@@ -3354,6 +3359,8 @@ void Item_func_group_concat::clear()
     reset_tree(tree);
   if (unique_filter)
     unique_filter->reset();
+  if (table && table->blob_storage)
+    table->blob_storage->reset();
   /* No need to reset the table as we never call write_row */
 }
 
@@ -3480,6 +3487,7 @@ bool Item_func_group_concat::setup(THD *thd)
 {
   List<Item> list;
   SELECT_LEX *select_lex= thd->lex->current_select;
+  const bool order_or_distinct= MY_TEST(arg_count_order > 0 || distinct);
   DBUG_ENTER("Item_func_group_concat::setup");
 
   /*
@@ -3492,9 +3500,6 @@ bool Item_func_group_concat::setup(THD *thd)
   if (!(tmp_table_param= new TMP_TABLE_PARAM))
     DBUG_RETURN(TRUE);
 
-  /* We'll convert all blobs to varchar fields in the temporary table */
-  tmp_table_param->convert_blob_length= max_length *
-                                        collation.collation->mbmaxlen;
   /* Push all not constant fields to the list and create a temp table */
   always_null= 0;
   for (uint i= 0; i < arg_count_field; i++)
@@ -3534,17 +3539,8 @@ bool Item_func_group_concat::setup(THD *thd)
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;
   DBUG_ASSERT(table == 0);
-  if (arg_count_order > 0 || distinct)
+  if (order_or_distinct)
   {
-    /*
-      Currently we have to force conversion of BLOB values to VARCHAR's
-      if we are to store them in TREE objects used for ORDER BY and
-      DISTINCT. This leads to truncation if the BLOB's size exceeds
-      Field_varstring::MAX_SIZE.
-    */
-    set_if_smaller(tmp_table_param->convert_blob_length, 
-                   Field_varstring::MAX_SIZE);
-
     /*
       Force the create_tmp_table() to convert BIT columns to INT
       as we cannot compare two table records containg BIT fields
@@ -3577,6 +3573,13 @@ bool Item_func_group_concat::setup(THD *thd)
     DBUG_RETURN(TRUE);
   table->file->extra(HA_EXTRA_NO_ROWS);
   table->no_rows= 1;
+
+  /**
+    Initialize blob_storage if GROUP_CONCAT is used
+    with ORDER BY | DISTINCT and BLOB field count > 0.    
+  */
+  if (order_or_distinct && table->s->blob_fields)
+    table->blob_storage= new Blob_mem_storage();
 
   /*
      Need sorting or uniqueness: init tree and choose a function to sort.
@@ -3630,6 +3633,16 @@ String* Item_func_group_concat::val_str(String* str)
   if (no_appended && tree)
     /* Tree is used for sorting as in ORDER BY */
     tree_walk(tree, &dump_leaf_key, this, left_root_right);
+
+  if (table && table->blob_storage && 
+      table->blob_storage->is_truncated_value())
+  {
+    warning_for_row= true;
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CUT_VALUE_GROUP_CONCAT, ER(ER_CUT_VALUE_GROUP_CONCAT),
+                        row_count);
+  }
+
   return &result;
 }
 

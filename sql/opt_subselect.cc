@@ -833,12 +833,14 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
   in_subs->sjm_scan_allowed= FALSE;
   
   bool all_are_fields= TRUE;
+  uint32 total_key_length = 0;
   for (uint i= 0; i < elements; i++)
   {
     Item *outer= in_subs->left_expr->element_index(i);
     Item *inner= it++;
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
+    total_key_length += inner->max_length;
     if (outer->cmp_type() != inner->cmp_type())
       DBUG_RETURN(FALSE);
     switch (outer->cmp_type()) {
@@ -868,6 +870,15 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
       break;
     }
   }
+
+  /*
+     Make sure that create_tmp_table will not fail due to too long keys.
+     See MDEV-7122. This check is performed inside create_tmp_table also and
+     we must do it so that we know the table has keys created.
+  */
+  if (total_key_length > tmp_table_max_key_length() ||
+      elements > tmp_table_max_key_parts())
+    DBUG_RETURN(FALSE);
 
   in_subs->types_allow_materialization= TRUE;
   in_subs->sjm_scan_allowed= all_are_fields;
@@ -3936,7 +3947,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   {
     /* if we run out of slots or we are not using tempool */
     sprintf(path,"%s%lx_%lx_%x", tmp_file_prefix,current_pid,
-            thd->thread_id, thd->tmp_table++);
+            (ulong) thd->thread_id, thd->tmp_table++);
   }
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
@@ -4720,8 +4731,6 @@ int clear_sj_tmp_tables(JOIN *join)
   {
     if ((res= table->file->ha_delete_all_rows()))
       return res; /* purecov: inspected */
-   free_io_cache(table);
-   filesort_free_buffers(table,0);
   }
 
   SJ_MATERIALIZATION_INFO *sjm;
@@ -5525,7 +5534,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
           outer join has not been optimized yet).
     */
     if (outer_join && outer_join->table_count > 0 && // (1)
-        outer_join->join_tab)                        // (2)
+        outer_join->join_tab &&                      // (2)
+        !in_subs->const_item())
     {
       /*
         TODO:

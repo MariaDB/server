@@ -637,7 +637,7 @@ void _mi_report_crashed(MI_INFO *file, const char *message,
   char buf[1024];
   mysql_mutex_lock(&file->s->intern_lock);
   if ((cur_thd= (THD*) file->in_use.data))
-    sql_print_error("Got an error from thread_id=%lu, %s:%d", cur_thd->thread_id,
+    sql_print_error("Got an error from thread_id=%lld, %s:%d", cur_thd->thread_id,
                     sfile, sline);
   else
     sql_print_error("Got an error from unknown thread, %s:%d", sfile, sline);
@@ -2409,7 +2409,7 @@ maria_declare_plugin_end;
 
   @return The error code. The engine_data and engine_callback will be set to 0.
     @retval TRUE Success
-    @retval FALSE An error occured
+    @retval FALSE An error occurred
 */
 
 my_bool ha_myisam::register_query_cache_table(THD *thd, char *table_name,

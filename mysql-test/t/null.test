@@ -909,6 +909,103 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)=CONCAT('2020',RAND());
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9181 (NULLIF(count(table.col)), 0) gives wrong result on 10.1.x
+--echo #
+CREATE TABLE t1 (c1 varchar(50) DEFAULT NULL);
+INSERT INTO t1 (c1) VALUES ('hello'), ('hello\r\n'), ('hello'),('hello');
+SELECT NULLIF(COUNT(c1),0) FROM t1;
+SELECT CASE WHEN COUNT(c1)=0 THEN NULL ELSE COUNT(c1) END  FROM t1;
+SELECT NULLIF(COUNT(c1)+0,0) AS c1,NULLIF(CAST(COUNT(c1) AS SIGNED),0) AS c2,NULLIF(CONCAT(COUNT(c1)),0) AS c3 FROM t1;
+SELECT NULLIF(COUNT(DISTINCT c1),0) FROM t1;
+SELECT CASE WHEN COUNT(DISTINCT c1)=0 THEN NULL ELSE COUNT(DISTINCT c1) END  FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE  t1 (
+  id INT NOT NULL,
+  c1 INT DEFAULT NULL
+);
+INSERT INTO t1 VALUES (1,1),(1,2),(2,3),(2,4);
+SELECT NULLIF(COUNT(c1),0) AS c1,NULLIF(COUNT(c1)+0,0) AS c1_wrapped,CASE WHEN COUNT(c1) IS NULL THEN 0 ELSE COUNT(c1) END AS c1_case FROM t1 GROUP BY id;
+DROP TABLE t1;
+
+# Testing with side effects
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @a=0;
+SELECT NULLIF(LAST_VALUE(@a:=@a+1,a),0) FROM t1;
+SELECT @a;
+SET @a=0;
+SELECT NULLIF(AVG(a),0), NULLIF(AVG(LAST_VALUE(@a:=@a+1,a)),0) FROM t1;
+SELECT @a;
+
+# There should not be cache in here:
+
+EXPLAIN EXTENDED SELECT NULLIF(a,0) FROM t1;
+
+# But there should be a cache in here:
+EXPLAIN EXTENDED SELECT NULLIF(AVG(a),0) FROM t1;
+
+DROP TABLE t1;
+
+#
+# MDEV-9576 syntax error on view with nullif and count
+#
+create table t1 (col1 varchar(50));
+create view v1 AS select nullif(count(distinct col1),0) from t1;
+show create view v1;
+drop view v1;
+drop table t1;
+
+#
+# MDEV-9637 select nullif(count(col1),0) gives wrong result if in a view
+#
+create table t1 (col1 varchar(50) default null);
+insert into t1 (col1) values ('hello'), ('hello'), ('hello');
+create view v1 as select nullif(count(col1),0) from t1;
+select * from v1;
+select nullif(count(col1),0) from t1;
+drop view v1;
+drop table t1;
+
+#
+# MDEV-9644 Assertion `args[0] == args[2] || thd->stmt_arena->is_stmt_execute()' failed in Item_func_nullif::fix_length_and_dec()
+#
+select nullif((select 1), (select 2));
+create table t1 (f int);
+insert into t1 values (1),(2);
+select nullif( not f, 1 ) from t1;
+drop table t1;
+
+#
+# MDEV-9641 Assertion `args[0] == args[2] || _current_thd()->lex->context_analysis_only' failed in Item_func_nullif::print(String*, enum_query_type)
+#
+set names utf8;
+create table t1 (f1 varchar(10));
+insert into t1 values ('2015-12-31');
+--error ER_DATA_OUT_OF_RANGE
+select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
+drop table t1;
+
+#
+# MDEV-9682 Assertion `0' failed in Item_cache_row::illegal_method_call on 2nd execution of PS with NULLIF
+#
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+PREPARE stmt FROM "SELECT * FROM t1 WHERE NULLIF( ( 1, 2 ) IN ( SELECT 3, 4 ), 1 )";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
+
+#
+# MDEV-9683 Server crashes in Item::basic_const_item on numerous nested NULLIFs
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(i = ROUND(0), 14), 13), 12), 11), 10), 9), 8), 7), 6), 5), 4), 3), 2), 1);
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.1 tests

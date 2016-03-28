@@ -112,7 +112,8 @@ SET (SQL_SOURCE
                sql_statistics.cc sql_string.cc 
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
-               sql_time.cc tztime.cc uniques.cc unireg.cc item_xmlfunc.cc 
+               sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc 
+               uniques.cc uniques.h
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc event_data_objects.cc
                event_queue.cc event_db_repository.cc 
                sql_tablespace.cc events.cc ../sql-common/my_user.c 
@@ -138,6 +139,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                sql_type.cc sql_type.h
                item_windowfunc.cc sql_window.cc
+	       sql_cte.cc sql_cte.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc

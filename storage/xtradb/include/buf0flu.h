@@ -211,7 +211,7 @@ Clears up tail of the LRU lists:
 * Flush dirty pages at the tail of LRU to the disk
 The depth to which we scan each buffer pool is controlled by dynamic
 config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
+@return number of pages flushed */
 UNIV_INTERN
 ulint
 buf_flush_LRU_tail(void);

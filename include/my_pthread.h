@@ -672,7 +672,7 @@ extern pthread_mutexattr_t my_errorcheck_mutexattr;
 #define ESRCH 1
 #endif
 
-typedef ulong my_thread_id;
+typedef int64 my_thread_id;
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
@@ -694,7 +694,7 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(288*1024L)
+#define DEFAULT_THREAD_STACK	(290*1024L)
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0

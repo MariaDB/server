@@ -225,9 +225,10 @@ public:
 
   /* Expensive constant condition */
   Item *exec_const_cond;
+  Item *outer_ref_cond;
 
   /* HAVING condition */
-  COND *having;
+  Item *having;
   Item::cond_result having_value;
 
   /* Global join attributes. In tabular form, they are printed on the first row */

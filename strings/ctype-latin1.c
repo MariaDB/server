@@ -396,7 +396,6 @@ int my_wc_mb_latin1(CHARSET_INFO *cs  __attribute__((unused)),
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,			/* init */
-    NULL,
     my_mbcharlen_8bit,
     my_numchars_8bit,
     my_charpos_8bit,

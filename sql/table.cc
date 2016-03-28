@@ -40,6 +40,7 @@
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
+#include "rpl_filter.h"
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -61,6 +62,8 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
   virtual column read from the column definition saved in the frm file
 */
 LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
+
+static int64 last_table_id;
 
 	/* Functions defined in this file */
 
@@ -316,7 +319,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
-    share->cached_row_logging_check= -1;
+    /* The following will be fixed in open_table_from_share */
+    share->cached_row_logging_check= 1;
 
     init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -325,7 +329,16 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
-    tdc_assign_new_table_id(share);
+
+    /*
+      There is one reserved number that cannot be used. Remember to
+      change this when 6-byte global table id's are introduced.
+    */
+    do
+    {
+      share->table_map_id= my_atomic_add64_explicit(&last_table_id, 1,
+                                                    MY_MEMORY_ORDER_RELAXED);
+    } while (unlikely(share->table_map_id == ~0UL));
   }
   DBUG_RETURN(share);
 }
@@ -381,7 +394,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->path.length= share->normalized_path.length= strlen(path);
   share->frm_version= 		 FRM_VER_TRUE_VARCHAR;
 
-  share->cached_row_logging_check= -1;
+  share->cached_row_logging_check= 0;           // No row logging
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -2973,6 +2986,9 @@ partititon_err:
   {
     outparam->no_replicate= FALSE;
   }
+
+  if (outparam->no_replicate || !binlog_filter->db_ok(outparam->s->db.str))
+    outparam->s->cached_row_logging_check= 0;   // No row based replication
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)
@@ -7265,7 +7281,9 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   */
   if (is_merged_derived())
   {
-    if (is_view() || unit->prepared)
+    if (is_view() ||
+        (unit->prepared &&
+	!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
       create_field_translation(thd);
   }
 
@@ -7405,6 +7423,11 @@ void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
       table->set_lock_type(thd, lock);
     }
   }
+}
+
+bool TABLE_LIST::is_with_table()
+{
+  return derived && derived->with_element;
 }
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)

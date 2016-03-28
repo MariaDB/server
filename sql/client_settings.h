@@ -28,7 +28,7 @@
  When adding capabilities here, consider if they should be also added to
  the libmysql version.
 */
-#define CLIENT_CAPABILITIES (CLIENT_LONG_PASSWORD | \
+#define CLIENT_CAPABILITIES (CLIENT_MYSQL | \
                              CLIENT_LONG_FLAG |     \
                              CLIENT_TRANSACTIONS |  \
                              CLIENT_PROTOCOL_41 |   \
@@ -37,7 +37,7 @@
                              CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
                              CLIENT_CONNECT_ATTRS)
 
-#define read_user_name(A) {}
+#define read_user_name(A) A[0]= 0
 #undef _CUSTOMCONFIG_
 
 #define mysql_server_init(a,b,c) mysql_client_plugin_init()

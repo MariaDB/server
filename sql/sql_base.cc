@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@
 #include "transaction.h"
 #include "sql_prepare.h"
 #include "sql_statistics.h"
+#include "sql_cte.h"
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -168,11 +169,6 @@ static bool check_and_update_table_version(THD *thd, TABLE_LIST *tables,
                                            TABLE_SHARE *table_share);
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry);
 static bool auto_repair_table(THD *thd, TABLE_LIST *table_list);
-static bool
-has_write_table_with_auto_increment(TABLE_LIST *tables);
-static bool
-has_write_table_with_auto_increment_and_select(TABLE_LIST *tables);
-static bool has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables);
 
 
 /**
@@ -353,27 +349,11 @@ void intern_close_table(TABLE *table)
                         table->s ? table->s->table_name.str : "?",
                         (long) table));
 
-  free_io_cache(table);
   delete table->triggers;
   if (table->file)                              // Not true if placeholder
     (void) closefrm(table, 1);			// close file
   table->alias.free();
   my_free(table);
-  DBUG_VOID_RETURN;
-}
-
-
-/* Free resources allocated by filesort() and read_record() */
-
-void free_io_cache(TABLE *table)
-{
-  DBUG_ENTER("free_io_cache");
-  if (table->sort.io_cache)
-  {
-    close_cached_file(table->sort.io_cache);
-    my_free(table->sort.io_cache);
-    table->sort.io_cache=0;
-  }
   DBUG_VOID_RETURN;
 }
 
@@ -1233,7 +1213,8 @@ bool close_temporary_tables(THD *thd)
       */
       for (;
            table && is_user_table(table) &&
-             tmpkeyval(thd, table) == thd->variables.pseudo_thread_id &&
+             (ulong) tmpkeyval(thd, table) ==
+             (ulong) thd->variables.pseudo_thread_id &&
              table->s->db.length == db.length() &&
              memcmp(table->s->db.str, db.ptr(), db.length()) == 0;
            table= next)
@@ -1815,7 +1796,6 @@ void close_temporary(TABLE *table, bool free_share, bool delete_table)
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  free_io_cache(table);
   closefrm(table, 0);
   if (delete_table)
     rm_temporary_table(table_type, table->s->path.str);
@@ -2294,8 +2274,17 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       */
       if (dd_frm_is_view(thd, path))
       {
-        if (!tdc_open_view(thd, table_list, alias, key, key_length,
-                           CHECK_METADATA_VERSION))
+        /*
+          If parent_l of the table_list is non null then a merge table
+          has this view as child table, which is not supported.
+        */
+        if (table_list->parent_l)
+        {
+          my_error(ER_WRONG_MRG_TABLE, MYF(0));
+          DBUG_RETURN(true);
+        }
+
+        if (!tdc_open_view(thd, table_list, CHECK_METADATA_VERSION))
         {
           DBUG_ASSERT(table_list->view != 0);
           DBUG_RETURN(FALSE); // VIEW
@@ -2413,10 +2402,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
 retry_share:
 
-  share= tdc_acquire_share(thd, table_list->db, table_list->table_name,
-                           key, key_length,
-                           table_list->mdl_request.key.tc_hash_value(),
-                           gts_flags, &table);
+  share= tdc_acquire_share(thd, table_list, gts_flags, &table);
 
   if (!share)
   {
@@ -3266,9 +3252,6 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
 
    @param thd               Thread handle
    @param table_list        TABLE_LIST with db, table_name & belong_to_view
-   @param alias             Alias name
-   @param cache_key         Key for table definition cache
-   @param cache_key_length  Length of cache_key
    @param flags             Flags which modify how we open the view
 
    @todo This function is needed for special handling of views under
@@ -3277,16 +3260,13 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
    @return FALSE if success, TRUE - otherwise.
 */
 
-bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
-                   const char *cache_key, uint cache_key_length,
-                   uint flags)
+bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
 {
   TABLE not_used;
   TABLE_SHARE *share;
   bool err= TRUE;
 
-  if (!(share= tdc_acquire_share(thd, table_list->db, table_list->table_name,
-                                 cache_key, cache_key_length, GTS_VIEW)))
+  if (!(share= tdc_acquire_share(thd, table_list, GTS_VIEW)))
     return TRUE;
 
   DBUG_ASSERT(share->is_view);
@@ -3373,7 +3353,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
     return result;
 
-  if (!(share= tdc_acquire_share_shortlived(thd, table_list, GTS_TABLE)))
+  if (!(share= tdc_acquire_share(thd, table_list, GTS_TABLE)))
     goto end_free;
 
   DBUG_ASSERT(! share->is_view);
@@ -3592,8 +3572,7 @@ Open_table_context::recover_from_failed_open()
         if (open_if_exists)
           m_thd->push_internal_handler(&no_such_table_handler);
         
-        result= !tdc_acquire_share(m_thd, m_failed_table->db,
-                                   m_failed_table->table_name,
+        result= !tdc_acquire_share(m_thd, m_failed_table,
                                    GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
         if (open_if_exists)
         {
@@ -3924,6 +3903,26 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     tables->db_length= tables->view_db.length;
     tables->table_name= tables->view_name.str;
     tables->table_name_length= tables->view_name.length;
+  }
+  else if (tables->select_lex) 
+  {
+    /*
+      Check whether 'tables' refers to a table defined in a with clause.
+      If so set the reference to the definition in tables->with.
+    */ 
+    if (!tables->with)
+      tables->with= tables->select_lex->find_table_def_in_with_clauses(tables);
+    /*
+      If 'tables' is defined in a with clause set the pointer to the
+      specification from its definition in tables->derived.
+    */
+    if (tables->with)
+    {
+      if (tables->set_as_with_table(thd, tables->with))
+        DBUG_RETURN(1);
+      else
+        goto end;
+    }
   }
   /*
     If this TABLE_LIST object is a placeholder for an information_schema
@@ -5414,65 +5413,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
     {
       if (!table->placeholder())
 	*(ptr++)= table->table;
-    }
-
-    /*
-    DML statements that modify a table with an auto_increment column based on
-    rows selected from a table are unsafe as the order in which the rows are
-    fetched fron the select tables cannot be determined and may differ on
-    master and slave.
-    */
-    if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables &&
-        has_write_table_with_auto_increment_and_select(tables))
-      thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
-    /* Todo: merge all has_write_table_auto_inc with decide_logging_format */
-    if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables)
-    {
-      if (has_write_table_auto_increment_not_first_in_pk(tables))
-        thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
-    }
-
-#ifdef NOT_USED_IN_MARIADB
-    /* 
-     INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
-     can be unsafe.
-     */
-    uint unique_keys= 0;
-    for (TABLE_LIST *query_table= tables; query_table && unique_keys <= 1;
-         query_table= query_table->next_global)
-      if(query_table->table)
-      {
-        uint keys= query_table->table->s->keys, i= 0;
-        unique_keys= 0;
-        for (KEY* keyinfo= query_table->table->s->key_info;
-             i < keys && unique_keys <= 1; i++, keyinfo++)
-        {
-          if (keyinfo->flags & HA_NOSAME)
-            unique_keys++;
-        }
-        if (!query_table->placeholder() &&
-            query_table->lock_type >= TL_WRITE_ALLOW_WRITE &&
-            unique_keys > 1 && thd->lex->sql_command == SQLCOM_INSERT &&
-            /* Duplicate key update is not supported by INSERT DELAYED */
-            thd->get_command() != COM_DELAYED_INSERT &&
-            thd->lex->duplicates == DUP_UPDATE)
-          thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
-      }
-#endif
- 
-    /* We have to emulate LOCK TABLES if we are statement needs prelocking. */
-    if (thd->lex->requires_prelocking())
-    {
-
-      /*
-        A query that modifies autoinc column in sub-statement can make the 
-        master and slave inconsistent.
-        We can solve these problems in mixed mode by switching to binlogging 
-        if at least one updated table is used by sub-statement
-      */
-      if (thd->wsrep_binlog_format() != BINLOG_FORMAT_ROW && tables &&
-          has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
-        thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
 
     DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
@@ -8434,7 +8374,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         temporary table. Thus in this case we can be sure that 'item' is an
         Item_field.
       */
-      if (any_privileges)
+      if (any_privileges && !tables->is_with_table() && !tables->is_derived())
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);
@@ -8635,7 +8575,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
     TODO
 
   RETURN
-    TRUE  if some error occured (e.g. out of memory)
+    TRUE  if some error occurred (e.g. out of memory)
     FALSE if all is OK
 */
 
@@ -8745,7 +8685,7 @@ err_no_arena:
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8907,7 +8847,7 @@ static bool not_null_fields_have_null_values(TABLE *table)
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8967,7 +8907,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8980,6 +8920,9 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
+  uint autoinc_index= table->next_number_field
+                        ? table->next_number_field->field_index
+                        : ~0U;
   DBUG_ENTER("fill_record");
 
   if (!*ptr)
@@ -9005,7 +8948,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     DBUG_ASSERT(field->table == table);
 
     value=v++;
-    if (field == table->next_number_field)
+    if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
     if (field->vcol_info && 
         value->type() != Item::DEFAULT_VALUE_ITEM && 
@@ -9059,7 +9002,7 @@ err:
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -9283,98 +9226,6 @@ bool is_equal(const LEX_STRING *a, const LEX_STRING *b)
 {
   return a->length == b->length && !strncmp(a->str, b->str, a->length);
 }
-
-
-/*
-  Tells if two (or more) tables have auto_increment columns and we want to
-  lock those tables with a write lock.
-
-  SYNOPSIS
-    has_two_write_locked_tables_with_auto_increment
-      tables        Table list
-
-  NOTES:
-    Call this function only when you have established the list of all tables
-    which you'll want to update (including stored functions, triggers, views
-    inside your statement).
-*/
-
-static bool
-has_write_table_with_auto_increment(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE))
-      return 1;
-  }
-
-  return 0;
-}
-
-/*
-   checks if we have select tables in the table list and write tables
-   with auto-increment column.
-
-  SYNOPSIS
-   has_two_write_locked_tables_with_auto_increment_and_select
-      tables        Table list
-
-  RETURN VALUES
-
-   -true if the table list has atleast one table with auto-increment column
-
-
-         and atleast one table to select from.
-   -false otherwise
-*/
-
-static bool
-has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
-{
-  bool has_select= false;
-  bool has_auto_increment_tables = has_write_table_with_auto_increment(tables);
-  for(TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-     if (!table->placeholder() &&
-        (table->lock_type <= TL_READ_NO_INSERT))
-      {
-        has_select= true;
-        break;
-      }
-  }
-  return(has_select && has_auto_increment_tables);
-}
-
-/*
-  Tells if there is a table whose auto_increment column is a part
-  of a compound primary key while is not the first column in
-  the table definition.
-
-  @param tables Table list
-
-  @return true if the table exists, fais if does not.
-*/
-
-static bool
-has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE)
-        && table->table->s->next_number_keypart != 0)
-      return 1;
-  }
-
-  return 0;
-}
-
-
 
 /*
   Open and lock system tables for read.

@@ -20,10 +20,11 @@ galera_parallel_simple : Failing sporadically
 galera_bf_abort : Failing sporadically
 galera_log_output_csv : Failing sporadically
 galera_as_slave_preordered : wsrep-preordered is not available in MariaDB Galera cluster
-galera_forced_binlog_format : TODO: investigate
 galera_gra_log : TODO: investigate
 galera_as_slave_replication_bundle : TODO: investigate
 galera_ssl_upgrade : TODO: investigate
 mysql-wsrep#90 : TODO: investigate
 galera_flush : mysql-wsrep/issues/229
 galera_transaction_read_only : mysql-wsrep/issues/229
+galera_gcs_fragment : Incorrect arguments to SET
+galera_flush_local : Fails sporadically

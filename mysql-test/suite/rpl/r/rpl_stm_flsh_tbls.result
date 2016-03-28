@@ -22,7 +22,8 @@ include/wait_for_slave_to_stop.inc
 drop table t1;
 flush tables with read lock;
 start slave;
-include/wait_for_slave_to_start.inc
+include/wait_for_slave_param.inc [Slave_IO_Running]
+include/wait_for_slave_sql_to_start.inc
 stop slave;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables;

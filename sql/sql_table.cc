@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -90,7 +90,7 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
 {
   uint res;
   uint errors;
-  const char *conv_name;
+  const char *conv_name, *conv_name_end;
   char tmp_name[FN_REFLEN];
   char conv_string[FN_REFLEN];
   int quote;
@@ -111,11 +111,13 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
   {
     DBUG_PRINT("error", ("strconvert of '%s' failed with %u (errors: %u)", conv_name, res, errors));
     conv_name= name;
+    conv_name_end= name + name_len;
   }
   else
   {
     DBUG_PRINT("info", ("conv '%s' -> '%s'", conv_name, conv_string));
     conv_name= conv_string;
+    conv_name_end= conv_string + res;
   }
 
   quote = thd ? get_quote_char_for_identifier(thd, conv_name, res - 1) : '"';
@@ -125,8 +127,8 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     *(to_p++)= (char) quote;
     while (*conv_name && (end_p - to_p - 1) > 0)
     {
-      uint length= my_mbcharlen(system_charset_info, *conv_name);
-      if (!length)
+      int length= my_charlen(system_charset_info, conv_name, conv_name_end);
+      if (length <= 0)
         length= 1;
       if (length == 1 && *conv_name == (char) quote)
       { 
@@ -573,7 +575,7 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   DBUG_ENTER("build_tmptable_filename");
 
   char *p= strnmov(buff, mysql_tmpdir, bufflen);
-  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%lx_%x",
+  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%llx_%x",
               tmp_file_prefix, current_pid,
               thd->thread_id, thd->tmp_table++);
 
@@ -2232,7 +2234,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       const char *comment_start;
       uint32 comment_len;
 
-      built_query.set_charset(system_charset_info);
+      built_query.set_charset(thd->charset());
       if (if_exists)
         built_query.append("DROP TABLE IF EXISTS ");
       else
@@ -3448,8 +3450,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	else
 	{
 	  /* Field redefined */
+
+          /*
+            If we are replacing a BIT field, revert the increment
+            of total_uneven_bit_length that was done above.
+          */
+          if (sql_field->sql_type == MYSQL_TYPE_BIT &&
+              file->ha_table_flags() & HA_CAN_BIT_FIELD)
+            total_uneven_bit_length-= sql_field->length & 7;
+
 	  sql_field->def=		dup_field->def;
 	  sql_field->sql_type=		dup_field->sql_type;
+
+          /*
+            If we are replacing a field with a BIT field, we need
+            to initialize pack_flag. Note that we do not need to
+            increment total_uneven_bit_length here as this dup_field
+            has already been processed.
+          */
+          if (sql_field->sql_type == MYSQL_TYPE_BIT)
+          {
+            sql_field->pack_flag= FIELDFLAG_NUMBER;
+            if (!(file->ha_table_flags() & HA_CAN_BIT_FIELD))
+              sql_field->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+          }
+
 	  sql_field->charset=		(dup_field->charset ?
 					 dup_field->charset :
 					 create_info->default_table_charset);
@@ -6167,6 +6192,7 @@ static bool fill_alter_inplace_info(THD *thd,
     c) flags passed to storage engine contain more detailed information
        about nature of changes than those provided from parser.
   */
+  bool maybe_alter_vcol= false;
   for (f_ptr= table->field; (field= *f_ptr); f_ptr++)
   {
     /* Clear marker for renamed or dropped field
@@ -6190,7 +6216,8 @@ static bool fill_alter_inplace_info(THD *thd,
       /*
         Check if type of column has changed to some incompatible type.
       */
-      switch (field->is_equal(new_field))
+      uint is_equal= field->is_equal(new_field);
+      switch (is_equal)
       {
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */
@@ -6240,6 +6267,20 @@ static bool fill_alter_inplace_info(THD *thd,
         DBUG_ASSERT(0);
         /* Safety. */
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
+      }
+
+      /*
+        Check if the column is computed and either
+        is stored or is used in the partitioning expression.
+      */
+      if (field->vcol_info && 
+          (field->stored_in_db() || field->vcol_info->is_in_partitioning_expr()))
+      {
+        if (is_equal == IS_EQUAL_NO ||
+            !field->vcol_info->is_equal(new_field->vcol_info))
+          ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+        else
+          maybe_alter_vcol= true;
       }
 
       /* Check if field was renamed */
@@ -6305,32 +6346,37 @@ static bool fill_alter_inplace_info(THD *thd,
     }
   }
 
+  if (maybe_alter_vcol)
+  {
+    /*
+      No virtual column was altered, but perhaps one of the other columns was,
+      and that column was part of the vcol expression?
+      We don't detect this correctly (FIXME), so let's just say that a vcol
+      *might* be affected if any other column was altered.
+    */
+    if (ha_alter_info->handler_flags &
+          ( Alter_inplace_info::ALTER_COLUMN_TYPE
+          | Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
+          | Alter_inplace_info::ALTER_COLUMN_OPTION ))
+      ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+  }
+
   new_field_it.init(alter_info->create_list);
   while ((new_field= new_field_it++))
   {
-    Virtual_column_info *vcol_info;
-    if (new_field->field)
-      vcol_info= new_field->field->vcol_info;
-    else
+    if (! new_field->field)
     {
-      vcol_info= new_field->vcol_info;
       /*
         Field is not present in old version of table and therefore was added.
         Again corresponding storage engine flag should be already set.
       */
       DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::ADD_COLUMN);
-    }
 
-    /*
-      Check if the altered column is computed and either
-      is stored or is used in the partitioning expression.
-      TODO: Mark such a column with an alter flag only if
-      the defining expression has changed.
-    */
-    if (vcol_info &&
-        (vcol_info->stored_in_db || vcol_info->is_in_partitioning_expr()))
-    {
-      ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+      if (new_field->vcol_info && 
+          (new_field->stored_in_db() || new_field->vcol_info->is_in_partitioning_expr()))
+      {
+        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+      }
     }
   }
 
@@ -6917,7 +6963,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                       MDL_request *target_mdl_request,
                                       Alter_table_ctx *alter_ctx)
 {
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
   handlerton *db_type= table->s->db_type();
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
@@ -9143,13 +9189,13 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       error, but still worth reporting as it might indicate serious
       problem with server.
     */
-    goto err_with_mdl;
+    goto err_with_mdl_after_alter;
   }
 
 end_inplace:
 
   if (thd->locked_tables_list.reopen_tables(thd))
-    goto err_with_mdl;
+    goto err_with_mdl_after_alter;
 
   THD_STAGE_INFO(thd, stage_end);
 
@@ -9230,6 +9276,10 @@ err_new_table_cleanup:
 
   DBUG_RETURN(true);
 
+err_with_mdl_after_alter:
+  /* the table was altered. binlog the operation */
+  write_bin_log(thd, true, thd->query(), thd->query_length());
+
 err_with_mdl:
   /*
     An error happened while we were holding exclusive name metadata lock
@@ -9301,13 +9351,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
   ha_rows found_count= 0, delete_count= 0;
+  SORT_INFO  *file_sort= 0;
   READ_RECORD info;
   TABLE_LIST   tables;
   List<Item>   fields;
   List<Item>   all_fields;
-  ha_rows examined_rows;
-  ha_rows found_rows;
   bool auto_increment_field_copied= 0;
+  bool init_read_record_done= 0;
   ulonglong save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
@@ -9390,9 +9440,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
-      from->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                                MYF(MY_FAE | MY_ZEROFILL |
-                                                    MY_THREAD_SPECIFIC));
       bzero((char *) &tables, sizeof(tables));
       tables.table= from;
       tables.alias= tables.table_name= from->s->table_name.str;
@@ -9400,16 +9447,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
       THD_STAGE_INFO(thd, stage_sorting);
       Filesort_tracker dummy_tracker(false);
+      Filesort fsort(order, HA_POS_ERROR, NULL);
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order))
         goto err;
-      Filesort fsort(order, HA_POS_ERROR, NULL);
-      if ((from->sort.found_records= filesort(thd, from, &fsort,
-                                              true,
-                                              &examined_rows, &found_rows,
-                                              &dummy_tracker)) ==
-          HA_POS_ERROR)
+
+      if (!(file_sort= filesort(thd, from, &fsort, true, &dummy_tracker)))
         goto err;
     }
     thd_progress_next_stage(thd);
@@ -9419,8 +9463,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   to->mark_virtual_columns_for_write(TRUE);
-  if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, 1, 1, FALSE))
+  if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, file_sort, 1, 1,
+                       FALSE))
     goto err;
+  init_read_record_done= 1;
 
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -9535,9 +9581,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       found_count++;
     thd->get_stmt_da()->inc_current_row_for_warning();
   }
-  end_read_record(&info);
-  free_io_cache(from);
-  delete [] copy;
 
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
@@ -9558,6 +9601,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     error= 1;
 
  err:
+  /* Free resources */
+  if (init_read_record_done)
+    end_read_record(&info);
+  delete [] copy;
+  delete file_sort;
+
   thd->variables.sql_mode= save_sql_mode;
   thd->abort_on_warning= 0;
   *copied= found_count;

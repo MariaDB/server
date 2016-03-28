@@ -33,6 +33,8 @@ RETURN 123;
 SHOW CREATE FUNCTION f1;
 
 --connection node_2
+# Work around codership/mysql-wsrep#228 - SHOW CREATE FUNCTION not covered by wsrep_sync_wait
+SELECT 1 FROM DUAL;
 SHOW CREATE FUNCTION f1;
 
 --connection node_1
@@ -49,9 +51,3 @@ DROP FUNCTION f1;
 DROP FUNCTION f2;
 
 DROP USER 'user1';
-
-
-
-
-
-

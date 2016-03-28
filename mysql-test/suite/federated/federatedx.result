@@ -2164,6 +2164,12 @@ DROP TABLE federated.t1;
 End of 5.1 tests
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_MASTER_CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
+#
+# MDEV-9346 - The federatedx and spider engine make mysqld crash when
+#             they are configured withtout username
+#
+CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:SLAVE_PORT/federated/t1';
+ERROR HY000: Can't create federated table. Foreign data src error:  database: 'federated'  username: ''  hostname: '127.0.0.1'
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
 DROP TABLE IF EXISTS federated.t1;
