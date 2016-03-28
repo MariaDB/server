@@ -950,7 +950,14 @@ from t1
 group by a
 order by null;
 
+--echo #
+--echo # Check how window function works together with GROUP BY and HAVING
+--echo #
+
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+explain format=json
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+
 drop table t1;
 drop table t0;
-
 

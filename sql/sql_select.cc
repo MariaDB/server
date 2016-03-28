@@ -2333,14 +2333,6 @@ bool JOIN::make_aggr_tables_info()
     curr_tab->fields= &tmp_fields_list1;
     set_postjoin_aggr_write_func(curr_tab);
 
-    // psergey-todo: this is probably an incorrect place:
-    if (select_lex->window_funcs.elements)
-    {
-      curr_tab->window_funcs_step= new Window_funcs_computation;
-      if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs))
-        DBUG_RETURN(true);
-    }
-
     tmp_table_param.func_count= 0;
     tmp_table_param.field_count+= tmp_table_param.func_count;
     if (sort_and_group || curr_tab->table->group)
@@ -2652,6 +2644,24 @@ bool JOIN::make_aggr_tables_info()
       skip_sort_order= true;
     }
   }
+
+  /*
+    Window functions computation step should be attached to the last join_tab
+    that's doing aggregation.
+    The last join_tab reads the data from the temp. table.  It also may do
+    - sorting
+    - duplicate value removal
+    Both of these operations are done after window function computation step.
+  */
+  curr_tab= join_tab + top_join_tab_count + aggr_tables - 1;
+  if (select_lex->window_funcs.elements)
+  {
+    curr_tab->window_funcs_step= new Window_funcs_computation;
+    if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
+                                           curr_tab))
+      DBUG_RETURN(true);
+  }
+
   fields= curr_fields_list;
   // Reset before execution
   set_items_ref_array(items0);

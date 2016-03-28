@@ -1472,5 +1472,34 @@ EXPLAIN
     }
   }
 }
+#
+# Check how window function works together with GROUP BY and HAVING
+#
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+b	MX	rank() over (order by b)
+3	3	1
+5	5	2
+7	7	3
+explain format=json
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "(MX in (3,5,7))",
+    "filesort": {
+      "window_functions_computation": {
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
 drop table t1;
 drop table t0;
