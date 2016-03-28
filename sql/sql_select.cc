@@ -3110,6 +3110,14 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     Explain_union *eu= output->get_union(nr);
     explain= &eu->fake_select_lex_explain;
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
+    for (int i=0 ; i < top_join_tab_count + aggr_tables; i++)
+    {
+      if (join_tab[i].filesort)
+      {
+        join_tab[i].filesort->tracker= 
+          new Filesort_tracker(thd->lex->analyze_stmt);
+      }
+    }
   }
 }
 
@@ -3123,7 +3131,6 @@ void JOIN::exec()
                         dbug_serve_apcs(thd, 1);
                  );
   ANALYZE_START_TRACKING(&explain->time_tracker);
-  explain->ops_tracker.report_join_start();
   exec_inner();
   ANALYZE_STOP_TRACKING(&explain->time_tracker);
 
@@ -17773,12 +17780,8 @@ do_select(JOIN *join, Procedure *procedure)
                                                  join->select_lex->select_number))
                           dbug_serve_apcs(join->thd, 1);
                    );
-    JOIN_TAB *join_tab=join->join_tab +join->top_join_tab_count; 
-    for (uint i= 0; i < join->aggr_tables; i++, join_tab++)
-    {
-      join->explain->ops_tracker.report_tmp_table(join_tab->table);
-    }
-    join_tab= join->join_tab + join->const_tables;
+
+    JOIN_TAB *join_tab= join->join_tab + join->const_tables;
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())
       error= NESTED_LOOP_NO_MORE_ROWS;
     else
@@ -21260,7 +21263,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
   filesort_retval= filesort(thd, table, fsort, tab->keep_current_rowid,
                             &examined_rows, &found_rows,
-                            join->explain->ops_tracker.report_sorting(thd));
+                            fsort->tracker);
   table->sort.found_records= filesort_retval;
   tab->records= found_rows;                     // For SQL_CALC_ROWS
 
@@ -21359,7 +21362,7 @@ JOIN_TAB::remove_duplicates()
   DBUG_ASSERT(join->aggr_tables > 0 && table->s->tmp_table != NO_TMP_TABLE);
   THD_STAGE_INFO(join->thd, stage_removing_duplicates);
 
-  join->explain->ops_tracker.report_duplicate_removal();
+  //join->explain->ops_tracker.report_duplicate_removal();
 
   table->reginfo.lock_type=TL_WRITE;
 
@@ -23701,7 +23704,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 
 void JOIN_TAB::save_explain_data(Explain_table_access *eta,
                                  table_map prefix_tables, 
-                                 bool distinct, JOIN_TAB *first_top_tab)
+                                 bool distinct_arg, JOIN_TAB *first_top_tab)
 {
   int quick_type;
   CHARSET_INFO *cs= system_charset_info;
@@ -23717,6 +23720,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   explain_plan= eta;
   eta->key.clear();
   eta->quick_info= NULL;
+  eta->using_filesort= false;
+
   SQL_SELECT *tab_select;
   /* 
     We assume that if this table does pre-sorting, then it doesn't do filtering
@@ -23724,6 +23729,13 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   */
   DBUG_ASSERT(!(select && filesort));
   tab_select= (filesort)? filesort->select : select;
+
+  if (filesort)
+  {
+    eta->using_filesort= true; // This fixes EXPLAIN
+    eta->fs_tracker= filesort->tracker= 
+      new Filesort_tracker(thd->lex->analyze_stmt);
+  }
   
   tracker= &eta->tracker;
   jbuf_tracker= &eta->jbuf_tracker;
@@ -24129,14 +24141,55 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
 
 /*
+  Walk through join->aggr_tables and save aggregation/grouping query plan into
+  an Explain_select object
+*/
+
+void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
+{
+  JOIN_TAB *join_tab=join->join_tab + join->top_join_tab_count;
+  Explain_aggr_node *prev_node;
+  Explain_aggr_node *node= xpl_sel->aggr_tree;
+
+  for (uint i= 0; i < join->aggr_tables; i++, join_tab++)
+  {
+    // Each aggregate means a temp.table
+    prev_node= node;
+    node= new Explain_aggr_tmp_table;
+    node->child= prev_node;
+
+    if (join_tab->distinct)
+    {
+      prev_node= node;
+      node= new Explain_aggr_remove_dups;
+      node->child= prev_node;
+    }
+
+    if (join_tab->filesort)
+    {
+      Explain_aggr_filesort *eaf = new Explain_aggr_filesort;
+      eaf->tracker= new Filesort_tracker(join->thd->lex->analyze_stmt);
+      join_tab->filesort->tracker= eaf->tracker;
+
+      prev_node= node;
+      node= eaf;
+      node->child= prev_node;
+    }
+  }
+  xpl_sel->aggr_tree= node;
+}
+
+
+/*
   Save Query Plan Footprint
 
   @note
     Currently, this function may be called multiple times
 */
 
-int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
-                                   bool need_order, bool distinct, 
+int JOIN::save_explain_data_intern(Explain_query *output, 
+                                   bool need_tmp_table_arg,
+                                   bool need_order_arg, bool distinct_arg, 
                                    const char *message)
 {
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
@@ -24166,7 +24219,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     explain->select_id= join->select_lex->select_number;
     explain->select_type= join->select_lex->type;
     explain->using_temporary= need_tmp;
-    explain->using_filesort=  need_order;
+    explain->using_filesort=  need_order_arg;
     /* Setting explain->message means that all other members are invalid */
     explain->message= message;
 
@@ -24183,7 +24236,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     explain->select_id=   select_lex->select_number;
     explain->select_type= select_lex->type;
     explain->using_temporary= need_tmp;
-    explain->using_filesort=  need_order;
+    explain->using_filesort=  need_order_arg;
     explain->message= "Storage engine handles GROUP BY";
 
     if (select_lex->master_unit()->derived)
@@ -24203,43 +24256,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     xpl_sel->select_type= join->select_lex->type;
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
-
-    if (need_tmp_table)
-      xpl_sel->using_temporary= true;
-
-    if (need_order)
-      xpl_sel->using_filesort= true;
-
-    /*
-      Check whether we should display "Using filesort" or "Using temporary".
-      This is a temporary code, we need to save the 'true' plan structure for 
-      EXPLAIN FORMAT=JSON.
-    */
-    {
-      bool using_filesort_= false;
-      bool using_temporary_ = false;
-      /* The first non-const join table may do sorting */
-      JOIN_TAB *tab= first_top_level_tab(this, WITHOUT_CONST_TABLES);
-      if (tab)
-      {
-        if (tab->filesort)
-          using_filesort_= true;
-        if (tab->aggr)
-          using_temporary_= true;
-      }
-      
-      /* Aggregation tabs are located at the end of top-level join tab array. */ 
-      JOIN_TAB *curr_tab= join_tab + top_join_tab_count;
-      for (uint i= 0; i < aggr_tables; i++, curr_tab++)
-      {
-        if (curr_tab->filesort)
-          using_filesort_= true;
-        if (curr_tab->aggr)
-          using_temporary_= true;
-      }
-      xpl_sel->using_temporary= using_temporary_;
-      xpl_sel->using_filesort= using_filesort_;
-    }
+    
+    save_agg_explain_data(this, xpl_sel);
 
     xpl_sel->exec_const_cond= exec_const_cond;
     if (tmp_having)
@@ -24297,7 +24315,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       prev_bush_root_tab= tab->bush_root_tab;
 
       cur_parent->add_table(eta, output);
-      tab->save_explain_data(eta, used_tables, distinct, first_top_tab);
+      tab->save_explain_data(eta, used_tables, distinct_arg, first_top_tab);
 
       if (saved_join_tab)
         tab= saved_join_tab;

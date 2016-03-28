@@ -1484,6 +1484,7 @@ bool Window_func_runner::setup(THD *thd)
                                         spec->partition_list->first,
                                         spec->order_list->first);
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
+  filesort->tracker= new Filesort_tracker(thd->lex->analyze_stmt);
 
   win_func->setup_partition_border_check(thd);
 

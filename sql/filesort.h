@@ -50,6 +50,8 @@ public:
   /** true means we are using Priority Queue for order by with limit. */
   bool using_pq;
 
+  Filesort_tracker *tracker;
+
   Filesort(ORDER *order_arg, ha_rows limit_arg, SQL_SELECT *select_arg):
     order(order_arg),
     limit(limit_arg),

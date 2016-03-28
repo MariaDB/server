@@ -685,13 +685,13 @@ ANALYZE
       "r_used_priority_queue": false,
       "r_output_rows": 0,
       "volatile parameter": "REPLACED",
-      "filesort": {
-        "r_loops": 1,
-        "volatile parameter": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 0,
-        "volatile parameter": "REPLACED",
-        "temporary_table": {
+      "temporary_table": {
+        "filesort": {
+          "r_loops": 1,
+          "volatile parameter": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 0,
+          "volatile parameter": "REPLACED",
           "temporary_table": {
             "table": {
               "table_name": "t2",
