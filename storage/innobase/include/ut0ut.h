@@ -88,13 +88,8 @@ private:
    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
    independent way by using YieldProcessor. */
 #  define UT_RELAX_CPU() YieldProcessor()
-# elif defined(HAVE_ATOMIC_BUILTINS)
-#  define UT_RELAX_CPU() do { \
-     volatile lint	volatile_var; \
-     os_compare_and_swap_lint(&volatile_var, 0, 1); \
-   } while (0)
 # else
-#  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
+#  define UT_RELAX_CPU() __asm__ __volatile__ ("":::"memory")
 # endif
 
 /*********************************************************************//**
