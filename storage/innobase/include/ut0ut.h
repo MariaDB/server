@@ -89,8 +89,10 @@ private:
    independent way by using YieldProcessor. */
 #  define UT_RELAX_CPU() YieldProcessor()
 # else
-#  define UT_RELAX_CPU() __asm__ __volatile__ ("":::"memory")
+#  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
 # endif
+
+#define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
 
 # if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
 #  define UT_LOW_PRIORITY_CPU() __asm__ __volatile__ ("or 1,1,1")
@@ -345,7 +347,7 @@ Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return	dummy value */
 UNIV_INTERN
-ulint
+void
 ut_delay(
 /*=====*/
 	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
