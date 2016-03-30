@@ -319,6 +319,12 @@ int compare_window_frames(Window_frame *win_frame1,
   if (win_frame1 == win_frame2)
     return 0;
 
+  if (!win_frame1)
+    return 2;
+
+  if (!win_frame2)
+    return -2;
+
   if (win_frame1->units != win_frame2->units)
     return win_frame1->units > win_frame2->units ? -2 : 2;
 
