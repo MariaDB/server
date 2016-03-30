@@ -112,6 +112,16 @@ class Window_spec : public Sql_alloc
   bool check_window_names(List_iterator_fast<Window_spec> &it);
 
   char *window_reference() { return window_ref ? window_ref->str : NULL; }
+
+  void join_partition_and_order_lists()
+  {
+    *(partition_list->next)= order_list->first;
+  }
+
+  void disjoin_partition_and_order_lists()
+  {
+    *(partition_list->next)= NULL;
+  }
 };
 
 class Window_def : public Window_spec
