@@ -281,9 +281,18 @@ public:
 
 class Explain_aggr_filesort : public Explain_aggr_node 
 {
+  List<Item> sort_items;
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_FILESORT; }
-  Filesort_tracker *tracker;
+  Filesort_tracker tracker;
+
+  Explain_aggr_filesort(bool is_analyze) : tracker(is_analyze)
+  {
+    child= NULL;
+  }
+
+  void init(THD* thd, Filesort *filesort);
+  void print_json_members(Json_writer *writer, bool is_analyze);
 };
 
 class Explain_aggr_tmp_table : public Explain_aggr_node
@@ -663,8 +672,7 @@ public:
     cache_cond(NULL),
     pushed_index_cond(NULL),
     sjm_nest(NULL),
-    using_filesort(false),
-    fs_tracker(NULL)
+    pre_join_sort(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
 
@@ -757,9 +765,13 @@ public:
   Item *pushed_index_cond;
 
   Explain_basic_join *sjm_nest;
-   
-  bool using_filesort;
-  Filesort_tracker *fs_tracker;
+  
+  /*
+    This describes a possible filesort() call that is done before doing the
+    join operation.
+  */
+  Explain_aggr_filesort *pre_join_sort;
+
   /* ANALYZE members */
 
   /* Tracker for reading the table */

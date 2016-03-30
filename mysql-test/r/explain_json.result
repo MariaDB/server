@@ -486,6 +486,7 @@ EXPLAIN
         "query_block": {
           "select_id": 2,
           "filesort": {
+            "sort_key": "t1.a",
             "temporary_table": {
               "table": {
                 "table_name": "t1",
@@ -529,6 +530,7 @@ EXPLAIN
         "query_block": {
           "select_id": 2,
           "filesort": {
+            "sort_key": "t1.a",
             "temporary_table": {
               "table": {
                 "table_name": "t1",
@@ -1129,6 +1131,7 @@ EXPLAIN
     "select_id": 1,
     "having_condition": "(TOP > t2.a)",
     "filesort": {
+      "sort_key": "t2.a",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -1147,6 +1150,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
+      "sort_key": "t2.a",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -1176,6 +1180,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
+      "sort_key": "t2.a",
       "temporary_table": {
         "table": {
           "table_name": "t2",

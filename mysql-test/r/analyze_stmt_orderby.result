@@ -172,6 +172,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
+      "sort_key": "t2.b",
       "temporary_table": {
         "table": {
           "table_name": "t0",
@@ -204,6 +205,7 @@ ANALYZE
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
+      "sort_key": "t2.b",
       "r_loops": 1,
       "r_total_time_ms": "REPLACED",
       "r_limit": 4,
@@ -256,6 +258,7 @@ EXPLAIN
     "select_id": 1,
     "read_sorted_file": {
       "filesort": {
+        "sort_key": "t0.a",
         "table": {
           "table_name": "t0",
           "access_type": "ALL",
@@ -289,6 +292,7 @@ ANALYZE
     "read_sorted_file": {
       "r_rows": 10,
       "filesort": {
+        "sort_key": "t0.a",
         "r_loops": 1,
         "r_total_time_ms": "REPLACED",
         "r_used_priority_queue": false,
@@ -345,6 +349,7 @@ ANALYZE
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
+      "sort_key": "t2.c",
       "r_loops": 1,
       "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
@@ -454,6 +459,7 @@ ANALYZE
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
+      "sort_key": "count(distinct t5.b)",
       "r_loops": 1,
       "r_total_time_ms": "REPLACED",
       "r_limit": 1,
@@ -461,6 +467,7 @@ ANALYZE
       "r_output_rows": 2,
       "temporary_table": {
         "filesort": {
+          "sort_key": "t5.a",
           "r_loops": 1,
           "r_total_time_ms": "REPLACED",
           "r_used_priority_queue": false,
@@ -510,8 +517,10 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
+      "sort_key": "count(distinct t5.b)",
       "temporary_table": {
         "filesort": {
+          "sort_key": "t5.a",
           "temporary_table": {
             "table": {
               "table_name": "t6",

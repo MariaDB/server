@@ -30,6 +30,7 @@ const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
 const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
 
 static void write_item(Json_writer *writer, Item *item);
+static void append_item_to_str(String *out, Item *item);
 
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
   mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
@@ -877,8 +878,7 @@ void Explain_select::print_explain_json(Explain_query *query,
         case AGGR_OP_FILESORT:
         {
           writer->add_member("filesort").start_object();
-          if (is_analyze)
-            ((Explain_aggr_filesort*)node)->tracker->print_json_members(writer);
+          ((Explain_aggr_filesort*)node)->print_json_members(writer, is_analyze);
           break;
         }
         case AGGR_OP_REMOVE_DUPLICATES:
@@ -905,6 +905,41 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
 }
 
+void Explain_aggr_filesort::init(THD *thd, Filesort *filesort)
+{
+  for (ORDER *ord= filesort->order; ord; ord= ord->next)
+  {
+    sort_items.push_back(ord->item[0], thd->mem_root);
+  }
+  filesort->tracker= &tracker;
+}
+
+void Explain_aggr_filesort::print_json_members(Json_writer *writer, 
+                                               bool is_analyze)
+{
+  char item_buf[256];
+  String str(item_buf, sizeof(item_buf), &my_charset_bin);
+  str.length(0);
+  
+  List_iterator_fast<Item> it(sort_items);
+  Item *item;
+  bool first= true;
+  while ((item= it++))
+  {
+    if (first)
+      first= false;
+    else
+    {
+      str.append(", ");
+    }
+    append_item_to_str(&str, item);
+  }
+
+  writer->add_member("sort_key").add_str(str.c_ptr_safe());
+
+  if (is_analyze)
+    tracker.print_json_members(writer);
+}
 
 void Explain_basic_join::print_explain_json(Explain_query *query, 
                                             Json_writer *writer, 
@@ -1222,7 +1257,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     extra_buf.append(STRING_WITH_LEN("Using temporary"));
   }
 
-  if (using_filesort || this->using_filesort)
+  if (using_filesort || this->pre_join_sort)
   {
     if (first)
       first= false;
@@ -1282,6 +1317,15 @@ static void write_item(Json_writer *writer, Item *item)
   writer->add_str(str.c_ptr_safe());
 }
 
+static void append_item_to_str(String *out, Item *item)
+{
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  item->print(out, QT_EXPLAIN);
+  thd->variables.option_bits= save_option_bits;
+}
 
 void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_tag tag)
 {
@@ -1409,15 +1453,6 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
     print_json_array(writer, elem_name, *keyset);
 }
 
-/*
-  @param fs_tracker   Normally NULL. When not NULL, it means that the join tab
-                      used filesort to pre-sort the data. Then, sorted data 
-                      was read and the rest of the join was executed.
-
-  @note
-  EXPLAIN command will check whether fs_tracker is present, but it can't use 
-  any value from fs_tracker (these are only valid for ANALYZE).
-*/
 
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
@@ -1425,7 +1460,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 {
   Json_writer_nesting_guard guard(writer);
   
-  if (using_filesort)
+  if (pre_join_sort)
   {
     /* filesort was invoked on this join tab before doing the join with the rest */
     writer->add_member("read_sorted_file").start_object();
@@ -1452,9 +1487,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       }
     }
     writer->add_member("filesort").start_object();
-
-    if (is_analyze)
-      fs_tracker->print_json_members(writer);
+    pre_join_sort->print_json_members(writer, is_analyze);
   }
 
   if (bka_type.is_using_jbuf())
@@ -1532,11 +1565,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows");
-    if (fs_tracker)
+    if (pre_join_sort)
     {
       /* Get r_rows value from filesort */
-      if (fs_tracker->get_r_loops())
-        writer->add_double(fs_tracker->get_avg_examined_rows());
+      if (pre_join_sort->tracker.get_r_loops())
+        writer->add_double(pre_join_sort->tracker.get_avg_examined_rows());
       else
         writer->add_null();
     }
@@ -1563,11 +1596,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_filtered");
-    if (fs_tracker)
+    if (pre_join_sort)
     {
       /* Get r_filtered value from filesort */
-      if (fs_tracker->get_r_loops())
-        writer->add_double(fs_tracker->get_r_filtered());
+      if (pre_join_sort->tracker.get_r_loops())
+        writer->add_double(pre_join_sort->tracker.get_r_filtered());
       else
         writer->add_null();
     }
@@ -1645,7 +1678,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
-  if (using_filesort)
+  if (pre_join_sort)
   {
     writer->end_object(); // filesort
     writer->end_object(); // read_sorted_file

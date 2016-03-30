@@ -1436,6 +1436,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
+      "sort_key": "t1.a",
       "window_functions_computation": {
         "temporary_table": {
           "table": {
@@ -1488,6 +1489,7 @@ EXPLAIN
     "select_id": 1,
     "having_condition": "(MX in (3,5,7))",
     "filesort": {
+      "sort_key": "t1.b",
       "window_functions_computation": {
         "temporary_table": {
           "table": {

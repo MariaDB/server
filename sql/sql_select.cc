@@ -23746,7 +23746,6 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   explain_plan= eta;
   eta->key.clear();
   eta->quick_info= NULL;
-  eta->using_filesort= false;
 
   SQL_SELECT *tab_select;
   /* 
@@ -23758,9 +23757,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   if (filesort)
   {
-    eta->using_filesort= true; // This fixes EXPLAIN
-    eta->fs_tracker= filesort->tracker= 
-      new Filesort_tracker(thd->lex->analyze_stmt);
+    eta->pre_join_sort= new Explain_aggr_filesort(thd->lex->analyze_stmt);
+    eta->pre_join_sort->init(thd, filesort);
   }
   
   tracker= &eta->tracker;
@@ -24201,9 +24199,9 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
 
     if (join_tab->filesort)
     {
-      Explain_aggr_filesort *eaf = new Explain_aggr_filesort;
-      eaf->tracker= new Filesort_tracker(join->thd->lex->analyze_stmt);
-      join_tab->filesort->tracker= eaf->tracker;
+      bool is_analyze= join->thd->lex->analyze_stmt;
+      Explain_aggr_filesort *eaf = new Explain_aggr_filesort(is_analyze);
+      eaf->init(join->thd, join_tab->filesort);
 
       prev_node= node;
       node= eaf;
