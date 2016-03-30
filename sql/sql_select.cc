@@ -11421,8 +11421,6 @@ void JOIN_TAB::cleanup()
   select= 0;
   delete quick;
   quick= 0;
-  delete filesort;
-  filesort= 0;
   if (cache)
   {
     cache->free();
