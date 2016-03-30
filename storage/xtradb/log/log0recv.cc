@@ -2786,6 +2786,8 @@ recv_scan_log_recs(
 
 			/* Garbage or an incompletely written log block */
 
+			/* Print checkpoint encryption keys if present */
+			log_crypt_print_checkpoint_keys(log_block);
 			finished = TRUE;
 
 			if (maybe_encrypted) {

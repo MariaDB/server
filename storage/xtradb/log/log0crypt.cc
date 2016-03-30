@@ -127,9 +127,32 @@ static
 const crypt_info_t*
 get_crypt_info(
 /*===========*/
-	const byte* log_block) {
+	const byte* log_block)
+{
 	ib_uint64_t checkpoint_no = log_block_get_checkpoint_no(log_block);
 	return get_crypt_info(checkpoint_no);
+}
+
+/*********************************************************************//**
+Print checkpoint no from log block and all encryption keys from
+checkpoints if they are present. Used for problem analysis. */
+void
+log_crypt_print_checkpoint_keys(
+/*============================*/
+	const byte* log_block)
+{
+	ib_uint64_t checkpoint_no = log_block_get_checkpoint_no(log_block);
+
+	if (crypt_info.size()) {
+		fprintf(stderr, "InnoDB: redo log checkpoint: %lu [ chk key ]: ", checkpoint_no);
+		for (size_t i = 0; i < crypt_info.size(); i++) {
+			struct crypt_info_t* it = &crypt_info[i];
+			fprintf(stderr, "[ %lu %u ] ",
+				it->checkpoint_no,
+				it->key_version);
+		}
+		fprintf(stderr, "\n");
+	}
 }
 
 /*********************************************************************//**
@@ -280,10 +303,13 @@ static
 bool
 add_crypt_info(crypt_info_t* info)
 {
+	const crypt_info_t* found=NULL;
 	/* so that no one is searching array while we modify it */
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
-	if (get_crypt_info(info->checkpoint_no) != NULL) {
+	found = get_crypt_info(info->checkpoint_no);
+
+	if (found != NULL && found->checkpoint_no == info->checkpoint_no) {
 		// already present...
 		return true;
 	}
