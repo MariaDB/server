@@ -100,8 +100,9 @@ private:
 #define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
 
 # if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-#  define UT_LOW_PRIORITY_CPU() __asm__ __volatile__ ("or 1,1,1")
-#  define UT_RESUME_PRIORITY_CPU() __asm__ __volatile__ ("or 2,2,2")
+#include <sys/platform/ppc.h>
+#  define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
+#  define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
 # else
 #  define UT_LOW_PRIORITY_CPU() ((void)0)
 #  define UT_RESUME_PRIORITY_CPU() ((void)0)

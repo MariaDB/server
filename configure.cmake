@@ -857,10 +857,11 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
   ENDIF()
   IF (NOT HAVE_PAUSE_INSTRUCTION)
     CHECK_C_SOURCE_COMPILES("
+    #include <sys/platform/ppc.h>
     int main()
     {
-     __asm__ __volatile__ (\"or 1,1,1\");
-     __asm__ __volatile__ (\"or 2,2,2\");
+     __ppc_set_ppr_low();
+     __ppc_set_ppr_med();
      return 0;
     }
     " HAVE_HMT_PRIORITY_INSTRUCTION)
