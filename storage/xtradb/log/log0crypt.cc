@@ -301,7 +301,10 @@ Add crypt info to set if it is not already present
 @return true if successfull, false if not- */
 static
 bool
-add_crypt_info(crypt_info_t* info)
+add_crypt_info(
+/*===========*/
+	crypt_info_t*	info,		/*!< in: crypt info */
+	bool		checkpoint_read)/*!< in: do we read checkpoint */
 {
 	const crypt_info_t* found=NULL;
 	/* so that no one is searching array while we modify it */
@@ -309,7 +312,11 @@ add_crypt_info(crypt_info_t* info)
 
 	found = get_crypt_info(info->checkpoint_no);
 
-	if (found != NULL && found->checkpoint_no == info->checkpoint_no) {
+	/* If one crypt info is found then we add a new one only if we
+	are reading checkpoint from the log. New checkpoints will always
+	use the first created crypt info. */
+	if (found != NULL &&
+		( found->checkpoint_no == info->checkpoint_no || !checkpoint_read)) {
 		// already present...
 		return true;
 	}
@@ -382,7 +389,7 @@ log_crypt_set_ver_and_key(
 
 	}
 
-	add_crypt_info(&info);
+	add_crypt_info(&info, false);
 }
 
 /********************************************************
@@ -540,7 +547,7 @@ log_crypt_read_checkpoint_buf(
 		memcpy(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce, buf + 24, MY_AES_BLOCK_SIZE);
 
-		if (!add_crypt_info(&info)) {
+		if (!add_crypt_info(&info, true)) {
 			return false;
 		}
 		buf += LOG_CRYPT_ENTRY_SIZE;
