@@ -545,6 +545,7 @@ static void init_available_charsets(void)
   {
     if (*cs)
     {
+      DBUG_ASSERT(cs[0]->mbmaxlen <= MY_CS_MBMAXLEN);
       if (cs[0]->ctype)
         if (init_state_maps(*cs))
           *cs= NULL;

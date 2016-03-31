@@ -1950,3 +1950,22 @@ SET @@SQL_MODE=default;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9824 LOAD DATA does not work with multi-byte strings in LINES TERMINATED BY when IGNORE is specified
+--echo #
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё';
+SELECT c1 FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
+SELECT c1 FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

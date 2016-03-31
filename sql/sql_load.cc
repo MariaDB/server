@@ -79,6 +79,14 @@ class READ_INFO {
   NET *io_net;
   int level; /* for load xml */
 
+  bool getbyte(char *to)
+  {
+    int chr= GET;
+    if (chr == my_b_EOF)
+      return (eof= true);
+    *to= chr;
+    return false;
+  }
 public:
   bool error,line_cuted,found_null,enclosed;
   uchar	*row_start,			/* Found row starts here */
@@ -1706,33 +1714,76 @@ int READ_INFO::next_line()
     return 0;					// No lines
   for (;;)
   {
-    int chr = GET;
-#ifdef USE_MB
-   if (my_mbcharlen(read_charset, chr) > 1)
-   {
-       for (uint i=1;
-            chr != my_b_EOF && i<my_mbcharlen(read_charset, chr);
-            i++)
-	   chr = GET;
-       if (chr == escape_char)
-	   continue;
-   }
-#endif
-   if (chr == my_b_EOF)
-   {
-      eof=1;
-      return 1;
-    }
-    if (chr == escape_char)
+    int chlen;
+    char buf[MY_CS_MBMAXLEN];
+
+    if (getbyte(&buf[0]))
+      return 1; // EOF
+
+    if (use_mb(read_charset) &&
+        (chlen= my_charlen(read_charset, buf, buf + 1)) != 1)
     {
-      line_cuted=1;
-      if (GET == my_b_EOF)
-	return 1;
+      uint i;
+      for (i= 1; MY_CS_IS_TOOSMALL(chlen); )
+      {
+        DBUG_ASSERT(i < sizeof(buf));
+        DBUG_ASSERT(chlen != 1);
+        if (getbyte(&buf[i++]))
+          return 1; // EOF
+        chlen= my_charlen(read_charset, buf, buf + i);
+      }
+
+      /*
+        Either a complete multi-byte sequence,
+        or a broken byte sequence was found.
+        Check if the sequence is a prefix of the "LINES TERMINATED BY" string.
+      */
+      if ((uchar) buf[0] == line_term_char && i <= line_term_length &&
+          !memcmp(buf, line_term_ptr, i))
+      {
+        if (line_term_length == i)
+        {
+          /*
+            We found a "LINES TERMINATED BY" string that consists
+            of a single multi-byte character.
+          */
+          return 0;
+        }
+        /*
+          buf[] is a prefix of "LINES TERMINATED BY".
+          Now check the suffix. Length of the suffix of line_term_ptr
+          that still needs to be checked is (line_term_length - i).
+          Note, READ_INFO::terminator() assumes that the leftmost byte of the
+          argument is already scanned from the file and is checked to
+          be a known prefix (e.g. against line_term_char).
+          So we need to pass one extra byte.
+        */
+        if (terminator(line_term_ptr + i - 1, line_term_length - i + 1))
+          return 0;
+      }
+      /*
+        Here we have a good multi-byte sequence or a broken byte sequence,
+        and the sequence is not equal to "LINES TERMINATED BY".
+        No needs to check for escape_char, because:
+        - multi-byte escape characters in "FIELDS ESCAPED BY" are not
+          supported and are rejected at parse time.
+        - broken single-byte sequences are not recognized as escapes,
+          they are considered to be a part of the data and are converted to
+          question marks.
+      */
+      line_cuted= true;
       continue;
     }
-    if (chr == line_term_char && terminator(line_term_ptr,line_term_length))
+    if (buf[0] == escape_char)
+    {
+      line_cuted= true;
+      if (GET == my_b_EOF)
+        return 1;
+      continue;
+    }
+    if (buf[0] == line_term_char && terminator(line_term_ptr,line_term_length))
       return 0;
-    line_cuted=1;
+    line_cuted= true;
   }
 }
 
