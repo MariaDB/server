@@ -87,9 +87,11 @@ SET collation_connection='latin1_swedish_ci';
 -- source include/ctype_filesort.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_str_to_date.inc
+-- source include/ctype_pad_space.inc
 SET collation_connection='latin1_bin';
 -- source include/ctype_filesort.inc
 -- source include/ctype_like_escape.inc
+-- source include/ctype_pad_space.inc
 
 #
 # Bug#8041

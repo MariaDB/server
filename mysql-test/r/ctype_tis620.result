@@ -3630,6 +3630,21 @@ hex(weight_string('abc' as char(5) LEVEL 1 DESC))
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
 hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFDF9C9D9E
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 select hex(weight_string(cast(0xE0A1 as char)));
 hex(weight_string(cast(0xE0A1 as char)))
 A1E0
@@ -3808,6 +3823,21 @@ hex(weight_string('abc' as char(5) LEVEL 1 DESC))
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
 hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFDF9C9D9E
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 select hex(weight_string(cast(0xE0A1 as char)));
 hex(weight_string(cast(0xE0A1 as char)))
 E0A1

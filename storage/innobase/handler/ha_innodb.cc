@@ -6339,7 +6339,7 @@ innobase_mysql_cmp(
 		having indexes on such data need to rebuild their tables! */
 
 		ret = charset->coll->strnncollsp(
-			charset, a, a_length, b, b_length, 0);
+			charset, a, a_length, b, b_length);
 
 		if (ret < 0) {
 			return(-1);
@@ -6433,7 +6433,7 @@ innobase_mysql_cmp_prefix(
 	charset = innobase_get_fts_charset(mysql_type, charset_number);
 
 	result = ha_compare_text(charset, (uchar*) a, a_length,
-				 (uchar*) b, b_length, 1, 0);
+				 (uchar*) b, b_length, 1);
 
 	return(result);
 }
@@ -6453,7 +6453,7 @@ innobase_fts_text_cmp(
 
 	return(ha_compare_text(
 		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(s2->f_len), 0, 0));
+		s2->f_str, static_cast<uint>(s2->f_len), 0));
 }
 /******************************************************************//**
 compare two character string case insensitively according to their charset. */
@@ -6476,7 +6476,7 @@ innobase_fts_text_case_cmp(
 
 	return(ha_compare_text(
 		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen), 0, 0));
+		s2->f_str, static_cast<uint>(newlen), 0));
 }
 /******************************************************************//**
 Get the first character's code position for FTS index partition. */
@@ -6524,7 +6524,7 @@ innobase_fts_text_cmp_prefix(
 
 	result = ha_compare_text(
 		charset, s2->f_str, static_cast<uint>(s2->f_len),
-		s1->f_str, static_cast<uint>(s1->f_len), 1, 0);
+		s1->f_str, static_cast<uint>(s1->f_len), 1);
 
 	/* We switched s1, s2 position in ha_compare_text. So we need
 	to negate the result */

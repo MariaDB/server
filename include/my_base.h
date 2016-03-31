@@ -298,11 +298,7 @@ enum ha_base_keytype {
 #define HA_SWAP_KEY		 64
 #define HA_REVERSE_SORT		 128	/* Sort key in reverse order */
 #define HA_NO_SORT               256 /* do not bother sorting on this keyseg */
-/*
-  End space in unique/varchar are considered equal. (Like 'a' and 'a ')
-  Only needed for internal temporary tables.
-*/
-#define HA_END_SPACE_ARE_EQUAL	 512
+
 #define HA_BIT_PART		1024
 #define HA_CAN_MEMCMP           2048 /* internal, never stored in frm */
 

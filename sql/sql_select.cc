@@ -16725,8 +16725,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           cur_group->buff++;                        // Pointer to field data
 	  group_buff++;                         // Skipp null flag
 	}
-        /* In GROUP BY 'a' and 'a ' are equal for VARCHAR fields */
-        key_part_info->key_part_flag|= HA_END_SPACE_ARE_EQUAL;
 	group_buff+= cur_group->field->pack_length();
       }
       keyinfo->key_length+=  key_part_info->length;

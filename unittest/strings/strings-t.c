@@ -627,7 +627,7 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
   {
     char ahex[64], bhex[64];
     int res= cs->coll->strnncollsp(cs, (uchar *) p->a, p->alen,
-                                       (uchar *) p->b, p->blen, 0);
+                                       (uchar *) p->b, p->blen);
     str2hex(ahex, sizeof(ahex), p->a, p->alen);
     str2hex(bhex, sizeof(bhex), p->b, p->blen);
     diag("%-20s %-10s %-10s %10d %10d%s",
@@ -641,7 +641,7 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
     {
       /* Test in reverse order */
       res= cs->coll->strnncollsp(cs, (uchar *) p->b, p->blen,
-                                     (uchar *) p->a, p->alen, 0);
+                                     (uchar *) p->a, p->alen);
       if (!eqres(res, -p->res))
       {
         diag("Comparison in reverse order failed. Expected %d, got %d",

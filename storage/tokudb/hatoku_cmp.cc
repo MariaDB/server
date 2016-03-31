@@ -921,8 +921,7 @@ static inline int cmp_toku_string(
         a_buf, 
         a_num_bytes,
         b_buf, 
-        b_num_bytes, 
-        0
+        b_num_bytes
         );
     return ret_val;
 }

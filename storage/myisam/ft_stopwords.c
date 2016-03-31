@@ -35,7 +35,7 @@ static int FT_STOPWORD_cmp(void* cmp_arg __attribute__((unused)),
 {
   return ha_compare_text(ft_stopword_cs,
 			 (uchar *)w1->pos,w1->len,
-			 (uchar *)w2->pos,w2->len,0,0);
+			 (uchar *)w2->pos,w2->len,0);
 }
 
 static void FT_STOPWORD_free(FT_STOPWORD *w, TREE_FREE action,

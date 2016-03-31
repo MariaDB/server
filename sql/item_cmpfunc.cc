@@ -4074,7 +4074,7 @@ static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
 {
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
-                               (uchar *) y->ptr(),y->length(), 0);
+                               (uchar *) y->ptr(),y->length());
 }
 
 void Item_func_in::fix_length_and_dec()
