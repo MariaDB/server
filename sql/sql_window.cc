@@ -9,6 +9,8 @@
 bool
 Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
+  if (window_names_are_checked)
+    return false;
   char *name= this->name();
   char *ref_name= window_reference();
   it.rewind();
@@ -54,6 +56,7 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
     my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
     return true;              
   }
+  window_names_are_checked= true;
   return false;
 }
 

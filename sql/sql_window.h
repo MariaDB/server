@@ -88,6 +88,8 @@ public:
 
 class Window_spec : public Sql_alloc
 {
+  bool window_names_are_checked;
+
  public:
 
   LEX_STRING *window_ref;
@@ -104,8 +106,9 @@ class Window_spec : public Sql_alloc
               SQL_I_List<ORDER> *part_list,
               SQL_I_List<ORDER> *ord_list,
               Window_frame *win_frame)
-    : window_ref(win_ref), partition_list(part_list), order_list(ord_list),
-    window_frame(win_frame), referenced_win_spec(NULL) {}
+    : window_names_are_checked(false), window_ref(win_ref),
+      partition_list(part_list), order_list(ord_list),
+      window_frame(win_frame), referenced_win_spec(NULL) {}
 
   virtual char *name() { return NULL; }
 
