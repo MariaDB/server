@@ -409,6 +409,7 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   void cleanup()
   {
     peer_tracker.cleanup();
+    Item_sum_num::cleanup();
   }
 };
 
