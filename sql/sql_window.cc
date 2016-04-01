@@ -6,11 +6,6 @@
 #include "sql_window.h"
 
 
-#define  SORTORDER_CHANGE_FLAG    1
-#define  PARTITION_CHANGE_FLAG    2
-#define  FRAME_CHANGE_FLAG        4
-
-
 bool
 Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
@@ -229,6 +224,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 // performed during the computation of these functions 
 /////////////////////////////////////////////////////////////////////////////
 
+#define CMP_LT        -2    // Less than
+#define CMP_LT_C      -1    // Less than and compatible
+#define CMP_EQ         0    // Equal to
+#define CMP_GT_C       1    // Greater than and compatible
+#define CMP_GT         2    // Greater then
+
 static
 int compare_order_elements(ORDER *ord1, ORDER *ord2)
 {
@@ -240,13 +241,13 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
     if (cmp == 0)
     {
       if (ord1->direction == ord2->direction)
-        return 0;
-      return ord1->direction > ord2->direction ? -2 : 2;
+        return CMP_EQ;
+      return ord1->direction > ord2->direction ? CMP_GT : CMP_LT;
     }
     else
-      return cmp < 0 ? 2 : -2;
+      return cmp > 0 ? CMP_GT : CMP_LT;
   }
-  return item1->used_tables() > item2->used_tables() ? -2 : 2;
+  return item1->used_tables() > item2->used_tables() ? CMP_GT : CMP_LT;
 }
 
 static
@@ -254,7 +255,7 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
                         SQL_I_List<ORDER> *part_list2)
 {
   if (part_list1 == part_list2)
-    return 0;
+    return CMP_EQ;
   ORDER *elem1= part_list1->first;
   ORDER *elem2= part_list2->first;
   for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
@@ -264,10 +265,10 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
       return cmp;
   }
   if (elem1)
-    return -1;
+    return CMP_GT_C;
   if (elem2)
-    return 1;
-  return 0;     
+    return CMP_LT_C;
+  return CMP_EQ;     
 }
 
 
@@ -280,33 +281,35 @@ int compare_window_frame_bounds(Window_frame_bound *win_frame_bound1,
   if (win_frame_bound1->precedence_type != win_frame_bound2->precedence_type)
   {
     res= win_frame_bound1->precedence_type > win_frame_bound2->precedence_type ?
-         -2 : 2;
+         CMP_GT : CMP_LT;
     if (is_bottom_bound)
       res= -res;
     return res;
   }
 
   if (win_frame_bound1->is_unbounded() && win_frame_bound2->is_unbounded())
-    return 0;
+    return CMP_EQ;
 
   if (!win_frame_bound1->is_unbounded() && !win_frame_bound2->is_unbounded())
   { 
     if (win_frame_bound1->offset->eq(win_frame_bound2->offset, true))
-      return 0;
+      return CMP_EQ;
     else
     {
-      res= strcasecmp(win_frame_bound1->offset->name,
-                      win_frame_bound2->offset->name);
-      res= res < 0 ? 2 : -2;
+      res= strcmp(win_frame_bound1->offset->name,
+                  win_frame_bound2->offset->name);
+      res= res > 0 ? CMP_GT : CMP_LT;
       if (is_bottom_bound)
         res= -res;
       return res;
     }
   }
- 
-  return (is_bottom_bound != win_frame_bound1->is_unbounded()) ? 2 : -2; 
 
-  return 0;
+  /* 
+    Here we have:
+    win_frame_bound1->is_unbounded() != win_frame_bound1->is_unbounded()
+  */
+  return is_bottom_bound != win_frame_bound1->is_unbounded() ? CMP_LT : CMP_GT; 
 }
 
 
@@ -317,16 +320,16 @@ int compare_window_frames(Window_frame *win_frame1,
   int cmp;
 
   if (win_frame1 == win_frame2)
-    return 0;
+    return CMP_EQ;
 
   if (!win_frame1)
-    return 2;
+    return CMP_LT;
 
   if (!win_frame2)
-    return -2;
+    return CMP_GT;
 
   if (win_frame1->units != win_frame2->units)
-    return win_frame1->units > win_frame2->units ? -2 : 2;
+    return win_frame1->units > win_frame2->units ? CMP_GT : CMP_LT;
 
   cmp= compare_window_frame_bounds(win_frame1->top_bound,
                                    win_frame2->top_bound,
@@ -341,9 +344,9 @@ int compare_window_frames(Window_frame *win_frame1,
     return cmp;
 
   if (win_frame1->exclusion != win_frame2->exclusion)
-    return win_frame1->exclusion > win_frame2->exclusion ? -1 : 1;
+    return win_frame1->exclusion > win_frame2->exclusion ? CMP_GT_C : CMP_LT_C;
 
-  return 0;
+  return CMP_EQ;
 }
 
 static 
@@ -369,10 +372,10 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
   Window_spec *win_spec1= win_func1->window_spec;
   Window_spec *win_spec2= win_func2->window_spec;
   if (win_spec1 == win_spec2)
-    return 0;
+    return CMP_EQ;
   cmp= compare_order_lists(win_spec1->partition_list, 
-                          win_spec2->partition_list);
-  if (cmp == 0)
+                           win_spec2->partition_list);
+  if (cmp == CMP_EQ)
   {
     /* 
       Partition lists contain the same elements. 
@@ -386,7 +389,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     cmp= compare_order_lists(win_spec1->order_list,
                              win_spec2->order_list);
 
-    if (cmp != 0)
+    if (cmp != CMP_EQ)
       return cmp;
 
     /* 
@@ -401,7 +404,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     cmp= compare_window_frames(win_spec1->window_frame,
                                win_spec2->window_frame);
 
-    if (cmp != 0)
+    if (cmp != CMP_EQ)
       return cmp;
 
     /* Window frames are equal. Let's use only one of them. */
@@ -410,21 +413,26 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     else
       win_spec2->window_frame= win_spec1->window_frame;
 
-    return 0;
+    return CMP_EQ;
   }
   
-  if (cmp == 2 || cmp ==  -2)
+  if (cmp == CMP_GT || cmp == CMP_LT)
     return cmp;
 
   /* one of the partitions lists is the proper beginning of the another */
   cmp= compare_window_spec_joined_lists(win_spec1, win_spec2);
 
-  if (-1 <= cmp && cmp <= 1) 
+  if (CMP_LT_C <= cmp && cmp <= CMP_GT_C) 
     cmp= win_spec1->partition_list->elements <
-      win_spec2->partition_list->elements ? -1 : 1;
+      win_spec2->partition_list->elements ? CMP_GT_C : CMP_LT_C;
 
   return cmp;
 }
+
+
+#define  SORTORDER_CHANGE_FLAG    1
+#define  PARTITION_CHANGE_FLAG    2
+#define  FRAME_CHANGE_FLAG        4
 
 typedef int (*Item_window_func_cmp)(Item_window_func *f1,
                                     Item_window_func *f2,
@@ -456,7 +464,7 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
           win_spec_prev->order_list == win_spec_curr->order_list))
     {
       int cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
-      if (!(-1 <= cmp && cmp <= 1))
+      if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
         curr->marker= SORTORDER_CHANGE_FLAG |
                       PARTITION_CHANGE_FLAG |

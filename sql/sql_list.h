@@ -607,7 +607,7 @@ inline void bubble_sort(List<T> *list_to_sort,
     swap= FALSE;
     while ((item2= it++) && (ref2= it.ref()) != last_ref)
     {
-      if (sort_func(item1, item2, arg) < 0)
+      if (sort_func(item1, item2, arg) > 0)
       {
         *ref1= item2;
         *ref2= item1;

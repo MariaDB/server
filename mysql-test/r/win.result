@@ -1505,3 +1505,78 @@ EXPLAIN
 }
 drop table t1;
 drop table t0;
+#
+# Building ordering index for window functions
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c  int
+);
+insert into t1 values
+(101 , 0, 10, 1),
+(102 , 0, 10, 2),
+(103 , 1, 10, 3),
+(104 , 1, 10, 4),
+(108 , 2, 10, 5),
+(105 , 2, 20, 6),
+(106 , 2, 20, 7),
+(107 , 2, 20, 8),
+(109 , 4, 20, 9),
+(110 , 4, 20, 10),
+(111 , 5, NULL, 11),
+(112 , 5, 1, 12),
+(113 , 5, NULL, 13),
+(114 , 5, NULL, 14),
+(115 , 5, NULL, 15),
+(116 , 6, 1, NULL),
+(117 , 6, 1, 10),
+(118 , 6, 1, 1),
+(119 , 6, 1, NULL),
+(120 , 6, 1, NULL),
+(121 , 6, 1, NULL),
+(122 , 6, 1, 2),
+(123 , 6, 1, 20),
+(124 , 6, 1, -10),
+(125 , 6, 1, NULL),
+(126 , 6, 1, NULL),
+(127 , 6, 1, NULL);
+select sum(b) over (partition by a order by b,pk
+rows between unbounded preceding  and current row) as c1,
+avg(b) over (w1 rows between 1 preceding and 1 following) as c2,
+sum(c) over (w2 rows between 1 preceding and 1 following) as c5,  
+avg(b) over (w1 rows between 5 preceding and 5 following) as c3,
+sum(b) over (w1 rows between 1 preceding and 1 following) as c4
+from t1 
+window w1 as (partition by a order by b,pk),
+w2 as (partition by b order by c,pk);
+c1	c2	c5	c3	c4
+1	1.0000	42	1.0000	1
+1	1.0000	NULL	1.0000	2
+10	1.0000	NULL	1.0000	3
+10	10.0000	3	10.0000	20
+10	10.0000	9	10.0000	20
+10	15.0000	9	17.5000	30
+11	1.0000	NULL	1.0000	3
+12	1.0000	-10	1.0000	2
+2	1.0000	24	1.0000	3
+20	10.0000	12	10.0000	20
+20	10.0000	6	10.0000	20
+20	20.0000	27	20.0000	40
+3	1.0000	-7	1.0000	3
+30	16.6667	13	17.5000	50
+4	1.0000	NULL	1.0000	3
+40	20.0000	19	20.0000	40
+5	1.0000	NULL	1.0000	3
+50	20.0000	21	17.5000	60
+6	1.0000	NULL	1.0000	3
+7	1.0000	13	1.0000	3
+70	20.0000	24	17.5000	40
+8	1.0000	32	1.0000	3
+9	1.0000	-9	1.0000	3
+NULL	1.0000	29	1.0000	1
+NULL	NULL	24	1.0000	NULL
+NULL	NULL	38	1.0000	NULL
+NULL	NULL	42	1.0000	NULL
+drop table t1;

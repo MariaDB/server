@@ -13274,16 +13274,16 @@ static int compare_fields_by_table_order(Item *field1,
   Item_field *f1= (Item_field *) (field1->real_item());
   Item_field *f2= (Item_field *) (field2->real_item());
   if (field1->const_item() || f1->const_item())
-    return 1;
-  if (field2->const_item() || f2->const_item())
     return -1;
-  if (f2->used_tables() & OUTER_REF_TABLE_BIT)
-  {  
+  if (field2->const_item() || f2->const_item())
+    return 1;
+  if (f1->used_tables() & OUTER_REF_TABLE_BIT)
+  {
     outer_ref= 1;
     cmp= -1;
   }
-  if (f1->used_tables() & OUTER_REF_TABLE_BIT)
-  {
+  if (f2->used_tables() & OUTER_REF_TABLE_BIT)
+  {  
     outer_ref= 1;
     cmp++;
   }
@@ -13307,10 +13307,12 @@ static int compare_fields_by_table_order(Item *field1,
       tab2= tab2->bush_root_tab;
   }
   
-  cmp= tab2 - tab1;
+  cmp= tab1 - tab2;
 
   if (!cmp)
   {
+    /* Fields f1, f2 belong to the same table */
+
     JOIN_TAB *tab= idx[f1->field->table->tablenr];
     uint keyno= MAX_KEY;
     if (tab->ref.key_parts)
@@ -13319,31 +13321,38 @@ static int compare_fields_by_table_order(Item *field1,
        keyno = tab->select->quick->index;
     if (keyno != MAX_KEY)
     {
-      if (f2->field->part_of_key.is_set(keyno))
-        cmp= -1;
       if (f1->field->part_of_key.is_set(keyno))
+        cmp= -1;
+      if (f2->field->part_of_key.is_set(keyno))
         cmp++;
+      /*
+        Here:
+        if both f1, f2 are components of the key tab->ref.key then cmp==0,
+        if only f1 is a component of the key then cmp==-1 (f1 is better),
+        if only f2 is a component of the key then cmp==1, (f2 is better),
+        if none of f1,f1 is component of the key cmp==0.
+      */  
       if (!cmp)
       {
         KEY *key_info= tab->table->key_info + keyno;
         for (uint i= 0; i < key_info->user_defined_key_parts; i++)
 	{
           Field *fld= key_info->key_part[i].field;
-          if (fld->eq(f2->field))
-	  {
-	    cmp= -1;
-            break;
-          }
           if (fld->eq(f1->field))
 	  {
-	    cmp= 1;
+	    cmp= -1; // f1 is better
+            break;
+          }
+          if (fld->eq(f2->field))
+	  {
+	    cmp= 1;  // f2 is better
             break;
           }
         }
       }              
     }              
-    else   
-      cmp= f2->field->field_index-f1->field->field_index;
+    if (!cmp)   
+      cmp= f1->field->field_index-f2->field->field_index;
   }
   return cmp < 0 ? -1 : (cmp ? 1 : 0);
 }

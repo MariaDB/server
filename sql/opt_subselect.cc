@@ -1342,8 +1342,8 @@ static bool replace_where_subcondition(JOIN *join, Item **expr,
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg)
 {
-  return (el1->sj_convert_priority > el2->sj_convert_priority) ? 1 : 
-         ( (el1->sj_convert_priority == el2->sj_convert_priority)? 0 : -1);
+  return (el1->sj_convert_priority > el2->sj_convert_priority) ? -1 : 
+         ( (el1->sj_convert_priority == el2->sj_convert_priority)? 0 : 1);
 }
 
 
