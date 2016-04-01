@@ -2674,10 +2674,10 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
     Unpack the definition of a virtual column from its linear representation
 
   @param thd             The thread object
-  @param mem_root	 Where to allocate memory
+  @param mem_root        Where to allocate memory
   @param table           The table containing the virtual column
+  @param field           Field if this is a DEFAULT or AS, otherwise NULL
   @param vcol            The Virtual_column object
-  @param field	         Field if this is a DEFAULT or AS, otherwise NULL
   @param[out] error_reported   Flag to inform the caller that no
                                other error messages are to be generated
 
@@ -2696,10 +2696,8 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
     Before passing 'vcol_expr' to the parser the function wraps it in
     parentheses and prepends a special keyword.
   
-   @retval
-     Virtual_column_info*   If a success
-   @retval
-     NULL                    Error
+   @retval Virtual_column_info*   Success
+   @retval NULL                   Error
 */
 
 Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
@@ -2819,10 +2817,6 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
                                   field);
   return res;
 }
-
-/*
-  Read data from a binary .frm file from MySQL 3.23 - 5.0 into TABLE_SHARE
-*/
 
 /*
   Open a table based on a TABLE_SHARE

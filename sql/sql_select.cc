@@ -1926,7 +1926,7 @@ JOIN::optimize_inner()
   /*
     It's necessary to check const part of HAVING cond as
     there is a chance that some cond parts may become
-    const items after make_join_statisctics(for example
+    const items after make_join_statistics(for example
     when Item is a reference to cost table field from
     outer join).
     This check is performed only for those conditions
