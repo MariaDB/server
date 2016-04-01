@@ -1492,7 +1492,8 @@ int READ_INFO::read_field()
 
   for (;;)
   {
-    while ( to < end_of_buff)
+    // Make sure we have enough space for the longest multi-byte character.
+    while ( to + read_charset->mbmaxlen <= end_of_buff)
     {
       chr = GET;
       if (chr == my_b_EOF)
