@@ -674,17 +674,17 @@ struct trx_sys_t{
 	trx_id_t	max_trx_id;	/*!< The smallest number not yet
 					assigned as a transaction id or
 					transaction number */
-	char		pad1[64];	/*!< Ensure max_trx_id does not share
+	char		pad1[CACHE_LINE_SIZE];	/*!< Ensure max_trx_id does not share
 					cache line with other fields. */
 	trx_id_t*	descriptors;	/*!< Array of trx descriptors */
 	ulint		descr_n_max;	/*!< The current size of the descriptors
 					array. */
-	char		pad2[64];	/*!< Ensure static descriptor fields
+	char		pad2[CACHE_LINE_SIZE];	/*!< Ensure static descriptor fields
 					do not share cache lines with
 					descr_n_used */
 	ulint		descr_n_used;	/*!< Number of used elements in the
 					descriptors array. */
-	char		pad3[64];	/*!< Ensure descriptors do not share
+	char		pad3[CACHE_LINE_SIZE];	/*!< Ensure descriptors do not share
 					cache line with other fields */
 #ifdef UNIV_DEBUG
 	trx_id_t	rw_max_trx_id;	/*!< Max trx id of read-write transactions
@@ -694,7 +694,7 @@ struct trx_sys_t{
 					memory read-write transactions, sorted
 					on trx id, biggest first. Recovered
 					transactions are always on this list. */
-	char		pad4[64];	/*!< Ensure list base nodes do not
+	char		pad4[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
 					share cache line with other fields */
 	trx_list_t	ro_trx_list;	/*!< List of active and committed in
 					memory read-only transactions, sorted
@@ -703,7 +703,7 @@ struct trx_sys_t{
 					is not necessary. We should exploit
 					this and increase concurrency during
 					add/remove. */
-	char		pad5[64];	/*!< Ensure list base nodes do not
+	char		pad5[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
 					share cache line with other fields */
 	trx_list_t	mysql_trx_list;	/*!< List of transactions created
 					for MySQL. All transactions on
@@ -717,14 +717,14 @@ struct trx_sys_t{
 					mysql_trx_list may additionally contain
 					transactions that have not yet been
 					started in InnoDB. */
-	char		pad6[64];	/*!< Ensure list base nodes do not
+	char		pad6[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
 					share cache line with other fields */
 	trx_list_t	trx_serial_list;
 					/*!< trx->no ordered List of
 					transactions in either TRX_PREPARED or
 					TRX_ACTIVE which have already been
 					assigned a serialization number */
-	char		pad7[64];	/*!< Ensure list base nodes do not
+	char		pad7[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
 					share cache line with other fields */
 	trx_rseg_t*	const rseg_array[TRX_SYS_N_RSEGS];
 					/*!< Pointer array to rollback
