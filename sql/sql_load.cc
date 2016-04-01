@@ -66,10 +66,9 @@ XML_TAG::XML_TAG(int l, String f, String v)
 
 class READ_INFO {
   File	file;
-  uchar	*buffer,			/* Buffer for read text */
-	*end_of_buff;			/* Data in bufferts ends here */
-  uint	buff_length,			/* Length of buffert */
-	max_length;			/* Max length of row */
+  String data;                          /* Read buffer */
+  uint fixed_length;                    /* Length of the fixed length record */
+  uint max_length;                      /* Max length of row */
   const uchar *field_term_ptr,*line_term_ptr;
   const char  *line_start_ptr,*line_start_end;
   uint	field_term_length,line_term_length,enclosed_length;
@@ -1349,10 +1348,11 @@ READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
 		     String &field_term, String &line_start, String &line_term,
 		     String &enclosed_par, int escape, bool get_it_from_net,
 		     bool is_fifo)
-  :file(file_par), buffer(NULL), buff_length(tot_length), escape_char(escape),
+  :file(file_par), fixed_length(tot_length), escape_char(escape),
    found_end_of_line(false), eof(false),
    error(false), line_cuted(false), found_null(false), read_charset(cs)
 {
+  data.set_thread_specific();
   /*
     Field and line terminators must be interpreted as sequence of unsigned char.
     Otherwise, non-ascii terminators will be negative on some platforms,
@@ -1394,18 +1394,15 @@ READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
   set_if_bigger(length,line_start.length());
   stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
 
-  if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(MY_THREAD_SPECIFIC))))
+  if (data.reserve(tot_length))
     error=1; /* purecov: inspected */
   else
   {
-    end_of_buff=buffer+buff_length;
     if (init_io_cache(&cache,(get_it_from_net) ? -1 : file, 0,
 		      (get_it_from_net) ? READ_NET :
 		      (is_fifo ? READ_FIFO : READ_CACHE),0L,1,
 		      MYF(MY_WME | MY_THREAD_SPECIFIC)))
     {
-      my_free(buffer); /* purecov: inspected */
-      buffer= NULL;
       error=1;
     }
     else
@@ -1428,7 +1425,6 @@ READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
 READ_INFO::~READ_INFO()
 {
   ::end_io_cache(&cache);
-  my_free(buffer);
   List_iterator<XML_TAG> xmlit(taglist);
   XML_TAG *t;
   while ((t= xmlit++))
@@ -1459,7 +1455,6 @@ inline int READ_INFO::terminator(const uchar *ptr,uint length)
 int READ_INFO::read_field()
 {
   int chr,found_enclosed_char;
-  uchar *to,*new_buffer;
 
   found_null=0;
   if (found_end_of_line)
@@ -1478,11 +1473,11 @@ int READ_INFO::read_field()
     found_end_of_line=eof=1;
     return 1;
   }
-  to=buffer;
+  data.length(0);
   if (chr == enclosed_char)
   {
     found_enclosed_char=enclosed_char;
-    *to++=(uchar) chr;				// If error
+    data.append(chr);                            // If error
   }
   else
   {
@@ -1493,7 +1488,7 @@ int READ_INFO::read_field()
   for (;;)
   {
     // Make sure we have enough space for the longest multi-byte character.
-    while ( to + read_charset->mbmaxlen <= end_of_buff)
+    while (data.length() + read_charset->mbmaxlen <= data.alloced_length())
     {
       chr = GET;
       if (chr == my_b_EOF)
@@ -1502,7 +1497,7 @@ int READ_INFO::read_field()
       {
 	if ((chr=GET) == my_b_EOF)
 	{
-	  *to++= (uchar) escape_char;
+	  data.append(escape_char);
 	  goto found_eof;
 	}
         /*
@@ -1514,7 +1509,7 @@ int READ_INFO::read_field()
          */
         if (escape_char != enclosed_char || chr == escape_char)
         {
-          *to++ = (uchar) unescape((char) chr);
+          data.append(unescape((char) chr));
           continue;
         }
         PUSH(chr);
@@ -1530,8 +1525,8 @@ int READ_INFO::read_field()
 	{					// Maybe unexpected linefeed
 	  enclosed=0;
 	  found_end_of_line=1;
-	  row_start=buffer;
-	  row_end=  to;
+	  row_start= (uchar *) data.ptr();
+	  row_end= (uchar *) data.end();
 	  return 0;
 	}
       }
@@ -1539,7 +1534,7 @@ int READ_INFO::read_field()
       {
 	if ((chr=GET) == found_enclosed_char)
 	{					// Remove dupplicated
-	  *to++ = (uchar) chr;
+	  data.append(chr);
 	  continue;
 	}
 	// End of enclosed field if followed by field_term or line_term
@@ -1550,16 +1545,16 @@ int READ_INFO::read_field()
           /* Maybe unexpected linefeed */
 	  enclosed=1;
 	  found_end_of_line=1;
-	  row_start=buffer+1;
-	  row_end=  to;
+	  row_start= (uchar *) data.ptr() + 1;
+	  row_end=  (uchar *) data.end();
 	  return 0;
 	}
 	if (chr == field_term_char &&
 	    terminator(field_term_ptr,field_term_length))
 	{
 	  enclosed=1;
-	  row_start=buffer+1;
-	  row_end=  to;
+	  row_start= (uchar *) data.ptr() + 1;
+	  row_end=  (uchar *) data.end();
 	  return 0;
 	}
 	/*
@@ -1575,22 +1570,19 @@ int READ_INFO::read_field()
 	if (terminator(field_term_ptr,field_term_length))
 	{
 	  enclosed=0;
-	  row_start=buffer;
-	  row_end=  to;
+	  row_start= (uchar *) data.ptr();
+	  row_end= (uchar *) data.end();
 	  return 0;
 	}
       }
 #ifdef USE_MB
-      if (my_mbcharlen(read_charset, chr) > 1 &&
-          to + my_mbcharlen(read_charset, chr) <= end_of_buff)
+      if (my_mbcharlen(read_charset, chr) > 1)
       {
-        uchar* p= to;
-        int ml, i;
-        *to++ = chr;
+        uint32 length0= data.length();
+        int ml= my_mbcharlen(read_charset, chr);
+        data.append(chr);
 
-        ml= my_mbcharlen(read_charset, chr);
-
-        for (i= 1; i < ml; i++) 
+        for (int i= 1; i < ml; i++)
         {
           chr= GET;
           if (chr == my_b_EOF)
@@ -1599,39 +1591,35 @@ int READ_INFO::read_field()
              Need to back up the bytes already ready from illformed
              multi-byte char 
             */
-            to-= i;
+            data.length(length0);
             goto found_eof;
           }
-          *to++ = chr;
+          data.append(chr);
         }
         if (my_ismbchar(read_charset,
-                        (const char *)p,
-                        (const char *)to))
+                        (const char *) data.ptr() + length0,
+                        (const char *) data.end()))
           continue;
-        for (i= 0; i < ml; i++)
-          PUSH(*--to);
+        for (int i= 0; i < ml; i++)
+          PUSH(data.end()[-1 - i]);
+        data.length(length0);
         chr= GET;
       }
 #endif
-      *to++ = (uchar) chr;
+      data.append(chr);
     }
     /*
     ** We come here if buffer is too small. Enlarge it and continue
     */
-    if (!(new_buffer=(uchar*) my_realloc((char*) buffer,buff_length+1+IO_SIZE,
-					MYF(MY_WME | MY_THREAD_SPECIFIC))))
-      return (error=1);
-    to=new_buffer + (to-buffer);
-    buffer=new_buffer;
-    buff_length+=IO_SIZE;
-    end_of_buff=buffer+buff_length;
+    if (data.reserve(IO_SIZE))
+      return (error= 1);
   }
 
 found_eof:
   enclosed=0;
   found_end_of_line=eof=1;
-  row_start=buffer;
-  row_end=to;
+  row_start= (uchar *) data.ptr();
+  row_end= (uchar *) data.end();
   return 0;
 }
 
@@ -1653,7 +1641,6 @@ found_eof:
 int READ_INFO::read_fixed_length()
 {
   int chr;
-  uchar *to;
   if (found_end_of_line)
     return 1;					// One have to call next_line
 
@@ -1664,8 +1651,7 @@ int READ_INFO::read_fixed_length()
       return 1;
   }
 
-  to=row_start=buffer;
-  while (to < end_of_buff)
+  for (data.length(0); data.length() < fixed_length ; )
   {
     if ((chr=GET) == my_b_EOF)
       goto found_eof;
@@ -1673,31 +1659,31 @@ int READ_INFO::read_fixed_length()
     {
       if ((chr=GET) == my_b_EOF)
       {
-	*to++= (uchar) escape_char;
+	data.append(escape_char);
 	goto found_eof;
       }
-      *to++ =(uchar) unescape((char) chr);
+      data.append((uchar) unescape((char) chr));
       continue;
     }
     if (chr == line_term_char)
     {
       if (terminator(line_term_ptr,line_term_length))
       {						// Maybe unexpected linefeed
-	found_end_of_line=1;
-	row_end=  to;
-	return 0;
+        found_end_of_line=1;
+        break;
       }
     }
-    *to++ = (uchar) chr;
+    data.append(chr);
   }
-  row_end=to;					// Found full line
+  row_start= (uchar *) data.ptr();
+  row_end= (uchar *) data.end();			// Found full line
   return 0;
 
 found_eof:
   found_end_of_line=eof=1;
-  row_start=buffer;
-  row_end=to;
-  return to == buffer ? 1 : 0;
+  row_start= (uchar *) data.ptr();
+  row_end= (uchar *) data.end();
+  return data.length() == 0 ? 1 : 0;
 }
 
 
