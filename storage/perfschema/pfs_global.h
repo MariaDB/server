@@ -31,7 +31,11 @@ extern bool pfs_initialized;
 extern size_t pfs_allocated_memory;
 
 #if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN) || defined(HAVE_ALIGNED_MALLOC)
-#define PFS_ALIGNEMENT 64
+# ifdef CPU_LEVEL1_DCACHE_LINESIZE
+#  define PFS_ALIGNEMENT CPU_LEVEL1_DCACHE_LINESIZE
+# else
+#  define PFS_ALIGNEMENT 64
+# endif
 #define PFS_ALIGNED MY_ALIGNED(PFS_ALIGNEMENT)
 #else
 /*
