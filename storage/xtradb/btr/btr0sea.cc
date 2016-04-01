@@ -56,7 +56,7 @@ UNIV_INTERN ulint		btr_search_this_is_zero = 0;
 /** padding to prevent other memory update
 hotspots from residing on the same memory
 cache line as btr_search_latch */
-UNIV_INTERN byte		btr_sea_pad1[64];
+UNIV_INTERN byte		btr_sea_pad1[CACHE_LINE_SIZE];
 
 /** Array of latches protecting individual AHI partitions. The latches
 protect: (1) positions of records on those pages where a hash index from the
@@ -69,7 +69,7 @@ UNIV_INTERN prio_rw_lock_t*	btr_search_latch_arr;
 
 /** padding to prevent other memory update hotspots from residing on
 the same memory cache line */
-UNIV_INTERN byte		btr_sea_pad2[64];
+UNIV_INTERN byte		btr_sea_pad2[CACHE_LINE_SIZE];
 
 /** The adaptive hash index */
 UNIV_INTERN btr_search_sys_t*	btr_search_sys;
