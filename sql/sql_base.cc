@@ -7837,9 +7837,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (vcol_table && vcol_table->vfield &&
-      update_virtual_fields(thd, vcol_table,
-                            vcol_table->triggers ? VCOL_UPDATE_ALL :
-                            VCOL_UPDATE_FOR_WRITE))
+      update_virtual_fields(thd, vcol_table, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
@@ -7990,9 +7988,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       if (item_field && table->vfield)
       {
         DBUG_ASSERT(table == item_field->field->table);
-        result= update_virtual_fields(thd, table,
-                                      table->triggers ? VCOL_UPDATE_ALL :
-                                      VCOL_UPDATE_FOR_WRITE);
+        result= update_virtual_fields(thd, table, VCOL_UPDATE_FOR_WRITE);
       }
     }
   }
@@ -8085,9 +8081,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (table->vfield &&
-      update_virtual_fields(thd, table, 
-                            table->triggers ? VCOL_UPDATE_ALL :
-                                              VCOL_UPDATE_FOR_WRITE))
+      update_virtual_fields(thd, table, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
@@ -8141,10 +8135,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
-      result= update_virtual_fields(thd, table,
-                                    table->triggers ?
-                                    VCOL_UPDATE_ALL :
-                                    VCOL_UPDATE_FOR_WRITE);
+      result= update_virtual_fields(thd, table, VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 

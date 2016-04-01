@@ -326,8 +326,8 @@ enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 enum enum_vcol_update_mode
 {
   VCOL_UPDATE_FOR_READ= 0,
-  VCOL_UPDATE_FOR_WRITE,
-  VCOL_UPDATE_ALL
+  VCOL_UPDATE_FOR_READ_WRITE,
+  VCOL_UPDATE_FOR_WRITE
 };
 
 
@@ -1307,7 +1307,7 @@ public:
   void mark_columns_needed_for_insert(void);
   void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
-  void mark_virtual_columns_for_write(bool insert_fl);
+  bool mark_virtual_columns_for_write(bool insert_fl);
   void mark_default_fields_for_write(bool insert_fl);
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
