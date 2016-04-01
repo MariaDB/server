@@ -2619,7 +2619,6 @@ a	b
 -1	18446744073709551615
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
 drop table t1;
 set sql_warnings = 0;
 # Convert()
@@ -2640,7 +2639,6 @@ a	b
 1	1
 -1	18446744073709551615
 Warnings:
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 drop table t1;
 set sql_warnings = 0;
