@@ -529,14 +529,10 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
                    ER_WRONG_VALUE_FOR_VAR,
                    "'wsrep_desync' is already OFF.");
     }
+    return false;
   }
-  return 0;
-}
-
-bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
-{
   wsrep_status_t ret(WSREP_WARNING);
-  if (wsrep_desync) {
+  if (new_wsrep_desync) {
     ret = wsrep->desync (wsrep);
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
@@ -555,6 +551,11 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
       return true;
     }
   }
+  return false;
+}
+
+bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
+{
   return false;
 }
 
