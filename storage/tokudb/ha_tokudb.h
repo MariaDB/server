@@ -602,6 +602,12 @@ public:
     // ICP introduced in MariaDB 5.5
     Item* idx_cond_push(uint keyno, class Item* idx_cond);
 
+#ifdef MARIADB_BASE_VERSION
+    void cancel_pushed_idx_cond()
+    {
+      invalidate_icp();
+    }
+#endif
 
 #if TOKU_INCLUDE_ALTER_56
  public:
