@@ -1527,13 +1527,11 @@ void add_extra_frame_cursors(List<Frame_cursor> *cursors,
   }
 }
 
-List<Frame_cursor> get_window_func_required_cursors(
-    const Item_window_func* item_win)
+void get_window_func_required_cursors(
+    List<Frame_cursor> *result, const Item_window_func* item_win)
 {
-  List<Frame_cursor> result;
-
   if (item_win->requires_partition_size())
-    result.push_back(new Frame_unbounded_following_set_count);
+    result->push_back(new Frame_unbounded_following_set_count);
 
   /*
     If it is not a regular window function that follows frame specifications,
@@ -1541,17 +1539,15 @@ List<Frame_cursor> get_window_func_required_cursors(
   */
   if (item_win->is_frame_prohibited())
   {
-    add_extra_frame_cursors(&result, item_win->window_func());
-    return result;
+    add_extra_frame_cursors(result, item_win->window_func());
+    return;
   }
 
   /* A regular window function follows the frame specification. */
-  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
-                                    false));
-  result.push_back(get_frame_cursor(item_win->window_spec->window_frame,
-                                    true));
-
-  return result;
+  result->push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                     false));
+  result->push_back(get_frame_cursor(item_win->window_spec->window_frame,
+                                     true));
 }
 
 /*
@@ -1600,7 +1596,8 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   /* This algorithm doesn't support DISTINCT aggregator */
   sum_func->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
 
-  List<Frame_cursor> cursors= get_window_func_required_cursors(item_win);
+  List<Frame_cursor> cursors;
+  get_window_func_required_cursors(&cursors, item_win);
 
   List_iterator_fast<Frame_cursor> it(cursors);
   Frame_cursor *c;
