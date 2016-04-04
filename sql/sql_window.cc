@@ -466,7 +466,12 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
     if (!(win_spec_prev->partition_list == win_spec_curr->partition_list &&
           win_spec_prev->order_list == win_spec_curr->order_list))
     {
-      int cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
+      int cmp;
+      if (win_spec_prev->partition_list == win_spec_curr->partition_list)
+        cmp= compare_order_lists(win_spec_prev->order_list,
+                                 win_spec_curr->order_list);
+      else
+        cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
         curr->marker= SORTORDER_CHANGE_FLAG |
