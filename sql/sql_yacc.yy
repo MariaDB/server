@@ -10541,13 +10541,8 @@ simple_window_func:
               MYSQL_YYABORT;
           }
         |
-          NTILE_SYM '(' int_num ')'
+          NTILE_SYM '(' expr ')'
           {
-            if ($3 <= 0)
-            {
-              my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
-              MYSQL_YYABORT;
-            }
             $$= new (thd->mem_root) Item_sum_ntile(thd, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;

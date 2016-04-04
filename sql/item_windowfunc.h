@@ -235,7 +235,10 @@ class Item_sum_window_with_row_count : public Item_sum_num
 {
  public:
   Item_sum_window_with_row_count(THD *thd) : Item_sum_num(thd),
-                                             partition_row_count_(0){}
+                                             partition_row_count_(0) {}
+
+  Item_sum_window_with_row_count(THD *thd, Item *arg) :
+    Item_sum_num(thd, arg), partition_row_count_(0) {};
 
   void set_row_count(ulonglong count) { partition_row_count_ = count; }
 
@@ -398,8 +401,9 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
 class Item_sum_ntile : public Item_sum_window_with_row_count
 {
  public:
-  Item_sum_ntile(THD* thd, ulong num_quantiles) :
-    Item_sum_window_with_row_count(thd), num_quantiles_(num_quantiles),
+  Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
+    Item_sum_window_with_row_count(thd, num_quantiles_expr),
+    num_quantiles_expr_(num_quantiles_expr), num_quantiles_(0),
     current_row_count_(0) {};
 
   double val_real()
@@ -451,7 +455,26 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
 
+  bool fix_fields(THD *thd, Item **ref)
+  {
+    if (Item_sum_window_with_row_count::fix_fields(thd, ref))
+      return true;
+    // TODO-cvicentiu is ref as a parameter here ok?
+    if (!num_quantiles_expr_->fixed)
+      num_quantiles_expr_->fix_fields(thd, ref);
+    longlong expr_value= num_quantiles_expr_->val_int();
+
+    if (expr_value <= 0) {
+      my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
+      return true;
+    }
+
+    num_quantiles_= static_cast<ulong>(expr_value);
+    return false;
+  }
+
  private:
+  Item* num_quantiles_expr_;
   ulong num_quantiles_;
   ulong current_row_count_;
 };

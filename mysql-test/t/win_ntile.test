@@ -137,11 +137,35 @@ select pk, a, b,
     ntile(20) over (partition by b order by pk)
 from t1;
 
+select pk, a, b,
+    ntile(1 + 3) over (partition by b order by pk)
+from t1;
 
+select pk, a, b,
+    ntile((select 4)) over (partition by b order by pk)
+from t1;
 
+select t1.a from t1 where pk = 11;
+--error ER_INVALID_NTILE_ARGUMENT
+select pk, a, b,
+    ntile((select a from t1 where pk=11)) over (partition by b order by pk)
+from t1;
 
+select t1.a from t1 where pk = 13;
+select pk, a, b,
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
 
+explain
+select pk, a, b,
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
 
+select a from t1;
+--error ER_SUBQUERY_NO_1_ROW
+select pk, a, b,
+    ntile((select a from t1)) over (partition by b order by pk)
+from t1;
 
 
 drop table t1;
