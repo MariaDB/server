@@ -227,95 +227,9 @@ class Item_sum_dense_rank: public Item_sum_int
   }
 };
 
-/* TODO-cvicentiu
- * Perhaps this is overengineering, but I would like to decouple the 2-pass
- * algorithm from the specific action that must be performed during the
- * first pass. The second pass can make use of the "add" function from the
- * Item_sum_<window_function>.
- */
-
 /*
-   This class represents a generic interface for window functions that need
-   to store aditional information. Such window functions include percent_rank
-   and cume_dist.
-*/
-class Window_context
-{
- public:
-  virtual void add_field_to_context(Field* field) = 0;
-  virtual void reset() = 0;
-  virtual ~Window_context() {};
-};
-
-/*
-   A generic interface that specifies the datatype that the context represents.
-*/
-template <typename T>
-class Window_context_getter
-{
- protected:
-  virtual T get_field_context(const Field* field) = 0;
-  virtual ~Window_context_getter() {};
-};
-
-/*
-   A window function context representing the number of rows that are present
-   with a partition. Because the number of rows is not dependent of the
-   specific value within the current field, we ignore the parameter
-   in this case.
-*/
-class Window_context_row_count :
-  public Window_context, Window_context_getter<ulonglong>
-{
- public:
-  Window_context_row_count() : num_rows_(0) {};
-
-  void add_field_to_context(Field* field __attribute__((unused)))
-  {
-    num_rows_++;
-  }
-
-  void reset()
-  {
-    num_rows_= 0;
-  }
-
-  ulonglong get_field_context(const Field* field __attribute__((unused)))
-  {
-    return num_rows_;
-  }
- private:
-  ulonglong num_rows_;
-};
-
-class Window_context_row_and_group_count :
-  public Window_context, Window_context_getter<std::pair<ulonglong, ulonglong> >
-{
- public:
-  Window_context_row_and_group_count(void * group_list) {}
-};
-
-/*
-  An abstract class representing an item that holds a context.
-*/
-class Item_context
-{
- public:
-  Item_context() : context_(NULL) {}
-  Window_context* get_window_context() { return context_; }
-
-  virtual bool create_window_context() = 0;
-  virtual void delete_window_context() = 0;
-
- protected:
-  Window_context* context_;
-};
-
-/*
-  A base window function (aggregate) that also holds a context.
-
-  NOTE: All two pass window functions need to implement
-  this interface.
+  A base window function (aggregate) that also holds a counter for the number
+  of rows.
 */
 class Item_sum_window_with_row_count : public Item_sum_num
 {
@@ -451,7 +365,7 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
     return false;
   }
 
-  enum Sumfunctype sum_func () const
+  enum Sumfunctype sum_func() const
   {
     return CUME_DIST_FUNC;
   }
