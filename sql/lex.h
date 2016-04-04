@@ -702,6 +702,7 @@ static SYMBOL sql_functions[] = {
   { "MID",		SYM(SUBSTRING)},	/* unireg function */
   { "MIN",		SYM(MIN_SYM)},
   { "NOW",		SYM(NOW_SYM)},
+  { "NTILE",    SYM(NTILE_SYM)},
   { "POSITION",		SYM(POSITION_SYM)},
   { "PERCENT_RANK",     SYM(PERCENT_RANK_SYM)},
   { "RANK",             SYM(RANK_SYM)},

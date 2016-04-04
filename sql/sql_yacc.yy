@@ -1432,6 +1432,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NO_SYM                        /* SQL-2003-R */
 %token  NO_WAIT_SYM
 %token  NO_WRITE_TO_BINLOG
+%token  NTILE_SYM
 %token  NULL_SYM                      /* SQL-2003-R */
 %token  NUM
 %token  NUMBER_SYM                    /* SQL-2003-N */
@@ -10536,6 +10537,18 @@ simple_window_func:
           CUME_DIST_SYM '(' ')'
           {
             $$= new (thd->mem_root) Item_sum_cume_dist(thd);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          NTILE_SYM '(' int_num ')'
+          {
+            if ($3 <= 0)
+            {
+              my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
+              MYSQL_YYABORT;
+            }
+            $$= new (thd->mem_root) Item_sum_ntile(thd, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

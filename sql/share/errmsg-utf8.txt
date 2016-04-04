@@ -7184,3 +7184,5 @@ ER_FRAME_EXCLUSION_NOT_SUPPORTED
         eng "Frame exclusion is not supported yet"
 ER_WINDOW_FUNCTION_DONT_HAVE_FRAME
         eng "This window function may not have a window frame"
+ER_INVALID_NTILE_ARGUMENT
+        eng "Argument of NTILE must be greater than 0"

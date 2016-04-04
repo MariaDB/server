@@ -1745,6 +1745,7 @@ bool Window_func_runner::setup(THD *thd)
     case Item_sum::AVG_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::NTILE_FUNC:
     {
       /*
         Frame-aware window function computation. It does one pass, but

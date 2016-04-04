@@ -395,6 +395,67 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   ulonglong current_row_count_;
 };
 
+class Item_sum_ntile : public Item_sum_window_with_row_count
+{
+ public:
+  Item_sum_ntile(THD* thd, ulong num_quantiles) :
+    Item_sum_window_with_row_count(thd), num_quantiles_(num_quantiles),
+    current_row_count_(0) {};
+
+  double val_real()
+  {
+    return val_int();
+  }
+
+  longlong val_int()
+  {
+    if (get_row_count() == 0)
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    ulonglong quantile_size = get_row_count() / num_quantiles_;
+    ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles_;
+
+    if (current_row_count_ <= extra_rows * (quantile_size + 1))
+      return (current_row_count_ - 1) / (quantile_size + 1) + 1;
+
+    return (current_row_count_ - 1 - extra_rows) / quantile_size + 1;
+  }
+
+  bool add()
+  {
+    current_row_count_++;
+    return false;
+  }
+
+  enum Sumfunctype sum_func() const
+  {
+    return NTILE_FUNC;
+  }
+
+  void clear()
+  {
+    current_row_count_= 0;
+    set_row_count(0);
+  }
+
+  const char*func_name() const
+  {
+    return "ntile";
+  }
+
+  void update_field() {}
+
+  enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+
+ private:
+  ulong num_quantiles_;
+  ulong current_row_count_;
+};
+
 
 class Item_window_func : public Item_func_or_sum
 {
@@ -435,6 +496,7 @@ public:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::NTILE_FUNC:
       return true;
     default: 
       return false;
@@ -446,6 +508,7 @@ public:
     switch (window_func()->sum_func()) {
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::NTILE_FUNC:
       return true;
     default:
       return false;
