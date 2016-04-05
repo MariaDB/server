@@ -176,6 +176,7 @@ static bool check_error_mesg(const char *file_name, const char **errmsg)
 struct st_msg_file
 {
   uint sections;
+  uint max_error;
   uint errors;
   size_t text_length;
 };
@@ -224,10 +225,11 @@ static File open_error_msg_file(const char *file_name, const char *language,
     goto err; /* purecov: inspected */
 
   ret->text_length= uint4korr(head+6);
-  ret->errors=      uint2korr(head+10);
-  ret->sections=    uint2korr(head+12);
+  ret->max_error=   uint2korr(head+10);
+  ret->errors=      uint2korr(head+12);
+  ret->sections=    uint2korr(head+14);
 
-  if (ret->errors < error_messages || ret->sections != MAX_ERROR_RANGES)
+  if (ret->max_error < error_messages || ret->sections != MAX_ERROR_RANGES)
   {
     sql_print_error("\
 Error message file '%s' had only %d error messages, but it should contain at least %d error messages.\nCheck that the above file is the right version for this program!",
