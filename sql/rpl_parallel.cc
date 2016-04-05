@@ -987,7 +987,6 @@ handle_rpl_parallel_thread(void *arg)
   thd->client_capabilities = CLIENT_LOCAL_FILES;
   thd->net.reading_or_writing= 0;
   thd_proc_info(thd, "Waiting for work from main SQL threads");
-  thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
   thd->system_thread_info.rpl_sql_info= &sql_info;
   /*
