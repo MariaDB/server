@@ -403,7 +403,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
  public:
   Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
     Item_sum_window_with_row_count(thd, num_quantiles_expr),
-    num_quantiles_expr_(num_quantiles_expr), num_quantiles_(0),
+    num_quantiles_expr_(num_quantiles_expr),
     current_row_count_(0) {};
 
   double val_real()
@@ -418,9 +418,17 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
       null_value= true;
       return 0;
     }
+
+    longlong num_quantiles= num_quantiles_expr_->val_int();
+
+    if (num_quantiles <= 0) {
+      my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
+      return true;
+    }
+
     null_value= false;
-    ulonglong quantile_size = get_row_count() / num_quantiles_;
-    ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles_;
+    ulonglong quantile_size = get_row_count() / num_quantiles;
+    ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles;
 
     if (current_row_count_ <= extra_rows * (quantile_size + 1))
       return (current_row_count_ - 1) / (quantile_size + 1) + 1;
@@ -462,20 +470,12 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
     // TODO-cvicentiu is ref as a parameter here ok?
     if (!num_quantiles_expr_->fixed)
       num_quantiles_expr_->fix_fields(thd, ref);
-    longlong expr_value= num_quantiles_expr_->val_int();
 
-    if (expr_value <= 0) {
-      my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
-      return true;
-    }
-
-    num_quantiles_= static_cast<ulong>(expr_value);
     return false;
   }
 
  private:
   Item* num_quantiles_expr_;
-  ulong num_quantiles_;
   ulong current_row_count_;
 };
 
