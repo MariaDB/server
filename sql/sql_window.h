@@ -166,12 +166,10 @@ typedef bool (*window_compute_func_t)(Item_window_func *item_win,
 class Window_func_runner : public Sql_alloc
 {
   Item_window_func *win_func;
-  /* Window function can be computed over this sorting */
-  Filesort *filesort;
 
   /* The function to use for computation*/
   window_compute_func_t compute_func;
-  
+
 public:
   Window_func_runner(Item_window_func *win_func_arg) :
     win_func(win_func_arg)
@@ -181,14 +179,33 @@ public:
   bool setup(THD *thd);
  
   // This sorts and runs the window function.
-  bool exec(JOIN *join);
-
-  void cleanup() { delete filesort; }
-
-  friend class Window_funcs_computation;
+  bool exec(TABLE *tbl, SORT_INFO *filesort_result);
 };
 
+
+/*
+  Represents a group of window functions that require the same sorting of 
+  rows and so share the filesort() call.
+
+*/
+
+class Window_func_sort : public Sql_alloc
+{
+  List<Window_func_runner> runners;
+
+  /* Window functions can be computed over this sorting */
+  Filesort *filesort;
+public:
+  bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it);
+  bool exec(JOIN *join);
+  void cleanup() { delete filesort; }
+
+  friend class Window_funcs_computation_step;
+};
+
+
 struct st_join_table;
+class Explain_aggr_window_funcs;
 /*
   This is a "window function computation phase": a single object of this class
   takes care of computing all window functions in a SELECT.
@@ -198,12 +215,14 @@ struct st_join_table;
     temporary table.
 */
 
-class Window_funcs_computation : public Sql_alloc
+class Window_funcs_computation_step : public Sql_alloc
 {
-  List<Window_func_runner> win_func_runners;
+  List<Window_func_sort> win_func_sorts;
 public:
   bool setup(THD *thd, List<Item_window_func> *window_funcs, st_join_table *tab);
   bool exec(JOIN *join);
+
+  Explain_aggr_window_funcs *save_explain_plan(MEM_ROOT *mem_root, bool is_analyze);
   void cleanup();
 };
 

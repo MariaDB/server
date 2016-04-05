@@ -2661,7 +2661,7 @@ bool JOIN::make_aggr_tables_info()
   curr_tab= join_tab + top_join_tab_count + aggr_tables - 1;
   if (select_lex->window_funcs.elements)
   {
-    curr_tab->window_funcs_step= new Window_funcs_computation;
+    curr_tab->window_funcs_step= new Window_funcs_computation_step;
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
                                            curr_tab))
       DBUG_RETURN(true);
@@ -23766,8 +23766,9 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   if (filesort)
   {
-    eta->pre_join_sort= new Explain_aggr_filesort(thd->lex->analyze_stmt);
-    eta->pre_join_sort->init(thd, filesort);
+    eta->pre_join_sort= new Explain_aggr_filesort(thd->mem_root,
+                                                  thd->lex->analyze_stmt,
+                                                  filesort);
   }
   
   tracker= &eta->tracker;
@@ -24183,6 +24184,8 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
   JOIN_TAB *join_tab=join->join_tab + join->top_join_tab_count;
   Explain_aggr_node *prev_node;
   Explain_aggr_node *node= xpl_sel->aggr_tree;
+  bool is_analyze= join->thd->lex->analyze_stmt;
+  THD *thd= join->thd;
 
   for (uint i= 0; i < join->aggr_tables; i++, join_tab++)
   {
@@ -24193,9 +24196,15 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
 
     if (join_tab->window_funcs_step)
     {
-      prev_node=node;
-      node= new Explain_aggr_window_funcs;
-      node->child= prev_node;
+      Explain_aggr_node *new_node= 
+        join_tab->window_funcs_step->save_explain_plan(thd->mem_root,
+                                                       is_analyze);
+      if (new_node)
+      {
+        prev_node=node;
+        node= new_node;
+        node->child= prev_node;
+      }
     }
 
     /* The below matches execution in join_init_read_record() */
@@ -24208,10 +24217,8 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
 
     if (join_tab->filesort)
     {
-      bool is_analyze= join->thd->lex->analyze_stmt;
-      Explain_aggr_filesort *eaf = new Explain_aggr_filesort(is_analyze);
-      eaf->init(join->thd, join_tab->filesort);
-
+      Explain_aggr_filesort *eaf =
+        new Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
       prev_node= node;
       node= eaf;
       node->child= prev_node;

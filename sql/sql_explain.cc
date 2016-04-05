@@ -885,8 +885,12 @@ void Explain_select::print_explain_json(Explain_query *query,
           writer->add_member("duplicate_removal").start_object();
           break;
         case AGGR_OP_WINDOW_FUNCS:
+        {
+          //TODO: make print_json_members virtual?
           writer->add_member("window_functions_computation").start_object();
+          ((Explain_aggr_window_funcs*)node)->print_json_members(writer, is_analyze);
           break;
+        }
         default:
           DBUG_ASSERT(0);
       }
@@ -905,14 +909,20 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
 }
 
-void Explain_aggr_filesort::init(THD *thd, Filesort *filesort)
+
+Explain_aggr_filesort::Explain_aggr_filesort(MEM_ROOT *mem_root, 
+                                             bool is_analyze,
+                                             Filesort *filesort)
+ : tracker(is_analyze)
 {
+  child= NULL;
   for (ORDER *ord= filesort->order; ord; ord= ord->next)
   {
-    sort_items.push_back(ord->item[0], thd->mem_root);
+    sort_items.push_back(ord->item[0], mem_root);
   }
   filesort->tracker= &tracker;
 }
+
 
 void Explain_aggr_filesort::print_json_members(Json_writer *writer, 
                                                bool is_analyze)
@@ -940,6 +950,23 @@ void Explain_aggr_filesort::print_json_members(Json_writer *writer,
   if (is_analyze)
     tracker.print_json_members(writer);
 }
+
+
+void Explain_aggr_window_funcs::print_json_members(Json_writer *writer, 
+                                                   bool is_analyze)
+{
+  Explain_aggr_filesort *srt;
+  List_iterator<Explain_aggr_filesort> it(sorts);
+  writer->add_member("sorts").start_object();
+  while ((srt= it++))
+  {
+    writer->add_member("filesort").start_object();
+    srt->print_json_members(writer, is_analyze);
+    writer->end_object(); // filesort
+  }
+  writer->end_object(); // sorts
+}
+
 
 void Explain_basic_join::print_explain_json(Explain_query *query, 
                                             Json_writer *writer, 

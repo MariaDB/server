@@ -440,7 +440,19 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
 typedef int (*Item_window_func_cmp)(Item_window_func *f1,
                                     Item_window_func *f2,
                                     void *arg); 
+/*
+  @brief
+    Sort window functions so that those that can be computed together are
+    adjacent.
+  
+  @detail
+    Sort window functions by their
+     - required sorting order,
+     - partition list,
+     - window frame compatibility.
 
+    The changes between the groups are marked by setting item_window_func->marker.
+*/
 
 static
 void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
@@ -479,7 +491,9 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
                       FRAME_CHANGE_FLAG;
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
+      {
         curr->marker|= PARTITION_CHANGE_FLAG | FRAME_CHANGE_FLAG;
+      }
     }
     else if (win_spec_prev->window_frame != win_spec_curr->window_frame)
       curr->marker|= FRAME_CHANGE_FLAG;
@@ -1720,14 +1734,6 @@ static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
 
 bool Window_func_runner::setup(THD *thd)
 {
-  Window_spec *spec = win_func->window_spec;
-
-  ORDER* sort_order= concat_order_lists(thd->mem_root, 
-                                        spec->partition_list->first,
-                                        spec->order_list->first);
-  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
-  filesort->tracker= new Filesort_tracker(thd->lex->analyze_stmt);
-
   win_func->setup_partition_border_check(thd);
 
   Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
@@ -1770,47 +1776,88 @@ bool Window_func_runner::setup(THD *thd)
 /*
   Compute the value of window function for all rows.
 */
-bool Window_func_runner::exec(JOIN *join)
+bool Window_func_runner::exec(TABLE *tbl, SORT_INFO *filesort_result)
 {
-  THD *thd= join->thd;
-  JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
-
-  if (create_sort_index(thd, join, join_tab,
-                        filesort))
-    return true;
-
+  THD *thd= current_thd;
   win_func->set_phase_to_computation();
 
-  /*
-    Go through the sorted array and compute the window function
-  */
+  /* Go through the sorted array and compute the window function */
   READ_RECORD info;
-  TABLE *tbl= join_tab->table;
 
-  if (init_read_record(&info, thd, tbl, NULL/*select*/, join_tab->filesort_result,
+  if (init_read_record(&info, thd, tbl, NULL/*select*/, filesort_result,
                        0, 1, FALSE))
     return true;
 
   bool is_error= compute_func(win_func, tbl, &info);
 
-  /* This calls filesort_free_buffers(): */
-  end_read_record(&info);
-  delete join_tab->filesort_result;
-  join_tab->filesort_result= NULL;
   win_func->set_phase_to_retrieval();
+
+  end_read_record(&info);
 
   return is_error;
 }
 
 
-bool Window_funcs_computation::setup(THD *thd,
-                                     List<Item_window_func> *window_funcs,
-                                     JOIN_TAB *tab)
+bool Window_func_sort::exec(JOIN *join)
 {
-  List_iterator_fast<Item_window_func> it(*window_funcs);
-  Item_window_func *item_win;
+  THD *thd= join->thd;
+  JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
+
+  if (create_sort_index(thd, join, join_tab, filesort))
+    return true;
+
+  TABLE *tbl= join_tab->table;
+  SORT_INFO *filesort_result= join_tab->filesort_result;
+
+  bool is_error= false;
+  List_iterator<Window_func_runner> it(runners);
   Window_func_runner *runner;
 
+  while ((runner= it++))
+  {
+    if ((is_error= runner->exec(tbl, filesort_result)))
+      break;
+  }
+
+  delete join_tab->filesort_result;
+  join_tab->filesort_result= NULL;
+  return is_error;
+}
+
+
+bool Window_func_sort::setup(THD *thd, SQL_SELECT *sel, 
+                             List_iterator<Item_window_func> &it)
+{
+  Item_window_func *win_func= it.peek();
+  Window_spec *spec = win_func->window_spec;
+
+  ORDER* sort_order= concat_order_lists(thd->mem_root, 
+                                        spec->partition_list->first,
+                                        spec->order_list->first);
+  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
+  /* Apply the same condition that the subsequent sort has. */
+  filesort->select= sel;
+
+  do 
+  {
+    Window_func_runner *runner;
+    if (!(runner= new Window_func_runner(win_func)) ||
+        runner->setup(thd))
+    {
+      return true;
+    }
+    runners.push_back(runner);
+    it++;
+  } while ((win_func= it.peek()) && !(win_func->marker & SORTORDER_CHANGE_FLAG));
+
+  return false;
+}
+
+
+bool Window_funcs_computation_step::setup(THD *thd,
+                                          List<Item_window_func> *window_funcs,
+                                          JOIN_TAB *tab)
+{
   order_window_funcs_by_window_specs(window_funcs);
 
   SQL_SELECT *sel= NULL;
@@ -1820,46 +1867,61 @@ bool Window_funcs_computation::setup(THD *thd,
     DBUG_ASSERT(!sel->quick);
   }
 
-  // for each window function
-  while ((item_win= it++))
+  Window_func_sort *srt;
+  List_iterator<Item_window_func> iter(*window_funcs);
+  while (iter.peek())
   {
-    // Create a runner and call setup for it
-    if (!(runner= new Window_func_runner(item_win)) ||
-        runner->setup(thd))
+    if (!(srt= new Window_func_sort()) ||
+        srt->setup(thd, sel, iter))
     {
       return true;
     }
-    /* Apply the same condition that the subsequent sort will */
-    runner->filesort->select= sel;
-    win_func_runners.push_back(runner, thd->mem_root);
+    win_func_sorts.push_back(srt, thd->mem_root);
   }
   return false;
 }
 
 
-bool Window_funcs_computation::exec(JOIN *join)
+bool Window_funcs_computation_step::exec(JOIN *join)
 {
-  List_iterator<Window_func_runner> it(win_func_runners);
-  Window_func_runner *runner;
-  /* Execute each runner */
-  while ((runner = it++))
+  List_iterator<Window_func_sort> it(win_func_sorts);
+  Window_func_sort *srt;
+  /* Execute each sort */
+  while ((srt = it++))
   {
-    if (runner->exec(join))
+    if (srt->exec(join))
       return true;
   }
   return false;
 }
 
 
-void Window_funcs_computation::cleanup()
+void Window_funcs_computation_step::cleanup()
 {
-  List_iterator<Window_func_runner> it(win_func_runners);
-  Window_func_runner *runner;
-  while ((runner = it++))
+  List_iterator<Window_func_sort> it(win_func_sorts);
+  Window_func_sort *srt;
+  while ((srt = it++))
   {
-    runner->cleanup();
-    delete runner;
+    srt->cleanup();
+    delete srt;
   }
+}
+
+
+Explain_aggr_window_funcs*
+Window_funcs_computation_step::save_explain_plan(MEM_ROOT *mem_root, 
+                                                 bool is_analyze)
+{
+  Explain_aggr_window_funcs *xpl= new Explain_aggr_window_funcs;
+  List_iterator<Window_func_sort> it(win_func_sorts);
+  Window_func_sort *srt;
+  while ((srt = it++))
+  {
+    Explain_aggr_filesort *eaf=
+      new Explain_aggr_filesort(mem_root, is_analyze, srt->filesort);
+    xpl->sorts.push_back(eaf, mem_root);
+  }
+  return xpl;
 }
 
 /////////////////////////////////////////////////////////////////////////////

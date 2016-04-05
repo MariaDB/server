@@ -451,6 +451,11 @@ public:
     el= &current->next;
     return current->info;
   }
+  /* Get what calling next() would return, without moving the iterator */
+  inline void *peek()
+  {
+    return (*el)->info;
+  }
   inline void *next_fast(void)
   {
     list_node *tmp;
@@ -503,6 +508,10 @@ public:
   {
     return el == &list->last_ref()->next;
   }
+  inline bool at_end()
+  {
+    return current == &end_of_list;
+  }
   friend class error_list_iterator;
 };
 
@@ -550,6 +559,7 @@ public:
   List_iterator() : base_list_iterator() {}
   inline void init(List<T> &a) { base_list_iterator::init(a); }
   inline T* operator++(int) { return (T*) base_list_iterator::next(); }
+  inline T* peek() { return (T*) base_list_iterator::peek(); }
   inline T *replace(T *a)   { return (T*) base_list_iterator::replace(a); }
   inline T *replace(List<T> &a) { return (T*) base_list_iterator::replace(a); }
   inline void rewind(void)  { base_list_iterator::rewind(); }

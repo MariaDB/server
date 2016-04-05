@@ -1014,3 +1014,52 @@ window w1 as (partition by a order by b,pk),
 
 drop table t1;
 
+
+--echo #
+--echo # MDEV-9848: Window functions: reuse sorting and/or scanning
+--echo #
+
+create table t1 (a int, b int, c int);
+insert into t1 values 
+(1,3,1),
+(2,2,1),
+(3,1,1);
+
+--echo #  Check using counters
+flush status;
+select 
+  rank() over (partition by c order by a),
+  rank() over (partition by c order by b)
+from t1;
+show status like '%sort%';
+
+flush status;
+select 
+  rank() over (partition by c order by a),
+  rank() over (partition by c order by a)
+from t1;
+show status like '%sort%';
+
+# Check using EXPLAIN FORMAT=JSON 
+explain format=json
+select 
+  rank() over (partition by c order by a),
+  rank() over (partition by c order by a)
+from t1;
+
+explain format=json
+select 
+  rank() over (order by a),
+  row_number() over (order by a)
+from t1;
+
+--disable_parsing
+explain format=json
+select 
+  rank() over (partition by c order by a),
+  count(*) over (partition by c)
+from t1;
+--enable_parsing
+
+drop table t1;
+

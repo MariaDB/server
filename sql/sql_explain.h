@@ -279,19 +279,16 @@ public:
   Explain_aggr_node *child;
 };
 
-class Explain_aggr_filesort : public Explain_aggr_node 
+class Explain_aggr_filesort : public Explain_aggr_node
 {
   List<Item> sort_items;
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_FILESORT; }
   Filesort_tracker tracker;
 
-  Explain_aggr_filesort(bool is_analyze) : tracker(is_analyze)
-  {
-    child= NULL;
-  }
+  Explain_aggr_filesort(MEM_ROOT *mem_root, bool is_analyze, 
+                        Filesort *filesort);
 
-  void init(THD* thd, Filesort *filesort);
   void print_json_members(Json_writer *writer, bool is_analyze);
 };
 
@@ -309,8 +306,12 @@ public:
 
 class Explain_aggr_window_funcs : public Explain_aggr_node
 {
+  List<Explain_aggr_filesort> sorts;
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
+
+  void print_json_members(Json_writer *writer, bool is_analyze);
+  friend class Window_funcs_computation_step;
 };
 
 /////////////////////////////////////////////////////////////////////////////
