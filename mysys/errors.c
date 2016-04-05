@@ -119,7 +119,7 @@ void wait_for_free_space(const char *filename, int errors)
   (void) sleep(MY_WAIT_FOR_USER_TO_FIX_PANIC);
 }
 
-const char **get_global_errmsgs()
+const char **get_global_errmsgs(int nr __attribute((unused)))
 {
   return globerrs;
 }

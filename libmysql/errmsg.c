@@ -90,7 +90,7 @@ const char *client_errors[]=
   ""
 };
 
-const char** get_client_errmsgs(void)
+const char** get_client_errmsgs(int nr __attribute((unused)))
 {
   return client_errors;
 }

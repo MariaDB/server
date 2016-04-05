@@ -4523,7 +4523,7 @@ compare_errors:
                   "Error on master: message (format)='%s' error code=%d ; "
                   "Error on slave: actual message='%s', error code=%d. "
                   "Default database: '%s'. Query: '%s'",
-                  ER_SAFE_THD(thd, expected_error),
+                  ER_THD(thd, expected_error),
                   expected_error,
                   actual_error ? thd->get_stmt_da()->message() : "no error",
                   actual_error,

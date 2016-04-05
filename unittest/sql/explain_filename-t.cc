@@ -26,7 +26,8 @@
 char to[BUFLEN];
 char from[BUFLEN];
 
-const char *error_messages[1000];
+static const char *error_messages_txt[1000];
+static const char **error_messages[1]= { error_messages_txt };
 
 int setup()
 {
@@ -34,12 +35,12 @@ int setup()
   my_default_lc_messages = &my_locale_en_US;
 
   /* Populate the necessary error messages */
-  error_messages[ER_DATABASE_NAME - ER_ERROR_FIRST]     = "Database";
-  error_messages[ER_TABLE_NAME - ER_ERROR_FIRST]        = "Table";
-  error_messages[ER_PARTITION_NAME - ER_ERROR_FIRST]    = "Partition";
-  error_messages[ER_SUBPARTITION_NAME - ER_ERROR_FIRST] = "Subpartition";
-  error_messages[ER_TEMPORARY_NAME - ER_ERROR_FIRST]    = "Temporary";
-  error_messages[ER_RENAMED_NAME - ER_ERROR_FIRST]      = "Renamed";
+  error_messages[0][ER_DATABASE_NAME - ER_ERROR_FIRST]     = "Database";
+  error_messages[0][ER_TABLE_NAME - ER_ERROR_FIRST]        = "Table";
+  error_messages[0][ER_PARTITION_NAME - ER_ERROR_FIRST]    = "Partition";
+  error_messages[0][ER_SUBPARTITION_NAME - ER_ERROR_FIRST] = "Subpartition";
+  error_messages[0][ER_TEMPORARY_NAME - ER_ERROR_FIRST]    = "Temporary";
+  error_messages[0][ER_RENAMED_NAME - ER_ERROR_FIRST]      = "Renamed";
 
   my_default_lc_messages->errmsgs->errmsgs = error_messages;
 
