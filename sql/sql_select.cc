@@ -21207,7 +21207,6 @@ use_filesort:
 int
 create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 {
-  uint length;
   TABLE *table;
   SQL_SELECT *select;
   bool quick_created= FALSE;
@@ -21224,14 +21223,6 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
  
   /* Currently ORDER BY ... LIMIT is not supported in subqueries. */
   DBUG_ASSERT(join->group_list || !join->is_in_subquery());
-
-  /*
-    Calculate length of join->order as this may be longer than 'order',
-    which may come from 'group by'. This is needed as join->sortorder is
-    used both for grouping and ordering.
-  */
-  length= 0;
-
 
   table->status=0;				// May be wrong if quick_select
 
