@@ -214,8 +214,7 @@ ut_crc32c_ex_sse42(
 /*===========*/
 	uint32		crc_arg,
 	const uint8*	buf,	/*!< in: data over which to calculate CRC32 */
-	my_ulonglong	len,	/*!< in: data length */
-	uint32		crc_arg)
+	my_ulonglong	len)	/*!< in: data length */
 {
 #if defined(__GNUC__) && defined(__x86_64__)
 	uint64 crc = crc_arg ^(uint32) (-1);
@@ -425,79 +424,6 @@ ut_crc32_ex_power8(
 		 uint32			 crc,
 		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
 		 my_ulonglong 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32_vpmsum(crc, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-#if defined(__powerpc__)
-extern "C" {
-unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
-};
-#endif /* __powerpc__ */
-
-inline
-uint32
-ut_crc32c_power8(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32c_vpmsum(0, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-inline
-uint32
-ut_crc32c_power8_ex(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len,		 /*!< in: data length */
-		 uint32			 crc)
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32c_vpmsum(crc, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-inline
-uint32
-ut_crc32_power8(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-		 return crc32_vpmsum(0, buf, len);
-#else
-		 MY_ASSERT_UNREACHABLE();
-		 /* silence compiler warning about unused parameters */
-		 return((uint32) buf[len]);
-#endif /* __powerpc__ */
-}
-
-inline
-uint32
-ut_crc32_power8_ex(
-/*===========*/
-		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 my_ulonglong 		 len,		 /*!< in: data length */
-		 uint32			 crc)
 {
 #if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
 		 return crc32_vpmsum(crc, buf, len);
