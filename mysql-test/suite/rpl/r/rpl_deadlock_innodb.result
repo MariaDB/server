@@ -1,9 +1,11 @@
 include/master-slave.inc
 [connection master]
 *** Prepare tables and data ***
+connection master;
 CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=innodb;
 CREATE TABLE t2 (a INT) ENGINE=innodb;
 CREATE TABLE t3 (a INT NOT NULL, KEY(a)) ENGINE=innodb;
+connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -25,6 +27,7 @@ SHOW VARIABLES LIKE 'slave_transaction_retries';
 Variable_name	Value
 slave_transaction_retries	2
 include/stop_slave.inc
+connection master;
 BEGIN;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (2), (2), (2), (2), (2), (2), (2), (2), (2), (2);
@@ -32,6 +35,7 @@ INSERT INTO t3 VALUES (3);
 COMMIT;
 
 *** Test deadlock ***
+connection slave;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a
@@ -49,6 +53,7 @@ a
 include/check_slave_is_running.inc
 
 *** Test lock wait timeout ***
+connection slave;
 include/stop_slave.inc
 DELETE FROM t2;
 CHANGE MASTER TO MASTER_LOG_POS=<master_pos_begin>;
@@ -74,6 +79,7 @@ a
 include/check_slave_is_running.inc
 
 *** Test lock wait timeout and purged relay logs ***
+connection slave;
 SET @my_max_relay_log_size= @@global.max_relay_log_size;
 SET global max_relay_log_size=0;
 Warnings:
@@ -106,7 +112,9 @@ a
 include/check_slave_is_running.inc
 
 *** Clean up ***
+connection master;
 DROP TABLE t1,t2,t3;
+connection slave;
 SET global max_relay_log_size= @my_max_relay_log_size;
 End of 5.1 tests
 include/rpl_end.inc

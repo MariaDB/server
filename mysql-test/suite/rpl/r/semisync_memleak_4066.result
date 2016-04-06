@@ -1,4 +1,7 @@
 include/master-slave.inc
 [connection master]
+connection master;
+connect  con1,localhost,root,,;
 CREATE TEMPORARY TABLE tmp (i INT);
+disconnect con1;
 include/rpl_end.inc

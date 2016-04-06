@@ -78,7 +78,7 @@ INSERT INTO t1 VALUES (1);
 
 --sync_slave_with_master
 
---source include/rpl_connection_master.inc
+connection master;
 
 DROP TRIGGER tr1;
 DELETE FROM t1;
@@ -112,7 +112,7 @@ INSERT INTO t1 VALUES (1);
 
 --sync_slave_with_master
 
---source include/rpl_connection_master.inc
+connection master;
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -122,7 +122,7 @@ DROP PROCEDURE p1;
 
 --echo # Test case 3:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 
 CREATE TABLE t (f1 int(10) unsigned NOT NULL, PRIMARY KEY (f1)) ENGINE=InnoDB;
 
@@ -145,12 +145,12 @@ SELECT * FROM t;
 
 SELECT * FROM t;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t;
 
 --echo # Test case 4:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 
@@ -173,13 +173,13 @@ SELECT * FROM t1;
 SELECT * FROM t;
 SELECT * FROM t1;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t;
 DROP TABLE t1;
 
 --echo # Test case 5:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 
@@ -204,13 +204,13 @@ SELECT * FROM t1;
 SELECT * FROM t;
 SELECT * FROM t1;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t;
 DROP TABLE t1;
 
 --echo # Test case 6:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB;
 
@@ -232,21 +232,21 @@ COMMIT;
 INSERT INTO t2 VALUES (10);
 --source include/show_binlog_events.inc
 
---source include/rpl_connection_master.inc
+connection master;
 SELECT * FROM t2;
 SELECT * FROM t1;
 --source include/sync_slave_sql_with_master.inc
 SELECT * FROM t2;
 SELECT * FROM t1;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP FUNCTION f1;
 
 --echo # Test case 7:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB;
 
@@ -267,21 +267,21 @@ COMMIT;
 INSERT INTO t2 VALUES (10);
 --source include/show_binlog_events.inc
 
---source include/rpl_connection_master.inc
+connection master;
 SELECT * FROM t2;
 SELECT * FROM t1;
 --source include/sync_slave_sql_with_master.inc
 SELECT * FROM t2;
 SELECT * FROM t1;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP FUNCTION f1;
 
 --echo # Test case 8:
 --source include/rpl_reset.inc
---source include/rpl_connection_master.inc
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 
 --delimiter |
@@ -300,12 +300,12 @@ COMMIT;
 INSERT INTO t1 VALUES (10);
 --source include/show_binlog_events.inc
 
---source include/rpl_connection_master.inc
+connection master;
 SELECT * FROM t1;
 --source include/sync_slave_sql_with_master.inc
 SELECT * FROM t1;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t1;
 DROP FUNCTION f1;
 

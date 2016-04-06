@@ -65,6 +65,7 @@ DROP TABLE t1;
 --echo #
 
 --source include/ctype_8bit.inc
+--source include/ctype_pad_space.inc
 
 #
 # Bug #48053 String::c_ptr has a race and/or does an invalid 

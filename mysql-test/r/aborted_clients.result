@@ -1,9 +1,15 @@
 FLUSH STATUS;
+connect  con1,localhost,root,,;
+disconnect con1;
+connection default;
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='aborted_clients';
 VARIABLE_VALUE
 0
+connect con2,localhost,root,,;
 KILL CONNECTION_ID();
 ERROR 70100: Connection was killed
+disconnect con2;
+connection default;
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='aborted_clients';
 VARIABLE_VALUE
 1

@@ -45,5 +45,8 @@ a	name	old_a	old_b	truncate(rand_value,4)
 105	t2	4	0	0.6635
 106	t2	5	0	0.6699
 107	t2	500	0	0.3593
+connection slave;
+connection master;
 drop table t1,t2,t3;
+connection slave;
 include/rpl_end.inc

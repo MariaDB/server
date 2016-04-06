@@ -58,7 +58,6 @@ GRANT CREATE USER ON *.* TO 'fakename'@'0123456789012345678901234567890123456789
 --echo # User 'bug48321_1-01234' connects to master by conn1
 connect (conn1, 127.0.0.1, 'bug48321_1-01234'@'localhost',,);
 connection conn1;
---echo # [On conn1]
 --echo # Verify 'REVOKE ALL' statement
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM CURRENT_USER();
 --source include/rpl_sync.inc
@@ -168,40 +167,30 @@ source include/diff_tables.inc;
 --echo # Verify that this patch does not affect the calling of CURRENT_USER() 
 --echo # in the other statements
 connection master;
---echo # [On master]
 INSERT INTO t1 VALUES(CURRENT_USER()), ('1234');
 SELECT * FROM t1;
 sync_slave_with_master;
---echo # [On slave]
 SELECT * FROM t1;
---echo # [On server_3]
 sync_slave_with_master server_3;
 SELECT * FROM t1;
 
 connection master;
---echo # [On master]
 UPDATE t1 SET c1=CURRENT_USER() WHERE c1='1234';
 SELECT * FROM t1;
 sync_slave_with_master;
---echo # [On slave]
 SELECT * FROM t1;
 sync_slave_with_master server_3;
---echo # [On server_3]
 SELECT * FROM t1;
 
 connection master;
---echo # [On master]
 DELETE FROM t1 WHERE c1=CURRENT_USER();
 SELECT * FROM t1;
 sync_slave_with_master;
---echo # [On slave]
 SELECT * FROM t1;
 sync_slave_with_master server_3;
---echo # [On server_3]
 SELECT * FROM t1;
 
 connection master;
---echo # [On master]
 CREATE TABLE t2(c1 char(100));
 
 DELIMITER |;
@@ -217,11 +206,9 @@ INSERT INTO t1 VALUES(my_user());
 SELECT * FROM t1;
 SELECT * FROM t2;
 sync_slave_with_master;
---echo # [On slave]
 SELECT * FROM t1;
 SELECT * FROM t2;
 sync_slave_with_master server_3;
---echo # [On server_3]
 SELECT * FROM t1;
 SELECT * FROM t2;
 

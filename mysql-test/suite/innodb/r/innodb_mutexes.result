@@ -1,3 +1,6 @@
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
 create table t1(a int not null primary key, b int, c int,d CHAR(100)) engine=innodb;
 create procedure innodb_insert_proc (repeat_count int)
 begin
@@ -13,9 +16,20 @@ set autocommit=0;
 call innodb_insert_proc(20000);
 commit;
 set autocommit=1;
+connection con1;
 delete from t1 where a between 1000 and 1300;
+connection con2;
 update t1 set b=b+1 where a between 2000 and 2600;
+connection con3;
 insert into t1 select a+30000,b,c,d from t1 where a between 3000 and 4000;
+connection default;
 delete from t1 where a between 6000 and 7000;
+connection con1;
+connection con2;
+connection con3;
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
 drop procedure innodb_insert_proc;
 drop table t1;

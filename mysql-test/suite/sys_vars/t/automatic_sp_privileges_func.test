@@ -43,13 +43,10 @@ CREATE USER 'userTest1'@'localhost';
 #
 # Value TRUE
 #
---echo ** Connection default **
 connection default;
 SET GLOBAL automatic_sp_privileges = TRUE;
 
---echo ** Connecting using userTest **
 connect (conUser,localhost,userTest,,);
---echo ** Connection conUser **
 connection conUser;
 
 delimiter |;
@@ -67,13 +64,10 @@ CALL testProc();
 #
 # Value FALSE
 #
---echo ** Connection default**
 connection default;
 SET GLOBAL automatic_sp_privileges = FALSE;
 
---echo ** Connecting using userTest1 **
 connect (conUser1,localhost,userTest1,,);
---echo ** Connection conUser1 **
 connection conUser1;
 
 delimiter |;
@@ -100,12 +94,10 @@ ALTER PROCEDURE testProc1 COMMENT 'My Comment';
 --error ER_PROCACCESS_DENIED_ERROR
 DROP PROCEDURE testProc1;
 
---echo ** Connection default **
 connection default;
 
 GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE testProc1 TO 'userTest1'@'localhost';
 
---echo ** Connection conUser1 **
 connection conUser1;
 
 CALL testProc1();
@@ -118,10 +110,8 @@ ALTER PROCEDURE testProc1 COMMENT 'My Comment';
 # Cleanup
 #
 --echo ** Cleanup **
---echo ** Connection default **
 connection default;
 
---echo disconnecting connections
 disconnect conUser;
 disconnect conUser1;
 

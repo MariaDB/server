@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 CREATE TEMPORARY TABLE t1(c1 INTEGER);
 CREATE TABLE t2(c1 INTEGER);
+connection slave;
 CREATE TABLE t1(c1 INTEGER);
 INSERT INTO t1 VALUES(1), (2);
 INSERT INTO t2 VALUES(1), (2);
@@ -13,8 +14,10 @@ SELECT * FROM t2;
 c1
 1
 2
+connection master;
 TRUNCATE t1;
 TRUNCATE t2;
+connection slave;
 SELECT * FROM t1;
 c1
 1
@@ -22,5 +25,6 @@ c1
 SELECT * FROM t2;
 c1
 DROP TABLE t1;
+connection master;
 DROP TABLE t2;
 include/rpl_end.inc

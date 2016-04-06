@@ -1,6 +1,8 @@
 SET DEFAULT_STORAGE_ENGINE = 'tokudb';
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
 DROP TABLE IF EXISTS foo;
+connection default;
 set session transaction isolation level repeatable read;
 create table foo (a int, b int, c int, primary key (a), key (b))engine=TokuDB;
 show create table foo;
@@ -33,6 +35,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from foo where b=50;
 a	b	c
 5	50	500
+connection conn1;
 set session transaction isolation level repeatable read;
 replace into foo values (5,50,555);
 select * from foo;
@@ -46,6 +49,7 @@ a	b	c
 7	70	700
 8	80	800
 9	90	900
+connection default;
 # should use key b
 explain select * from foo where b=50;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -59,5 +63,8 @@ replace into foo values (5,50,111111111);
 select * from foo where b=50;
 a	b	c
 5	50	111111111
+connection default;
+disconnect conn1;
+connection default;
 set session transaction isolation level serializable;
 DROP TABLE foo;

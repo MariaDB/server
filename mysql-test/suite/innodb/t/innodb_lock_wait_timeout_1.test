@@ -166,8 +166,6 @@ begin;
 select 1 from t1 natural join (select 2 as a, 1 as b union all
                                select 2 as a, 2 as b) as t2 for update;
 connect (con1,localhost,root,,);
---echo #
---echo # Switching to connection con1
 connection con1;
 --echo # We should be able to delete all records from t1 except (2, null),
 --echo # since they were not locked.
@@ -189,8 +187,6 @@ delete from t1 where a in (19,20);
 --error ER_LOCK_WAIT_TIMEOUT
 delete from t1;
 rollback;
---echo #
---echo # Switching to connection default
 connection default;
 --echo #
 --echo # Show that the original contents of t1 is intact:
@@ -211,8 +207,6 @@ delete t1.* from t1 natural join (select 2 as a, 2 as b union all
                                   select 0 as a, 0 as b) as t2;
 --echo # Demonstrate that nothing was deleted form t1
 select * from t1;
---echo #
---echo # Switching to connection con1
 connection con1;
 begin;
 --echo # Since there is another distinct record in the derived table
@@ -222,8 +216,6 @@ delete from t1;
 rollback;
 select * from t1;
 commit;
---echo #
---echo # Switching to connection default
 connection default;
 rollback;
 begin;
@@ -245,7 +237,6 @@ select 1 from t1 natural join (select 3 as a, 2 as b union all
 --echo # Lock the record.
 select 1 from t1 natural join (select 3 as a, 2 as b union all
                                select 3 as a, 1 as b) as t2 for update;
---echo # Switching to connection con1
 connection con1;
 --echo #
 --echo # We should not be able to delete record (3,1) from t1,
@@ -253,7 +244,6 @@ connection con1;
 --echo #
 --error ER_LOCK_WAIT_TIMEOUT
 delete from t1 where a=3;
---echo # Switching to connection default
 connection default;
 commit;
 

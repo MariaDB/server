@@ -59,14 +59,12 @@ source include/show_binlog_events.inc;
 
 --echo ==== Verify results on slave ====
 
---echo [on slave]
 sync_slave_with_master;
 select count(*) from t2 /* 5 000 */;
 
 
 --echo ==== Clean up ====
 
---echo [on master]
 connection master;
 drop table t2;
 sync_slave_with_master;

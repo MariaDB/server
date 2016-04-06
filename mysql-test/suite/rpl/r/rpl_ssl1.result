@@ -1,13 +1,17 @@
 include/master-slave.inc
 [connection master]
+connection master;
 create user replssl@localhost;
 grant replication slave on *.* to replssl@localhost require ssl;
 create table t1 (t int);
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
 change master to master_user='replssl',master_password='';
 start slave;
+connection master;
 insert into t1 values (1);
+connection slave;
 select * from t1;
 t
 stop slave;
@@ -15,6 +19,8 @@ include/wait_for_slave_to_stop.inc
 change master to master_ssl=1 , master_ssl_ca ='MYSQL_TEST_DIR/std_data/cacert.pem', master_ssl_cert='MYSQL_TEST_DIR/std_data/client-cert.pem', master_ssl_key='MYSQL_TEST_DIR/std_data/client-key.pem';
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
+connection slave;
 select * from t1;
 t
 1
@@ -29,14 +35,17 @@ include/wait_for_slave_to_stop.inc
 change master to master_user='root',master_password='', master_ssl=0;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 drop user replssl@localhost;
 drop table t1;
+connection slave;
 Master_SSL_Allowed = 'No'
 Master_SSL_CA_Path = ''
 Master_SSL_CA_File = 'MYSQL_TEST_DIR/std_data/cacert.pem'
 Master_SSL_Cert = 'MYSQL_TEST_DIR/std_data/client-cert.pem'
 Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
 change master to
@@ -48,8 +57,10 @@ master_ssl_key='MYSQL_TEST_DIR/std_data/client-key.pem',
 master_ssl_verify_server_cert=1;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 create table t1 (t int);
 insert into t1 values (1);
+connection slave;
 on slave
 select * from t1;
 t
@@ -60,7 +71,9 @@ Master_SSL_CA_File = 'MYSQL_TEST_DIR/std_data/cacert.pem'
 Master_SSL_Cert = 'MYSQL_TEST_DIR/std_data/client-cert.pem'
 Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
+connection master;
 drop table t1;
+connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO
 master_host="127.0.0.1",

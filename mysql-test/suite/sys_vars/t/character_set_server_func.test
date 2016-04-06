@@ -29,9 +29,7 @@ SET @session_character_set_server = @@session.character_set_server;
 
 
 SET @@global.character_set_server = utf8;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.character_set_server;
 SELECT @@session.character_set_server;
@@ -42,7 +40,6 @@ disconnect con1;
 # Begin the functionality Testing of character_set_server   #
 #############################################################
 
---echo 'connection default'
 connection default;
 #The server character set and collation are used as default values if the database 
 #character set and collation are not specified in CREATE DATABASE statements.
@@ -72,9 +69,7 @@ select @@character_set_database;
 --echo '----test with new connection----'
 #==============================================================================
 
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 
 SELECT @@session.character_set_server;
@@ -96,7 +91,6 @@ select @@character_set_database;
 disconnect con1;
 
 #restore
---echo 'connection default;'
 connection default;
 SET @@global.character_set_server = @global_character_set_server;
 SET @@session.character_set_server = @session_character_set_server;

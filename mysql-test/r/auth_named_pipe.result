@@ -1,8 +1,11 @@
 INSTALL SONAME 'auth_named_pipe';
 CREATE USER 'USERNAME' IDENTIFIED WITH named_pipe;
+connect pipe_con,localhost,$USERNAME,,,,,PIPE;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 USERNAME@localhost	USERNAME@%
+disconnect pipe_con;
+connection default;
 DROP USER 'USERNAME';
 CREATE USER nosuchuser IDENTIFIED WITH named_pipe;
 ERROR 28000: Access denied for user 'nosuchuser'@'localhost'

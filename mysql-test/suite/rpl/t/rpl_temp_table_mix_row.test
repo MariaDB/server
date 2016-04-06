@@ -15,31 +15,26 @@ source include/have_innodb.inc;
 
 --echo ==== Initialize ====
 
---echo [on master]
 --connection master
 
 CREATE TABLE t1 (a CHAR(48));
 CREATE TEMPORARY TABLE t1_tmp1(a INT);
 INSERT INTO t1 VALUES (UUID());
 
---echo [on slave]
 sync_slave_with_master;
 
 --echo ==== Verify results on slave ====
 SHOW STATUS LIKE "Slave_open_temp_tables";
 
---echo [on master]
 --connection master
 
 disconnect master;
---echo [on master1]
 --connection master1
 
 # waiting DROP TEMPORARY TABLE event to be written into binlog
 let $wait_binlog_event= DROP;
 source include/wait_for_binlog_event.inc;
 
---echo [on slave]
 sync_slave_with_master;
 
 --echo ==== Verify results on slave ====
@@ -47,14 +42,12 @@ SHOW STATUS LIKE "Slave_open_temp_tables";
 
 --echo ==== Clean up ====
 
---echo [on master]
 --let $rpl_connection_name= master
 --let $rpl_server_number= 1
 --source include/rpl_connect.inc
 --connection master
 DROP TABLE t1;
 
---echo [on slave]
 sync_slave_with_master;
 
 #

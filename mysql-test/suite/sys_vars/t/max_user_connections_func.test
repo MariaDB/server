@@ -47,20 +47,16 @@ GRANT USAGE on *.* TO test@localhost;
 #Should not make more then 2 connection#
 ########################################
 
---echo ** Connecting conn1 using username 'test' **
 CONNECT (conn1,localhost,test,,);
 
---echo ** Connecting conn2 using username 'test' **
 CONNECT (conn2,localhost,test,,);
 
---echo ** Connecting conn3 using username 'test' **
 --disable_query_log
 --Error ER_TOO_MANY_USER_CONNECTIONS
 CONNECT (conn3,localhost,test,,);
 --enable_query_log
 --echo Expected error "too many connections"
 
---echo ** Disconnecting conn1 **
 DISCONNECT conn1;
 
 --echo ** Poll till disconnected conn1 disappears from processlist
@@ -75,19 +71,15 @@ let $wait_condition= SELECT count(id) <= 2
 
 connection default;
 Set Global max_user_connections=3;
---echo ** Connecting conn5 using username 'test' **
 CONNECT (conn5,localhost,test,,);
---echo ** Connecting conn6 using username 'test' **
 CONNECT (conn6,localhost,test,,);
 
 #
 # Cleanup
 #
 
---echo ** Connection default **
 CONNECTION default;
 
---echo ** Disconnecting conn5, conn6 **
 DISCONNECT conn2;
 DISCONNECT conn5;
 DISCONNECT conn6;
@@ -95,4 +87,3 @@ DISCONNECT conn6;
 drop user test@localhost;
 
 SET @@global.max_user_connections = @default_max_user_connections;
-

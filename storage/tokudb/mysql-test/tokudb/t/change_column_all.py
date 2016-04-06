@@ -168,6 +168,7 @@ def header():
     print "# generated from change_column_all.py"
     print "# test random column change on wide tables"
     print "source include/have_tokudb.inc;"
+    print "--source include/big_test.inc"
     print "--disable_warnings"
     print "DROP TABLE IF EXISTS t, ti;"
     print "--enable_warnings"

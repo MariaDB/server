@@ -1,13 +1,16 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 SET @@GLOBAL.replicate_do_db="db1";
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 SET @@GLOBAL.replicate_ignore_db="db2";
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
+connection slave;
 include/stop_slave.inc
 SET @@GLOBAL.replicate_do_db="db1";
 SET @@GLOBAL.replicate_ignore_db="db2";
 include/start_slave.inc
+connection master;
 CREATE DATABASE db1;
 CREATE DATABASE db2;
 CREATE DATABASE db3;
@@ -23,6 +26,7 @@ USE db2;
 INSERT INTO t2 VALUES (2);
 USE db3;
 INSERT INTO t3 VALUES (3);
+connection slave;
 [on slave]
 SHOW DATABASES LIKE 'db%';
 Database (db%)
@@ -30,11 +34,12 @@ db1
 SHOW TABLES IN db1 LIKE 't%';
 Tables_in_db1 (t%)
 t1
-[on master]
-[on master]
+connection master;
+connection master;
 DROP DATABASE IF EXISTS db1;
 DROP DATABASE IF EXISTS db2;
 DROP DATABASE IF EXISTS db3;
 include/rpl_end.inc
+connection slave;
 SET @@GLOBAL.replicate_do_db="";
 SET @@GLOBAL.replicate_ignore_db="";

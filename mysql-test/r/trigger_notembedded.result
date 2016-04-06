@@ -8,69 +8,67 @@ CREATE DATABASE mysqltest_db1;
 CREATE USER mysqltest_dfn@localhost;
 CREATE USER mysqltest_inv@localhost;
 GRANT CREATE ON mysqltest_db1.* TO mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 CREATE TABLE t1(num_value INT);
 CREATE TABLE t2(user_str TEXT);
-
----> connection: default
+disconnect wl2818_definer_con;
+connection default;
 GRANT INSERT, DROP ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
 GRANT INSERT, DROP ON mysqltest_db1.t2 TO mysqltest_dfn@localhost;
-
----> connection: default
+connection default;
 GRANT SUPER ON *.* TO mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 CREATE TRIGGER trg1 AFTER INSERT ON t1
 FOR EACH ROW
 INSERT INTO t2 VALUES(CURRENT_USER());
 ERROR 42000: TRIGGER command denied to user 'mysqltest_dfn'@'localhost' for table 't1'
-
----> connection: default
+disconnect wl2818_definer_con;
+connection default;
 GRANT TRIGGER ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 CREATE TRIGGER trg1 AFTER INSERT ON t1
 FOR EACH ROW
 INSERT INTO t2 VALUES(CURRENT_USER());
-
----> connection: default
+disconnect wl2818_definer_con;
+connection default;
 REVOKE TRIGGER ON mysqltest_db1.t1 FROM mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 DROP TRIGGER trg1;
 ERROR 42000: TRIGGER command denied to user 'mysqltest_dfn'@'localhost' for table 't1'
-
----> connection: wl2818_definer_con
+disconnect wl2818_definer_con;
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 INSERT INTO t1 VALUES(0);
 ERROR 42000: TRIGGER command denied to user 'mysqltest_dfn'@'localhost' for table 't1'
-
----> connection: default
+disconnect wl2818_definer_con;
+connection default;
 GRANT TRIGGER ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 INSERT INTO t1 VALUES(0);
 DROP TRIGGER trg1;
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
-
----> connection: default
+disconnect wl2818_definer_con;
+connection default;
 REVOKE SUPER ON *.* FROM mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 CREATE TRIGGER trg1 AFTER INSERT ON t1
 FOR EACH ROW
 INSERT INTO t2 VALUES(CURRENT_USER());
-
----> connection: default
+connection default;
 GRANT ALL PRIVILEGES ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
 GRANT ALL PRIVILEGES ON mysqltest_db1.t2 TO mysqltest_dfn@localhost;
 GRANT ALL PRIVILEGES ON mysqltest_db1.t1
 TO 'mysqltest_inv'@localhost;
 GRANT SELECT ON mysqltest_db1.t2
 TO 'mysqltest_inv'@localhost;
-
----> connection: wl2818_definer_con
+connection wl2818_definer_con;
 use mysqltest_db1;
 INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
@@ -79,8 +77,8 @@ num_value
 SELECT * FROM t2;
 user_str
 mysqltest_dfn@localhost
-
----> connection: wl2818_invoker_con
+connect  wl2818_invoker_con,localhost,mysqltest_inv,,mysqltest_db1;
+connection wl2818_invoker_con;
 use mysqltest_db1;
 INSERT INTO t1 VALUES(2);
 SELECT * FROM t1;
@@ -91,12 +89,10 @@ SELECT * FROM t2;
 user_str
 mysqltest_dfn@localhost
 mysqltest_dfn@localhost
-
----> connection: default
+connection default;
 use mysqltest_db1;
 REVOKE INSERT ON mysqltest_db1.t2 FROM mysqltest_dfn@localhost;
-
----> connection: wl2818_invoker_con
+connection wl2818_invoker_con;
 use mysqltest_db1;
 INSERT INTO t1 VALUES(3);
 ERROR 42000: INSERT command denied to user 'mysqltest_dfn'@'localhost' for table 't2'
@@ -109,8 +105,7 @@ SELECT * FROM t2;
 user_str
 mysqltest_dfn@localhost
 mysqltest_dfn@localhost
-
----> connection: wl2818_definer_con
+connection wl2818_definer_con;
 use mysqltest_db1;
 DROP TRIGGER trg1;
 CREATE DEFINER='mysqltest_inv'@'localhost'
@@ -118,12 +113,12 @@ CREATE DEFINER='mysqltest_inv'@'localhost'
 FOR EACH ROW
 SET @new_sum = 0;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-
----> connection: default
+connection default;
 use mysqltest_db1;
 GRANT SUPER ON *.* TO mysqltest_dfn@localhost;
-
----> connection: wl2818_definer_con
+disconnect wl2818_definer_con;
+connect  wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1;
+connection wl2818_definer_con;
 CREATE DEFINER='mysqltest_inv'@'localhost'
   TRIGGER trg1 BEFORE INSERT ON t1
 FOR EACH ROW
@@ -173,8 +168,7 @@ def	mysqltest_db1	trg2	INSERT	def	mysqltest_db1	t1	0	NULL	SET @a = 2	ROW	AFTER	N
 def	mysqltest_db1	trg3	UPDATE	def	mysqltest_db1	t1	0	NULL	SET @a = 3	ROW	BEFORE	NULL	NULL	OLD	NEW	NULL	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@abc@def@@%	latin1	latin1_swedish_ci	latin1_swedish_ci
 def	mysqltest_db1	trg4	UPDATE	def	mysqltest_db1	t1	0	NULL	SET @a = 4	ROW	AFTER	NULL	NULL	OLD	NEW	NULL	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@hostname	latin1	latin1_swedish_ci	latin1_swedish_ci
 def	mysqltest_db1	trg5	DELETE	def	mysqltest_db1	t1	0	NULL	SET @a = 5	ROW	BEFORE	NULL	NULL	OLD	NEW	NULL	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@abcdef@@@hostname	latin1	latin1_swedish_ci	latin1_swedish_ci
-
----> connection: default
+connection default;
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
 DROP DATABASE mysqltest_db1;
@@ -194,29 +188,26 @@ CREATE USER mysqltest_u1@localhost;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_u1@localhost;
 GRANT TRIGGER ON mysqltest_db1.* TO mysqltest_u1@localhost;
 SET @mysqltest_var = NULL;
-
----> connection: default
+connect  bug15166_u1_con,localhost,mysqltest_u1,,mysqltest_db1;
+connection default;
 use mysqltest_db1;
 GRANT DELETE ON mysqltest_db1.* TO mysqltest_u1@localhost;
 SHOW GRANTS FOR mysqltest_u1@localhost;
 Grants for mysqltest_u1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_u1'@'localhost'
 GRANT DELETE, TRIGGER ON `mysqltest_db1`.* TO 'mysqltest_u1'@'localhost'
-
----> connection: bug15166_u1_con
+connection bug15166_u1_con;
 use mysqltest_db1;
 CREATE TRIGGER t1_trg_after_delete AFTER DELETE ON t1
 FOR EACH ROW
 SET @mysqltest_var = 'Hello, world!';
-
----> connection: default
+connection default;
 use mysqltest_db1;
 GRANT UPDATE ON mysqltest_db1.t1 TO mysqltest_u1@localhost;
 GRANT UPDATE ON mysqltest_db1.t2 TO mysqltest_u1@localhost;
 GRANT UPDATE(col) ON mysqltest_db1.t3 TO mysqltest_u1@localhost;
 GRANT UPDATE(col) ON mysqltest_db1.t4 TO mysqltest_u1@localhost;
-
----> connection: bug15166_u1_con
+connection bug15166_u1_con;
 use mysqltest_db1;
 CREATE TRIGGER t1_trg_err_1 BEFORE INSERT ON t1
 FOR EACH ROW
@@ -240,8 +231,7 @@ DROP TRIGGER t3_trg_err_2;
 CREATE TRIGGER t4_trg_before_insert BEFORE INSERT ON t4
 FOR EACH ROW
 SET NEW.col = 't4_trg_before_insert';
-
----> connection: default
+connection default;
 use mysqltest_db1;
 REVOKE UPDATE ON mysqltest_db1.t1 FROM mysqltest_u1@localhost;
 REVOKE UPDATE ON mysqltest_db1.t2 FROM mysqltest_u1@localhost;
@@ -251,8 +241,7 @@ REVOKE UPDATE(col) ON mysqltest_db1.t3 FROM mysqltest_u1@localhost;
 REVOKE UPDATE(col) ON mysqltest_db1.t4 FROM mysqltest_u1@localhost;
 GRANT SELECT(col) on mysqltest_db1.t3 TO mysqltest_u1@localhost;
 GRANT SELECT(col) on mysqltest_db1.t4 TO mysqltest_u1@localhost;
-
----> connection: bug15166_u1_con
+connection bug15166_u1_con;
 use mysqltest_db1;
 CREATE TRIGGER t1_trg_after_insert AFTER INSERT ON t1
 FOR EACH ROW
@@ -282,8 +271,7 @@ CREATE TRIGGER t4_trg_err_2 BEFORE UPDATE ON t4
 FOR EACH ROW
 SET NEW.col = CONCAT(OLD.col, '(updated)');
 DROP TRIGGER t4_trg_err_2;
-
----> connection: default
+connection default;
 use mysqltest_db1;
 REVOKE SELECT ON mysqltest_db1.t1 FROM mysqltest_u1@localhost;
 REVOKE SELECT ON mysqltest_db1.t2 FROM mysqltest_u1@localhost;
@@ -317,8 +305,7 @@ INSERT INTO t4 VALUES('t4_line2');
 SELECT * FROM t4;
 col
 t4_trg_before_insert
-
----> connection: default
+connection default;
 use mysqltest_db1;
 REVOKE UPDATE ON mysqltest_db1.t1 FROM mysqltest_u1@localhost;
 REVOKE UPDATE ON mysqltest_db1.t2 FROM mysqltest_u1@localhost;
@@ -374,69 +361,103 @@ CREATE USER mysqltest_dfn@localhost;
 CREATE USER mysqltest_inv@localhost;
 GRANT EXECUTE, CREATE ROUTINE, TRIGGER ON *.* TO mysqltest_dfn@localhost;
 GRANT INSERT ON mysqltest_db1.* TO mysqltest_inv@localhost;
+connect  definer,localhost,mysqltest_dfn,,mysqltest_db1;
+connect  invoker,localhost,mysqltest_inv,,mysqltest_db1;
+connection definer;
 CREATE PROCEDURE p1(OUT i INT) DETERMINISTIC NO SQL SET i = 3;
 CREATE PROCEDURE p2(INOUT i INT) DETERMINISTIC NO SQL SET i = i * 5;
+connection definer;
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL p1(NEW.i1);
 CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
 CALL p2(NEW.i1);
+connection invoker;
 INSERT INTO t1 VALUES (7);
 ERROR 42000: UPDATE command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't1'
 INSERT INTO t2 VALUES (11);
 ERROR 42000: SELECT, UPDATE command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't2'
+connection definer;
 DROP TRIGGER t2_bi;
 DROP TRIGGER t1_bi;
+connection default;
 GRANT SELECT ON mysqltest_db1.* TO mysqltest_dfn@localhost;
+connection definer;
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL p1(NEW.i1);
 CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
 CALL p2(NEW.i1);
+connection invoker;
 INSERT INTO t1 VALUES (13);
 ERROR 42000: UPDATE command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't1'
 INSERT INTO t2 VALUES (17);
 ERROR 42000: UPDATE command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't2'
+connection default;
 REVOKE SELECT ON mysqltest_db1.* FROM mysqltest_dfn@localhost;
+connection definer;
 DROP TRIGGER t2_bi;
 DROP TRIGGER t1_bi;
+connection default;
 GRANT UPDATE ON mysqltest_db1.* TO mysqltest_dfn@localhost;
+connection definer;
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL p1(NEW.i1);
 CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
 CALL p2(NEW.i1);
+connection invoker;
 INSERT INTO t1 VALUES (19);
 INSERT INTO t2 VALUES (23);
 ERROR 42000: SELECT command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't2'
+connection default;
 REVOKE UPDATE ON mysqltest_db1.* FROM mysqltest_dfn@localhost;
+connection definer;
 DROP TRIGGER t2_bi;
 DROP TRIGGER t1_bi;
+connection default;
 GRANT SELECT, UPDATE ON mysqltest_db1.* TO mysqltest_dfn@localhost;
+connection definer;
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL p1(NEW.i1);
 CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
 CALL p2(NEW.i1);
+connection invoker;
 INSERT INTO t1 VALUES (29);
 INSERT INTO t2 VALUES (31);
+connection default;
 REVOKE SELECT, UPDATE ON mysqltest_db1.* FROM mysqltest_dfn@localhost;
+connection definer;
 DROP TRIGGER t2_bi;
 DROP TRIGGER t1_bi;
+connection default;
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
+connection default;
 GRANT UPDATE ON mysqltest_db1.* TO mysqltest_dfn@localhost;
+connection definer;
 CREATE PROCEDURE p1(OUT i INT) DETERMINISTIC NO SQL SET i = 37;
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL p1(NEW.i1);
+connection invoker;
 INSERT INTO t1 VALUES (41);
+connection definer;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(IN i INT) DETERMINISTIC NO SQL SET @v1 = i + 43;
+connection invoker;
 INSERT INTO t1 VALUES (47);
 ERROR 42000: SELECT command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't1'
+connection definer;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(INOUT i INT) DETERMINISTIC NO SQL SET i = i + 51;
+connection invoker;
 INSERT INTO t1 VALUES (53);
 ERROR 42000: SELECT command denied to user 'mysqltest_dfn'@'localhost' for column 'i1' in table 't1'
+connection default;
 DROP PROCEDURE p1;
 REVOKE UPDATE ON mysqltest_db1.* FROM mysqltest_dfn@localhost;
+connection definer;
 DROP TRIGGER t1_bi;
+disconnect definer;
+disconnect invoker;
+connection default;
 DROP USER mysqltest_inv@localhost;
 DROP USER mysqltest_dfn@localhost;
 DROP TABLE t2;
@@ -448,24 +469,41 @@ CREATE TABLE t2 (id INTEGER);
 INSERT INTO t2 VALUES (1),(2);
 CREATE TRIGGER t1_test AFTER INSERT ON t1 FOR EACH ROW 
 INSERT INTO t2 VALUES (new.id);
+CONNECT  rl_holder,    localhost, root,,;
+CONNECT  rl_acquirer,  localhost, root,,;
+CONNECT  wl_acquirer,  localhost, root,,;
+CONNECT  rl_contender, localhost, root,,;
+connection rl_holder;
 SELECT GET_LOCK('B26162',120);
 GET_LOCK('B26162',120)
 1
+connection rl_acquirer;
 SELECT 'rl_acquirer', GET_LOCK('B26162',120), id FROM t2 WHERE id = 1;
+connection wl_acquirer;
 SET SESSION LOW_PRIORITY_UPDATES=1;
 SET GLOBAL LOW_PRIORITY_UPDATES=1;
 INSERT INTO t1 VALUES (5);
+connection rl_contender;
 SELECT 'rl_contender', id FROM t2 WHERE id > 1;
+connection rl_holder;
 SELECT RELEASE_LOCK('B26162');
 RELEASE_LOCK('B26162')
 1
+connection rl_acquirer;
 rl_acquirer	GET_LOCK('B26162',120)	id
 rl_acquirer	1	1
 SELECT RELEASE_LOCK('B26162');
 RELEASE_LOCK('B26162')
 1
+connection wl_acquirer;
+connection rl_contender;
 rl_contender	id
 rl_contender	2
+connection default;
+disconnect rl_acquirer;
+disconnect wl_acquirer;
+disconnect rl_contender;
+disconnect rl_holder;
 DROP TRIGGER t1_test;
 DROP TABLE t1,t2;
 SET SESSION LOW_PRIORITY_UPDATES=DEFAULT;
@@ -473,18 +511,21 @@ SET GLOBAL LOW_PRIORITY_UPDATES=DEFAULT;
 End of 5.0 tests.
 drop table if exists t1;
 create table t1 (i int);
-connection: default
+connect  flush,localhost,root,,test,,;
+connection default;
 lock tables t1 write;
-connection: flush
+connection flush;
 flush tables with read lock;;
-connection: default
+connection default;
 create trigger t1_bi before insert on t1 for each row begin end;
 unlock tables;
-connection: flush
+connection flush;
 unlock tables;
+connection default;
 select * from t1;
 i
 drop table t1;
+disconnect flush;
 CREATE DATABASE db1;
 CREATE TABLE db1.t1 (a char(30)) ENGINE=MEMORY;
 CREATE TRIGGER db1.trg AFTER INSERT ON db1.t1 FOR EACH ROW
@@ -492,11 +533,14 @@ INSERT INTO db1.t1 VALUES('Some very sensitive data goes here');
 CREATE USER 'no_rights'@'localhost';
 REVOKE ALL ON *.* FROM 'no_rights'@'localhost';
 FLUSH PRIVILEGES;
+connect  con1,localhost,no_rights,,;
 SELECT trigger_name FROM INFORMATION_SCHEMA.TRIGGERS
 WHERE trigger_schema = 'db1';
 trigger_name
 SHOW CREATE TRIGGER db1.trg;
 ERROR 42000: Access denied; you need (at least one of) the TRIGGER privilege(s) for this operation
+connection default;
+disconnect con1;
 DROP USER 'no_rights'@'localhost';
 DROP DATABASE db1;
 DROP DATABASE IF EXISTS mysqltest_db1;
@@ -504,6 +548,7 @@ CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 CREATE USER mysqltest_u1@localhost;
 GRANT ALL ON mysqltest_db1.* TO mysqltest_u1@localhost;
+connect con1,localhost,mysqltest_u1,,mysqltest_db1;
 CREATE TABLE t1 (
 a1 int,
 a2 int
@@ -515,10 +560,13 @@ CREATE TABLE t2 (
 a1 int
 );
 INSERT INTO t2 VALUES (2);
+connection default;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_u1@localhost;
 UPDATE IGNORE t1, t2 SET t1.a1 = 2, t2.a1 = 3 WHERE t1.a1 = 1 AND t2.a1 = 2;
 ERROR 42000: TRIGGER command denied to user 'mysqltest_u1'@'localhost' for table 't1'
 DROP DATABASE mysqltest_db1;
 DROP USER mysqltest_u1@localhost;
+disconnect con1;
+connection default;
 USE test;
 End of 5.1 tests.

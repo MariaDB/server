@@ -11,7 +11,6 @@ connection slave;
 call mtr.add_suppression("Slave: Can\'t find record in \'t1\' error.* .*");
 call mtr.add_suppression("Can't find record in 't.'");
 
---echo [on slave]
 connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 

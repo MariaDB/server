@@ -1,3 +1,4 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 change master 'master1' to 
 master_port=MYPORT_1, 
 master_host='127.0.0.1', 
@@ -5,8 +6,10 @@ master_user='root';
 start slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 drop table if exists t1;
 create table t1 (i int) engine=MyISAM;
+connection slave;
 mysqld-relay-bin-master1.000001
 mysqld-relay-bin-master1.000002
 mysqld-relay-bin-master1.index
@@ -25,6 +28,11 @@ include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 mysqld-relay-bin-master1.000001	#	Rotate	#	#	mysqld-relay-bin-master1.000002;pos=4
+connection master1;
 drop table t1;
+connection slave;
 include/reset_master_slave.inc
+disconnect slave;
+connection master1;
 include/reset_master_slave.inc
+disconnect master1;

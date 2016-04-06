@@ -64,7 +64,6 @@ drop table if exists t1;
 --echo **
 --echo ** two UPDATE's running and both changing distinct result sets
 --echo **
-  --echo ** connection thread1
   connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -84,7 +83,6 @@ drop table if exists t1;
   --echo ** Get user level lock (ULL) for thread 1
   select get_lock("hello",10);
 
-      --echo ** connection thread2
       connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Start transaction for thread 2
@@ -93,7 +91,6 @@ drop table if exists t1;
       --echo ** be created and blocked on the first row where tipo=11.
       send update t1 set eta=1+get_lock("hello",10)*0 where tipo=11;
 
-  --echo ** connection thread1
   connection thread1;
   let $wait_condition= select count(*)= 1 from information_schema.processlist where state= 'User lock';
   --source include/wait_condition.inc
@@ -121,7 +118,6 @@ drop table if exists t1;
   --echo ** Table is now updated with a new eta on tipo=22 for thread 1.
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Release the lock and collect result from update on thread 2
       reap;
@@ -134,7 +130,6 @@ drop table if exists t1;
       --echo ** Sending commit on thread 2.
       commit;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Make sure table reads didn't change yet on thread 1.
   select * from t1;
@@ -144,16 +139,13 @@ drop table if exists t1;
   --echo ** thread 1,2.
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Make sure the output is similar for t1.
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -162,7 +154,6 @@ drop table t1;
 --echo **
 --echo ** two UPDATE's running and one changing result set
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -182,7 +173,6 @@ drop table t1;
   --echo ** Get ULL "hello" on thread 1
   select get_lock("hello",10);
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Start transaction on thread 2
@@ -192,7 +182,6 @@ drop table t1;
       --echo ** blocking ULL is released.
       send update t1 set eta=1+get_lock("hello",10)*0 where tipo=1;
 
---echo ** connection thread1
   connection thread1;
   let $wait_condition= select count(*)= 1 from information_schema.processlist where state= 'User lock';
   --source include/wait_condition.inc
@@ -219,7 +208,6 @@ drop table t1;
   --echo ** The table should still be updated with updates for thread 1 only:
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Release the lock and collect result from thread 2:
       reap;
@@ -231,7 +219,6 @@ drop table t1;
       select * from t1;
       commit;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Thread 2 has committed but the result should remain the same for
   --echo ** thread 1 (updated on three places):
@@ -242,15 +229,12 @@ drop table t1;
   --echo ** This select should show both updates:
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -259,7 +243,6 @@ drop table t1;
 --echo **
 --echo ** One UPDATE and one INSERT .... Monty's test
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -269,7 +252,6 @@ drop table t1;
   --echo ** Create ULL 'hello2'
   select get_lock("hello2",10);
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Begin a new transaction on thread 2
@@ -278,7 +260,6 @@ drop table t1;
       --echo ** this will hang waiting on thread 1.
       send update t1 set b=10+get_lock(concat("hello",a),10)*0 where a=2;
 
-  --echo ** connection thread1
   connection thread1;
   let $wait_condition= select count(*)= 1 from information_schema.processlist where state= 'User lock';
   --source include/wait_condition.inc
@@ -292,7 +273,6 @@ drop table t1;
   --echo ** ..but thread 1 will still see t1 as if nothing has happend:
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Collect results from thread 2 and release the lock.
       reap;
@@ -305,7 +285,6 @@ drop table t1;
       --echo ** Commit changes from thread 2
       commit;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -314,7 +293,6 @@ drop table t1;
 --echo **
 --echo ** one UPDATE changing result set and SELECT ... FOR UPDATE
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -332,7 +310,6 @@ drop table t1;
   insert into t1 values (80,22,"jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
   insert into t1 values (90,11,"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Begin a new transaction on thread 2
@@ -340,7 +317,6 @@ drop table t1;
       --echo ** Select a range for update.
       select * from t1 where tipo=2 FOR UPDATE;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Begin a new transaction on thread 1 
   begin;
@@ -352,7 +328,6 @@ drop table t1;
   --echo ** transaction failed and was rolled back.
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** The table should look unmodified from thread 2.
       select * from t1;
@@ -360,22 +335,18 @@ drop table t1;
       --echo ** thread 1 to complete the transaction.
       commit;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Commit on thread 1.
   commit;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** The table should not have been changed.
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Even on thread 1:
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -384,7 +355,6 @@ drop table t1;
 --echo **
 --echo ** one UPDATE not changing result set and SELECT ... FOR UPDATE
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -402,7 +372,6 @@ drop table t1;
   insert into t1 values (80,22,"jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
   insert into t1 values (90,11,"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Starting new transaction on thread 2.
@@ -410,7 +379,6 @@ drop table t1;
       --echo ** Starting SELECT .. FOR UPDATE
       select * from t1 where tipo=2 FOR UPDATE;
 
-  --echo ** connection thread1
   connection thread1;
   --echo 
   --echo ** Starting new transaction on thread 1
@@ -433,28 +401,23 @@ drop table t1;
   --echo ** have changed.
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** The same thing should hold true for the transaction on
       --echo ** thread 2
       select * from t1;
       send commit;
 
-  --echo ** connection thread1
   connection thread1;
   commit;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Even after committing:
       reap;
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -463,7 +426,6 @@ drop table t1;
 --echo **
 --echo ** two SELECT ... FOR UPDATE
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -481,14 +443,12 @@ drop table t1;
   insert into t1 values (80,22,"jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
   insert into t1 values (90,11,"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       --echo ** Begin a new transaction on thread 2
       begin;
       select * from t1 where tipo=2 FOR UPDATE;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Begin a new transaction on thread 1
   begin;
@@ -497,7 +457,6 @@ drop table t1;
   --error ER_LOCK_WAIT_TIMEOUT
   select * from t1 where tipo=1 FOR UPDATE;
   
-      --echo ** connection thread2
       connection thread2;
       --echo ** Table will be unchanged and the select command will not be
       --echo ** blocked:
@@ -505,22 +464,18 @@ drop table t1;
       --echo ** Commit transacton on thread 2.
       commit;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Commit transaction on thread 1.
   commit;
 
-      --echo ** connection thread2
       connection thread2;
       --echo ** Make sure table isn't blocked on thread 2:
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   --echo ** Make sure table isn't blocked on thread 1:
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -529,7 +484,6 @@ drop table t1;
 --echo **
 --echo ** one UPDATE changing result set and DELETE
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -547,7 +501,6 @@ drop table t1;
   insert into t1 values (80,22,"jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
   insert into t1 values (90,11,"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       begin;
@@ -557,33 +510,27 @@ drop table t1;
 # 'innodb_deleted_rows' and infos in processlist where not sucessful.
       sleep 1;
 
-  --echo ** connection thread1
   connection thread1;
   begin;
   --error ER_LOCK_WAIT_TIMEOUT
   update t1 set tipo=1 where tipo=2;
   select * from t1;
 
-      --echo ** connection thread2
       connection thread2;
       reap;
       select * from t1;
       send commit;
 
-  --echo ** connection thread1
   connection thread1;
   commit;
 
-      --echo ** connection thread2
       connection thread2;
       reap;
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   select * from t1;
 
---echo ** connection default
 connection default;
 drop table t1;
 
@@ -592,7 +539,6 @@ drop table t1;
 --echo **
 --echo ** one UPDATE not changing result set and DELETE
 --echo **
-  --echo ** connection thread1
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
@@ -610,7 +556,6 @@ drop table t1;
   insert into t1 values (80,22,"jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
   insert into t1 values (90,11,"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
-      --echo ** connection thread2
       #connect (thread2, localhost, mysqltest,,);
       connection thread2;
       begin;
@@ -620,7 +565,6 @@ drop table t1;
 # 'innodb_deleted_rows' and infos in processlist where not sucessful.
       sleep 1;
  
-  --echo ** connection thread1
   connection thread1;
   begin;
   --echo ** Update on t1 will cause a table scan which will be blocked because
@@ -639,22 +583,18 @@ drop table t1;
   }
   select * from t1;
     
-      --echo ** connection thread2
       connection thread2;
       reap;
       select * from t1;
       send commit;
 
-  --echo ** connection thread1
   connection thread1;
   commit;
 
-      --echo ** connection thread2
       connection thread2;
       reap;
       select * from t1;
 
-  --echo ** connection thread1
   connection thread1;
   select * from t1;
 
@@ -662,11 +602,9 @@ drop table t1;
 connection thread1;
 disconnect thread1;
 --source include/wait_until_disconnected.inc
---echo ** connection thread2
 connection thread2;
 disconnect thread2;
 --source include/wait_until_disconnected.inc
---echo ** connection default
 connection default;
 drop table t1;
 drop user mysqltest@localhost;

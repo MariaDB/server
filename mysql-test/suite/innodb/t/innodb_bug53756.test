@@ -47,65 +47,45 @@ START TRANSACTION;
 SELECT @@tx_isolation;
 SELECT * FROM bug_53756;
 
---echo
---echo # connection con1 deletes row 1
 --connect (con1,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 DELETE FROM bug_53756 WHERE pk=1;
 
---echo
---echo # connection con2 deletes row 2
 --connect (con2,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 DELETE FROM bug_53756 WHERE pk=2;
 
---echo
---echo # connection con3 updates row 3
 --connect (con3,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 UPDATE bug_53756 SET c1=77 WHERE pk=3;
 
---echo
---echo # connection con4 updates row 4
 --connect (con4,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 UPDATE bug_53756 SET c1=88 WHERE pk=4;
 
---echo
---echo # connection con5 inserts row 5
 --connect (con5,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 INSERT INTO bug_53756 VALUES(5, 55);
 
---echo
---echo # connection con6 inserts row 6
 --connect (con6,localhost,root,,)
 START TRANSACTION;
 SELECT @@tx_isolation;
 INSERT INTO bug_53756 VALUES(6, 66);
 
---echo
---echo # connection con1 commits.
 --connection con1
 COMMIT;
 
---echo
---echo # connection con3 commits.
 --connection con3
 COMMIT;
 
---echo
---echo # connection con4 rolls back.
 --connection con4
 ROLLBACK;
 
---echo
---echo # connection con6 rolls back.
 --connection con6
 ROLLBACK;
 
@@ -113,7 +93,6 @@ ROLLBACK;
 --echo # The connections 2 and 5 stay open.
 
 --echo
---echo # connection default selects resulting data.
 --echo # Delete of row 1 was committed.
 --echo # Update of row 3 was committed.
 --echo # Due to isolation level read committed, these should be included.
@@ -121,8 +100,6 @@ ROLLBACK;
 --connection default
 SELECT * FROM bug_53756;
 
---echo
---echo # connection default
 --connection default
 --echo #
 --echo # Crash server.
@@ -144,8 +121,6 @@ SET SESSION debug_dbug="+d,crash_commit_before";
 --error 2013
 COMMIT;
 --echo
---echo #
---echo # disconnect con1, con2, con3, con4, con5, con6.
 --disconnect con1
 --disconnect con2
 --disconnect con3
@@ -182,4 +157,3 @@ DROP TABLE bug_53756;
 eval SET GLOBAL tx_isolation= '$global_isolation';
 eval SET SESSION tx_isolation= '$session_isolation';
 --enable_query_log
-

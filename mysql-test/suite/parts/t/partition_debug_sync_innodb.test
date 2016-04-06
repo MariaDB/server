@@ -20,12 +20,10 @@ DELETE FROM t1 WHERE a = 11;
 SELECT * FROM t1;
 
 --connect (con1, localhost, root,,)
---echo # con1 (send)
 --send
 ALTER TABLE t1 TRUNCATE PARTITION pMax;
 
 --connection default
---echo # con default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
     WHERE STATE = "Waiting for table metadata lock" AND
@@ -36,13 +34,10 @@ SELECT * FROM t1;
 --echo # Commit will allow the TRUNCATE to finish
 COMMIT;
 
---echo # con1 (reap)
 --connection con1
 --reap
---echo # con1 (disconnect)
 --disconnect con1
 --connection default
---echo # default connection
 SELECT * FROM t1;
 DROP TABLE t1;
 

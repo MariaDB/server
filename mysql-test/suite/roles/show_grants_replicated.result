@@ -54,4 +54,5 @@ GRANT USAGE ON *.* TO 'r1'
 connection master;
 drop role r1;
 drop user u1;
+connection slave;
 include/rpl_end.inc

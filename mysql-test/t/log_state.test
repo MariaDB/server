@@ -33,9 +33,7 @@ flush logs;
 show global variables
 where Variable_name = 'general_log' or Variable_name = 'slow_query_log';
 
---echo # Establish connection con1 (user=root)
 connect (con1,localhost,root,,);
---echo # Switch to connection con1
 connection con1;
 # Please increase @long_query_time if the corresponding selects show an
 # additional unexpected entry like
@@ -48,12 +46,10 @@ set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
 --replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
---echo # Switch to connection default
 connection default;
 
 set global slow_query_log= ON;
 set local slow_query_log= ON;
---echo # Switch to connection con1
 connection con1;
 set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
@@ -64,7 +60,6 @@ select sleep(@long_query_time + 2);
 --replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 
---echo # Switch to connection default
 connection default;
 show global variables
 where Variable_name = 'general_log' or Variable_name = 'slow_query_log';
@@ -328,7 +323,6 @@ SET GLOBAL general_log_file = @old_general_log_file;
 # Cleanup
 #
 # Disconnect must be done last to avoid delayed 'Quit' message in general log
---echo # Close connection con1
 disconnect con1;
 # set back the saved default values
 connection default;

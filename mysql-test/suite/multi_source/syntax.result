@@ -35,6 +35,7 @@ master_pos_wait('master-bin.999999',0,2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 NULL
 Warnings:
 Warning	1210	Incorrect arguments to MASTER_CONNECTION_NAME
+connection slave;
 #
 # checking usage of default_master_connection;
 #

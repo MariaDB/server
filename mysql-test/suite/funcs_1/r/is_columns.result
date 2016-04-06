@@ -147,7 +147,7 @@ SHOW COLUMNS FROM db_datadict.v1;
 Field	Type	Null	Key	Default	Extra
 f1	int(1)	NO		0	
 f2	int(1)	NO		0	
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema, table_name, ordinal_position;
@@ -164,7 +164,7 @@ ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 't2
 SHOW COLUMNS FROM db_datadict.v1;
 Field	Type	Null	Key	Default	Extra
 f2	int(1)	NO		0	
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema, table_name, ordinal_position;
@@ -179,7 +179,9 @@ f1	char(10)	NO	PRI	NULL
 f2	text	YES		NULL	
 SHOW COLUMNS FROM db_datadict.v1;
 ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'v1'
-# Switch to connection default and close connections testuser1, testuser2
+connection default;
+disconnect testuser1;
+disconnect testuser2;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP DATABASE IF EXISTS db_datadict;

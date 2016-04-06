@@ -1,6 +1,4 @@
 --source include/not_embedded.inc
---enable_connect_log
-
 
 select * from mysql.user where user = 'root' and host = 'localhost';
 --echo # Test syntax
@@ -79,4 +77,3 @@ alter user foo with MAX_QUERIES_PER_HOUR 10
                     MAX_USER_CONNECTIONS 40;
 select * from mysql.user where user = 'foo';
 drop user foo;
---disable_connect_log

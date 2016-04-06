@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connection master;
 CREATE TABLE t1 (
 a int unsigned not null auto_increment primary key,
 b int unsigned,
@@ -22,7 +23,9 @@ INSERT INTO t2 VALUES (5, 4);
 INSERT INTO t2 VALUES (6, 6);
 INSERT IGNORE INTO t1 SELECT NULL, t2.b FROM t2 ORDER BY t2.a;
 include/assert.inc [Count of elements in t1 should be 6.]
+connection slave;
 include/diff_tables.inc [master:test.t1 , slave:test.t1]
+connection master;
 INSERT IGNORE INTO t1 SELECT NULL, t2.b FROM t2 ORDER BY t2.a;
 include/assert.inc [Count of elements in t1 should be 6.]
 include/assert.inc [In SBR or MIXED modes, the event in the binlog should be the same that was executed. In RBR mode, binlog position should stay unchanged.]
@@ -39,7 +42,10 @@ INSERT INTO t2 VALUES (1);
 INSERT INTO t1 SELECT t2.a FROM t2 ORDER BY t2.a ON DUPLICATE KEY UPDATE t1.a= t1.a;
 include/assert.inc [Sum of elements in t1 should be 1.]
 include/assert.inc [In SBR or MIXED modes, the event in the binlog should be the same that was executed. In RBR mode, binlog position should stay unchanged.]
+connection master;
 drop table t1, t2;
+connection slave;
+connection master;
 CREATE TABLE t1 (
 a int unsigned not null auto_increment primary key,
 b int unsigned,
@@ -61,7 +67,9 @@ INSERT INTO t2 VALUES (5, 4);
 INSERT INTO t2 VALUES (6, 6);
 INSERT IGNORE INTO t1 SELECT NULL, t2.b FROM t2 ORDER BY t2.a;
 include/assert.inc [Count of elements in t1 should be 6.]
+connection slave;
 include/diff_tables.inc [master:test.t1 , slave:test.t1]
+connection master;
 INSERT IGNORE INTO t1 SELECT NULL, t2.b FROM t2 ORDER BY t2.a;
 include/assert.inc [Count of elements in t1 should be 6.]
 include/assert.inc [In SBR or MIXED modes, the event in the binlog should be the same that was executed. In RBR mode, binlog position should stay unchanged.]
@@ -78,5 +86,7 @@ INSERT INTO t2 VALUES (1);
 INSERT INTO t1 SELECT t2.a FROM t2 ORDER BY t2.a ON DUPLICATE KEY UPDATE t1.a= t1.a;
 include/assert.inc [Sum of elements in t1 should be 1.]
 include/assert.inc [In SBR or MIXED modes, the event in the binlog should be the same that was executed. In RBR mode, binlog position should stay unchanged.]
+connection master;
 drop table t1, t2;
+connection slave;
 include/rpl_end.inc

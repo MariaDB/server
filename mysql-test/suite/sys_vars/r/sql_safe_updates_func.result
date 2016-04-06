@@ -139,31 +139,32 @@ Bug#35392 Unexpected error occurs in this statement Can't change size of the fil
 statement is remarked because the error is uncatchable by testing framework
 DEALLOCATE PREPARE stmt;
 '#----------------------------FN_DYNVARS_164_10--------------------------------------#'
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_safe_updates;
 @@SESSION.sql_safe_updates
 0
 0 / FALSE Expected
 SET SESSION sql_safe_updates = FALSE;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_safe_updates;
 @@SESSION.sql_safe_updates
 0
 0 / FALSE Expected
 SET SESSION sql_safe_updates = TRUE;
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_safe_updates;
 @@SESSION.sql_safe_updates
 1
 1 / TRUE Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_safe_updates;
 @@SESSION.sql_safe_updates
 0
 0 / FALSE Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET SESSION sql_safe_updates = @default_sql_safe_updates;
 DROP TABLE t1;

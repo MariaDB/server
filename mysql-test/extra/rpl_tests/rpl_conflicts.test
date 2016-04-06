@@ -57,10 +57,8 @@
 
 --echo ==== Initialize ====
 
---echo [on master]
 connection master;
 CREATE TABLE t1(a INT PRIMARY KEY);
---echo [on slave]
 sync_slave_with_master;
 
 
@@ -71,14 +69,12 @@ sync_slave_with_master;
 INSERT INTO t1 VALUES (1);
 
 --echo ---- Insert rows on master ----
---echo [on master]
 connection master;
 # Insert the same row on master
 INSERT INTO t1 VALUES (1);
 save_master_pos;
 SELECT * FROM t1;
 
---echo [on slave]
 connection slave;
 
 # If we are statement-logging or if slave_exec_mode=STRICT, we now
@@ -117,23 +113,19 @@ SELECT * FROM t1;
 --echo ==== Test: SQL thread sees 'DELETE' of non-existing row ====
 
 --echo ---- On master, insert two rows, the second with binlogging off ----
---echo [on master]
 connection master;
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1);
 
---echo [on slave]
 sync_slave_with_master;
 DELETE FROM t1 WHERE a = 1;
 
 --echo ---- On master, remove the row that does not exist on slave ----
---echo [on master]
 connection master;
 DELETE FROM t1 WHERE a = 1;
 SELECT * FROM t1;
 save_master_pos;
 
---echo [on slave]
 connection slave;
 
 # If we are row-logging and slave_exec_mode is STRICT, we now expect
@@ -172,9 +164,7 @@ SELECT * FROM t1;
 
 --echo ==== Clean up ====
 
---echo [on master]
 connection master;
 DROP TABLE t1;
 
---echo [on slave]
 --sync_slave_with_master

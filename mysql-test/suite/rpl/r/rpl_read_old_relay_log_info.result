@@ -3,6 +3,7 @@ include/master-slave.inc
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;
+connection slave;
 ==== Check that we still understand the old format of relay-log.info ====
 include/stop_slave.inc
 RESET SLAVE;

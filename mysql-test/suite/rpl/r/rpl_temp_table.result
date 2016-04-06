@@ -11,10 +11,16 @@ insert into t3 values (1010);
 insert into t2 select * from t3;
 drop table if exists t3;
 insert into t2 values (1012);
+connection master1;
 create temporary table t1 (n int);
 insert into t1 values (4),(5);
 insert into t2 select * from t1;
+disconnect master;
+connection slave;
+connection master1;
 insert into t2 values(61);
+disconnect master1;
+connection slave;
 select * from t2;
 n
 1
@@ -40,11 +46,18 @@ show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
 *** MDEV-8016: Replication aborts on DROP /*!40005 TEMPORARY */ TABLE IF EXISTS ***
+connect  master2,localhost,root,,;
 INSERT INTO t2 VALUES (2000), (2001);
 CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
 CREATE TEMPORARY TABLE t3 AS SELECT f() AS col FROM t2;
+disconnect master2;
+connection default;
+connection slave;
+connect  master2,localhost,root,,;
+connection master2;
 drop table if exists t1,t2;
 Warnings:
 Note	1051	Unknown table 'test.t1'
 drop function f;
+connection slave;
 include/rpl_end.inc

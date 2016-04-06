@@ -1,9 +1,11 @@
 include/rpl_init.inc [topology=1->2]
 *** MDEV-6156: Parallel replication incorrectly caches charset between worker threads ***
+connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
 include/start_slave.inc
+connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -57,6 +59,7 @@ a	b
 18	Rødgrød med fløde 8
 19	Rødgrød med fløde 9
 20	Rødgrød med fløde 10
+connection server_2;
 SET character_set_results=utf8;
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -80,8 +83,10 @@ a	b
 18	Rødgrød med fløde 8
 19	Rødgrød med fløde 9
 20	Rødgrød med fløde 10
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_1;
 DROP TABLE t1;
 include/rpl_end.inc

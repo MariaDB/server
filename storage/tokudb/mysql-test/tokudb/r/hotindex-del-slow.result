@@ -1,5 +1,7 @@
 SET DEFAULT_STORAGE_ENGINE='tokudb';
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
+connection default;
 drop table if exists s;
 create table s (a int, b int);
 insert into s values (10000,0),(10000,1),(10000,2),(10000,3),(10000,4),(10000,5),(10000,6),(10000,7),(10000,8),(10000,9);
@@ -10004,6 +10006,7 @@ insert into s values (2,0),(2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9)
 insert into s values (1,0),(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9);
 set tokudb_create_index_online=1;
 create index i_a on s(a);
+connection conn1;
 delete from s where a=10000;
 show create table s;
 Table	Create Table
@@ -90004,10 +90007,12 @@ s	CREATE TABLE `s` (
   `b` int(11) DEFAULT NULL,
   KEY `i_a` (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
+connection default;
 select count(*) from s use index();
 count(*)
 0
 select count(*) from s use index(i_a);
 count(*)
 0
+disconnect conn1;
 drop table s;

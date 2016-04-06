@@ -50,7 +50,6 @@ FLUSH STATUS;
 SET @@global.key_buffer_size = 131072;
 
 
---echo ## Creating two new connections ##
 CONNECT (test_con1,localhost,root,,);
 CONNECT (test_con2,localhost,root,,);
 
@@ -60,7 +59,6 @@ CONNECT (test_con2,localhost,root,,);
 # Verifying initial behavior of variable by concatinating values greater than 4
 ###############################################################################
 
---echo ## Connecting with connection test_con1 ##
 CONNECTION test_con1;
 SELECT @@global.key_buffer_size;
 
@@ -80,13 +78,11 @@ INSERT INTO t1(rollno, name) VALUES(4, 'Record_10');
 --echo ## Key_reads must be zero (no disk access) ##
 show status like 'Key_reads';
 
---echo ## Switching to connection test_con2 ##
 connection test_con2;
 
 --echo ## Key_reads must be zero (no disk access) ##
 show status like 'Key_reads';
 
---echo ## Connecting with connection test_con1 ##
 CONNECTION test_con1;
 
 --echo ## Inserting some rows in table ##
@@ -111,10 +107,8 @@ show status like 'Key_reads';
 --echo ## Dropping table ##
 DROP TABLE IF EXISTS t1;
 
---echo ## Disconnecting both the connections ##
 DISCONNECT test_con2;
 DISCONNECT test_con1;
 
 connection default;
 SET @@global.key_buffer_size= @start_value;
-

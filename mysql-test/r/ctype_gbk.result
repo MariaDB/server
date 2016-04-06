@@ -5926,3 +5926,24 @@ Warning	1300	Invalid gb2312 character string: '\xA3A'
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9811 LOAD DATA INFILE does not work well with gbk in some cases
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET gbk);
+LOAD DATA INFILE '../../std_data/loaddata/mdev8711.txt' INTO TABLE t1 CHARACTER SET gbk LINES TERMINATED BY '@';
+SELECT HEX(a) FROM t1;
+HEX(a)
+B04061B041
+B042
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev8711.txt' INTO TABLE t1 CHARACTER SET gbk LINES TERMINATED BY '@' IGNORE 1 LINES;
+SELECT HEX(a) FROM t1;
+HEX(a)
+B042
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

@@ -10401,3 +10401,63 @@ SET @@SQL_MODE=default;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9824 LOAD DATA does not work with multi-byte strings in LINES TERMINATED BY when IGNORE is specified
+#
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё';
+Warnings:
+Warning	1638	Non-ASCII separator arguments are not fully supported
+SELECT c1 FROM t1;
+c1
+a
+b
+c
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
+Warnings:
+Warning	1638	Non-ASCII separator arguments are not fully supported
+SELECT c1 FROM t1;
+c1
+b
+c
+DROP TABLE t1;
+#
+# MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 7
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+SELECT HEX(a) FROM t1;
+HEX(a)
+3F
+78787831
+3F3F
+78787832
+3F3F3F
+78787833
+3F3F3F3F
+3F3F3F
+DROP TABLE t1;
+#
+# MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+SELECT HEX(a) FROM t1;
+HEX(a)
+613F
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

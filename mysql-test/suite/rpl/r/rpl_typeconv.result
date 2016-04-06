@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 set @saved_slave_type_conversions = @@global.slave_type_conversions;
 CREATE TABLE type_conversions (
 TestNo INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,18 +36,23 @@ ERROR 42000: Variable 'slave_type_conversions' can't be set to the value of 'NON
 SELECT @@global.slave_type_conversions;
 @@global.slave_type_conversions
 ALL_LOSSY,ALL_NON_LOSSY
+connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = '' ****
 include/rpl_reset.inc
+connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY' ****
 include/rpl_reset.inc
+connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY' ****
 include/rpl_reset.inc
+connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY,ALL_NON_LOSSY' ****
 include/rpl_reset.inc
+connection slave;
 **** Result of conversions ****
 Source_Type	Target_Type	All_Type_Conversion_Flags	Value_On_Slave
 TINYBLOB       	TINYBLOB       	                         	<Correct value>
@@ -535,6 +541,8 @@ BIT(5)         	BIT(12)        	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(12)        	BIT(5)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
+connection master;
 DROP TABLE t1;
+connection slave;
 set global slave_type_conversions = @saved_slave_type_conversions;
 include/rpl_end.inc

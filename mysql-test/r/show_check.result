@@ -524,6 +524,8 @@ create user mysqltest_2@localhost;
 grant usage  on `mysqltest`.* to mysqltest_2@localhost;
 create user mysqltest_3@localhost;
 grant drop   on `mysqltest`.* to mysqltest_3@localhost;
+connect  con1,localhost,mysqltest_1,,mysqltest;
+connection con1;
 select * from t1;
 a
 1
@@ -534,6 +536,9 @@ drop table t1;
 ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysqltest'
+disconnect con1;
+connect  con2,localhost,mysqltest_2,,test;
+connection con2;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table 't1'
 show create database mysqltest;
@@ -542,6 +547,9 @@ drop table mysqltest.t1;
 ERROR 42000: DROP command denied to user 'mysqltest_2'@'localhost' for table 't1'
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest'
+disconnect con2;
+connect  con3,localhost,mysqltest_3,,test;
+connection con3;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 't1'
 show create database mysqltest;
@@ -549,6 +557,8 @@ Database	Create Database
 mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 */
 drop table mysqltest.t1;
 drop database mysqltest;
+disconnect con3;
+connection default;
 set names binary;
 delete from mysql.user
 where user='mysqltest_1' || user='mysqltest_2' || user='mysqltest_3';
@@ -1284,9 +1294,13 @@ create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
 create user mysqltest_4@localhost;
 grant select on `mysqltest`.`t1` to mysqltest_4@localhost;
+connect  con4,localhost,mysqltest_4,,mysqltest;
+connection con4;
 show create database mysqltest;
 Database	Create Database
 mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 */
+disconnect con4;
+connection default;
 delete from mysql.user where user='mysqltest_4';
 delete from mysql.db where user='mysqltest_4';
 delete from mysql.tables_priv where user='mysqltest_4';
@@ -1458,17 +1472,22 @@ DROP EVENT ev1;
 SHOW STORAGE ENGINES;
 CREATE USER test_u@localhost;
 GRANT PROCESS ON *.* TO test_u@localhost;
+connect  conn1, localhost, test_u,,;
 SHOW ENGINE MYISAM MUTEX;
 SHOW ENGINE MYISAM STATUS;
+disconnect conn1;
+connection default;
 DROP USER test_u@localhost;
 End of 5.1 tests
 #
 # Bug#52593 SHOW CREATE TABLE is blocked if table is locked
 #           for write by another connection
 DROP TABLE IF EXISTS t1;
+connect con1, localhost,root;
+connection default;
 CREATE TABLE t1 (i INT PRIMARY KEY);
 LOCK TABLE t1 WRITE;
-# Switching to connection 'con1'.
+connection con1;
 # This statement used to be blocked.
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -1476,7 +1495,8 @@ t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL,
   PRIMARY KEY (`i`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-# Switching to connection 'default'.
+disconnect con1;
+connection default;
 UNLOCK TABLES;
 DROP TABLE t1;
 #
@@ -1485,20 +1505,21 @@ DROP TABLE t1;
 #
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT);
-# Connection con1
+connect  con1,localhost,root;
 LOCK TABLE t1 WRITE;
-# Connection default
+connection default;
 START TRANSACTION;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-# Connection con1
+connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
 UNLOCK TABLES;
-# Connection default
+connection default;
 COMMIT;
+disconnect con1;
 DROP TABLE t1;
 #
 # Bug#55498 SHOW CREATE TRIGGER takes wrong type of metadata lock.
@@ -1507,23 +1528,24 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1;
 # Test 1: SHOW CREATE TRIGGER with WRITE locked table.
-# Connection con1
+connect  con1, localhost, root;
 LOCK TABLE t1 WRITE;
-# Connection default
+connection default;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
 t1_bi	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8	utf8_general_ci	latin1_swedish_ci
-# Connection con1
+connection con1;
 UNLOCK TABLES;
 # Test 2: ALTER TABLE with SHOW CREATE TRIGGER in transaction
-# Connection default
+connection default;
 START TRANSACTION;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
 t1_bi	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8	utf8_general_ci	latin1_swedish_ci
-# Connection con1
+connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
-# Connection default
+disconnect con1;
+connection default;
 COMMIT;
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
@@ -1534,8 +1556,11 @@ SET NAMES latin1;
 SELECT GET_LOCK('t', 1000);
 GET_LOCK('t', 1000)
 1
+connect  con1,localhost,root,,;
+connection con1;
 SET NAMES latin1;
 SELECT GET_LOCK('t',1000) AS 'óóóó';;
+connection default;
 SHOW PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ###	root	###	test	Query	###	###	SHOW PROCESSLIST	0.000
@@ -1548,8 +1573,11 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 SELECT RELEASE_LOCK('t');
 RELEASE_LOCK('t')
 1
+connection con1;
 óóóó
 1
+disconnect con1;
+connection default;
 SET NAMES latin1;
 #
 # Test SHOW AUTHORS and SHOW CONTRIBUTORS

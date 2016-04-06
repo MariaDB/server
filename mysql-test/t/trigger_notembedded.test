@@ -47,8 +47,6 @@ GRANT CREATE ON mysqltest_db1.* TO mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 CREATE TABLE t1(num_value INT);
 CREATE TABLE t2(user_str TEXT);
@@ -56,8 +54,6 @@ CREATE TABLE t2(user_str TEXT);
 --disconnect wl2818_definer_con
 
 --connection default
---echo
---echo ---> connection: default
 
 GRANT INSERT, DROP ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
 GRANT INSERT, DROP ON mysqltest_db1.t2 TO mysqltest_dfn@localhost;
@@ -67,15 +63,11 @@ GRANT INSERT, DROP ON mysqltest_db1.t2 TO mysqltest_dfn@localhost;
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 GRANT SUPER ON *.* TO mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 --error ER_TABLEACCESS_DENIED_ERROR
 CREATE TRIGGER trg1 AFTER INSERT ON t1
@@ -89,15 +81,11 @@ CREATE TRIGGER trg1 AFTER INSERT ON t1
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 GRANT TRIGGER ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 CREATE TRIGGER trg1 AFTER INSERT ON t1
   FOR EACH ROW
@@ -106,15 +94,11 @@ CREATE TRIGGER trg1 AFTER INSERT ON t1
 --disconnect wl2818_definer_con
 
 --connection default
---echo
---echo ---> connection: default
 
 REVOKE TRIGGER ON mysqltest_db1.t1 FROM mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 --error ER_TABLEACCESS_DENIED_ERROR
 DROP TRIGGER trg1;
@@ -127,8 +111,6 @@ DROP TRIGGER trg1;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 --error ER_TABLEACCESS_DENIED_ERROR
 INSERT INTO t1 VALUES(0);
@@ -136,15 +118,11 @@ INSERT INTO t1 VALUES(0);
 --disconnect wl2818_definer_con
 
 --connection default
---echo
---echo ---> connection: default
 
 GRANT TRIGGER ON mysqltest_db1.t1 TO mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 INSERT INTO t1 VALUES(0);
 
@@ -156,8 +134,6 @@ TRUNCATE TABLE t2;
 --disconnect wl2818_definer_con
 
 --connection default
---echo
---echo ---> connection: default
 
 REVOKE SUPER ON *.* FROM mysqltest_dfn@localhost;
 
@@ -175,16 +151,12 @@ REVOKE SUPER ON *.* FROM mysqltest_dfn@localhost;
 
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 CREATE TRIGGER trg1 AFTER INSERT ON t1
   FOR EACH ROW
     INSERT INTO t2 VALUES(CURRENT_USER());
 
 --connection default
---echo
---echo ---> connection: default
 
 # Setup definer's privileges.
 
@@ -200,8 +172,6 @@ GRANT SELECT ON mysqltest_db1.t2
   TO 'mysqltest_inv'@localhost;
 
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 use mysqltest_db1;
 
@@ -212,8 +182,6 @@ SELECT * FROM t2;
 
 --connect (wl2818_invoker_con,localhost,mysqltest_inv,,mysqltest_db1)
 --connection wl2818_invoker_con
---echo
---echo ---> connection: wl2818_invoker_con
 
 use mysqltest_db1;
 
@@ -234,16 +202,12 @@ SELECT * FROM t2;
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
 REVOKE INSERT ON mysqltest_db1.t2 FROM mysqltest_dfn@localhost;
 
 --connection wl2818_invoker_con
---echo
---echo ---> connection: wl2818_invoker_con
 
 use mysqltest_db1;
 
@@ -273,8 +237,6 @@ SELECT * FROM t2;
 #
 
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 use mysqltest_db1;
 
@@ -289,8 +251,6 @@ CREATE DEFINER='mysqltest_inv'@'localhost'
     SET @new_sum = 0;
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -299,8 +259,6 @@ GRANT SUPER ON *.* TO mysqltest_dfn@localhost;
 --disconnect wl2818_definer_con
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)
 --connection wl2818_definer_con
---echo
---echo ---> connection: wl2818_definer_con
 
 CREATE DEFINER='mysqltest_inv'@'localhost'
   TRIGGER trg1 BEFORE INSERT ON t1
@@ -388,8 +346,6 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY trigger_name;
 #
 
 --connection default
---echo
---echo ---> connection: default
 
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
@@ -445,8 +401,6 @@ SET @mysqltest_var = NULL;
 #     NEW/OLD variables.
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -454,8 +408,6 @@ GRANT DELETE ON mysqltest_db1.* TO mysqltest_u1@localhost;
 SHOW GRANTS FOR mysqltest_u1@localhost;
 
 --connection bug15166_u1_con
---echo
---echo ---> connection: bug15166_u1_con
 
 use mysqltest_db1;
 
@@ -468,8 +420,6 @@ CREATE TRIGGER t1_trg_after_delete AFTER DELETE ON t1
 #   - check that UPDATE is required to modify the value;
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -480,8 +430,6 @@ GRANT UPDATE(col) ON mysqltest_db1.t3 TO mysqltest_u1@localhost;
 GRANT UPDATE(col) ON mysqltest_db1.t4 TO mysqltest_u1@localhost;
 
 --connection bug15166_u1_con
---echo
---echo ---> connection: bug15166_u1_con
 
 use mysqltest_db1;
 
@@ -530,8 +478,6 @@ CREATE TRIGGER t4_trg_before_insert BEFORE INSERT ON t4
 #   - check that SELECT is not enough to modify the value;
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -546,8 +492,6 @@ GRANT SELECT(col) on mysqltest_db1.t3 TO mysqltest_u1@localhost;
 GRANT SELECT(col) on mysqltest_db1.t4 TO mysqltest_u1@localhost;
 
 --connection bug15166_u1_con
---echo
---echo ---> connection: bug15166_u1_con
 
 use mysqltest_db1;
 
@@ -604,8 +548,6 @@ DROP TRIGGER t4_trg_err_2;
 #   - check that UPDATE is required to modify the value;
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -648,8 +590,6 @@ SELECT * FROM t4;
 #   - check that SELECT is not enough to modify the value;
 
 --connection default
---echo
---echo ---> connection: default
 
 use mysqltest_db1;
 
@@ -959,13 +899,10 @@ drop table if exists t1;
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
---echo connection: default
 lock tables t1 write;
 connection flush;
---echo connection: flush
 --send flush tables with read lock;
 connection default;
---echo connection: default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock";
@@ -973,7 +910,6 @@ let $wait_condition=
 create trigger t1_bi before insert on t1 for each row begin end;
 unlock tables;
 connection flush;
---echo connection: flush
 --reap
 unlock tables;
 connection default;

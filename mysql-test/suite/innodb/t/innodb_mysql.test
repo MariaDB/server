@@ -907,11 +907,9 @@ INSERT INTO t1 VALUES (1, 0), (2, 0);
 CREATE FUNCTION f1(z INT) RETURNS INT READS SQL DATA
   RETURN (SELECT x FROM t1 WHERE x = z);
 
---echo # Connection default
 START TRANSACTION;
 SELECT f1(1);
 
---echo # Connection con2
 --disable_query_log
 connect (con2, localhost, root);
 --enable_query_log
@@ -924,7 +922,6 @@ COMMIT;
 
 disconnect con2;
 --source include/wait_until_disconnected.inc
---echo # Connection default
 connection default;
 COMMIT;
 DROP TABLE t1;

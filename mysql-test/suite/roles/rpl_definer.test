@@ -23,8 +23,6 @@ show create procedure pcr;
 show create procedure pr;
 
 sync_slave_with_master;
-connection slave;
-echo [connection slave];
 
 set role role1;
 --sorted_result

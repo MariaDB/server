@@ -1820,6 +1820,8 @@ create procedure p_12093(a int) select * from t_12093;
 create function f_12093_unrelated() returns int return 2;
 create procedure p_12093_unrelated() begin end;
 create view v_12093_unrelated as select * from t_12093;
+connect  con1,localhost,root,,;
+connection default;
 prepare stmt_sf from 'select f_12093();';
 prepare stmt_sp from 'call p_12093(f_12093())';
 execute stmt_sf;
@@ -1827,7 +1829,9 @@ f_12093()
 0
 execute stmt_sp;
 a
+connection con1;
 drop function f_12093_unrelated;
+connection default;
 # XXX: used to be a bug
 execute stmt_sf;
 f_12093()
@@ -1842,6 +1846,7 @@ f_12093()
 # XXX: used to be a bug
 execute stmt_sp;
 a
+connection default;
 prepare stmt_sf from 'select f_12093();';
 prepare stmt_sp from 'call p_12093(f_12093())';
 execute stmt_sf;
@@ -1849,7 +1854,9 @@ f_12093()
 0
 execute stmt_sp;
 a
+connection con1;
 drop procedure p_12093_unrelated;
+connection default;
 # XXX: used to be a bug
 execute stmt_sf;
 f_12093()
@@ -1864,6 +1871,7 @@ f_12093()
 # XXX: used to be a bug
 execute stmt_sp;
 a
+connection default;
 prepare stmt_sf from 'select f_12093();';
 prepare stmt_sp from 'call p_12093(f_12093())';
 execute stmt_sf;
@@ -1871,7 +1879,9 @@ f_12093()
 0
 execute stmt_sp;
 a
+connection con1;
 drop view v_12093_unrelated;
+connection default;
 # XXX: used to be a bug
 execute stmt_sf;
 f_12093()
@@ -1886,9 +1896,11 @@ f_12093()
 # XXX: used to be a bug
 execute stmt_sp;
 a
+connection default;
 call p_verify_reprepare_count(6);
 SUCCESS
 
+disconnect con1;
 drop table t_12093;
 drop function f_12093;
 drop procedure p_12093;

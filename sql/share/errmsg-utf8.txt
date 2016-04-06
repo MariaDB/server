@@ -7154,6 +7154,21 @@ ER_WRONG_ORDER_IN_WITH_CLAUSE
         eng "The definition of the table '%s' refers to the table '%s' defined later in a non-recursive WITH clause"
 ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
         eng "Recursive queries in WITH clause are not supported yet"
+
+#
+# Internal errors, not used
+#
+skip-to-error-number 2000
+
+# MySQL 5.7 error numbers starts here
+skip-to-error-number 3000
+
+ER_MYSQL_57_TEST
+        eng "5.7 test"
+
+# MariaDB extra error numbers starts from 4000
+skip-to-error-number 4000
+
 ER_WRONG_WINDOW_SPEC_NAME
         eng "Window specification with name '%s' is not defined"
 ER_DUP_WINDOW_NAME

@@ -356,7 +356,6 @@ DROP TABLE t1;
 
 -- echo # Test with two threads
 connection default;
--- echo # con default
 eval CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
   ENGINE = $engine
   PARTITION BY HASH(c1)
@@ -365,32 +364,26 @@ INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
 connect(con1, localhost, root,,);
 connection con1;
--- echo # con1
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (10);
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (19);
 INSERT INTO t1 (c1) VALUES (21);
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 connection default;
--- echo # con default
 -- error 0, ER_DUP_ENTRY, ER_DUP_KEY
 INSERT INTO t1 (c1) VALUES (16);
 if ($mysql_errno)
 {
   echo # ERROR (only OK if Archive) mysql_errno: $mysql_errno;
 }
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 disconnect con1;
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 DROP TABLE t1;
@@ -398,35 +391,29 @@ DROP TABLE t1;
 -- echo # Test with two threads + start transaction NO PARTITIONING
 connect(con1, localhost, root,,);
 connection default;
--- echo # con default
 eval CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
   ENGINE = $engine;
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
 connection con1;
--- echo # con1
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (10);
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (19);
 INSERT INTO t1 (c1) VALUES (21);
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 connection default;
--- echo # con default
 -- error 0, ER_DUP_KEY
 INSERT INTO t1 (c1) VALUES (16);
 if ($mysql_errno)
 {
   echo # ERROR (only OK if Archive) mysql_errno: $mysql_errno;
 }
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
@@ -434,7 +421,6 @@ COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 disconnect con1;
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 COMMIT;
@@ -444,7 +430,6 @@ DROP TABLE t1;
 -- echo # Test with two threads + start transaction
 connect(con1, localhost, root,,);
 connection default;
--- echo # con default
 eval CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
   ENGINE = $engine
   PARTITION BY HASH(c1)
@@ -453,25 +438,20 @@ START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
 connection con1;
--- echo # con1
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (NULL), (10);
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL), (NULL), (19);
 INSERT INTO t1 (c1) VALUES (21);
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 connection default;
--- echo # con default
 -- error 0, ER_DUP_ENTRY, ER_DUP_KEY
 INSERT INTO t1 (c1) VALUES (16);
 if ($mysql_errno)
 {
   echo # ERROR (only OK if Archive) mysql_errno: $mysql_errno;
 }
--- echo # con1
 connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
@@ -479,7 +459,6 @@ COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 disconnect con1;
 connection default;
--- echo # con default
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 COMMIT;

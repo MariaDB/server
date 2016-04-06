@@ -89,19 +89,23 @@ BEGIN;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5
-# con1
+connect  con1,localhost,root,,;
 # SEND a ALTER PARTITION which waits on the ongoing transaction.
 ALTER TABLE t1
 REORGANIZE PARTITION hour_003, hour_004 INTO
 (PARTITION oldest VALUES LESS THAN (4));
 # Connection default wait until the ALTER is in 'waiting for table...'
 # state and then continue the transaction by trying a SELECT
+connection default;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5
 COMMIT;
-# con1, reaping ALTER.
-# Disconnecting con1 and switching to default. Cleaning up.
+# reaping ALTER.
+connection con1;
+# Cleaning up.
+disconnect con1;
+connection default;
 SET GLOBAL innodb_thread_concurrency = @old_innodb_thread_concurrency;
 SET GLOBAL innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
 DROP TABLE t1;
@@ -145,7 +149,7 @@ UPDATE t1 SET name = 'Mattias' WHERE id = 7;
 SELECT * FROM t1 WHERE id = 7;
 id	name	myDate
 7	Mattias	2009-09-16
-# Connection con1
+connect  con1, localhost, root,,;
 SET lock_wait_timeout = 1;
 # After the patch it will wait and fail on timeout.
 ALTER TABLE t1 DROP PARTITION p3;
@@ -153,7 +157,8 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SHOW WARNINGS;
 Level	Code	Message
 Error	1205	Lock wait timeout exceeded; try restarting transaction
-# Connection default
+disconnect con1;
+connection default;
 SELECT * FROM t1;
 id	name	myDate
 1	Lachlan	2009-09-13
@@ -778,13 +783,14 @@ PRIMARY KEY (a))
 ENGINE = InnoDB
 PARTITION BY HASH (a) PARTITIONS 3;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
-# con1
+connect  con1, localhost, root,,;
 ALTER TABLE t1 ADD INDEX idx1 (b);
-# con default
+connection default;
 SELECT b FROM t1 WHERE b = 0;
 ERROR HY000: Table definition has changed, please retry transaction
 SELECT b FROM t1 WHERE b = 0;
 ERROR HY000: Table definition has changed, please retry transaction
+disconnect con1;
 DROP TABLE t1;
 # Same test without partitioning
 CREATE TABLE t1
@@ -793,11 +799,12 @@ b INT,
 PRIMARY KEY (a))
 ENGINE = InnoDB;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
-# con1
+connect  con1, localhost, root,,;
 ALTER TABLE t1 ADD INDEX idx1 (b);
-# con default
+connection default;
 SELECT b FROM t1 WHERE b = 0;
 ERROR HY000: Table definition has changed, please retry transaction
 SELECT b FROM t1 WHERE b = 0;
 ERROR HY000: Table definition has changed, please retry transaction
+disconnect con1;
 DROP TABLE t1;

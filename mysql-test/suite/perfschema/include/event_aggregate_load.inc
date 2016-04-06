@@ -39,8 +39,6 @@ execute dump_hosts;
 
 connect (con1, localhost, user1, , );
 
-echo "================== con1 connected ==================";
-
 --connection default
 
 # Wait for the connect to complete
@@ -75,8 +73,6 @@ execute dump_hosts;
 select get_lock("marker", 10);
 select release_lock("marker");
 insert into test.t1 values ("marker");
-
-echo "================== con1 marker ==================";
 
 --connection default
 
@@ -113,8 +109,6 @@ execute dump_hosts;
 
 connect (con2, localhost, user2, , );
 
-echo "================== con2 connected ==================";
-
 --connection default
 
 # Wait for the connect to complete
@@ -150,8 +144,6 @@ select get_lock("marker", 10);
 select release_lock("marker");
 insert into test.t1 values ("marker");
 
-echo "================== con2 marker ==================";
-
 --connection default
 
 # Wait for the payload to complete
@@ -182,8 +174,6 @@ execute dump_users;
 execute dump_hosts;
 
 connect (con3, localhost, user3, , );
-
-echo "================== con3 connected ==================";
 
 --connection default
 
@@ -220,8 +210,6 @@ select get_lock("marker", 10);
 select release_lock("marker");
 insert into test.t1 values ("marker");
 
-echo "================== con3 marker ==================";
-
 --connection default
 
 # Wait for the payload to complete
@@ -252,8 +240,6 @@ execute dump_users;
 execute dump_hosts;
 
 connect (con4, localhost, user4, , );
-
-echo "================== con4 connected ==================";
 
 --connection default
 
@@ -289,8 +275,6 @@ execute dump_hosts;
 select get_lock("marker", 10);
 select release_lock("marker");
 insert into test.t1 values ("marker");
-
-echo "================== con4 marker ==================";
 
 --connection default
 
@@ -331,8 +315,6 @@ let $wait_condition=
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user1';
 --source include/wait_condition.inc
 
-echo "================== con1 disconnected ==================";
-
 echo "================== Step 10 ==================";
 call dump_thread();
 execute dump_waits_account;
@@ -363,8 +345,6 @@ let $wait_condition=
   select count(*) = 0 from performance_schema.threads
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user2';
 --source include/wait_condition.inc
-
-echo "================== con2 disconnected ==================";
 
 echo "================== Step 11 ==================";
 call dump_thread();
@@ -397,8 +377,6 @@ let $wait_condition=
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user3';
 --source include/wait_condition.inc
 
-echo "================== con3 disconnected ==================";
-
 echo "================== Step 12 ==================";
 call dump_thread();
 execute dump_waits_account;
@@ -429,8 +407,6 @@ let $wait_condition=
   select count(*) = 0 from performance_schema.threads
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user4';
 --source include/wait_condition.inc
-
-echo "================== con4 disconnected ==================";
 
 echo "================== Step 13 ==================";
 call dump_thread();

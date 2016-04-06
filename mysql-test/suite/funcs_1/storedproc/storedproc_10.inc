@@ -88,7 +88,6 @@ CALL sp31102();
 SELECT fn31105( 9 );
 
 # now 'add' EXECUTE to INVOKER
---echo connection default;
 connection default;
 USE db_storedproc;
 --source suite/funcs_1/include/show_connection.inc
@@ -107,7 +106,6 @@ SELECT fn31105( 9 );
 disconnect user2_3;
 
 # now 'remove' SELECT from INVOKER
---echo connection default;
 connection default;
 USE db_storedproc;
 --source suite/funcs_1/include/show_connection.inc

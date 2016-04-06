@@ -57,8 +57,11 @@ a	b
 select 1 as xml;
 xml
 1
+connect  addconroot, localhost, root,,;
+connection addconroot;
 create table t2(fl text);
 LOAD XML LOCAL INFILE "MYSQLTEST_VARDIR/tmp/loadxml-dump.xml"  INTO TABLE t2 ROWS IDENTIFIED BY '<person>';;
+connection default;
 drop table t1;
 drop table t2;
 create table t1 (

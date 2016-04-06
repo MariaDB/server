@@ -1,7 +1,6 @@
 #
 # MDEV-6728 KILL QUERY executed on an idle connection can interrupt the next query
 #
---enable_connect_log
 --connect (con1,localhost,root,,)
 let $id=`select connection_id()`;
 

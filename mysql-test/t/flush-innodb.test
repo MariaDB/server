@@ -109,18 +109,15 @@ DROP VIEW v1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) engine= InnoDB;
 CREATE TABLE t2 (a INT) engine= InnoDB;
 
---echo # Connection con1
 --connect (con1, localhost, root)
 START TRANSACTION;
 INSERT INTO t1 VALUES (1, 1);
 
---echo # Connection default
 --connection default
 --echo # Should be blocked
 --echo # Sending:
 --send FLUSH TABLES t1 FOR EXPORT
 
---echo # Connection con1
 --connection con1
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -129,12 +126,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 COMMIT;
 
---echo # Connection default
 --connection default
 --echo # Reaping: FLUSH TABLES t1 FOR EXPORT
 --reap
 
---echo # Connection con1
 --connection con1
 --echo # Should not be blocked
 INSERT INTO t2 VALUES (1);
@@ -142,7 +137,6 @@ INSERT INTO t2 VALUES (1);
 --echo # Sending:
 --send INSERT INTO t1 VALUES (2, 2)
 
---echo # Connection default
 --connection default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -151,7 +145,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo # Connection con1
 --connection con1
 --echo # Reaping: INSERT INTO t1 VALUES (2, 2);
 --reap
@@ -162,18 +155,15 @@ UNLOCK TABLES;
 START TRANSACTION;
 SELECT * FROM t1;
 
---echo # Connection default
 --connection default
 --echo # Should not be blocked
 FLUSH TABLES t1 FOR EXPORT;
 
---echo # Connection con1
 --connection con1
 COMMIT;
 --echo # Should not be blocked
 SELECT * FROM t1;
 
---echo # Connection default
 --connection default
 UNLOCK TABLES;
 
@@ -183,12 +173,10 @@ UNLOCK TABLES;
 START TRANSACTION;
 SELECT * FROM t1;
 
---echo # Connection con2
 --connect (con2, localhost, root)
 --echo # Sending:
 --send ALTER TABLE t1 ADD INDEX i1(b)
 
---echo # Connection con1
 --connection con1
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -198,7 +186,6 @@ let $wait_condition=
 --echo # Should be blocked
 --send FLUSH TABLE t1 FOR EXPORT
 
---echo # Connection default
 --connection default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -207,27 +194,22 @@ let $wait_condition=
 --source include/wait_condition.inc
 COMMIT;
 
---echo # Connection con2
 --connection con2
 --echo # Reaping ALTER TABLE ...
 --reap
 
---echo # Connection con1
 --connection con1
 --echo # Reaping FLUSH TABLE t1 FOR EXPORT
 --reap
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 FLUSH TABLE t1 FOR EXPORT;
 
---echo # Connection con2
 --connection con2
 --echo # Should be blocked
 --send DROP TABLE t1
 
---echo # Connection default
 --connection default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -236,14 +218,12 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo # Connection con2
 --connection con2
 --echo # Reaping DROP TABLE t1
 --reap
 --disconnect con2
 --source include/wait_until_disconnected.inc
 
---echo # Connection default
 --connection default
 DROP TABLE t2;
 
@@ -253,13 +233,11 @@ DROP TABLE t2;
 CREATE TABLE t1(a INT) engine= InnoDB;
 FLUSH TABLES WITH READ LOCK;
 
---echo # Connection con1
 --connection con1
 --echo # This should not block
 FLUSH TABLE t1 FOR EXPORT;
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 UNLOCK TABLES;
 DROP TABLE t1;
@@ -272,12 +250,10 @@ CREATE TABLE t1(a INT) engine= MEMORY;
 FLUSH TABLE t1 FOR EXPORT;
 DROP TABLE t1;
 
---echo # Connection con1
 --connection con1
 --disconnect con1
 --source include/wait_until_disconnected.inc
 
---echo # Connection defalt
 --connection default
 
 --echo # Test 7: Check privileges required.
@@ -291,11 +267,9 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT) engine= InnoDB;
 CREATE TABLE t2 (a INT) engine= InnoDB;
 
---echo # Connection con1
 --connect (con1, localhost, root)
 FLUSH TABLE t1 FOR EXPORT;
 
---echo # Connection default
 --connection default
 --echo # This should not block
 FLUSH TABLE t2 FOR EXPORT;
@@ -304,7 +278,6 @@ UNLOCK TABLES;
 --echo # Sending:
 --send FLUSH TABLE t1 FOR EXPORT
 
---echo # Connection con1
 --connection con1
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -313,7 +286,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 --echo # Reaping: FLUSH TABLE t1 FOR EXPORT
 --reap
@@ -324,33 +296,27 @@ UNLOCK TABLES;
 
 LOCK TABLE t1 READ;
 
---echo # Connection con1
 --connection con1
 --echo # Should not block
 FLUSH TABLE t1 FOR EXPORT;
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 UNLOCK TABLES;
 FLUSH TABLE t1 FOR EXPORT;
 
---echo # Connection con1
 --connection con1
 --echo # Should not block
 LOCK TABLE t1 READ;
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 UNLOCK TABLES;
 
---echo # Connection con1
 --connection con1
 --disconnect con1
 --source include/wait_until_disconnected.inc
 
---echo # Connection default
 --connection default
 DROP TABLE t1, t2;
 
@@ -372,21 +338,17 @@ DROP TABLE t1;
 --echo # Test 11: Test 'flush table with fully qualified table names
 --echo #          and with syntax local/NO_WRITE_TO_BINLOG
 
---echo # Connection con1
 --connect (con1, localhost, root)
 
---echo # Connection default
 --connection default
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;
 INSERT INTO t1 VALUES (100),(200);
 FLUSH LOCAL TABLES test.t1 FOR EXPORT;
---echo # Connection con1
 --connection con1
 --echo # Should be blocked
 --echo # Sending:
 --send FLUSH LOCAL TABLES t1 FOR EXPORT
 
---echo # Connection default
 --connection default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -395,19 +357,16 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLE;
 
---echo # Connection con1
 --connection con1
 --echo # Reaping: FLUSH LOCAL TABLES t1 FOR EXPORT
 --reap
 SELECT * FROM t1 ORDER BY i;
 
---echo # Connection default
 --connection default
 --echo # Should be blocked
 --echo # Sending:
 --send FLUSH NO_WRITE_TO_BINLOG TABLES test.t1 FOR EXPORT
 
---echo # Connection con1
 --connection con1
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -416,7 +375,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo # Connection default
 --connection default
 --echo # Reaping: FLUSH NO_WRITE_TO_BINLOG TABLES test.t1 FOR EXPORT
 --reap
@@ -427,7 +385,6 @@ DROP TABLE t1;
 --echo # Test 12: Active transaction get committed if user execute
 --echo #          "FLUSH TABLE ... FOR EXPORT" or "LOCK TABLE.."
 
---echo # Connection default
 --connection default
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;
 INSERT INTO t1 VALUES (100),(200);
@@ -448,7 +405,6 @@ DROP TABLE t1;
 
 --echo # Test 13: Verify "FLUSH TABLE ... FOR EXPORT" and "LOCK TABLE.."
 --echo #          in same session   
---echo # Connection default
 
 --connection default
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;

@@ -30,9 +30,10 @@ id	rollno	name
 6	3	Record_6
 7	4	Record_7
 8	4	Record_8
-## Creating two new connections ##
+connect  test_con1,localhost,root,,;
+connect  test_con2,localhost,root,,;
 '#--------------------FN_DYNVARS_034_02-------------------------#'
-## Connecting with test_con1 ##
+connection test_con1;
 ## Accessing data and using group_concat on column whose value is greater than 4 ##
 SELECT id, rollno, GROUP_CONCAT(name) FROM t1 GROUP BY rollno;
 id	rollno	GROUP_CONCAT(name)
@@ -59,7 +60,7 @@ Warning	1260	Row 2 was cut by GROUP_CONCAT()
 Warning	1260	Row 5 was cut by GROUP_CONCAT()
 Warning	1260	Row 7 was cut by GROUP_CONCAT()
 '#--------------------FN_DYNVARS_034_03-------------------------#'
-## Connecting with new connection test_con2 ##
+connection test_con2;
 ## Verifying initial value of variable. It should be 4 ##
 SELECT @@session.group_concat_max_len = 4;
 @@session.group_concat_max_len = 4
@@ -90,5 +91,7 @@ id	rollno	GROUP_CONCAT(name)
 7	4	Record_7,Record_8
 ## Dropping table t1 ##
 DROP TABLE t1;
-## Disconnecting both the connection ##
+disconnect test_con2;
+disconnect test_con1;
+connection default;
 SET @@global.group_concat_max_len = @save;

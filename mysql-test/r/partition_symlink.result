@@ -47,6 +47,7 @@ CREATE DATABASE mysqltest2;
 USE mysqltest2;
 CREATE TABLE t1 (a INT) ENGINE = MyISAM;
 INSERT INTO t1 VALUES (0);
+connect con1,localhost,mysqltest_1,,;
 # user mysqltest_1:
 USE test;
 CREATE TABLE t1 (a INT)
@@ -68,6 +69,7 @@ INSERT INTO t1 VALUES (1);
 SELECT * FROM t1;
 a
 1
+connection default;
 # user root:
 USE mysqltest2;
 FLUSH TABLES;
@@ -96,6 +98,7 @@ PARTITION p1 VALUES IN (1)
 DATA DIRECTORY 'MYSQLTEST_VARDIR/tmp'
      INDEX DIRECTORY 'MYSQLTEST_VARDIR/tmp'
    );
+connection con1;
 # user mysqltest_1:
 USE test;
 CREATE TABLE t1 (a INT)
@@ -120,10 +123,12 @@ DATA DIRECTORY 'MYSQLTEST_VARDIR/tmp'
      INDEX DIRECTORY 'MYSQLTEST_VARDIR/tmp'
   );
 Got one of the listed errors
+connection default;
 # user root (cleanup):
 DROP DATABASE mysqltest2;
 USE test;
 DROP USER mysqltest_1@localhost;
+disconnect con1;
 create table t2 (i int )
 ENGINE = MyISAM
 partition by range (i)

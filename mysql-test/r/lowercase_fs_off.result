@@ -1,8 +1,12 @@
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
+connect  master,localhost,root,,;
+connection master;
 create database d1;
 grant all on d1.* to 'sample'@'localhost' identified by 'password';
 flush privileges;
+connect  sample,localhost,sample,password,d1;
+connection sample;
 select database();
 database()
 d1
@@ -10,22 +14,31 @@ create database d2;
 ERROR 42000: Access denied for user 'sample'@'localhost' to database 'd2'
 create database D1;
 ERROR 42000: Access denied for user 'sample'@'localhost' to database 'D1'
+disconnect sample;
+connection master;
 drop user 'sample'@'localhost';
 drop database if exists d1;
+disconnect master;
+connection default;
 CREATE DATABASE d1;
 USE d1;
 CREATE TABLE T1(f1 INT);
 CREATE TABLE t1(f1 INT);
 GRANT SELECT ON T1 to user_1@localhost;
+connect  con1,localhost,user_1,,d1;
 select * from t1;
 ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't1'
 select * from T1;
 f1
+connection default;
 GRANT SELECT ON t1 to user_1@localhost;
+connection con1;
 select * from information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user_1'@'localhost'	def	d1	T1	SELECT	NO
 'user_1'@'localhost'	def	d1	t1	SELECT	NO
+connection default;
+disconnect con1;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1@localhost;
 DROP USER user_1@localhost;
 DROP DATABASE d1;
@@ -38,17 +51,22 @@ GRANT USAGE ON db1.* to user_1@localhost;
 GRANT EXECUTE ON PROCEDURE db1.P1 to user_1@localhost;
 GRANT EXECUTE ON FUNCTION db1.f1 to user_1@localhost;
 GRANT UPDATE ON db1.* to USER_1@localhost;
+connect  con1,localhost,user_1,,db1;
 call p1();
 call P1();
 select f1(1);
 f1(1)
 2
+connect  con2,localhost,USER_1,,db1;
 call p1();
 ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.p1'
 call P1();
 ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.P1'
 select f1(1);
 ERROR 42000: execute command denied to user 'USER_1'@'localhost' for routine 'db1.f1'
+connection default;
+disconnect con1;
+disconnect con2;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1@localhost;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM USER_1@localhost;
 DROP FUNCTION f1;

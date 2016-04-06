@@ -2,7 +2,7 @@ include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 ==== Initialization ====
-[on master]
+connection master;
 SET @m_auto_increment_increment= @@global.auto_increment_increment;
 SET @m_auto_increment_offset=    @@global.auto_increment_offset;
 SET @m_character_set_client=     @@global.character_set_client;
@@ -11,7 +11,7 @@ SET @m_collation_server=         @@global.collation_server;
 SET @m_time_zone=                @@global.time_zone;
 SET @m_lc_time_names=            @@global.lc_time_names;
 SET @m_collation_database=       @@global.collation_database;
-[on slave]
+connection slave;
 SET @s_auto_increment_increment= @@global.auto_increment_increment;
 SET @s_auto_increment_offset=    @@global.auto_increment_offset;
 SET @s_character_set_client=     @@global.character_set_client;
@@ -28,7 +28,7 @@ SET @@global.collation_server='geostd8_general_ci';
 SET @@global.time_zone='Japan';
 SET @@global.lc_time_names='sv_SE';
 SET @@global.collation_database='geostd8_bin';
-[on master]
+connection master;
 CREATE TABLE tstmt (id INT AUTO_INCREMENT PRIMARY KEY,
 num INT,
 text VARCHAR(100));
@@ -447,6 +447,8 @@ EXECUTE p61;
 EXECUTE p62;
 EXECUTE p63;
 EXECUTE p64;
+connection slave;
+connection master;
 ==== Results ====
 SELECT * FROM tstmt ORDER BY id;
 id	num	text
@@ -484,9 +486,10 @@ id	num	text
 56	NULL	47124712
 57	NULL	1616
 58	NULL	1717
+connection slave;
 include/diff_tables.inc [master:tstmt, master:tproc, master:tfunc, master:ttrig, master:tprep, slave:tstmt, slave:tproc, slave:tfunc, slave:ttrig, slave:tprep]
 ==== Clean up ====
-[on master]
+connection master;
 DROP PROCEDURE proc;
 DROP FUNCTION func;
 DROP TRIGGER trig;
@@ -499,7 +502,7 @@ SET @@global.collation_server=         @m_collation_server;
 SET @@global.time_zone=                @m_time_zone;
 SET @@global.lc_time_names=            @m_lc_time_names;
 SET @@global.collation_database=       @m_collation_database;
-[on slave]
+connection slave;
 SET @@global.auto_increment_increment= @s_auto_increment_increment;
 SET @@global.auto_increment_offset=    @s_auto_increment_offset;
 SET @@global.character_set_client=     @s_character_set_client;
@@ -508,4 +511,6 @@ SET @@global.collation_server=         @s_collation_server;
 SET @@global.time_zone=                @s_time_zone;
 SET @@global.lc_time_names=            @s_lc_time_names;
 SET @@global.collation_database=       @s_collation_database;
+connection master;
+connection slave;
 include/rpl_end.inc

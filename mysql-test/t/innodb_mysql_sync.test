@@ -22,20 +22,17 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id INT) engine=innodb;
 connect (con2, localhost, root);
 
---echo # Connection 1
 --echo # Start optimizing table
 connection default;
 SET DEBUG_SYNC='ha_admin_try_alter SIGNAL optimize_started WAIT_FOR table_altered';
 --send OPTIMIZE TABLE t1
 
---echo # Connection 2
 --echo # Change table to engine=memory
 connection con2;
 SET DEBUG_SYNC='now WAIT_FOR optimize_started';
 ALTER TABLE t1 engine=memory;
 SET DEBUG_SYNC='now SIGNAL table_altered';
 
---echo # Connection 1
 --echo # Complete optimization
 connection default;
 --reap
@@ -59,24 +56,20 @@ connection default;
 
 CREATE TABLE t1(a INT) ENGINE= InnoDB;
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= "ha_admin_open_ltable SIGNAL opening WAIT_FOR dropped";
 --echo # Sending:
 --send OPTIMIZE TABLE t1
 
---echo # Connection default
 connection default;
 SET DEBUG_SYNC= "now WAIT_FOR opening";
 DROP TABLE t1;
 SET DEBUG_SYNC= "now SIGNAL dropped";
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: OPTIMIZE TABLE t1
 --reap
 
---echo # Connection default
 connection default;
 disconnect con1;
 SET DEBUG_SYNC= "RESET";
@@ -123,26 +116,22 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1), (2);
 
---echo # Connection con1
 connect (con1,localhost,root);
 let $ID= `SELECT connection_id()`;
 SET DEBUG_SYNC= 'ha_admin_open_ltable SIGNAL waiting WAIT_FOR killed';
 --echo # Sending:
 --send OPTIMIZE TABLE t1
 
---echo # Connection default
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR waiting';
 --replace_result $ID ID
 eval KILL QUERY $ID;
 SET DEBUG_SYNC= 'now SIGNAL killed';
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: OPTIMIZE TABLE t1
 --reap
 
---echo # Connection default
 connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
@@ -164,7 +153,6 @@ connect(con2,localhost,root);
 
 --echo # Test 1: Secondary index, should not block reads (original test case).
 
---echo # Connection default
 connection default;
 CREATE DATABASE db1;
 CREATE TABLE db1.t1(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, value INT) engine=innodb;
@@ -173,7 +161,6 @@ SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR
 --echo # Sending:
 --send ALTER TABLE db1.t1 ADD INDEX(value)
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= "now WAIT_FOR manage";
 # Neither of these two statements should be blocked
@@ -181,7 +168,6 @@ USE db1;
 SELECT * FROM t1;
 SET DEBUG_SYNC= "now SIGNAL query";
 
---echo # Connection default
 connection default;
 --echo # Reaping: ALTER TABLE db1.t1 ADD INDEX(value)
 --reap
@@ -194,7 +180,6 @@ SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR
 --echo # Sending:
 --send ALTER TABLE t1 ADD UNIQUE INDEX(a), LOCK=SHARED
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= "now WAIT_FOR manage";
 USE test;
@@ -202,7 +187,6 @@ SELECT * FROM t1;
 --echo # Sending:
 --send UPDATE t1 SET a=NULL
 
---echo # Connection con2
 connection con2;
 --echo # Waiting for SELECT to be blocked by the metadata lock on t1
 let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
@@ -211,33 +195,28 @@ let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
 --source include/wait_condition.inc
 SET DEBUG_SYNC= "now SIGNAL query";
 
---echo # Connection default
 connection default;
 --echo # Reaping: ALTER TABLE t1 ADD UNIQUE INDEX(a)
 --reap
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: UPDATE t1 SET a=NULL
 --reap
 
 --echo # Test 3: Primary index (explicit), should block writes.
 
---echo # Connection default
 connection default;
 ALTER TABLE t1 DROP INDEX a;
 SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
 --echo # Sending:
 --send ALTER TABLE t1 ADD PRIMARY KEY (a), LOCK=SHARED
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= "now WAIT_FOR manage";
 SELECT * FROM t1;
 --echo # Sending:
 --send UPDATE t1 SET a=NULL
 
---echo # Connection con2
 connection con2;
 --echo # Waiting for SELECT to be blocked by the metadata lock on t1
 let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
@@ -246,31 +225,26 @@ let $wait_condition= SELECT COUNT(*)= 1 FROM information_schema.processlist
 --source include/wait_condition.inc
 SET DEBUG_SYNC= "now SIGNAL query";
 
---echo # Connection default
 connection default;
 --echo # Reaping: ALTER TABLE t1 ADD PRIMARY KEY (a)
 --reap
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: UPDATE t1 SET a=NULL
 --reap
 
 --echo # Test 4: Secondary unique index, should not block reads.
 
---echo # Connection default
 connection default;
 SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
 --echo # Sending:
 --send ALTER TABLE t1 ADD UNIQUE (b)
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= "now WAIT_FOR manage";
 SELECT * FROM t1;
 SET DEBUG_SYNC= "now SIGNAL query";
 
---echo # Connection default
 connection default;
 --echo # Reaping: ALTER TABLE t1 ADD UNIQUE (b)
 --reap
@@ -293,14 +267,12 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
 INSERT INTO t1 VALUES (1, 12345), (2, 23456);
 
---echo # Connection con1
 --connect (con1,localhost,root)
 SET SESSION debug_dbug= "+d,alter_table_rollback_new_index";
 --error ER_UNKNOWN_ERROR
 ALTER TABLE t1 ADD PRIMARY KEY(a);
 SELECT * FROM t1;
 
---echo # Connection default
 --connection default
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -322,20 +294,17 @@ CREATE DATABASE db1;
 connect(con1, localhost, root);
 connect(con2, localhost, root);
 
---echo # Connection con1
 connection con1;
 SET DEBUG_SYNC= 'after_innobase_rename_table SIGNAL locked WAIT_FOR continue';
 --echo # Sending:
 --send ALTER TABLE t1 RENAME db1.t1
 
---echo # Connection con2
 connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 --echo # DROP DATABASE db1 should now be blocked by ALTER TABLE
 --echo # Sending:
 --send DROP DATABASE db1
 
---echo # Connection default
 connection default;
 --echo # Check that DROP DATABASE is blocked by IX lock on db1
 let $wait_condition=
@@ -346,17 +315,14 @@ let $wait_condition=
 --echo # Resume ALTER TABLE
 SET DEBUG_SYNC= 'now SIGNAL continue';
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: ALTER TABLE t1 RENAME db1.t1;
 --reap
 
---echo # Connection con2
 connection con2;
 --echo # Reaping: DROP DATABASE db1
 --reap
 
---echo # Connection default;
 connection default;
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
@@ -384,7 +350,6 @@ SET SESSION lock_wait_timeout= 1;
 --echo # 1: In-place + writes blocked.
 --echo #
 
---echo # Connection default
 --connection default
 SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
 SET DEBUG_SYNC= 'alter_table_inplace_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
@@ -393,7 +358,6 @@ SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue4
 --echo # Sending:
 --send ALTER TABLE t1 ADD INDEX i1(b), ALGORITHM= INPLACE, LOCK= SHARED
 
---echo # Connection con1;
 --connection con1
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # At this point, neither reads nor writes should be blocked.
@@ -425,7 +389,6 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES (6,6);
 
 SET DEBUG_SYNC= 'now SIGNAL continue4';
---echo # Connection default
 --connection default
 --echo # Reaping ALTER TABLE ...
 --reap
@@ -442,7 +405,6 @@ SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue3
 --echo # Sending:
 --send ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= COPY, LOCK= SHARED
 
---echo # Connection con1;
 --connection con1
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # At this point, neither reads nor writes should be blocked.
@@ -465,7 +427,6 @@ SELECT * FROM t1 limit 1;
 INSERT INTO t1 VALUES (5,5);
 
 SET DEBUG_SYNC= 'now SIGNAL continue3';
---echo # Connection default
 --connection default
 --echo # Reaping ALTER TABLE ...
 --reap
@@ -479,7 +440,6 @@ DELETE FROM t1 WHERE a= 3;
 --echo # TODO: Enable this test once WL#5526 is pushed
 --disable_parsing
 
---echo # Connection default
 --connection default
 SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
 SET DEBUG_SYNC= 'alter_table_inplace_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
@@ -489,7 +449,6 @@ SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue5
 --echo # Sending:
 --send ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= NONE
 
---echo # Connection con1;
 --connection con1
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # At this point, neither reads nor writes should be blocked.
@@ -526,7 +485,6 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES (7,7);
 
 SET DEBUG_SYNC= 'now SIGNAL continue5';
---echo # Connection default
 --connection default
 --echo # Reaping ALTER TABLE ...
 --reap
@@ -540,7 +498,6 @@ DELETE FROM t1 WHERE a= 3 OR a= 4;
 --echo # 4: In-place + reads and writes blocked.
 --echo #
 
---echo # Connection default
 --connection default
 SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
 SET DEBUG_SYNC= 'alter_table_inplace_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
@@ -549,7 +506,6 @@ SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue4
 --echo # Sending:
 --send ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE
 
---echo # Connection con1;
 --connection con1
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # At this point, neither reads nor writes should be blocked.
@@ -581,7 +537,6 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES (6,6);
 
 SET DEBUG_SYNC= 'now SIGNAL continue4';
---echo # Connection default
 --connection default
 --echo # Reaping ALTER TABLE ...
 --reap
@@ -606,7 +561,6 @@ INSERT INTO t1 VALUES (155, 45, 55);
 
 --echo #Concurrent INSERT, UPDATE, SELECT and DELETE is supported 
 --echo #during OPTIMIZE TABLE operation for INNODB tables.
---enable_connect_log
 --connection default
 --echo #OPTIMIZE TABLE operation.
 --send OPTIMIZE TABLE t1
@@ -785,7 +739,6 @@ SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
 --connection default
 --reap
 
---disable_connect_log
 --disconnect con1
 
 SET DEBUG_SYNC= 'RESET';

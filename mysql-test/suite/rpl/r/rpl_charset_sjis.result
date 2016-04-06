@@ -6,27 +6,26 @@ create table t1 (a varchar(255) character set sjis);
 create procedure p1 (in a varchar(255) character set sjis) insert into t1 values (a);
 SET NAMES binary;
 CALL p1 ('–\\');
-select "--- on master ---";
---- on master ---
---- on master ---
 select hex(a) from t1 ;
 hex(a)
 965C
-select "--- on slave ---";
---- on slave ---
---- on slave ---
+connection slave;
+connection slave;
 select hex(a) from t1;
 hex(a)
 965C
+connection master;
 drop table t1;
 drop procedure p1;
+connection slave;
+connection master;
 #
 # Start of 5.5 tests
 #
 #
 # Bug#MDEV-4489 Replication of big5, cp932, gbk, sjis strings makes wrong values on slave
 #
---- on master ---
+connection master;
 SET NAMES sjis;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (0x31),(X'31'),('1');
@@ -40,15 +39,18 @@ a
 1
 1
 1
---- on slave ---
+connection slave;
+connection slave;
 SELECT * FROM t1;
 a
 49
 1
 1
 1
---- on master ---
+connection master;
 DROP TABLE t1;
+connection slave;
+connection master;
 #
 # End of 5.5 tests
 #

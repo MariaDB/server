@@ -52,11 +52,8 @@ SET @@global.max_allowed_packet= 1024*1024*1024;
 --echo to be seen and used, we must start a new connection.
 --echo The change does not take effect with the current one.
 --echo For simplicity, we just disconnect / reconnect connection default here.
---echo Disconnecting default connection...
 disconnect default;
---echo Reconnecting default connection...
 connect (default, localhost,root,,);
---echo default connection established, continuing with the test
 
 --echo #
 --echo # Delete all existing binary logs.

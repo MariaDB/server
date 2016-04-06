@@ -134,32 +134,26 @@ SET @@time_zone = '6';
 
 SET GLOBAL time_zone = 'SYSTEM';
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.time_zone;
 --echo SYSTEM Expected
 
 SET SESSION time_zone = '+05:00';
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.time_zone;
 --echo SYSTEM Expected
 
 SET SESSION time_zone = '-10:00';
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.time_zone;
 --echo -10:00 Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.time_zone;
 --echo +05:00 Expected
@@ -168,10 +162,8 @@ SELECT @@SESSION.time_zone;
 SELECT @@GLOBAL.time_zone;
 --echo SYSTEM Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

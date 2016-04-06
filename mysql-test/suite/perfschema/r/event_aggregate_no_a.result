@@ -70,7 +70,8 @@ root	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	1	1
-"================== con1 connected =================="
+connect  con1, localhost, user1, , ;
+connection default;
 "================== Step 2 =================="
 call dump_thread();
 username	event_name	count_star
@@ -160,6 +161,7 @@ user1	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	2	2
+connection con1;
 select get_lock("marker", 10);
 get_lock("marker", 10)
 1
@@ -167,7 +169,7 @@ select release_lock("marker");
 release_lock("marker")
 1
 insert into test.t1 values ("marker");
-"================== con1 marker =================="
+connection default;
 "================== Step 3 =================="
 call dump_thread();
 username	event_name	count_star
@@ -264,7 +266,8 @@ user1	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	2	2
-"================== con2 connected =================="
+connect  con2, localhost, user2, , ;
+connection default;
 "================== Step 4 =================="
 call dump_thread();
 username	event_name	count_star
@@ -377,6 +380,7 @@ user2	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	3	3
+connection con2;
 select get_lock("marker", 10);
 get_lock("marker", 10)
 1
@@ -384,7 +388,7 @@ select release_lock("marker");
 release_lock("marker")
 1
 insert into test.t1 values ("marker");
-"================== con2 marker =================="
+connection default;
 "================== Step 5 =================="
 call dump_thread();
 username	event_name	count_star
@@ -497,7 +501,8 @@ user2	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	3	3
-"================== con3 connected =================="
+connect  con3, localhost, user3, , ;
+connection default;
 "================== Step 6 =================="
 call dump_thread();
 username	event_name	count_star
@@ -626,6 +631,7 @@ user3	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	4	4
+connection con3;
 select get_lock("marker", 10);
 get_lock("marker", 10)
 1
@@ -633,7 +639,7 @@ select release_lock("marker");
 release_lock("marker")
 1
 insert into test.t1 values ("marker");
-"================== con3 marker =================="
+connection default;
 "================== Step 7 =================="
 call dump_thread();
 username	event_name	count_star
@@ -762,7 +768,8 @@ user3	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	4	4
-"================== con4 connected =================="
+connect  con4, localhost, user4, , ;
+connection default;
 "================== Step 8 =================="
 call dump_thread();
 username	event_name	count_star
@@ -907,6 +914,7 @@ user4	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	5	5
+connection con4;
 select get_lock("marker", 10);
 get_lock("marker", 10)
 1
@@ -914,7 +922,7 @@ select release_lock("marker");
 release_lock("marker")
 1
 insert into test.t1 values ("marker");
-"================== con4 marker =================="
+connection default;
 "================== Step 9 =================="
 call dump_thread();
 username	event_name	count_star
@@ -1059,7 +1067,8 @@ user4	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	5	5
-"================== con1 disconnected =================="
+disconnect con1;
+connection default;
 "================== Step 10 =================="
 call dump_thread();
 username	status
@@ -1203,7 +1212,8 @@ user4	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	4	5
-"================== con2 disconnected =================="
+disconnect con2;
+connection default;
 "================== Step 11 =================="
 call dump_thread();
 username	status
@@ -1344,7 +1354,8 @@ user4	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	3	5
-"================== con3 disconnected =================="
+disconnect con3;
+connection default;
 "================== Step 12 =================="
 call dump_thread();
 username	status
@@ -1482,7 +1493,8 @@ user4	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	2	5
-"================== con4 disconnected =================="
+disconnect con4;
+connection default;
 "================== Step 13 =================="
 call dump_thread();
 username	status
@@ -1617,6 +1629,7 @@ user4	0	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	1	5
+connection default;
 truncate performance_schema.events_waits_summary_by_thread_by_event_name;
 "================== WAITS_BY_THREAD truncated =================="
 "================== Step 14 =================="

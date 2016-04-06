@@ -2,15 +2,21 @@ SET GLOBAL max_binlog_size= 4096;
 SET GLOBAL innodb_flush_log_at_trx_commit= 1;
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+connect con1,localhost,root,,;
 SET DEBUG_SYNC= "binlog_open_before_update_index SIGNAL con1_ready WAIT_FOR con1_cont";
 SET SESSION debug_dbug="+d,crash_create_critical_before_update_index";
 INSERT INTO t1 VALUES (1, REPEAT("x", 4100));
+connection default;
 SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+connect con2,localhost,root,,;
 SET DEBUG_SYNC= "ha_commit_trans_after_prepare SIGNAL con2_ready";
 INSERT INTO t1 VALUES (2, NULL);
+connection default;
 SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
 SET DEBUG_SYNC= "now SIGNAL con1_cont";
+connection con1;
 Got one of the listed errors
+connection default;
 SELECT a FROM t1 ORDER BY a;
 a
 1
@@ -30,4 +36,5 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
+connection default;
 DROP TABLE t1;

@@ -8,6 +8,8 @@ ERROR HY000: 'test.v1' is not BASE TABLE
 drop table t1;
 drop view  v1;
 CREATE DATABASE meow;
+connect  root,localhost,root,,meow;
+connection root;
 CREATE TABLE table_target   ( mexs_id CHAR(8), messzeit TIMESTAMP, PRIMARY KEY (mexs_id));
 CREATE TABLE table_target2  ( mexs_id CHAR(8), messzeit TIMESTAMP, PRIMARY KEY (mexs_id));
 CREATE TABLE table_target3  ( mexs_id CHAR(8), messzeit TIMESTAMP, PRIMARY KEY (mexs_id));
@@ -27,6 +29,8 @@ GRANT  SELECT                ON view_stations   TO   user20989@localhost;
 GRANT  SELECT                ON table_target    TO   user20989@localhost;
 GRANT  SELECT                ON table_target2   TO   user20989@localhost;
 GRANT  INSERT,DELETE,SELECT  ON view_target3    TO   user20989@localhost;
+connect  user20989,localhost,user20989,,meow;
+connection user20989;
 REPLACE INTO    table_target
 SELECT          stations.mexs_id AS mexs_id, datetime AS messzeit
 FROM            table_source
@@ -51,9 +55,13 @@ ON              table_source.id = stations.icao
 LEFT JOIN       view_target3 AS old
 USING           (mexs_id);
 ERROR HY000: View 'meow.view_target3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+connection root;
+disconnect user20989;
 GRANT  INSERT,DELETE         ON table_target    TO   user20989@localhost;
 GRANT  INSERT,DELETE,SELECT  ON view_target2    TO   user20989@localhost;
 GRANT  INSERT,DELETE,SELECT  ON table_target3   TO   user20989@localhost;
+connect  user20989,localhost,user20989,,meow;
+connection user20989;
 REPLACE INTO    table_target
 SELECT          stations.mexs_id AS mexs_id, datetime AS messzeit
 FROM            table_source
@@ -86,6 +94,8 @@ INNER JOIN      view_stations AS stations
 ON              table_source.id = stations.icao
 LEFT JOIN       view_target3 AS old
 USING           (mexs_id);
+connection root;
+disconnect user20989;
 SELECT * FROM table_target;
 mexs_id	messzeit
 87654321	2006-07-12 07:50:00
@@ -106,24 +116,34 @@ DROP TABLE table_target3;
 DROP VIEW  view_target2;
 DROP VIEW  view_target3;
 DROP USER  user20989@localhost;
+disconnect root;
+connection default;
 DROP DATABASE meow;
 connection: default
 set low_priority_updates=1;
 drop table if exists t1;
 create table t1 (a int, b int, unique key t1$a (a));
 lock table t1 read;
+connect  update,localhost,root,,;
+connection update;
 connection: update
 set low_priority_updates=1;
 show variables like 'low_priority_updates';
 Variable_name	Value
 low_priority_updates	ON
 insert into t1 values (1, 2) ON DUPLICATE KEY UPDATE b = 2;;
+connection default;
+connect  select,localhost,root,,;
 connection: select
 select * from t1;
 a	b
+connection default;
 connection: default
 select * from t1;
 a	b
+connection default;
+disconnect update;
+disconnect select;
 unlock tables;
 drop table t1;
 set low_priority_updates=default;

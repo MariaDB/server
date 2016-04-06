@@ -4,13 +4,11 @@
 # Test that the slave temporarily switches to ROW when seeing row
 # events when it is in MIXED mode
 
---echo **** On Master ****
 CREATE TABLE t1 (a INT, b LONG);
 INSERT INTO t1 VALUES (1,1), (2,2);
 INSERT INTO t1 VALUES (3,UUID()), (4,UUID());
 source include/show_binlog_events.inc;
 sync_slave_with_master;
---echo **** On Slave ****
 source include/show_binlog_events.inc;
 
 --exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_rbr_to_sbr_master.sql

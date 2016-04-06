@@ -30,7 +30,6 @@ drop table if exists t1;
 # Test 1) Test UDFs via loadable libraries
 #
 --echo "*** Test 1) Test UDFs via loadable libraries ***
---echo "Running on the master"
 --enable_info
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION myfunc_double RETURNS REAL SONAME "$UDF_EXAMPLE_SO";
@@ -48,7 +47,6 @@ connection slave;
 sync_with_master;
 
 # Check to see that UDF CREATE statements were replicated
---echo "Running on the slave"
 --enable_info
 --replace_column 3 UDF_LIB
 SELECT * FROM mysql.func ORDER BY name;
@@ -57,7 +55,6 @@ SELECT * FROM mysql.func ORDER BY name;
 connection master;
 
 # Use the UDFs to do something
---echo "Running on the master"
 --enable_info
 eval CREATE TABLE t1(sum INT, price FLOAT(24)) ENGINE=$engine_type;
 --disable_warnings
@@ -72,7 +69,6 @@ SELECT * FROM t1 ORDER BY sum;
 sync_slave_with_master;
 
 # Check to see if data was replicated
---echo "Running on the slave"
 --enable_info
 SELECT * FROM t1 ORDER BY sum;
 
@@ -84,7 +80,6 @@ SELECT myfunc_double(75.00);
 connection master;
 
 # Drop the functions
---echo "Running on the master"
 --enable_info
 DROP FUNCTION myfunc_double;
 DROP FUNCTION myfunc_int;
@@ -94,7 +89,6 @@ SELECT * FROM mysql.func ORDER BY name;
 sync_slave_with_master;
 
 # Check to see if the UDFs were dropped on the slave
---echo "Running on the slave"
 --enable_info
 SELECT * FROM mysql.func ORDER BY name;
 --disable_info
@@ -102,7 +96,6 @@ SELECT * FROM mysql.func ORDER BY name;
 connection master;
 
 # Cleanup
---echo "Running on the master"
 --enable_info
 DROP TABLE t1;
 --disable_info
@@ -111,7 +104,6 @@ DROP TABLE t1;
 # Test 2) Test UDFs with SQL body
 #
 --echo "*** Test 2) Test UDFs with SQL body ***
---echo "Running on the master"
 --enable_info
 CREATE FUNCTION myfuncsql_int(i INT) RETURNS INTEGER DETERMINISTIC RETURN i; 
 CREATE FUNCTION myfuncsql_double(d DOUBLE) RETURNS INTEGER DETERMINISTIC RETURN d * 2.00; 
@@ -121,7 +113,6 @@ SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'te
 sync_slave_with_master;
 
 # Check to see that UDF CREATE statements were replicated
---echo "Running on the slave"
 --enable_info
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 --disable_info
@@ -129,7 +120,6 @@ SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'te
 connection master;
 
 # Use the UDFs to do something
---echo "Running on the master"
 --enable_info
 eval CREATE TABLE t1(sum INT, price FLOAT(24)) ENGINE=$engine_type;
 INSERT INTO t1 VALUES(myfuncsql_int(100), myfuncsql_double(50.00));
@@ -142,7 +132,6 @@ SELECT * FROM t1 ORDER BY sum;
 sync_slave_with_master;
 
 # Check to see if data was replicated
---echo "Running on the slave"
 --enable_info
 SELECT * FROM t1 ORDER BY sum;
 --disable_info
@@ -150,7 +139,6 @@ SELECT * FROM t1 ORDER BY sum;
 connection master;
 
 # Modify the UDFs to add a comment
---echo "Running on the master"
 --enable_info
 ALTER FUNCTION myfuncsql_int COMMENT "This was altered.";
 ALTER FUNCTION myfuncsql_double COMMENT "This was altered.";
@@ -160,7 +148,6 @@ SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'te
 sync_slave_with_master;
 
 # Check to see if data was replicated
---echo "Running on the slave"
 --enable_info
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 
@@ -172,7 +159,6 @@ SELECT myfuncsql_double(75.00);
 connection master;
 
 # Drop the functions
---echo "Running on the master"
 --enable_info
 DROP FUNCTION myfuncsql_double;
 DROP FUNCTION myfuncsql_int;
@@ -182,7 +168,6 @@ SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'te
 sync_slave_with_master;
 
 # Check to see if the UDFs were dropped on the slave
---echo "Running on the slave"
 --enable_info
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 --disable_info
@@ -190,7 +175,6 @@ SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'te
 connection master;
 
 # Cleanup
---echo "Running on the master"
 --enable_info
 DROP TABLE t1;
 --disable_info

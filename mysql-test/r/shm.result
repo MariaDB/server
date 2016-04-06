@@ -1,3 +1,4 @@
+connect shm_con,localhost,root,,,,$shm_name,SHM;
 drop table if exists t1,t2,t3,t4;
 CREATE TABLE t1 (
 Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -2154,6 +2155,8 @@ Privat (Private Nutzung)	Mobilfunk
 Warnings:
 Warning	1052	Column 'kundentyp' in group statement is ambiguous
 drop table t1;
+connection default;
+disconnect shm_con;
 mysqld is alive
 SET @max_allowed_packet= @@global.max_allowed_packet;
 SET @net_buffer_length= @@global.net_buffer_length;

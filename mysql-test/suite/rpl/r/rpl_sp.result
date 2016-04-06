@@ -6,7 +6,9 @@ drop database if exists mysqltest1;
 create database mysqltest1;
 use mysqltest1;
 create table t1 (a varchar(100));
+connection slave;
 use mysqltest1;
+connection master;
 create procedure foo()
 begin
 declare b int;
@@ -27,6 +29,7 @@ set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
 end
+connection slave;
 select * from mysql.proc where name='foo' and db='mysqltest1';
 db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
 mysqltest1	foo	PROCEDURE	foo	SQL	CONTAINS_SQL	NO	DEFINER			begin
@@ -40,16 +43,19 @@ set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
 end
+connection master;
 set timestamp=1000000000;
 call foo();
 select * from t1;
 a
 8
 1000000000
+connection slave;
 select * from t1;
 a
 8
 1000000000
+connection master;
 delete from t1;
 create procedure foo2()
 select * from mysqltest1.t1;
@@ -68,6 +74,8 @@ grant SELECT, INSERT on mysqltest1.t2 to "zedjzlcsjhd"@127.0.0.1;
 SELECT 1;
 1
 1
+connect  con1,127.0.0.1,zedjzlcsjhd,,mysqltest1,$MASTER_MYPORT,;
+connection con1;
 create procedure foo4()
 deterministic
 begin
@@ -76,6 +84,7 @@ insert into t1 values (5);
 end|
 call foo4();
 Got one of the listed errors
+connection master;
 call foo3();
 show warnings;
 Level	Code	Message
@@ -94,6 +103,7 @@ a
 3
 3
 3
+connection slave;
 select * from t1;
 a
 15
@@ -103,6 +113,7 @@ a
 3
 3
 3
+connection master;
 delete from t2;
 alter table t2 add unique (a);
 drop procedure foo4;
@@ -120,6 +131,7 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t2;
 a
 20
+connection slave;
 select * from t2;
 a
 20
@@ -130,11 +142,14 @@ insert into t2 values(20),(20);
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 insert into t2 values(20),(20);
 end
+connection master;
 drop procedure foo4;
 select * from mysql.proc where name="foo4" and db='mysqltest1';
 db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+connection slave;
 select * from mysql.proc where name="foo4" and db='mysqltest1';
 db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+connection master;
 drop procedure foo;
 drop procedure foo2;
 drop procedure foo3;
@@ -164,6 +179,7 @@ a
 select * from t2;
 a
 23
+connection slave;
 select * from t1;
 a
 21
@@ -171,6 +187,7 @@ a
 select * from t2;
 a
 23
+connection master;
 drop function fn1;
 create function fn1()
 returns int
@@ -183,6 +200,7 @@ ERROR HY000: This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA 
 delete from t1;
 set timestamp=1000000000;
 insert into t1 values(fn1());
+connection con1;
 create function fn2()
 returns int
 no sql
@@ -190,17 +208,21 @@ begin
 return unix_timestamp();
 end|
 ERROR HY000: You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)
+connection master;
 set @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 set global log_bin_trust_function_creators=0;
 set global log_bin_trust_function_creators=1;
+connection slave;
 set @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 set global log_bin_trust_function_creators=1;
+connection con1;
 create function fn2()
 returns int
 no sql
 begin
 return unix_timestamp();
 end|
+connection master;
 create function fn3()
 returns int
 not deterministic
@@ -231,6 +253,7 @@ end
 select * from t1;
 a
 1000000000
+connection slave;
 use mysqltest1;
 select * from t1;
 a
@@ -252,6 +275,7 @@ return 0;
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return 0;
 end
+connection master;
 delete from t2;
 alter table t2 add unique (a);
 Warnings:
@@ -273,43 +297,56 @@ select * from t2;
 a
 20
 100
+connection slave;
 select * from t2;
 a
 20
 100
+connection con1;
 create trigger trg before insert on t1 for each row set new.a= 10;
 ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table 't1'
+connection master;
 delete from t1;
 create trigger trg before insert on t1 for each row set new.a= 10;
 insert into t1 values (1);
 select * from t1;
 a
 10
+connection slave;
 select * from t1;
 a
 10
+connection master;
 delete from t1;
 drop trigger trg;
 insert into t1 values (1);
 select * from t1;
 a
 1
+connection slave;
 select * from t1;
 a
 1
+connection master;
 create procedure foo()
 not deterministic
 reads sql data
 select * from t1;
+connection slave;
 call foo();
 a
 1
+connection master;
 drop procedure foo;
+connection slave;
+connection master;
 drop function fn1;
 drop database mysqltest1;
 drop user "zedjzlcsjhd"@127.0.0.1;
 use test;
+connection slave;
 use test;
+connection master;
 drop function if exists f1;
 create function f1() returns int reads sql data
 begin
@@ -328,9 +365,12 @@ a
 1
 drop view v1;
 drop function f1;
+connection slave;
+connection slave;
 select * from t1;
 a
 1
+connection master;
 DROP PROCEDURE IF EXISTS p1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(col VARCHAR(10));
@@ -340,21 +380,23 @@ CALL p1('test');
 SELECT * FROM t1;
 col
 test
+connection slave;
 SELECT * FROM t1;
 col
 test
+connection master;
 DROP PROCEDURE p1;
 
 ---> Test for BUG#20438
 
 ---> Preparing environment...
----> connection: master
+connection master;
 DROP PROCEDURE IF EXISTS p1;
 DROP FUNCTION IF EXISTS f1;
 
 ---> Synchronizing slave with master...
-
----> connection: master
+connection slave;
+connection master;
 
 ---> Creating procedure...
 /*!50003 CREATE PROCEDURE p1() SET @a = 1 */;
@@ -371,7 +413,7 @@ f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 RETURN 0	latin1	latin1_swedish_ci	latin1_swedish_ci
 
 ---> Synchronizing slave with master...
----> connection: master
+connection slave;
 
 ---> Checking on slave...
 SHOW CREATE PROCEDURE p1;
@@ -382,13 +424,17 @@ SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 RETURN 0	latin1	latin1_swedish_ci	latin1_swedish_ci
-
----> connection: master
+connection master;
 
 ---> Cleaning up...
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
+connection slave;
+connection master;
+connection master;
 drop table t1;
+connection slave;
+connection master;
 drop database if exists mysqltest;
 drop database if exists mysqltest2;
 create database mysqltest;
@@ -399,13 +445,18 @@ create procedure mysqltest.test() begin end;
 insert into t values ( 1 );
 create procedure `\\`.test() begin end;
 ERROR 42000: Unknown database '\\'
+connection master;
 create function f1 () returns int
 begin
 insert into t values (1);
 return 0;
 end|
+connection slave;
+connection master;
 use mysqltest;
 set @a:= mysqltest2.f1();
+connection slave;
+connection master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
@@ -668,10 +719,14 @@ end
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `mysqltest`; SELECT `mysqltest2`.`f1`()
 master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
 set @@global.log_bin_trust_function_creators= @old_log_bin_trust_function_creators;
+connection master;
 set @@global.log_bin_trust_function_creators= @old_log_bin_trust_function_creators;
 drop database mysqltest;
 drop database mysqltest2;
+connection slave;
+connection master;
 use test;
 /*!50001 create procedure `mysqltestbug36570_p1`() */
 begin
@@ -700,6 +755,8 @@ Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Da
 begin
 select a;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection slave;
+connection slave;
 show procedure status like '%mysqltestbug36570%';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	 mysqltestbug36570_p2	PROCEDURE	root@localhost	t	t	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -717,6 +774,7 @@ a
 show function status like '%mysqltestbug36570%';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	mysqltestbug36570_f1	FUNCTION	root@localhost	t	t	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+connection master;
 flush logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
@@ -1242,34 +1300,38 @@ End of 5.0 tests
 # identical data. Statements in the binrary log must be
 # consistent with data in the table.
 #
-# --> connection default
+connection default;
 drop table if exists t1, t2;
 drop function if exists t1;
 create table t1 (a int);
 create table t2 (a int) as select 1 as a;
 create function f1() returns int deterministic return (select max(a) from t2);
 lock table t2 write;
-# --> connection master
+connection master;
 # Sending 'insert into t1 (a) values (f1())'...
 insert into t1 (a) values (f1());
+connection master1;
 # Waitng for 'insert into t1 ...' to get blocked on table lock...
 # Sending 'drop function f1'. It will wait till insert finishes.
 drop function f1;;
-# --> connection default
+connection default;
 # Check that 'drop function f1' gets blocked.
 # Now let's let 'insert' go through...
 unlock tables;
-# --> connection master
+connection master;
 # Reaping 'insert into t1 (a) values (f1())'...
-# --> connection master1
+connection master1;
 # Reaping 'drop function f1'
-# --> connection master
+connection master;
 select * from t1;
 a
 1
+connection slave;
+connection slave;
 select * from  t1;
 a
 1
+connection master;
 drop table t1, t2;
 drop function f1;
 ERROR 42000: FUNCTION test.f1 does not exist
@@ -1296,21 +1358,28 @@ c1
 8
 9
 10
+connection slave;
+connection slave;
 select * from t1;
 c1
 7
 8
 9
 10
+connection master;
 call p1(-1);
 select * from t1;
 c1
+connection slave;
+connection slave;
 select * from t1;
 c1
+connection master;
 # Cleanup
 set @@session.binlog_format=@save_binlog_format;
 drop table t1;
 drop procedure p1;
 # End of 5.5 tests.
+connection slave;
 include/rpl_end.inc
 set global sql_mode=default;

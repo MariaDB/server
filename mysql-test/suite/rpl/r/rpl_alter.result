@@ -7,13 +7,17 @@ insert into mysqltest.t1 values (1,2);
 create table mysqltest.t2 (n int);
 insert into mysqltest.t2 values (45);
 rename table mysqltest.t2 to mysqltest.t3, mysqltest.t1 to mysqltest.t2;
+connection slave;
 select * from mysqltest.t2;
 n	m
 1	2
 select * from mysqltest.t3;
 n
 45
+connection master;
 drop database mysqltest;
+connection slave;
+connection master;
 use test;
 #
 # Test bug where ALTER TABLE MODIFY didn't replicate properly
@@ -67,6 +71,7 @@ select * from t1;
 a	b
 1	NULL
 4294967295	NULL
+connection slave;
 use test;
 select * from t1;
 a	b
@@ -79,6 +84,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
 create table t2 (a int unsigned auto_increment primary key, b int);
 show create table t2;
 Table	Create Table
@@ -110,13 +116,17 @@ drop table t1,t2;
 # Test replication when we have int on master and bigint on slave
 #
 create table t1 (a int unsigned primary key, b int);
+connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 alter table t1 modify a bigint unsigned;
+connection master;
 insert into t1 (a) values (1),((1<<32)-1);
+connection slave;
 select * from t1;
 a	b
 1	NULL
 4294967295	NULL
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
+connection master;
 drop table t1;
 include/rpl_end.inc

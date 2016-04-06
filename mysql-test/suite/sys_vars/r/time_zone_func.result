@@ -149,26 +149,26 @@ SET @@time_zone = '6';
 ERROR HY000: Unknown or incorrect time zone: '6'
 '#-----------------------------FN_DYNVARS_177_05---------------#'
 SET GLOBAL time_zone = 'SYSTEM';
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.time_zone;
 @@SESSION.time_zone
 SYSTEM
 SYSTEM Expected
 SET SESSION time_zone = '+05:00';
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.time_zone;
 @@SESSION.time_zone
 SYSTEM
 SYSTEM Expected
 SET SESSION time_zone = '-10:00';
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.time_zone;
 @@SESSION.time_zone
 -10:00
 -10:00 Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.time_zone;
 @@SESSION.time_zone
 +05:00
@@ -177,8 +177,9 @@ SELECT @@GLOBAL.time_zone;
 @@GLOBAL.time_zone
 SYSTEM
 SYSTEM Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET @@SESSION.time_zone = @session_time_zone;
 SET @@GLOBAL.time_zone = @global_time_zone;
 DROP TABLE t1;

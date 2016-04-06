@@ -1,19 +1,19 @@
 include/master-slave.inc
 [connection master]
 ==== Initialize ====
-[on master]
+connection master;
 CREATE TABLE t1(a INT PRIMARY KEY);
-[on slave]
+connection slave;
 ==== Test: SQL thread sees 'INSERT' of existing key ====
 ---- Prepare slave so that it will get duplicate key error ----
 INSERT INTO t1 VALUES (1);
 ---- Insert rows on master ----
-[on master]
+connection master;
 INSERT INTO t1 VALUES (1);
 SELECT * FROM t1;
 a
 1
-[on slave]
+connection slave;
 ---- Wait until slave stops with an error ----
 include/wait_for_slave_sql_error.inc [errno=1062]
 Last_SQL_Error (expected "duplicate key" error)
@@ -33,23 +33,23 @@ a
 1
 ==== Test: SQL thread sees 'DELETE' of non-existing row ====
 ---- On master, insert two rows, the second with binlogging off ----
-[on master]
+connection master;
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1);
-[on slave]
+connection slave;
 DELETE FROM t1 WHERE a = 1;
 ---- On master, remove the row that does not exist on slave ----
-[on master]
+connection master;
 DELETE FROM t1 WHERE a = 1;
 SELECT * FROM t1;
 a
-[on slave]
+connection slave;
 ---- Sync slave and verify that there is no error ----
 Last_SQL_Error =  (expected no error)
 SELECT * FROM t1;
 a
 ==== Clean up ====
-[on master]
+connection master;
 DROP TABLE t1;
-[on slave]
+connection slave;
 include/rpl_end.inc

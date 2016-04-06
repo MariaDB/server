@@ -5678,8 +5678,7 @@ static int my_strnncoll_utf8_cs(CHARSET_INFO *cs,
 
 static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs, 
                                   const uchar *s, size_t slen,
-                                  const uchar *t, size_t tlen,
-                                  my_bool diff_if_only_endspace_difference)
+                                  const uchar *t, size_t tlen)
 {
   int s_res, t_res, res;
   my_wc_t s_wc, t_wc;
@@ -5688,10 +5687,6 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
   int save_diff= 0;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-    
   while ( s < se && t < te )
   {
     s_res=my_utf8_uni(cs,&s_wc, s, se);
@@ -5722,37 +5717,22 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
   
   slen= se-s;
   tlen= te-t;
-  res= 0;
-  
-  if (slen != tlen)
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    if (slen < tlen)
-    {
-      slen= tlen;
-      s= t;
-      se= te;
-      swap= -1;
-      res= -res;
-    }
-    /*
-      This following loop uses the fact that in UTF-8
-      all multibyte characters are greater than space,
-      and all multibyte head characters are greater than
-      space. It means if we meet a character greater
-      than space, it always means that the longer string
-      is greater. So we can reuse the same loop from the
-      8bit version, without having to process full multibute
-      sequences.
-    */
-    for ( ; s < se; s++)
-    {
-      if (*s != (uchar) ' ')
-        return (*s < (uchar) ' ') ? -swap : swap;
-    }
-  }
+
+  /*
+    The following code uses the fact that in UTF-8
+    all multibyte characters are greater than space,
+    and all multibyte head characters are greater than
+    space. It means if we meet a character greater
+    than space, it always means that the longer string
+    is greater. So we can reuse the same loop from the
+    8bit version, without having to process full multibute
+    sequences.
+  */
+  if ((res= slen == tlen ? 0 :
+            slen < tlen  ?
+              -my_strnncollsp_padspace_bin(t, tlen) :
+              my_strnncollsp_padspace_bin(s, slen)))
+    return res;
   return save_diff;
 }
 

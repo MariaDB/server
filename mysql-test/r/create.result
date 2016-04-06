@@ -567,9 +567,13 @@ select database();
 database()
 NULL
 create user mysqltest_1;
+connect  user1,localhost,mysqltest_1,,*NO-ONE*;
+connection user1;
 select database(), user();
 database()	user()
 NULL	mysqltest_1@localhost
+connection default;
+disconnect user1;
 drop user mysqltest_1;
 use test;
 create table t1 (a int, index `primary` (a));
@@ -1813,6 +1817,7 @@ create table t1 (a int, b int) engine=myisam;
 create table t2 (a int, b int) engine=myisam;
 insert into t1 values (1,1);
 lock tables t1 read;
+connect  user1,localhost,root,,test;
 set @@lock_wait_timeout=5;
 create table if not exists t1 (a int, b int);
 Warnings:
@@ -1831,6 +1836,8 @@ create table t1 like t2;
 ERROR 42S01: Table 't1' already exists
 create or replace table t1 (a int, b int) select 2,2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect user1;
+connection default;
 select * from t1;
 a	b
 1	1

@@ -3,23 +3,38 @@ include/master-slave.inc
 SET SQL_LOG_BIN=0;
 CREATE TABLE t (a int, b int, c int, key(b));
 SET SQL_LOG_BIN=1;
+connection slave;
 CREATE TABLE t (a int, b int, c int);
+connection master;
 INSERT INTO t VALUES (1,2,4);
 INSERT INTO t VALUES (4,3,4);
 DELETE FROM t;
+connection slave;
+connection master;
 DROP TABLE t;
+connection slave;
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t (a int, b int, c int, key(b));
+connection slave;
 ALTER TABLE t DISABLE KEYS;
+connection master;
 INSERT INTO t VALUES (1,2,4);
 INSERT INTO t VALUES (4,3,4);
 DELETE FROM t;
+connection slave;
+connection master;
 DROP TABLE t;
+connection slave;
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t1 (c1 INT NOT NULL, c2 INT NOT NULL, c3 INT, UNIQUE KEY(c1,c3), KEY(c2));
 INSERT INTO t1(c1,c2) VALUES(1,1);
 INSERT INTO t1(c1,c2) VALUES(1,2);
 UPDATE t1 SET c1=1000 WHERE c2=2;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
+connection master;
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

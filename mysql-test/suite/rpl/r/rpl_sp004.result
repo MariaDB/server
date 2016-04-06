@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t2;
@@ -34,6 +35,7 @@ a
 2
 3
 8
+connection slave;
 SELECT * FROM test.t1 ORDER BY a;
 a
 1
@@ -46,15 +48,18 @@ a
 2
 3
 8
+connection master;
 CALL test.p2();
 USE test;
 SHOW TABLES;
 Tables_in_test
 t3
+connection slave;
 USE test;
 SHOW TABLES;
 Tables_in_test
 t3
+connection master;
 CALL test.p1();
 Warnings:
 Note	1050	Table 't3' already exists
@@ -70,6 +75,7 @@ a
 2
 3
 8
+connection slave;
 SELECT * FROM test.t1 ORDER BY a;
 a
 1
@@ -82,9 +88,11 @@ a
 2
 3
 8
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP TABLE IF EXISTS test.t3;
+connection slave;
 include/rpl_end.inc

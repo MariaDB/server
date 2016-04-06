@@ -1,4 +1,9 @@
+connect  admin, localhost, root,,test,,;
+connection default;
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 set global storage_engine=aria;
 set session storage_engine=aria;
 set global aria_log_file_size=4294959104;

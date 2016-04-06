@@ -789,12 +789,10 @@ begin;
 --echo # Acquire SR metadata lock on t1 and LOCK_S row-locks on its rows.
 insert into t2 select count(*) from t1;
 
---echo # Switching to connection 'con1'.
 connection con1;
 --echo # Sending:
 --send alter table t1 add column j int
 
---echo # Switching to connection 'default'.
 connection default;
 --echo # Wait until ALTER is blocked because it tries to upgrade SNW
 --echo # metadata lock to X lock.
@@ -817,12 +815,10 @@ insert into t1 values (6);
 --echo # Unblock ALTER TABLE.
 commit;
 
---echo # Switching to connection 'con1'.
 connection con1;
 --echo # Reaping ALTER TABLE.
 --reap
 
---echo # Switching to connection 'default'.
 connection default;
 
 --echo #
@@ -838,12 +834,10 @@ begin;
 --echo # Acquire SR metadata lock on t1.
 select * from t1;
 
---echo # Switching to connection 'con1'.
 connection con1;
 --echo # Sending:
 --send alter table t1 rebuild partition p0
 
---echo # Switching to connection 'default'.
 connection default;
 --echo # Wait until ALTER is blocked because of active SR lock.
 let $wait_condition=
@@ -859,12 +853,10 @@ insert into t2 select count(*) from t1;
 --echo # Unblock ALTER TABLE.
 commit;
 
---echo # Switching to connection 'con1'.
 connection con1;
 --echo # Reaping ALTER TABLE.
 --reap
 
---echo # Switching to connection 'default'.
 connection default;
 disconnect con1;
 --echo # Clean-up.

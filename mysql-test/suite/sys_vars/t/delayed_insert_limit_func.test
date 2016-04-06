@@ -30,10 +30,8 @@
 
 --source include/not_embedded.inc
 
---echo Creating connection con0
 connect (con0,localhost,root,,);
 let $con0_id=`SELECT CONNECTION_ID()`;
---echo Creating connection con1
 connect (con1,localhost,root,,);
 let $con1_id=`SELECT CONNECTION_ID()`;
 
@@ -63,7 +61,6 @@ INSERT INTO t1 VALUES('6','1','1');
 
 LOCK TABLE v1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 
 delimiter |;
@@ -107,7 +104,6 @@ INSERT DELAYED INTO t1 VALUES('42','1','1');
 INSERT DELAYED INTO t1 VALUES('43','1','1');|
 delimiter ;|
 
---echo ** Connection con0 **
 connection con0;
 let $wait_condition=
    SELECT variable_value > @@global.delayed_insert_limit
@@ -118,7 +114,6 @@ let $my_select= SELECT COUNT(*) FROM t1;
 send;
 eval $my_select;
 
---echo ** Connection default **
 connection default;
 --echo ** Wait till con0 is blocked **
 let $wait_condition=
@@ -127,12 +122,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con1 **
 connection con1;
 --echo Asynchronous "reap" result
 reap;
 
---echo ** Connection con0 **
 connection con0;
 --echo Asynchronous "reap" result
 --echo The next result suffers from
@@ -146,7 +139,6 @@ connection con0;
 --replace_result 6 21
 reap;
 
---echo ** Connection default **
 connection default;
 let $wait_condition= SELECT count(*) = 43 FROM t1;
 --source include/wait_condition.inc
@@ -175,7 +167,6 @@ INSERT INTO t1 VALUES('6');
 
 LOCK TABLE v1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 
 --echo Asynchronous execute
@@ -201,7 +192,6 @@ INSERT DELAYED INTO t1 VALUES('22');|
 
 delimiter ;|
 
---echo ** Connection con0 **
 connection con0;
 let $wait_condition=
    SELECT variable_value > 0 FROM information_schema.global_status
@@ -214,7 +204,6 @@ let $my_select= SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
 send;
 eval $my_select;
 
---echo ** Connection default **
 connection default;
 --echo ** Wait till con0 is blocked **
 let $wait_condition=
@@ -223,16 +212,13 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con1 **
 connection con1;
 reap;
 
---echo ** Connection con0 **
 connection con0;
 --echo Asynchronous "reap" result
 reap;
 
---echo ** Connection default**
 connection default;
 --echo Checking if the delayed insert gives the same result afterwards
 eval $my_select;
@@ -242,13 +228,11 @@ eval $my_select;
 # Cleanup
 #
 
---echo ** Connection default**
 connection default;
 DROP TABLE t1;
 DROP VIEW v1;
 SET @@GLOBAL.delayed_insert_limit = @global_delayed_insert_limit;
 
---echo Disconnecting from con1, con0
 disconnect con0;
 disconnect con1;
 let $wait_condition=

@@ -2,24 +2,31 @@ set global innodb_table_locks=1;
 select @@innodb_table_locks;
 @@innodb_table_locks
 1
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 drop table if exists t1;
 set @@innodb_table_locks=1;
+connection con1;
 create table t1 (id integer, x integer) engine=INNODB;
 insert into t1 values(0, 0);
 set autocommit=0;
 SELECT * from t1 where id = 0 FOR UPDATE;
 id	x
 0	0
+connection con2;
 set autocommit=0;
 lock table t1 write;
+connection con1;
 update t1 set x=1 where id = 0;
 select * from t1;
 id	x
 0	1
 commit;
+connection con2;
 update t1 set x=2 where id = 0;
 commit;
 unlock tables;
+connection con1;
 select * from t1;
 id	x
 0	2
@@ -39,7 +46,7 @@ commit;
 SELECT * from t1 where id = 0 FOR UPDATE;
 id	x
 0	0
-# Connection 'con2'.
+connection con2;
 set autocommit=0;
 set @@innodb_table_locks=0;
 # The following statement should block because SQL-level lock
@@ -47,7 +54,7 @@ set @@innodb_table_locks=0;
 # is commited.
 # Sending:
 lock table t1 write;;
-# Connection 'con1'.
+connection con1;
 # Wait until LOCK TABLE is blocked on SQL-level lock.
 # We should be able to do UPDATEs and SELECTs within transaction.
 update t1 set x=1 where id = 0;
@@ -58,14 +65,14 @@ id	x
 2	2
 # Unblock LOCK TABLE.
 commit;
-# Connection 'con2'.
+connection con2;
 # Reap LOCK TABLE.
 unlock tables;
-# Connection 'con1'.
+connection con1;
 select * from t1 where id = 0 for update;
 id	x
 0	1
-# Connection 'con2'.
+connection con2;
 # The below statement should not be blocked as LOCK TABLES ... READ
 # does not take strong SQL-level lock on t1. SELECTs which do not
 # conflict with transaction in the first connections should not be
@@ -86,7 +93,7 @@ id	x
 1	1
 2	2
 commit;
-# Connection 'con1'.
+connection con1;
 commit;
 drop table t1;
 #
@@ -94,19 +101,27 @@ drop table t1;
 #fixed by re-fixing Bug#7975
 #aka Bug#11759688 52020: InnoDB can still deadlock on just INSERT...
 #
+connection default;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(3,1);
 BEGIN;
 INSERT IGNORE INTO t1 VALUES(3,14);
 Warnings:
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
+connection con1;
 BEGIN;
 INSERT IGNORE INTO t1 VALUES(3,23);
 Warnings:
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
 SELECT * FROM t1 FOR UPDATE;
+connection con2;
+connection default;
 COMMIT;
+connection con1;
 a	b
 3	1
 COMMIT;
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;

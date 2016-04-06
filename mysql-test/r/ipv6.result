@@ -20,6 +20,9 @@ SELECT current_user();
 current_user()
 root@localhost
 SHOW PROCESSLIST;
+connect  con1, $IPv6, root, , test, $MASTER_MYPORT;
+connection default;
+disconnect con1;
 REVOKE ALL ON test.* FROM testuser@'::1';
 RENAME USER testuser@'::1' to testuser1@'::1';
 SET PASSWORD FOR testuser1@'::1' = PASSWORD ('9876');
@@ -50,6 +53,9 @@ SELECT current_user();
 current_user()
 root@localhost
 SHOW PROCESSLIST;
+connect  con1, $IPv6, root, , test, $MASTER_MYPORT;
+connection default;
+disconnect con1;
 REVOKE ALL ON test.* FROM testuser@'0000:0000:0000:0000:0000:0000:0000:0001';
 RENAME USER testuser@'0000:0000:0000:0000:0000:0000:0000:0001' to testuser1@'0000:0000:0000:0000:0000:0000:0000:0001';
 SET PASSWORD FOR testuser1@'0000:0000:0000:0000:0000:0000:0000:0001' = PASSWORD ('9876');
@@ -79,6 +85,9 @@ SELECT current_user();
 current_user()
 root@localhost
 SHOW PROCESSLIST;
+connect  con1, $IPv6, root, , test, $MASTER_MYPORT;
+connection default;
+disconnect con1;
 REVOKE ALL ON test.* FROM testuser@'0:0:0:0:0:0:0:1';
 RENAME USER testuser@'0:0:0:0:0:0:0:1' to testuser1@'0:0:0:0:0:0:0:1';
 SET PASSWORD FOR testuser1@'0:0:0:0:0:0:0:1' = PASSWORD ('9876');

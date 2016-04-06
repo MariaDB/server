@@ -47,7 +47,8 @@ id	name
 ## Changing value of global scope before opening new connection ##
 SET @@global.auto_increment_increment = 15;
 SET @@global.auto_increment_offset = 36;
-## New connection test_con1 ##
+CONNECT  test_con1,localhost,root,,;
+connection test_con1;
 ## Value of session & global vairable here should be 10 ##
 SELECT @@global.auto_increment_offset = 36;
 @@global.auto_increment_offset = 36
@@ -243,8 +244,8 @@ id	name
 ## than auto_increment_increment ##
 ## Dropping table ##
 DROP table if exists t1;
-## Disconnecting connection ##
-## switching to default connection ##
+disconnect test_con1;
+connection default;
 SET @@global.auto_increment_increment = @global_auto_increment_increment;
 SET @@session.auto_increment_increment = @session_auto_increment_increment;
 SET @@global.auto_increment_offset = @global_auto_increment_offset;

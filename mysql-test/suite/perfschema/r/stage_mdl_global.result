@@ -1,5 +1,8 @@
+connect  con1, localhost, user1, , ;
 flush tables with read lock;
+connect  con2, localhost, user2, , ;
 insert into test.t1 values (1), (2), (3);
+connection default;
 call dump_one_thread('user1');
 username	event_name	sql_text
 user1	statement/sql/flush	flush tables with read lock
@@ -22,4 +25,9 @@ username	event_name	nesting_event_type
 user2	stage/sql/init	STATEMENT
 user2	stage/sql/checking permissions	STATEMENT
 user2	stage/sql/Opening tables	STATEMENT
+connection con1;
 unlock tables;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;

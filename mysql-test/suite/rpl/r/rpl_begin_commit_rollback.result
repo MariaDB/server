@@ -1,6 +1,8 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connection master;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 SET @@session.binlog_direct_non_transactional_updates= FALSE;
 DROP DATABASE IF EXISTS db1;
@@ -10,8 +12,9 @@ CREATE DATABASE db2;
 use db1;
 CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE db1.t2 (s CHAR(255)) ENGINE=MyISAM;
+connection slave;
 include/stop_slave.inc
-[on master]
+connection master;
 CREATE PROCEDURE db1.p1 ()
 BEGIN
 INSERT INTO t1 VALUES (1);
@@ -46,7 +49,7 @@ SELECT * FROM db1.t2;
 s
 before call db1.p1()
 after call db1.p1()
-[on slave]
+connection slave;
 start slave until master_log_file='master-bin.000001', master_log_pos=MASTER_POS;
 include/wait_for_slave_sql_to_stop.inc
 #
@@ -65,7 +68,7 @@ a
 SELECT * from db1.t2;
 s
 before call db1.p1()
-[on master]
+connection master;
 INSERT INTO db1.t2 VALUES ('before call db1.p2()');
 BEGIN;
 CALL db1.p2();
@@ -87,7 +90,7 @@ after call db1.p1()
 before call db1.p2()
 executed db1.p2()
 after call db1.p2()
-[on slave]
+connection slave;
 start slave until master_log_file='master-bin.000001', master_log_pos=MASTER_POS;
 include/wait_for_slave_sql_to_stop.inc
 #
@@ -112,7 +115,7 @@ include/wait_for_slave_sql_to_start.inc
 #
 # SAVEPOINT and ROLLBACK TO have the same problem in BUG#43263
 # This was reported by BUG#50407
-[on master]
+connection master;
 SET SESSION AUTOCOMMIT=0
 BEGIN;
 INSERT INTO db1.t1 VALUES(20);
@@ -160,6 +163,7 @@ master-bin.000001	#	Query	#	#	ROLLBACK TO `has_comment`
 master-bin.000001	#	Query	#	#	use `db1`; INSERT INTO db1.t2 VALUES("after rollback to")
 master-bin.000001	#	Query	#	#	use `db1`; INSERT INTO db1.t1 VALUES(50)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+connection slave;
 [on slave]
 #
 # Verify INSERT statements in savepoints are executed, for MyISAM table
@@ -175,6 +179,7 @@ a
 #
 # Clean up
 #
+connection master;
 DROP DATABASE db1;
 DROP DATABASE db2;
 include/rpl_end.inc

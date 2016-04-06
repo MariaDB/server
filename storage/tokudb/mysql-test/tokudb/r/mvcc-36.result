@@ -1,6 +1,8 @@
 SET DEFAULT_STORAGE_ENGINE = 'tokudb';
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
 DROP TABLE IF EXISTS foo;
+connection default;
 set session transaction isolation level serializable;
 create table foo (a int, b int, c int, primary key (a), key (b))engine=TokuDB;
 show create table foo;
@@ -34,6 +36,7 @@ select * from foo where b=50;
 a	b	c
 5	50	500
 replace into foo values (5,50,1515);
+connection conn1;
 set session transaction isolation level serializable;
 begin;
 # should use key b
@@ -43,6 +46,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # timeout
 select * from foo where b=50;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
 commit;
 # should use key b
 explain select * from foo where b=50;
@@ -52,6 +56,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from foo where b=50;
 a	b	c
 5	50	1515
+connection conn1;
 # should use key b
 explain select * from foo where b=50;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -69,5 +74,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from foo where b=50;
 a	b	c
 5	50	1515
+connection default;
+disconnect conn1;
+connection default;
 set session transaction isolation level serializable;
 DROP TABLE foo;

@@ -1,9 +1,11 @@
 include/rpl_init.inc [topology=1->2]
+connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,0), (2,0), (3,0);
 INSERT INTO t2 VALUES (1,0), (2,0);
+connection server_2;
 SET @old_isolation= @@GLOBAL.tx_isolation;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
@@ -13,6 +15,7 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='aggressive';
 *** Test that we replicate correctly when using READ COMMITTED and --log-slave-updates=0 on the slave ***
+connection server_1;
 INSERT INTO t1 SELECT 4, COUNT(*) FROM t2;
 INSERT INTO t2 SELECT 4, COUNT(*) FROM t1;
 INSERT INTO t1 SELECT 5, COUNT(*) FROM t2;
@@ -51,6 +54,7 @@ a	b
 9	8
 10	10
 include/save_master_gtid.inc
+connection server_2;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
@@ -76,10 +80,12 @@ a	b
 8	7
 9	8
 10	10
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL tx_isolation= @old_isolation;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_1;
 DROP TABLE t1, t2;
 include/rpl_end.inc

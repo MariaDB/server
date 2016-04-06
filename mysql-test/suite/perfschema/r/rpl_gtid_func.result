@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-**** On Master ****
+connection master;
 drop table if exists test.marker;
 create table test.marker(a int) engine=innodb;
 insert into test.marker values (1);
@@ -11,12 +11,12 @@ truncate table performance_schema.events_waits_history_long;
 truncate table performance_schema.events_statements_summary_by_digest;
 update performance_schema.setup_instruments
 set enabled='YES', timed='YES';
-**** On Slave ****
+connection slave;
 truncate table performance_schema.events_waits_history_long;
 truncate table performance_schema.events_statements_summary_by_digest;
 update performance_schema.setup_instruments
 set enabled='YES', timed='NO';
-**** On Master ****
+connection master;
 select * from performance_schema.setup_instruments
 where timed='NO';
 NAME	ENABLED	TIMED
@@ -39,7 +39,7 @@ where digest_text like "%in_%_digest%";
 digest_text	count_star
 SELECT ? AS `in_master_digest` 	1
 insert into test.marker values (2);
-**** On Slave ****
+connection slave;
 select * from test.marker;
 a
 1
@@ -65,10 +65,10 @@ from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest_text	count_star
 SELECT ? AS `in_slave_digest` 	1
-**** On Master ****
+connection master;
 delete from performance_schema.setup_objects
 where object_schema='master';
-**** On Slave ****
+connection slave;
 delete from performance_schema.setup_objects
 where object_schema='slave';
 select * from performance_schema.setup_objects;

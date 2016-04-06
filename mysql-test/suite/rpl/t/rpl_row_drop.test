@@ -3,37 +3,29 @@
 
 # Bug#12415: DROP of temporary table on master stops slave
 connection master;
---echo **** On Master ****
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE TEMPORARY TABLE t2 (a int, b int);
 SHOW TABLES;
 sync_slave_with_master;
---echo **** On Slave ****
 SHOW TABLES;
 connection master;
---echo **** On Master ****
 DROP TABLE t2;        # Dropping the temporary table
 SHOW TABLES;
 sync_slave_with_master;
---echo **** On Slave ****
 SHOW TABLES;          # There should be two tables on the slave
 
 connection master;
---echo **** On Master ****
 CREATE TEMPORARY TABLE t2 (a int, b int);
 SHOW TABLES;
 sync_slave_with_master;
---echo **** On Slave ****
 SHOW TABLES;
 connection master;
---echo **** On Master ****
 # Should drop the non-temporary table t1 and the temporary table t2
 DROP TABLE t1,t2;
 source include/show_binlog_events.inc;
 SHOW TABLES;
 sync_slave_with_master;
---echo **** On Slave ****
 SHOW TABLES;
 
 --disable_query_log

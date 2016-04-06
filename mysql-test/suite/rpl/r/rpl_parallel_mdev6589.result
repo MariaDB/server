@@ -1,25 +1,30 @@
 include/master-slave.inc
 [connection master]
+connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=current_pos;
 include/start_slave.inc
 *** MDEV-6589: Incorrect relay log start position when restarting SQL thread after error in parallel replication ***
+connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
+connection server_2;
 SELECT * FROM t1;
 a
 1
 SELECT * FROM t2;
 a
 1
+connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET sql_log_bin=0;
 BEGIN;
 INSERT INTO t2 VALUES (5);
+connection server_1;
 SET gtid_domain_id=0;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t2 VALUES (3);
@@ -81,11 +86,14 @@ a
 15
 16
 include/save_master_gtid.inc
+connection server_2;
 SELECT MASTER_GTID_WAIT('WAIT_POS');
 MASTER_GTID_WAIT('WAIT_POS')
 0
+connection con_temp1;
 COMMIT;
 SET sql_log_bin=1;
+connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1062]
 SELECT * FROM t1 ORDER BY a;
 a
@@ -138,10 +146,12 @@ a
 14
 15
 16
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
+connection server_1;
 DROP TABLE t1,t2;
 SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc

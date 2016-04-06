@@ -15,6 +15,7 @@ ERROR 42S02: Unknown table 'test.not_exist_view'
 select * from v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
 drop view v2, v3;
+connection slave;
 select * from v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
 select * from v2;
@@ -22,5 +23,7 @@ ERROR 42S02: Table 'test.v2' doesn't exist
 select * from v3;
 ERROR 42S02: Table 'test.v3' doesn't exist
 ==== clean up ====
+connection master;
 drop table t1, t2, t3;
+connection slave;
 include/rpl_end.inc

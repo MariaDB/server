@@ -41,7 +41,6 @@ SET @@global.innodb_file_format = Barracuda,
 @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
 
---echo # Connection con1
 --connect(con1,localhost,root,,)
 
 CREATE TABLE t1 (id INT NOT NULL
@@ -59,7 +58,6 @@ SET GLOBAL innodb_file_per_table = OFF;
 
 --disconnect con1
 --connect(con2,localhost,root,,)
---echo # Connection con2
 
 LOCK TABLE t1 WRITE;
 
@@ -89,7 +87,6 @@ DROP TABLE t1;
 
 --disconnect con2
 --connection default
---echo # Connection default
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_format = @old_innodb_file_format;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
@@ -110,20 +107,16 @@ SUBPARTITION BY HASH (a)
   SUBPARTITION `sp3``\""e`));
 INSERT INTO `t``\""e` VALUES (0), (2), (6), (10), (14), (18), (22);
 START TRANSACTION;
---echo # con1
 connect(con1,localhost,root,,);
 SET NAMES utf8;
 START TRANSACTION;
---echo # default connection
 connection default;
 UPDATE `t``\""e` SET a = 16 WHERE a = 0;
---echo # con1
 connection con1;
 UPDATE `t``\""e` SET a = 8 WHERE a = 22;
 let $id_1= `SELECT CONNECTION_ID()`;
 SEND;
 UPDATE `t``\""e` SET a = 12 WHERE a = 0;
---echo # default connection
 connection default;
 let $wait_timeout= 2;
 let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
@@ -156,12 +149,10 @@ set sql_mode = 'ANSI_QUOTES';
 --replace_regex /.*RECORD LOCKS space id [0-9]* page no [0-9]* n bits [0-9]* // / trx id .*// /.*index .* in // /trx table locks [0-9]* // /total table locks [0-9]* //
 SHOW ENGINE InnoDB STATUS;
 set @@sql_mode = @old_sql_mode;
---echo # con1
 connection con1;
 REAP;
 ROLLBACK;
 disconnect con1;
---echo # default connection
 connection default;
 DROP TABLE `t``\""e`;
 SET NAMES DEFAULT;

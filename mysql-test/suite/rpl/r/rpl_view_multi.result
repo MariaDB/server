@@ -8,8 +8,10 @@ include/master-slave.inc
 #
 drop tables if exists t1, t2;
 drop view if exists v1;
-# Syncing slave with master and switching to connection 'slave'
-# Switching to connection 'master'
+# Syncing slave with master
+connection slave;
+connect  master2,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection master;
 create table t1 (i int);
 create table t2 (i int);
 create view v1 as select * from t1;
@@ -19,51 +21,52 @@ create view v1 as select * from t1;
 select get_lock("lock_bg25144", 1);
 get_lock("lock_bg25144", 1)
 1
-# Switching to connection 'master1'
+connection master1;
 insert into v1 values (get_lock("lock_bg25144", 100));
-# Switching to connection 'master2'
+connection master2;
 drop view v1;
-# Switching to connection 'master'
+connection master;
 select release_lock("lock_bg25144");
 release_lock("lock_bg25144")
 1
-# Switching to connection 'master1'
+connection master1;
 select release_lock("lock_bg25144");
 release_lock("lock_bg25144")
 1
-# Switching to connection 'master2'
-# Switching to connection 'master'
+connection master2;
+connection master;
 # Check that insertion through view did happen.
 select * from t1;
 i
 1
-# Syncing slave with master and switching to connection 'slave'
+# Syncing slave with master
+connection slave;
 # Check that slave was able to replicate this sequence
 # which means that we got correct binlog order.
 select * from t1;
 i
 1
-# Switching to connection 'master'
+connection master;
 # Now we will repeat the test by trying concurrently execute
 # statement that uses a view and statement that alters it.
 create view v1 as select * from t1;
 select get_lock("lock_bg25144", 1);
 get_lock("lock_bg25144", 1)
 1
-# Switching to connection 'master1'
+connection master1;
 insert into v1 values (get_lock("lock_bg25144", 100));
-# Switching to connection 'master2'
+connection master2;
 alter view v1 as select * from t2;
-# Switching to connection 'master'
+connection master;
 select release_lock("lock_bg25144");
 release_lock("lock_bg25144")
 1
-# Switching to connection 'master1'
+connection master1;
 select release_lock("lock_bg25144");
 release_lock("lock_bg25144")
 1
-# Switching to connection 'master2'
-# Switching to connection 'master'
+connection master2;
+connection master;
 # Second insertion should go to t1 as well.
 select * from t1;
 i
@@ -71,7 +74,8 @@ i
 1
 select * from t2;
 i
-# Syncing slave with master and switching to connection 'slave'
+# Syncing slave with master
+connection slave;
 # Now let us check that statements were logged in proper order
 # So we have same result on slave.
 select * from t1;
@@ -80,8 +84,9 @@ i
 1
 select * from t2;
 i
-# Switching to connection 'master'
+connection master;
 drop table t1, t2;
 drop view v1;
-# Syncing slave with master and switching to connection 'slave'
+# Syncing slave with master
+connection slave;
 include/rpl_end.inc

@@ -38,7 +38,8 @@ id	name
 6	Record_2
 101	Record_5
 '#--------------------FN_DYNVARS_001_03-------------------------#'
-## Creating new connection test_con1 ##
+CONNECT  test_con1,localhost,root,,;
+connection test_con1;
 ## Value of session & global vairable here should be 10 ##
 SELECT @@global.auto_increment_increment = 10;
 @@global.auto_increment_increment = 10
@@ -74,7 +75,8 @@ id	name
 113	Record_8
 115	Record_9
 '#--------------------FN_DYNVARS_001_04-------------------------#'
-## Creating another new connection test_con2 ##
+CONNECT  test_con2,localhost,root,,;
+connection test_con2;
 ## Verifying initial values of variable in global & session scope ##
 ## global & session initial value should be 20 ##
 SELECT @@global.auto_increment_increment = 20;
@@ -103,7 +105,7 @@ SELECT @@global.auto_increment_increment;
 @@global.auto_increment_increment
 20
 '#--------------------FN_DYNVARS_001_05-------------------------#'
-## Switching to test_con1 ##
+connection test_con1;
 ## Verifying values of global & session value of variable ##
 ## global value should be 20 ##
 SELECT @@global.auto_increment_increment = 20;
@@ -187,11 +189,11 @@ id	name
 127	Record_16
 128	Record_17
 129	Record_18
-## Disconnecting test_con2 ##
+disconnect test_con2;
 ## Dropping table t1 ##
 DROP table if exists t1;
-## Disconnecting test_con1 ##
-## switching to default connection ##
+disconnect test_con1;
+connection default;
 SET @@global.auto_increment_increment = @global_auto_increment_increment;
 SET @@session.auto_increment_increment = @session_auto_increment_increment;
 SET @@global.auto_increment_offset = @global_auto_increment_offset;

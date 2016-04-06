@@ -1,17 +1,27 @@
 set global aria_log_file_size=4294959104;
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, 127.0.0.1, root,,mysqltest,,;
+connection default;
 use mysqltest;
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 * TEST of Checkpoint between writing the commit log record and committing in trnman
 create table t1(a int primary key) engine=aria;
 insert into t1 values(1);
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 set session debug_dbug="+d,maria_sleep_in_commit";
 insert into t1 values(2);
+connection admin;
 set global aria_checkpoint_interval=1000;
+connection default;
 delete from t1 where a=2;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -23,6 +33,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 drop table t1;
 * TEST of logging of BLOBs
@@ -31,8 +42,10 @@ CREATE TABLE `t1` (
 `blob_key` blob
 ) ENGINE=aria ROW_FORMAT=page
 ;
+connection admin;
 * copied t1 for feeding_recovery
 * compared t1 to old version
+connection default;
 set global aria_checkpoint_interval=0;
 INSERT INTO `t1` VALUES (NULL,repeat('A',5198));
 INSERT INTO `t1` VALUES (NULL,repeat('B',65535));
@@ -45,9 +58,12 @@ INSERT INTO `t1` VALUES (repeat('I',5198),repeat('J',65535));
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
 mysqltest.t1	check	status	OK
+connection admin;
 flush table t1;
 * copied t1 for comparison
 * compared t1 to old version
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -61,16 +77,22 @@ mysqltest.t1	check	status	OK
 Checksum-check
 ok
 * compared t1 to old version
+connection default;
 use mysqltest;
 drop table t1;
 create table t1 engine=aria select 1;
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 set global aria_checkpoint_interval=0;
 insert into t1 values(2);
 truncate table t1;
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 truncate table t1;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash_create_table";
 * crashing mysqld intentionally
 truncate table t1;
@@ -83,6 +105,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 truncate table t1;
 check table t1 extended;
@@ -95,6 +118,7 @@ SET AUTOCOMMIT=0;
 DELETE FROM t1;
 LOAD DATA INFILE '../../std_data/bug887051.txt' INTO TABLE t1 IGNORE 1 LINES;
 COMMIT;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -106,6 +130,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 failure
+connection default;
 use mysqltest;
 select * from t1;
 word

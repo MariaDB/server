@@ -27,6 +27,7 @@ grant role9 to role10;
 grant role10 to foo@localhost;
 grant role10 to role2;
 ERROR HY000: Cannot grant role 'role10' to: 'role2'.
+connect  foo, localhost, foo;
 show grants;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO 'foo'@'localhost'
@@ -51,6 +52,7 @@ Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection default;
 grant select on *.* to role1;
 show status like 'debug%';
 Variable_name	Value
@@ -59,6 +61,7 @@ Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role role10;
@@ -99,6 +102,7 @@ role5
 role6
 role7
 role9
+connection default;
 revoke select on *.* from role1;
 show status like 'debug%';
 Variable_name	Value
@@ -107,6 +111,7 @@ Debug_role_merges_db	0
 Debug_role_merges_table	0
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 count(*)
 22
@@ -115,6 +120,7 @@ set role role10;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role none;
+connection default;
 grant select on mysql.* to role1;
 show status like 'debug%';
 Variable_name	Value
@@ -123,6 +129,7 @@ Debug_role_merges_db	8
 Debug_role_merges_table	0
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role role10;
@@ -153,6 +160,7 @@ GRANT role5 TO 'role7'
 GRANT role6 TO 'role9'
 GRANT role7 TO 'role9'
 GRANT role9 TO 'role10'
+connection default;
 revoke select on mysql.* from role1;
 show status like 'debug%';
 Variable_name	Value
@@ -161,9 +169,11 @@ Debug_role_merges_db	16
 Debug_role_merges_table	0
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role none;
+connection default;
 grant select on mysql.roles_mapping to role1;
 show status like 'debug%';
 Variable_name	Value
@@ -172,6 +182,7 @@ Debug_role_merges_db	16
 Debug_role_merges_table	8
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role role10;
@@ -202,6 +213,7 @@ GRANT role5 TO 'role7'
 GRANT role6 TO 'role9'
 GRANT role7 TO 'role9'
 GRANT role9 TO 'role10'
+connection default;
 revoke select on mysql.roles_mapping from role1;
 show status like 'debug%';
 Variable_name	Value
@@ -210,9 +222,11 @@ Debug_role_merges_db	16
 Debug_role_merges_table	16
 Debug_role_merges_column	0
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role none;
+connection default;
 grant select(User) on mysql.roles_mapping to role1;
 show status like 'debug%';
 Variable_name	Value
@@ -221,6 +235,7 @@ Debug_role_merges_db	16
 Debug_role_merges_table	24
 Debug_role_merges_column	8
 Debug_role_merges_routine	0
+connection foo;
 select count(*) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role role10;
@@ -253,6 +268,7 @@ GRANT role5 TO 'role7'
 GRANT role6 TO 'role9'
 GRANT role7 TO 'role9'
 GRANT role9 TO 'role10'
+connection default;
 grant select(Host) on mysql.roles_mapping to role3;
 show status like 'debug%';
 Variable_name	Value
@@ -261,6 +277,7 @@ Debug_role_merges_db	16
 Debug_role_merges_table	30
 Debug_role_merges_column	14
 Debug_role_merges_routine	0
+connection foo;
 select count(concat(User,Host,Role)) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'Role' in table 'roles_mapping'
 select count(concat(User,Host)) from mysql.roles_mapping;
@@ -291,6 +308,7 @@ GRANT role5 TO 'role7'
 GRANT role6 TO 'role9'
 GRANT role7 TO 'role9'
 GRANT role9 TO 'role10'
+connection default;
 revoke select(User) on mysql.roles_mapping from role1;
 show status like 'debug%';
 Variable_name	Value
@@ -299,11 +317,13 @@ Debug_role_merges_db	16
 Debug_role_merges_table	38
 Debug_role_merges_column	22
 Debug_role_merges_routine	0
+connection foo;
 select count(concat(User,Host)) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'User' in table 'roles_mapping'
 select count(concat(Host)) from mysql.roles_mapping;
 count(concat(Host))
 22
+connection default;
 revoke select(Host) on mysql.roles_mapping from role3;
 show status like 'debug%';
 Variable_name	Value
@@ -312,9 +332,11 @@ Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
 Debug_role_merges_routine	0
+connection foo;
 select count(concat(Host)) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
 set role none;
+connection default;
 create procedure pr1() select "pr1";
 create function fn1() returns char(10) return "fn1";
 grant execute on procedure test.pr1 to role1;
@@ -325,6 +347,7 @@ Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
 Debug_role_merges_routine	8
+connection foo;
 call pr1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.pr1'
 set role role10;
@@ -333,6 +356,7 @@ pr1
 pr1
 select fn1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.fn1'
+connection default;
 grant execute on function test.fn1 to role5;
 show status like 'debug%';
 Variable_name	Value
@@ -341,9 +365,11 @@ Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
 Debug_role_merges_routine	13
+connection foo;
 select fn1();
 fn1()
 fn1
+connection default;
 revoke execute on procedure test.pr1 from role1;
 show status like 'debug%';
 Variable_name	Value
@@ -352,11 +378,13 @@ Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
 Debug_role_merges_routine	21
+connection foo;
 call pr1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.pr1'
 select fn1();
 fn1()
 fn1
+connection default;
 revoke execute on function test.fn1 from role5;
 show status like 'debug%';
 Variable_name	Value
@@ -365,9 +393,11 @@ Debug_role_merges_db	16
 Debug_role_merges_table	44
 Debug_role_merges_column	28
 Debug_role_merges_routine	26
+connection foo;
 select fn1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.fn1'
 set role none;
+connection default;
 drop procedure pr1;
 drop function fn1;
 grant select on mysql.roles_mapping to role3;
@@ -434,6 +464,7 @@ Debug_role_merges_db	48
 Debug_role_merges_table	62
 Debug_role_merges_column	28
 Debug_role_merges_routine	26
+connection default;
 drop user foo@localhost;
 drop role role1;
 drop role role2;

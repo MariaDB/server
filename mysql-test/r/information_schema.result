@@ -230,6 +230,8 @@ a	int(11)	YES		NULL
 create view mysqltest.v1 (c) as select a from mysqltest.t1;
 grant select (a) on mysqltest.t1 to mysqltest_2@localhost;
 grant select on mysqltest.v1 to mysqltest_3;
+connect  user3,localhost,mysqltest_2,,;
+connection user3;
 select table_name, column_name, privileges from information_schema.columns
 where table_schema = 'mysqltest' and table_name = 't1';
 table_name	column_name	privileges
@@ -237,12 +239,16 @@ t1	a	select
 show columns from mysqltest.t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
+connect  user4,localhost,mysqltest_3,,mysqltest;
+connection user4;
 select table_name, column_name, privileges from information_schema.columns
 where table_schema = 'mysqltest' and table_name = 'v1';
 table_name	column_name	privileges
 v1	c	select
 explain select * from v1;
 ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+connection default;
+disconnect user4;
 drop view v1, mysqltest.v1;
 drop tables mysqltest.t4, mysqltest.t1, t2, t3, t5;
 drop database mysqltest;
@@ -346,15 +352,21 @@ routine_schema	routine_name
 test	sel2
 test	sub1
 drop view v1;
+connect  user1,localhost,mysqltest_1,,;
+connection user1;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
 ROUTINE_NAME	ROUTINE_DEFINITION
 show create function sub1;
 ERROR 42000: FUNCTION sub1 does not exist
+connection user3;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
 ROUTINE_NAME	ROUTINE_DEFINITION
 sel2	NULL
 sub1	NULL
+connection default;
 grant all privileges on test.* to mysqltest_1@localhost;
+connect  user2,localhost,mysqltest_1,,;
+connection user2;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
 ROUTINE_NAME	ROUTINE_DEFINITION
 sel2	NULL
@@ -379,6 +391,9 @@ return i+1	latin1	latin1_swedish_ci	latin1_swedish_ci
 show function status like "sub2";
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	sub2	FUNCTION	mysqltest_1@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+connection default;
+disconnect user1;
+disconnect user3;
 drop function sub2;
 show create procedure sel2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
@@ -510,6 +525,7 @@ def	test	PRIMARY	def	test	t1	a	1	NULL	NULL	NULL	NULL
 def	test	constraint_1	def	test	t1	a	1	NULL	NULL	NULL	NULL
 def	test	key_1	def	test	t1	a	1	NULL	NULL	NULL	NULL
 def	test	key_2	def	test	t1	a	1	NULL	NULL	NULL	NULL
+connection user2;
 select table_name from information_schema.TABLES where table_schema like "test%";
 table_name
 t1
@@ -520,6 +536,8 @@ select ROUTINE_NAME from information_schema.ROUTINES;
 ROUTINE_NAME
 sel2
 sub1
+disconnect user2;
+connection default;
 delete from mysql.user where user='mysqltest_1';
 drop table t1;
 drop procedure sel2;
@@ -887,6 +905,8 @@ x_float	NULL	NULL
 x_double_precision	NULL	NULL
 drop table t1;
 grant select on test.* to mysqltest_4@localhost;
+connect  user10261,localhost,mysqltest_4,,;
+connection user10261;
 SELECT TABLE_NAME, COLUMN_NAME, PRIVILEGES FROM INFORMATION_SCHEMA.COLUMNS 
 where COLUMN_NAME='TABLE_NAME' and table_name not like 'innodb%';
 TABLE_NAME	COLUMN_NAME	PRIVILEGES
@@ -903,6 +923,8 @@ TABLE_CONSTRAINTS	TABLE_NAME	select
 TABLE_PRIVILEGES	TABLE_NAME	select
 TABLE_STATISTICS	TABLE_NAME	select
 VIEWS	TABLE_NAME	select
+connection default;
+disconnect user10261;
 delete from mysql.user where user='mysqltest_4';
 delete from mysql.db where user='mysqltest_4';
 flush privileges;
@@ -970,6 +992,11 @@ grant select (f1) on mysqltest.t1 to user1@localhost;
 grant select on mysqltest.t2 to user2@localhost;
 grant select on mysqltest.* to user3@localhost;
 grant select on *.* to user4@localhost;
+connect  con1,localhost,user1,,mysqltest;
+connect  con2,localhost,user2,,mysqltest;
+connect  con3,localhost,user3,,mysqltest;
+connect  con4,localhost,user4,,;
+connection con1;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	mysqltest	t1	f1	SELECT	NO
@@ -984,6 +1011,7 @@ show grants;
 Grants for user1@localhost
 GRANT USAGE ON *.* TO 'user1'@'localhost'
 GRANT SELECT (f1) ON `mysqltest`.`t1` TO 'user1'@'localhost'
+connection con2;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 select * from information_schema.table_privileges order by grantee;
@@ -998,6 +1026,7 @@ show grants;
 Grants for user2@localhost
 GRANT USAGE ON *.* TO 'user2'@'localhost'
 GRANT SELECT ON `mysqltest`.`t2` TO 'user2'@'localhost'
+connection con3;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 select * from information_schema.table_privileges order by grantee;
@@ -1012,6 +1041,7 @@ show grants;
 Grants for user3@localhost
 GRANT USAGE ON *.* TO 'user3'@'localhost'
 GRANT SELECT ON `mysqltest`.* TO 'user3'@'localhost'
+connection con4;
 select * from information_schema.column_privileges where grantee like '%user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1034,6 +1064,11 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 show grants;
 Grants for user4@localhost
 GRANT SELECT ON *.* TO 'user4'@'localhost'
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
 drop user user1@localhost, user2@localhost, user3@localhost, user4@localhost;
 use test;
 drop database mysqltest;
@@ -1107,12 +1142,15 @@ t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL
 DROP TABLE t1,t2;
 create table t1(f1 int);
 create view v1 (c) as select f1 from t1;
+connect  con5,localhost,root,,*NO-ONE*;
 select database();
 database()
 NULL
 show fields from test.v1;
 Field	Type	Null	Key	Default	Extra
 c	int(11)	YES		NULL	
+connection default;
+disconnect con5;
 drop view v1;
 drop table t1;
 alter database information_schema;
@@ -1223,11 +1261,15 @@ create table t1 (id int);
 create view v1 as select * from t1;
 create definer = mysqltest_1@localhost
 sql security definer view v2 as select 1;
+connect  con16681,localhost,mysqltest_1,,test;
+connection con16681;
 select * from information_schema.views
 where table_name='v1' or table_name='v2';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v2	select 1 AS `1`	NONE	NO	mysqltest_1@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+connection default;
+disconnect con16681;
 drop view v1, v2;
 drop table t1;
 drop user mysqltest_1@localhost;
@@ -1259,6 +1301,7 @@ SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
 RETURN @a + 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+connect  conn1, localhost, mysql_bug20230,,;
 SELECT ROUTINE_NAME, ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test';
 ROUTINE_NAME	ROUTINE_DEFINITION
 f1	NULL
@@ -1273,6 +1316,8 @@ CALL p1();
 SELECT f1();
 f1()
 2
+disconnect conn1;
+connection default;
 DROP FUNCTION f1;
 DROP PROCEDURE p1;
 DROP USER mysql_bug20230@localhost;
@@ -1351,6 +1396,7 @@ t1_ai
 show triggers from mysqltest;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 t1_ai	INSERT	t1	set @a = new.a + new.b + new.c	AFTER	NULL		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+connect  con27629,localhost,mysqltest_1,,mysqltest;
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 b	int(11)	YES		NULL	
@@ -1362,6 +1408,8 @@ Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_clie
 select trigger_name from information_schema.triggers
 where event_object_table='t1';
 trigger_name
+connection default;
+disconnect con27629;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 create table t1 (
@@ -1415,13 +1463,19 @@ select * from information_schema.engines WHERE ENGINE="MyISAM";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 MyISAM	DEFAULT	MyISAM storage engine	NO	NO	NO
 grant select on *.* to user3148@localhost;
+connect  con3148,localhost,user3148,,test;
+connection con3148;
 select user,db from information_schema.processlist;
 user	db
 user3148	test
+connection default;
+disconnect con3148;
 drop user user3148@localhost;
+connect  pslistcon,localhost,root,,test;
 SELECT 'other connection here' AS who;
 who
 other connection here
+connection default;
 SELECT IF(`time` > 0, 'OK', `time`) AS time_low,
 IF(`time` < 1000, 'OK', `time`) AS time_high,
 IF(time_ms >= 1000, 'OK', time_ms) AS time_ms_low,
@@ -1430,6 +1484,7 @@ FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE ID=@tid;
 time_low	time_high	time_ms_low	time_ms_high
 OK	OK	OK	OK
+disconnect pslistcon;
 DROP TABLE IF EXISTS server_status;
 DROP EVENT IF EXISTS event_status;
 SET GLOBAL event_scheduler=1;
@@ -1579,10 +1634,22 @@ show open tables where f1()=0;
 show open tables where f1()=0;
 drop table t1;
 drop function f1;
+connect  conn1, localhost, root,,;
+connection conn1;
 select * from information_schema.tables where 1=sleep(100000);
+connection default;
+connection conn1;
 Got one of the listed errors
+connection default;
+disconnect conn1;
+connect  conn1, localhost, root,,;
+connection conn1;
 select * from information_schema.columns where 1=sleep(100000);
+connection default;
+connection conn1;
 Got one of the listed errors
+connection default;
+disconnect conn1;
 explain select count(*) from information_schema.tables;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tables	ALL	NULL	NULL	NULL	NULL	NULL	Skip_open_table; Scanned all databases
@@ -1688,6 +1755,8 @@ USE db1;
 CREATE TABLE t1 (id INT);
 CREATE USER nonpriv;
 USE test;
+connect  nonpriv_con, localhost, nonpriv,,;
+connection nonpriv_con;
 # connected as nonpriv
 # Should return 0
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
@@ -1698,7 +1767,9 @@ USE INFORMATION_SCHEMA;
 SELECT COUNT(*) FROM TABLES WHERE TABLE_NAME='t1';
 COUNT(*)
 0
+connection default;
 # connected as root
+disconnect nonpriv_con;
 DROP USER nonpriv;
 DROP TABLE db1.t1;
 DROP DATABASE db1;
@@ -1732,8 +1803,12 @@ DROP TABLE ubig;
 select 1 from information_schema.tables where table_schema=repeat('a', 2000);
 1
 grant usage on *.* to mysqltest_1@localhost;
+connect  con1, localhost, mysqltest_1,,;
+connection con1;
 select 1 from information_schema.tables where table_schema=repeat('a', 2000);
 1
+connection default;
+disconnect con1;
 drop user mysqltest_1@localhost;
 End of 5.1 tests.
 #
@@ -1746,13 +1821,15 @@ End of 5.1 tests.
 drop tables if exists t1, t2, t3;
 create table t1 (i int);
 create table t2 (j int primary key auto_increment);
-# Switching to connection 'con3726_1'
+connect  con3726_1,localhost,root,,test;
+connection con3726_1;
 lock table t2 read;
-# Switching to connection 'con3726_2'
+connect  con3726_2,localhost,root,,test;
+connection con3726_2;
 # RENAME below will be blocked by 'lock table t2 read' above but
 # will add two pending requests for exclusive metadata locks.
 rename table t2 to t3;
-# Switching to connection 'default'
+connection default;
 # These statements should not be blocked by pending lock requests
 select table_name, column_name, data_type from information_schema.columns
 where table_schema = 'test' and table_name in ('t1', 't2');
@@ -1764,10 +1841,12 @@ where table_schema = 'test' and table_name in ('t1', 't2');
 table_name	auto_increment
 t1	NULL
 t2	1
-# Switching to connection 'con3726_1'
+connection con3726_1;
 unlock tables;
-# Switching to connection 'con3726_2'
-# Switching to connection 'default'
+connection con3726_2;
+connection default;
+disconnect con3726_1;
+disconnect con3726_2;
 drop tables t1, t3;
 EXPLAIN SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1846,9 +1925,10 @@ create table t1 (a int, b int);
 create view v1 as select t1.a, t1.b from t1;
 alter table t1 change b c int;
 lock table t1 read;
-# --> connection con1
+connect con1, localhost, root,,;
+connection con1;
 flush tables;
-# --> connection default
+connection default;
 select * from information_schema.views;
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
@@ -1869,9 +1949,10 @@ unlock tables;
 #
 # Cleanup.
 #
-# --> connection con1
+connection con1;
 # Reaping 'flush tables'
-# --> connection default
+disconnect con1;
+connection default;
 drop table t1;
 drop view v1;
 #
@@ -1897,47 +1978,33 @@ create table t2 (k int);
 # Acquire lock on 't2' so upcoming RENAME is
 # blocked.
 lock tables t2 read;
-#
-# Switching to connection 'con12828477_1'. 
-#
+connect  con12828477_1, localhost, root,,mysqltest;
 # The below RENAME should wait on 't2' while
 # keeping X lock on 't1'.
 rename table t1 to t3, t2 to t1, t3 to t2;
-#
-# Switching to connection 'con12828477_2'. 
-#
+connect  con12828477_2, localhost, root,,mysqltest;
 # Wait while the above RENAME is blocked.
 # Issue query to I_S which will open 't0' and get
 # blocked on 't1' because of RENAME.
 select table_name, auto_increment from information_schema.tables where table_schema='mysqltest';
-#
-# Switching to connection 'con12828477_3'. 
-#
+connect  con12828477_3, localhost, root,,mysqltest;
 # Wait while the above SELECT is blocked.
 #
 # Check that it holds no lock on 't0' so it can be renamed.
 rename table t0 to t4;
-#
-# Switching to connection 'default'.
-#
+connection default;
 #
 # Unblock the first RENAME.
 unlock tables;
-#
-# Switching to connection 'con12828477_1'. 
-#
+connection con12828477_1;
 # Reap the first RENAME
-#
-# Switching to connection 'con12828477_2'. 
-#
+connection con12828477_2;
 # Reap SELECT to I_S.
 table_name	auto_increment
 t0	NULL
 t1	NULL
 t2	NULL
-#
-# Switching to connection 'default'.
-#
+connection default;
 #
 # Now test that we don't keep locks in case when we to fill
 # I_S table we read .FRM or .TRG file only (this was the case
@@ -1947,44 +2014,33 @@ rename table t4 to t0;
 # Acquire lock on 't2' so upcoming RENAME is
 # blocked.
 lock tables t2 read;
-#
-# Switching to connection 'con12828477_1'. 
-#
+connection con12828477_1;
 # The below RENAME should wait on 't2' while
 # keeping X lock on 't1'.
 rename table t1 to t3, t2 to t1, t3 to t2;
-#
-# Switching to connection 'con12828477_2'. 
-#
+connection con12828477_2;
 # Wait while the above RENAME is blocked.
 # Issue query to I_S which will open 't0' and get
 # blocked on 't1' because of RENAME.
 select event_object_table, trigger_name from information_schema.triggers where event_object_schema='mysqltest';
-#
-# Switching to connection 'con12828477_3'. 
-#
+connection con12828477_3;
 # Wait while the above SELECT is blocked.
 #
 # Check that it holds no lock on 't0' so it can be renamed.
 rename table t0 to t4;
-#
-# Switching to connection 'default'.
-#
+connection default;
 #
 # Unblock the first RENAME.
 unlock tables;
-#
-# Switching to connection 'con12828477_1'. 
-#
+connection con12828477_1;
 # Reap the first RENAME
-#
-# Switching to connection 'con12828477_2'. 
-#
+connection con12828477_2;
 # Reap SELECT to I_S.
 event_object_table	trigger_name
-#
-# Switching to connection 'default'.
-#
+connection default;
+disconnect con12828477_1;
+disconnect con12828477_2;
+disconnect con12828477_3;
 #
 # MDEV-3818: Query against view over IS tables worse than equivalent query without view
 #
@@ -2030,6 +2086,8 @@ SELECT @val1 = @val2;
 # MDEV-5723: mysqldump -uroot unusable for multi-database operations, checks all databases
 # 
 drop database if exists db1;
+connect  con1,localhost,root,,;
+connection con1;
 create database db1;
 use db1;
 create table t1 (a int);
@@ -2068,4 +2126,6 @@ Variable_name	Value
 Opened_tables	3
 drop database mysqltest;
 drop database db1;
+connection default;
+disconnect con1;
 set global sql_mode=default;

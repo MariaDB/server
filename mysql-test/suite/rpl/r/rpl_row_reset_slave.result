@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 Master_User = 'root'
 Master_Host = '127.0.0.1'
 include/stop_slave.inc
@@ -16,14 +17,18 @@ Master_Host = '127.0.0.1'
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+connection master;
 create temporary table t1 (a int);
+connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
 show status like 'slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
+connection master;
 drop temporary table if exists t1;
+connection slave;
 include/stop_slave.inc
 reset slave;
 include/check_slave_no_error.inc

@@ -37,7 +37,6 @@ PRIMARY KEY (id),
 name VARCHAR(30)
 ) ENGINE = INNODB;
 
---echo ## Creating new connections test_con1, test_con2 ##
 connect (test_con1,localhost,root,,);
 connect (test_con2,localhost,root,,);
 
@@ -60,12 +59,10 @@ INSERT INTO t1 VALUES(2,'Record_2');
 INSERT INTO t1 VALUES(3,'Record_3');
 SELECT * FROM t1;
 
---echo Switching to connection test_con1
 connection test_con1;
 --echo ## Don't expect to see id's 2 and 3 in the table w/o COMMIT ##
 SELECT * FROM t1;
 
---echo Switching to default connection
 connection default;
 COMMIT;
 
@@ -75,13 +72,11 @@ INSERT INTO t1 VALUES(4,'Record_4');
 INSERT INTO t1 VALUES(5,'Record_5');
 SELECT * FROM t1;
 
---echo Switching to connection test_con1
 connection test_con1;
 --echo ## Don't expect to see id's 4 and 5 here ##
 --echo ## Expect to see 3, Record_3 ##
 SELECT * FROM t1;
 
---echo Switching to connection default;
 connection default;
 
 
@@ -94,7 +89,6 @@ SELECT * FROM t1;
 --echo #    Setting initial value of completion_type to one    #
 --echo #########################################################
 
---echo Switching to connection test_con1;
 connection test_con1;
 SET @@session.completion_type = 1;
 
@@ -109,11 +103,9 @@ INSERT INTO t1 VALUES(8,'Record_8');
 SELECT * FROM t1;
 
 connection test_con2;
---echo switching to test_con2
 --echo ## Do not expect to see 8, Record_8 as no COMMIT has occurred ##
 SELECT * FROM t1;
 
---echo switch to connection test_con1
 connection test_con1;
 
 --echo ## Testing ROLLBACK behavior
@@ -130,12 +122,10 @@ SELECT * FROM t1;
 --echo ## Expect a new transaction ##
 INSERT INTO t1 VALUES(9, 'Record_9');
 
---echo Switching to connection test_con2
 connection test_con2;
 --echo ## Don't expect to see 9, Record_9 due to no COMMIT yet ##
 SELECT * FROM t1;
 
---echo Switching to connection test_con1
 connection test_con1;
 ROLLBACK;
 --echo ## Don't expect to see 9, Record_9
@@ -159,7 +149,6 @@ COMMIT;
 --Error 2006,2013,ER_QUERY_INTERRUPTED,ER_CONNECTION_KILLED
 INSERT INTO t1 VALUES(4,'Record_4');
 
---echo switch to connection test_con2
 connection test_con2;
 SET @@session.completion_type = 2;
 

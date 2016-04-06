@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 master_id: 1
 stop slave;
 *** --replicate-same-server-id and change master option can clash ***
@@ -20,7 +21,11 @@ change master to IGNORE_SERVER_IDS= (5, 1, 4, 3, 1);
 ignore server id list: 1, 3, 4, 5
 *** ignore master (server 1) queries for a while ***
 start slave;
+connection master;
+connection slave;
+connection master;
 create table t1 (n int);
+connection slave;
 include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 *** must be empty as the event is to be filtered out ***
 show tables;
@@ -36,10 +41,14 @@ change master to IGNORE_SERVER_IDS= ();
 ignore server id list: 
 change master to master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root';
 start slave;
+connection master;
+connection slave;
 *** must have caught create table ***
 show tables;
 Tables_in_test
 t1
+connection master;
 drop table t1;
+connection slave;
 end of the tests
 include/rpl_end.inc

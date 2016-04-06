@@ -27,7 +27,7 @@ connection default;
 set debug_sync="now WAIT_FOR parked";
 
 connection bug30887con2;
---echo On a second connection; clear the query cache.
+--echo clear the query cache.
 show status like 'Qcache_queries_in_cache';
 set global query_cache_size= 0;
 
@@ -71,28 +71,23 @@ connect(con1,localhost,root,,test,,);
 connect(con2,localhost,root,,test,,);
 
 connection con1;
---echo # Switch to connection con1
 SET DEBUG_SYNC = "wait_after_query_cache_invalidate SIGNAL parked WAIT_FOR go";
 --echo # Send concurrent insert, will wait in the query cache table invalidate
 --send INSERT INTO t1 VALUES (4)
 
 connection default;
---echo # Switch to connection default
 --echo # Wait for concurrent insert to reach the debug point
 SET DEBUG_SYNC = "now WAIT_FOR parked";
 
 connection con2;
---echo # Switch to connection con2
 --echo # Send SELECT that shouldn't be cached
 SELECT * FROM t1;
 
 connection default;
---echo # Switch to connection default
 --echo # Notify the concurrent insert to proceed
 SET DEBUG_SYNC = "now SIGNAL go";
 
 connection con1;
---echo # Switch to connection con1
 --echo # Gather insert result
 --reap
 SHOW STATUS LIKE "Qcache_queries_in_cache";
@@ -100,7 +95,6 @@ SHOW STATUS LIKE "Qcache_queries_in_cache";
 SELECT * FROM t1;
 SHOW STATUS LIKE "Qcache_queries_in_cache";
 
---echo # Disconnect
 disconnect con1;
 disconnect con2;
 
@@ -140,7 +134,6 @@ connect (thd3, localhost, root, ,test);
 connect (thd1, localhost, root, ,test);
 
 connection thd1;
---echo =================================== Connection thd1
 --echo **
 --echo ** Load Query Cache with a result set and one table.
 --echo **
@@ -162,13 +155,11 @@ SET DEBUG_SYNC="wait_in_query_cache_invalidate2 SIGNAL parked1_2 WAIT_FOR go1_2"
 --send DELETE FROM t1 WHERE a like '%a%';
 
 connection default;
---echo =================================== Connection default
 --echo ** Assert that the expect process status is obtained.
 SET DEBUG_SYNC="now WAIT_FOR parked1_1";
 -- echo **
 
 connection thd2;
---echo =================================== Connection thd2
 --echo ** On THD2: Insert a result into the cache. This attempt will be blocked
 --echo ** because of a debug hook placed just before the mutex lock after which
 --echo ** the first part of the result set is written.
@@ -176,21 +167,18 @@ SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked2 WAIT_FOR go2 EXECUTE 1
 --send SELECT SQL_CACHE * FROM t2 UNION SELECT * FROM t3
 
 connection default;
---echo =================================== Connection default
 --echo ** Assert that the SELECT-stmt thread reaches the sync point.
 SET DEBUG_SYNC="now WAIT_FOR parked2";
 --echo **
 --echo **
 
 connection thd3;
---echo =================================== Connection thd3
 --echo ** On THD3: Insert another result into the cache and block on the same
 --echo ** debug hook.
 SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked3 WAIT_FOR go3 EXECUTE 1";
 --send SELECT SQL_CACHE * FROM t4 UNION SELECT * FROM t5
 
 connection default;
---echo =================================== Connection default
 --echo ** Assert that the SELECT-stmt thread reaches the sync point.
 SET DEBUG_SYNC="now WAIT_FOR parked3";
 --echo **
@@ -225,20 +213,17 @@ SET DEBUG_SYNC="now SIGNAL go1_2";
 --echo *************************************************************************
 --echo ** No tables should be locked
 connection thd2;
---echo =================================== Connection thd2
 reap;
 DELETE FROM t1;
 DELETE FROM t2;
 DELETE FROM t3;
 
 connection thd3;
---echo =================================== Connection thd3
 reap;
 DELETE FROM t4;
 DELETE FROM t5;
 
 connection thd1;
---echo =================================== Connection thd1
 reap;
 
 --echo ** Done.
@@ -278,23 +263,19 @@ connect(con1,localhost,root,,test,,);
 connect(con2,localhost,root,,test,,);
 
 connection con1;
---echo # Switch to connection con1
 SET DEBUG_SYNC = "wait_in_query_cache_invalidate2 SIGNAL parked WAIT_FOR go";
 --echo # Send INSERT, will wait in the query cache table invalidation
 --send INSERT INTO t1 VALUES (4);
 
 connection default;
---echo # Switch to connection default
 --echo # Wait for insert to reach the debug point
 SET DEBUG_SYNC = "now WAIT_FOR parked";
 
 connection con2;
---echo # Switch to connection con2
 --echo # Send a query that should wait on the query cache lock
 --send RESET QUERY CACHE
 
 connection default;
---echo # Switch to connection default
 --echo # Wait for the state to be reflected in the processlist
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -304,12 +285,10 @@ let $wait_condition=
 SET DEBUG_SYNC="now SIGNAL go";
 
 connection con1;
---echo # Reap con1 and disconnect
 --reap
 disconnect con1;
 
 connection con2;
---echo # Reap con2 and disconnect
 --reap
 disconnect con2;
 

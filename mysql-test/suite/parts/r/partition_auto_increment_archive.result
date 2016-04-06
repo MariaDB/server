@@ -398,29 +398,31 @@ t1	CREATE TABLE `t1` (
 PARTITIONS 2 */
 DROP TABLE t1;
 # Test with two threads
-# con default
+connection default;
 CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
 ENGINE = 'Archive'
 PARTITION BY HASH(c1)
 PARTITIONS 2;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
-# con1
+connect con1, localhost, root,,;
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (10);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (19);
 INSERT INTO t1 (c1) VALUES (21);
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (16);
 # ERROR (only OK if Archive) mysql_errno: 1022
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
-# con default
+disconnect con1;
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
@@ -437,27 +439,28 @@ c1
 24
 DROP TABLE t1;
 # Test with two threads + start transaction NO PARTITIONING
-# con default
+connect con1, localhost, root,,;
+connection default;
 CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
 ENGINE = 'Archive';
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
-# con1
+connection con1;
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (10);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (NULL);
 INSERT INTO t1 (c1) VALUES (19);
 INSERT INTO t1 (c1) VALUES (21);
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (16);
 # ERROR (only OK if Archive) mysql_errno: 1022
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
@@ -484,7 +487,8 @@ c1
 21
 22
 23
-# con default
+disconnect con1;
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
@@ -515,7 +519,8 @@ c1
 24
 DROP TABLE t1;
 # Test with two threads + start transaction
-# con default
+connect con1, localhost, root,,;
+connection default;
 CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
 ENGINE = 'Archive'
 PARTITION BY HASH(c1)
@@ -523,18 +528,18 @@ PARTITIONS 2;
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
-# con1
+connection con1;
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (NULL), (10);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL), (NULL), (19);
 INSERT INTO t1 (c1) VALUES (21);
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
-# con default
+connection default;
 INSERT INTO t1 (c1) VALUES (16);
 # ERROR (only OK if Archive) mysql_errno: 1022
-# con1
+connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
@@ -561,7 +566,8 @@ c1
 21
 22
 23
-# con default
+disconnect con1;
+connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1

@@ -158,6 +158,7 @@ Warning	1708	The value of 'max_allowed_packet' should be no less than the value 
 SET GLOBAL net_buffer_length=4096;
 Warnings:
 Warning	1708	The value of 'max_allowed_packet' should be no less than the value of 'net_buffer_length'
+CONNECT  con1,localhost,root,,test;
 SHOW SESSION VARIABLES LIKE 'max_allowed_packet';
 Variable_name	Value
 max_allowed_packet	2048
@@ -165,6 +166,8 @@ SHOW SESSION VARIABLES LIKE 'net_buffer_length';
 Variable_name	Value
 net_buffer_length	4096
 Got one of the listed errors
+connection default;
+disconnect con1;
 SELECT LENGTH(a) FROM t1;
 LENGTH(a)
 SET GLOBAL max_allowed_packet=default;

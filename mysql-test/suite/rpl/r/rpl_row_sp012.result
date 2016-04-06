@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP PROCEDURE IF EXISTS test.p3;
@@ -19,9 +20,9 @@ GRANT EXECUTE ON PROCEDURE p1 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p2 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p3 TO user1@localhost;
 set sql_mode=default;
-
-<********  Master user1 p3 & p2 calls *******>
-----------------------------------------------
+connection slave;
+connect  muser1,localhost,user1,,;
+connection muser1;
 SELECT CURRENT_USER();
 CURRENT_USER()
 user1@localhost
@@ -34,9 +35,9 @@ user1@localhost	user1@localhost
 CALL test.p2();
 CURRENT_USER()	USER()
 root@localhost	user1@localhost
-
-<********  Slave user1 p3 & p2 calls *******>
----------------------------------------------
+connect  suser1,127.0.0.1,user1,,test,$SLAVE_MYPORT,;
+connection master;
+connection suser1;
 SELECT CURRENT_USER();
 CURRENT_USER()
 user1@localhost
@@ -49,10 +50,12 @@ user1@localhost	user1@localhost
 CALL test.p2();
 CURRENT_USER()	USER()
 root@localhost	user1@localhost
+connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p3;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP USER user1@localhost;
+connection slave;
 include/rpl_end.inc

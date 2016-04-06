@@ -1,0 +1,12 @@
+# This file has incomplete utf8mb4 sequences {D0}, {E180}, {F09F98},
+# has a valid utf8mb4 sequence {F09F988E}
+# and has no NL at the end:
+# {D0} \n xxx1 {E180} xxx2 \n {F09F98} \n xxx3 {F09F988E} {F09F98} EOF
+Ð
+xxx1
+á€
+xxx2
+ðŸ˜
+xxx3
+ðŸ˜Ž
+ðŸ˜

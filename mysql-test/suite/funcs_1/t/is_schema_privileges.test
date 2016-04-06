@@ -115,7 +115,6 @@ ORDER BY grantee,table_schema,privilege_type;
 let $show_testuser1 = SHOW GRANTS FOR 'testuser1'@'localhost';
 let $show_testuser2 = SHOW GRANTS FOR 'testuser2'@'localhost';
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 GRANT SELECT ON db_datadict_4.*  TO 'testuser2'@'localhost';
@@ -132,7 +131,6 @@ eval $show_testuser1;
 --error ER_DBACCESS_DENIED_ERROR
 eval $show_testuser2;
 
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , test);
 --echo # Root granted SELECT db_datadict_1 to me     -> visible
@@ -145,7 +143,6 @@ eval $my_select;
 eval $show_testuser1;
 eval $show_testuser2;
 
---echo # Switch to connection default and close connections testuser1 and testuser2
 connection default;
 disconnect testuser1;
 disconnect testuser2;
@@ -197,73 +194,55 @@ ORDER BY grantee,table_schema,privilege_type;
 
 ############ Check grant SCHEMA
 eval $my_select;
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
 eval $my_select;
---echo # Switch to connection default
 connection default;
 GRANT UPDATE ON db_datadict.* TO 'testuser1'@'localhost';
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
 ############ Check RENAME SCHEMA
 # Implement this if RENAME SCHEMA is again available.
 # Note(mleich): I expect that RENAME has no impact on the result sets, because
 #               the schema_name is not migrated.
-# --echo # Switch to connection default
 # connection default;
 # RENAME SCHEMA db_datadict TO db_datadictx;
 # eval $my_select;
-# --echo # Switch to connection testuser1
 # eval $my_select;
 # RENAME SCHEMA db_datadictx TO db_datadict;
 ############ Check extend PRIVILEGES (affects PRIVILEGE_TYPE) on SCHEMA
---echo # Switch to connection default
 connection default;
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost';
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
 ############ Check extend PRIVILEGES (affects IS_GRANTABLE) on SCHEMA
 --echo # Switch to connection default
 connection default;
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
 ############ Check DROP SCHEMA
 # No impact, because there is no "maintenance" of privileges.
---echo # Switch to connection default
 connection default;
 DROP SCHEMA db_datadict;
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
 ############ Check REVOKE PRIVILEGE
---echo # Switch to connection default
 connection default;
 REVOKE UPDATE ON db_datadict.* FROM 'testuser1'@'localhost';
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
 ############ Check RENAME USER
---echo # Switch to connection default
 connection default;
 RENAME USER 'testuser1'@'localhost' TO 'the_user'@'localhost';
 eval $my_select;
---echo # Switch to connection testuser1
 eval $my_select;
---echo # Close connection testuser1
 disconnect testuser1;
---echo # Establish connection the_user (user=the_user)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (the_user, localhost, the_user, , test);
 eval $my_select;
---echo # Close connection the_user
 disconnect the_user;
 ############ Check DROP USER
---echo # Switch to connection default
 connection default;
 eval $my_select;
 DROP USER 'the_user'@'localhost';

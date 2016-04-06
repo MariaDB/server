@@ -5,7 +5,7 @@ SELECT * FROM performance_schema.socket_instances;
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
 WHERE PROCESSLIST_ID = CONNECTION_ID();
-# Establish local TCP/IP connection (con1,localhost,root,,test,,)
+connect  con1,$my_localhost,root,,test,,$MASTER_MYPORT;
 # Store the thread id of connection 1 (tcp/ip)
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
@@ -14,8 +14,8 @@ WHERE PROCESSLIST_ID = CONNECTION_ID();
 SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
-# Switch to connection default
-# Establish second local TCP/IP connection (con1,localhost,root,,test,,)
+connection default;
+connect  con2,$my_localhost,root,,test,,$MASTER_MYPORT;
 # Store the thread_id of connection 2 (tcp/ip)
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
@@ -24,8 +24,8 @@ WHERE PROCESSLIST_ID = CONNECTION_ID();
 SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
-# Switch to connection default
-# Establish local unix domain connection (con3,localhost,root,,test,,)
+connection default;
+connect con3,localhost,root,,test,,;
 # Store the thread id of connection 3 (unix domain)
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
@@ -34,7 +34,7 @@ WHERE PROCESSLIST_ID = CONNECTION_ID();
 SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
-# Switch to connection default
+connection default;
 # EVENT_NAME is the "wait/io/socket/*" instrument identifier.
 SELECT COUNT(*) = 0 AS "Expect 1"
 FROM performance_schema.socket_instances
@@ -196,7 +196,14 @@ EVENT_NAME	IP
 wait/io/socket/sql/client_connection	<LOCALHOST>
 wait/io/socket/sql/client_connection	<LOCALHOST>
 wait/io/socket/sql/client_connection	
-# Disconnect con1, con2 and con3
+connection default;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection default;
 # After waiting a bit we should have no differences to socket_instances
 # before con1, con2, con3 connecting.
 SELECT *

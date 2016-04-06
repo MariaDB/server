@@ -1,28 +1,34 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE DATABASE db1;
 CREATE DATABASE IF NOT EXISTS db1;
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
 CREATE OR REPLACE DATABASE db2;
 CREATE OR REPLACE DATABASE db1;
+connection slave;
 SHOW DATABASES LIKE 'db%';
 Database (db%)
 db1
 db2
+connection master;
 CREATE DATABASE db1;
 ERROR HY000: Can't create database 'db1'; database exists
 DROP DATABASE db3;
 ERROR HY000: Can't drop database 'db3'; database doesn't exist
 CREATE DATABASE IF NOT EXISTS db3;
+connection slave;
 SHOW DATABASES LIKE 'db%';
 Database (db%)
 db1
 db2
 db3
+connection master;
 DROP DATABASE db1;
 DROP DATABASE db2;
 DROP DATABASE IF EXISTS db3;
+connection slave;
 SHOW DATABASES LIKE 'db%';
 Database (db%)
 include/rpl_end.inc

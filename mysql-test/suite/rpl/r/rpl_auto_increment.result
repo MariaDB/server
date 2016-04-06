@@ -7,11 +7,13 @@ a	b
 12	1
 22	2
 32	3
+connection slave;
 select * from t1;
 a	b
 12	1
 22	2
 32	3
+connection master;
 drop table t1;
 create table t1 (a int not null auto_increment,b int, primary key (a)) engine=myisam;
 insert into t1 values (1,1),(NULL,2),(3,3),(NULL,4);
@@ -24,6 +26,7 @@ a	b
 3	3
 22	5
 32	6
+connection slave;
 select * from t1;
 a	b
 1	1
@@ -31,6 +34,7 @@ a	b
 3	3
 22	5
 32	6
+connection master;
 drop table t1;
 set @@session.auto_increment_increment=100, @@session.auto_increment_offset=10;
 show variables like "auto_inc%";
@@ -60,6 +64,7 @@ a
 400
 410
 1000
+connection slave;
 select * from t1;
 a
 5
@@ -70,6 +75,7 @@ a
 400
 410
 1000
+connection master;
 drop table t1;
 create table t1 (a int not null auto_increment, primary key (a)) engine=innodb;
 insert into t1 values (NULL),(5),(NULL);
@@ -94,6 +100,7 @@ a
 400
 410
 1000
+connection slave;
 select * from t1;
 a
 5
@@ -104,6 +111,7 @@ a
 400
 410
 1000
+connection master;
 drop table t1;
 set @@session.auto_increment_increment=1, @@session.auto_increment_offset=1;
 create table t1 (a int not null auto_increment, primary key (a)) engine=myisam;
@@ -143,6 +151,7 @@ a
 600
 610
 611
+connection slave;
 select * from t1;
 a
 1
@@ -157,10 +166,13 @@ a
 600
 610
 611
+connection master;
 drop table t1;
 set @@session.auto_increment_increment=10, @@session.auto_increment_offset=1;
 create table t1 (a int not null auto_increment, primary key (a)) engine=myisam;
+connection slave;
 insert into t1 values(2),(12),(22),(32),(42);
+connection master;
 insert into t1 values (NULL),(NULL);
 insert into t1 values (3),(NULL),(NULL);
 select * from t1;
@@ -170,6 +182,7 @@ a
 11
 21
 31
+connection slave;
 select * from t1;
 a
 1
@@ -182,6 +195,7 @@ a
 31
 32
 42
+connection master;
 drop table t1;
 create table t1 (a tinyint not null auto_increment primary key) engine=myisam;
 insert into t1 values(103);
@@ -213,6 +227,7 @@ insert into t3 values(null);
 ERROR 22003: Out of range value for column 'a' at row 1
 select * from t3 order by a;
 a
+connection slave;
 select * from t1 order by a;
 a
 103
@@ -223,7 +238,10 @@ a
 10
 select * from t3 order by a;
 a
+connection master;
 drop table t1,t2,t3;
+connection slave;
+connection master;
 set auto_increment_increment=1;
 set auto_increment_offset=1;
 CREATE TABLE t1 (id MEDIUMINT NOT NULL AUTO_INCREMENT PRIMARY KEY) ENGINE=innodb;
@@ -234,14 +252,17 @@ t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+connection slave;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+connection master;
 drop table t1;
 include/rpl_reset.inc
+connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY) ENGINE=innodb;
@@ -295,33 +316,52 @@ id
 INSERT INTO t1 VALUES(4);
 INSERT INTO t2 VALUES(4);
 FLUSH LOGS;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
+connection slave;
+connection master;
+connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 SET SQL_MODE='';
+connection slave;
+connection master;
 CREATE TABLE t1(s VARCHAR(10)) ENGINE=myisam;
 CREATE TABLE t_ignored1(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it invokes a trigger or a stored function that inserts into an AUTO_INCREMENT column");
+connection slave;
+connection slave;
 CREATE TABLE test.slave_only(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
 INSERT INTO slave_only VALUES(NULL);
 CREATE TRIGGER t1_update AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO slave_only VALUES(NULL);
+connection master;
 INSERT INTO t_ignored1 VALUES(NULL);
 INSERT INTO t1 VALUES('s');
 UPDATE t1 SET s='s1';
+connection slave;
+connection slave;
 SELECT * FROM t1;
 s
 s1
+connection master;
 CREATE TABLE t_ignored2(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
+connection slave;
+connection slave;
 STOP SLAVE;
 SET GLOBAL sql_slave_skip_counter = 2;
 START SLAVE;
+connection master;
 INSERT INTO t_ignored2 VALUES(NULL);
 UPDATE t1 SET s='s2';
+connection slave;
+connection slave;
 SELECT * FROM t1;
 s
 s2
@@ -331,9 +371,11 @@ t_ignored2
 SELECT * FROM t_ignored2;
 id
 DROP TABLE slave_only;
+connection master;
 DROP TABLE t1;
 DROP TABLE t_ignored1;
 DROP TABLE t_ignored2;
+connection master;
 CREATE TABLE t1 (id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, data INT) ENGINE=innodb;
 BEGIN;
 # Set sql_mode with NO_AUTO_VALUE_ON_ZERO for allowing
@@ -347,8 +389,11 @@ COMMIT;
 SELECT * FROM t1;
 id	data
 0	2
+connection slave;
 SELECT * FROM t1;
 id	data
 0	2
+connection master;
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

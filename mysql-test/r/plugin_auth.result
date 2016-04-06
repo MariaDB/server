@@ -31,18 +31,26 @@ proxies_priv	CREATE TABLE `proxies_priv` (
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),
   KEY `Grantor` (`Grantor`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='User proxy privileges'
+connect plug_con,localhost,plug,plug_dest;
+connection plug_con;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
 ## test SET PASSWORD
 SET PASSWORD = PASSWORD('plug_dest');
+connection default;
+disconnect plug_con;
 ## test bad credentials
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 ## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
 ## test correct default plugin
+connect plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin;
+connection plug_con_rightp;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
+connection default;
+disconnect plug_con_rightp;
 ## test no_auto_create_user sql mode with plugin users
 SET @@sql_mode=no_auto_create_user;
 GRANT INSERT ON TEST.* TO grant_user IDENTIFIED WITH 'test_plugin_server';
@@ -51,9 +59,13 @@ DROP USER grant_user;
 ## test utf-8 user name
 CREATE USER `Ÿ` IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO `Ÿ`;
+connect non_ascii,localhost,Ÿ,plug_dest;
+connection non_ascii;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 Ÿ@localhost	plug_dest@%
+connection default;
+disconnect non_ascii;
 DROP USER `Ÿ`;
 ## test GRANT ... IDENTIFIED WITH/BY ...
 CREATE DATABASE test_grant_db;
@@ -61,24 +73,33 @@ CREATE DATABASE test_grant_db;
 GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user 
 IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO new_grant_user;
+connect plug_con_grant,localhost,new_grant_user,plug_dest;
+connection plug_con_grant;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	plug_dest@%
 USE test_grant_db;
 CREATE TABLE t1 (a INT);
 DROP TABLE t1;
+connection default;
+disconnect plug_con_grant;
 REVOKE ALL PRIVILEGES ON test_grant_db.* FROM new_grant_user;
 # try re-create existing user via GRANT IDENTIFIED BY
 GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user
 IDENTIFIED BY 'new_password';
 connect(localhost,new_grant_user,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
+connect plug_con_grant_deny,localhost,new_grant_user,plug_dest;
 ERROR 28000: Access denied for user 'new_grant_user'@'localhost' (using password: YES)
+connect plug_con_grant,localhost,new_grant_user,new_password;
+connection plug_con_grant;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	new_grant_user@%
 USE test_grant_db;
 CREATE TABLE t1 (a INT);
 DROP TABLE t1;
+connection default;
+disconnect plug_con_grant;
 DROP USER new_grant_user;
 # try re-create existing user via GRANT IDENTIFIED WITH
 GRANT ALL PRIVILEGES ON test_grant_db.* TO plug
@@ -111,6 +132,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 # this should fail : no such grant
 REVOKE PROXY ON grant_plug_dest FROM grant_plug;
 ERROR 42000: There is no such grant defined for user 'grant_plug' on host '%'
+connect grant_plug_dest_con,localhost,grant_plug_dest,grant_plug_dest_passwd;
+connection grant_plug_dest_con;
 in grant_plug_dest_con
 ## testing what an ordinary user can grant 
 this should fail : no rights to grant all
@@ -134,7 +157,9 @@ ERROR 28000: Access denied for user 'grant_plug_dest'@'localhost'
 this should fail : can't create users
 GRANT PROXY ON grant_plug_dest TO grant_plug@localhost;
 ERROR 42000: You are not allowed to create a user with GRANT
+connection default;
 in default connection
+disconnect grant_plug_dest_con;
 # test what root can grant
 should work : root has PROXY to all users
 GRANT PROXY ON ''@'%%' TO grant_plug;
@@ -144,10 +169,14 @@ GRANT PROXY ON ''@'%%' TO proxy_admin IDENTIFIED BY 'test'
 WITH GRANT OPTION;
 need USAGE : PROXY doesn't contain it.
 GRANT USAGE on *.* TO proxy_admin;
+connect  proxy_admin_con,localhost,proxy_admin,test;
+connection proxy_admin_con;
 in proxy_admin_con;
 should work : proxy_admin has proxy to ''@'%%'
 GRANT PROXY ON future_user TO grant_plug;
+connection default;
 in default connection
+disconnect proxy_admin_con;
 SHOW GRANTS FOR grant_plug;
 Grants for grant_plug@%
 GRANT ALL PRIVILEGES ON *.* TO 'grant_plug'@'%' IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
@@ -191,11 +220,15 @@ ERROR HY000: Variable 'proxy_user' is a read only variable
 SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 NULL
+connect plug_con,localhost,plug,plug_dest;
+connection plug_con;
 # in connection plug_con
 SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 'plug'@'%'
+connection default;
 # in connection default
+disconnect plug_con;
 ## cleanup
 DROP USER plug;
 DROP USER plug_dest;
@@ -219,11 +252,15 @@ ERROR HY000: Variable 'external_user' is a read only variable
 SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 NULL
+connect plug_con,localhost,plug,plug_dest;
+connection plug_con;
 # in connection plug_con
 SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 plug_dest
+connection default;
 # in connection default
+disconnect plug_con;
 ## cleanup
 DROP USER plug;
 DROP USER plug_dest;
@@ -236,9 +273,12 @@ GRANT USAGE ON anonymous_db.* TO ''@'%%'
   IDENTIFIED WITH 'test_plugin_server' AS 'power_user';
 GRANT PROXY ON power_user TO ''@'%%';
 CREATE DATABASE confidential_db;
+connect plug_con,localhost, test_login_user, power_user, confidential_db;
 SELECT user(),current_user(),@@proxy_user;
 user()	current_user()	@@proxy_user
 test_login_user@localhost	power_user@%	''@'%%'
+connection default;
+disconnect plug_con;
 DROP USER power_user;
 DROP USER ''@'%%';
 DROP DATABASE confidential_db;
@@ -274,10 +314,14 @@ ERROR 28000: Access denied for user 'root'@'localhost'
 REVOKE PROXY ON u2@localhost FROM u1@localhost;
 ERROR 28000: Access denied for user 'root'@'localhost'
 # go try graning proxy on itself, so that it will need the table
+connect proxy_granter_con,localhost,u2,;
+connection proxy_granter_con;
 GRANT PROXY ON u2@localhost TO u1@localhost;
 ERROR 42S02: Table 'mysql.proxies_priv' doesn't exist
 REVOKE PROXY ON u2@localhost FROM u1@localhost;
 ERROR 42S02: Table 'mysql.proxies_priv' doesn't exist
+connection default;
+disconnect proxy_granter_con;
 # test if REVOKE works without the proxies_priv table
 REVOKE ALL PRIVILEGES ON *.* FROM u1@localhost, u2@localhost;
 # test if DROP USER work without the proxies_priv table
@@ -310,9 +354,13 @@ CREATE USER uplain@localhost IDENTIFIED WITH 'cleartext_plugin_server'
   AS 'cleartext_test';
 ## test plugin auth
 ERROR 28000: Access denied for user 'uplain'@'localhost' (using password: YES)
+connect cleartext_con,localhost,uplain,cleartext_test;
+connection cleartext_con;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 uplain@localhost	uplain@localhost
+connection default;
+disconnect cleartext_con;
 DROP USER uplain@localhost;
 #
 # Bug #59038 : mysql.user.authentication_string column 
@@ -409,6 +457,9 @@ ERROR 1045 (28000): Access denied for user 'unknown'@'localhost' (using password
 CREATE USER bug12610784@localhost;
 SET PASSWORD FOR bug12610784@localhost = PASSWORD('secret');
 ERROR 28000: Access denied for user 'bug12610784'@'localhost' (using password: NO)
+connect b12610784,localhost,bug12610784,secret,test;
+connection default;
+disconnect b12610784;
 DROP USER bug12610784@localhost;
 #
 # Bug #12818542: PAM: ADDING PASSWORD FOR AN ACCOUNT DISABLES PAM 
@@ -419,13 +470,21 @@ IDENTIFIED WITH 'test_plugin_server' AS 'bug12818542_dest';
 CREATE USER bug12818542_dest@localhost 
 IDENTIFIED BY 'bug12818542_dest_passwd';
 GRANT PROXY ON bug12818542_dest@localhost TO bug12818542@localhost;
+connect bug12818542_con,localhost,bug12818542,bug12818542_dest;
+connection bug12818542_con;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost
 SET PASSWORD = PASSWORD('bruhaha');
+connection default;
+disconnect bug12818542_con;
+connect bug12818542_con2,localhost,bug12818542,bug12818542_dest;
+connection bug12818542_con2;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost
+connection default;
+disconnect bug12818542_con2;
 DROP USER bug12818542@localhost;
 DROP USER bug12818542_dest@localhost;
 SET GLOBAL SQL_MODE=default;

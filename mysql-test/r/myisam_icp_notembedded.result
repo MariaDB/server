@@ -14,6 +14,9 @@ KEY (c, b)
 CREATE TABLE t2 ( a INT ) ENGINE=MyISAM;
 INSERT INTO t2 VALUES
 (7),(3),(7),(3);
+connect  con2,127.0.0.1,root,,test;
 # Now run a number of ICP queries while trying to kill them
+disconnect con2;
+connection default;
 DROP TABLE t1,t2;
 set optimizer_switch=@myisam_icp_notembedded_tmp;

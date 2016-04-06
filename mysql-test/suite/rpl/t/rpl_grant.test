@@ -3,7 +3,6 @@
 source include/master-slave.inc;
 source include/not_embedded.inc;
 
---echo **** On Master ****
 connection master;
 
 CREATE USER dummy@localhost;
@@ -16,7 +15,6 @@ sync_slave_with_master;
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 
---echo **** On Master ****
 connection master;
 
 # No user exists
@@ -33,7 +31,6 @@ DROP USER dummy1@localhost, dummy2@localhost;
 SELECT user, host FROM mysql.user WHERE user like 'dummy%';
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 sync_slave_with_master;
---echo **** On Slave ****
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 

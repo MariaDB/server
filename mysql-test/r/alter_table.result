@@ -1681,16 +1681,17 @@ CREATE TABLE t1(a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1), (2,2);
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,3);
-# Connection con1
+connect  con1, localhost, root;
 # Sending:
 ALTER TABLE t1 DISABLE KEYS;
-# Connection default
+connection default;
 # Waiting until ALTER TABLE is blocked.
 UPDATE t1 SET b = 4;
 COMMIT;
-# Connection con1
+connection con1;
 # Reaping: ALTER TABLE t1 DISABLE KEYS
-# Connection default
+disconnect con1;
+connection default;
 DROP TABLE t1;
 #
 # 7: Which operations require copy and which can be done in-place?

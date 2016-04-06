@@ -2,6 +2,8 @@
 # MDEV-6896 kill user command cause MariaDB crash!
 #
 create user foo@'127.0.0.1';
+connect  con1,127.0.0.1,foo,,;
+connection default;
 select user from information_schema.processlist;
 user
 foo

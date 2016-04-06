@@ -1,6 +1,8 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 reset master;
+connection master;
 create table t1(n char(30));
 set @i1:=12345678901234, @i2:=-12345678901234, @i3:=0, @i4:=-1;
 set @s1:='This is a test', @r1:=12.5, @r2:=-12.5;
@@ -19,6 +21,7 @@ set @a:=5;
 insert into t1 values (@a),(@a);
 select * from t1 where n = '<nonexistant>';
 n
+connection master1;
 insert into t1 values (@a),(@a),(@a*5);
 SELECT * FROM t1 ORDER BY n;
 n
@@ -47,6 +50,7 @@ abcn1
 abcn1n2
 abc\def
 This is a test
+connection slave;
 SELECT * FROM t1 ORDER BY n;
 n
 NULL
@@ -74,6 +78,7 @@ abcn1
 abcn1n2
 abc\def
 This is a test
+connection master;
 insert into t1 select * FROM (select @var1 union  select @var2) AS t2;
 drop table t1;
 End of 4.1 tests.
@@ -101,11 +106,13 @@ ELSE
 INSERT INTO test.t21 VALUES ('TRIG_FALSE');
 END IF;
 END|
+connection slave;
+connection master;
 SET @VAR=0;
 CALL test.insert();
 SET @VAR=1;
 CALL test.insert();
-On master: Check the tables for correct data
+Check the tables for correct data
 SELECT * FROM t20;
 a
 SP_FALSE
@@ -114,7 +121,8 @@ SELECT * FROM t21;
 a
 TRIG_FALSE
 TRIG_TRUE
-On slave: Check the tables for correct data and it matches master
+connection slave;
+Check the tables for correct data and it matches master
 SELECT * FROM t20;
 a
 SP_FALSE
@@ -123,6 +131,7 @@ SELECT * FROM t21;
 a
 TRIG_FALSE
 TRIG_TRUE
+connection master;
 DROP TABLE t20;
 DROP TABLE t21;
 DROP PROCEDURE test.insert;
@@ -141,7 +150,7 @@ SET @var = 4;
 INSERT INTO t1 VALUES (square());
 SET @var = 5;
 INSERT INTO t1 VALUES (square());
-On master: Retrieve the values from the table
+Retrieve the values from the table
 SELECT * FROM t1;
 i
 1
@@ -149,7 +158,8 @@ i
 9
 16
 25
-On slave: Retrieve the values from the table and verify they are the same as on master
+connection slave;
+Retrieve the values from the table and verify they are the same as on master
 SELECT * FROM t1;
 i
 1
@@ -157,6 +167,7 @@ i
 9
 16
 25
+connection master;
 DROP TABLE t1;
 DROP FUNCTION test.square;
 DROP TABLE IF EXISTS t1;
@@ -174,21 +185,27 @@ SET @c = (@a - 1);
 END if;
 return @c;
 END |
+connection slave;
+connection master;
 SET @a=500;
 INSERT INTO t1 values(f1());
 SET @b = 125;
 SET @c = 1;
 INSERT INTO t1 values(f2());
-On master: Retrieve the values from the table
+Retrieve the values from the table
+connection slave;
+connection master;
 SELECT * from t1;
 a
 500
 625
-On slave: Check the tables for correct data and it matches master
+connection slave;
+Check the tables for correct data and it matches master
 SELECT * from t1;
 a
 500
 625
+connection master;
 DROP TABLE t1;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
@@ -201,9 +218,11 @@ INSERT INTO t2 values (@a);
 SET @a:=42;
 INSERT INTO t2 values (@a);
 END |
+connection slave;
+connection master;
 SET @a:=100;
 INSERT INTO t1 values (5);
-On master: Check to see that data was inserted correctly in both tables
+Check to see that data was inserted correctly in both tables
 SELECT * from t1;
 i
 5
@@ -211,7 +230,8 @@ SELECT * from t2;
 k
 100
 42
-On slave: Check the tables for correct data and it matches master
+connection slave;
+Check the tables for correct data and it matches master
 SELECT * from t1;
 i
 5
@@ -219,7 +239,9 @@ SELECT * from t2;
 k
 100
 42
+connection master;
 drop table t1, t2;
+connection master;
 create table t1(a int, b int);
 prepare s1 from 'insert into t1 values (@x:=@x+1, ?)';
 set @x=1;
@@ -227,10 +249,14 @@ execute s1 using @x;
 select * from t1;
 a	b
 2	1
+connection slave;
+connection slave;
 select * from t1;
 a	b
 2	1
+connection master;
 drop table t1;
+connection master;
 create table t1(a int);
 insert into t1 values (1),(2);
 prepare s1 from 'insert into t1 select a from t1 limit ?';
@@ -241,11 +267,14 @@ a
 1
 2
 1
+connection slave;
+connection slave;
 select * from t1;
 a
 1
 2
 1
+connection master;
 drop table t1;
 End of 5.0 tests.
 DROP FUNCTION IF EXISTS f1;
@@ -257,22 +286,27 @@ FUNCTION f2() RETURNS INT BEGIN
 INSERT INTO t1 VALUES (10 + @a);
 RETURN 0;
 END|
+connection slave;
+connection master;
 SET @a:=123;
 SELECT f1(), f2();
 f1()	f2()
 123	0
-On master: Check to see that data was inserted correctly
+Check to see that data was inserted correctly
 INSERT INTO t1 VALUES(f1());
 SELECT * FROM t1;
 i
 133
 123
-On slave: Check the table for correct data and it matches master
+connection slave;
+Check the table for correct data and it matches master
 SELECT * FROM t1;
 i
 133
 123
+connection master;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

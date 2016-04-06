@@ -14,9 +14,12 @@ select * from t1;
 pr_id	pr_page	pr_type	test
 138	1	one	2
 137	2	two	0
+connection slave;
+connection slave;
 select * from t1;
 pr_id	pr_page	pr_type	test
 138	1	one	2
 137	2	two	0
+connection master;
 drop table t1;
 include/rpl_end.inc

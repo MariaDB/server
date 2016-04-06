@@ -34,13 +34,11 @@ while ($i)
 commit;
 --enable_query_log
 
---echo # Switch to insert Connection
 CONNECTION insertConn;
 SET SESSION debug_dbug='+d,wait_in_enable_indexes';
 --echo # Send insert data
 SEND INSERT INTO t1(id) SELECT id  FROM t2; 
 
---echo # Switch to default Connection
 CONNECTION default;
 --echo # Wait for insert data to reach the debug point
 

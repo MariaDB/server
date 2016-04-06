@@ -191,7 +191,6 @@ drop table t1,t2;
 --echo #             AND TRIGGER HANDLERS TO BE IGNORED
 
 --echo #Code fixed in Bug#16041903
---enable_connect_log
 
 CREATE TABLE t1 (id int unsigned PRIMARY KEY, val int DEFAULT 0)
 ENGINE=InnoDB;
@@ -231,8 +230,6 @@ disconnect con2;
 connection default;
 
 DROP TABLE t3, t2, t1;
-
---disable_connect_log
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

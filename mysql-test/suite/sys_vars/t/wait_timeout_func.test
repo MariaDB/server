@@ -33,7 +33,6 @@ SET @start_value= @@global.wait_timeout;
 #######################################################################
 
 SET @start_time= UNIX_TIMESTAMP();
---echo connect (test_con1, localhost, root,,);
 connect (test_con1, localhost, root,,);
 connection test_con1;
 
@@ -46,14 +45,12 @@ let $session_value =
 --replace_result $session_value <session_value>
 eval SET @@session.wait_timeout = $session_value;
 
---echo connect (test_con2, localhost, root,,);
 connect (test_con2, localhost, root,,);
 connection test_con2;
 
 --replace_result $session_value <session_value>
 eval SET @@session.wait_timeout = $session_value - 1;
 
---echo connection default;
 connection default;
 
 --echo wait until connections ready
@@ -75,14 +72,12 @@ eval SET @@global.wait_timeout= $global_value;
 # @@session.wait_timeout of already established sessions.
 SELECT @@session.wait_timeout = @start_value AS 'Expect 1';
 
---echo connect (test_con3, localhost, root,,);
 connect (test_con3, localhost, root,,);
 connection test_con3;
 
 # If not explicitly changed, @@session.wait_timeout equals @@global.wait_timeout.
 SELECT @@session.wait_timeout = @@global.wait_timeout AS 'Expect 1';
 
---echo connection default;
 connection default;
 # We can be sure that the connections test_con1 and test_con2 must be
 # established because both have already executed a SET @@session.wait_timeout.
@@ -95,4 +90,3 @@ SELECT info FROM information_schema.processlist;
 --replace_result $global_value <global_value> $session_value <session_value>;
 eval SELECT UNIX_TIMESTAMP() - @start_time >= $global_value + $session_value;
 SET @@global.wait_timeout= @start_value;
-

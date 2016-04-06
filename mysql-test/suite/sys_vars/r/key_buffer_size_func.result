@@ -12,9 +12,10 @@ FLUSH STATUS;
 '#--------------------FN_DYNVARS_055_01-------------------------#'
 ## Setting initial value of variable to 131072 ##
 SET @@global.key_buffer_size = 131072;
-## Creating two new connections ##
+CONNECT  test_con1,localhost,root,,;
+CONNECT  test_con2,localhost,root,,;
 '#--------------------FN_DYNVARS_055_02-------------------------#'
-## Connecting with connection test_con1 ##
+connection test_con1;
 SELECT @@global.key_buffer_size;
 @@global.key_buffer_size
 131072
@@ -33,12 +34,12 @@ INSERT INTO t1(rollno, name) VALUES(4, 'Record_10');
 show status like 'Key_reads';
 Variable_name	Value
 Key_reads	0
-## Switching to connection test_con2 ##
+connection test_con2;
 ## Key_reads must be zero (no disk access) ##
 show status like 'Key_reads';
 Variable_name	Value
 Key_reads	0
-## Connecting with connection test_con1 ##
+connection test_con1;
 ## Inserting some rows in table ##
 INSERT INTO t1(rollno, name) VALUES(5, 'Record_11');
 INSERT INTO t1(rollno, name) VALUES(6, 'Record_12');
@@ -56,5 +57,7 @@ Variable_name	Value
 Key_reads	0
 ## Dropping table ##
 DROP TABLE IF EXISTS t1;
-## Disconnecting both the connections ##
+disconnect test_con2;
+disconnect test_con1;
+connection default;
 SET @@global.key_buffer_size= @start_value;

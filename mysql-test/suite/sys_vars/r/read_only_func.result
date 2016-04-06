@@ -18,7 +18,7 @@ id	name
 '#--------------------FN_DYNVARS_140_02-------------------------#'
 ** Creating new user with out super privilege**
 CREATE user sameea;
-** Connecting connn using username 'sameea' **
+CONNECT  connn,localhost,sameea,,;
 SET Global read_ONLY=ON;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 CREATE TABLE t2
@@ -36,9 +36,9 @@ Got one of the listed errors
 '#--------------------FN_DYNVARS_140_03-------------------------#'
 CREATE TEMPORARY TABLE t3(a int);
 '#--------------------FN_DYNVARS_140_04-------------------------#'
-** Connection default **
+connection default;
 SET Global read_only=OFF;
-** Connection connn **
+connection connn;
 CREATE TABLE t2
 (
 id INT NOT NULL auto_increment,
@@ -48,8 +48,8 @@ name BLOB
 updating values
 INSERT into t2(name) values("aaassssssssdddddddd");
 UPDATE t2 SET name="samia" where id=1;
-** Connection default **
-** Disconnecting connn **
+connection default;
+disconnect connn;
 DROP USER sameea;
 DROP TABLE t1;
 DROP TABLE t2;

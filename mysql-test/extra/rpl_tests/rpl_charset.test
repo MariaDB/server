@@ -7,15 +7,9 @@ set timestamp=1000000000;
 create database mysqltest2 character set latin2;
 set @@character_set_server=latin5;      
 create database mysqltest3;
---disable_query_log
-select "--- --master--" as "";
---enable_query_log
 show create database mysqltest2;
 show create database mysqltest3;
 sync_slave_with_master;
---disable_query_log
-select "--- --slave--" as "";
---enable_query_log
 show create database mysqltest2;
 show create database mysqltest3;
 
@@ -23,14 +17,8 @@ connection master;
 set @@collation_server=armscii8_bin;
 drop database mysqltest3;
 create database mysqltest3;
---disable_query_log
-select "--- --master--" as "";
---enable_query_log
 show create database mysqltest3;
 sync_slave_with_master;
---disable_query_log
-select "--- --slave--" as "";
---enable_query_log
 show create database mysqltest3;
 
 connection master;
@@ -45,10 +33,8 @@ insert into t1 (b) values(@@character_set_client);
 # collation_client does not exist
 insert into t1 (b) values(@@character_set_connection);
 insert into t1 (b) values(@@collation_connection);
---echo --- --master--
 select * from t1 order by a;
 sync_slave_with_master;
---echo --- --slave--
 select * from mysqltest2.t1 order by a;
 
 connection master;
@@ -59,10 +45,8 @@ insert into t1 (b) values(LEAST("Müller","Muffler"));
 set collation_connection=latin1_german2_ci;
 insert into t1 (b) values(@@collation_connection);
 insert into t1 (b) values(LEAST("Müller","Muffler"));
---echo --- --master--
 select * from t1 order by a;
 sync_slave_with_master;
---echo --- --slave--
 select * from mysqltest2.t1 order by a;
 
 # Presently charset info is not logged with LOAD DATA but it will
@@ -81,10 +65,8 @@ connection master;
 set @a= _cp850 'Müller' collate cp850_general_ci;
 truncate table t1;
 insert into t1 (b) values(collation(@a));
---echo --- --master--
 select * from t1 order by a;
 sync_slave_with_master;
---echo --- --slave--
 select * from mysqltest2.t1 order by a;
 
 connection master;

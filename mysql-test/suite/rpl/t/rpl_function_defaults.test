@@ -4,19 +4,16 @@
 
 source include/master-slave.inc;
 
---echo connection master
 connection master;
 SET TIME_ZONE="+10:30";
 SET TIMESTAMP=123456.789123;
 SELECT CURRENT_TIMESTAMP;
 
---echo connection slave
 connection slave;
 SET TIME_ZONE="+00:00";
 SET TIMESTAMP=987654321.123456;
 SELECT CURRENT_TIMESTAMP;
 
---echo connection master
 connection master;
 CREATE TABLE t1 (
   a TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -61,13 +58,11 @@ INSERT INTO t2 ( o ) VALUES ( 1 );
 --echo sync_slave_with_master
 sync_slave_with_master;
 
---echo connection slave
 connection slave;
 
 query_vertical SELECT * FROM t1;
 query_vertical SELECT * FROM t2;
 
---echo connection master
 connection master;
 
 SET TIMESTAMP=1234567890.123456;
@@ -79,13 +74,11 @@ UPDATE t2 SET o = 2;
 --echo sync_slave_with_master
 sync_slave_with_master;
 
---echo connection slave
 connection slave;
 
 query_vertical SELECT * FROM t1;
 query_vertical SELECT * FROM t2;
 
---echo connection master
 connection master;
 
 DROP TABLE t1, t2;

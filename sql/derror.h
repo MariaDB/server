@@ -19,7 +19,8 @@
 #include "my_global.h"                          /* uint */
 
 bool init_errmessage(void);
+void free_error_messages();
 bool read_texts(const char *file_name, const char *language,
-                const char ***point, uint error_messages);
+                const char ****data);
 
 #endif /* DERROR_INCLUDED */

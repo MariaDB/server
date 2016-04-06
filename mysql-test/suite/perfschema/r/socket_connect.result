@@ -1,6 +1,7 @@
 #==============================================================================
 # Establish the level of IPV6 support
 #==============================================================================
+connection default;
 #==============================================================================
 # Get hostname, port number
 #==============================================================================
@@ -73,6 +74,7 @@ Expect 1
 
 # Switch to connection default
 
+connection default;
 #==============================================================================
 # 3.0 ESTABLISH TCP/IP CONNECTION 2
 #     Connect with IP = localhost (127.0.0.1 or ::1)
@@ -129,6 +131,7 @@ Expect 1
 #==============================================================================
 # 4.0 Verify both connections exist in the instance tables
 #==============================================================================
+connection default;
 
 # 4.1 Verify that there are two TCP/IP connections in the socket instance table
 
@@ -152,7 +155,12 @@ Expect 1
 # 5.0 Drop the client connections
 #==============================================================================
 # 5.1 Disconnect con1
+connection con1;
+disconnect con1;
 # 5.2 Disconnect con2
+connection con2;
+disconnect con2;
+connection default;
 #==============================================================================
 # 6.0 Verify sockets were removed from the instance tables
 #==============================================================================

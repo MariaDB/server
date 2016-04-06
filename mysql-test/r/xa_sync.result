@@ -2,23 +2,41 @@
 # MDEV-7793 - Race condition between XA COMMIT/ROLLBACK and disconnect
 #
 # Note that this test is meaningful only with valgrind.
+connect con1, localhost, root;
+connect con2, localhost, root;
+connection con1;
 XA START 'xatest';
 XA END 'xatest';
 XA PREPARE 'xatest';
+connection con2;
 SET debug_sync='xa_after_search SIGNAL parked WAIT_FOR go';
 XA COMMIT 'xatest';
+connection default;
 SET debug_sync='now WAIT_FOR parked';
+disconnect con1;
 # Waiting for thread to get deleted
 SET debug_sync='now SIGNAL go';
+connection con2;
 ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect con2;
+connection default;
 SET debug_sync='RESET';
+connect con1, localhost, root;
+connect con2, localhost, root;
+connection con1;
 XA START 'xatest';
 XA END 'xatest';
 XA PREPARE 'xatest';
+connection con2;
 SET debug_sync='xa_after_search SIGNAL parked WAIT_FOR go';
 XA ROLLBACK 'xatest';
+connection default;
 SET debug_sync='now WAIT_FOR parked';
+disconnect con1;
 # Waiting for thread to get deleted
 SET debug_sync='now SIGNAL go';
+connection con2;
 ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect con2;
+connection default;
 SET debug_sync='RESET';

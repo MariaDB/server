@@ -203,10 +203,13 @@ drop database if exists mysqltest_db1;
 create user mysqltest_user1@localhost;
 create database mysqltest_db1;
 grant event on events_test.* to mysqltest_user1@localhost;
+connect  conn2,localhost,mysqltest_user1,,events_test;
 create event mysqltest_user1 on schedule every 10 second do select 42;
 alter event mysqltest_user1 rename to mysqltest_db1.mysqltest_user1;
 ERROR 42000: Access denied for user 'mysqltest_user1'@'localhost' to database 'mysqltest_db1'
 "Let's test now rename when there is no select DB"
+disconnect conn2;
+connect  conn2,localhost,mysqltest_user1,,*NO-ONE*;
 select database();
 database()
 NULL
@@ -216,6 +219,8 @@ select event_schema, event_name, definer, event_type, status from information_sc
 event_schema	event_name	definer	event_type	status
 events_test	mysqltest_user1	mysqltest_user1@localhost	RECURRING	ENABLED
 drop event events_test.mysqltest_user1;
+disconnect conn2;
+connection default;
 drop user mysqltest_user1@localhost;
 drop database mysqltest_db1;
 create event e_53 on schedule at (select s1 from ttx) do drop table t;
@@ -366,6 +371,7 @@ SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	mysqltest_u1@localhost
 DROP EVENT e1;
+connect  conn1, localhost, mysqltest_u1, , events_test;
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
@@ -390,6 +396,8 @@ CREATE DEFINER=root@localhost EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 DROP EVENT e1;
 ERROR HY000: Unknown event 'e1'
+disconnect conn1;
+connection default;
 DROP USER mysqltest_u1@localhost;
 SET GLOBAL EVENT_SCHEDULER= OFF;
 SET @save_time_zone= @@TIME_ZONE;
@@ -586,7 +594,7 @@ Grants for evtest1@localhost
 GRANT USAGE ON *.* TO 'evtest1'@'localhost' IDENTIFIED BY PASSWORD '*3170F3644E31580C25DE4A08F4C07CC9A2D40C32'
 GRANT SELECT, INSERT ON `test`.* TO 'evtest1'@'localhost'
 GRANT SELECT, INSERT, CREATE, EVENT ON `events_test`.* TO 'evtest1'@'localhost'
-connection e1;
+connect  e1,localhost,evtest1,ev1,events_test,$MASTER_MYPORT,$MASTER_MYSOCK;
 CREATE EVENT ev_sched_1823 ON SCHEDULE EVERY 2 SECOND
 DO BEGIN
 SET AUTOCOMMIT = 0;
@@ -615,6 +623,7 @@ Sleep 4 seconds
 SELECT COUNT(*) > @row_cnt AS "Expect 0" FROM events_test.event_log;
 Expect 0
 0
+disconnect e1;
 DROP EVENT events_test.ev_sched_1823;
 DROP TABLE events_test.event_log;
 SET GLOBAL event_scheduler = OFF;
@@ -640,9 +649,7 @@ GRANT EVENT ON *.* TO mysqltest_u1@localhost;
 
 SET GLOBAL READ_ONLY = 1;
 
-#
-# Connection: u1_con (mysqltest_u1@localhost/events_test).
-#
+connect u1_con,localhost,mysqltest_u1,,events_test;
 
 CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
@@ -653,9 +660,7 @@ ERROR HY000: The MariaDB server is running with the --read-only option so it can
 DROP EVENT e1;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 
-#
-# Connection: root_con (root@localhost/events_test).
-#
+connect root_con,localhost,root,,events_test;
 
 CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
 
@@ -665,9 +670,7 @@ DROP EVENT e1;
 
 SET GLOBAL READ_ONLY = 0;
 
-#
-# Connection: u1_con (mysqltest_u1@localhost/test).
-#
+connection u1_con;
 
 CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 SECOND DO SET @a = 1;
 CREATE EVENT e2 ON SCHEDULE EVERY 1 SECOND DO SET @a = 1;
@@ -682,9 +685,7 @@ event_name	last_executed IS NULL	definer
 e1	1	mysqltest_u1@localhost
 e2	1	mysqltest_u1@localhost
 
-#
-# Connection: root_con (root@localhost/events_test).
-#
+connection root_con;
 
 SET GLOBAL READ_ONLY = 1;
 
@@ -714,9 +715,9 @@ DROP EVENT e2;
 
 SET GLOBAL READ_ONLY = 0;
 
-#
-# Connection: default
-#
+disconnect u1_con;
+disconnect root_con;
+connection default;
 
 DROP USER mysqltest_u1@localhost;
 

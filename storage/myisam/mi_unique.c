@@ -214,7 +214,7 @@ int mi_unique_comp(MI_UNIQUEDEF *def, const uchar *a, const uchar *b,
         type == HA_KEYTYPE_VARTEXT2)
     {
       if (ha_compare_text(keyseg->charset, (uchar *) pos_a, a_length,
-                                           (uchar *) pos_b, b_length, 0, 1))
+                                           (uchar *) pos_b, b_length, 0))
         return 1;
     }
     else

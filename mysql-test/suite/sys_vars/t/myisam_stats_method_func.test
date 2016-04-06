@@ -27,9 +27,7 @@
 SET @start_value = @@global.myisam_stats_method;
 
 SET @@global.myisam_stats_method = nulls_equal;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.myisam_stats_method;
 SELECT @@session.myisam_stats_method;
@@ -40,7 +38,6 @@ disconnect con1;
 # Begin the functionality Testing of myisam_stats_method  #
 ###########################################################
 
---echo 'connection default'
 connection default;
 
 --disable_warnings
@@ -108,4 +105,3 @@ SET @@global.myisam_stats_method= @start_value;
 ########################################################
 # End of functionality Testing for myisam_stats_method #
 ########################################################
-

@@ -95,7 +95,7 @@ t1
 DROP   USER testuser1@localhost;
 CREATE USER testuser1@localhost;
 GRANT SELECT ON test1.* TO testuser1@localhost;
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1,localhost,testuser1,,test1;
 SELECT *,
 LEFT( table_comment,
 IF(INSTR(table_comment,'InnoDB free') = 0,
@@ -158,7 +158,8 @@ t1
 t2
 SHOW TABLES FROM test2;
 ERROR 42000: Access denied for user 'testuser1'@'localhost' to database 'test2'
-# Switch to connection default and close connection testuser1
+connection default;
+disconnect testuser1;
 DROP USER testuser1@localhost;
 DROP DATABASE test1;
 DROP DATABASE test2;

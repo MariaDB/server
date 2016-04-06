@@ -1,3 +1,4 @@
+connect  con1, localhost, root;
 set lc_time_names = 'es_MX';
 set time_zone='+10:00';
 set div_precision_increment=20;
@@ -32,6 +33,8 @@ a	b	v
 select * from t8;
 a	b	v
 1234567890	2	2009-02-14 09:31:30
+disconnect con1;
+connection default;
 set time_zone='+1:00';
 select * from t1;
 a	b	v

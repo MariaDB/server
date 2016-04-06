@@ -30,9 +30,7 @@ SET @session_character_set_client = @@session.character_set_client;
 
 
 SET @@global.character_set_client = utf8;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.character_set_client;
 SELECT @@session.character_set_client;
@@ -43,7 +41,6 @@ disconnect con1;
 # Begin the functionality Testing of character_set_client   #
 #############################################################
 
---echo 'connection default'
 connection default;
 
 SHOW VARIABLES like 'character_set_client';

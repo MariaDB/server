@@ -4,9 +4,11 @@ set @my_time_zone= @@global.time_zone;
 set timestamp=100000000;
 create table t1 (t timestamp, n int not null auto_increment, PRIMARY KEY(n));
 create table t2 (t char(32), n int not null auto_increment, PRIMARY KEY(n));
+connection slave;
 select @@time_zone;
 @@time_zone
 Japan
+connection master;
 select @@time_zone;
 @@time_zone
 Europe/Moscow
@@ -18,12 +20,14 @@ t	n
 2005-06-11 09:39:02	2
 2004-01-01 00:00:00	3
 2004-06-11 09:39:02	4
+connection slave;
 SELECT * FROM t1 ORDER BY n;
 t	n
 2005-01-01 06:00:00	1
 2005-06-11 14:39:02	2
 2004-01-01 06:00:00	3
 2004-06-11 14:39:02	4
+connection master;
 delete from t1;
 set time_zone='Europe/Moscow';
 insert into t1 values ('20040101000000',NULL), ('20040611093902',NULL);
@@ -31,11 +35,14 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 2004-01-01 00:00:00	5
 2004-06-11 09:39:02	6
+connection slave;
 set time_zone='Europe/Moscow';
 SELECT * FROM t1 ORDER BY n;
 t	n
 2004-01-01 00:00:00	5
 2004-06-11 09:39:02	6
+connection master;
+connection master;
 delete from t1;
 set time_zone='UTC';
 load data infile '../../std_data/rpl_timezone2.dat' into table t1;
@@ -48,12 +55,14 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 0000-00-00 00:00:00	7
 0000-00-00 00:00:00	8
+connection slave;
 set time_zone='UTC';
 SELECT * FROM t1 ORDER BY n;
 t	n
 0000-00-00 00:00:00	7
 0000-00-00 00:00:00	8
 set time_zone='Europe/Moscow';
+connection master;
 set time_zone='Europe/Moscow';
 delete from t1;
 insert into t1 values ('20040101000000',NULL), ('20040611093902',NULL);
@@ -63,18 +72,22 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 2003-12-31 22:00:00	9
 2004-06-11 07:39:02	10
+connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
 2003-12-31 22:00:00	9
 2004-06-11 07:39:02	10
+connection master;
 delete from t2;
 set timestamp=1000072000;
 insert into t2 values (current_timestamp,NULL), (current_date,NULL), (current_time,NULL);
+connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
 2001-09-09 23:46:40	11
 2001-09-09	12
 23:46:40	13
+connection master;
 delete from t2;
 insert into t2 values (from_unixtime(1000000000),NULL),
 (unix_timestamp('2001-09-09 03:46:40'),NULL);
@@ -82,10 +95,12 @@ SELECT * FROM t2 ORDER BY n;
 t	n
 2001-09-09 03:46:40	14
 1000000000	15
+connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
 2001-09-09 03:46:40	14
 1000000000	15
+connection master;
 set global time_zone='MET';
 delete from t2;
 set time_zone='UTC';
@@ -95,13 +110,18 @@ SELECT * FROM t2 ORDER BY n;
 t	n
 2003-12-31 23:00:00	16
 2005-01-01 08:00:00	17
+connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
 2003-12-31 23:00:00	16
 2005-01-01 08:00:00	17
+connection master;
 drop table t1, t2;
+connection slave;
+connection master;
 set global time_zone= @my_time_zone;
 End of 4.1 tests
+connection master;
 CREATE TABLE t1 (a INT, b TIMESTAMP);
 INSERT INTO t1 VALUES (1, NOW());
 SET @@session.time_zone='Japan';
@@ -111,18 +131,23 @@ Warning	1264	Out of range value for column 'b' at row 1
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	0000-00-00 00:00:00
+connection slave;
 SET @@session.time_zone='Japan';
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	0000-00-00 00:00:00
 SET @@session.time_zone = default;
+connection master;
 DROP TABLE t1;
 SET @@session.time_zone = default;
+connection slave;
 include/stop_slave.inc
+connection master;
 reset master;
 CREATE TABLE t1 (date timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, a int(11) default NULL);
 SET @@session.time_zone='+01:00';
 insert into t1 values('2008-12-23 19:39:39',1);
+connection master1;
 SET @@session.time_zone='+02:00';
 insert delayed into t1 values ('2008-12-23 19:39:39',2);
 flush table t1;
@@ -132,6 +157,7 @@ date	a
 2008-12-23 20:39:39	1
 2008-12-23 19:39:39	2
 DROP TABLE t1;
+connection master1;
 select * from t1 order by a;
 date	a
 2008-12-23 20:39:39	1

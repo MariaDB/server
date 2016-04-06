@@ -12,15 +12,21 @@ BEGIN;
 SELECT b FROM bug56680;
 b
 x
+connect  con1,localhost,root,,;
+connection con1;
 BEGIN;
 UPDATE bug56680 SET b='X';
+connection default;
 SELECT b FROM bug56680;
 b
 x
 SELECT * FROM bug56680;
 a	b	c
 1	x	1
+connection con1;
 ROLLBACK;
+disconnect con1;
+connection default;
 SELECT b FROM bug56680;
 b
 x
@@ -41,6 +47,8 @@ SELECT b FROM bug56680 LIMIT 2;
 b
 x
 x
+connect  con1,localhost,root,,;
+connection con1;
 BEGIN;
 DELETE FROM bug56680 WHERE a=1;
 INSERT INTO bug56680 VALUES(1,'X',1);
@@ -49,6 +57,7 @@ b
 X
 x
 x
+connection default;
 SELECT b FROM bug56680 LIMIT 2;
 b
 x
@@ -56,6 +65,7 @@ x
 CHECK TABLE bug56680;
 Table	Op	Msg_type	Msg_text
 test.bug56680	check	status	OK
+connection con1;
 ROLLBACK;
 SELECT b FROM bug56680 LIMIT 2;
 b
@@ -64,6 +74,8 @@ x
 CHECK TABLE bug56680;
 Table	Op	Msg_type	Msg_text
 test.bug56680	check	status	OK
+connection default;
+disconnect con1;
 SELECT b FROM bug56680 LIMIT 2;
 b
 x

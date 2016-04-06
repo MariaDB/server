@@ -418,6 +418,8 @@ select * from t2;
 c2_id	c2_p_id	c2_note	c2_active
 1	1	A Note	1
 drop table t1, t2;
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key (a));
 create table mysqltest.t2 (a int, b int, primary key (a));
@@ -425,12 +427,18 @@ create table mysqltest.t3 (a int, b int, primary key (a));
 create user mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 grant update on mysqltest.t1 to mysqltest_1@localhost;
+connect  user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection user1;
 update t1, t2 set t1.b=1 where t1.a=t2.a;
 update t1, t2 set t1.b=(select t3.b from t3 where t1.a=t3.a) where t1.a=t2.a;
+connection root;
 revoke all privileges on mysqltest.t1 from mysqltest_1@localhost;
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 delete from mysql.user where user=_binary'mysqltest_1';
 drop database mysqltest;
+connection default;
+disconnect user1;
+disconnect root;
 create table t1 (a int, primary key (a));
 create table t2 (a int, primary key (a));
 create table t3 (a int, primary key (a));
@@ -487,10 +495,19 @@ insert into t1 values (1, 2), (2, 3), (3, 4);
 create table t2 (a int);
 insert into t2 values (10), (20), (30);
 create view v1 as select a as b, a/10 as a from t2;
+connect  locker,localhost,root,,test;
+connection locker;
 lock table t1 write;
+connect  changer,localhost,root,,test;
+connection changer;
 alter table t1 add column c int default 100 after a;
+connect  updater,localhost,root,,test;
+connection updater;
 update t1, v1 set t1.b=t1.a+t1.b+v1.b where t1.a=v1.a;
+connection locker;
 unlock tables;
+connection changer;
+connection updater;
 select * from t1;
 a	c	b
 1	100	13
@@ -503,6 +520,10 @@ a
 30
 drop view v1;
 drop table t1, t2;
+connection default;
+disconnect locker;
+disconnect changer;
+disconnect updater;
 create table t1 (i1 int, i2 int, i3 int);
 create table t2 (id int, c1 varchar(20), c2 varchar(20));
 insert into t1 values (1,5,10),(3,7,12),(4,5,2),(9,10,15),(2,2,2);

@@ -147,13 +147,13 @@ a	b
 64	Sixty four
 # Start by testing read/write locking
 SET AUTOCOMMIT = 1;
-# con1
+connect con1, localhost, root,,;
 SET DEBUG_SYNC= 'swap_partition_after_compare_tables SIGNAL swap_in_progress WAIT_FOR goto_verification';
 SET DEBUG_SYNC= 'swap_partition_first_row_read SIGNAL swap_in_progress WAIT_FOR goto_wait';
 SET DEBUG_SYNC= 'swap_partition_after_wait SIGNAL swap_in_progress WAIT_FOR goto_rename';
 SET DEBUG_SYNC= 'swap_partition_before_rename SIGNAL swap_in_progress WAIT_FOR test_done';
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
-# con default
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR swap_in_progress';
 # select from t and select/update/delete/insert from tp should work
 SELECT * FROM t WHERE a = 99;
@@ -295,8 +295,8 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SHOW CREATE TABLE tp;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC= 'now SIGNAL test_done';
-# con1
-# con default
+connection con1;
+connection default;
 # Tables should now be as normal
 SHOW CREATE TABLE t;
 Table	Create Table
@@ -329,7 +329,8 @@ INSERT INTO tp VALUES (63, "Sixty three, new"), (59, "To be deleted");
 DELETE FROM tp WHERE a = 3;
 ALTER TABLE t ENGINE = 'TokuDB';
 ALTER TABLE tp ENGINE = 'TokuDB';
-# con default
+disconnect con1;
+connection default;
 SET DEBUG_SYNC= 'RESET';
 SHOW CREATE TABLE t;
 Table	Create Table

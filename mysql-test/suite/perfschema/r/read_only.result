@@ -3,7 +3,7 @@ set @start_read_only= @@global.read_only;
 create user pfsuser@localhost;
 grant SELECT, UPDATE on performance_schema.* to pfsuser@localhost;
 flush privileges;
-connect (con1, localhost, pfsuser, , test);
+connect  con1, localhost, pfsuser, , test;
 connection default;
 set global read_only=0;
 connection con1;
@@ -33,7 +33,8 @@ update performance_schema.setup_instruments set enabled='YES';
 connection default;
 grant super on *.* to pfsuser@localhost;
 flush privileges;
-connect (con1, localhost, pfsuser, , test);
+disconnect con1;
+connect  con1, localhost, pfsuser, , test;
 select @@global.read_only;
 @@global.read_only
 1
@@ -44,6 +45,7 @@ GRANT SELECT, UPDATE ON `performance_schema`.* TO 'pfsuser'@'localhost'
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES';
+disconnect con1;
 connection default;
 set global read_only= @start_read_only;
 drop user pfsuser@localhost;

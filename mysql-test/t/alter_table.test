@@ -1473,12 +1473,10 @@ INSERT INTO t1 VALUES (1,1), (2,2);
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,3);
 
---echo # Connection con1
 connect (con1, localhost, root);
 --echo # Sending:
 --send ALTER TABLE t1 DISABLE KEYS
 
---echo # Connection default
 connection default;
 --echo # Waiting until ALTER TABLE is blocked.
 let $wait_condition=
@@ -1489,14 +1487,12 @@ let $wait_condition=
 UPDATE t1 SET b = 4;
 COMMIT;
 
---echo # Connection con1
 connection con1;
 --echo # Reaping: ALTER TABLE t1 DISABLE KEYS
 --reap
 disconnect con1;
 --source include/wait_until_disconnected.inc
 
---echo # Connection default
 connection default;
 DROP TABLE t1;
 

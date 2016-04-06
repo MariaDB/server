@@ -43,6 +43,7 @@ a	f
 
 < -- test 1 select slave after p1 -- >
 --------------------------------------
+connection slave;
 SELECT * FROM test.t1;
 a	t
 1	texas
@@ -62,6 +63,7 @@ a	f
 
 < -- test 1 call p2 & select master -- >
 ----------------------------------------
+connection master;
 call test.p2(4);
 SELECT * FROM test.t1;
 a	t
@@ -76,6 +78,7 @@ a	f
 
 < -- test 1 select slave after p2 -- >
 --------------------------------------
+connection slave;
 SELECT * FROM test.t1;
 a	t
 4	to
@@ -86,6 +89,7 @@ a	f
 4	4
 5	5
 6	6
+connection master;
 
 < -- End test 1 Begin test 2 -- >
 ---------------------------------
@@ -134,6 +138,7 @@ a	f
 
 < -- test 2 select Slave after p1 -- >
 --------------------------------------
+connection slave;
 SELECT * FROM test.t1;
 a	t
 1	texas
@@ -153,6 +158,7 @@ a	f
 
 < -- test 2 call p2 & select Master -- >
 ----------------------------------------
+connection master;
 CALL test.p2(2);
 CALL test.p2(4);
 CALL test.p2(6);
@@ -175,6 +181,7 @@ a	f
 
 < -- test 1 select Slave after p2 -- >
 --------------------------------------
+connection slave;
 SELECT * FROM test.t1;
 a	t
 1	texas
@@ -191,6 +198,7 @@ a	f
 20	6
 40	6
 60	6
+connection master;
 
 < -- End test 2 Begin test 3 -- >
 ---------------------------------
@@ -209,16 +217,20 @@ START TRANSACTION;
 ROLLBACK;
 select * from test.t3;
 a	t
+connection slave;
 select * from test.t3;
 a	t
+connection master;
 START TRANSACTION;
 COMMIT;
 select * from test.t3;
 a	t
 98	NONE
+connection slave;
 select * from test.t3;
 a	t
 98	NONE
+connection master;
 SET AUTOCOMMIT=1;
 SET FOREIGN_KEY_CHECKS=0;
 DROP PROCEDURE test.p3;

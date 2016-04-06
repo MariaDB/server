@@ -58,8 +58,6 @@ let $con0_thread_id= `SELECT @thread_id`;
 #
 # Start connection with IP = localhost (127.0.0.1 or ::1)
 
---echo # Establish local TCP/IP connection (con1,localhost,root,,test,,)
---disable_query_log ONCE
 --connect (con1,$my_localhost,root,,test,,$MASTER_MYPORT)
 
 if($my_socket_debug)
@@ -81,7 +79,6 @@ WHERE THREAD_ID = @thread_id;
 let $con1_thread_id= `SELECT @thread_id`;
 let $con1_port= `SELECT @port`;
 
---echo # Switch to connection default
 --connection default
 
 #
@@ -89,8 +86,6 @@ let $con1_port= `SELECT @port`;
 #
 # Start a second connection with IP = localhost (127.0.0.1 or ::1)
 
---echo # Establish second local TCP/IP connection (con1,localhost,root,,test,,)
---disable_query_log ONCE
 --connect (con2,$my_localhost,root,,test,,$MASTER_MYPORT)
 
 if($my_socket_debug)
@@ -112,7 +107,6 @@ WHERE THREAD_ID = @thread_id;
 let $con2_thread_id= `SELECT @thread_id`;
 let $con2_port= `SELECT @port`;
 
---echo # Switch to connection default
 --connection default
 
 #
@@ -120,7 +114,6 @@ let $con2_port= `SELECT @port`;
 #
 # Connect via mysql sock file
 
---echo # Establish local unix domain connection (con3,localhost,root,,test,,)
 --connect(con3,localhost,root,,test,,)
 
 if($my_socket_debug)
@@ -142,7 +135,6 @@ WHERE THREAD_ID = @thread_id;
 let $con3_port= `SELECT @port`;
 let $con3_thread_id= `SELECT @thread_id`;
 
---echo # Switch to connection default
 --connection default
 
 #
@@ -419,7 +411,6 @@ $part;
 # DROP CLIENT CONNECTIONS
 #
 
---echo # Disconnect con1, con2 and con3
 --connection con1
 --disconnect con1
 --source include/wait_until_disconnected.inc

@@ -17,6 +17,8 @@ select @@session.tx_isolation;
 REPEATABLE-READ
 # Prepare playground by creating tables, views,
 # routines and triggers used in tests.
+connect  con1, localhost, root,,;
+connection default;
 drop table if exists t0, t1, t2, t3, t4, t5;
 drop view if exists v1, v2;
 drop procedure if exists p1;
@@ -179,6 +181,7 @@ end|
 #
 # No locks are necessary as this statement won't be written
 # to the binary log and InnoDB supports snapshots.
+connection default;
 Success: 'select * from t1' doesn't take row locks on 't1'.
 #
 # 1.2 Multi-UPDATE statement.
@@ -186,11 +189,13 @@ Success: 'select * from t1' doesn't take row locks on 't1'.
 # Has to take shared locks on rows in the table being read as this
 # statement will be written to the binary log and therefore should
 # be serialized with concurrent statements.
+connection default;
 Success: 'update t2, t1 set j= j - 1 where i = j' takes shared row locks on 't1'.
 #
 # 1.3 Multi-DELETE statement.
 #
 # The above is true for this statement as well.
+connection default;
 Success: 'delete t2 from t1, t2 where i = j' takes shared row locks on 't1'.
 #
 # 1.4 DESCRIBE statement.
@@ -198,12 +203,15 @@ Success: 'delete t2 from t1, t2 where i = j' takes shared row locks on 't1'.
 # This statement does not really read data from the
 # target table and thus does not take any lock on it.
 # We check this for completeness of coverage.
+connection default;
 Success: 'describe t1' doesn't take row locks on 't1'.
 #
 # 1.5 SHOW statements.
 # 
 # The above is true for SHOW statements as well.
+connection default;
 Success: 'show create table t1' doesn't take row locks on 't1'.
+connection default;
 Success: 'show keys from t1' doesn't take row locks on 't1'.
 #
 # 2. Statements which read tables through subqueries.
@@ -218,6 +226,7 @@ Success: 'show keys from t1' doesn't take row locks on 't1'.
 # But in practice InnoDB does locking reads for all statements
 # other than SELECT (unless it is a READ-COMITTED mode or
 # innodb_locks_unsafe_for_binlog is ON).
+connection default;
 Success: 'call p1((select i + 5 from t1 where i = 1))' takes shared row locks on 't1'.
 #
 # 2.2 CREATE TABLE with a subquery.
@@ -225,25 +234,30 @@ Success: 'call p1((select i + 5 from t1 where i = 1))' takes shared row locks on
 # Has to take shared locks on rows in the table being read as
 # this statement is written to the binary log and therefore
 # should be serialized with concurrent statements.
+connection default;
 Success: 'create table t0 engine=innodb select * from t1' takes shared row locks on 't1'.
 drop table t0;
+connection default;
 Success: 'create table t0 engine=innodb select j from t2 where j in (select i from t1)' takes shared row locks on 't1'.
 drop table t0;
 #
 # 2.3 DELETE with a subquery.
 #
 # The above is true for this statement as well.
+connection default;
 Success: 'delete from t2 where j in (select i from t1)' takes shared row locks on 't1'.
 #
 # 2.4 MULTI-DELETE with a subquery.
 #
 # Same is true for this statement as well.
+connection default;
 Success: 'delete t2 from t3, t2 where k = j and j in (select i from t1)' takes shared row locks on 't1'.
 #
 # 2.5 DO with a subquery.
 #
 # In theory should not take row locks as it is not logged.
 # In practice InnoDB takes shared row locks.
+connection default;
 Success: 'do (select i from t1 where i = 1)' takes shared row locks on 't1'.
 #
 # 2.6 INSERT with a subquery.
@@ -251,18 +265,23 @@ Success: 'do (select i from t1 where i = 1)' takes shared row locks on 't1'.
 # Has to take shared locks on rows in the table being read as
 # this statement is written to the binary log and therefore
 # should be serialized with concurrent statements.
+connection default;
 Success: 'insert into t2 select i+5 from t1' takes shared row locks on 't1'.
+connection default;
 Success: 'insert into t2 values ((select i+5 from t1 where i = 4))' takes shared row locks on 't1'.
 #
 # 2.7 LOAD DATA with a subquery.
 # 
 # The above is true for this statement as well.
+connection default;
 Success: 'load data infile '../../std_data/rpl_loaddata.dat' into table t2 (@a, @b) set j= @b + (select i from t1 where i = 1)' takes shared row locks on 't1'.
 #
 # 2.8 REPLACE with a subquery.
 # 
 # Same is true for this statement as well.
+connection default;
 Success: 'replace into t2 select i+5 from t1' takes shared row locks on 't1'.
+connection default;
 Success: 'replace into t2 values ((select i+5 from t1 where i = 4))' takes shared row locks on 't1'.
 #
 # 2.9 SELECT with a subquery.
@@ -273,6 +292,7 @@ Success: 'replace into t2 values ((select i+5 from t1 where i = 4))' takes share
 #
 # Also serves as a test case for bug #46947 "Embedded SELECT
 # without FOR UPDATE is causing a lock".
+connection default;
 Success: 'select * from t2 where j in (select i from t1)' doesn't take row locks on 't1'.
 #
 # 2.10 SET with a subquery.
@@ -280,6 +300,7 @@ Success: 'select * from t2 where j in (select i from t1)' doesn't take row locks
 # In theory should not require locking as it is not written
 # to the binary log. In practice InnoDB acquires shared row
 # locks.
+connection default;
 Success: 'set @a:= (select i from t1 where i = 1)' takes shared row locks on 't1'.
 #
 # 2.11 SHOW with a subquery.
@@ -287,7 +308,9 @@ Success: 'set @a:= (select i from t1 where i = 1)' takes shared row locks on 't1
 # Similarly to the previous case, in theory should not require locking
 # as it is not written to the binary log. In practice InnoDB
 # acquires shared row locks.
+connection default;
 Success: 'show tables from test where Tables_in_test = 't2' and (select i from t1 where i = 1)' takes shared row locks on 't1'.
+connection default;
 Success: 'show columns from t2 where (select i from t1 where i = 1)' takes shared row locks on 't1'.
 #
 # 2.12 UPDATE with a subquery.
@@ -295,11 +318,13 @@ Success: 'show columns from t2 where (select i from t1 where i = 1)' takes share
 # Has to take shared locks on rows in the table being read as
 # this statement is written to the binary log and therefore
 # should be serialized with concurrent statements.
+connection default;
 Success: 'update t2 set j= j-10 where j in (select i from t1)' takes shared row locks on 't1'.
 #
 # 2.13 MULTI-UPDATE with a subquery.
 #
 # Same is true for this statement as well.
+connection default;
 Success: 'update t2, t3 set j= j -10 where j=k and j in (select i from t1)' takes shared row locks on 't1'.
 #
 # 3. Statements which read tables through a view.
@@ -310,9 +335,13 @@ Success: 'update t2, t3 set j= j -10 where j=k and j in (select i from t1)' take
 # Since this statement is not written to the binary log
 # and old version of rows are accessible thanks to MVCC,
 # no locking is necessary.
+connection default;
 Success: 'select * from v1' doesn't take row locks on 't1'.
+connection default;
 Success: 'select * from v2' doesn't take row locks on 't1'.
+connection default;
 Success: 'select * from t2 where j in (select i from v1)' doesn't take row locks on 't1'.
+connection default;
 Success: 'select * from t3 where k in (select j from v2)' doesn't take row locks on 't1'.
 #
 # 3.2 Statements which modify a table and use views.
@@ -320,9 +349,13 @@ Success: 'select * from t3 where k in (select j from v2)' doesn't take row locks
 # Since such statements are going to be written to the binary
 # log they need to be serialized against concurrent statements
 # and therefore should take shared row locks on data read.
+connection default;
 Success: 'update t2 set j= j-10 where j in (select i from v1)' takes shared row locks on 't1'.
+connection default;
 Success: 'update t3 set k= k-10 where k in (select j from v2)' takes shared row locks on 't1'.
+connection default;
 Success: 'update t2, v1 set j= j-10 where j = i' takes shared row locks on 't1'.
+connection default;
 Success: 'update v2 set j= j-10 where j = 3' takes shared row locks on 't1'.
 #
 # 4. Statements which read tables through stored functions.
@@ -338,7 +371,9 @@ Success: 'update v2 set j= j-10 where j = 3' takes shared row locks on 't1'.
 # However in practice innodb takes strong lock on tables
 # being selected from within SF, when SF is called from
 # non SELECT statements like 'set' statement below.
+connection default;
 Success: 'select f1()' doesn't take row locks on 't1'.
+connection default;
 Success: 'set @a:= f1()' takes shared row locks on 't1'.
 #
 # 4.2 INSERT (or other statement which modifies data) with
@@ -349,6 +384,7 @@ Success: 'set @a:= f1()' takes shared row locks on 't1'.
 # be serialized with concurrent statements affecting the data
 # it uses. Therefore it should take row locks on the data
 # it reads.
+connection default;
 Success: 'insert into t2 values (f1() + 5)' takes shared row locks on 't1'.
 #
 # 4.3 SELECT/SET with a stored function which
@@ -358,7 +394,9 @@ Success: 'insert into t2 values (f1() + 5)' takes shared row locks on 't1'.
 # it should be serialized with concurrent statements affecting
 # the data it uses. Hence, row locks on the data read
 # should be taken.
+connection default;
 Success: 'select f2()' takes shared row locks on 't1'.
+connection default;
 Success: 'set @a:= f2()' takes shared row locks on 't1'.
 #
 # 4.4. SELECT/SET with a stored function which does not
@@ -371,9 +409,13 @@ Success: 'set @a:= f2()' takes shared row locks on 't1'.
 # However in practice innodb takes strong lock on tables
 # being selected from within SF, when SF is called from
 # non SELECT statements like 'set' statement below.
+connection default;
 Success: 'select f3()' doesn't take row locks on 't1'.
+connection default;
 Success: 'set @a:= f3()' takes shared row locks on 't1'.
+connection default;
 Success: 'select f4()' doesn't take row locks on 't1'.
+connection default;
 Success: 'set @a:= f4()' takes shared row locks on 't1'.
 #
 # 4.5. INSERT (or other statement which modifies data) with
@@ -385,7 +427,9 @@ Success: 'set @a:= f4()' takes shared row locks on 't1'.
 # be serialized with concurrent statements affecting data it
 # uses. Therefore it should take row locks on the data
 # it reads.
+connection default;
 Success: 'insert into t2 values (f3() + 5)' takes shared row locks on 't1'.
+connection default;
 Success: 'insert into t2 values (f4() + 6)' takes shared row locks on 't1'.
 #
 # 4.6 SELECT/SET which uses a stored function with
@@ -394,7 +438,9 @@ Success: 'insert into t2 values (f4() + 6)' takes shared row locks on 't1'.
 # Since call to such function is written to the binary log
 # it should be serialized with concurrent statements.
 # Hence reads should take row locks.
+connection default;
 Success: 'select f5()' takes shared row locks on 't1'.
+connection default;
 Success: 'set @a:= f5()' takes shared row locks on 't1'.
 #
 # 4.7 SELECT/SET which uses a stored function which
@@ -407,9 +453,13 @@ Success: 'set @a:= f5()' takes shared row locks on 't1'.
 # However in practice innodb takes strong lock on tables
 # being selected from within SF, when SF is called from
 # non SELECT statements like 'set' statement below.
+connection default;
 Success: 'select f6()' doesn't take row locks on 't1'.
+connection default;
 Success: 'set @a:= f6()' takes shared row locks on 't1'.
+connection default;
 Success: 'select f7()' doesn't take row locks on 't1'.
+connection default;
 Success: 'set @a:= f7()' takes shared row locks on 't1'.
 #
 # 4.8 INSERT which uses stored function which
@@ -420,7 +470,9 @@ Success: 'set @a:= f7()' takes shared row locks on 't1'.
 # should be serialized with concurrent statements affecting
 # the data it uses. Therefore it should take row locks on
 # the rows it reads.
+connection default;
 Success: 'insert into t3 values (f6() + 5)' takes shared row locks on 't1'.
+connection default;
 Success: 'insert into t3 values (f7() + 5)' takes shared row locks on 't1'.
 #
 # 4.9 SELECT which uses a stored function which
@@ -429,7 +481,9 @@ Success: 'insert into t3 values (f7() + 5)' takes shared row locks on 't1'.
 # Since a call to such function is written to the binary log
 # it should be serialized with concurrent statements.
 # Hence, reads should take row locks.
+connection default;
 Success: 'select f8()' takes shared row locks on 't1'.
+connection default;
 Success: 'select f9()' takes shared row locks on 't1'.
 #
 # 4.10 SELECT which uses stored function which doesn't modify
@@ -438,6 +492,7 @@ Success: 'select f9()' takes shared row locks on 't1'.
 #
 # Calls to such functions won't get into the binary
 # log and thus don't need to acquire row locks.
+connection default;
 Success: 'select f10()' doesn't take row locks on 't1'.
 #
 # 4.11 INSERT which uses a stored function which doesn't modify
@@ -447,6 +502,7 @@ Success: 'select f10()' doesn't take row locks on 't1'.
 # Since such statement is written to the binary log, it should
 # be serialized with concurrent statements affecting the data it
 # uses. Therefore it should take row locks on data it reads.
+connection default;
 Success: 'insert into t2 values (f10() + 5)' takes shared row locks on 't1'.
 #
 # 4.12 SELECT which uses a stored function which modifies
@@ -456,6 +512,7 @@ Success: 'insert into t2 values (f10() + 5)' takes shared row locks on 't1'.
 # Since a call to such function is written to the binary log
 # it should be serialized from concurrent statements.
 # Hence, reads should take row locks.
+connection default;
 Success: 'select f11()' takes shared row locks on 't1'.
 #
 # 4.13 SELECT that reads a table through a subquery passed
@@ -466,6 +523,7 @@ Success: 'select f11()' takes shared row locks on 't1'.
 # binary log, values of its parameters are written as literals.
 # So there is no need to acquire row locks on rows used in 
 # the subquery.
+connection default;
 Success: 'select f12((select i+10 from t1 where i=1))' doesn't take row locks on 't1'.
 #
 # 4.14 INSERT that reads a table via a subquery passed
@@ -475,6 +533,7 @@ Success: 'select f12((select i+10 from t1 where i=1))' doesn't take row locks on
 # Since this statement is written to the binary log it should
 # be serialized with concurrent statements affecting the data it
 # uses. Therefore it should take row locks on the data it reads.
+connection default;
 Success: 'insert into t2 values (f13((select i+10 from t1 where i=1)))' takes shared row locks on 't1'.
 #
 # 5. Statements that read tables through stored procedures.
@@ -485,6 +544,7 @@ Success: 'insert into t2 values (f13((select i+10 from t1 where i=1)))' takes sh
 # Since neither this statement nor its components are
 # written to the binary log, there is no need to take
 # row locks on the data it reads.
+connection default;
 Success: 'call p2(@a)' doesn't take row locks on 't1'.
 #
 # 5.2 Function that modifies data and uses CALL, 
@@ -493,6 +553,7 @@ Success: 'call p2(@a)' doesn't take row locks on 't1'.
 # Since a call to such function is written to the binary
 # log, it should be serialized with concurrent statements.
 # Hence, in this case reads should take row locks on data.
+connection default;
 Success: 'select f14()' takes shared row locks on 't1'.
 #
 # 5.3 SELECT that calls a function that doesn't modify data and
@@ -500,6 +561,7 @@ Success: 'select f14()' takes shared row locks on 't1'.
 #
 # Calls to such functions won't get into the binary
 # log and thus don't need to acquire row locks.
+connection default;
 Success: 'select f15()' doesn't take row locks on 't1'.
 #
 # 5.4 INSERT which calls function which doesn't modify data and
@@ -508,6 +570,7 @@ Success: 'select f15()' doesn't take row locks on 't1'.
 # Since such statement is written to the binary log it should
 # be serialized with concurrent statements affecting data it
 # uses. Therefore it should take row locks on data it reads.
+connection default;
 Success: 'insert into t2 values (f15()+5)' takes shared row locks on 't1'.
 #
 # 6. Statements that use triggers.
@@ -519,30 +582,35 @@ Success: 'insert into t2 values (f15()+5)' takes shared row locks on 't1'.
 # be serialized with concurrent statements affecting the data
 # it uses. Therefore, it should take row locks on the data
 # it reads.
+connection default;
 Success: 'insert into t4 values (2)' takes shared row locks on 't1'.
 #
 # 6.2 Statement invoking a trigger that reads table through
 #     a subquery in a control construct.
 #
 # The above is true for this statement as well.
+connection default;
 Success: 'update t4 set l= 2 where l = 1' takes shared row locks on 't1'.
 #
 # 6.3 Statement invoking a trigger that reads a table through
 #     a view.
 #
 # And for this statement.
+connection default;
 Success: 'delete from t4 where l = 1' takes shared row locks on 't1'.
 #
 # 6.4 Statement invoking a trigger that reads a table through
 #     a stored function.
 #
 # And for this statement.
+connection default;
 Success: 'insert into t5 values (2)' takes shared row locks on 't1'.
 #
 # 6.5 Statement invoking a trigger that reads a table through
 #     stored procedure.
 #
 # And for this statement.
+connection default;
 Success: 'update t5 set l= 2 where l = 1' takes shared row locks on 't1'.
 # Clean-up.
 drop function f1;
@@ -564,10 +632,13 @@ drop view v1, v2;
 drop procedure p1;
 drop procedure p2;
 drop table t1, t2, t3, t4, t5;
+disconnect con1;
 #
 # Test for bug#51263 "Deadlock between transactional SELECT
 # and ALTER TABLE ... REBUILD PARTITION".
 #
+connect  con1,localhost,root,,test,,;
+connection default;
 drop table if exists t1, t2;
 create table t1 (i int auto_increment not null primary key) engine=innodb;
 create table t2 (i int) engine=innodb;
@@ -575,10 +646,10 @@ insert into t1 values (1), (2), (3), (4), (5);
 begin;
 # Acquire SR metadata lock on t1 and LOCK_S row-locks on its rows.
 insert into t2 select count(*) from t1;
-# Switching to connection 'con1'.
+connection con1;
 # Sending:
 alter table t1 add column j int;
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER is blocked because it tries to upgrade SNW
 # metadata lock to X lock.
 # It should not be blocked during copying data to new version of
@@ -593,9 +664,9 @@ insert into t1 values (6);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Unblock ALTER TABLE.
 commit;
-# Switching to connection 'con1'.
+connection con1;
 # Reaping ALTER TABLE.
-# Switching to connection 'default'.
+connection default;
 #
 # Now test for scenario in which bug was reported originally.
 #
@@ -613,10 +684,10 @@ i
 3
 4
 5
-# Switching to connection 'con1'.
+connection con1;
 # Sending:
 alter table t1 rebuild partition p0;
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER is blocked because of active SR lock.
 # The below statement should succeed as transaction
 # has SR metadata lock on t1 and only going to read
@@ -624,8 +695,9 @@ alter table t1 rebuild partition p0;
 insert into t2 select count(*) from t1;
 # Unblock ALTER TABLE.
 commit;
-# Switching to connection 'con1'.
+connection con1;
 # Reaping ALTER TABLE.
-# Switching to connection 'default'.
+connection default;
+disconnect con1;
 # Clean-up.
 drop tables t1, t2;

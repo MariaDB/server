@@ -2,10 +2,10 @@ include/master-slave.inc
 [connection master]
 include/rpl_reset.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-[on slave]
+connection slave;
 include/stop_slave.inc
 ==== Create some events on master ====
-[on master]
+connection master;
 create table t1(n int not null auto_increment primary key);
 insert into t1 values (1),(2),(3),(4);
 drop table t1;
@@ -14,7 +14,7 @@ insert into t2 values (1),(2);
 insert into t2 values (3),(4);
 drop table t2;
 ==== Replicate one event at a time on slave ====
-[on slave]
+connection slave;
 start slave until master_log_file='MASTER_LOG_FILE', master_log_pos=MASTER_LOG_POS;
 include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_stop.inc
@@ -44,8 +44,8 @@ n
 2
 include/check_slave_param.inc [Exec_Master_Log_Pos]
 start slave;
-[on master]
-[on slave]
+connection master;
+connection slave;
 include/stop_slave.inc
 start slave until master_log_file='MASTER_LOG_FILE', master_log_pos=MASTER_LOG_POS;
 include/wait_for_slave_io_to_start.inc
@@ -66,24 +66,29 @@ start slave sql_thread;
 start slave until master_log_file='master-bin.000001', master_log_pos=776;
 Warnings:
 Note	1254	Slave is already running
+connection slave;
 include/stop_slave.inc
 drop table if exists t1;
 reset slave;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
+connection master;
 drop table if exists t1;
 reset master;
 create table t1 (a int primary key auto_increment);
+connection slave;
 start slave;
 include/stop_slave.inc
 master and slave are in sync now
 select 0 as zero;
 zero
 0
+connection master;
 insert into t1 set a=null;
 insert into t1 set a=null;
 select count(*) as two from t1;
 two
 2
+connection slave;
 start slave until master_log_file='MASTER_LOG_FILE', master_log_pos= UNTIL_POS;;
 include/wait_for_slave_sql_to_stop.inc
 slave stopped at the prescribed position
@@ -93,6 +98,8 @@ zero
 select count(*) as one from t1;
 one
 1
+connection master;
 drop table t1;
+connection slave;
 start slave;
 include/rpl_end.inc

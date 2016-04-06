@@ -10,7 +10,8 @@ name varchar(30)
 ## Setting variable's value to 0 i.e false ##
 SET @@autocommit = 0;
 '#--------------------FN_DYNVARS_003_02-------------------------#'
-## Creating new connection ## 
+CONNECT  test_con1,localhost,root,,;
+connection test_con1;
 ## Checking value of variable after opening new connection ##
 SELECT @@autocommit;
 @@autocommit
@@ -24,25 +25,26 @@ id	name
 1	Record_1
 2	Record_2
 ## Creating another connection and verifying records in table ## 
-## New Connection test_con2 ##
+CONNECT  test_con2,localhost,root,,;
+connection test_con2;
 SELECT * from t1;
 id	name
 '#--------------------FN_DYNVARS_003_03-------------------------#'
 ## Verifying behavior of variable by commiting rows in test_con1 ##
-## Connecting with connection # 01 ## 
+connection test_con1;
 SELECT * from t1;
 id	name
 1	Record_1
 2	Record_2
 COMMIT;
-## New Connection test_con2 ##
 ## Now verifying records in table from connection # 02 ## 
+connection test_con2;
 SELECT * from t1;
 id	name
 1	Record_1
 2	Record_2
 '#--------------------FN_DYNVARS_003_04-------------------------#'
-## Connecting to connection # 01 ##
+connection test_con1;
 SELECT * from t1;
 id	name
 1	Record_1
@@ -54,22 +56,24 @@ id	name
 1	Record_12
 2	Record_2
 ## Connecting to connecting # 02 and verifying effect of update query ##
+connection test_con2;
 SELECT * from t1;
 id	name
 1	Record_1
 2	Record_2
 ## Now connecting with connection # 01 and using ROLLBACK after it ##
+connection test_con1;
 ROLLBACK;
 SELECT * from t1;
 id	name
 1	Record_1
 2	Record_2
 '#--------------------FN_DYNVARS_003_05-------------------------#'
-## Connecting with connection # 01 ## 
+connection test_con1;
 INSERT into t1(name) values('Record_3');
-## Connection test_con2 ##
 ## Now verifying records in table from connection # 02 and changing value  ## 
 ## of autocommit to true ## 
+connection test_con2;
 SELECT * from t1;
 id	name
 1	Record_1
@@ -84,6 +88,7 @@ id	name
 4	Record_4
 5	Record_5
 ## Connecting with connection # 01 and inserting few records ## 
+connection test_con1;
 SELECT * from t1;
 id	name
 1	Record_1
@@ -97,6 +102,7 @@ id	name
 3	Record_3
 6	Record_6
 ## Now verifying the effect of these new records in second connection ## 
+connection test_con2;
 SELECT * from t1;
 id	name
 1	Record_1
@@ -104,7 +110,9 @@ id	name
 4	Record_4
 5	Record_5
 ## Commit changes
+connection test_con1;
 COMMIT;
 ## Dropping table t1 ##
 DROP table t1;
-## Disconnecting both connections ##
+disconnect test_con1;
+disconnect test_con2;

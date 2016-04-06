@@ -1,15 +1,16 @@
 '#--------------------FN_DYNVARS_046_01-------------------------#'
 SET @@global.innodb_support_xa = OFF;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.innodb_support_xa;
 @@global.innodb_support_xa
 0
 SELECT @@session.innodb_support_xa;
 @@session.innodb_support_xa
 0
+disconnect con1;
 '#--------------------FN_DYNVARS_046_01-------------------------#'
-'connection default'
+connection default;
 SET @@global.innodb_support_xa = 1;
 drop table if exists t1, t2;
 create table t1 (a int) engine=innodb;
@@ -43,8 +44,8 @@ BEGIN;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
 CREATE table t2 (a int);
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+CONNECT  con1,localhost,root,,,,;
+connection con1;
 xa start 'testa','testb';
 ERROR XAE08: XAER_DUPID: The XID already exists
 xa start 'testa','testb', 123;
@@ -58,7 +59,7 @@ ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction
 xa recover;
 formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
-'connection default'
+connection default;
 xa prepare 'testa','testb';
 xa recover;
 formatID	gtrid_length	bqual_length	data
@@ -67,7 +68,7 @@ formatID	gtrid_length	bqual_length	data
 xa commit 'testb',0x2030405060,11;
 ERROR XAE04: XAER_NOTA: Unknown XID
 xa commit 'testa','testb';
-'connection con1'
+connection con1;
 xa rollback 'testb',0x2030405060,11;
 SELECT * from t1;
 a

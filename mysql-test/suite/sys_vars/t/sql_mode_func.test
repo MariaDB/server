@@ -148,32 +148,26 @@ SELECT * FROM t1 WHERE a = 't2a2';
 #
 
 SET GLOBAL sql_mode = '';
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_mode;
 --echo '' Expected
 
 SET SESSION sql_mode = 'TRADITIONAL';
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_mode;
 --echo '' Expected
 
 SET SESSION sql_mode = 'ANSI';
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_mode;
 --echo 'REAL_AS_FLOAT, PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, ANSI' Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_mode;
 --echo 'STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, NO_ZERO_DATE, ERROR_FOR_DIVISION_BY_ZERO, NO_AUTO_CREATE_USER, TRADITIONAL' Expected
@@ -182,10 +176,8 @@ SELECT @@SESSION.sql_mode;
 SELECT @@GLOBAL.sql_mode;
 --echo '' Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

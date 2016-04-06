@@ -1,11 +1,20 @@
+connect  addconroot1, localhost, root,,;
+connect  addconroot2, localhost, root,,;
+connect  addconroot3, localhost, root,,;
+connection default;
 drop table if exists t1,t2,t3,t4,t5;
 set debug_sync='RESET';
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create table t1 (j char(5));;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -14,10 +23,15 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create table t1 select 'Test' as j;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -27,10 +41,15 @@ drop table t1;
 create table t3 (j char(5));
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create table t1 like t3;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -39,10 +58,15 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 rename table t3 to t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -51,10 +75,15 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 alter table t3 rename to t1;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -63,10 +92,15 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 alter table t3 rename to t1, add k int;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 ERROR 42S01: Table 't1' already exists
+connection default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -74,30 +108,51 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t3;
 set debug_sync='create_table_select_before_open SIGNAL parked WAIT_FOR go';
+connection default;
 set debug_sync='create_table_select_before_open SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 drop table t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 rename table t1 to t2;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 drop table t2;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 select * from t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 i
 1
+connection default;
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 insert into t1 values (2);;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 select * from t1;
 i
 1
@@ -106,37 +161,62 @@ drop table t1;
 set @a:=0;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create trigger t1_bi before insert on t1 for each row set @a:=1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 select @a;
 @a
 0
 drop table t1;
 set debug_sync='create_table_select_before_lock SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 drop table t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 set debug_sync='create_table_select_before_lock SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 rename table t1 to t2;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 drop table t2;
 set debug_sync='create_table_select_before_lock SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 select * from t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
 i
 1
+connection default;
 drop table t1;
 set debug_sync='create_table_select_before_lock SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 insert into t1 values (2);;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 select * from t1;
 i
 1
@@ -145,27 +225,42 @@ drop table t1;
 set @a:=0;
 set debug_sync='create_table_select_before_lock SIGNAL parked WAIT_FOR go';
 create table t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create trigger t1_bi before insert on t1 for each row set @a:=1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 select @a;
 @a
 0
 drop table t1;
 set debug_sync='create_table_select_before_check_if_exists SIGNAL parked WAIT_FOR go';
 create table if not exists t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 drop table t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 create table t1 (i int);
 set @a:=0;
 set debug_sync='create_table_select_before_check_if_exists SIGNAL parked WAIT_FOR go';
 create table if not exists t1 select 1 as i;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 create trigger t1_bi before insert on t1 for each row set @a:=1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
 Warnings:
 Note	1050	Table 't1' already exists
+connection addconroot1;
+connection default;
 select @a;
 @a
 0
@@ -178,10 +273,15 @@ create table t1 (i int);
 set debug_sync='create_table_like_after_open SIGNAL parked WAIT_FOR go';
 reset master;
 create table t2 like t1;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 insert into t1 values (1);
 drop table t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -203,21 +303,39 @@ create table t1 (i int);
 set debug_sync='create_table_like_before_binlog SIGNAL parked WAIT_FOR go';
 reset master;
 create table t2 like t1;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 insert into t2 values (1);;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 drop table t2;
 set debug_sync='create_table_like_before_binlog SIGNAL parked WAIT_FOR go';
 create table t2 like t1;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 drop table t2;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 set debug_sync='create_table_like_before_binlog SIGNAL parked WAIT_FOR go';
 create table t2 like t1;;
+connection addconroot1;
 set debug_sync='now WAIT_FOR parked';
 drop table t1;;
+connection addconroot2;
 set debug_sync='now SIGNAL go';
+connection default;
+connection addconroot1;
+connection default;
 drop table t2;
+disconnect addconroot1;
+disconnect addconroot2;
+disconnect addconroot3;
 set debug_sync='RESET';
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

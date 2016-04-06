@@ -1,13 +1,19 @@
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
 create table t1 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=InnoDB;
 create table t2 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=MyISAM;
 create table t3 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=InnoDB;
+connection con1;
 select get_lock("a", 20);
 get_lock("a", 20)
 1
+connection con2;
 reset master;
 insert into t2 values (null, null), (null, get_lock("a", 10));
+connection con1;
 kill query ID;
+connection con2;
 select
 (@a:=load_file("MYSQLTEST_VARDIR/tmp/kill_query_calling_sp.binlog"))
 is not null;
@@ -15,43 +21,56 @@ set @result= 2 - 1 - 1;
 select @result /* must be zero either way */;
 @result
 0
+connection con1;
 select RELEASE_LOCK("a");
 RELEASE_LOCK("a")
 1
 delete from t1;
 delete from t2;
 insert into t1 values (1,1),(2,2);
+connection con1;
 begin;
 update t1 set b=11 where a=2;
+connection con2;
 begin;
 update t1 set b=b+10;
+connection con1;
 kill query ID;
 rollback;
+connection con2;
 rollback;
 select * from t1  order by a /* must be the same as before (1,1),(2,2) */;
 a	b
 1	1
 2	2
+connection con1;
 begin;
 delete from t1 where a=2;
+connection con2;
 begin;
 delete from t1 where a=2;
+connection con1;
 kill query ID;
 rollback;
+connection con2;
 rollback;
 select * from t1 order by a /* must be the same as before (1,1),(2,2) */;
 a	b
 1	1
 2	2
+connection con1;
 drop table if exists t4;
 create table t4 (a int, b int) engine=innodb;
 insert into t4 values (3, 3);
 begin;
 insert into t1 values (3, 3);
+connection con2;
 begin;
 insert into t1 select * from t4 for update;
+connection con1;
 kill query ID;
 rollback;
+connection con2;
 rollback;
 select * from t1 /* must be the same as before (1,1),(2,2) */;
 a	b
@@ -73,15 +92,19 @@ end|
 delete from t4;
 insert into t4 values (1,1), (1,1);
 reset master;
+connection con1;
 select get_lock("a", 20);
 get_lock("a", 20)
 1
+connection con2;
 set @b= 0;
 update t4 set b=b + bug27563(b);
+connection con1;
 select count(*) FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
 count(*)
 1
 kill query ID;
+connection con2;
 ERROR 70100: Query execution was interrupted
 select * from t4 order by b /* must be (1,1), (1,2) */;
 a	b
@@ -107,21 +130,26 @@ is not null
 select 0 /* must return 0 to mean the killed update is in */;
 0
 0
+connection con1;
 select RELEASE_LOCK("a");
 RELEASE_LOCK("a")
 1
 delete from t4;
 insert into t4 values (1,1), (2,2);
 reset master;
+connection con1;
 select get_lock("a", 20);
 get_lock("a", 20)
 1
+connection con2;
 set @b= 0;
 delete from t4 where b=bug27563(1) or b=bug27563(2);
+connection con1;
 select count(*) FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
 count(*)
 1
 kill query ID;
+connection con2;
 ERROR 70100: Query execution was interrupted
 select count(*) from t4 /* must be 1 */;
 count(*)
@@ -145,10 +173,14 @@ is not null
 select 0 /* must return 0 to mean the killed delete is in */;
 0
 0
+connection con1;
 select RELEASE_LOCK("a");
 RELEASE_LOCK("a")
 1
 drop table t4;
 drop function bug27563;
+connection default;
+disconnect con1;
+disconnect con2;
 drop table t1,t2,t3;
 end of the tests

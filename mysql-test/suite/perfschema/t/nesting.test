@@ -69,8 +69,6 @@ truncate performance_schema.events_statements_history_long;
 
 connect (con1, localhost, user1, , );
 
-echo "================== con1 connected ==================";
-
 select "MARKER_BEGIN" as marker;
 
 select "This is simple statement one" as payload;
@@ -87,8 +85,6 @@ delimiter ;$$
 select "MARKER_END" as marker;
 
 select "Con1 is done with payload" as status;
-
-echo "================== con1 done ==================";
 
 --connection default
 

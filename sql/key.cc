@@ -328,7 +328,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
       }
       if (cs->coll->strnncollsp(cs,
                                 (const uchar*) key, length,
-                                (const uchar*) pos, char_length, 0))
+                                (const uchar*) pos, char_length))
         return 1;
       continue;
     }
@@ -891,8 +891,7 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
       if (length1 != length2 ||
           cs->coll->strnncollsp(cs,
                                 pos1 + pack_length, byte_len1,
-                                pos2 + pack_length, byte_len2,
-                                1))
+                                pos2 + pack_length, byte_len2))
         return TRUE;
       key1+= pack_length; key2+= pack_length;
     }

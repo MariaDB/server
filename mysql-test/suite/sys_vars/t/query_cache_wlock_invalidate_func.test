@@ -37,11 +37,8 @@
 #
 # Save initial value
 #
---echo ** Connecting con0 using root **
 connect (con0,localhost,root,,);
---echo ** Connecting con1 using root **
 connect (con1, localhost, root,,);
---echo ** Connection con0 **
 connection con0;
 
 SET @start_global_value = @@GLOBAL.query_cache_wlock_invalidate;
@@ -82,12 +79,10 @@ SET GLOBAL query_cache_type = ON;
 #
 --echo Testing for value ON
 
---echo ** Connection con0 **
 connection con0;
 
 SET SESSION query_cache_wlock_invalidate = ON;
 
---echo ** Connection con1 **
 connection con1;
 
 SET SESSION query_cache_wlock_invalidate = ON;
@@ -124,23 +119,19 @@ SHOW STATUS LIKE 'Qcache_queries_in_cache';
 
 enable_result_log;
 
---echo ** Connection con1 **
 connection con1;
 
 SELECT * FROM t1;
 
---echo ** Connection con0 **
 connection con0;
 
 LOCK TABLE t1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 
 --echo ** Asynchronous Execution **
 send SELECT * FROM t1;
 
---echo ** Connection con0 **
 connection con0;
 
 --echo wait until table is locked
@@ -149,7 +140,6 @@ let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con1 **
 connection con1;
 --echo ** Asynchronous Result **
 reap;
@@ -159,12 +149,10 @@ reap;
 #
 --echo Testing for value OFF
 
---echo ** Connection con0 **
 connection con0;
 
 SET SESSION query_cache_wlock_invalidate = OFF;
 
---echo ** Connection con1 **
 connection con1;
 
 SET SESSION query_cache_wlock_invalidate = OFF;
@@ -198,27 +186,22 @@ SELECT * FROM t1;
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 --echo 1 Expected
 
---echo ** Connection con1 **
 connection con1;
 
 SELECT * FROM t1;
 
---echo ** Connection con0 **
 connection con0;
 LOCK TABLE t1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 --echo ** Should not be blocked **
 SELECT * FROM t1;
 SELECT * FROM t1;
 SELECT * FROM t1;
 
---echo ** Connection con0 **
 connection con0;
 UNLOCK TABLES;
 
---echo ** Connection con1 **
 connection con1;
 
 --echo '#----------------------------FN_DYNVARS_136_05------------------------#'
@@ -228,18 +211,14 @@ connection con1;
 
 SET GLOBAL query_cache_wlock_invalidate = OFF;
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
---echo ** Connection con_int1 **
 connection con_int1;
 
 SELECT @@SESSION.query_cache_wlock_invalidate;
 --echo Expected Value : 0 / OFF;
 SET SESSION query_cache_wlock_invalidate = ON;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
---echo ** Connection con_int2 **
 connection con_int2;
 
 SELECT @@SESSION.query_cache_wlock_invalidate;
@@ -247,12 +226,10 @@ SELECT @@SESSION.query_cache_wlock_invalidate;
 
 SET SESSION query_cache_wlock_invalidate = OFF;
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.query_cache_wlock_invalidate;
 --echo Expected Value : 1 / ON;
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.query_cache_wlock_invalidate;
 --echo Expected Value : 0 / OFF;
@@ -260,9 +237,7 @@ SELECT @@SESSION.query_cache_wlock_invalidate;
 SELECT @@GLOBAL.query_cache_wlock_invalidate;
 --echo Expected Value : 0 / OFF;
 
---echo ** Connection default **
 connection default;
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 
@@ -272,7 +247,6 @@ disconnect con_int2;
 --echo
 --echo CLEANUP
 
---echo ** Connection con0 **
 connection con0;
 
 SET @@GLOBAL.query_cache_wlock_invalidate = @start_global_value;
@@ -280,13 +254,10 @@ SET @@SESSION.query_cache_wlock_invalidate = @start_session_value ;
 SET @@GLOBAL.query_cache_size = @old_cache_size;
 SET @@GLOBAL.query_cache_type = @old_cache_type;
 
---echo ** Connection default **
 connection default;
---echo Disconnecting Connections con0, con1
 disconnect con0;
 disconnect con1;
 
 DROP TABLE t1;
 
 --enable_ps_protocol
-

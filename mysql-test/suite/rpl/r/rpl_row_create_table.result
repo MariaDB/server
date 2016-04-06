@@ -1,8 +1,12 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+connection master;
+connection slave;
 include/wait_for_slave_to_stop.inc
 include/wait_for_slave_to_start.inc
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t1 (a INT);
 CREATE OR REPLACE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT) ENGINE=Merge;
@@ -20,7 +24,6 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t3 (a INT, b INT) CHARSET=utf8
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t4 (a INT, b INT) ENGINE=Merge CHARSET=utf8
-**** On Master ****
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -39,7 +42,7 @@ Create Table	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
-**** On Slave ****
+connection slave;
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -58,11 +61,11 @@ Create Table	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
+connection master;
 CREATE TABLE t5 (b INT, c INT) SELECT * FROM t3;
 CREATE TEMPORARY TABLE tt3 (a INT, b INT);
 INSERT INTO tt3 VALUES (1,2), (2,4), (3,6), (4,2), (5,10), (6,12);
 CREATE TABLE t6 (b INT, c INT) SELECT * FROM tt3;
-**** On Master ****
 SHOW CREATE TABLE t5;
 Table	t5
 Create Table	CREATE TABLE `t5` (
@@ -87,7 +90,7 @@ NULL	3	6
 NULL	4	2
 NULL	5	10
 NULL	6	12
-**** On Slave ****
+connection slave;
 SHOW CREATE TABLE t5;
 Table	t5
 Create Table	CREATE TABLE `t5` (
@@ -113,6 +116,7 @@ NULL	4	2
 NULL	5	10
 NULL	6	12
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t7 (UNIQUE(b)) SELECT a,b FROM tt3;
 ERROR 23000: Duplicate entry '2' for key 'b'
 include/show_binlog_events.inc
@@ -132,12 +136,14 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t7)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
 SELECT * FROM t7 ORDER BY a,b;
 a	b
 1	2
 2	4
 3	6
 include/rpl_reset.inc
+connection master;
 CREATE TEMPORARY TABLE tt4 (a INT, b INT);
 INSERT INTO tt4 VALUES (4,8), (5,10), (6,12);
 BEGIN;
@@ -159,6 +165,7 @@ a	b
 4	8
 5	10
 6	12
+connection slave;
 SELECT * FROM t7 ORDER BY a,b;
 a	b
 1	2
@@ -168,12 +175,12 @@ a	b
 5	10
 6	12
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t8 LIKE t4;
 CREATE TABLE t9 LIKE tt4;
 CREATE TEMPORARY TABLE tt5 LIKE t4;
 CREATE TEMPORARY TABLE tt6 LIKE tt4;
 CREATE TEMPORARY TABLE tt7 SELECT 1;
-**** On Master ****
 SHOW CREATE TABLE t8;
 Table	t8
 Create Table	CREATE TABLE `t8` (
@@ -195,7 +202,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t9` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 )
-**** On Slave ****
+connection slave;
 SHOW CREATE TABLE t8;
 Table	t8
 Create Table	CREATE TABLE `t8` (
@@ -208,7 +215,9 @@ Create Table	CREATE TABLE `t9` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
+connection master;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9;
+connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 SET GLOBAL storage_engine=@storage_engine;
@@ -216,6 +225,7 @@ START SLAVE;
 include/wait_for_slave_to_start.inc
 ================ BUG#22864 ================
 include/rpl_reset.inc
+connection master;
 SET AUTOCOMMIT=0;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -291,6 +301,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
@@ -320,9 +331,12 @@ a
 1
 2
 3
+connection master;
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 SET AUTOCOMMIT=1;
+connection slave;
 include/rpl_reset.inc
+connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 CREATE TABLE t2 (a INT) ENGINE=INNODB;
@@ -357,6 +371,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+connection slave;
 SELECT * FROM t2 ORDER BY a;
 a
 1
@@ -364,8 +379,11 @@ a
 4
 6
 9
+connection master;
 TRUNCATE TABLE t2;
+connection slave;
 include/rpl_reset.inc
+connection master;
 BEGIN;
 INSERT INTO t2 SELECT a*a FROM t1;
 CREATE TEMPORARY TABLE tt2
@@ -386,14 +404,19 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	ROLLBACK
+connection slave;
 SELECT * FROM t2 ORDER BY a;
 a
+connection master;
 DROP TABLE t1,t2;
+connection slave;
+connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(1);
 CREATE TABLE t2 (a INT UNIQUE) ENGINE=INNODB SELECT * FROM t1;
 ERROR 23000: Duplicate entry '1' for key 'a'
 INSERT INTO t1 VALUES (2);
+connection slave;
 *** the proof of the fix:
 select must show that the last insert performed on the slave ***
 SELECT * FROM t1;
@@ -401,8 +424,11 @@ a
 1
 1
 2
+connection master;
 DROP TABLE t1;
+connection slave;
 include/rpl_reset.inc
+connection master;
 DROP DATABASE IF EXISTS mysqltest1;
 CREATE DATABASE mysqltest1;
 CREATE TABLE mysqltest1.without_select (f1 BIGINT);
@@ -422,8 +448,12 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `mysqltest1`.`with_select
 master-bin.000001	#	Table_map	#	#	table_id: # (mysqltest1.with_select)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
+connection master;
 DROP DATABASE mysqltest1;
+connection slave;
 include/rpl_reset.inc
+connection master;
 CREATE TEMPORARY TABLE t7(c1 INT);
 CREATE TABLE t5(c1 INT);
 CREATE TABLE t4(c1 INT);
@@ -431,14 +461,18 @@ CREATE VIEW bug48506_t1 AS SELECT 1;
 CREATE VIEW bug48506_t2 AS SELECT * FROM t4;
 CREATE VIEW bug48506_t3 AS SELECT t5.c1 AS A, t4.c1 AS B FROM t5, t4;
 CREATE TABLE bug48506_t4(c1 INT);
+connection slave;
 DROP VIEW bug48506_t1, bug48506_t2, bug48506_t3;
 DROP TABLE bug48506_t4;
+connection master;
 CREATE TABLE IF NOT EXISTS bug48506_t1 LIKE t7;
 CREATE TABLE IF NOT EXISTS bug48506_t2 LIKE t7;
 CREATE TABLE IF NOT EXISTS bug48506_t3 LIKE t7;
 CREATE TABLE IF NOT EXISTS bug48506_t4 LIKE t7;
+connection slave;
 SHOW TABLES LIKE 'bug48506%';
 Tables_in_test (bug48506%)
+connection master;
 DROP VIEW IF EXISTS bug48506_t1, bug48506_t2, bug48506_t3;
 DROP TEMPORARY TABLES t7;
 DROP TABLES t4, t5;

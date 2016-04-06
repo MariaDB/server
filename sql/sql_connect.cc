@@ -1192,7 +1192,6 @@ void prepare_new_connection_state(THD* thd)
   */
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
-  thd->set_time();
   thd->init_for_queries();
 
   if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
@@ -1234,7 +1233,6 @@ void prepare_new_connection_state(THD* thd)
     }
 
     thd->proc_info=0;
-    thd->set_time();
     thd->init_for_queries();
   }
 }

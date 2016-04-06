@@ -32,9 +32,11 @@
 #include <my_getopt.h>
 #include <my_dir.h>
 
-#define MAX_ROWS  2000
+#define MAX_ROWS  3000
+#define ERRORS_PER_RANGE 1000
+#define MAX_SECTIONS 4
 #define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
-#define ERRMSG_VERSION 3                /* Version number of errmsg.sys */
+#define ERRMSG_VERSION 4                /* Version number of errmsg.sys */
 #define DEFAULT_CHARSET_DIR "../sql/share/charsets"
 #define ER_PREFIX "ER_"
 #define ER_PREFIX2 "MARIA_ER_"
@@ -53,6 +55,8 @@ static char *default_dbug_option= (char*) "d:t:O,/tmp/comp_err.trace";
 uchar file_head[]= { 254, 254, 2, ERRMSG_VERSION };
 /* Store positions to each error message row to store in errmsg.sys header */
 uint file_pos[MAX_ROWS+1];
+uint section_count,section_start;
+uchar section_header[MAX_SECTIONS*2];
 
 const char *empty_string= "";			/* For empty states */
 /*
@@ -131,7 +135,7 @@ static struct my_option my_long_options[]=
 };
 
 
-static struct errors *generate_empty_message(uint dcode);
+static struct errors *generate_empty_message(uint dcode, my_bool skip);
 static struct languages *parse_charset_string(char *str);
 static struct errors *parse_error_string(char *ptr, int er_count);
 static struct message *parse_message_string(struct message *new_message,
@@ -140,8 +144,9 @@ static struct message *find_message(struct errors *err, const char *lang,
                                     my_bool no_default);
 static int check_message_format(struct errors *err,
                                 const char* mess);
-static int parse_input_file(const char *file_name, struct errors **top_error,
-			    struct languages **top_language);
+static uint parse_input_file(const char *file_name, struct errors **top_error,
+                             struct languages **top_language,
+                             uint *error_count);
 static int get_options(int *argc, char ***argv);
 static void print_version(void);
 static void usage(void);
@@ -158,14 +163,15 @@ static char *find_end_of_word(char *str);
 static void clean_up(struct languages *lang_head, struct errors *error_head);
 static int create_header_files(struct errors *error_head);
 static int create_sys_files(struct languages *lang_head,
-			    struct errors *error_head, uint row_count);
+			    struct errors *error_head, uint max_error,
+                            uint error_count);
 
 
 int main(int argc, char *argv[])
 {
   MY_INIT(argv[0]);
   {
-    uint row_count;
+    uint max_error, error_count;
     struct errors *error_head;
     struct languages *lang_head;
     DBUG_ENTER("main");
@@ -173,32 +179,39 @@ int main(int argc, char *argv[])
     charsets_dir= DEFAULT_CHARSET_DIR;
     my_umask_dir= 0777;
     if (get_options(&argc, &argv))
-      DBUG_RETURN(1);
-    if (!(row_count= parse_input_file(TXTFILE, &error_head, &lang_head)))
+      goto err;
+    if (!(max_error= parse_input_file(TXTFILE, &error_head, &lang_head,
+                                      &error_count)))
     {
       fprintf(stderr, "Failed to parse input file %s\n", TXTFILE);
-      DBUG_RETURN(1);
+      goto err;
     }
     if (lang_head == NULL || error_head == NULL)
     {
       fprintf(stderr, "Failed to parse input file %s\n", TXTFILE);
-      DBUG_RETURN(1);
+      goto err;
     }
 
     if (create_header_files(error_head))
     {
       fprintf(stderr, "Failed to create header files\n");
-      DBUG_RETURN(1);
+      goto err;
     }
-    if (create_sys_files(lang_head, error_head, row_count))
+    if (create_sys_files(lang_head, error_head, max_error, error_count))
     {
       fprintf(stderr, "Failed to create sys files\n");
-      DBUG_RETURN(1);
+      goto err;
     }
     clean_up(lang_head, error_head);
     DBUG_LEAVE;			/* Can't use dbug after my_end() */
     my_end(info_flag ? MY_CHECK_ERROR | MY_GIVE_INFO : 0);
     return 0;
+
+err:
+    clean_up(lang_head, error_head);
+    DBUG_LEAVE;			/* Can't use dbug after my_end() */
+    my_end(info_flag ? MY_CHECK_ERROR | MY_GIVE_INFO : 0);
+    exit(1);
   }
 }
 
@@ -226,6 +239,7 @@ static void print_escaped_string(FILE *f, const char *str)
 static int create_header_files(struct errors *error_head)
 {
   uint er_last= 0;
+  uint section= 1;
   FILE *er_definef, *sql_statef, *er_namef;
   struct errors *tmp_error;
   struct message *er_msg;
@@ -266,8 +280,19 @@ static int create_header_files(struct errors *error_head)
     if (!tmp_error->er_name)
       continue;                                 /* Placeholder for gap */
 
-    if (tmp_error->d_code > current_d_code + 1)
+    while  (tmp_error->d_code > current_d_code + 1)
+    {
+      uint next_range= (((current_d_code + ERRORS_PER_RANGE) / 
+                         ERRORS_PER_RANGE) * ERRORS_PER_RANGE);
+
+      fprintf(er_definef, "#define ER_ERROR_LAST_SECTION_%d %d\n", section,
+              current_d_code);
       fprintf(er_definef, "\n/* New section */\n\n");
+      fprintf(er_definef, "#define ER_ERROR_FIRST_SECTION_%d %d\n", section+1,
+              MY_MIN(tmp_error->d_code, next_range));
+      section++;
+      current_d_code= MY_MIN(tmp_error->d_code, next_range);
+    }
     current_d_code= tmp_error->d_code;
 
     fprintf(er_definef, "#define %s %u\n", tmp_error->er_name,
@@ -297,17 +322,18 @@ static int create_header_files(struct errors *error_head)
 
 
 static int create_sys_files(struct languages *lang_head,
-			    struct errors *error_head, uint row_count)
+			    struct errors *error_head,
+                            uint max_error,
+                            uint error_count)
 {
   FILE *to;
   uint csnum= 0, length, i, row_nr;
-  uchar head[32];
+  uchar head[HEADER_LENGTH];
   char outfile[FN_REFLEN], *outfile_end;
   long start_pos;
   struct message *tmp;
   struct languages *tmp_lang;
   struct errors *tmp_error;
-
   MY_STAT stat_info;
   DBUG_ENTER("create_sys_files");
 
@@ -331,7 +357,7 @@ static int create_sys_files(struct languages *lang_head,
     {
       if (my_mkdir(outfile, 0777,MYF(0)) < 0)
       {
-        fprintf(stderr, "Can't create output directory for %s\n", 
+        fprintf(stderr, "Can't creqate output directory for %s\n", 
                 outfile);
         DBUG_RETURN(1);
       }
@@ -343,8 +369,8 @@ static int create_sys_files(struct languages *lang_head,
       DBUG_RETURN(1);
 
     /* 2 is for 2 bytes to store row position / error message */
-    start_pos= (long) (HEADER_LENGTH + row_count * 2);
-    fseek(to, start_pos, 0);
+    start_pos= (long) (HEADER_LENGTH + (error_count + section_count) * 2);
+    my_fseek(to, start_pos, 0, MYF(0));
     row_nr= 0;
     for (tmp_error= error_head; tmp_error; tmp_error= tmp_error->next_error)
     {
@@ -358,29 +384,38 @@ static int create_sys_files(struct languages *lang_head,
 		"language\n", tmp_error->er_name, tmp_lang->lang_short_name);
 	goto err;
       }
-      if (copy_rows(to, tmp->text, row_nr, start_pos))
+      if (tmp->text)                            /* If not skipped row */
       {
-	fprintf(stderr, "Failed to copy rows to %s\n", outfile);
-	goto err;
+        if (copy_rows(to, tmp->text, row_nr, start_pos))
+        {
+          fprintf(stderr, "Failed to copy rows to %s\n", outfile);
+          goto err;
+        }
+        row_nr++;
       }
-      row_nr++;
     }
+    DBUG_ASSERT(error_count == row_nr);
 
     /* continue with header of the errmsg.sys file */
-    length= ftell(to) - HEADER_LENGTH - row_count * 2;
+    length= (my_ftell(to, MYF(0)) - HEADER_LENGTH -
+             (error_count + section_count) * 2);
     bzero((uchar*) head, HEADER_LENGTH);
-    bmove((uchar *) head, (uchar *) file_head, 4);
+    bmove((uchar*) head, (uchar*) file_head, 4);
     head[4]= 1;
     int4store(head + 6, length);
-    int2store(head + 10, row_count);
+    int2store(head + 10, max_error);            /* Max error */
+    int2store(head + 12, row_nr);
+    int2store(head + 14, section_count);
     head[30]= csnum;
 
     my_fseek(to, 0l, MY_SEEK_SET, MYF(0));
-    if (my_fwrite(to, (uchar*) head, HEADER_LENGTH, MYF(MY_WME | MY_FNABP)))
+    if (my_fwrite(to, (uchar*) head, HEADER_LENGTH, MYF(MY_WME | MY_FNABP)) ||
+        my_fwrite(to, (uchar*) section_header, section_count*2,
+                  MYF(MY_WME | MY_FNABP)))
       goto err;
 
-    file_pos[row_count]= (ftell(to) - start_pos);
-    for (i= 0; i < row_count; i++)
+    file_pos[row_nr]= (ftell(to) - start_pos);
+    for (i= 0; i < row_nr; i++)
     {
       /* Store length of each string */
       int2store(head, file_pos[i+1] - file_pos[i]);
@@ -437,24 +472,29 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
 }
 
 
-static int parse_input_file(const char *file_name, struct errors **top_error,
-			    struct languages **top_lang)
+static uint parse_input_file(const char *file_name, struct errors **top_error,
+                             struct languages **top_lang, uint *error_count)
 {
   FILE *file;
   char *str, buff[1000];
   struct errors *current_error= 0, **tail_error= top_error;
   struct message current_message;
-  uint rcount= 0;
+  uint rcount= 0, skiped_errors= 0;
   my_bool er_offset_found= 0;
   DBUG_ENTER("parse_input_file");
 
   *top_error= 0;
   *top_lang= 0;
+  *error_count= 0;
+  section_start= er_offset;
+  section_count= 0;
+
   if (!(file= my_fopen(file_name, O_RDONLY | O_SHARE, MYF(MY_WME))))
     DBUG_RETURN(0);
 
   while ((str= fgets(buff, sizeof(buff), file)))
   {
+    my_bool skip;
     if (is_prefix(str, "language"))
     {
       if (!(*top_lang= parse_charset_string(str)))
@@ -464,18 +504,34 @@ static int parse_input_file(const char *file_name, struct errors **top_error,
       }
       continue;
     }
-    if (is_prefix(str, "start-error-number"))
+    skip= 0;
+    if (is_prefix(str, "start-error-number") ||
+        (skip= is_prefix(str, "skip-to-error-number")))
     {
       uint tmp_er_offset;
+
       if (!(tmp_er_offset= parse_error_offset(str)))
       {
 	fprintf(stderr, "Failed to parse the error offset string!\n");
 	DBUG_RETURN(0);
       }
+      if (skip)
+      {
+        if (section_count >= MAX_SECTIONS-1)
+        {
+          fprintf(stderr, "Found too many skip-to-error-number entries. "
+                  "We only support %d entries\n", MAX_SECTIONS);
+          DBUG_RETURN(0);
+        }
+        int2store(section_header + section_count*2,
+                  er_offset +rcount - section_start);
+        section_count++;
+        section_start= tmp_er_offset;
+      }
       if (!er_offset_found)
       {
         er_offset_found= 1;
-        er_offset= tmp_er_offset;
+        er_offset= section_start= tmp_er_offset;
       }
       else
       {
@@ -487,7 +543,8 @@ static int parse_input_file(const char *file_name, struct errors **top_error,
         }
         for ( ; er_offset + rcount < tmp_er_offset ; rcount++)
         {
-          current_error= generate_empty_message(er_offset + rcount);
+          skiped_errors+= skip != 0;
+          current_error= generate_empty_message(er_offset + rcount, skip);
           *tail_error= current_error;
           tail_error= &current_error->next_error;
         }
@@ -559,6 +616,11 @@ static int parse_input_file(const char *file_name, struct errors **top_error,
     fprintf(stderr, "Wrong input file format. Stop!\nLine: %s\n", str);
     DBUG_RETURN(0);
   }
+  int2store(section_header + section_count*2,
+            er_offset + rcount - section_start);
+  section_count++;
+  *error_count= rcount - skiped_errors;
+
   *tail_error= 0;			/* Mark end of list */
 
   my_fclose(file, MYF(0));
@@ -887,7 +949,7 @@ static struct message *parse_message_string(struct message *new_message,
 }
 
 
-static struct errors *generate_empty_message(uint d_code)
+static struct errors *generate_empty_message(uint d_code, my_bool skip)
 {
   struct errors *new_error;
   struct message message;
@@ -896,7 +958,8 @@ static struct errors *generate_empty_message(uint d_code)
   if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
                                                MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1, MYF(0)))
+  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1,
+                            MYF(0)))
     return(0);				/* OOM: Fatal error */
 
   new_error->er_name= NULL;
@@ -904,8 +967,10 @@ static struct errors *generate_empty_message(uint d_code)
   new_error->sql_code1= empty_string;
   new_error->sql_code2= empty_string;
 
+  message.text= 0;              /* If skip set, don't generate a text */
+
   if (!(message.lang_short_name= my_strdup(default_language, MYF(MY_WME))) ||
-      !(message.text= my_strdup("", MYF(MY_WME))))
+      (!skip && !(message.text= my_strdup("", MYF(MY_WME)))))
     return(0);
 
   /* Can't fail as msg is preallocated */
@@ -1071,10 +1136,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__ ((unused)),
   switch (optid) {
   case 'V':
     print_version();
+    my_end(0);
     exit(0);
     break;
   case '?':
     usage();
+    my_end(0);
     exit(0);
     break;
   case '#':

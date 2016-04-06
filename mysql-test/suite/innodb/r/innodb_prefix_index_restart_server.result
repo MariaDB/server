@@ -11,7 +11,7 @@ SELECT col_1_text = REPEAT("a", 3500) , col_2_text  = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text  = REPEAT("o", 3500)
 1	1
-"In connection 1"
+connect  con1,localhost,root,,;
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
@@ -19,10 +19,10 @@ col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
-"In connection 2"
+connect  con2,localhost,root,,;
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("b", 3500) , REPEAT("o", 3500));
-"In connection 1"
+connection con1;
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
@@ -31,7 +31,7 @@ SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
 START TRANSACTION;
-"In connection default ....restarting the server"
+connection default;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
@@ -39,7 +39,9 @@ SELECT col_1_text = REPEAT("a", 3500) , col_2_text  = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text  = REPEAT("o", 3500)
 1	1
-"In connection 1"
+disconnect con1;
+disconnect con2;
+connect  con1,localhost,root,,;
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
@@ -54,7 +56,7 @@ SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
 1	1
-"In connection default ....restarting the server"
+connection default;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
@@ -62,7 +64,8 @@ SELECT col_1_text = REPEAT("a", 3500) , col_2_text  = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text  = REPEAT("o", 3500)
 1	1
-"In connection 1"
+disconnect con1;
+connect  con2,localhost,root,,;
 SELECT col_1_text = REPEAT("a", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
@@ -76,7 +79,7 @@ SELECT col_1_text = REPEAT("b", 3500) , col_2_text = REPEAT("o", 3500) FROM
 worklog5743;
 col_1_text = REPEAT("b", 3500)	col_2_text = REPEAT("o", 3500)
 1	1
-"In connection default ....restarting the server"
+connection default;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1

@@ -33,9 +33,14 @@ BEGIN
 INSERT INTO t1 VALUES ('MySQL','1993-02-04'),('ROCKS', '1990-08-27'),('Texas', '1999-03-30'),('kyle','2005-1-1');
 END|
 CALL p2();
+connection slave;
+connection master;
 CALL p1();
+connection slave;
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
+connection slave;
 include/rpl_end.inc

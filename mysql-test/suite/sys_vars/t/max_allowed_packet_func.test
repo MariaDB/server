@@ -69,7 +69,6 @@ SET @@global.net_buffer_length = 1024;
 SELECT @@global.max_allowed_packet;
 SELECT @@global.net_buffer_length;
 
---echo ## Creating new connection test_con1 ##
 connect (test_con1,localhost,root,,);
 connection test_con1;
 
@@ -82,4 +81,3 @@ connection default;
 drop table t1;
 SET @@global.max_allowed_packet= @start_max_allowed_packet;
 SET @@global.net_buffer_length= @start_value;
-

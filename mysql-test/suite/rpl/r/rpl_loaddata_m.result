@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 drop database if exists mysqltest;
+connection master;
 USE test;
 CREATE TABLE t1(a INT, b INT, UNIQUE(b));
 LOAD DATA INFILE '../../std_data/rpl_loaddata.dat' INTO TABLE test.t1;
@@ -14,6 +15,7 @@ LOAD DATA INFILE '../../std_data/rpl_loaddata.dat' INTO TABLE mysqltest.t1;
 SELECT COUNT(*) FROM mysqltest.t1;
 COUNT(*)
 2
+connection slave;
 SHOW DATABASES;
 Database
 information_schema
@@ -32,6 +34,8 @@ t1
 SELECT COUNT(*) FROM mysqltest.t1;
 COUNT(*)
 2
+connection master;
 DROP DATABASE mysqltest;
 DROP TABLE IF EXISTS test.t1;
+connection slave;
 include/rpl_end.inc

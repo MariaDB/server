@@ -2,6 +2,9 @@
 # MDEV-6756: map a linux pid (child pid) to a connection id shown in
 # the output of SHOW PROCESSLIST
 #
+connect  con1,localhost,root;
 SELECT max(tid) != min(tid) FROM information_schema.processlist;
 max(tid) != min(tid)
 1
+connection default;
+disconnect con1;

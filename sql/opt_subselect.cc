@@ -4167,7 +4167,6 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
                                               field->null_ptr,
                                               field->null_bit)))
 	  goto err;
-        key_part_info->key_part_flag|= HA_END_SPACE_ARE_EQUAL; //todo need this?
       }
       keyinfo->key_length+=  key_part_info->length;
     }

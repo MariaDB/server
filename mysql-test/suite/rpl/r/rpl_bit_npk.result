@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP TABLE IF EXISTS test.t1;
 CREATE TABLE test.t1 (
 dummyKey INTEGER NOT NULL,
@@ -94,6 +95,7 @@ hex(bit3)
 15
 24
 35
+connection slave;
 SELECT  oSupp, sSuppD, GSuppDf, VNotSupp, x034
 FROM test.t1
 ORDER BY oSupp, sSuppD, GSuppDf, VNotSupp, x034;
@@ -136,6 +138,7 @@ hex(bit3)
 15
 24
 35
+connection master;
 CREATE TABLE test.t2 (a INT, b BIT(1));
 INSERT INTO test.t2 VALUES (1, b'0');
 INSERT INTO test.t2 VALUES (1, b'1');
@@ -152,6 +155,7 @@ SELECT * FROM test.t3 ORDER BY a,b;
 a	b
 1	NULL
 2	0
+connection slave;
 SELECT a, hex(b) FROM test.t2 ORDER BY a,b;
 a	hex(b)
 1	0
@@ -160,7 +164,9 @@ SELECT * FROM test.t3 ORDER BY a,b;
 a	b
 1	NULL
 2	0
+connection master;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP TABLE IF EXISTS test.t3;
+connection slave;
 include/rpl_end.inc

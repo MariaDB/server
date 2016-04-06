@@ -50,7 +50,6 @@ let $start_value= `SELECT @@global.interactive_timeout`;
 --echo ## Setting initial value of variable to 1 ##
 SET @@global.interactive_timeout = 1;
 
---echo ## Creating new connection test_con1 ##
 # Not yet possible to set CLEAN_INTERACTIVE flag
 connect (test_con1, localhost, root,,,,,);
 connection test_con1;
@@ -65,24 +64,19 @@ SET @@session.interactive_timeout = 1;
 SELECT @@session.interactive_timeout;
 SELECT @@global.interactive_timeout;
 
---echo connection default;
 connection default;
 --echo ## Using sleep to check timeout ##
 --echo sleep 2;
 sleep 2;
 
---echo connection test_con1;
 connection test_con1;
 SELECT * from t1;
 
 INSERT into t1(name) values('Record_2');
 
---echo connection default;
 connection default;
 
---echo disconnect test_con1;
 disconnect test_con1;
 DROP TABLE t1;
 
 eval SET @@global.interactive_timeout= $start_value;
-

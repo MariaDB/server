@@ -96,14 +96,14 @@ CREATE USER plug_user
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect(plug_user,localhost,plug_user,plug_dest);
+connect plug_user,localhost,plug_user,plug_dest;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug_user@localhost	plug_dest@%
 connection default;
 disconnect plug_user;
 RENAME USER plug_user TO new_user;
-connect(plug_user,localhost,new_user,plug_dest);
+connect plug_user,localhost,new_user,plug_dest;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_user@localhost	plug_dest@%
@@ -125,7 +125,7 @@ CREATE USER plug_user
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect(plug_user,localhost,plug_user,plug_dest);
+connect plug_user,localhost,plug_user,plug_dest;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug_user@localhost	plug_dest@%
@@ -153,7 +153,6 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 new_user	new_plugin_server	new_dest
 plug_dest		
-connect(plug_user,localhost,new_user,new_dest);
 ERROR HY000: Plugin 'new_plugin_server' is not loaded
 UPDATE mysql.user SET plugin='test_plugin_server' WHERE user='new_user';
 UPDATE mysql.user SET USER='new_dest' WHERE user='plug_dest';
@@ -163,7 +162,7 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 new_dest		
 new_user	test_plugin_server	new_dest
-connect(plug_user,localhost,new_user,new_dest);
+connect plug_user,localhost,new_user,new_dest;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_user@localhost	new_dest@%
@@ -178,7 +177,7 @@ new_dest
 new_user	test_plugin_server	new_dest
 plug_dest		
 GRANT ALL PRIVILEGES ON test.* TO new_user;
-connect(plug_user,localhost,new_dest,new_dest_passwd);
+connect plug_user,localhost,new_dest,new_dest_passwd;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_dest@localhost	new_dest@%
@@ -192,7 +191,7 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 	test_plugin_server	proxied_user
 proxied_user		
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
@@ -202,16 +201,15 @@ SELECT @@proxy_user;
 NULL
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
+connect proxy_con,localhost,proxy_user,proxied_user;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxy_user@localhost	proxied_user@%
@@ -229,7 +227,7 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 	test_plugin_server	proxied_user
 proxied_user		
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
@@ -238,16 +236,15 @@ SELECT @@proxy_user;
 NULL
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect proxy_con,localhost,proxied_user,proxied_user_passwd;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
+connect proxy_con,localhost,proxy_user,proxied_user;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxy_user@localhost	proxied_user@%
@@ -276,11 +273,11 @@ proxied_user_2
 proxied_user_3		
 proxied_user_4		
 proxied_user_5		
-connect(proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd');
-connect(proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd);
-connect(proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd);
-connect(proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd);
-connect(proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd);
+connect proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd';
+connect proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd;
+connect proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd;
+connect proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd;
+connect proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd;
 connection proxy_con_1;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()

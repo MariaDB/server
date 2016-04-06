@@ -263,6 +263,7 @@ a	b
 101	101
 102	102
 103	103
+connection slave;
 
 SHOW TABLES LIKE 't%';
 Tables_in_test (t%)
@@ -423,6 +424,7 @@ a	b
 101	101
 102	102
 103	103
+connection master;
 
 UPDATE t1 SET c='';
 UPDATE t2 SET c='';
@@ -432,8 +434,10 @@ UPDATE t12 SET c='';
 UPDATE t13 SET c='';
 ALTER TABLE t3 ORDER BY a;
 ALTER TABLE t13 ORDER BY a;
+connection slave;
 
 
+connection master;
 
 DROP VIEW IF EXISTS v1,v11;
 DROP TABLE IF EXISTS t1,t2,t3,t11,t12,t13;
@@ -443,4 +447,5 @@ DROP FUNCTION IF EXISTS f1;
 DROP FUNCTION IF EXISTS f2;
 DROP EVENT IF EXISTS e1;
 DROP EVENT IF EXISTS e11;
+connection slave;
 include/rpl_end.inc

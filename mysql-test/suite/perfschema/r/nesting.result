@@ -1,4 +1,4 @@
-"================== con1 connected =================="
+connect  con1, localhost, user1, , ;
 select "MARKER_BEGIN" as marker;
 marker
 MARKER_BEGIN
@@ -24,7 +24,7 @@ MARKER_END
 select "Con1 is done with payload" as status;
 status
 Con1 is done with payload
-"================== con1 done =================="
+connection default;
 set @con1_tid = (select thread_id from performance_schema.threads
 where processlist_user = 'user1');
 select (@con1_tid is not null) as expected;
@@ -239,3 +239,4 @@ select "With a third part to make things complete" as payload	NULL	NULL
 126	126	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	110
 127	128	stage/sql/cleaning up	(stage)	STATEMENT	110
 128	128	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	127
+disconnect con1;

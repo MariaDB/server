@@ -617,7 +617,6 @@ select is_free_lock('test');
 select is_used_lock('test') = connection_id();
 
 connect (con1,localhost,root,,);
---echo # -> Switching to connection 'con1'
 connection con1;
 --echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired in another
 --echo # connection
@@ -630,7 +629,6 @@ select get_lock('test', 0);
 --echo # RELEASE_LOCK returns 0 if the lock belongs to another connection 
 select release_lock('test');
 
---echo # -> Switching to connection 'default'
 connection default;
 
 --echo # RELEASE_LOCK returns 1 if it successfully releases a lock
@@ -640,23 +638,19 @@ select release_lock('test');
 
 --echo # Test that get_lock() returns NULL if error.
 select get_lock('test', 0);
---echo # -> Switching to connection 'con1'
 connection con1;
 create table t1 select connection_id() as id;
 send select get_lock('test', 7200);
 
---echo # -> Switching to connection 'default'
 connection default;
 let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
 source include/wait_condition.inc;
 select (@id := id) - id from t1;
 kill query @id;
 
---echo # -> Switching to connection 'con1'
 connection con1;
 reap;
 
---echo # -> Switching to connection 'default'
 connection default;
 
 --echo # GET_LOCK() works recursively 
@@ -686,12 +680,10 @@ select release_lock('test3');
 --echo # Deadlocks are detected e.g. in case of a mutual wait
 select get_lock('test1', 0);
 
---echo # -> Switching to connection 'con1'
 connection con1;
 select get_lock('test2', 0);
 send select get_lock('test1', 7200);
 
---echo # -> Switching to connection 'default'
 connection default;
 let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
 source include/wait_condition.inc;
@@ -700,13 +692,11 @@ select get_lock('test2', 7200);
 
 select release_lock('test1');
 
---echo # -> Switching to connection 'con1'
 connection con1;
 reap;
 select release_lock('test2');
 select release_lock('test1');
 
---echo # -> Switching to connection 'default'
 connection default;
 
 --echo # LOCK/UNLOCK TABLES works fine with a user lock.
@@ -738,12 +728,10 @@ select release_lock('test2');
 --echo # are detected OK.
 select get_lock('test', 0);
 
---echo # -> Switching to connection 'con1'
 connection con1;
 lock table t1 write;
 send select get_lock('test', 7200);
 
---echo # -> Switching to connection 'default'
 connection default;
 let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state = 'User lock';
 source include/wait_condition.inc;
@@ -752,7 +740,6 @@ lock table t1 read;
 
 select release_lock('test');
 
---echo # -> Switching to connection 'con1'
 connection con1;
 reap;
 select release_lock('test');
@@ -1071,7 +1058,6 @@ DROP TABLE t2;
 --echo # MDEV-4018 : Microseconds in GET_LOCK()
 --echo #
 
---echo # -> Switching to connection 'default'
 connection default;
 select is_used_lock('test') = connection_id();
 
@@ -1079,7 +1065,6 @@ select is_used_lock('test') = connection_id();
 select get_lock('test', 0);
 
 connect (con1,localhost,root,,);
---echo # -> Switching to connection 'con1'
 connection con1;
 select is_used_lock('test') = connection_id();
 select get_lock('test', 0);
@@ -1089,7 +1074,6 @@ select get_lock('test', 0.1);
 select get_lock('test', 0.000001);
 select get_lock('test', 0.0000000000000001);
 
---echo # -> Switching to connection 'default'
 connection default;
 select is_used_lock('test') = connection_id();
 select release_lock('test');

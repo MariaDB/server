@@ -4,6 +4,9 @@ include/master-slave.inc
 create database temp_db;
 use temp_db;
 alter database collate latin1_bin;
+connection slave;
 ==== Clean up ====
+connection master;
 drop database temp_db;
+connection slave;
 include/rpl_end.inc

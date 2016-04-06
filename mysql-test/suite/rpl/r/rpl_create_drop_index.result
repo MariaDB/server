@@ -1,9 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE TABLE t1 (a INT, b INT);
 CREATE INDEX i1 ON t1 (a);
 CREATE OR REPLACE INDEX i1 ON t1 (a, b);
-# On slave:
+connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -11,7 +12,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `i1` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-# On master:
+connection master;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -20,4 +21,5 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

@@ -1,10 +1,12 @@
 include/rpl_init.inc [topology=1->2]
 *** Test killing transaction waiting in commit for previous transaction to commit, when not using 2-phase commit ***
+connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 include/start_slave.inc
+connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -15,6 +17,7 @@ END
 ||
 SET sql_log_bin=1;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 RETURNS INT DETERMINISTIC
@@ -29,12 +32,15 @@ RETURN x;
 END
 ||
 SET sql_log_bin=1;
+connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
 SET binlog_format=statement;
 INSERT INTO t3 VALUES (31, foo(31,
 'ha_commit_one_phase WAIT_FOR t2_waiting',
 'commit_one_phase_2 SIGNAL t1_ready WAIT_FOR t1_cont'));
+connection server_1;
 SET debug_sync='now WAIT_FOR master_queued1';
+connect  con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
 SET binlog_format=statement;
 BEGIN;
@@ -45,20 +51,28 @@ INSERT INTO t3 VALUES (33, foo(33,
 'wait_for_prior_commit_waiting SIGNAL t2_waiting',
 'wait_for_prior_commit_killed SIGNAL t2_killed'));
 COMMIT;
+connection server_1;
 SET debug_sync='now WAIT_FOR master_queued2';
+connect  con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
 SET binlog_format=statement;
 INSERT INTO t3 VALUES (34, foo(34,
 '',
 ''));
+connection server_1;
 SET debug_sync='now WAIT_FOR master_queued3';
 SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+connection server_1;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
 31	31
 32	32
 33	33
 34	34
+connection server_2;
 SET sql_log_bin=0;
 CALL mtr.add_suppression("Query execution was interrupted");
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
@@ -86,7 +100,9 @@ RETURN x;
 END
 ||
 SET sql_log_bin=1;
+connection server_1;
 INSERT INTO t3 VALUES (39,0);
+connection server_2;
 include/start_slave.inc
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
@@ -110,14 +126,17 @@ RETURN x;
 END
 ||
 SET sql_log_bin=1;
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 SET debug_sync = 'reset';
 include/start_slave.inc
+connection server_1;
 DROP function foo;
 DROP TABLE t3;
 SET debug_sync = 'reset';

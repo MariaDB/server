@@ -189,7 +189,7 @@ public:
   {
     return collation->coll->strnncollsp(collation,
                                         (uchar *) s->ptr(), s->length(),
-                                        (uchar *) t->ptr(), t->length(), 0);
+                                        (uchar *) t->ptr(), t->length());
   }
 };
 

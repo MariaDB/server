@@ -80,11 +80,9 @@ INSERT INTO t9 VALUES (1, 1), (2, 2), (3, 3);
 
 # Only t1, t2, t3 should be replicated to slave
 sync_slave_with_master;
-echo [on slave];
 SHOW TABLES LIKE 't%';
 
 connection master;
-echo [on master];
 
 #
 # Do tables are not referenced, these statements should be ignored by
@@ -204,7 +202,6 @@ SELECT * FROM t3;
 
 # Clean up
 connection master;
-echo [on master];
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
 
 --sync_slave_with_master

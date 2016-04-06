@@ -64,7 +64,6 @@ eval CREATE TABLE mysqltest1.t1 (f1 BIGINT) ENGINE=$engine_type;
 SET AUTOCOMMIT = 0;
 
 sync_slave_with_master;
---echo -------- switch to slave --------
 connection slave;
 
 # We want to verify that the following transactions are written to the
@@ -79,7 +78,6 @@ connection slave;
 ALTER TABLE mysqltest1.t1 ENGINE = MyISAM;
 SHOW CREATE TABLE mysqltest1.t1;
 
---echo -------- switch to master --------
 connection master;
 INSERT INTO mysqltest1.t1 SET f1= 1;
 DROP TEMPORARY TABLE mysqltest1.tmp;
@@ -98,7 +96,6 @@ SHOW CREATE TABLE mysqltest1.tmp2;
 SELECT COUNT(*) FROM mysqltest1.t1;
 
 sync_slave_with_master;
---echo -------- switch to slave --------
 connection slave;
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE mysqltest1.tmp;
@@ -108,7 +105,6 @@ SHOW CREATE TABLE mysqltest1.tmp2;
 SELECT COUNT(*) FROM mysqltest1.t1;
 FLUSH LOGS;
 
---echo -------- switch to master --------
 connection master;
 FLUSH LOGS;
 DROP TEMPORARY TABLE IF EXISTS mysqltest1.tmp2;
@@ -142,11 +138,9 @@ INSERT INTO t1 (b) VALUES (1),(2),(3);
 BEGIN;
 INSERT INTO t1(b) VALUES (4);
 
---echo -------- switch to master1 --------
 connection master1;
 --send RENAME TABLE t1 TO t3, t2 TO t1;
 
---echo -------- switch to master --------
 connection master;
 # Need to wait until RENAME is received
 let $wait_condition=
@@ -157,23 +151,19 @@ let $wait_condition=
 
 COMMIT;
 
---echo -------- switch to master1 --------
 connection master1;
 --reap
 
---echo -------- switch to master --------
 connection master;
 SELECT * FROM t1;
 SELECT * FROM t3;
 
 sync_slave_with_master;
 
---echo -------- switch to slave --------
 connection slave;
 SELECT * FROM t1;
 SELECT * FROM t3;
 
---echo -------- switch to master --------
 connection master;
 DROP TABLE t1;
 DROP TABLE t3;

@@ -34,7 +34,6 @@ drop table test.t1;
 #
 
 connection master;
--- echo "============ Performance schema on master ============"
 
 select
   substring(file_name, locate("master-", file_name)) as FILE_NAME,

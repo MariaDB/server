@@ -1,6 +1,8 @@
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
 use mysqltest;
 create table t1(a int) engine=aria;
 insert into t1 values(1);
@@ -16,7 +18,10 @@ create table t6 (a int) engine=aria;
 INSERT INTO t6 VALUES (1),(2);
 flush tables;
 create_rename_lsn has non-magic value
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 select * from t1;
 a
 1

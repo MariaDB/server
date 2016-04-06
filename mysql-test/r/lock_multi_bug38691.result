@@ -1,5 +1,8 @@
 SET @odl_sync_frm = @@global.sync_frm;
 SET @@global.sync_frm = OFF;
+connect  locker,localhost,root,,;
+connect  writer,localhost,root,,;
+connection default;
 DROP TABLE IF EXISTS t1,t2,t3;
 CREATE TABLE t1 (
 a int(11) unsigned default NULL,
@@ -15,6 +18,10 @@ CREATE TABLE t3 SELECT * FROM t1;
 # PS mode
 # test altering of columns that multiupdate uses
 # normal mode
+connection default;
 # PS mode
+connection default;
 DROP TABLE t1, t2, t3;
+disconnect locker;
+disconnect writer;
 SET @@global.sync_frm = @odl_sync_frm;

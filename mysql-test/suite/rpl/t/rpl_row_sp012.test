@@ -40,8 +40,6 @@ set sql_mode=default;
 # Need to wait for the rights to be applied at the slave
 sync_slave_with_master;
 
-let $message=<********  Master user1 p3 & p2 calls *******>;
---source include/show_msg.inc
 connect (muser1,localhost,user1,,);
 connection muser1;
 SELECT CURRENT_USER();
@@ -49,8 +47,6 @@ SELECT USER();
 CALL test.p3();
 CALL test.p2();
 
-let $message=<********  Slave user1 p3 & p2 calls *******>;
---source include/show_msg.inc
 connect (suser1,127.0.0.1,user1,,test,$SLAVE_MYPORT,);
 
 connection master;

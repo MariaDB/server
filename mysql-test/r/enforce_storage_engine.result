@@ -69,8 +69,12 @@ ERROR 42000: Unknown storage engine 'FooBar'
 select @@session.enforce_storage_engine;
 @@session.enforce_storage_engine
 MyISAM
+connect  con1,localhost,user_1,,;
+connection con1;
 SET SESSION enforce_storage_engine=MyISAM;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+disconnect con1;
+connection default;
 SET SESSION enforce_storage_engine=NULL;
 SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=Memory;
@@ -102,6 +106,8 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 SET GLOBAL enforce_storage_engine=Memory;
 SET SESSION sql_mode='';
+connect  con1,localhost,root,,;
+connection con1;
 select @@session.enforce_storage_engine;
 @@session.enforce_storage_engine
 MEMORY
@@ -119,6 +125,8 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
 DROP TABLE t1;
+connection default;
+disconnect con1;
 set global sql_mode=default;
 SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

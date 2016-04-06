@@ -1,4 +1,5 @@
 include/master-slave.inc
 [connection master]
+connection server_2;
 kill user test2@nohost;
 include/rpl_end.inc

@@ -4,7 +4,6 @@
 --source include/not_valgrind.inc
 --source include/master-slave.inc
 
---echo # On master
 connection master;
 
 call mtr.add_suppression("mysqld: Table './mysql/gtid_slave_pos' is marked as crashed and should be repaired");
@@ -21,7 +20,6 @@ insert into tm set a=null;
 
 save_master_pos;
 
---echo # On slave
 connection slave;
 sync_with_master;
 --source include/stop_slave.inc
@@ -29,7 +27,6 @@ sync_with_master;
 select * from ti;
 select * from tm;
 
---echo # On master
 connection master;
 SET @@session.gtid_domain_id= 1;
 
@@ -45,7 +42,6 @@ insert into tm set a=null;
 set @@global.debug_dbug="+d,crash_before_send_xid";
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
---echo # On slave
 connection slave;
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -61,7 +57,6 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On master
 connection master;
 --source include/wait_until_disconnected.inc
 --enable_reconnect
@@ -73,7 +68,6 @@ connection master;
 set @@global.debug_dbug="-d";
 save_master_pos;
 
---echo # On slave
 --connection slave
 --source include/stop_slave.inc
 --source include/start_slave.inc
@@ -82,17 +76,14 @@ select * from ti;
 select * from tm;
 
 # Cleanup
---echo # On master
 --connection master
 drop table ti;
 drop table tm;
 sync_slave_with_master;
 
---echo # On slave
 --connection slave
 --source include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 
 --source include/rpl_end.inc
-

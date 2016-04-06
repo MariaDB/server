@@ -62,8 +62,7 @@ while ($masters)
   --let $masters= `SELECT SUBSTRING('$masters', LENGTH('$master_i') + 2)`
 
   # Connect to master and execute statement
-  --let $rpl_connection_name= server_$master_i
-  --source include/rpl_connection.inc
+  connection server_$master_i;
   DELETE FROM t1;
   --eval INSERT INTO t1 VALUES ($next_number)
 }

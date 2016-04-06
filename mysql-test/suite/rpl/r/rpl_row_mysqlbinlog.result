@@ -4,6 +4,7 @@ include/master-slave.inc
 ---Setup Section  --
 set timestamp=1000000000;
 DROP TABLE IF EXISTS t1,t2,t3;
+connection master;
 CREATE TABLE t1(word VARCHAR(20));
 CREATE TABLE t2(id INT AUTO_INCREMENT NOT NULL PRIMARY KEY);
 CREATE TABLE t3(c1 INT NOT NULL PRIMARY KEY, c2 LONGBLOB, c3 TIMESTAMP, c4 TEXT, c5 FLOAT);
@@ -39,6 +40,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
 351
@@ -69,6 +71,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection master;
 insert into t1 values ("Alas");
 flush logs;
 
@@ -78,12 +81,16 @@ flush logs;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
+connection master;
 reset master;
+connection slave;
 reset slave;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 
 --- Test 1 Load from Dump binlog file --
 
@@ -118,6 +125,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
 352
@@ -148,6 +156,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection master;
 
 --- Test 2 position test --
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -210,12 +219,16 @@ ROLLBACK /* added by mysqlbinlog */;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
+connection master;
 reset master;
+connection slave;
 reset slave;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 SELECT COUNT(*) from t1;
 COUNT(*)
 352
@@ -246,6 +259,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
 352
@@ -276,6 +290,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+connection master;
 
 --- Test 5 LOAD DATA --
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -346,12 +361,16 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 
 --- Test 8 switch internal charset --
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
+connection master;
 reset master;
+connection slave;
 reset slave;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 create table t4 (f text character set utf8);
 create table t5 (f text character set cp932);
 flush logs;
@@ -368,6 +387,7 @@ HEX(f)
 select HEX(f) from t5;
 HEX(f)
 835C
+connection slave;
 select HEX(f) from t04;
 HEX(f)
 E382BD
@@ -382,6 +402,9 @@ HEX(f)
 835C
 
 --- Test cleanup --
+connection master;
+connection slave;
+connection master;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT NOT NULL KEY, b INT);
 INSERT INTO t1 VALUES(1,1);
@@ -390,4 +413,5 @@ a	b
 1	1
 FLUSH LOGS;
 DROP TABLE IF EXISTS t1, t2, t3, t04, t05, t4, t5;
+connection slave;
 include/rpl_end.inc

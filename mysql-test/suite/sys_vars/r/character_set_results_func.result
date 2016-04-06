@@ -2,16 +2,17 @@
 SET @global_character_set_results = @@global.character_set_results;
 SET @session_character_set_results = @@session.character_set_results;
 SET @@global.character_set_results = utf8;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.character_set_results;
 @@global.character_set_results
 utf8
 SELECT @@session.character_set_results;
 @@session.character_set_results
 latin1
+disconnect con1;
 '#--------------------FN_DYNVARS_012_02-------------------------#'
-'connection default'
+connection default;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(b CHAR(40) character set utf8);
 SET NAMES utf8;
@@ -59,6 +60,6 @@ b	CHAR_LENGTH(b)
 ????	4
 ?????	5
 DROP TABLE t1;
-'connection default;'
+connection default;
 SET @@global.character_set_results = @global_character_set_results;
 SET @@session.character_set_results = @session_character_set_results;

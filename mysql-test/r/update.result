@@ -477,6 +477,8 @@ a	quux
 2	0.100000000000000000000000000000
 3	NULL
 DROP TABLE t1;
+connect  con1,localhost,root,,test;
+connection con1;
 set tmp_table_size=1024;
 create table t1 (id int, a int, key idx(a));
 create table t2 (id int unsigned not null auto_increment primary key, a int);
@@ -511,6 +513,8 @@ update t1 join t2 on (t1.a=t2.a) set t1.id=t2.id;
 affected rows: 127
 info: Rows matched: 128  Changed: 127  Warnings: 0
 drop table t1,t2;
+connection default;
+disconnect con1;
 DROP TABLE IF EXISTS t1;
 DROP FUNCTION IF EXISTS f1;
 CREATE FUNCTION f1() RETURNS INT RETURN f1();

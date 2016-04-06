@@ -3,7 +3,10 @@ include/master-slave.inc
 #
 # New --dump-slave, --apply-slave-statements functionality
 #
+connection slave;
+connection master;
 use test;
+connection slave;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 STOP ALL SLAVES;
@@ -23,9 +26,12 @@ start slave;
 Warnings:
 Note	1254	Slave is already running
 *** Test mysqldump --dump-slave GTID functionality.
+connection master;
 SET gtid_seq_no = 1000;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 DROP TABLE t1;
+connection slave;
+connection slave;
 CREATE TABLE t2 (a INT PRIMARY KEY);
 DROP TABLE t2;
 

@@ -15,12 +15,15 @@ set @var2= 'insert into t1 values (concat("from-var-", ?))';
 prepare stmt2 from @var2;
 set @var1='from-master-3';
 execute stmt2 using @var1;
+connection slave;
 SELECT * FROM t1 ORDER BY n;
 n
 from-master-1
 from-master-2-'',
 from-var-from-master-3
+connection master;
 drop table t1;
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
 
@@ -30,21 +33,21 @@ include/wait_for_slave_to_stop.inc
 # statement breaks binlog.
 #
 ########################################################################
-# Connection: slave
+connection slave;
 START SLAVE;
-# Connection: master
+connection master;
 CREATE DATABASE mysqltest1;
 CREATE TABLE t1(db_name CHAR(32), db_col_name CHAR(32));
 PREPARE stmt_d_1 FROM 'INSERT INTO t1 VALUES(DATABASE(), @@collation_database)';
 EXECUTE stmt_d_1;
 use mysqltest1;
 EXECUTE stmt_d_1;
-# Connection: slave
+connection slave;
 SELECT * FROM t1;
 db_name	db_col_name
 test	latin1_swedish_ci
 test	latin1_swedish_ci
-# Connection: master
+connection master;
 DROP DATABASE mysqltest1;
 use test;
 DROP TABLE t1;

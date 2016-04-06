@@ -4,7 +4,7 @@ GRANT USAGE ON *.* TO test1@localhost;
 GRANT USAGE ON *.* TO test2@localhost;
 GRANT CREATE, DROP, INSERT, SELECT ON test.* TO test1@localhost;
 GRANT CREATE, DROP, ALTER, UPDATE, INSERT, SELECT ON test.* TO test2@localhost;
-connect (test1,localhost,test1,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test1,localhost,test1,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 SELECT current_user();
 current_user()
 test1@localhost
@@ -15,7 +15,7 @@ GRANT SELECT, INSERT, CREATE, DROP ON `test`.* TO 'test1'@'localhost'
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
 ERROR 42000: ALTER command denied to user 'test1'@'localhost' for table 'tp'
 disconnect test1;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SELECT current_user();
 current_user()
@@ -73,7 +73,7 @@ a	b
 disconnect test2;
 connection default;
 REVOKE ALTER ON test.* FROM test2@localhost;
-connect (test2,localhost,test2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 USE test;
 SELECT current_user();
 current_user()

@@ -3,16 +3,21 @@ include/master-slave.inc
 DROP TABLE IF EXISTS t1;
 **** Testing WL#3228 changes. ****
 *** Create "wider" table on slave ***
+connection slave;
 Checking MYSQL_TYPE_NEWDECIMAL fields
+connection master;
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a DECIMAL(5,2));
+connection master;
 CREATE TABLE t1 (a DECIMAL(20, 10));
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'decimal(20,10)' to type 'decimal(5,2)''
@@ -21,15 +26,21 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a DECIMAL(27, 9));
+connection master;
 CREATE TABLE t1 (a DECIMAL(27, 18));
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'decimal(27,18)' to type 'decimal(27,9)''
@@ -38,15 +49,21 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a NUMERIC(5,2));
+connection master;
 CREATE TABLE t1 (a NUMERIC(20, 10));
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'decimal(20,10)' to type 'decimal(5,2)''
@@ -55,16 +72,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_FLOAT fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a FLOAT(20));
+connection master;
 CREATE TABLE t1 (a FLOAT(47));
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'double' to type 'float''
@@ -73,16 +96,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_BIT fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a BIT(5));
+connection master;
 CREATE TABLE t1 (a BIT(64));
 RESET MASTER;
 INSERT INTO t1 VALUES (B'10101');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'bit(64)' to type 'bit(5)''
@@ -91,15 +120,21 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a BIT(11));
+connection master;
 CREATE TABLE t1 (a BIT(12));
 RESET MASTER;
 INSERT INTO t1 VALUES (B'10101');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'bit(12)' to type 'bit(11)''
@@ -108,16 +143,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_SET fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a SET('4'));
+connection master;
 CREATE TABLE t1 (a SET('1','2','3','4','5','6','7','8','9'));
 RESET MASTER;
 INSERT INTO t1 VALUES ('4');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'set' to type 'set('4')''
@@ -126,16 +167,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_STRING fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a CHAR(10));
+connection master;
 CREATE TABLE t1 (a CHAR(20));
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'char(20)' to type 'char(10)''
@@ -144,13 +191,18 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_ENUM fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a ENUM('44','54'));
+connection master;
 CREATE TABLE t1 (a ENUM(
 '01','02','03','04','05','06','07','08','09',
 '11','12','13','14','15','16','17','18','19',
@@ -185,6 +237,7 @@ CREATE TABLE t1 (a ENUM(
             ));
 RESET MASTER;
 INSERT INTO t1 VALUES ('44');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'enum' to type 'enum('44','54')''
@@ -193,16 +246,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_VARCHAR fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a VARCHAR(100));
+connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000)' to type 'varchar(100)''
@@ -211,15 +270,21 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a VARCHAR(10));
+connection master;
 CREATE TABLE t1 (a VARCHAR(200));
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(200)' to type 'varchar(10)''
@@ -228,15 +293,21 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a VARCHAR(1000));
+connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000)' to type 'varchar(1000)''
@@ -245,16 +316,22 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
 Checking MYSQL_TYPE_BLOB fields
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
 CREATE TABLE t1 (a TINYBLOB);
+connection master;
 CREATE TABLE t1 (a LONGBLOB);
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
+connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'tinyblob' to type 'tinyblob''
@@ -263,10 +340,15 @@ COUNT(*)
 0
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 RESET MASTER;
+connection slave;
 START SLAVE;
+connection slave;
 call mtr.add_suppression("Slave SQL.*Table definition on master and slave does not match: Column 0 ...e mismatch.* error.* 1535");
 call mtr.add_suppression("Slave SQL.*Column 0 of table .test.t1. cannot be converted from type.* error.* 1677");
 *** Cleanup  ***
+connection master;
 DROP TABLE IF EXISTS t1;
+connection slave;
 include/rpl_end.inc

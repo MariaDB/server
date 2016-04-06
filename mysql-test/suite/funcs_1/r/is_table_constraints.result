@@ -127,7 +127,7 @@ SHOW INDEXES FROM db_datadict.t2;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t2	0	PRIMARY	1	f1	###	###	###	###	###	###	###	
 t2	0	PRIMARY	2	f2	###	###	###	###	###	###	###	
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
@@ -148,7 +148,8 @@ t1	0	my_idx1	2	f1	###	###	###	###	###	###	###
 t1	0	my_idx2	1	f3	###	###	###	###	###	###	###	
 SHOW INDEXES FROM db_datadict.t2;
 ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 't2'
-# Switch to connection default and close connection testuser1
+connection default;
+disconnect testuser1;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;
 #########################################################################################

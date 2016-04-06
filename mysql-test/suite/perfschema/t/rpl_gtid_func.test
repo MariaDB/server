@@ -6,7 +6,6 @@
 -- source include/master-slave.inc
 
 connection master;
---echo **** On Master ****
 
 --disable_warnings
 drop table if exists test.marker;
@@ -23,7 +22,6 @@ update performance_schema.setup_instruments
   set enabled='YES', timed='YES';
 
 sync_slave_with_master;
---echo **** On Slave ****
 
 truncate table performance_schema.events_waits_history_long;
 truncate table performance_schema.events_statements_summary_by_digest;
@@ -32,7 +30,6 @@ update performance_schema.setup_instruments
   set enabled='YES', timed='NO';
 
 connection master;
---echo **** On Master ****
 
 select * from performance_schema.setup_instruments
   where timed='NO';
@@ -52,7 +49,6 @@ select digest_text, count_star
 insert into test.marker values (2);
 
 sync_slave_with_master;
---echo **** On Slave ****
 
 select * from test.marker;
 
@@ -72,11 +68,9 @@ select digest_text, count_star
   where digest_text like "%in_%_digest%";
 
 connection master;
---echo **** On Master ****
 delete from performance_schema.setup_objects
   where object_schema='master';
 sync_slave_with_master;
---echo **** On Slave ****
 
 delete from performance_schema.setup_objects
   where object_schema='slave';

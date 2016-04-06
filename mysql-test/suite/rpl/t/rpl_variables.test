@@ -68,7 +68,6 @@ source include/master-slave.inc;
 
 # Backup the values of global variables so that they can be restored
 # later.
---echo [on master]
 connection master;
 SET @m_default_week_format=  @@global.default_week_format;
 SET @m_init_slave=           @@global.init_slave;
@@ -79,7 +78,6 @@ SET @m_slave_exec_mode=      @@global.slave_exec_mode;
 SET @m_sql_mode=             @@global.sql_mode;
 SET @m_sync_binlog=          @@global.sync_binlog;
 
---echo [on slave]
 connection slave;
 SET @s_default_week_format=  @@global.default_week_format;
 SET @s_init_slave=           @@global.init_slave;
@@ -117,7 +115,6 @@ SET @user_text = 'Alunda';
 SET @@global.init_slave = 'SELECT 1';
 
 
---echo [on master]
 connection master;
 # checking values of read-only variables
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -129,7 +126,6 @@ query_vertical SELECT @@relay_log, @@relay_log_index, @@relay_log_basename;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 query_vertical SELECT @@log_bin, @@log_bin_index, @@log_bin_basename;
 
---echo [on slave]
 connection slave;
 # checking values of read-only variables
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -141,7 +137,6 @@ query_vertical SELECT @@relay_log, @@relay_log_index, @@relay_log_basename;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 query_vertical SELECT @@log_bin, @@log_bin_index, @@log_bin_basename;
 
---echo [on master]
 connection master;
 
 # Tables where everything happens.
@@ -713,7 +708,6 @@ source include/diff_tables.inc;
 
 --echo ==== Clean up ====
 
---echo [on master]
 connection master;
 DROP PROCEDURE proc;
 DROP FUNCTION func;
@@ -729,7 +723,6 @@ SET @@global.slave_exec_mode=      @m_slave_exec_mode;
 SET @@global.sql_mode=             @m_sql_mode;
 SET @@global.sync_binlog=          @m_sync_binlog;
 
---echo [on slave]
 connection slave;
 SET @@global.default_week_format=  @s_default_week_format;
 SET @@global.init_slave=           @s_init_slave;

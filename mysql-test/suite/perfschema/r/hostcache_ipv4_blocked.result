@@ -28,14 +28,18 @@ create user 'root'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'root'@'santa.claus.ipv4.example.com';
 create user 'quota'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv4.example.com';
+connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive
 select current_user();
 current_user()
 root@localhost
+disconnect con1;
+connection default;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4,native_password_bad_reply";
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -65,6 +69,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -94,6 +99,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -123,6 +129,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Host '192.0.2.4' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -152,6 +159,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Host '192.0.2.4' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -182,6 +190,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 flush hosts;
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -211,6 +220,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -239,10 +249,13 @@ COUNT_LOCAL_ERRORS	0
 COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
+connection default;
 set global debug_dbug= "-d,native_password_bad_reply";
 message
 Valid connection should reset SUM_CONNECT_ERROR counter
+connection default;
 set global debug_dbug= "+d,native_password_bad_reply";
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -272,6 +285,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -301,6 +315,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -330,6 +345,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -359,6 +375,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Host '192.0.2.4' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
@@ -388,6 +405,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Host '192.0.2.4' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
+connection default;
 "Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com

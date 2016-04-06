@@ -2,6 +2,9 @@ select @default_binlog_format:=@@global.binlog_format;
 @default_binlog_format:=@@global.binlog_format
 STATEMENT
 set global binlog_format=row;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 set session debug_dbug="+d,optimizer_innodb_ds_mrr";
 set autocommit=0;
 use test;
@@ -20,6 +23,7 @@ select * from t1 where a > 2 for update;
 dummy	a	b
 3	3	3
 5	5	5
+connection con2;
 use test;
 set autocommit=0;
 start transaction;
@@ -29,6 +33,8 @@ select 1;
 insert into t1 values(2,2,2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 rollback;
+connection con1;
 rollback;
 drop table t1;
+connection default;
 set global binlog_format=@default_binlog_format;

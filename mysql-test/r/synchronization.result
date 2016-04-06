@@ -1,6 +1,10 @@
 DROP TABLE IF EXISTS t1,t2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 CREATE TABLE t1 (x1 INT);
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -8,7 +12,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -16,7 +22,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -24,7 +33,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -32,7 +43,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -40,7 +54,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -48,7 +64,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -56,7 +75,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -64,7 +85,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -72,7 +96,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -80,7 +106,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -88,7 +117,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -96,7 +127,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -104,7 +138,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -112,7 +148,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -120,7 +159,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -128,7 +169,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -136,7 +180,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -144,7 +190,10 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
+connection con1;
 ALTER TABLE t1 CHANGE x1 x2 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -152,7 +201,9 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 ALTER TABLE t1 CHANGE x2 x1 INT;
+connection con2;
 CREATE TABLE t2 LIKE t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -160,4 +211,8 @@ t2	CREATE TABLE `t2` (
   `xx` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+connection con1;
 DROP TABLE t1;
+connection default;
+disconnect con1;
+disconnect con2;

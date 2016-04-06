@@ -12,7 +12,6 @@ source include/master-slave.inc;
 
 --echo ==== Initialize ====
 
---echo [on master]
 --connection master
 
 create table t1 (id int);
@@ -35,13 +34,11 @@ delimiter ;$$
 call test_procedure(1234);
 
 
---echo [on slave]
 sync_slave_with_master;
 select * from t1 order by id;
 
 --echo ==== Clean up ====
 
---echo [on master]
 connection master;
 drop table t1;
 drop procedure test_procedure;

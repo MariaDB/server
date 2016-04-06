@@ -10,8 +10,6 @@
 
 --source ../have_engine.inc
 
---enable_connect_log
-
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 

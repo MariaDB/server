@@ -57,10 +57,6 @@ let $pfs_instrument='%statement/%';
 connection master;
 
 --echo
---echo **************
---echo *** MASTER ***
---echo **************
---echo
 --echo *** Create test tables
 --echo
 
@@ -76,9 +72,6 @@ create table test.marker(s1 int) engine=innodb;
 
 sync_slave_with_master;
 
---echo **************
---echo *** SLAVE  ***
---echo **************
 --echo
 --echo *** Clear statement events
 --source ../include/rpl_statements_truncate.inc
@@ -90,18 +83,12 @@ sync_slave_with_master;
 
 connection master;
 
---echo **************
---echo *** MASTER ***
---echo **************
 --echo
 insert into test.marker values (0);
 --echo
 
 sync_slave_with_master;
 
---echo **************
---echo *** SLAVE  ***
---echo **************
 --echo
 --echo *** Verify row, get replication thread id, clear statement events
 --echo
@@ -125,9 +112,6 @@ select count(*) = 1 as 'Expect 1' from test.marker;
 
 connection master;
 
---echo **************
---echo *** MASTER ***
---echo **************
 --echo
 show variables like 'binlog_format%';
 
@@ -212,10 +196,6 @@ create table test.master_events_statements_history_long as
 
 sync_slave_with_master;
 
---echo **************
---echo *** SLAVE  ***
---echo **************
-
 --source ../include/disable_instruments.inc
 
 --echo
@@ -282,9 +262,6 @@ select * from performance_schema.setup_instruments where name like '%statement/a
 
 connection master;
 
---echo **************
---echo *** MASTER ***
---echo **************
 --echo
 --echo *** Clear statement events
 --source ../include/rpl_statements_truncate.inc
@@ -301,9 +278,6 @@ insert into marker1_db.table1 values (999, '999'), (998, '998'), (997, '997');
 
 sync_slave_with_master;
 
---echo **************
---echo *** SLAVE  ***
---echo **************
 --echo
 --echo *** Confirm rows were replicated
 --echo
