@@ -1798,7 +1798,7 @@ bool Window_func_runner::exec(TABLE *tbl, SORT_INFO *filesort_result)
 }
 
 
-bool Window_func_sort::exec(JOIN *join)
+bool Window_funcs_sort::exec(JOIN *join)
 {
   THD *thd= join->thd;
   JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
@@ -1825,7 +1825,7 @@ bool Window_func_sort::exec(JOIN *join)
 }
 
 
-bool Window_func_sort::setup(THD *thd, SQL_SELECT *sel, 
+bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel, 
                              List_iterator<Item_window_func> &it)
 {
   Item_window_func *win_func= it.peek();
@@ -1854,7 +1854,7 @@ bool Window_func_sort::setup(THD *thd, SQL_SELECT *sel,
 }
 
 
-bool Window_funcs_computation_step::setup(THD *thd,
+bool Window_funcs_computation::setup(THD *thd,
                                           List<Item_window_func> *window_funcs,
                                           JOIN_TAB *tab)
 {
@@ -1867,11 +1867,11 @@ bool Window_funcs_computation_step::setup(THD *thd,
     DBUG_ASSERT(!sel->quick);
   }
 
-  Window_func_sort *srt;
+  Window_funcs_sort *srt;
   List_iterator<Item_window_func> iter(*window_funcs);
   while (iter.peek())
   {
-    if (!(srt= new Window_func_sort()) ||
+    if (!(srt= new Window_funcs_sort()) ||
         srt->setup(thd, sel, iter))
     {
       return true;
@@ -1882,10 +1882,10 @@ bool Window_funcs_computation_step::setup(THD *thd,
 }
 
 
-bool Window_funcs_computation_step::exec(JOIN *join)
+bool Window_funcs_computation::exec(JOIN *join)
 {
-  List_iterator<Window_func_sort> it(win_func_sorts);
-  Window_func_sort *srt;
+  List_iterator<Window_funcs_sort> it(win_func_sorts);
+  Window_funcs_sort *srt;
   /* Execute each sort */
   while ((srt = it++))
   {
@@ -1896,10 +1896,10 @@ bool Window_funcs_computation_step::exec(JOIN *join)
 }
 
 
-void Window_funcs_computation_step::cleanup()
+void Window_funcs_computation::cleanup()
 {
-  List_iterator<Window_func_sort> it(win_func_sorts);
-  Window_func_sort *srt;
+  List_iterator<Window_funcs_sort> it(win_func_sorts);
+  Window_funcs_sort *srt;
   while ((srt = it++))
   {
     srt->cleanup();
@@ -1909,12 +1909,12 @@ void Window_funcs_computation_step::cleanup()
 
 
 Explain_aggr_window_funcs*
-Window_funcs_computation_step::save_explain_plan(MEM_ROOT *mem_root, 
+Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root, 
                                                  bool is_analyze)
 {
   Explain_aggr_window_funcs *xpl= new Explain_aggr_window_funcs;
-  List_iterator<Window_func_sort> it(win_func_sorts);
-  Window_func_sort *srt;
+  List_iterator<Window_funcs_sort> it(win_func_sorts);
+  Window_funcs_sort *srt;
   while ((srt = it++))
   {
     Explain_aggr_filesort *eaf=

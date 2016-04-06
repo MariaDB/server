@@ -311,7 +311,7 @@ public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
 
   void print_json_members(Json_writer *writer, bool is_analyze);
-  friend class Window_funcs_computation_step;
+  friend class Window_funcs_computation;
 };
 
 /////////////////////////////////////////////////////////////////////////////

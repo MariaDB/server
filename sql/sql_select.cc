@@ -2661,7 +2661,7 @@ bool JOIN::make_aggr_tables_info()
   curr_tab= join_tab + top_join_tab_count + aggr_tables - 1;
   if (select_lex->window_funcs.elements)
   {
-    curr_tab->window_funcs_step= new Window_funcs_computation_step;
+    curr_tab->window_funcs_step= new Window_funcs_computation;
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
                                            curr_tab))
       DBUG_RETURN(true);

@@ -189,7 +189,7 @@ public:
 
 */
 
-class Window_func_sort : public Sql_alloc
+class Window_funcs_sort : public Sql_alloc
 {
   List<Window_func_runner> runners;
 
@@ -200,7 +200,7 @@ public:
   bool exec(JOIN *join);
   void cleanup() { delete filesort; }
 
-  friend class Window_funcs_computation_step;
+  friend class Window_funcs_computation;
 };
 
 
@@ -215,9 +215,9 @@ class Explain_aggr_window_funcs;
     temporary table.
 */
 
-class Window_funcs_computation_step : public Sql_alloc
+class Window_funcs_computation : public Sql_alloc
 {
-  List<Window_func_sort> win_func_sorts;
+  List<Window_funcs_sort> win_func_sorts;
 public:
   bool setup(THD *thd, List<Item_window_func> *window_funcs, st_join_table *tab);
   bool exec(JOIN *join);
