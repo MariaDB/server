@@ -199,6 +199,7 @@ static const uchar sort_order_eucjpms[]=
 #define IS_MB2_KATA(x,y)      (iseucjpms_ss2(x) && iskata(y))
 #define IS_MB2_CHAR(x,y)      (IS_MB2_KATA(x,y) || IS_MB2_JIS(x,y))
 #define IS_MB3_CHAR(x,y,z)    (iseucjpms_ss3(x) && IS_MB2_JIS(y,z))
+#define IS_MB_PREFIX2(x,y)    (iseucjpms_ss3(x) && iseucjpms(y))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
 

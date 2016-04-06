@@ -75,7 +75,13 @@ MY_FUNCTION_NAME(charlen)(CHARSET_INFO *cs __attribute__((unused)),
 
 #ifdef IS_MB3_CHAR
   if (b + 3 > e)
+  {
+#ifdef IS_MB_PREFIX2
+    if (!IS_MB_PREFIX2(b[0], b[1]))
+      return MY_CS_ILSEQ;
+#endif
     return MY_CS_TOOSMALLN(3);
+  }
   if (IS_MB3_CHAR(b[0], b[1], b[2]))
     return 3; /* Three-byte character */
 #endif

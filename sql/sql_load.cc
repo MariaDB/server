@@ -1589,38 +1589,34 @@ int READ_INFO::read_field()
 	  return 0;
 	}
       }
-#ifdef USE_MB
-      if (my_mbcharlen(read_charset, chr) > 1)
-      {
-        uint32 length0= data.length();
-        int ml= my_mbcharlen(read_charset, chr);
-        data.append(chr);
-
-        for (int i= 1; i < ml; i++)
-        {
-          chr= GET;
-          if (chr == my_b_EOF)
-          {
-            /*
-             Need to back up the bytes already ready from illformed
-             multi-byte char 
-            */
-            data.length(length0);
-            goto found_eof;
-          }
-          data.append(chr);
-        }
-        if (my_ismbchar(read_charset,
-                        (const char *) data.ptr() + length0,
-                        (const char *) data.end()))
-          continue;
-        for (int i= 0; i < ml; i++)
-          PUSH(data.end()[-1 - i]);
-        data.length(length0);
-        chr= GET;
-      }
-#endif
       data.append(chr);
+      if (use_mb(read_charset))
+      {
+        int chlen;
+        if ((chlen= my_charlen(read_charset, data.end() - 1,
+                                             data.end())) != 1)
+        {
+          for (uint32 length0= data.length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
+          {
+            chr= GET;
+            if (chr == my_b_EOF)
+              goto found_eof;
+            data.append(chr);
+            chlen= my_charlen(read_charset, data.ptr() + length0, data.end());
+            if (chlen == MY_CS_ILSEQ)
+            {
+              /**
+                It has been an incomplete (but a valid) sequence so far,
+                but the last byte turned it into a bad byte sequence.
+                Unget the very last byte.
+              */
+              data.length(data.length() - 1);
+              PUSH(chr);
+              break;
+            }
+          }
+        }
+      }
     }
     /*
     ** We come here if buffer is too small. Enlarge it and continue
