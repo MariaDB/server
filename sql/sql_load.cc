@@ -119,6 +119,70 @@ class READ_INFO {
     *to= chr;
     return false;
   }
+
+  /**
+    Read a tail of a multi-byte character.
+    The first byte of the character is assumed to be already
+    read from the file and appended to "str".
+
+    @returns  true  - if EOF happened unexpectedly
+    @returns  false - no EOF happened: found a good multi-byte character,
+                                       or a bad byte sequence
+
+    Note:
+    The return value depends only on EOF:
+    - read_mbtail() returns "false" is a good character was read, but also
+    - read_mbtail() returns "false" if an incomplete byte sequence was found
+      and no EOF happened.
+
+    For example, suppose we have an ujis file with bytes 0x8FA10A, where:
+    - 0x8FA1 is an incomplete prefix of a 3-byte character
+      (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
+    - 0x0A is a line demiliter
+    This file has some broken data, the trailing [A1-FE] is missing.
+
+    In this example it works as follows:
+    - 0x8F is read from the file and put into "data" before the call
+      for read_mbtail()
+    - 0xA1 is read from the file and put into "data" by read_mbtail()
+    - 0x0A is kept in the read queue, so the next read iteration after
+      the current read_mbtail() call will normally find it and recognize as
+      a line delimiter
+    - the current call for read_mbtail() returns "false",
+      because no EOF happened
+  */
+  bool read_mbtail(String *str)
+  {
+    int chlen;
+    if ((chlen= my_charlen(read_charset, str->end() - 1, str->end())) == 1)
+      return false; // Single byte character found
+    for (uint32 length0= str->length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
+    {
+      int chr= GET;
+      if (chr == my_b_EOF)
+      {
+        DBUG_PRINT("info", ("read_mbtail: chlen=%d; unexpected EOF", chlen));
+        return true; // EOF
+      }
+      str->append(chr);
+      chlen= my_charlen(read_charset, str->ptr() + length0, str->end());
+      if (chlen == MY_CS_ILSEQ)
+      {
+        /**
+          It has been an incomplete (but a valid) sequence so far,
+          but the last byte turned it into a bad byte sequence.
+          Unget the very last byte.
+        */
+        str->length(str->length() - 1);
+        PUSH(chr);
+        DBUG_PRINT("info", ("read_mbtail: ILSEQ"));
+        return false; // Bad byte sequence
+      }
+    }
+    DBUG_PRINT("info", ("read_mbtail: chlen=%d", chlen));
+    return false; // Good multi-byte character
+  }
+
 public:
   bool error,line_cuted,found_null,enclosed;
   uchar	*row_start,			/* Found row starts here */
@@ -1590,33 +1654,8 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (use_mb(read_charset))
-      {
-        int chlen;
-        if ((chlen= my_charlen(read_charset, data.end() - 1,
-                                             data.end())) != 1)
-        {
-          for (uint32 length0= data.length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
-          {
-            chr= GET;
-            if (chr == my_b_EOF)
-              goto found_eof;
-            data.append(chr);
-            chlen= my_charlen(read_charset, data.ptr() + length0, data.end());
-            if (chlen == MY_CS_ILSEQ)
-            {
-              /**
-                It has been an incomplete (but a valid) sequence so far,
-                but the last byte turned it into a bad byte sequence.
-                Unget the very last byte.
-              */
-              data.length(data.length() - 1);
-              PUSH(chr);
-              break;
-            }
-          }
-        }
-      }
+      if (use_mb(read_charset) && read_mbtail(&data))
+        goto found_eof;
     }
     /*
     ** We come here if buffer is too small. Enlarge it and continue
@@ -1872,26 +1911,8 @@ int READ_INFO::read_value(int delim, String *val)
   int chr;
   String tmp;
 
-  for (chr= GET; my_tospace(chr) != delim && chr != my_b_EOF;)
+  for (chr= GET; my_tospace(chr) != delim && chr != my_b_EOF; chr= GET)
   {
-#ifdef USE_MB
-    if (my_mbcharlen(read_charset, chr) > 1)
-    {
-      DBUG_PRINT("read_xml",("multi byte"));
-      int i, ml= my_mbcharlen(read_charset, chr);
-      for (i= 1; i < ml; i++) 
-      {
-        val->append(chr);
-        /*
-          Don't use my_tospace() in the middle of a multi-byte character
-          TODO: check that the multi-byte sequence is valid.
-        */
-        chr= GET; 
-        if (chr == my_b_EOF)
-          return chr;
-      }
-    }
-#endif
     if(chr == '&')
     {
       tmp.length(0);
@@ -1911,8 +1932,11 @@ int READ_INFO::read_value(int delim, String *val)
       }
     }
     else
+    {
       val->append(chr);
-    chr= GET;
+      if (use_mb(read_charset) && read_mbtail(val))
+        return my_b_EOF;
+    }
   }            
   return my_tospace(chr);
 }

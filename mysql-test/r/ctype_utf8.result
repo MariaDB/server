@@ -10448,5 +10448,16 @@ HEX(a)
 3F3F3F
 DROP TABLE t1;
 #
+# MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+SELECT HEX(a) FROM t1;
+HEX(a)
+613F
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
