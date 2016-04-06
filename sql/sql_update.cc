@@ -558,12 +558,12 @@ int mysql_update(THD *thd,
 	to update
         NOTE: filesort will call table->prepare_for_position()
       */
-      Filesort fsort(order, limit, select);
+      Filesort fsort(order, limit, true, select);
 
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(file_sort= filesort(thd, table, &fsort, true, fs_tracker)))
+      if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
 	goto err;
       thd->inc_examined_row_count(file_sort->examined_rows);
 

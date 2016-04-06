@@ -2814,7 +2814,9 @@ JOIN::optimize_distinct()
 bool
 JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
 {
-  tab->filesort= new (thd->mem_root) Filesort(order, HA_POS_ERROR, tab->select);
+  tab->filesort= 
+    new (thd->mem_root) Filesort(order, HA_POS_ERROR, tab->keep_current_rowid,
+                                 tab->select);
   if (!tab->filesort)
     return true;
   /*
@@ -21279,7 +21281,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 
   if (table->s->tmp_table)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
-  file_sort= filesort(thd, table, fsort, tab->keep_current_rowid, fsort->tracker);
+  file_sort= filesort(thd, table, fsort, fsort->tracker);
   DBUG_ASSERT(tab->filesort_result == 0);
   tab->filesort_result= file_sort;
   tab->records= 0;

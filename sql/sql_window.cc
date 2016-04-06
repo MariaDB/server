@@ -1834,7 +1834,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
                                         spec->partition_list->first,
                                         spec->order_list->first);
-  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, NULL);
+  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;
 

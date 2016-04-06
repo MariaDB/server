@@ -47,16 +47,25 @@ public:
   bool own_select;
   /** true means we are using Priority Queue for order by with limit. */
   bool using_pq;
+  
+  /* 
+    TRUE means sort operation must produce table rowids. 
+    FALSE means that it halso has an option of producing {sort_key,
+    addon_fields} pairs.
+  */
+  bool sort_positions;
 
   Filesort_tracker *tracker;
 
-  Filesort(ORDER *order_arg, ha_rows limit_arg, SQL_SELECT *select_arg):
+  Filesort(ORDER *order_arg, ha_rows limit_arg, bool sort_positions_arg,
+           SQL_SELECT *select_arg):
     order(order_arg),
     limit(limit_arg),
     sortorder(NULL),
     select(select_arg),
     own_select(false), 
-    using_pq(false)
+    using_pq(false),
+    sort_positions(sort_positions_arg)
   {
     DBUG_ASSERT(order);
   };
@@ -143,12 +152,10 @@ public:
   { return filesort_buffer.sort_buffer_size(); }
 
   friend SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                             bool sort_positions,
                              Filesort_tracker* tracker);
 };
 
 SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                    bool sort_positions,
                     Filesort_tracker* tracker);
 
 void change_double_for_sort(double nr,uchar *to);

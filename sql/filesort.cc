@@ -124,17 +124,12 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
   @param      thd            Current thread
   @param      table          Table to sort
   @param      filesort       How to sort the table
-  @param      sort_positions Set to TRUE if we want to force sorting by
-			     position
-                             (Needed by UPDATE/INSERT or ALTER TABLE or
-                              when rowids are required by executor)
-                             applying WHERE condition.
   @param[out] found_rows     Store the number of found rows here.
                              This is the number of found rows after
                              applying WHERE condition.
   @note
-    If we sort by position (like if sort_positions is 1) filesort() will
-    call table->prepare_for_position().
+    If we sort by position (like if filesort->sort_positions==true) 
+    filesort() will call table->prepare_for_position().
 
   @retval
     0			Error
@@ -142,7 +137,6 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
 */
 
 SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                    bool sort_positions,
                     Filesort_tracker* tracker)
 {
   int error;
@@ -203,7 +197,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                                      &multi_byte_charset),
                           table,
                           thd->variables.max_length_for_sort_data,
-                          max_rows, sort_positions);
+                          max_rows, filesort->sort_positions);
 
   sort->addon_buf=    param.addon_buf;
   sort->addon_field=  param.addon_field;

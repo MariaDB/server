@@ -1063,3 +1063,15 @@ from t1;
 
 drop table t1;
 
+
+--echo #
+--echo # MDEV-9847: Window functions: crash with big_tables=1
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set @tmp=@@big_tables;
+set big_tables=1;
+select rank() over (order by a) from t1;
+set big_tables=@tmp;
+drop table t1;
+

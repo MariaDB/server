@@ -492,12 +492,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
 
     {
-      Filesort fsort(order, HA_POS_ERROR, select);
+      Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
+
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(file_sort= filesort(thd, table, &fsort, true, fs_tracker)))
+      if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
         goto got_error;
 
       thd->inc_examined_row_count(file_sort->examined_rows);
