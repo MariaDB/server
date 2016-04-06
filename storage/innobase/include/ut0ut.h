@@ -100,7 +100,7 @@ private:
 #if defined (__GNUC__)
 #  define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
 #elif defined (_MSC_VER)
-#  define UT_COMPILER_BARRIER() MemoryBarrier()
+#  define UT_COMPILER_BARRIER() _ReadWriteBarrier()
 #else
 #  define UT_COMPILER_BARRIER()
 #endif
