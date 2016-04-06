@@ -94,7 +94,13 @@ private:
 #  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
 # endif
 
-#define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
+#if defined (__GNUC__)
+#  define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
+#elif defined (_MSC_VER)
+#  define UT_COMPILER_BARRIER() MemoryBarrier()
+#else
+#  define UT_COMPILER_BARRIER()
+#endif
 
 # if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
 #include <sys/platform/ppc.h>
