@@ -1829,16 +1829,9 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
                              List_iterator<Item_window_func> &it)
 {
   Item_window_func *win_func= it.peek();
-  Window_spec *spec = win_func->window_spec;
+  Item_window_func *prev_win_func;
 
-  ORDER* sort_order= concat_order_lists(thd->mem_root, 
-                                        spec->partition_list->first,
-                                        spec->order_list->first);
-  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
-  /* Apply the same condition that the subsequent sort has. */
-  filesort->select= sel;
-
-  do 
+  do
   {
     Window_func_runner *runner;
     if (!(runner= new Window_func_runner(win_func)) ||
@@ -1848,7 +1841,22 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     }
     runners.push_back(runner);
     it++;
+    prev_win_func= win_func;
   } while ((win_func= it.peek()) && !(win_func->marker & SORTORDER_CHANGE_FLAG));
+  
+  /*
+    The sort criteria must be taken from the last win_func in the group of
+    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG.
+  */
+  Window_spec *spec = prev_win_func->window_spec;
+
+  ORDER* sort_order= concat_order_lists(thd->mem_root, 
+                                        spec->partition_list->first,
+                                        spec->order_list->first);
+  filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
+
+  /* Apply the same condition that the subsequent sort has. */
+  filesort->select= sel;
 
   return false;
 }

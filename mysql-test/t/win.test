@@ -1053,13 +1053,17 @@ select
   row_number() over (order by a)
 from t1;
 
---disable_parsing
 explain format=json
 select 
   rank() over (partition by c order by a),
   count(*) over (partition by c)
 from t1;
---enable_parsing
+
+explain format=json
+select 
+  count(*) over (partition by c),
+  rank() over (partition by c order by a)
+from t1;
 
 drop table t1;
 
