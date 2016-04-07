@@ -1122,7 +1122,6 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
   enum enum_server_command
     command= (enum enum_server_command) (uchar) packet[0];
-  NET *net= &thd->net;
   DBUG_ENTER("fetch_command");
 
   if (command >= COM_END ||
@@ -1130,7 +1129,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
     command= COM_END;				// Wrong command
 
   DBUG_PRINT("info",("Command on %s = %d (%s)",
-                     vio_description(net->vio), command,
+                     vio_description(thd->net.vio), command,
                      command_name[command].str));
   DBUG_RETURN(command);
 }
