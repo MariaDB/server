@@ -4925,6 +4925,7 @@ end_with_restore_list:
   }
   case SQLCOM_SHUTDOWN:
 #ifndef EMBEDDED_LIBRARY
+    DBUG_EXECUTE_IF("crash_shutdown", DBUG_SUICIDE(););
     if (check_global_access(thd,SHUTDOWN_ACL))
       goto error;
     kill_mysql();

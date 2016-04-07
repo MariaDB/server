@@ -2570,8 +2570,13 @@ retry_share:
         (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                               table_list);
       else if (share->crashed)
-        (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
-                                              table_list);
+      {
+        if (!(flags & MYSQL_OPEN_IGNORE_REPAIR))
+          (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
+                                                table_list);
+        else
+          table_list->crashed= 1;  /* Mark that table was crashed */
+      }
       goto err_lock;
     }
     if (open_table_entry_fini(thd, share, table))
