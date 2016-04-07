@@ -52,7 +52,7 @@ public:
   void close_and_delete();
   void close_with_error(uint sql_errno,
                         const char *message, uint close_error);
-  THD *create_thd();
+  THD *create_thd(THD *thd);
 };
 
 

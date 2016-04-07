@@ -1299,7 +1299,7 @@ void do_handle_one_connection(CONNECT *connect)
   ulonglong thr_create_utime= microsecond_interval_timer();
   THD *thd;
   if (connect->scheduler->init_new_connection_thread() ||
-      !(thd= connect->create_thd()))
+      !(thd= connect->create_thd(NULL)))
   {
     scheduler_functions *scheduler= connect->scheduler;
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
@@ -1426,7 +1426,7 @@ void CONNECT::close_and_delete()
 void CONNECT::close_with_error(uint sql_errno,
                                const char *message, uint close_error)
 {
-  THD *thd= create_thd();
+  THD *thd= create_thd(NULL);
   if (thd)
   {
     if (sql_errno)
@@ -1460,17 +1460,28 @@ CONNECT::~CONNECT()
     vio_delete(vio);
 }
 
-/* Create a THD based on a CONNECT object */
 
-THD *CONNECT::create_thd()
+/* Reuse or create a THD based on a CONNECT object */
+
+THD *CONNECT::create_thd(THD *thd)
 {
-  my_bool res;
-  THD *thd;
+  bool res, thd_reused= thd != 0;
   DBUG_ENTER("create_thd");
 
   DBUG_EXECUTE_IF("simulate_failed_connection_2", DBUG_RETURN(0); );
 
-  if (!(thd= new THD))
+  if (thd)
+  {
+    /* reuse old thd */
+    thd->reset_for_reuse();
+    /*
+      reset tread_id's, but not thread_dbug_id's as the later isn't allowed
+      to change as there is already structures in thd marked with the old
+      value.
+    */
+    thd->thread_id= thd->variables.pseudo_thread_id= thread_id;
+  }
+  else if (!(thd= new THD(thread_id)))
     DBUG_RETURN(0);
 
   set_current_thd(thd);
@@ -1479,7 +1490,8 @@ THD *CONNECT::create_thd()
 
   if (res)
   {
-    delete thd;
+    if (!thd_reused)
+      delete thd;
     set_current_thd(0);
     DBUG_RETURN(0);
   }
@@ -1489,7 +1501,6 @@ THD *CONNECT::create_thd()
   thd->security_ctx->host= host;
   thd->extra_port=         extra_port;
   thd->scheduler=          scheduler;
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id;
   thd->real_id=            real_id;
   DBUG_RETURN(thd);
 }

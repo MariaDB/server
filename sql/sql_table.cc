@@ -1642,7 +1642,7 @@ void execute_ddl_log_recovery()
   /*
     To be able to run this from boot, we allocate a temporary THD
   */
-  if (!(thd=new THD))
+  if (!(thd=new THD(0)))
     DBUG_VOID_RETURN;
   thd->thread_stack= (char*) &thd;
   thd->store_globals();

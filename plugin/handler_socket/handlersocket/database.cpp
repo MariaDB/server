@@ -278,7 +278,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
   DBG_THR(fprintf(stderr, "HNDSOCK init thread\n"));
   {
     my_thread_init();
-    thd = new THD;
+    thd = new THD(0);
     thd->thread_stack = (char *)stack_bottom;
     DBG_THR(fprintf(stderr,
       "thread_stack = %p sizeof(THD)=%zu sizeof(mtx)=%zu "

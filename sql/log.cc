@@ -9510,10 +9510,9 @@ binlog_background_thread(void *arg __attribute__((unused)))
   my_thread_init();
   DBUG_ENTER("binlog_background_thread");
 
-  thd= new THD;
+  thd= new THD(next_thread_id());
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
-  thd->thread_id= next_thread_id();
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);

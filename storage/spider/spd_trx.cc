@@ -4055,7 +4055,7 @@ THD *spider_create_tmp_thd()
 {
   THD *thd;
   DBUG_ENTER("spider_create_tmp_thd");
-  if (!(thd = new THD))
+  if (!(thd = new THD(0)))
     DBUG_RETURN(NULL);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->killed = NOT_KILLED;
@@ -4066,7 +4066,6 @@ THD *spider_create_tmp_thd()
   thd->locked_tables = FALSE;
 #endif
   thd->proc_info = "";
-  thd->thread_id = thd->variables.pseudo_thread_id = 0;
   thd->thread_stack = (char*) &thd;
   if (thd->store_globals())
     DBUG_RETURN(NULL);

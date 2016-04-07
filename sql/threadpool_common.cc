@@ -122,7 +122,7 @@ THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   pthread_setspecific(THR_KEY_mysys, 0);
   my_thread_init();
   st_my_thread_var* mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
-  if (!mysys_var ||!(thd= connect->create_thd()))
+  if (!mysys_var ||!(thd= connect->create_thd(NULL)))
   {
     /* Out of memory? */
     connect->close_and_delete();
@@ -200,6 +200,7 @@ void threadpool_remove_connection(THD *thd)
   end_connection(thd);
   close_connection(thd, 0);
   unlink_thd(thd);
+  delete thd;
   mysql_cond_broadcast(&COND_thread_count);
 
   /*

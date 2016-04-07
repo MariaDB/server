@@ -2949,7 +2949,7 @@ void signal_thd_deleted()
 
 
 /*
-  Unlink thd from global list of available connections and free thd
+  Unlink thd from global list of available connections
 
   SYNOPSIS
     unlink_thd()
@@ -2971,7 +2971,7 @@ void unlink_thd(THD *thd)
   thd->add_status_to_global();
 
   unlink_not_visible_thd(thd);
-  delete thd;
+  thd->free_connection();
   dec_thread_count();
 
   DBUG_VOID_RETURN;
@@ -2983,6 +2983,7 @@ void unlink_thd(THD *thd)
 
   SYNOPSIS
     cache_thread()
+    thd		 Thread handler
 
   NOTES
     LOCK_thread_cache is used to protect the cache variables
@@ -2994,10 +2995,11 @@ void unlink_thd(THD *thd)
 */
 
 
-static bool cache_thread()
+static bool cache_thread(THD *thd)
 {
   struct timespec abstime;
   DBUG_ENTER("cache_thread");
+  DBUG_ASSERT(thd);
 
   mysql_mutex_lock(&LOCK_thread_cache);
   if (cached_thread_count < thread_cache_size &&
@@ -3041,13 +3043,12 @@ static bool cache_thread()
     if (wake_thread)
     {
       CONNECT *connect;
-      THD *thd;
 
       wake_thread--;
       connect= thread_cache.get();
       mysql_mutex_unlock(&LOCK_thread_cache);
 
-      if (!(thd= connect->create_thd()))
+      if (!(connect->create_thd(thd)))
       {
         /* Out of resources. Free thread to get more resources */
         connect->close_and_delete();
@@ -3055,8 +3056,11 @@ static bool cache_thread()
       }
       delete connect;
 
-      thd->thread_stack= (char*) &thd;          // For store_globals
-      (void) thd->store_globals();
+      /*
+        We have to call store_globals to update mysys_var->id and lock_info
+        with the new thread_id
+      */
+      thd->store_globals();
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
       /*
@@ -3068,11 +3072,7 @@ static bool cache_thread()
       PSI_THREAD_CALL(set_thread)(psi);
 #endif
 
-      /*
-        THD::mysys_var::abort is associated with physical thread rather
-        than with THD object. So we need to reset this flag before using
-        this thread for handling of new THD object/connection.
-      */
+      /* reset abort flag for the thread */
       thd->mysys_var->abort= 0;
       thd->thr_create_utime= microsecond_interval_timer();
       thd->start_utime= thd->thr_create_utime;
@@ -3108,13 +3108,16 @@ static bool cache_thread()
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 {
   DBUG_ENTER("one_thread_per_connection_end");
-  const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
 
   if (thd)
-    unlink_thd(thd);
+  {
+    const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
 
-  if (!wsrep_applier && put_in_cache && cache_thread())
-    DBUG_RETURN(0);                             // Thread is reused
+    unlink_thd(thd);
+    if (!wsrep_applier && put_in_cache && cache_thread(thd))
+      DBUG_RETURN(0);                             // Thread is reused
+    delete thd;
+  }
 
   DBUG_PRINT("info", ("killing thread"));
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
@@ -4076,9 +4079,9 @@ void init_com_statement_info()
 extern "C" my_thread_id mariadb_dbug_id()
 {
   THD *thd;
-  if ((thd= current_thd))
+  if ((thd= current_thd) && thd->thread_dbug_id)
   {
-    return thd->thread_id;
+    return thd->thread_dbug_id;
   }
   return my_thread_dbug_id();
 }
@@ -6318,7 +6321,7 @@ static void bootstrap(MYSQL_FILE *file)
 {
   DBUG_ENTER("bootstrap");
 
-  THD *thd= new THD;
+  THD *thd= new THD(next_thread_id());
 #ifdef WITH_WSREP
   thd->variables.wsrep_on= 0;
 #endif
@@ -6326,7 +6329,6 @@ static void bootstrap(MYSQL_FILE *file)
   my_net_init(&thd->net,(st_vio*) 0, (void*) 0, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   thread_count++;                        // Safe as only one thread running
   in_bootstrap= TRUE;
 

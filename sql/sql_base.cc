@@ -9038,7 +9038,7 @@ my_bool mysql_rm_tmp_tables(void)
   THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
-  if (!(thd= new THD))
+  if (!(thd= new THD(0)))
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();

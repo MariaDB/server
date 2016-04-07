@@ -691,7 +691,7 @@ struct st_my_thread_var
   mysql_mutex_t * volatile current_mutex;
   mysql_cond_t * volatile current_cond;
   pthread_t pthread_self;
-  my_thread_id id;
+  my_thread_id id, dbug_id;
   int volatile abort;
   my_bool init;
   struct st_my_thread_var *next,**prev;

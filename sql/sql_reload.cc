@@ -72,7 +72,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       If reload_acl_and_cache() is called from SIGHUP handler we have to
       allocate temporary THD for execution of acl_reload()/grant_reload().
     */
-    if (!thd && (thd= (tmp_thd= new THD)))
+    if (!thd && (thd= (tmp_thd= new THD(0))))
     {
       thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();

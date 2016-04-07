@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2041,7 +2041,8 @@ public:
   MDL_request grl_protection;
 
   Delayed_insert(SELECT_LEX *current_select)
-    :locks_in_memory(0), table(0),tables_in_use(0),stacked_inserts(0),
+    :locks_in_memory(0), thd(next_thread_id()),
+     table(0),tables_in_use(0), stacked_inserts(0),
      status(0), retry(0), handler_thread_initialized(FALSE), group_count(0)
   {
     DBUG_ENTER("Delayed_insert constructor");
@@ -2819,7 +2820,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
   pthread_detach_this_thread();
   /* Add thread to THD list so that's it's visible in 'show processlist' */
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   thd->set_current_time();
   add_to_active_threads(thd);
   if (abort_loop)

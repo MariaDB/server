@@ -1620,7 +1620,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   /*
     To be able to run this from boot, we allocate a temporary THD
   */
-  if (!(thd= new THD))
+  if (!(thd= new THD(0)))
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();

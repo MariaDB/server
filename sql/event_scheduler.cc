@@ -189,7 +189,6 @@ pre_init_event_thread(THD* thd)
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
 
   /*
     Guarantees that we will see the thread in SHOW PROCESSLIST though its
@@ -396,7 +395,7 @@ Event_scheduler::start(int *err_no)
   if (state > INITIALIZED)
     goto end;
 
-  if (!(new_thd= new THD))
+  if (!(new_thd= new THD(next_thread_id())))
   {
     sql_print_error("Event Scheduler: Cannot initialize the scheduler thread");
     ret= true;
@@ -542,7 +541,7 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
   int res= 0;
   DBUG_ENTER("Event_scheduler::execute_top");
 
-  if (!(new_thd= new THD()))
+  if (!(new_thd= new THD(next_thread_id())))
     goto error;
 
   pre_init_event_thread(new_thd);
