@@ -421,7 +421,6 @@ mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
-  --loose-file-key-management=OFF \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
