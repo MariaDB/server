@@ -84,7 +84,7 @@ print $FILE <<END
 --echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
 --disable_query_log
 INSERT INTO t1 VALUES (0xEE5C, 0xEE5C);
---exec LC_ALL=$LOCALE \$MYSQL_DUMP $DUMP_OPTIONS -Tvar/tmp/tmpgbk gbk t1
+--exec LC_ALL=$LOCALE \$MYSQL_DUMP $DUMP_OPTIONS -T\$MYSQLTEST_VARDIR/tmp/tmpgbk gbk t1
 --vertical_results
 TRUNCATE TABLE t1;
 --eval SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt')),'\t','----');
