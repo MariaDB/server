@@ -75,7 +75,7 @@ my $dir= $ENV{'MYSQL_TMP_DIR'};
 open (my $FILE, '>', "$dir/tmpgbk.inc") or die "open(): $!";
 for $LOCALE ("zh_CN.gbk") {
 for $DUMP_OPTIONS ("--default-character-set=binary","--default-character-set=gbk","--default-character-set=utf8") {
-for $RESTORE_OPTIONS ("--default-character-set=auto", "--default-character-set=gbk","--default-character-set=utf8") {
+for $RESTORE_OPTIONS ("--default-character-set=auto","--default-character-set=binary","--default-character-set=gbk","--default-character-set=utf8") {
 for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
 print $FILE <<END
 --echo
