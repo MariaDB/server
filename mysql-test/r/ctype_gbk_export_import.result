@@ -1,0 +1,579 @@
+DROP DATABASE IF EXISTS gbk;
+CREATE DATABASE gbk DEFAULT CHARACTER SET gbk;
+USE gbk;
+CREATE TABLE t1 (a TEXT, b BLOB);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text,
+  `b` blob
+) ENGINE=MyISAM DEFAULT CHARSET=gbk
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-5CEE5C5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-5CEE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto 
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-EE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk 
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-EE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-EE5C5C
+a	EE5C
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-EE5C5C
+a	3F5C          BAD-TEXT
+b	EE5C0A          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	EE5C-EE5C
+a	EE5C
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	EE5C-EE5C
+a	3F5C          BAD-TEXT
+b	EE5C
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	E9A0AB-3F5C5C
+a	E9A03F          BAD-TEXT
+b	3F5C          BAD-BLOB
+
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	E9A0AB-3F5C5C
+a	EE5C
+b	3F5C          BAD-BLOB
+DROP DATABASE gbk;
+USE test;

@@ -1,0 +1,66 @@
+--source include/not_windows.inc
+--source include/have_case_sensitive_file_system.inc
+
+#
+# Check if we're running on a POSIX-locale machine
+#
+
+--disable_query_log
+--exec locale -a > $MYSQLTEST_VARDIR/tmp/locale_a_gbk.output 2>/dev/null || true
+SET @file=REPLACE(LOAD_FILE('../../tmp/locale_a_gbk.output'), '-', '');
+# Note, file content must be case sensitive. See mysql_locale_posix.test
+--remove_file $MYSQLTEST_VARDIR/tmp/locale_a_gbk.output
+if (`SELECT (IFNULL(@file,'') NOT LIKE '%\nzh_CN.gbk\n%')`)
+{
+  Skip Need POSIX locale zh_CN.gbk;
+}
+--enable_query_log
+
+
+--disable_warnings
+DROP DATABASE IF EXISTS gbk;
+--enable_warnings
+
+CREATE DATABASE gbk DEFAULT CHARACTER SET gbk;
+USE gbk;
+CREATE TABLE t1 (a TEXT, b BLOB);
+SHOW CREATE TABLE t1;
+
+
+--perl
+my $dir= $ENV{'MYSQL_TMP_DIR'};
+open (my $FILE, '>', "$dir/tmp.inc") or die "open(): $!";
+for $LOCALE ("zh_CN.gbk") {
+for $DUMP_OPTIONS ("--default-character-set=auto", "--default-character-set=gbk","--default-character-set=utf8") {
+for $DUMP_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
+for $RESTORE_OPTIONS ("--default-character-set=auto", "--default-character-set=gbk","--default-character-set=utf8") {
+for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
+print $FILE <<END
+--echo
+--echo Locale:  $LOCALE
+--echo OUTFILE: $DUMP_OPTIONS $DUMP_CHARSET_CLAUSE
+--echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
+--disable_query_log
+INSERT INTO t1 VALUES (0xEE5C, 0xEE5C);
+--exec LC_ALL=$LOCALE \$MYSQL $DUMP_OPTIONS gbk -e "SELECT * INTO OUTFILE '\$MYSQLTEST_VARDIR/tmp/t1' $DUMP_CHARSET_CLAUSE FROM t1"
+--vertical_results
+TRUNCATE TABLE t1;
+SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('../../tmp/t1')),'\t','----');
+SELECT REPLACE(HEX(\@file), '2D2D2D2D','-') AS file;
+--exec LC_ALL=$LOCALE \$MYSQL $RESTORE_OPTIONS gbk -e "LOAD DATA INFILE '\$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t1 $RESTORE_CHARSET_CLAUSE"
+SELECT CONCAT(HEX(COALESCE(a,'')), IF(a<>0xEE5C,'          BAD-TEXT','')) AS a,
+       CONCAT(HEX(COALESCE(b,'')), IF(b<>0xEE5C,'          BAD-BLOB','')) AS b FROM t1;
+TRUNCATE TABLE t1;
+--horizontal_results
+--enable_query_log
+--remove_file \$MYSQLTEST_VARDIR/tmp/t1
+END
+}}}}}
+close $FILE
+EOF
+--source $MYSQL_TMP_DIR/tmp.inc
+--remove_file $MYSQL_TMP_DIR/tmp.inc
+
+
+DROP DATABASE gbk;
+USE test;
