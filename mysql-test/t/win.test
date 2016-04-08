@@ -1079,3 +1079,20 @@ select rank() over (order by a) from t1;
 set big_tables=@tmp;
 drop table t1;
 
+--echo #
+--echo # Check if "ORDER BY window_func" works
+--echo #
+
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (1,null);
+insert into t1 values (null,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+
+explain format=json
+select *, row_number() over (order by s1) as X from t1 order by X desc;
+select *, row_number() over (order by s1) as X from t1 order by X desc;
+drop table t1;
+

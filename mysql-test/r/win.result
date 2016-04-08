@@ -1767,3 +1767,48 @@ rank() over (order by a)
 10
 set big_tables=@tmp;
 drop table t1;
+#
+# Check if "ORDER BY window_func" works
+#
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (1,null);
+insert into t1 values (null,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+explain format=json
+select *, row_number() over (order by s1) as X from t1 order by X desc;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "X",
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "t1.s1"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 6,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+select *, row_number() over (order by s1) as X from t1 order by X desc;
+s1	s2	X
+2	b	6
+1	a	5
+1	NULL	4
+-1		3
+NULL	NULL	2
+NULL	a	1
+drop table t1;

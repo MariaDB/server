@@ -1846,6 +1846,7 @@ JOIN::optimize_inner()
   //TODO this could probably go in test_if_need_tmp_table.
   if (this->select_lex->window_specs.elements > 0) {
     need_tmp= TRUE;
+    simple_order= FALSE;
   }
 
   /*

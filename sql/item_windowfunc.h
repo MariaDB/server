@@ -511,6 +511,25 @@ public:
 
   void update_used_tables();
 
+  /*
+    This is used by filesort to mark the columns it needs to read (because they
+    participate in the sort criteria and/or row retrieval. Window functions can
+    only be used in sort criteria).
+
+    Sorting by window function value is only done after the window functions
+    have been computed. In that case, window function will need to read its
+    temp.table field. In order to allow that, mark that field in the read_set.
+  */
+  bool register_field_in_read_map(uchar *arg)
+  {
+    TABLE *table= (TABLE*) arg;
+    if (result_field && (result_field->table == table || !table))
+    {
+      bitmap_set_bit(result_field->table->read_set, result_field->field_index);
+    }
+    return 0;
+  }
+
   bool is_frame_prohibited() const
   {
     switch (window_func()->sum_func()) {
