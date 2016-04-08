@@ -24,12 +24,55 @@ DROP DATABASE IF EXISTS gbk;
 
 CREATE DATABASE gbk DEFAULT CHARACTER SET gbk;
 USE gbk;
-CREATE TABLE t1 (a1 TEXT, a2 TEXT CHARACTER SET utf8, b1 BLOB);
+
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  a1 TEXT NOT NULL,
+  a2 TEXT CHARACTER SET utf8 NOT NULL,
+  b1 BLOB NOT NULL,
+  eol TEXT NOT NULL);
+
+DELIMITER |;
+CREATE PROCEDURE populate()
+BEGIN
+  INSERT INTO t1 SET id=1, a1=0xEE5C, a2=_gbk 0xEE5C, b1=0xEE5C, eol='$';
+  INSERT INTO t1 SET id=2, a1=0xEE5C5C, a2=_gbk 0xEE5C5C, b1=0xEE5C5C, eol='$';
+END|
+
+CREATE FUNCTION cmt(id INT, field_name TEXT, field_value BLOB)
+                    RETURNS TEXT CHARACTER SET utf8
+BEGIN
+  DECLARE comment TEXT CHARACTER SET utf8;
+  DECLARE expected_value_01 BLOB;
+  DECLARE expected_value_02 BLOB;
+  SET comment= CASE field_name WHEN 'a1' THEN 'TEXT-GBK' WHEN 'a2' THEN 'TEXT-UTF8' WHEN 'b1' THEN 'BLOB' ELSE '' END;
+  SET expected_value_01= CASE field_name WHEN 'a1' THEN 0xEE5C WHEN 'a2' THEN 0xE9A0AB WHEN 'b1' THEN 0xEE5C ELSE '' END;
+  SET expected_value_02= CASE field_name WHEN 'a1' THEN 0xEE5C5C WHEN 'a2' THEN 0xE9A0AB5C WHEN 'b1' THEN 0xEE5C5C ELSE '' END;
+  RETURN IF(CASE id
+              WHEN 1 THEN expected_value_01
+              WHEN 2 THEN expected_value_02
+              ELSE ''
+            END <> field_value,
+            CONCAT('BAD-', comment), '');
+END|
+
+CREATE FUNCTION display_file(file BLOB) RETURNS TEXT CHARACTER SET utf8
+BEGIN
+  SET file=REPLACE(file, 0x09, '----');
+  SET file=REPLACE(file, 0x0A, '++++');
+  RETURN REPLACE(REPLACE(HEX(file), '2D2D2D2D','-'), '2B2B2B2B','|');
+END|
+
+DELIMITER ;|
+
 CREATE VIEW v1 AS
 SELECT
-  CONCAT(RPAD(HEX(COALESCE(a1,'')),30,' '), IF(BINARY a1<> 0xEE5C,  '                     BAD-TEXT-GBK','')) AS a1,
-  CONCAT(RPAD(HEX(COALESCE(a2,'')),30,' '), IF(BINARY a2<> 0xE9A0AB,'                     BAD-TEXT-UTF8','')) AS a2,
-  CONCAT(RPAD(HEX(COALESCE(b1,'')),30,' '), IF(BINARY b1<> 0xEE5C,  '                     BAD-BLOB','')) AS b1 FROM t1;
+  id,
+  CONCAT(RPAD(HEX(a1),50,' '), cmt(id, 'a1', a1)) AS a1,
+  CONCAT(RPAD(HEX(a2),50,' '), cmt(id, 'a2', a2)) AS a2,
+  CONCAT(RPAD(HEX(b1),50,' '), cmt(id, 'b1', b1)) AS b1,
+  CONCAT(RPAD(HEX(eol),50,' '), IF(eol<>'$','BAD-EOL','')) AS eol
+FROM t1;
 SHOW CREATE TABLE t1;
 
 --echo #
@@ -41,21 +84,20 @@ my $dir= $ENV{'MYSQL_TMP_DIR'};
 open (my $FILE, '>', "$dir/tmpgbk.inc") or die "open(): $!";
 for $LOCALE ("zh_CN.gbk") {
 for $DUMP_OPTIONS ("--default-character-set=auto", "--default-character-set=gbk","--default-character-set=utf8") {
-for $DUMP_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
+for $DUMP_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8", "CHARACTER SET binary") {
 for $RESTORE_OPTIONS ("--default-character-set=auto", "--default-character-set=gbk","--default-character-set=utf8") {
-for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
+for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8", "CHARACTER SET binary") {
 print $FILE <<END
 --echo
 --echo Locale:  $LOCALE
 --echo OUTFILE: $DUMP_OPTIONS $DUMP_CHARSET_CLAUSE
 --echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
 --disable_query_log
-INSERT INTO t1 VALUES (0xEE5C, _gbk 0xEE5C, 0xEE5C);
+CALL populate();
 --exec LC_ALL=$LOCALE \$MYSQL $DUMP_OPTIONS gbk -e "SELECT * INTO OUTFILE '\$MYSQLTEST_VARDIR/tmp/t1' $DUMP_CHARSET_CLAUSE FROM t1"
 --vertical_results
 TRUNCATE TABLE t1;
-SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('../../tmp/t1')),'\t','----');
-SELECT REPLACE(HEX(\@file), '2D2D2D2D','-') AS file;
+--eval SELECT display_file(LOAD_FILE('\$MYSQLTEST_VARDIR/tmp/t1')) AS file;
 --exec LC_ALL=$LOCALE \$MYSQL $RESTORE_OPTIONS gbk -e "LOAD DATA INFILE '\$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t1 $RESTORE_CHARSET_CLAUSE"
 SELECT * FROM v1;
 TRUNCATE TABLE t1;
@@ -81,19 +123,18 @@ open (my $FILE, '>', "$dir/tmpgbk.inc") or die "open(): $!";
 for $LOCALE ("zh_CN.gbk") {
 for $DUMP_OPTIONS ("--default-character-set=binary","--default-character-set=gbk","--default-character-set=utf8") {
 for $RESTORE_OPTIONS ("--default-character-set=auto","--default-character-set=binary","--default-character-set=gbk","--default-character-set=utf8") {
-for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8") {
+for $RESTORE_CHARSET_CLAUSE ("", "CHARACTER SET gbk", "CHARACTER SET utf8", "CHARACTER SET binary") {
 print $FILE <<END
 --echo
---echo Locale:  $LOCALE
---echo OUTFILE: $DUMP_OPTIONS
---echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
+--echo Locale:    $LOCALE
+--echo mysqldump: $DUMP_OPTIONS
+--echo INFILE:    $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
 --disable_query_log
-INSERT INTO t1 VALUES (0xEE5C, _gbk 0xEE5C, 0xEE5C);
+CALL populate();
 --exec LC_ALL=$LOCALE \$MYSQL_DUMP $DUMP_OPTIONS -T\$MYSQLTEST_VARDIR/tmp/tmpgbk gbk t1
 --vertical_results
 TRUNCATE TABLE t1;
---eval SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt')),'\t','----');
-SELECT REPLACE(HEX(\@file), '2D2D2D2D','-') AS file;
+--eval SELECT display_file(LOAD_FILE('\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt')) AS file;
 --exec LC_ALL=$LOCALE \$MYSQL $RESTORE_OPTIONS gbk -e "LOAD DATA INFILE '\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt' INTO TABLE t1 $RESTORE_CHARSET_CLAUSE"
 SELECT * FROM v1;
 TRUNCATE TABLE t1;
