@@ -1778,13 +1778,13 @@ insert into t1 values (null,'a');
 insert into t1 values (2,'b');
 insert into t1 values (-1,'');
 explain format=json
-select *, row_number() over (order by s1) as X from t1 order by X desc;
+select *, row_number() over (order by s1) as X from t1 order by X desc, s2 desc;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "filesort": {
-      "sort_key": "X",
+      "sort_key": "X, t1.s2",
       "window_functions_computation": {
         "sorts": {
           "filesort": {
@@ -1803,7 +1803,7 @@ EXPLAIN
     }
   }
 }
-select *, row_number() over (order by s1) as X from t1 order by X desc;
+select *, row_number() over (order by s1) as X from t1 order by X desc, s2 desc;
 s1	s2	X
 2	b	6
 1	a	5
