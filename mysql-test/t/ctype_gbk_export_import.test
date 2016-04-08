@@ -1,5 +1,6 @@
 --source include/not_windows.inc
 --source include/have_case_sensitive_file_system.inc
+--source include/have_gbk.inc
 
 #
 # Check if we're running on a POSIX-locale machine
@@ -23,7 +24,12 @@ DROP DATABASE IF EXISTS gbk;
 
 CREATE DATABASE gbk DEFAULT CHARACTER SET gbk;
 USE gbk;
-CREATE TABLE t1 (a TEXT, b BLOB);
+CREATE TABLE t1 (a1 TEXT, a2 TEXT CHARACTER SET utf8, b1 BLOB);
+CREATE VIEW v1 AS
+SELECT
+  CONCAT(RPAD(HEX(COALESCE(a1,'')),30,' '), IF(BINARY a1<> 0xEE5C,  '                     BAD-TEXT-GBK','')) AS a1,
+  CONCAT(RPAD(HEX(COALESCE(a2,'')),30,' '), IF(BINARY a2<> 0xE9A0AB,'                     BAD-TEXT-UTF8','')) AS a2,
+  CONCAT(RPAD(HEX(COALESCE(b1,'')),30,' '), IF(BINARY b1<> 0xEE5C,  '                     BAD-BLOB','')) AS b1 FROM t1;
 SHOW CREATE TABLE t1;
 
 --echo #
@@ -44,15 +50,14 @@ print $FILE <<END
 --echo OUTFILE: $DUMP_OPTIONS $DUMP_CHARSET_CLAUSE
 --echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
 --disable_query_log
-INSERT INTO t1 VALUES (0xEE5C, 0xEE5C);
+INSERT INTO t1 VALUES (0xEE5C, _gbk 0xEE5C, 0xEE5C);
 --exec LC_ALL=$LOCALE \$MYSQL $DUMP_OPTIONS gbk -e "SELECT * INTO OUTFILE '\$MYSQLTEST_VARDIR/tmp/t1' $DUMP_CHARSET_CLAUSE FROM t1"
 --vertical_results
 TRUNCATE TABLE t1;
 SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('../../tmp/t1')),'\t','----');
 SELECT REPLACE(HEX(\@file), '2D2D2D2D','-') AS file;
 --exec LC_ALL=$LOCALE \$MYSQL $RESTORE_OPTIONS gbk -e "LOAD DATA INFILE '\$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t1 $RESTORE_CHARSET_CLAUSE"
-SELECT CONCAT(HEX(COALESCE(a,'')), IF(a<>0xEE5C,'          BAD-TEXT','')) AS a,
-       CONCAT(HEX(COALESCE(b,'')), IF(b<>0xEE5C,'          BAD-BLOB','')) AS b FROM t1;
+SELECT * FROM v1;
 TRUNCATE TABLE t1;
 --horizontal_results
 --enable_query_log
@@ -83,15 +88,14 @@ print $FILE <<END
 --echo OUTFILE: $DUMP_OPTIONS
 --echo INFILE:  $RESTORE_OPTIONS $RESTORE_CHARSET_CLAUSE
 --disable_query_log
-INSERT INTO t1 VALUES (0xEE5C, 0xEE5C);
+INSERT INTO t1 VALUES (0xEE5C, _gbk 0xEE5C, 0xEE5C);
 --exec LC_ALL=$LOCALE \$MYSQL_DUMP $DUMP_OPTIONS -T\$MYSQLTEST_VARDIR/tmp/tmpgbk gbk t1
 --vertical_results
 TRUNCATE TABLE t1;
 --eval SET \@file=REPLACE(TRIM(TRAILING 0x0A FROM LOAD_FILE('\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt')),'\t','----');
 SELECT REPLACE(HEX(\@file), '2D2D2D2D','-') AS file;
 --exec LC_ALL=$LOCALE \$MYSQL $RESTORE_OPTIONS gbk -e "LOAD DATA INFILE '\$MYSQLTEST_VARDIR/tmp/tmpgbk/t1.txt' INTO TABLE t1 $RESTORE_CHARSET_CLAUSE"
-SELECT CONCAT(HEX(COALESCE(a,'')), IF(a<>0xEE5C,'          BAD-TEXT','')) AS a,
-       CONCAT(HEX(COALESCE(b,'')), IF(b<>0xEE5C,'          BAD-BLOB','')) AS b FROM t1;
+SELECT * FROM v1;
 TRUNCATE TABLE t1;
 --horizontal_results
 --enable_query_log
