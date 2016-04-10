@@ -1113,3 +1113,14 @@ from
 
 drop table t1;
 
+--echo #
+--echo # MDEV-9894: Assertion `0' failed in Window_func_runner::setup
+--echo #  return ER_NOT_SUPPORTED_YET for aggregates that are not yet supported
+--echo #  as window functions.
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2);
+--error ER_NOT_SUPPORTED_YET
+SELECT MAX(i) OVER (PARTITION BY (i)) FROM t1;
+drop table t1;
+

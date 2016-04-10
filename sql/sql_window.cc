@@ -1766,7 +1766,8 @@ bool Window_func_runner::setup(THD *thd)
       break;
     }
     default:
-      DBUG_ASSERT(0);
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "This aggregate as window function"); 
+      return true;
   }
 
   return false;

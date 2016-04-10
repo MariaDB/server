@@ -1831,3 +1831,13 @@ rank() over (order by b)
 0
 0
 drop table t1;
+#
+# MDEV-9894: Assertion `0' failed in Window_func_runner::setup
+#  return ER_NOT_SUPPORTED_YET for aggregates that are not yet supported
+#  as window functions.
+#
+create table t1 (i int);
+insert into t1 values (1),(2);
+SELECT MAX(i) OVER (PARTITION BY (i)) FROM t1;
+ERROR 42000: This version of MariaDB doesn't yet support 'This aggregate as window function'
+drop table t1;
