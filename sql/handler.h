@@ -563,9 +563,9 @@ struct xid_t {
 
   xid_t() {}                                /* Remove gcc warning */  
   bool eq(struct xid_t *xid)
-  { return eq(xid->gtrid_length, xid->bqual_length, xid->data); }
+  { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d)
-  { return g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
+  { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
   void set(struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }
   void set(long f, const char *g, long gl, const char *b, long bl)
