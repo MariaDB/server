@@ -1279,6 +1279,14 @@ public:
         - top bound should remove row (#n-3) from the window function.
     */
     n_rows_to_skip= n_rows + (is_top_bound? 1:0) - 1;
+
+    /* Bottom bound "ROWS 0 PRECEDING" is a special case: */
+    if (n_rows_to_skip == -1)
+    {
+      cursor.get_next();
+      item->add();
+      n_rows_to_skip= 0;
+    }
   }
 
   void next_row(Item_sum* item)
@@ -1496,7 +1504,7 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
       longlong n_rows= bound->offset->val_int();
       /* These should be handled in the parser */
       DBUG_ASSERT(!bound->offset->null_value);
-      DBUG_ASSERT(n_rows > 0);
+      DBUG_ASSERT(n_rows >= 0);
       if (is_preceding)
         return new Frame_n_rows_preceding(is_top_bound, n_rows);
       else
