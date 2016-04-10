@@ -1812,3 +1812,22 @@ s1	s2	X
 NULL	a	2
 NULL	NULL	1
 drop table t1;
+#
+# Try window functions that are not directly present in the select list
+#
+create table t1 (a int, b int);
+insert into t1 values 
+(1,3),
+(2,2),
+(3,1);
+select 
+rank() over (order by a) -
+rank() over (order by b)
+from
+t1;
+rank() over (order by a) -
+rank() over (order by b)
+0
+0
+0
+drop table t1;

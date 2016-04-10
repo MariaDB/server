@@ -7911,7 +7911,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       Item_window_func::split_sum_func.
     */
     if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM &&
-	 sum_func_list) || item->type() == Item::WINDOW_FUNC_ITEM)
+	 sum_func_list) || item->with_window_func)
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
                            SPLIT_SUM_SELECT);
     thd->lex->current_select->select_list_tables|= item->used_tables();

@@ -1761,6 +1761,14 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
         ((Item_sum *) this)->ref_by)
       return;
   }
+  else if (type() == WINDOW_FUNC_ITEM)
+  {
+    /*
+      Skip the else part, window functions are very special functions: 
+      they need to have their own fields in the temp. table, but they
+      need to be proceessed differently than regular aggregate functions
+    */
+  }
   else
   {
     /* Not a SUM() function */
@@ -1801,7 +1809,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     Exception is Item_direct_view_ref which we need to convert to
     Item_ref to allow fields from view being stored in tmp table.
   */
-  Item_aggregate_ref *item_ref;
+  Item_ref *item_ref;
   uint el= fields.elements;
   /*
     If this is an item_ref, get the original item
@@ -1811,13 +1819,24 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
   Item *real_itm= real_item();
 
   ref_pointer_array[el]= real_itm;
-  if (!(item_ref= (new (thd->mem_root)
-                   Item_aggregate_ref(thd,
-                                      &thd->lex->current_select->context,
-				      &ref_pointer_array[el], 0, name))))
-    return;                                   // fatal_error is set
+  if (type() == WINDOW_FUNC_ITEM)
+  {
+    if (!(item_ref= (new (thd->mem_root)
+                     Item_direct_ref(thd,
+                                        &thd->lex->current_select->context,
+                                        &ref_pointer_array[el], 0, name))))
+      return;                                   // fatal_error is set
+  }
+  else
+  {
+    if (!(item_ref= (new (thd->mem_root)
+                     Item_aggregate_ref(thd,
+                                        &thd->lex->current_select->context,
+                                        &ref_pointer_array[el], 0, name))))
+      return;                                   // fatal_error is set
+  }
   if (type() == SUM_FUNC_ITEM)
-    item_ref->depended_from= ((Item_sum *) this)->depended_from(); 
+    item_ref->depended_from= ((Item_sum *) this)->depended_from();
   fields.push_front(real_itm);
   thd->change_item_tree(ref, item_ref);
 }
