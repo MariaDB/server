@@ -1659,7 +1659,8 @@ JOIN::optimize_inner()
       (!join_tab[const_tables].select ||
        !join_tab[const_tables].select->quick ||
        join_tab[const_tables].select->quick->get_type() != 
-       QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX))
+       QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX) &&
+      !select_lex->have_window_funcs())
   {
     if (group && rollup.state == ROLLUP::STATE_NONE &&
        list_contains_unique_index(join_tab[const_tables].table,
@@ -1709,11 +1710,13 @@ JOIN::optimize_inner()
   }
   if (group || tmp_table_param.sum_func_count)
   {
-    if (! hidden_group_fields && rollup.state == ROLLUP::STATE_NONE)
+    if (! hidden_group_fields && rollup.state == ROLLUP::STATE_NONE
+        && !select_lex->have_window_funcs())
       select_distinct=0;
   }
   else if (select_distinct && table_count - const_tables == 1 &&
-           rollup.state == ROLLUP::STATE_NONE)
+           rollup.state == ROLLUP::STATE_NONE &&
+           !select_lex->have_window_funcs())
   {
     /*
       We are only using one table. In this case we change DISTINCT to a
@@ -2283,7 +2286,8 @@ bool JOIN::make_aggr_tables_info()
     tmp_table_param.hidden_field_count= 
       all_fields.elements - fields_list.elements;
 
-    distinct= select_distinct && !group_list;
+    distinct= select_distinct && !group_list && 
+              !select_lex->have_window_funcs();
     keep_row_order= false;
     if (create_postjoin_aggr_table(curr_tab,
                                    &all_fields, tmp_group, 

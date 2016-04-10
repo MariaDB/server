@@ -1164,4 +1164,27 @@ select
 from t1;
 
 drop table t1;
+--echo #
+--echo # MDEV-9780, The "DISTINCT must not bet converted into GROUP BY when
+--echo #                 window functions are present" part 
+--echo #
+
+create table t1 (part_id int, a int);
+insert into t1 values
+(100, 1),
+(100, 2),
+(100, 2),
+(100, 3),
+(2000, 1),
+(2000, 2),
+(2000, 3),
+(2000, 3),
+(2000, 3);
+
+select          rank() over (partition by part_id order by a) from t1;
+select distinct rank() over (partition by part_id order by a) from t1;
+explain format=json
+select distinct rank() over (partition by part_id order by a) from t1;
+
+drop table t1;
 

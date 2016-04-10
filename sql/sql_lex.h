@@ -1113,6 +1113,8 @@ public:
     return window_funcs.push_back(win_func);
   }
 
+  bool have_window_funcs() const { return (window_funcs.elements !=0); }
+
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;

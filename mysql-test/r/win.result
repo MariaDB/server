@@ -1902,3 +1902,61 @@ part_id	pk	a	sum(a) over (partition by part_id order by pk rows between 1 preced
 200	3	4	6
 200	4	8	12
 drop table t1;
+#
+# MDEV-9780, The "DISTINCT must not bet converted into GROUP BY when
+#                 window functions are present" part 
+#
+create table t1 (part_id int, a int);
+insert into t1 values
+(100, 1),
+(100, 2),
+(100, 2),
+(100, 3),
+(2000, 1),
+(2000, 2),
+(2000, 3),
+(2000, 3),
+(2000, 3);
+select          rank() over (partition by part_id order by a) from t1;
+rank() over (partition by part_id order by a)
+1
+2
+2
+4
+1
+2
+3
+3
+3
+select distinct rank() over (partition by part_id order by a) from t1;
+rank() over (partition by part_id order by a)
+1
+2
+4
+3
+explain format=json
+select distinct rank() over (partition by part_id order by a) from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "duplicate_removal": {
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "t1.part_id, t1.a"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 9,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1;
