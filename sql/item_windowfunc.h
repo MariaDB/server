@@ -13,6 +13,16 @@ int test_if_group_changed(List<Cached_item> &list);
 class Group_bound_tracker
 {
   List<Cached_item> group_fields;
+  /*
+    During the first check_if_next_group, the list of cached_items is not
+    initialized. The compare function will return that the items match if
+    the field's value is the same as the Cached_item's default value (0).
+    This flag makes sure that we always return true during the first check.
+
+    XXX This is better to be implemented within test_if_group_changed, but
+    since it is used in other parts of the codebase, we keep it here for now.
+  */
+   bool first_check;
 public:
   void init(THD *thd, SQL_I_List<ORDER> *list)
   {
@@ -21,6 +31,7 @@ public:
       Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
       group_fields.push_back(tmp);
     }
+    first_check= true;
   }
 
   void cleanup()
@@ -31,15 +42,28 @@ public:
   /*
     Check if the current row is in a different group than the previous row
     this function was called for.
-    The new row's group becomes the current row's group.
+    XXX: Side-effect: The new row's group becomes the current row's group.
+
+    Returns true if there is a change between the current_group and the cached
+    value, or if it is the first check after a call to init.
   */
   bool check_if_next_group()
   {
-    if (test_if_group_changed(group_fields) > -1)
+    if (test_if_group_changed(group_fields) > -1 || first_check)
+    {
+      first_check= false;
       return true;
+    }
     return false;
   }
 
+  /*
+    Check if the current row is in a different group than the previous row
+    check_if_next_group was called for.
+
+    Compares the groups without the additional side effect of updating the
+    current cached values.
+  */
   int compare_with_cache()
   {
     List_iterator<Cached_item> li(group_fields);
@@ -196,7 +220,7 @@ class Item_sum_dense_rank: public Item_sum_int
   */
   void clear()
   {
-    dense_rank= 1;
+    dense_rank= 0;
   }
   bool add();
   void update_field() {}

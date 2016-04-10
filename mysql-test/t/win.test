@@ -87,32 +87,6 @@ select pk, a, rank() over (order by a desc) from t2;
 drop table t2;
 
 --echo #
---echo # Try DENSE_RANK() function
---echo #
-create table t3 (
-  pk int primary key,
-  a int,
-  b int
-);
-
-insert into t3 values
-( 1 , 0, 10),
-( 2 , 0, 10),
-( 3 , 1, 10),
-( 4 , 1, 10),
-( 8 , 2, 10),
-( 5 , 2, 20),
-( 6 , 2, 20),
-( 7 , 2, 20),
-( 9 , 4, 20),
-(10 , 4, 20);
-
-select pk, a, b, rank() over (order by a), dense_rank() over (order by a) from t3;
-select pk, a, b, rank() over (partition by b order by a), dense_rank() over (partition by b order by a) from t3;
-
-drop table t3;
-
---echo #
 --echo # Try Aggregates as window functions. With frames.
 --echo #
 create table t0 (a int);

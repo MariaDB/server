@@ -1,0 +1,58 @@
+--echo #
+--echo # Try DENSE_RANK() function
+--echo #
+
+create table t1 (
+  pk int primary key,
+  a int,
+  b int
+);
+
+insert into t1 values
+( 1 , 0, 10),
+( 2 , 0, 10),
+( 3 , 1, 10),
+( 4 , 1, 10),
+( 8 , 2, 10),
+( 5 , 2, 20),
+( 6 , 2, 20),
+( 7 , 2, 20),
+( 9 , 4, 20),
+(10 , 4, 20);
+
+select pk, a, b, rank() over (order by a) as rank,
+                 dense_rank() over (order by a) as dense_rank
+from t1;
+select pk, a, b, rank() over (partition by b order by a) as rank,
+                 dense_rank() over (partition by b order by a) as dense_rank
+from t1;
+
+drop table t1;
+
+--echo #
+--echo # Test with null values in the table.
+--echo #
+
+create table t2 (s1 int, s2 char(5));
+insert into t2 values (1,'a');
+insert into t2 values (null,null);
+insert into t2 values (1,null);
+insert into t2 values (null,'a');
+insert into t2 values (null,'c');
+insert into t2 values (2,'b');
+insert into t2 values (-1,'');
+
+select *, rank() over (order by s1) as rank,
+          dense_rank() over (order by s1) as dense_rank
+from t2;
+select *, rank() over (partition by s2 order by s1) as rank,
+          dense_rank() over (partition by s2 order by s1) as dense_rank
+from t2;
+select *, rank() over (order by s2) as rank,
+          dense_rank() over (order by s2) as dense_rank
+from t2;
+select *, rank() over (partition by s1 order by s2) as rank,
+          dense_rank() over (partition by s1 order by s2) as dense_rank
+from t2;
+
+drop table t2;
