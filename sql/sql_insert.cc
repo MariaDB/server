@@ -258,7 +258,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     if (table_list->is_view())
       unfix_fields(fields);
 
-    res= setup_fields(thd, 0, fields, MARK_COLUMNS_WRITE, 0, 0);
+    res= setup_fields(thd, Ref_ptr_array(), fields, MARK_COLUMNS_WRITE, 0, 0);
 
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
@@ -346,7 +346,8 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
   }
 
   /* Check the fields we are going to modify */
-  if (setup_fields(thd, 0, update_fields, MARK_COLUMNS_WRITE, 0, 0))
+  if (setup_fields(thd, Ref_ptr_array(),
+                   update_fields, MARK_COLUMNS_WRITE, 0, 0))
     return -1;
 
   if (insert_table_list->is_view() &&
@@ -771,7 +772,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
       goto abort;
     }
-    if (setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0))
+    if (setup_fields(thd, Ref_ptr_array(), *values, MARK_COLUMNS_READ, 0, 0))
       goto abort;
     switch_to_nullable_trigger_fields(*values, table);
   }
@@ -1466,7 +1467,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     table_list->next_local= 0;
     context->resolve_in_table_list_only(table_list);
 
-    res= (setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0) ||
+    res= (setup_fields(thd, Ref_ptr_array(),
+                       *values, MARK_COLUMNS_READ, 0, 0) ||
           check_insert_fields(thd, context->table_list, fields, *values,
                               !insert_into_view, 0, &map));
 
@@ -1482,7 +1484,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     }
 
     if (!res)
-      res= setup_fields(thd, 0, update_values, MARK_COLUMNS_READ, 0, 0);
+      res= setup_fields(thd, Ref_ptr_array(),
+                        update_values, MARK_COLUMNS_READ, 0, 0);
 
     if (!res && duplic == DUP_UPDATE)
     {
@@ -3440,7 +3443,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   */
   lex->current_select= &lex->select_lex;
 
-  res= (setup_fields(thd, 0, values, MARK_COLUMNS_READ, 0, 0) ||
+  res= (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, 0) ||
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
 
@@ -3493,7 +3496,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
       table_list->next_name_resolution_table= 
         ctx_state.get_first_name_resolution_table();
 
-    res= res || setup_fields(thd, 0, *info.update_values,
+    res= res || setup_fields(thd, Ref_ptr_array(), *info.update_values,
                              MARK_COLUMNS_READ, 0, 0);
     if (!res)
     {
@@ -3622,7 +3625,7 @@ void select_insert::cleanup()
 select_insert::~select_insert()
 {
   DBUG_ENTER("~select_insert");
-  if (table && table->created)
+  if (table && table->is_created())
   {
     table->next_number_field=0;
     table->auto_increment_field_not_null= FALSE;

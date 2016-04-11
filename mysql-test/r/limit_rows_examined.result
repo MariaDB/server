@@ -471,9 +471,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 2 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
+Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 1;
-ERROR HY000: Sort aborted: 
+c1	sum(c2)
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (1). The query result may be incomplete.
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 20;
 c1	sum(c2)
 aa	3
@@ -496,9 +498,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 2 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
+Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 1;
-ERROR HY000: Sort aborted: 
+c1	sum(c2)
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (1). The query result may be incomplete.
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 20;
 c1	sum(c2)
 aa	3
@@ -627,7 +631,7 @@ CREATE TABLE t4 (a int);
 INSERT INTO t4 values (1), (2);
 INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 2 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
+Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete.
 select * from t4;
 a
 1
@@ -666,7 +670,7 @@ MDEV-115
 
 SET @@optimizer_switch='in_to_exists=on,outer_join_with_cache=on';
 CREATE TABLE t1 ( a VARCHAR(3) ) ENGINE=MyISAM;
-INSERT INTO t1 VALUES ('USA');
+INSERT INTO t1 VALUES ('USA'),('CAN');
 CREATE TABLE t2 ( b INT );
 INSERT INTO t2 VALUES (3899),(3914),(3888);
 CREATE TABLE t3 ( c VARCHAR(33), d INT );
@@ -676,8 +680,8 @@ SELECT DISTINCT a AS field1 FROM t1, t2
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
 HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	Using temporary
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Distinct
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	3	
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 SELECT DISTINCT a AS field1 FROM t1, t2 
@@ -685,24 +689,27 @@ WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d)
 HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
 field1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 23 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete.
+Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete.
 EXPLAIN
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	Using temporary
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Distinct
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 a
+USA
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 15 rows, which exceeds LIMIT ROWS EXAMINED (14). The query result may be incomplete.
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 15;
 a
 USA
+CAN
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 16 rows, which exceeds LIMIT ROWS EXAMINED (15). The query result may be incomplete.
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
 a
 USA
+CAN
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 17 rows, which exceeds LIMIT ROWS EXAMINED (16). The query result may be incomplete.
 drop table t1,t2,t3;

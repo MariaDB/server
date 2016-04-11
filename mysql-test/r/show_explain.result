@@ -1162,7 +1162,7 @@ SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, fie
 connection default;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	Using filesort
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t1	range	b	b	6	NULL	107	Using where; Using index
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 Warnings:

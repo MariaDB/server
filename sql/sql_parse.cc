@@ -4520,7 +4520,7 @@ end_with_restore_list:
                                                lex->table_count);
       if (result)
       {
-        res= mysql_select(thd, &select_lex->ref_pointer_array,
+        res= mysql_select(thd,
                           select_lex->get_table_list(),
                           select_lex->with_wild,
                           select_lex->item_list,
@@ -7788,7 +7788,6 @@ add_proc_to_list(THD* thd, Item *item)
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
   order->item=item_ptr;
-  order->free_me=0;
   thd->lex->proc_list.link_in_list(order, &order->next);
   return 0;
 }
@@ -7806,8 +7805,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
-  order->asc = asc;
-  order->free_me=0;
+  order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0; 
@@ -8222,6 +8220,65 @@ TABLE_LIST *st_select_lex::convert_right_join()
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
+}
+
+
+void st_select_lex::prepare_add_window_spec(THD *thd)
+{
+  LEX *lex= thd->lex;
+  lex->save_group_list= group_list;
+  lex->save_order_list= order_list;
+  lex->win_ref= NULL;
+  lex->win_frame= NULL;
+  lex->frame_top_bound= NULL;
+  lex->frame_bottom_bound= NULL;
+  group_list.empty();
+  order_list.empty();
+}
+
+bool st_select_lex::add_window_def(THD *thd,
+                                   LEX_STRING *win_name,
+                                   LEX_STRING *win_ref,
+                                   SQL_I_List<ORDER> win_partition_list,
+                                   SQL_I_List<ORDER> win_order_list,
+                                   Window_frame *win_frame)
+{
+  SQL_I_List<ORDER> *win_part_list_ptr=
+    new (thd->mem_root) SQL_I_List<ORDER> (win_partition_list);
+  SQL_I_List<ORDER> *win_order_list_ptr=
+    new (thd->mem_root) SQL_I_List<ORDER> (win_order_list);
+  if (!(win_part_list_ptr && win_order_list_ptr))
+    return true;
+  Window_def *win_def= new (thd->mem_root) Window_def(win_name,
+                                                      win_ref,
+                                                      win_part_list_ptr,
+                                                      win_order_list_ptr,
+                                                      win_frame);
+  group_list= thd->lex->save_group_list;
+  order_list= thd->lex->save_order_list;
+  return (win_def == NULL || window_specs.push_back(win_def));
+}
+
+bool st_select_lex::add_window_spec(THD *thd, 
+                                    LEX_STRING *win_ref,
+                                    SQL_I_List<ORDER> win_partition_list,
+                                    SQL_I_List<ORDER> win_order_list,
+                                    Window_frame *win_frame)
+{
+  SQL_I_List<ORDER> *win_part_list_ptr=
+    new (thd->mem_root) SQL_I_List<ORDER> (win_partition_list);
+  SQL_I_List<ORDER> *win_order_list_ptr=
+    new (thd->mem_root) SQL_I_List<ORDER> (win_order_list);
+  if (!(win_part_list_ptr && win_order_list_ptr))
+    return true;
+  Window_spec *win_spec= new (thd->mem_root) Window_spec(win_ref,
+                                                         win_part_list_ptr,
+                                                         win_order_list_ptr,
+                                                         win_frame);
+  group_list= thd->lex->save_group_list;
+  order_list= thd->lex->save_order_list;
+  thd->lex->win_spec= win_spec;
+  return (win_spec == NULL || window_specs.push_back(win_spec));
 }
 
 /**

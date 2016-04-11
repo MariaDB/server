@@ -65,6 +65,8 @@ class RANGE_OPT_PARAM;
 class SEL_TREE;
 
 
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
+
 static inline uint32
 char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
 {
@@ -626,7 +628,8 @@ public:
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
-  enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM, STRING_ITEM,
+  enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM,
+             WINDOW_FUNC_ITEM, STRING_ITEM,
 	     INT_ITEM, REAL_ITEM, NULL_ITEM, VARBIN_ITEM,
 	     COPY_STR_ITEM, FIELD_AVG_ITEM, DEFAULT_VALUE_ITEM,
 	     PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
@@ -692,6 +695,7 @@ public:
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_window_func;             /* True if item contains a window func */
   /**
     True if any item except Item_sum contains a field. Set during parsing.
   */
@@ -1180,7 +1184,7 @@ public:
   void print_item_w_name(String *, enum_query_type query_type);
   void print_value(String *);
   virtual void update_used_tables() {}
-  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inheited,
                                   bool link_item_fields,
                                   COND_EQUAL **cond_equal_ref)
   {
@@ -1216,10 +1220,11 @@ public:
   {
     return false;
   }
-  virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
+  virtual void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags) {}
   /* Called for items that really have to be split */
-  void split_sum_func2(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+  void split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
+                       List<Item> &fields,
                        Item **ref, uint flags);
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
@@ -4768,17 +4773,10 @@ public:
    - cmp() method that compares the saved value with the current value of the
      source item, and if they were not equal saves item's value into the saved
      value.
-*/
 
-/*
-  Cached_item_XXX objects are not exactly caches. They do the following:
-
-  Each Cached_item_XXX object has
-   - its source item
-   - saved value of the source item
-   - cmp() method that compares the saved value with the current value of the
-     source item, and if they were not equal saves item's value into the saved
-     value.
+  TODO: add here:
+   - a way to save the new value w/o comparison
+   - a way to do less/equal/greater comparison
 */
 
 class Cached_item :public Sql_alloc
@@ -4786,48 +4784,75 @@ class Cached_item :public Sql_alloc
 public:
   bool null_value;
   Cached_item() :null_value(0) {}
+  /*
+    Compare the cached value with the source value. If not equal, copy
+    the source value to the cache.
+    @return
+      true  - Not equal
+      false - Equal
+  */
   virtual bool cmp(void)=0;
+
+  /* Compare the cached value with the source value, without copying */
+  virtual int  cmp_read_only()=0;
+
   virtual ~Cached_item(); /*line -e1509 */
 };
 
-class Cached_item_str :public Cached_item
+class Cached_item_item : public Cached_item
 {
+protected:
   Item *item;
+
+  Cached_item_item(Item *arg) : item(arg) {}
+public:
+  void fetch_value_from(Item *new_item)
+  {
+    Item *save= item;
+    item= new_item;
+    cmp();
+    item= save;
+  }
+};
+
+class Cached_item_str :public Cached_item_item
+{
   uint32 value_max_length;
   String value,tmp_value;
 public:
   Cached_item_str(THD *thd, Item *arg);
   bool cmp(void);
+  int  cmp_read_only();
   ~Cached_item_str();                           // Deallocate String:s
 };
 
 
-class Cached_item_real :public Cached_item
+class Cached_item_real :public Cached_item_item
 {
-  Item *item;
   double value;
 public:
-  Cached_item_real(Item *item_par) :item(item_par),value(0.0) {}
+  Cached_item_real(Item *item_par) :Cached_item_item(item_par),value(0.0) {}
   bool cmp(void);
+  int  cmp_read_only();
 };
 
-class Cached_item_int :public Cached_item
+class Cached_item_int :public Cached_item_item
 {
-  Item *item;
   longlong value;
 public:
-  Cached_item_int(Item *item_par) :item(item_par),value(0) {}
+  Cached_item_int(Item *item_par) :Cached_item_item(item_par),value(0) {}
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 
-class Cached_item_decimal :public Cached_item
+class Cached_item_decimal :public Cached_item_item
 {
-  Item *item;
   my_decimal value;
 public:
   Cached_item_decimal(Item *item_par);
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 class Cached_item_field :public Cached_item
@@ -4844,6 +4869,7 @@ public:
     buff= (uchar*) thd_calloc(thd, length= field->pack_length());
   }
   bool cmp(void);
+  int  cmp_read_only();
 };
 
 class Item_default_value : public Item_field
@@ -5129,7 +5155,7 @@ public:
     return (this->*processor)(arg);
   }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
-  void split_sum_func2_example(THD *thd, Item **ref_pointer_array,
+  void split_sum_func2_example(THD *thd,  Ref_ptr_array ref_pointer_array,
                                List<Item> &fields, uint flags)
   {
     example->split_sum_func2(thd, ref_pointer_array, fields, &example, flags);

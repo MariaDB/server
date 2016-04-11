@@ -477,7 +477,7 @@ exit_merge:
 unconditional_materialization:
   derived->change_refs_to_fields();
   derived->set_materialized_derived();
-  if (!derived->table || !derived->table->created)
+  if (!derived->table || !derived->table->is_created())
     res= mysql_derived_create(thd, lex, derived);
   if (!res)
     res= mysql_derived_fill(thd, lex, derived);
@@ -859,7 +859,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
   TABLE *table= derived->table;
   SELECT_LEX_UNIT *unit= derived->get_unit();
 
-  if (table->created)
+  if (table->is_created())
     DBUG_RETURN(FALSE);
   select_union *result= (select_union*)unit->result;
   if (table->s->db_type() == TMP_ENGINE_HTON)
@@ -912,7 +912,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (unit->executed && !unit->uncacheable && !unit->describe)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
-  DBUG_ASSERT(derived->table && derived->table->created);
+  DBUG_ASSERT(derived->table && derived->table->is_created());
   SELECT_LEX *first_select= unit->first_select();
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
@@ -928,7 +928,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       first_select->options&= ~OPTION_FOUND_ROWS;
 
     lex->current_select= first_select;
-    res= mysql_select(thd, &first_select->ref_pointer_array,
+    res= mysql_select(thd,
                       first_select->table_list.first,
                       first_select->with_wild,
                       first_select->item_list, first_select->where,

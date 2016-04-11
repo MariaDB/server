@@ -9351,7 +9351,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
   ha_rows found_count= 0, delete_count= 0;
-  SORT_FIELD *sortorder;
   SORT_INFO  *file_sort= 0;
   READ_RECORD info;
   TABLE_LIST   tables;
@@ -9441,7 +9440,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
-      uint length= 0;
       bzero((char *) &tables, sizeof(tables));
       tables.table= from;
       tables.alias= tables.table_name= from->s->table_name.str;
@@ -9449,14 +9447,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
       THD_STAGE_INFO(thd, stage_sorting);
       Filesort_tracker dummy_tracker(false);
+      Filesort fsort(order, HA_POS_ERROR, true, NULL);
+
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
-                      &tables, fields, all_fields, order) ||
-          !(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
-          !(file_sort= filesort(thd, from, sortorder, length,
-                               NULL, HA_POS_ERROR,
-                               true,
-                                &dummy_tracker)))
+                      &tables, fields, all_fields, order))
+        goto err;
+
+      if (!(file_sort= filesort(thd, from, &fsort, &dummy_tracker)))
         goto err;
     }
     thd_progress_next_stage(thd);

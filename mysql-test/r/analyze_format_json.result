@@ -492,8 +492,9 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "volatile parameter": "REPLACED",
-    "having_condition": "(TOP > a)",
+    "having_condition": "(TOP > t2.a)",
     "filesort": {
+      "sort_key": "t2.a",
       "r_loops": 1,
       "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
@@ -523,6 +524,7 @@ ANALYZE
     "r_loops": 1,
     "volatile parameter": "REPLACED",
     "filesort": {
+      "sort_key": "t2.a",
       "r_loops": 1,
       "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
@@ -563,6 +565,7 @@ ANALYZE
     "r_loops": 1,
     "volatile parameter": "REPLACED",
     "filesort": {
+      "sort_key": "t2.a",
       "r_loops": 1,
       "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
@@ -684,18 +687,20 @@ ANALYZE
     "r_loops": 1,
     "volatile parameter": "REPLACED",
     "filesort": {
+      "sort_key": "group_concat(t3.f3 separator ',')",
       "r_loops": 1,
       "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 0,
       "volatile parameter": "REPLACED",
-      "filesort": {
-        "r_loops": 1,
-        "volatile parameter": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 0,
-        "volatile parameter": "REPLACED",
-        "temporary_table": {
+      "temporary_table": {
+        "filesort": {
+          "sort_key": "(subquery#2)",
+          "r_loops": 1,
+          "volatile parameter": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 0,
+          "volatile parameter": "REPLACED",
           "temporary_table": {
             "table": {
               "table_name": "t2",

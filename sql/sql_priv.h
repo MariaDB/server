@@ -344,6 +344,7 @@ enum enum_parsing_place
   IN_WHERE,
   IN_ON,
   IN_GROUP_BY,
+  IN_ORDER_BY,
   PARSING_PLACE_SIZE /* always should be the last */
 };
 

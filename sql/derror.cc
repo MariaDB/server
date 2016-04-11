@@ -162,7 +162,7 @@ static bool check_error_mesg(const char *file_name, const char **errmsg)
       errors_per_range[1] != 0 ||
       (errors_per_range[2] < ER_ERROR_LAST_SECTION_4 - 
        ER_ERROR_FIRST_SECTION_4 +1) ||
-      (errors_per_range[2] < ER_ERROR_LAST - ER_ERROR_FIRST_SECTION_5 + 1))
+      (errors_per_range[3] < ER_ERROR_LAST - ER_ERROR_FIRST_SECTION_5 + 1))
   {
     sql_print_error("Error message file '%s' is probably from and older "
                     "version of MariaDB as it doesn't contain all "

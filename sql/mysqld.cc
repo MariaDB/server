@@ -6011,8 +6011,6 @@ int mysqld_main(int argc, char **argv)
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
 
-  sql_print_information(ER_DEFAULT(ER_EXTRA_TEST));  // QQ
-
   // try to keep fd=0 busy
   if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
   {

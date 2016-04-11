@@ -176,9 +176,7 @@ public:
                           bool is_analyze);
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze, 
-                                  Filesort_tracker *first_table_sort,
-                                  bool first_table_sort_used);
+                                  bool is_analyze);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -186,6 +184,7 @@ public:
 };
 
 
+class Explain_aggr_node;
 /*
   EXPLAIN structure for a SELECT.
   
@@ -212,14 +211,8 @@ public:
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
     time_tracker(is_analyze),
-    ops_tracker(is_analyze)
+    aggr_tree(NULL)
   {}
-
-  /*
-    This is used to save the results of "late" test_if_skip_sort_order() calls
-    that are made from JOIN::exec
-  */
-  void replace_table(uint idx, Explain_table_access *new_tab);
 
 public:
   const char *select_type;
@@ -244,9 +237,13 @@ public:
 
   /* ANALYZE members */
   Time_and_counter_tracker time_tracker;
-
-  Sort_and_group_tracker  ops_tracker;
   
+  /* 
+    Part of query plan describing sorting, temp.table usage, and duplicate 
+    removal
+  */
+  Explain_aggr_node* aggr_tree;
+
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
@@ -260,6 +257,64 @@ private:
   Table_access_tracker using_temporary_read_tracker;
 };
 
+/////////////////////////////////////////////////////////////////////////////
+// EXPLAIN structures for ORDER/GROUP operations.
+/////////////////////////////////////////////////////////////////////////////
+typedef enum 
+{
+  AGGR_OP_TEMP_TABLE,
+  AGGR_OP_FILESORT,
+  //AGGR_OP_READ_SORTED_FILE, // need this?
+  AGGR_OP_REMOVE_DUPLICATES,
+  AGGR_OP_WINDOW_FUNCS
+  //AGGR_OP_JOIN // Need this?
+} enum_explain_aggr_node_type;
+
+
+class Explain_aggr_node : public Sql_alloc
+{
+public:
+  virtual enum_explain_aggr_node_type get_type()= 0;
+  virtual ~Explain_aggr_node() {}
+  Explain_aggr_node *child;
+};
+
+class Explain_aggr_filesort : public Explain_aggr_node
+{
+  List<Item> sort_items;
+public:
+  enum_explain_aggr_node_type get_type() { return AGGR_OP_FILESORT; }
+  Filesort_tracker tracker;
+
+  Explain_aggr_filesort(MEM_ROOT *mem_root, bool is_analyze, 
+                        Filesort *filesort);
+
+  void print_json_members(Json_writer *writer, bool is_analyze);
+};
+
+class Explain_aggr_tmp_table : public Explain_aggr_node
+{
+public:
+  enum_explain_aggr_node_type get_type() { return AGGR_OP_TEMP_TABLE; }
+};
+
+class Explain_aggr_remove_dups : public Explain_aggr_node
+{
+public:
+  enum_explain_aggr_node_type get_type() { return AGGR_OP_REMOVE_DUPLICATES; }
+};
+
+class Explain_aggr_window_funcs : public Explain_aggr_node
+{
+  List<Explain_aggr_filesort> sorts;
+public:
+  enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
+
+  void print_json_members(Json_writer *writer, bool is_analyze);
+  friend class Window_funcs_computation;
+};
+
+/////////////////////////////////////////////////////////////////////////////
 
 /* 
   Explain structure for a UNION.
@@ -617,7 +672,8 @@ public:
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL),
-    sjm_nest(NULL)
+    sjm_nest(NULL),
+    pre_join_sort(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
 
@@ -710,6 +766,12 @@ public:
   Item *pushed_index_cond;
 
   Explain_basic_join *sjm_nest;
+  
+  /*
+    This describes a possible filesort() call that is done before doing the
+    join operation.
+  */
+  Explain_aggr_filesort *pre_join_sort;
 
   /* ANALYZE members */
 
@@ -723,9 +785,7 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze, 
-                          Filesort_tracker *fs_tracker,
-                          bool first_table_sort_used);
+                          bool is_analyze);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
