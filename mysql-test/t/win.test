@@ -897,6 +897,7 @@ insert into t1 values (3, 10, 'xxx');
 insert into t1 values (3, 20, 'vvv');
  
 prepare stmt from 'select a, row_number() over (partition by a order by b) from t1';
+--sorted_result
 execute stmt;
 
 drop table t1;
