@@ -1281,7 +1281,7 @@ public:
     n_rows_to_skip= n_rows + (is_top_bound? 1:0) - 1;
 
     /* Bottom bound "ROWS 0 PRECEDING" is a special case: */
-    if (n_rows_to_skip == -1)
+    if (n_rows_to_skip == ha_rows(-1))
     {
       cursor.get_next();
       item->add();
