@@ -945,7 +945,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   statement_id_counter= 0UL;
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
-  user_time.val= start_time= start_time_sec_part= 0;
   start_utime= utime_after_query= 0;
   utime_after_lock= 0L;
   progress.arena= 0;
@@ -1398,6 +1397,8 @@ void THD::init(void)
             variables.default_master_connection.length);
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  user_time.val= start_time= start_time_sec_part= 0;
 
   server_status= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
