@@ -213,7 +213,9 @@ public:
 class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
+  bool first_add;
   Group_bound_tracker peer_tracker;
+ public:
   /*
      XXX(cvicentiu) This class could potentially be implemented in the rank
      class, with a switch for the DENSE case.
@@ -221,6 +223,7 @@ class Item_sum_dense_rank: public Item_sum_int
   void clear()
   {
     dense_rank= 0;
+    first_add= true;
   }
   bool add();
   void update_field() {}
@@ -229,9 +232,8 @@ class Item_sum_dense_rank: public Item_sum_int
     return dense_rank;
   }
 
- public:
   Item_sum_dense_rank(THD *thd)
-    : Item_sum_int(thd), dense_rank(0) {}
+    : Item_sum_int(thd), dense_rank(0), first_add(true) {}
   enum Sumfunctype sum_func () const
   {
     return DENSE_RANK_FUNC;

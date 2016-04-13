@@ -185,8 +185,11 @@ void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 
 bool Item_sum_dense_rank::add()
 {
-  if (peer_tracker.check_if_next_group())
+  if (peer_tracker.check_if_next_group() || first_add)
+  {
+    first_add= false;
     dense_rank++;
+  }
 
   return false;
 }
