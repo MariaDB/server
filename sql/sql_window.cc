@@ -122,9 +122,10 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     bool hidden_group_fields;
     if (win_spec->check_window_names(itp) ||
         setup_group(thd, ref_pointer_array, tables, fields, all_fields,
-                    win_spec->partition_list->first, &hidden_group_fields) ||
+                    win_spec->partition_list->first, &hidden_group_fields,
+                    true) ||
         setup_order(thd, ref_pointer_array, tables, fields, all_fields,
-                    win_spec->order_list->first) ||
+                    win_spec->order_list->first, true) ||
         (win_spec->window_frame && 
          win_spec->window_frame->check_frame_bounds()))
     {
@@ -236,21 +237,21 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 static
 int compare_order_elements(ORDER *ord1, ORDER *ord2)
 {
+  if (*ord1->item == *ord2->item)
+    return CMP_EQ;
   Item *item1= (*ord1->item)->real_item();
   Item *item2= (*ord2->item)->real_item();
-  if (item1->used_tables() == item2->used_tables())
+  DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
+              item2->type() == Item::FIELD_ITEM); 
+  int cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
+  if (cmp == 0)
   {
-    int cmp= strcmp(item1->name, item2->name);
-    if (cmp == 0)
-    {
-      if (ord1->direction == ord2->direction)
-        return CMP_EQ;
-      return ord1->direction > ord2->direction ? CMP_GT : CMP_LT;
-    }
-    else
-      return cmp > 0 ? CMP_GT : CMP_LT;
+    if (ord1->direction == ord2->direction)
+      return CMP_EQ;
+    return ord1->direction > ord2->direction ? CMP_GT : CMP_LT;
   }
-  return item1->used_tables() > item2->used_tables() ? CMP_GT : CMP_LT;
+  else
+    return cmp > 0 ? CMP_GT : CMP_LT;
 }
 
 static

@@ -21734,6 +21734,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   @param[in,out] all_fields         All select, group and order by fields
   @param[in] is_group_field         True if order is a GROUP field, false if
     ORDER by field
+  @param[in] search_in_all_fields   If true then search in all_fields
 
   @retval
     FALSE if OK
@@ -21744,7 +21745,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 static bool
 find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                    ORDER *order, List<Item> &fields, List<Item> &all_fields,
-                   bool is_group_field)
+                   bool is_group_field, bool search_in_all_fields)
 {
   Item *order_item= *order->item; /* The item from the GROUP/ORDER caluse. */
   Item::Type order_item_type;
@@ -21849,6 +21850,18 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
                           thd->where);
     }
   }
+  else if (search_in_all_fields)
+  {
+    Item **found_item= find_item_in_list(order_item, all_fields, &counter,
+                                         REPORT_EXCEPT_NOT_FOUND, &resolution,
+                                         all_fields.elements - fields.elements);
+    if (found_item != not_found_item)
+    {
+      order->item= &ref_pointer_array[all_fields.elements-1-counter];
+      order->in_field_list= 0;
+      return FALSE;
+    }
+  }
 
   order->in_field_list=0;
   /*
@@ -21896,14 +21909,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
 */
 
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List<Item> &all_fields, ORDER *order)
+		List<Item> &fields, List<Item> &all_fields, ORDER *order,
+                bool search_in_all_fields)
 { 
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
-			   all_fields, FALSE))
+			   all_fields, FALSE, search_in_all_fields))
       return 1;
     if ((*order->item)->with_window_func && parsing_place != IN_ORDER_BY)
     {
@@ -21918,18 +21932,19 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 /**
   Intitialize the GROUP BY list.
 
-  @param thd			Thread handler
-  @param ref_pointer_array	We store references to all fields that was
+  @param thd		       Thread handler
+  @param ref_pointer_array     We store references to all fields that was
                                not in 'fields' here.
-  @param fields		All fields in the select part. Any item in
+  @param fields		       All fields in the select part. Any item in
                                'order' that is part of these list is replaced
                                by a pointer to this fields.
-  @param all_fields		Total list of all unique fields used by the
+  @param all_fields	       Total list of all unique fields used by the
                                select. All items in 'order' that was not part
                                of fields will be added first to this list.
-  @param order			The fields we should do GROUP BY on.
-  @param hidden_group_fields	Pointer to flag that is set to 1 if we added
+  @param order		       The fields we should do GROUP/PARTITION BY on 
+  @param hidden_group_fields   Pointer to flag that is set to 1 if we added
                                any fields to all_fields.
+  @param search_in_all_fields  If true then search in all_fields
 
   @todo
     change ER_WRONG_FIELD_WITH_GROUP to more detailed
@@ -21944,7 +21959,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 int
 setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
-	    bool *hidden_group_fields)
+	    bool *hidden_group_fields, bool search_in_all_fields)
 {
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   *hidden_group_fields=0;
@@ -21959,7 +21974,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
-			   all_fields, TRUE))
+			   all_fields, TRUE, search_in_all_fields))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func && parsing_place == IN_GROUP_BY)

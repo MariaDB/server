@@ -1163,3 +1163,23 @@ select distinct rank() over (partition by part_id order by a) from t1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-9893: Window functions with different ORDER BY lists, 
+--echo #            one of these lists containing an expression 
+--echo #
+
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (1,null);
+insert into t1 values (null,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+ 
+select 
+  *,
+  ROW_NUMBER() OVER (order by s1),
+  CUME_DIST() OVER (order by -s1) 
+from t1;
+
+drop table t1;

@@ -1916,3 +1916,27 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-9893: Window functions with different ORDER BY lists, 
+#            one of these lists containing an expression 
+#
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (1,null);
+insert into t1 values (null,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+select 
+*,
+ROW_NUMBER() OVER (order by s1),
+CUME_DIST() OVER (order by -s1) 
+from t1;
+s1	s2	ROW_NUMBER() OVER (order by s1)	CUME_DIST() OVER (order by -s1)
+1	a	4	0.8333333333
+NULL	NULL	1	0.3333333333
+1	NULL	5	0.8333333333
+NULL	a	2	0.3333333333
+2	b	6	0.5000000000
+-1		3	1.0000000000
+drop table t1;

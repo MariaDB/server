@@ -197,7 +197,7 @@ Field *
 find_field_in_table_sef(TABLE *table, const char *name);
 Item ** find_item_in_list(Item *item, List<Item> &items, uint *counter,
                           find_item_error_report_type report_error,
-                          enum_resolution_type *resolution);
+                          enum_resolution_type *resolution, uint limit= 0);
 bool setup_tables(THD *thd, Name_resolution_context *context,
                   List<TABLE_LIST> *from_clause, TABLE_LIST *tables,
                   List<TABLE_LIST> &leaves, bool select_insert,
