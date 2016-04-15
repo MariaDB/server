@@ -674,38 +674,32 @@ struct trx_sys_t{
 	trx_id_t	max_trx_id;	/*!< The smallest number not yet
 					assigned as a transaction id or
 					transaction number */
-	char		pad1[CACHE_LINE_SIZE];	/*!< Ensure max_trx_id does not share
-					cache line with other fields. */
-	trx_id_t*	descriptors;	/*!< Array of trx descriptors */
+	trx_id_t*	descriptors MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< Array of trx descriptors */
 	ulint		descr_n_max;	/*!< The current size of the descriptors
 					array. */
-	char		pad2[CACHE_LINE_SIZE];	/*!< Ensure static descriptor fields
-					do not share cache lines with
-					descr_n_used */
-	ulint		descr_n_used;	/*!< Number of used elements in the
+	ulint		descr_n_used MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< Number of used elements in the
 					descriptors array. */
-	char		pad3[CACHE_LINE_SIZE];	/*!< Ensure descriptors do not share
-					cache line with other fields */
+	trx_list_t	rw_trx_list MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< List of active and committed in
+					memory read-write transactions, sorted
+					on trx id, biggest first. Recovered
+					transactions are always on this list. */
 #ifdef UNIV_DEBUG
 	trx_id_t	rw_max_trx_id;	/*!< Max trx id of read-write transactions
 					which exist or existed */
 #endif
-	trx_list_t	rw_trx_list;	/*!< List of active and committed in
-					memory read-write transactions, sorted
-					on trx id, biggest first. Recovered
-					transactions are always on this list. */
-	char		pad4[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
-					share cache line with other fields */
-	trx_list_t	ro_trx_list;	/*!< List of active and committed in
+	trx_list_t	ro_trx_list MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< List of active and committed in
 					memory read-only transactions, sorted
 					on trx id, biggest first. NOTE:
 					The order for read-only transactions
 					is not necessary. We should exploit
 					this and increase concurrency during
 					add/remove. */
-	char		pad5[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
-					share cache line with other fields */
-	trx_list_t	mysql_trx_list;	/*!< List of transactions created
+	trx_list_t	mysql_trx_list MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< List of transactions created
 					for MySQL. All transactions on
 					ro_trx_list are on mysql_trx_list. The
 					rw_trx_list can contain system
@@ -717,16 +711,12 @@ struct trx_sys_t{
 					mysql_trx_list may additionally contain
 					transactions that have not yet been
 					started in InnoDB. */
-	char		pad6[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
-					share cache line with other fields */
-	trx_list_t	trx_serial_list;
+	trx_list_t	trx_serial_list MY_ALIGNED(CACHE_LINE_SIZE);
 					/*!< trx->no ordered List of
 					transactions in either TRX_PREPARED or
 					TRX_ACTIVE which have already been
 					assigned a serialization number */
-	char		pad7[CACHE_LINE_SIZE];	/*!< Ensure list base nodes do not
-					share cache line with other fields */
-	trx_rseg_t*	const rseg_array[TRX_SYS_N_RSEGS];
+	trx_rseg_t*	const rseg_array[TRX_SYS_N_RSEGS] MY_ALIGNED(CACHE_LINE_SIZE);
 					/*!< Pointer array to rollback
 					segments; NULL if slot not in use;
 					created and destroyed in
