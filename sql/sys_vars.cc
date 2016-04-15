@@ -5374,3 +5374,36 @@ static Sys_var_ulong Sys_log_tc_size(
        DEFAULT(my_getpagesize() * 6),
        BLOCK_SIZE(my_getpagesize()));
 #endif
+
+
+static bool update_session_track_schema(sys_var *self, THD *thd,
+                                        enum_var_type type)
+{
+  DBUG_ENTER("update_session_track_schema");
+  DBUG_RETURN(thd->session_tracker.get_tracker(CURRENT_SCHEMA_TRACKER)->update(thd));
+}
+
+static Sys_var_mybool Sys_session_track_schema(
+       "session_track_schema",
+       "Track changes to the 'default schema'.",
+       SESSION_VAR(session_track_schema),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0),
+       ON_UPDATE(update_session_track_schema));
+
+static bool update_session_track_state_change(sys_var *self, THD *thd,
+                                              enum_var_type type)
+{
+  DBUG_ENTER("update_session_track_state_change");
+  DBUG_RETURN(thd->session_tracker.get_tracker(SESSION_STATE_CHANGE_TRACKER)->update(thd));
+}
+
+static Sys_var_mybool Sys_session_track_state_change(
+       "session_track_state_change",
+       "Track changes to the 'session state'.",
+       SESSION_VAR(session_track_state_change),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0),
+       ON_UPDATE(update_session_track_state_change));

@@ -204,8 +204,28 @@ bool sys_var::update(THD *thd, set_var *var)
       (on_update && on_update(this, thd, OPT_GLOBAL));
   }
   else
-    return session_update(thd, var) ||
+  {
+    bool ret= session_update(thd, var) ||
       (on_update && on_update(this, thd, OPT_SESSION));
+
+    /*
+      Make sure we don't session-track variables that are not actually
+      part of the session. tx_isolation and and tx_read_only for example
+      exist as GLOBAL, SESSION, and one-shot ("for next transaction only").
+    */
+    if ((var->type == OPT_SESSION) && (!ret))
+    {
+      /*
+        Here MySQL sends variable name to avoid reporting change of
+        the tracker itself, but we decided that it is not needed
+      */
+      thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                           NULL);
+
+    }
+
+    return ret;
+  }
 }
 
 uchar *sys_var::session_value_ptr(THD *thd, const LEX_STRING *base)
@@ -867,6 +887,8 @@ int set_var_user::update(THD *thd)
                MYF(0));
     return -1;
   }
+
+  thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   return 0;
 }
 
@@ -914,7 +936,11 @@ int set_var_role::check(THD *thd)
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return acl_setrole(thd, role.str, access);
+  int res= acl_setrole(thd, role.str, access);
+  if (!res)
+    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                         NULL);
+  return res;
 #else
   return 0;
 #endif
@@ -968,6 +994,8 @@ int set_var_collation_client::update(THD *thd)
 {
   thd->update_charset(character_set_client, collation_connection,
                       character_set_results);
+
+  thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;

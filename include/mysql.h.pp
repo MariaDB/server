@@ -87,6 +87,15 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
+enum enum_session_state_type
+{
+  SESSION_TRACK_SYSTEM_VARIABLES,
+  SESSION_TRACK_SCHEMA,
+  SESSION_TRACK_STATE_CHANGE,
+  SESSION_TRACK_GTIDS,
+  SESSION_TRACK_TRANSACTION_CHARACTERISTICS,
+  SESSION_TRACK_TRANSACTION_STATE
+};
 my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);

@@ -2781,7 +2781,7 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
 ****************************************************************************/
 
 
-sys_var *find_sys_var(THD *thd, const char *str, uint length)
+sys_var *find_sys_var(THD *thd, const char *str, size_t length)
 {
   sys_var *var;
   sys_var_pluginvar *pi= NULL;

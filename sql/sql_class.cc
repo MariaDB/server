@@ -1465,6 +1465,9 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+
+  session_tracker.enable(this);
+
   apc_target.init(&LOCK_thd_data);
   DBUG_VOID_RETURN;
 }

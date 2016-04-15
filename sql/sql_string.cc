@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1156,4 +1157,17 @@ uint convert_to_printable(char *to, size_t to_len,
   else
     *t= '\0';
   return t - to;
+}
+
+void String::q_net_store_length(ulonglong length)
+{
+  char *pos= (char *) net_store_length((uchar *)(Ptr + str_length), length);
+  str_length= pos - Ptr;
+}
+
+void String::q_net_store_data(const uchar *from, size_t length)
+{
+  q_net_store_length(length);
+  bool res= append((const char *)from, length);
+  DBUG_ASSERT(!res);
 }

@@ -120,6 +120,8 @@ struct st_plugin_int
 };
 
 
+extern mysql_mutex_t LOCK_plugin;
+
 /*
   See intern_plugin_lock() for the explanation for the
   conditionally defined plugin_ref type

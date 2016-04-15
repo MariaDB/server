@@ -385,7 +385,7 @@ extern SHOW_COMP_OPTION have_openssl;
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
-sys_var *find_sys_var(THD *thd, const char *str, uint length=0);
+sys_var *find_sys_var(THD *thd, const char *str, size_t length=0);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \

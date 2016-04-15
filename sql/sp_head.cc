@@ -2977,6 +2977,16 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
   reinit_stmt_before_use(thd, m_lex);
 
+#ifndef EMBEDDED_LIBRARY
+  /*
+    if there was instruction which changed tracking state before, result
+    can go with this command OK packet, so better do not cache the result.
+  */
+  if ((thd->client_capabilities & CLIENT_SESSION_TRACK) &&
+      (thd->server_status & SERVER_SESSION_STATE_CHANGED))
+    thd->lex->safe_to_cache_query= 0;
+#endif
+
   if (open_tables)
     res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 

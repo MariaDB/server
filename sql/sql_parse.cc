@@ -3852,6 +3852,12 @@ mysql_execute_command(THD *thd)
         /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
         if (create_info.tmp_table())
           thd->variables.option_bits|= OPTION_KEEP_LOG;
+        /* in case of create temp tables if @@session_track_state_change is
+           ON then send session state notification in OK packet */
+        if(create_info.options & HA_LEX_CREATE_TMP_TABLE)
+          thd->session_tracker.mark_as_changed(thd,
+                                               SESSION_STATE_CHANGE_TRACKER,
+                                               NULL);
         my_ok(thd);
       }
     }
@@ -4608,6 +4614,14 @@ end_with_restore_list:
     
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table());
+
+    /* when dropping temporary tables if @@session_track_state_change is ON then
+       send the boolean tracker in the OK packet */
+    if(!res && (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
+    {
+      thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                           NULL);
+    }
     break;
   }
   case SQLCOM_SHOW_PROCESSLIST:

@@ -495,6 +495,11 @@ public:
   {
     Ptr[str_length++] = c;
   }
+  void q_append2b(const uint32 n)
+  {
+    int2store(Ptr + str_length, n);
+    str_length += 2;
+  }
   void q_append(const uint32 n)
   {
     int4store(Ptr + str_length, n);
@@ -557,6 +562,17 @@ public:
     uint32 old_length= str_length;
     str_length+= arg_length;
     return Ptr+ old_length;			/* Area to use */
+  }
+
+  inline bool prep_alloc(uint32 arg_length, uint32 step_alloc)
+  {
+    uint32 new_length= arg_length + str_length;
+    if (new_length > Alloced_length)
+    {
+      if (realloc(new_length + step_alloc))
+        return true;
+    }
+    return false;
   }
 
   inline bool append(const char *s, uint32 arg_length, uint32 step_alloc)
@@ -623,6 +639,8 @@ public:
   {
     return !sortcmp(this, other, cs);
   }
+  void q_net_store_length(ulonglong length);
+  void q_net_store_data(const uchar *from, size_t length);
 };
 
 

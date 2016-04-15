@@ -2758,7 +2758,11 @@ void mysql_sql_stmt_prepare(THD *thd)
     thd->stmt_map.erase(stmt);
   }
   else
+  {
+    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                         NULL);
     my_ok(thd, 0L, 0L, "Statement prepared");
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -3208,6 +3212,8 @@ void mysql_sql_stmt_close(THD *thd)
   else
   {
     stmt->deallocate();
+    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                         NULL);
     my_ok(thd);
   }
 }

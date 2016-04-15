@@ -903,6 +903,11 @@ The following options may be given as the first argument:
  files within specified directory
  --server-id=#       Uniquely identifies the server instance in the community
  of replication partners
+ --session-track-schema 
+ Track changes to the 'default schema'.
+ (Defaults to on; use --skip-session-track-schema to disable.)
+ --session-track-state-change 
+ Track changes to the 'session state'.
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
@@ -1385,6 +1390,8 @@ safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)
 server-id 1
+session-track-schema TRUE
+session-track-state-change FALSE
 show-slave-auth-info FALSE
 silent-startup FALSE
 skip-grant-tables TRUE
