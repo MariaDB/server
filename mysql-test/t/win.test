@@ -1183,3 +1183,13 @@ select
 from t1;
 
 drop table t1;
+
+
+--echo #
+--echo # MDEV-9925: Wrong result with aggregate function as a window function
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2);
+select i, sum(i) over (partition by i) from t1;
+drop table t1;
+

@@ -1940,3 +1940,13 @@ NULL	NULL	1	0.1666666667
 2	b	4	0.6666666667
 -1		2	1.0000000000
 drop table t1;
+#
+# MDEV-9925: Wrong result with aggregate function as a window function
+#
+create table t1 (i int);
+insert into t1 values (1),(2);
+select i, sum(i) over (partition by i) from t1;
+i	sum(i) over (partition by i)
+1	1
+2	2
+drop table t1;

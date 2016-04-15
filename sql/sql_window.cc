@@ -668,10 +668,67 @@ public:
   // todo: should move_to() also read row here? 
 };
 
+
 /*
-  TODO: We should also have a cursor that reads table rows and 
-  stays within the current partition.
+  A cursor which only moves within a partition. The scan stops at the partition
+  end, and it needs an explicit command to move to the next partition.
 */
+
+class Partition_read_cursor
+{
+  Table_read_cursor tbl_cursor;
+  Group_bound_tracker bound_tracker;
+  bool end_of_partition;
+public:
+  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
+  {
+    tbl_cursor.init(info);
+    bound_tracker.init(thd, partition_list);
+    end_of_partition= false;
+  }
+
+  /*
+    Informs the cursor that we need to move into the next partition.
+    The next partition is provided in two ways:
+    - in table->record[0]..
+    - rownum parameter has the row number.
+  */
+  void on_next_partition(int rownum)
+  {
+    /* Remember the sort key value from the new partition */
+    bound_tracker.check_if_next_group();
+    end_of_partition= false;
+  }
+
+  /*
+    Moves to a new row. The row is assumed to be within the current partition
+  */
+  void move_to(int rownum) { tbl_cursor.move_to(rownum); }
+
+  /*
+    This returns -1 when end of partition was reached.
+  */
+  int get_next()
+  {
+    int res;
+    if (end_of_partition)
+      return -1;
+    if ((res= tbl_cursor.get_next()))
+      return res;
+
+    if (bound_tracker.compare_with_cache())
+    {
+      end_of_partition= true;
+      return -1;
+    }
+    return 0;
+  }
+
+  bool restore_last_row()
+  {
+    return tbl_cursor.restore_last_row();
+  }
+};
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -685,6 +742,27 @@ public:
 
     The cursor also assumes that the current row moves forward through the
     partition and will move to the next adjacent partition after this one.
+
+    List of all cursor classes:
+      Frame_cursor
+        Frame_range_n_top
+        Frame_range_n_bottom
+
+        Frame_range_current_row_top
+        Frame_range_current_row_bottom
+
+        Frame_n_rows_preceding
+        Frame_n_rows_following
+
+        Frame_rows_current_row_top = Frame_n_rows_preceding(0)
+        Frame_rows_current_row_bottom
+
+        // These handle both RANGE and ROWS-type bounds
+        Frame_unbounded_preceding
+        Frame_unbounded_following
+
+        // This is not used as a frame bound, it counts rows in the partition:
+        Frame_unbounded_following_set_count : public Frame_unbounded_following
 
   @todo
   - if we want to allocate this on the MEM_ROOT we should make sure 
@@ -852,7 +930,7 @@ private:
 
 class Frame_range_n_bottom: public Frame_cursor
 {
-  Table_read_cursor cursor;
+  Partition_read_cursor cursor;
 
   Cached_item_item *range_expr;
 
@@ -861,7 +939,6 @@ class Frame_range_n_bottom: public Frame_cursor
 
   const bool is_preceding;
 
-  Group_bound_tracker bound_tracker;
   bool end_of_partition;
 
   /*
@@ -878,7 +955,7 @@ public:
             SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
   {
-    cursor.init(info);
+    cursor.init(thd, info, partition_list);
 
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
@@ -900,8 +977,6 @@ public:
       item_add= new (thd->mem_root) Item_func_plus(thd, src_expr, n_val);
 
     item_add->fix_fields(thd, &item_add);
-
-    bound_tracker.init(thd, partition_list);
   }
 
   void pre_next_partition(longlong rownum, Item_sum* item)
@@ -909,7 +984,7 @@ public:
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
 
-    bound_tracker.check_if_next_group();
+    cursor.on_next_partition(rownum);
     end_of_partition= false;
   }
 
@@ -950,11 +1025,6 @@ private:
     int res;
     while (!(res= cursor.get_next()))
     {
-      if (bound_tracker.check_if_next_group())
-      {
-        end_of_partition= true;
-        break;
-      }
       if (order_direction * range_expr->cmp_read_only() < 0)
         break;
       item->add();
@@ -981,7 +1051,8 @@ private:
 
 class Frame_range_current_row_bottom: public Frame_cursor
 {
-  Table_read_cursor cursor;
+  Partition_read_cursor cursor;
+
   Group_bound_tracker peer_tracker;
 
   bool dont_move;
@@ -990,7 +1061,7 @@ public:
             SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
   {
-    cursor.init(info);
+    cursor.init(thd, info, partition_list);
     peer_tracker.init(thd, order_list);
   }
 
@@ -998,6 +1069,7 @@ public:
   {
     // Save the value of the current_row
     peer_tracker.check_if_next_group();
+    cursor.on_next_partition(rownum);
     if (rownum != 0)
     {
       // Add the current row now because our cursor has already seen it
@@ -1160,17 +1232,19 @@ public:
 
 class Frame_unbounded_following : public Frame_cursor
 {
-
 protected:
-  Table_read_cursor cursor;
-  Group_bound_tracker bound_tracker;
+  Partition_read_cursor cursor;
 
 public:
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
   {
-    cursor.init(info);
-    bound_tracker.init(thd, partition_list);
+    cursor.init(thd, info, partition_list);
+  }
+
+  void pre_next_partition(longlong rownum, Item_sum* item)
+  {
+    cursor.on_next_partition(rownum);
   }
 
   void next_partition(longlong rownum, Item_sum* item)
@@ -1181,15 +1255,11 @@ public:
       if (cursor.get_next())
         return;
     }
-    /* Remember which partition we are in */
-    bound_tracker.check_if_next_group();
     item->add();
 
     /* Walk to the end of the partition, updating the SUM function */
     while (!cursor.get_next())
     {
-      if (bound_tracker.check_if_next_group())
-        break;
       item->add();
     }
   }
@@ -1203,6 +1273,9 @@ public:
 
 class Frame_unbounded_following_set_count : public Frame_unbounded_following
 {
+public:
+  // pre_next_partition is inherited
+
   void next_partition(longlong rownum, Item_sum* item)
   {
     ulonglong num_rows_in_partition= 0;
@@ -1214,13 +1287,9 @@ class Frame_unbounded_following_set_count : public Frame_unbounded_following
     }
     num_rows_in_partition++;
 
-    /* Remember which partition we are in */
-    bound_tracker.check_if_next_group();
     /* Walk to the end of the partition, find how many rows there are. */
     while (!cursor.get_next())
     {
-      if (bound_tracker.check_if_next_group())
-        break;
       num_rows_in_partition++;
     }
 
@@ -1368,14 +1437,8 @@ class Frame_n_rows_following : public Frame_cursor
   const bool is_top_bound;
   const ha_rows n_rows;
 
-  Table_read_cursor cursor;
+  Partition_read_cursor cursor;
   bool at_partition_end;
-
-  /*
-    This cursor reaches partition end before the main cursor has reached it.
-    bound_tracker is used to detect partition end.
-  */
-  Group_bound_tracker bound_tracker;
 public:
   Frame_n_rows_following(bool is_top_bound_arg, ha_rows n_rows_arg) :
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg)
@@ -1386,17 +1449,15 @@ public:
   void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
             SQL_I_List<ORDER> *order_list)
   {
-    cursor.init(info);
+    cursor.init(thd, info, partition_list);
     at_partition_end= false;
-    bound_tracker.init(thd, partition_list);
   }
 
   void pre_next_partition(longlong rownum, Item_sum* item)
   {
     at_partition_end= false;
 
-    // Fetch current partition value
-    bound_tracker.check_if_next_group();
+    cursor.on_next_partition(rownum);
 
     if (rownum != 0)
     {
@@ -1434,15 +1495,10 @@ private:
   {
     if (!cursor.get_next())
     {
-      if (bound_tracker.check_if_next_group())
-        at_partition_end= true;
+      if (is_top_bound) // this is frame start endpoint
+        item->remove();
       else
-      {
-        if (is_top_bound) // this is frame start endpoint
-          item->remove();
-        else
-          item->add();
-      }
+        item->add();
     }
     else
       at_partition_end= true;
