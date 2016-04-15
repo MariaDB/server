@@ -690,6 +690,14 @@ THD *next_global_thread(THD *thd)
 }
 
 struct system_variables global_system_variables;
+/**
+  Following is just for options parsing, used with a difference against
+  global_system_variables.
+
+  TODO: something should be done to get rid of following variables
+*/
+const char *current_dbug_option="";
+
 struct system_variables max_system_variables;
 struct system_status_var global_status_var;
 
@@ -1463,7 +1471,6 @@ my_bool plugins_are_initialized= FALSE;
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
 #endif
-const char *current_dbug_option="";
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
 int allow_severity = LOG_INFO;
@@ -5277,6 +5284,17 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+  {
+    Session_tracker session_track_system_variables_check;
+    if (session_track_system_variables_check.
+	server_boot_verify(system_charset_info))
+    {
+      sql_print_error("The variable session_track_system_variables has "
+		      "invalid values.");
+      unireg_abort(1);
+    }
+  }
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)

@@ -359,7 +359,9 @@ public:
     if (ALIGN_SIZE(arg_length+1) < Alloced_length)
     {
       char *new_ptr;
-      if (!(new_ptr=(char*) my_realloc(Ptr,arg_length,MYF(0))))
+      if (!(new_ptr=(char*)
+            my_realloc(Ptr, arg_length,MYF((thread_specific ?
+                                            MY_THREAD_SPECIFIC : 0)))))
       {
 	Alloced_length = 0;
 	real_alloc(arg_length);

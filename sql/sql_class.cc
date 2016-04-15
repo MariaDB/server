@@ -1766,6 +1766,10 @@ THD::~THD()
     lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
+
+  /* trick to make happy memory accounting system */
+  session_tracker.deinit();
+
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));

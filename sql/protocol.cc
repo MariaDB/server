@@ -276,7 +276,6 @@ net_send_ok(THD *thd,
     /* the info field */
     if (state_changed || (message && message[0]))
     {
-      DBUG_ASSERT(strlen(message) <= MYSQL_ERRMSG_SIZE);
       store.q_net_store_data((uchar*) message, message ? strlen(message) : 0);
     }
 

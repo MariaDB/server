@@ -192,4 +192,6 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
 extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
                               plugin_foreach_func *func, void *arg);
 
+sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
+                         bool throw_error, bool locked);
 #endif

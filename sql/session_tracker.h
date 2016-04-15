@@ -104,6 +104,12 @@ public:
   virtual void mark_as_changed(THD *thd, LEX_CSTRING *name)= 0;
 };
 
+bool sysvartrack_validate_value(THD *thd, const char *str, size_t len);
+bool sysvartrack_reprint_value(THD *thd, char *str, size_t len);
+bool sysvartrack_update(THD *thd);
+size_t sysvartrack_value_len(THD *thd);
+bool sysvartrack_value_construct(THD *thd, char *val, size_t len);
+
 
 /**
   Session_tracker
@@ -134,10 +140,22 @@ public:
   Session_tracker();
   ~Session_tracker()
   {
-    for (int i= 0; i <= SESSION_TRACKER_END; i ++)
-      delete m_trackers[i];
+    deinit();
   }
+
+  /* trick to make happy memory accounting system */
+  void deinit()
+  {
+    for (int i= 0; i <= SESSION_TRACKER_END; i ++)
+    {
+      if (m_trackers[i])
+        delete m_trackers[i];
+      m_trackers[i]= NULL;
+    }
+  }
+
   void enable(THD *thd);
+  bool server_boot_verify(const CHARSET_INFO *char_set);
 
   /** Returns the pointer to the tracker object for the specified tracker. */
   inline State_tracker *get_tracker(enum_session_tracker tracker) const

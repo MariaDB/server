@@ -3817,6 +3817,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SESSION_TRACK_SYSTEM_VARIABLES
+SESSION_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+GLOBAL_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Track changes in registered system variables.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SKIP_EXTERNAL_LOCKING
 SESSION_VALUE	NULL
 GLOBAL_VALUE	ON

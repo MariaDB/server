@@ -115,6 +115,9 @@ void sys_var_end()
   DBUG_VOID_RETURN;
 }
 
+
+static bool static_test_load= TRUE;
+
 /**
   sys_var constructor
 
@@ -184,6 +187,8 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   else
     chain->first= this;
   chain->last= this;
+
+  test_load= &static_test_load;
 }
 
 bool sys_var::update(THD *thd, set_var *var)
@@ -215,13 +220,14 @@ bool sys_var::update(THD *thd, set_var *var)
     */
     if ((var->type == OPT_SESSION) && (!ret))
     {
+      thd->session_tracker.mark_as_changed(thd, SESSION_SYSVARS_TRACKER,
+                                           (LEX_CSTRING*)var->var);
       /*
         Here MySQL sends variable name to avoid reporting change of
         the tracker itself, but we decided that it is not needed
       */
       thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
                                            NULL);
-
     }
 
     return ret;
@@ -995,7 +1001,30 @@ int set_var_collation_client::update(THD *thd)
   thd->update_charset(character_set_client, collation_connection,
                       character_set_results);
 
+  /* Mark client collation variables as changed */
+  if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
+  {
+    sys_var *svar;
+    mysql_mutex_lock(&LOCK_plugin);
+    if ((svar= find_sys_var_ex(thd, "character_set_client",
+                               sizeof("character_set_client") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    if ((svar= find_sys_var_ex(thd, "character_set_results",
+                             sizeof("character_set_results") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    if ((svar= find_sys_var_ex(thd, "character_set_connection",
+                                sizeof("character_set_connection") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    mysql_mutex_unlock(&LOCK_plugin);
+  }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;

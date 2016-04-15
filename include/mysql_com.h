@@ -288,7 +288,7 @@ enum enum_server_command
                            CLIENT_MULTI_RESULTS | \
                            CLIENT_PS_MULTI_RESULTS | \
                            CLIENT_SSL_VERIFY_SERVER_CERT | \
-                            CLIENT_REMEMBER_OPTIONS | \
+                           CLIENT_REMEMBER_OPTIONS | \
                            MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
                            CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
@@ -556,9 +556,9 @@ enum enum_mysql_set_option
 */
 enum enum_session_state_type
 {
-  SESSION_TRACK_SYSTEM_VARIABLES,                       /* Session system variables */
-  SESSION_TRACK_SCHEMA,                          /* Current schema */
-  SESSION_TRACK_STATE_CHANGE,                  /* track session state changes */
+  SESSION_TRACK_SYSTEM_VARIABLES,             /* Session system variables */
+  SESSION_TRACK_SCHEMA,                       /* Current schema */
+  SESSION_TRACK_STATE_CHANGE,                 /* track session state changes */
   SESSION_TRACK_GTIDS,
   SESSION_TRACK_TRANSACTION_CHARACTERISTICS,  /* Transaction chistics */
   SESSION_TRACK_TRANSACTION_STATE             /* Transaction state */
