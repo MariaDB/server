@@ -6824,6 +6824,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                  or as a field name without alias,
                                  or as a field hidden by alias,
                                  or ignoring alias)
+    limit                       How many items in the list to check
+                                (if limit==0 then all items are to be checked)
                                 
   RETURN VALUES
     0			Item is not found or item is not unique,
@@ -6841,9 +6843,10 @@ Item **not_found_item= (Item**) 0x1;
 Item **
 find_item_in_list(Item *find, List<Item> &items, uint *counter,
                   find_item_error_report_type report_error,
-                  enum_resolution_type *resolution)
+                  enum_resolution_type *resolution, uint limit)
 {
   List_iterator<Item> li(items);
+  uint n_items= limit == 0 ? items.elements : limit;
   Item **found=0, **found_unaliased= 0, *item;
   const char *db_name=0;
   const char *field_name=0;
@@ -6867,8 +6870,9 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
     db_name=    ((Item_ident*) find)->db_name;
   }
 
-  for (uint i= 0; (item=li++); i++)
+  for (uint i= 0; i < n_items; i++)
   {
+    item= li++;
     if (field_name &&
         (item->real_item()->type() == Item::FIELD_ITEM ||
          ((item->type() == Item::REF_ITEM) &&

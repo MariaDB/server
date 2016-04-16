@@ -213,7 +213,9 @@ public:
 class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
+  bool first_add;
   Group_bound_tracker peer_tracker;
+ public:
   /*
      XXX(cvicentiu) This class could potentially be implemented in the rank
      class, with a switch for the DENSE case.
@@ -221,6 +223,7 @@ class Item_sum_dense_rank: public Item_sum_int
   void clear()
   {
     dense_rank= 0;
+    first_add= true;
   }
   bool add();
   void update_field() {}
@@ -229,9 +232,8 @@ class Item_sum_dense_rank: public Item_sum_int
     return dense_rank;
   }
 
- public:
   Item_sum_dense_rank(THD *thd)
-    : Item_sum_int(thd), dense_rank(0) {}
+    : Item_sum_int(thd), dense_rank(0), first_add(true) {}
   enum Sumfunctype sum_func () const
   {
     return DENSE_RANK_FUNC;
@@ -427,7 +429,6 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
  public:
   Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
     Item_sum_window_with_row_count(thd, num_quantiles_expr),
-    num_quantiles_expr_(num_quantiles_expr),
     current_row_count_(0) {};
 
   double val_real()
@@ -443,7 +444,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
       return 0;
     }
 
-    longlong num_quantiles= num_quantiles_expr_->val_int();
+    longlong num_quantiles= get_num_quantiles();
 
     if (num_quantiles <= 0) {
       my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
@@ -487,19 +488,8 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
 
-  bool fix_fields(THD *thd, Item **ref)
-  {
-    if (Item_sum_window_with_row_count::fix_fields(thd, ref))
-      return true;
-    // TODO-cvicentiu is ref as a parameter here ok?
-    if (!num_quantiles_expr_->fixed)
-      num_quantiles_expr_->fix_fields(thd, ref);
-
-    return false;
-  }
-
  private:
-  Item* num_quantiles_expr_;
+  longlong get_num_quantiles() { return args[0]->val_int(); }
   ulong current_row_count_;
 };
 

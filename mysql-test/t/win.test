@@ -4,6 +4,7 @@
 
 --disable_warnings
 drop table if exists t1,t2;
+drop view if exists v1;
 --enable_warnings
 
 --echo # ########################################################################
@@ -1162,4 +1163,41 @@ explain format=json
 select distinct rank() over (partition by part_id order by a) from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-9893: Window functions with different ORDER BY lists, 
+--echo #            one of these lists containing an expression 
+--echo #
+
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (3,null);
+insert into t1 values (4,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+ 
+select 
+  *,
+  ROW_NUMBER() OVER (order by s1),
+  CUME_DIST() OVER (order by -s1) 
+from t1;
+
+drop table t1;
+
+
+--echo #
+--echo # MDEV-9925: Wrong result with aggregate function as a window function
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2);
+select i, sum(i) over (partition by i) from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-9922: Assertion `!join->only_const_tables() && fsort' failed in int create_sort_index
+--echo #
+create view v1 as select 1 as i;
+select rank() over (order by i) from v1;
+drop view v1;
 

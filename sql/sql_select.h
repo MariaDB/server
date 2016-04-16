@@ -1942,10 +1942,11 @@ int get_quick_record(SQL_SELECT *select);
 SORT_FIELD * make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
                                   SORT_FIELD *sortorder);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List <Item> &all_fields, ORDER *order);
+		List<Item> &fields, List <Item> &all_fields, ORDER *order,
+                bool search_in_all_fields= true);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
-		bool *hidden_group_fields);
+		bool *hidden_group_fields, bool search_in_all_fields= true);
 bool fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
                     Ref_ptr_array ref_pointer_array);
 int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
