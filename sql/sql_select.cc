@@ -21221,8 +21221,6 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
   if (fsort == NULL)
     fsort= tab->filesort;
 
-  // One row, no need to sort. make_tmp_tables_info should already handle this.
-  DBUG_ASSERT(!join->only_const_tables() && fsort);
   table=  tab->table;
   select= fsort->select;
  

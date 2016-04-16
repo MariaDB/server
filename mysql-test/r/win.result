@@ -1,4 +1,5 @@
 drop table if exists t1,t2;
+drop view if exists v1;
 # ########################################################################
 # # Parser tests
 # ########################################################################
@@ -1950,3 +1951,11 @@ i	sum(i) over (partition by i)
 1	1
 2	2
 drop table t1;
+#
+# MDEV-9922: Assertion `!join->only_const_tables() && fsort' failed in int create_sort_index
+#
+create view v1 as select 1 as i;
+select rank() over (order by i) from v1;
+rank() over (order by i)
+1
+drop view v1;
