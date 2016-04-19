@@ -1612,6 +1612,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       sl->context.error_processor_data= (void *)table;
     }
 
+    table->select_lex->master_unit()->is_view= true;
+
     /*
       check MERGE algorithm ability
       - algorithm is not explicit TEMPORARY TABLE
