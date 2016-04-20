@@ -645,6 +645,7 @@ public:
     derived tables/views handling.
   */
   TABLE_LIST *derived;
+  bool is_view;
   /* With clause attached to this unit (if any) */
   With_clause *with_clause;
   /* With element where this unit is used as the specification (if any) */
