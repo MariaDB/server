@@ -26,26 +26,6 @@ const int opt_syslog = LOG_ERR | LOG_PID | LOG_CONS;
 */
 
 void
-fatal_exit(const String& message)
-{
-  fprintf(stderr, "FATAL_EXIT: %s\n", message.ptr());
-/*
-  syslog(opt_syslog, "FATAL_EXIT: %s", message.ptr());
-*/
-  _exit(1);
-}
-
-void
-fatal_exit(const char *message)
-{
-  fprintf(stderr, "FATAL_EXIT: %s\n", message);
-/*
-  syslog(opt_syslog, "FATAL_EXIT: %s", message);
-*/
-  _exit(1);
-}
-
-void
 fatal_abort(const String& message)
 {
   fprintf(stderr, "FATAL_COREDUMP: %s\n", message.ptr());
