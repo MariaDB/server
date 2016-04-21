@@ -7453,7 +7453,8 @@ ulong get_column_grant(THD *thd, GRANT_INFO *grant,
       if (!grant_column)
         priv|= (grant->privilege | grant_table_role->privs);
       else
-        priv|= (grant->privilege | grant_table->privs | grant_column->rights);
+        priv|= (grant->privilege | grant_table_role->privs |
+                grant_column->rights);
     }
   }
   mysql_rwlock_unlock(&LOCK_grant);
