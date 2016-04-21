@@ -7559,9 +7559,6 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  mysql_rwlock_rdlock(&LOCK_grant);
-  mysql_mutex_lock(&acl_cache->lock);
-
   if (lex_user->user.str == current_user.str)
   {
     username= thd->security_ctx->priv_user;
@@ -7579,23 +7576,28 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   else
   {
-    lex_user= get_current_user(thd, lex_user, false);
+    Security_context *sctx= thd->security_ctx;
+    bool do_check_access;
+
+    lex_user= get_current_user(thd, lex_user);
     if (!lex_user)
-    {
-      mysql_mutex_unlock(&acl_cache->lock);
-      mysql_rwlock_unlock(&LOCK_grant);
       DBUG_RETURN(TRUE);
-    }
 
     if (lex_user->is_role())
     {
       rolename= lex_user->user.str;
+      do_check_access= strcmp(rolename, sctx->priv_role);
     }
     else
     {
       username= lex_user->user.str;
       hostname= lex_user->host.str;
+      do_check_access= strcmp(username, sctx->priv_user) ||
+                       strcmp(hostname, sctx->priv_host);
     }
+
+    if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+      DBUG_RETURN(TRUE);
   }
   DBUG_ASSERT(rolename || username);
 
@@ -7610,12 +7612,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   field_list.push_back(field);
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-
     DBUG_RETURN(TRUE);
-  }
+
+  mysql_rwlock_rdlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
 
   if (username)
   {

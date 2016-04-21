@@ -5,3 +5,21 @@
 #
 --error ER_NONEXISTING_GRANT
 SHOW GRANTS FOR root@invalid_host;
+
+#
+# MDEV-9580 SHOW GRANTS FOR <current_user> fails
+#
+create user test;
+create user foo;
+create role foo;
+grant foo to test;
+--connect (conn_1, localhost, test,,)
+set role foo;
+show grants for test; # user
+show grants for foo;  # role
+--error ER_DBACCESS_DENIED_ERROR
+show grants for foo@'%'; # user
+--connection default
+drop user test, foo;
+drop role foo;
+
