@@ -1978,7 +1978,7 @@ public:
   TABLE *table;
   mysql_mutex_t mutex;
   mysql_cond_t cond, cond_client;
-  volatile uint tables_in_use,stacked_inserts;
+  uint tables_in_use, stacked_inserts;
   volatile bool status;
   /**
     When the handler thread starts, it clones a metadata lock ticket
@@ -2863,7 +2863,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
         lock_count=di->lock_count();
         mysql_mutex_unlock(&LOCK_delayed_insert);
         mysql_mutex_lock(&di->mutex);
-        if (!lock_count && !di->tables_in_use && !di->stacked_inserts)
+        if (!lock_count && !di->tables_in_use && !di->stacked_inserts &&
+            !thd->lock)
           break;					// Time to die
       }
 
