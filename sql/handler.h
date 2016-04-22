@@ -1822,7 +1822,10 @@ public:
   // Virtual columns changed
   static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 30;
 
-  // ALTER TABLE for a partitioned table
+  /**
+    ALTER TABLE for a partitioned table. The engine needs to commit
+    online alter of all partitions atomically (using group_commit_ctx)
+  */
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
 
   /**
