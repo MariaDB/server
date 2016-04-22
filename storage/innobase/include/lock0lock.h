@@ -1172,8 +1172,6 @@ lock_update_split_and_merge(
 
 #endif /* WITH_WSREP */
 
-#ifndef UNIV_NONINL
 #include "lock0lock.ic"
-#endif
 
 #endif

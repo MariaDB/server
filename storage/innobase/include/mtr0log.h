@@ -243,8 +243,6 @@ mlog_parse_index(
 extra mlog buffer size for variable size data */
 #define MLOG_BUF_MARGIN	256
 
-#ifndef UNIV_NONINL
 #include "mtr0log.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* mtr0log_h */

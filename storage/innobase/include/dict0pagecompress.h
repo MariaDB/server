@@ -56,8 +56,6 @@ dict_table_page_compression_level(
 	const dict_table_t*	table)	/*!< in: table */
 	__attribute__((const));
 
-#ifndef UNIV_NONINL
 #include "dict0pagecompress.ic"
-#endif
 
 #endif

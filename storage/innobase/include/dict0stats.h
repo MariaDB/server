@@ -263,9 +263,7 @@ dict_stats_save_index_stat(
 	const char*	stat_description,
 	trx_t*		trx);
 
-#ifndef UNIV_NONINL
 #include "dict0stats.ic"
-#endif
 
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
 void test_dict_stats_all();

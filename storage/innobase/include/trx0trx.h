@@ -1605,8 +1605,6 @@ private:
 	trx_t*			m_trx;
 };
 
-#ifndef UNIV_NONINL
 #include "trx0trx.ic"
-#endif
 
 #endif

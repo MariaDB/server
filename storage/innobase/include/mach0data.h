@@ -375,8 +375,6 @@ mach_read_ulint(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#ifndef UNIV_NONINL
 #include "mach0data.ic"
-#endif
 
 #endif

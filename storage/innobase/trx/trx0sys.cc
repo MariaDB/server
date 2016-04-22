@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -29,9 +29,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mysqld.h"
 #include "trx0sys.h"
 #include "sql_error.h"
-#ifdef UNIV_NONINL
-#include "trx0sys.ic"
-#endif
 
 #include "fsp0fsp.h"
 #include "mtr0log.h"

@@ -612,8 +612,6 @@ private:
 	bool			m_sync;
 };
 
-#ifndef UNIV_NONINL
 #include "mtr0mtr.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* mtr0mtr_h */

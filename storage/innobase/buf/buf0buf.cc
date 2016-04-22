@@ -37,9 +37,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "os0api.h"
 
-#ifdef UNIV_NONINL
-#include "buf0buf.ic"
-#endif
 #ifdef UNIV_INNOCHECKSUM
 #include "string.h"
 #include "mach0data.h"

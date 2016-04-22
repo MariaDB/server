@@ -2063,8 +2063,6 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
-#ifndef UNIV_NONINL
 #include "dict0dict.ic"
-#endif
 
 #endif

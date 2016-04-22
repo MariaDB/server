@@ -42,10 +42,6 @@ my_bool	srv_ibuf_disable_background_merge;
 /** The start address for an insert buffer bitmap page bitmap */
 #define IBUF_BITMAP		PAGE_DATA
 
-#ifdef UNIV_NONINL
-#include "ibuf0ibuf.ic"
-#endif
-
 #include "buf0buf.h"
 #include "buf0rea.h"
 #include "fsp0fsp.h"

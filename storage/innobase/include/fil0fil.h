@@ -1591,12 +1591,7 @@ fil_decr_pending_ops(
 /*=================*/
 	ulint	id);	/*!< in: space id */
 
-#endif /* UNIV_INNOCHECKSUM */
-
-#ifndef UNIV_INNOCHECKSUM
-#ifndef UNIV_NONINL
 #include "fil0fil.ic"
-#endif
-#endif
+#endif /* UNIV_INNOCHECKSUM */
 
 #endif /* fil0fil_h */

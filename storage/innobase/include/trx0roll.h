@@ -220,8 +220,6 @@ struct trx_named_savept_t{
 					transaction */
 };
 
-#ifndef UNIV_NONINL
 #include "trx0roll.ic"
-#endif
 
 #endif

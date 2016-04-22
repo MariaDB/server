@@ -32,11 +32,6 @@ Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
 #include "row0sel.h"
-
-#ifdef UNIV_NONINL
-#include "row0sel.ic"
-#endif
-
 #include "dict0dict.h"
 #include "dict0boot.h"
 #include "trx0undo.h"

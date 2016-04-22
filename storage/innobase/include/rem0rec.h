@@ -1120,8 +1120,6 @@ int wsrep_rec_get_foreign_key(
 	ibool		new_protocol); /* in: protocol > 1 */
 #endif /* WITH_WSREP */
 
-#ifndef UNIV_NONINL
 #include "rem0rec.ic"
-#endif
 
 #endif /* rem0rec_h */

@@ -823,9 +823,7 @@ btr_lift_page_up(
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 
-#ifndef UNIV_NONINL
 #include "btr0btr.ic"
-#endif
 
 /****************************************************************
 Global variable controlling if scrubbing should be performed */

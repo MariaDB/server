@@ -177,9 +177,7 @@ flst_print(
 	mtr_t*			mtr);	/*!< in: mtr */
 
 
-#ifndef UNIV_NONINL
 #include "fut0lst.ic"
-#endif
 
 #endif /* !UNIV_INNOCHECKSUM */
 

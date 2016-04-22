@@ -28,10 +28,6 @@ Created 1/16/1996 Heikki Tuuri
 
 #include "data0type.h"
 
-#ifdef UNIV_NONINL
-#include "data0type.ic"
-#endif
-
 /* At the database startup we store the default-charset collation number of
 this MySQL installation to this global variable. If we have < 4.1.2 format
 column definitions, or records in the insert buffer, we use this

@@ -32,13 +32,7 @@ Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "ha_prototypes.h"
-#include "univ.i"
-
 #include "sync0arr.h"
-#ifdef UNIV_NONINL
-#include "sync0arr.ic"
-#endif
-
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
 #include <hash.h>

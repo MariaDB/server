@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -158,9 +159,5 @@ Check if there are threads active.
 bool
 os_thread_active();
 /*==============*/
-
-#ifndef UNIV_NONINL
-#include "os0thread.ic"
-#endif
 
 #endif

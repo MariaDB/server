@@ -354,8 +354,6 @@ record */
 #define	TRX_UNDO_INSERT_OP		1U
 #define	TRX_UNDO_MODIFY_OP		2U
 
-#ifndef UNIV_NONINL
 #include "trx0rec.ic"
-#endif
 
 #endif /* trx0rec_h */

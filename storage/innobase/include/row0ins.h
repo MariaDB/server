@@ -253,8 +253,4 @@ struct ins_node_t{
 #define	INS_NODE_INSERT_ENTRIES 3	/* index entries should be built and
 					inserted */
 
-#ifndef UNIV_NONINL
-#include "row0ins.ic"
-#endif
-
 #endif

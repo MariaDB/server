@@ -27,11 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "trx0undo.h"
-
-#ifdef UNIV_NONINL
-#include "trx0undo.ic"
-#endif
-
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "mtr0log.h"

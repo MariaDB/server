@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -576,8 +576,6 @@ struct dtype_t{
 					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
 };
 
-#ifndef UNIV_NONINL
 #include "data0type.ic"
-#endif
 
 #endif

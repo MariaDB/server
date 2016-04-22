@@ -30,11 +30,6 @@ Created 11/11/1995 Heikki Tuuri
 #include <my_dbug.h>
 
 #include "buf0flu.h"
-
-#ifdef UNIV_NONINL
-#include "buf0flu.ic"
-#endif
-
 #include "buf0buf.h"
 #include "buf0mtflu.h"
 #include "buf0checksum.h"

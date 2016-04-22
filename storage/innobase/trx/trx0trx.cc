@@ -28,10 +28,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0trx.h"
 
-#ifdef UNIV_NONINL
-#include "trx0trx.ic"
-#endif
-
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
 #endif

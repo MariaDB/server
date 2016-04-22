@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -138,8 +138,6 @@ sync_array_get_nth_cell(
 	sync_array_t*	arr,	/*!< in: sync array */
 	ulint		n);	/*!< in: index */
 
-#ifndef UNIV_NONINL
 #include "sync0arr.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* sync0arr_h */

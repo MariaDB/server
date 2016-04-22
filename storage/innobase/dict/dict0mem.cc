@@ -29,11 +29,6 @@ Created 1/8/1996 Heikki Tuuri
 #include <mysql_com.h>
 
 #include "dict0mem.h"
-
-#ifdef UNIV_NONINL
-#include "dict0mem.ic"
-#endif
-
 #include "rem0rec.h"
 #include "data0type.h"
 #include "mach0data.h"

@@ -40,10 +40,6 @@ Created 10/21/1995 Heikki Tuuri
 
 #include "os0file.h"
 
-#ifdef UNIV_NONINL
-#include "os0file.ic"
-#endif
-
 #ifdef UNIV_LINUX
 #include <sys/types.h>
 #include <sys/stat.h>

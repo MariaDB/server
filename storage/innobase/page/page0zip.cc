@@ -27,9 +27,6 @@ Created June 2005 by Marko Makela
 
 #include "page0size.h"
 #include "page0zip.h"
-#ifdef UNIV_NONINL
-# include "page0zip.ic"
-#endif
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in

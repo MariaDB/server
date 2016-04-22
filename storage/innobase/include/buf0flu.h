@@ -485,8 +485,6 @@ buf_flush_batch(
 					counts  */
 
 
-#ifndef UNIV_NONINL
 #include "buf0flu.ic"
-#endif
 
 #endif

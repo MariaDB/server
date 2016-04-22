@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -170,8 +170,6 @@ ut_str_sql_format(
 	ulint		buf_size);	/*!< in: output buffer size
 					in bytes */
 
-#ifndef UNIV_NONINL
 #include "ut0mem.ic"
-#endif
 
 #endif

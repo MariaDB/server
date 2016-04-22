@@ -640,8 +640,6 @@ page is updated */
 	trx_sys->mutex.exit();				\
 } while (0)
 
-#ifndef UNIV_NONINL
 #include "trx0sys.ic"
-#endif
 
 #endif

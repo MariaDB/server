@@ -37,11 +37,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include <algorithm>
 
-#ifdef UNIV_NONINL
-#include "dict0dict.ic"
-#include "dict0priv.ic"
-#endif
-
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 dict_index_t*	dict_ind_redundant;
 

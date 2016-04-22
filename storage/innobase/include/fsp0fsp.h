@@ -869,8 +869,6 @@ fsp_page_is_free_func(
 
 #endif /* UNIV_INNOCHECKSUM */
 
-#ifndef UNIV_NONINL
 #include "fsp0fsp.ic"
-#endif
 
 #endif

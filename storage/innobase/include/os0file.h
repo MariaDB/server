@@ -1606,8 +1606,6 @@ os_file_get_block_size(
 	os_file_t	file,	/*!< in: handle to a file */
 	const char*	name);	/*!< in: file name */
 
-#ifndef UNIV_NONINL
 #include "os0file.ic"
-#endif /* UNIV_NONINL */
 
 #endif /* os0file_h */

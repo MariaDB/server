@@ -31,10 +31,6 @@ Created 25/08/2016 Jan Lindström
 #include "srv0start.h"
 #include "ut0new.h"
 
-#ifdef UNIV_NONINL
-# include "dict0stats_bg.ic"
-#endif
-
 #include <vector>
 
 static ib_mutex_t		defrag_pool_mutex;

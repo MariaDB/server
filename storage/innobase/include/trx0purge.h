@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -576,8 +576,6 @@ struct trx_purge_rec_t {
 	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
 };
 
-#ifndef UNIV_NONINL
 #include "trx0purge.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* trx0purge_h */

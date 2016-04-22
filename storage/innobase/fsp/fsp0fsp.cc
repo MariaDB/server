@@ -27,11 +27,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "fsp0fsp.h"
-
-#ifdef UNIV_NONINL
-#include "fsp0fsp.ic"
-#endif
-
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
