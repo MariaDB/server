@@ -5034,12 +5034,15 @@ retry:
 		os_offset_t	offset
 			= ((os_offset_t) (start_page_no - file_start_page_no))
 			* page_size;
+
+		const char* name = node->name == NULL ? space->name : node->name;
+
 #ifdef UNIV_HOTBACKUP
-		success = os_file_write(node->name, node->handle, buf,
+		success = os_file_write(name, node->handle, buf,
 					offset, page_size * n_pages);
 #else
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
-				 node->name, node->handle, buf,
+				 name, node->handle, buf,
 				 offset, page_size * n_pages,
 				 NULL, NULL);
 #endif /* UNIV_HOTBACKUP */
@@ -5610,18 +5613,20 @@ fil_io(
 	ut_a(byte_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_a((len % OS_FILE_LOG_BLOCK_SIZE) == 0);
 
+	const char* name = node->name == NULL ? space->name : node->name;
+
 #ifdef UNIV_HOTBACKUP
 	/* In mysqlbackup do normal i/o, not aio */
 	if (type == OS_FILE_READ) {
 		ret = os_file_read(node->handle, buf, offset, len);
 	} else {
 		ut_ad(!srv_read_only_mode);
-		ret = os_file_write(node->name, node->handle, buf,
+		ret = os_file_write(name, node->handle, buf,
 				    offset, len);
 	}
 #else
 	/* Queue the aio request */
-	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
+	ret = os_aio(type, mode | wake_later, name, node->handle, buf,
 		     offset, len, node, message);
 #endif /* UNIV_HOTBACKUP */
 
