@@ -1079,10 +1079,8 @@ binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
 character-set-filesystem binary
-character-set-server latin1
 character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)
-collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
 console FALSE

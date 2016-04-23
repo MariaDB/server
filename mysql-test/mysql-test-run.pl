@@ -3638,7 +3638,7 @@ sub mysql_install_db {
 
   # Create mtr database
   mtr_tofile($bootstrap_sql_file,
-	     "CREATE DATABASE mtr;\n");
+	     "CREATE DATABASE mtr CHARSET=latin1;\n");
 
   # Add help tables and data for warning detection and supression
   mtr_tofile($bootstrap_sql_file,
