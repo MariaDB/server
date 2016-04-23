@@ -19,7 +19,7 @@
 /*  ---------------                                                     */
 /*    TABMYSQL.CPP   - Source code                                      */
 /*    PLGDBSEM.H     - DB application declaration file                  */
-/*    TABMYSQL.H     - TABODBC classes declaration file                 */
+/*    TABMYSQL.H     - TABMYSQL classes declaration file                */
 /*    GLOBAL.H       - Global declaration file                          */
 /*                                                                      */
 /*  REQUIRED LIBRARIES:                                                 */
