@@ -257,6 +257,27 @@ int main() {
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
 
+#
+# JDBC
+#
+
+OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
+
+IF(CONNECT_WITH_JDBC)
+  # TODO: detect Java SDK and the presence of JDBC connectors
+  # Find required libraries and include directories
+  # Find how to compile and install the JdbcInterface.java class
+
+  IF(JDBC_OK)
+    INCLUDE_DIRECTORIES(${JDBC_INCLUDE_DIR})
+    add_definitions(-DJDBC_SUPPORT)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+      JdbcInterface.java tabjdbc.cpp jdbconn.cpp jdbccat.h jdbconn.h tabjdbc.h)
+  ELSE()
+    SET(JDBC_LIBRARY "")
+  ENDIF()
+ENDIF(CONNECT_WITH_JDBC)
+
 
 #
 # XMAP
@@ -277,5 +298,5 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-                 ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+                 ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
 

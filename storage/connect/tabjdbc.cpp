@@ -756,11 +756,12 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 
 		if (Memory < 3) {
 			// Method will depend on cursor type
-			if (Mode != MODE_READX && (Rbuf = Jcp->Rewind(Query->GetStr())) < 0) {
-				Jcp->Close();
-				return true;
-			} else
-				Rbuf = 0;
+			if ((Rbuf = Jcp->Rewind(Query->GetStr())) < 0)
+				if (Mode != MODE_READX) {
+					Jcp->Close();
+				  return true;
+			  } else
+				  Rbuf = 0;
 
 		} else
 			Rbuf = Qrp->Nblin;
