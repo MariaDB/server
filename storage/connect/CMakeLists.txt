@@ -45,6 +45,7 @@ add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 # OS specific C flags, definitions and source files.
 #
 IF(UNIX)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
@@ -71,6 +72,7 @@ IF(UNIX)
 
     #message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
+  endif()
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 

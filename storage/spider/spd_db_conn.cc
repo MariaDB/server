@@ -9294,7 +9294,7 @@ int spider_db_udf_ping_table(
     {
       int init_sql_alloc_size =
         spider_param_init_sql_alloc_size(trx->thd, share->init_sql_alloc_size);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       spider_string sql_str(init_sql_alloc_size);
       sql_str.set_charset(system_charset_info);
       spider_string where_str(init_sql_alloc_size);
@@ -9517,7 +9517,7 @@ int spider_db_udf_ping_table_mon_next(
   SPIDER_SHARE *share = table_mon->share;
   int init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   spider_string sql_str(init_sql_alloc_size);
   sql_str.set_charset(thd->variables.character_set_client);
 #else
