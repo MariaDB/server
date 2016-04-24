@@ -2288,7 +2288,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 				op= OP_EQ;
 				break;
 			case HA_READ_AFTER_KEY:	  
-				op= (stlen >= len) ? (!i ? OP_GT : OP_LE) : OP_GE;
+				op= (stlen >= len || i > 0) ? (i > 0 ? OP_LE : OP_GT) : OP_GE;
 				break;
 			case HA_READ_KEY_OR_NEXT:
 				op= OP_GE;
