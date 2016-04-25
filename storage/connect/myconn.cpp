@@ -959,11 +959,16 @@ void MYSQLC::FreeResult(void)
 /***********************************************************************/
 /*  Place the cursor at the beginning of the result set.               */
 /***********************************************************************/
-void MYSQLC::Rewind(void)
+int MYSQLC::Rewind(PGLOBAL g, PSZ sql)
   {
-  if (m_Res)
-    DataSeek(0);
+		int rc = RC_OK;
 
+		if (m_Res)
+			DataSeek(0);
+		else if (sql)
+			rc = ExecSQL(g, sql);
+
+		return rc;
   } // end of Rewind
 
 /***********************************************************************/
