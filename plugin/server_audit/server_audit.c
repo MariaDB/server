@@ -97,13 +97,11 @@ static void closelog() {}
 #define FLOGGER_NO_PSI
 
 /* How to access the pthread_mutex in mysql_mutex_t */
-//#ifdef SAFE_MUTEX
-//#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
-//#elif defined(MY_PTHREAD_FASTMUTEX)
-//#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
-//#else
+#if defined(SAFE_MUTEX) || defined(MY_PTHREAD_FASTMUTEX)
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#else
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex
-//#endif
+#endif
 
 #define flogger_mutex_init(A,B,C) do{}while(0)
 #define flogger_mutex_destroy(A) do{}while(0)
