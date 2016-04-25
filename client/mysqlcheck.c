@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -512,7 +512,6 @@ static int is_view(const char *table)
   {
     fprintf(stderr, "Failed to %s\n", query);
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
-    my_free(query);
     DBUG_RETURN(-1);
   }
   res= mysql_store_result(sock);
