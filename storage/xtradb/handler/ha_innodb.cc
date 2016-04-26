@@ -566,6 +566,68 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_trx_read_only
 };
 
+/**
+  Test a file path whether it is same as mysql data directory path.
+
+  @param path null terminated character string
+
+  @return
+    @retval TRUE The path is different from mysql data directory.
+    @retval FALSE The path is same as mysql data directory.
+*/
+static bool is_mysql_datadir_path(const char *path)
+{
+  if (path == NULL)
+    return false;
+
+  char mysql_data_dir[FN_REFLEN], path_dir[FN_REFLEN];
+  convert_dirname(path_dir, path, NullS);
+  convert_dirname(mysql_data_dir, mysql_unpacked_real_data_home, NullS);
+  size_t mysql_data_home_len= dirname_length(mysql_data_dir);
+  size_t path_len = dirname_length(path_dir);
+
+  if (path_len < mysql_data_home_len)
+    return true;
+
+  if (!lower_case_file_system)
+    return(memcmp(mysql_data_dir, path_dir, mysql_data_home_len));
+
+  return(files_charset_info->coll->strnncoll(files_charset_info,
+                                            (uchar *) path_dir, path_len,
+                                            (uchar *) mysql_data_dir,
+                                            mysql_data_home_len,
+                                            TRUE));
+}
+
+
+static int mysql_tmpfile_path(const char *path, const char *prefix)
+{
+  DBUG_ASSERT(path != NULL);
+  DBUG_ASSERT((strlen(path) + strlen(prefix)) <= FN_REFLEN);
+
+  char filename[FN_REFLEN];
+  File fd = create_temp_file(filename, path, prefix,
+#ifdef __WIN__
+                             O_BINARY | O_TRUNC | O_SEQUENTIAL |
+                             O_SHORT_LIVED |
+#endif /* __WIN__ */
+                             O_CREAT | O_EXCL | O_RDWR | O_TEMPORARY,
+                             MYF(MY_WME));
+  if (fd >= 0) {
+#ifndef __WIN__
+    /*
+      This can be removed once the following bug is fixed:
+      Bug #28903  create_temp_file() doesn't honor O_TEMPORARY option
+                  (file not removed) (Unix)
+    */
+    unlink(filename);
+#endif /* !__WIN__ */
+  }
+
+  return fd;
+}
+
+
 /*************************************************************//**
 Check whether valid argument given to innodb_ft_*_stopword_table.
 This function is registered as a callback with MySQL.
@@ -580,6 +642,108 @@ innodb_stopword_table_validate(
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
+
+/** Validate passed-in "value" is a valid directory name.
+This function is registered as a callback with MySQL.
+@param[in,out]	thd	thread handle
+@param[in]	var	pointer to system variable
+@param[out]	save	immediate result for update
+@param[in]	value	incoming string
+@return 0 for valid name */
+static
+int
+innodb_tmpdir_validate(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				save,
+	struct st_mysql_value*		value)
+{
+
+	char*	alter_tmp_dir;
+	char*	innodb_tmp_dir;
+	char	buff[OS_FILE_MAX_PATH];
+	int	len = sizeof(buff);
+	char	tmp_abs_path[FN_REFLEN + 2];
+
+	ut_ad(save != NULL);
+	ut_ad(value != NULL);
+
+	if (check_global_access(thd, FILE_ACL)) {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_WRONG_ARGUMENTS,
+			"InnoDB: FILE Permissions required");
+		*static_cast<const char**>(save) = NULL;
+		return(1);
+	}
+
+	alter_tmp_dir = (char*) value->val_str(value, buff, &len);
+
+	if (!alter_tmp_dir) {
+		*static_cast<const char**>(save) = alter_tmp_dir;
+		return(0);
+	}
+
+	if (strlen(alter_tmp_dir) > FN_REFLEN) {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_WRONG_ARGUMENTS,
+			"Path length should not exceed %d bytes", FN_REFLEN);
+		*static_cast<const char**>(save) = NULL;
+		return(1);
+	}
+
+	my_realpath(tmp_abs_path, alter_tmp_dir, 0);
+	size_t	tmp_abs_len = strlen(tmp_abs_path);
+
+	if (my_access(tmp_abs_path, F_OK)) {
+
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_WRONG_ARGUMENTS,
+			"InnoDB: Path doesn't exist.");
+		*static_cast<const char**>(save) = NULL;
+		return(1);
+	} else if (my_access(tmp_abs_path, R_OK | W_OK)) {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_WRONG_ARGUMENTS,
+			"InnoDB: Server doesn't have permission in "
+			"the given location.");
+		*static_cast<const char**>(save) = NULL;
+		return(1);
+	}
+
+	MY_STAT stat_info_dir;
+
+	if (my_stat(tmp_abs_path, &stat_info_dir, MYF(0))) {
+		if ((stat_info_dir.st_mode & S_IFDIR) != S_IFDIR) {
+
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Given path is not a directory. ");
+			*static_cast<const char**>(save) = NULL;
+			return(1);
+		}
+	}
+
+	if (!is_mysql_datadir_path(tmp_abs_path)) {
+
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_WRONG_ARGUMENTS,
+			"InnoDB: Path Location should not be same as "
+			"mysql data directory location.");
+		*static_cast<const char**>(save) = NULL;
+		return(1);
+	}
+
+	innodb_tmp_dir = static_cast<char*>(
+		thd_memdup(thd, tmp_abs_path, tmp_abs_len + 1));
+	*static_cast<const char**>(save) = innodb_tmp_dir;
+	return(0);
+}
 
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
@@ -685,6 +849,10 @@ static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
   "This is to cause replication prefetch IO. ATTENTION: the transaction started after enabled is affected.",
   NULL, NULL, FALSE);
 
+static MYSQL_THDVAR_STR(tmpdir,
+  PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_MEMALLOC,
+  "Directory for temporary non-tablespace files.",
+  innodb_tmpdir_validate, NULL, NULL);
 
 static SHOW_VAR innodb_status_variables[]= {
   {"available_undo_logs",
@@ -1287,6 +1455,28 @@ normalize_table_name_low(
 	ibool           set_lower_case); /* in: TRUE if we want to set
 					 name to lower case */
 
+/*************************************************************//**
+Checks if buffer pool is big enough to enable backoff algorithm.
+InnoDB empty free list algorithm backoff requires free pages
+from LRU for the best performance.
+buf_LRU_buf_pool_running_out cancels query if 1/4 of 
+buffer pool belongs to LRU or freelist.
+At the same time buf_flush_LRU_list_batch
+keeps up to BUF_LRU_MIN_LEN in LRU.
+In order to avoid deadlock baclkoff requires buffer pool
+to be at least 4*BUF_LRU_MIN_LEN,
+but flush peformance is bad because of trashing
+and additional BUF_LRU_MIN_LEN pages are requested.
+@return	true if it's possible to enable backoff. */
+static
+bool
+innodb_empty_free_list_algorithm_backoff_allowed(
+	srv_empty_free_list_t
+			algorithm,		/*!< in: desired algorithm
+						from srv_empty_free_list_t */
+	long long	buf_pool_pages);	/*!< in: total number
+						of pages inside buffer pool */
+
 #ifdef NOT_USED
 /*************************************************************//**
 Removes old archived transaction log files.
@@ -1567,6 +1757,26 @@ thd_supports_xa(
 	return(THDVAR(thd, support_xa));
 }
 
+/** Get the value of innodb_tmpdir.
+@param[in]	thd	thread handle, or NULL to query
+			the global innodb_tmpdir.
+@retval NULL if innodb_tmpdir="" */
+UNIV_INTERN
+const char*
+thd_innodb_tmpdir(
+	THD*	thd)
+{
+#ifdef UNIV_SYNC_DEBUG
+	ut_ad(!sync_thread_levels_nonempty_trx(false));
+#endif /* UNIV_SYNC_DEBUG */
+
+	const char*	tmp_dir = THDVAR(thd, tmpdir);
+	if (tmp_dir != NULL && *tmp_dir == '\0') {
+		tmp_dir = NULL;
+	}
+
+	return(tmp_dir);
+}
 /******************************************************************//**
 Check the status of fake changes mode (innodb_fake_changes)
 @return	true	if fake change mode is enabled. */
@@ -2134,13 +2344,14 @@ innobase_get_lower_case_table_names(void)
 	return(lower_case_table_names);
 }
 
-/*********************************************************************//**
-Creates a temporary file.
+/** Create a temporary file in the location specified by the parameter
+path. If the path is null, then it will be created in tmpdir.
+@param[in]	path	location for creating temporary file
 @return	temporary file descriptor, or < 0 on error */
 UNIV_INTERN
 int
-innobase_mysql_tmpfile(void)
-/*========================*/
+innobase_mysql_tmpfile(
+	const char*	path)
 {
 	int	fd2 = -1;
 	File	fd;
@@ -2150,7 +2361,11 @@ innobase_mysql_tmpfile(void)
 		return(-1);
 	);
 
-	fd = mysql_tmpfile("ib");
+	if (path == NULL) {
+		fd = mysql_tmpfile("ib");
+	} else {
+		fd = mysql_tmpfile_path(path, "ib");
+	}
 
 	if (fd >= 0) {
 		/* Copy the file descriptor, so that the additional resources
@@ -3177,6 +3392,13 @@ ha_innobase::reset_template(void)
 	ut_ad(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_ad(prebuilt->magic_n2 == prebuilt->magic_n);
 
+	/* Force table to be freed in close_thread_table(). */
+	DBUG_EXECUTE_IF("free_table_in_fts_query",
+		if (prebuilt->in_fts_query) {
+			table->m_needs_reopen = true;
+		}
+	);
+
 	prebuilt->keep_other_fields_on_keyread = 0;
 	prebuilt->read_just_key = 0;
 	prebuilt->in_fts_query = 0;
@@ -3765,6 +3987,22 @@ innobase_change_buffering_inited_ok:
 #ifdef HAVE_POSIX_FALLOCATE
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
+
+	/* Do not enable backoff algorithm for small buffer pool. */
+	if (!innodb_empty_free_list_algorithm_backoff_allowed(
+			static_cast<srv_empty_free_list_t>(
+				srv_empty_free_list_algorithm),
+			innobase_buffer_pool_size / srv_page_size)) {
+		sql_print_information(
+				"InnoDB: innodb_empty_free_list_algorithm "
+				"has been changed to legacy "
+				"because of small buffer pool size. "
+				"In order to use backoff, "
+				"increase buffer pool at least up to 20MB.\n");
+			srv_empty_free_list_algorithm
+				= SRV_EMPTY_FREE_LIST_LEGACY;
+	}
+
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
 		ib_logf(IB_LOG_LEVEL_INFO, "using atomic writes.");
@@ -5440,7 +5678,7 @@ building based on the assumption that there is no concurrent
 index creation/drop and DMLs that requires index lookup. All table
 handle will be closed before the index creation/drop.
 @return TRUE if index translation table built successfully */
-static
+UNIV_INTERN
 ibool
 innobase_build_index_translation(
 /*=============================*/
@@ -16921,8 +17159,6 @@ innobase_fts_close_ranking(
 {
 	fts_result_t*	result;
 
-	((NEW_FT_INFO*) fts_hdl)->ft_prebuilt->in_fts_query = false;
-
 	result = ((NEW_FT_INFO*) fts_hdl)->ft_result;
 
 	fts_query_free_result(result);
@@ -17271,6 +17507,87 @@ innodb_status_output_update(
 	*static_cast<my_bool*>(var_ptr) = *static_cast<const my_bool*>(save);
 	/* Wakeup server monitor thread. */
 	os_event_set(srv_monitor_event);
+}
+
+/*************************************************************//**
+Empty free list algorithm.
+Checks if buffer pool is big enough to enable backoff algorithm.
+InnoDB empty free list algorithm backoff requires free pages
+from LRU for the best performance.
+buf_LRU_buf_pool_running_out cancels query if 1/4 of 
+buffer pool belongs to LRU or freelist.
+At the same time buf_flush_LRU_list_batch
+keeps up to BUF_LRU_MIN_LEN in LRU.
+In order to avoid deadlock baclkoff requires buffer pool
+to be at least 4*BUF_LRU_MIN_LEN,
+but flush peformance is bad because of trashing
+and additional BUF_LRU_MIN_LEN pages are requested.
+@return	true if it's possible to enable backoff. */
+static
+bool
+innodb_empty_free_list_algorithm_backoff_allowed(
+	srv_empty_free_list_t	algorithm,	/*!< in: desired algorithm
+						from srv_empty_free_list_t */
+	long long		buf_pool_pages)	/*!< in: total number
+						of pages inside buffer pool */
+{
+	return(buf_pool_pages >= BUF_LRU_MIN_LEN * (4 + 1)
+			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
+}
+
+/*************************************************************//**
+Empty free list algorithm. This function is registered as
+a callback with MySQL. 
+@return	0 for valid algorithm */
+static
+int
+innodb_srv_empty_free_list_algorithm_validate(
+/*===========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value)	/*!< in: incoming string */
+{
+	const char*	algorithm_name;
+	char		buff[STRING_BUFFER_USUAL_SIZE];
+	int		len = sizeof(buff);
+	ulint	algo;
+	srv_empty_free_list_t 		algorithm;
+
+	algorithm_name = value->val_str(value, buff, &len);
+
+	if (!algorithm_name) {
+		return(1);
+	}
+
+	for (algo = 0; algo < array_elements(
+				innodb_empty_free_list_algorithm_names
+				) - 1;
+			algo++) {
+		if (!innobase_strcasecmp(
+				algorithm_name,
+				innodb_empty_free_list_algorithm_names[algo]))
+			break;
+	}
+
+	if (algo == array_elements( innodb_empty_free_list_algorithm_names) - 1)
+		return(1);
+
+	algorithm = static_cast<srv_empty_free_list_t>(algo);
+	if (!innodb_empty_free_list_algorithm_backoff_allowed(
+				algorithm,
+				innobase_buffer_pool_size / srv_page_size)) {
+		sql_print_warning(
+				"InnoDB: innodb_empty_free_list_algorithm "
+				"= 'backoff' requires at least"
+				" 20MB buffer pool.\n");
+		return(1);
+	}
+
+	*reinterpret_cast<ulong*>(save) = static_cast<ulong>(algorithm);
+	return(0);
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -17832,7 +18149,7 @@ static MYSQL_SYSVAR_ENUM(empty_free_list_algorithm,
   "The algorithm to use for empty free list handling.  Allowed values: "
   "LEGACY: Original Oracle MySQL 5.6 handling with single page flushes; "
   "BACKOFF: (default) Wait until cleaner produces a free page.",
-  NULL, NULL, SRV_EMPTY_FREE_LIST_BACKOFF,
+  innodb_srv_empty_free_list_algorithm_validate, NULL, SRV_EMPTY_FREE_LIST_BACKOFF,
   &innodb_empty_free_list_algorithm_typelib);
 
 static MYSQL_SYSVAR_LONG(buffer_pool_instances, innobase_buffer_pool_instances,
@@ -18590,6 +18907,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(corrupt_table_action),
   MYSQL_SYSVAR(fake_changes),
   MYSQL_SYSVAR(locking_fake_changes),
+  MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(use_stacktrace),
   MYSQL_SYSVAR(simulate_comp_failures),
   NULL

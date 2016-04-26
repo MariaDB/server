@@ -2761,6 +2761,10 @@ prepare_inplace_alter_table_dict(
 
 	ctx->num_to_add_index = ha_alter_info->index_add_count;
 
+	ut_ad(ctx->prebuilt->trx->mysql_thd != NULL);
+	const char*	path = thd_innodb_tmpdir(
+		ctx->prebuilt->trx->mysql_thd);
+
 	index_defs = innobase_create_key_defs(
 		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
 		num_fts_index,
@@ -3104,8 +3108,10 @@ prepare_inplace_alter_table_dict(
 					error = DB_OUT_OF_MEMORY;
 					goto error_handling;);
 			rw_lock_x_lock(&ctx->add_index[a]->lock);
+
 			bool ok = row_log_allocate(ctx->add_index[a],
-						   NULL, true, NULL, NULL);
+						   NULL, true, NULL,
+						   NULL, path);
 			rw_lock_x_unlock(&ctx->add_index[a]->lock);
 
 			if (!ok) {
@@ -3131,7 +3137,7 @@ prepare_inplace_alter_table_dict(
 			clust_index, ctx->new_table,
 			!(ha_alter_info->handler_flags
 			  & Alter_inplace_info::ADD_PK_INDEX),
-			ctx->add_cols, ctx->col_map);
+			ctx->add_cols, ctx->col_map, path);
 		rw_lock_x_unlock(&clust_index->lock);
 
 		if (!ok) {
@@ -4117,6 +4123,7 @@ ok_exit:
 	files and merge sort. */
 	DBUG_EXECUTE_IF("innodb_OOM_inplace_alter",
 			error = DB_OUT_OF_MEMORY; goto oom;);
+
 	error = row_merge_build_indexes(
 		prebuilt->trx,
 		prebuilt->table, ctx->new_table,
@@ -6139,6 +6146,21 @@ foreign_fail:
 
 	row_mysql_unlock_data_dictionary(trx);
 	trx_free_for_mysql(trx);
+
+	/* Rebuild index translation table now for temporary tables if we are
+	restoring secondary keys, as ha_innobase::open will not be called for
+	the next access.  */
+	if (dict_table_is_temporary(ctx0->new_table)
+	    && ctx0->num_to_add_index > 0) {
+		ut_ad(!ctx0->num_to_drop_index);
+		ut_ad(!ctx0->num_to_drop_fk);
+		if (!innobase_build_index_translation(altered_table,
+						      ctx0->new_table,
+						      share)) {
+			MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
+			DBUG_RETURN(true);
+		}
+	}
 
 	/* TODO: The following code could be executed
 	while allowing concurrent access to the table
