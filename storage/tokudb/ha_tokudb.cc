@@ -161,6 +161,15 @@ void TOKUDB_SHARE::static_init() {
 void TOKUDB_SHARE::static_destroy() {
     my_hash_free(&_open_tables);
 }
+const char* TOKUDB_SHARE::get_state_string(share_state_t state) {
+    static const char* state_string[] = {
+        "CLOSED",
+        "OPENED",
+        "ERROR"
+    };
+    assert_always(state == CLOSED || state == OPENED || state == ERROR);
+    return state_string[state];
+}
 void* TOKUDB_SHARE::operator new(size_t sz) {
     return tokudb::memory::malloc(sz, MYF(MY_WME|MY_ZEROFILL|MY_FAE));
 }
@@ -186,12 +195,24 @@ void TOKUDB_SHARE::init(const char* table_name) {
         _database_name,
         _table_name,
         tmp_dictionary_name);
+
+    TOKUDB_SHARE_DBUG_ENTER("file[%s]:state[%s]:use_count[%d]",
+        _full_table_name.ptr(),
+        get_state_string(_state),
+        _use_count);
+    TOKUDB_SHARE_DBUG_VOID_RETURN();
 }
 void TOKUDB_SHARE::destroy() {
+    TOKUDB_SHARE_DBUG_ENTER("file[%s]:state[%s]:use_count[%d]",
+        _full_table_name.ptr(),
+        get_state_string(_state),
+        _use_count);
+
     assert_always(_use_count == 0);
     assert_always(
         _state == TOKUDB_SHARE::CLOSED || _state == TOKUDB_SHARE::ERROR);
     thr_lock_delete(&_thr_lock);
+    TOKUDB_SHARE_DBUG_VOID_RETURN();
 }
 TOKUDB_SHARE* TOKUDB_SHARE::get_share(
     const char* table_name,
@@ -207,6 +228,14 @@ TOKUDB_SHARE* TOKUDB_SHARE::get_share(
             &_open_tables,
             (uchar*)table_name,
             length);
+
+    TOKUDB_TRACE_FOR_FLAGS(
+        TOKUDB_DEBUG_SHARE,
+        "existing share[%s] %s:share[%p]",
+        table_name,
+        share == NULL ? "not found" : "found",
+        share);
+
     if (!share) {
         if (create_new == false)
             goto exit;
@@ -237,25 +266,41 @@ exit:
     return share;
 }
 void TOKUDB_SHARE::drop_share(TOKUDB_SHARE* share) {
+    TOKUDB_TRACE_FOR_FLAGS(
+        TOKUDB_DEBUG_SHARE,
+        "share[%p]:file[%s]:state[%s]:use_count[%d]",
+        share,
+        share->_full_table_name.ptr(),
+        get_state_string(share->_state),
+        share->_use_count);
+
     _open_tables_mutex.lock();
     my_hash_delete(&_open_tables, (uchar*)share);
     _open_tables_mutex.unlock();
 }
 TOKUDB_SHARE::share_state_t TOKUDB_SHARE::addref() {
+    TOKUDB_SHARE_TRACE_FOR_FLAGS((TOKUDB_DEBUG_ENTER & TOKUDB_DEBUG_SHARE),
+        "file[%s]:state[%s]:use_count[%d]",
+        _full_table_name.ptr(),
+        get_state_string(_state),
+        _use_count);
+
     lock();
     _use_count++;
-
-    DBUG_PRINT("info", ("0x%p share->_use_count %u", this, _use_count));
 
     return _state;
 }
 int TOKUDB_SHARE::release() {
+    TOKUDB_SHARE_DBUG_ENTER("file[%s]:state[%s]:use_count[%d]",
+        _full_table_name.ptr(),
+        get_state_string(_state),
+        _use_count);
+
     int error, result = 0;
 
     _mutex.lock();
     assert_always(_use_count != 0);
     _use_count--;
-    DBUG_PRINT("info", ("0x%p share->_use_count %u", this, _use_count));
     if (_use_count == 0 && _state == TOKUDB_SHARE::OPENED) {
         // number of open DB's may not be equal to number of keys we have
         // because add_index may have added some. So, we loop through entire
@@ -299,7 +344,7 @@ int TOKUDB_SHARE::release() {
     }
     _mutex.unlock();
 
-    return result;
+    TOKUDB_SHARE_DBUG_RETURN(result);
 }
 void TOKUDB_SHARE::update_row_count(
     THD* thd,
@@ -350,34 +395,32 @@ void TOKUDB_SHARE::update_row_count(
     unlock();
 }
 void TOKUDB_SHARE::set_cardinality_counts_in_table(TABLE* table) {
-    // if there is nothing new to report, just skip it.
-    if (_card_changed) {
-        lock();
-        uint32_t next_key_part = 0;
-        for (uint32_t i = 0; i < table->s->keys; i++) {
-            bool is_unique_key =
-                (i == table->s->primary_key) ||
-                (table->key_info[i].flags & HA_NOSAME);
+    lock();
+    uint32_t next_key_part = 0;
+    for (uint32_t i = 0; i < table->s->keys; i++) {
+        KEY* key = &table->key_info[i];
+        bool is_unique_key =
+            (i == table->s->primary_key) || (key->flags & HA_NOSAME);
 
-            uint32_t num_key_parts = get_key_parts(&table->key_info[i]);
-            for (uint32_t j = 0; j < num_key_parts; j++) {
-                assert_always(next_key_part < _rec_per_keys);
-                ulong val = _rec_per_key[next_key_part++];
-                if (is_unique_key && j == num_key_parts-1) {
-                    val = 1;
-                } else {
-                    val =
-                        (val*tokudb::sysvars::cardinality_scale_percent)/100;
-                    if (val == 0)
-                        val = 1;
-                }
-
-                table->key_info[i].rec_per_key[j] = val;
+        for (uint32_t j = 0; j < key->actual_key_parts; j++) {
+            if (j >= key->user_defined_key_parts) {
+                // MySQL 'hidden' keys, really needs deeper investigation
+                // into MySQL hidden keys vs TokuDB hidden keys
+                key->rec_per_key[j] = 1;
+                continue;
             }
+
+            assert_always(next_key_part < _rec_per_keys);
+            ulong val = _rec_per_key[next_key_part++];
+            val = (val * tokudb::sysvars::cardinality_scale_percent) / 100;
+            if (val == 0 || _rows == 0 ||
+                (is_unique_key && j == key->actual_key_parts - 1)) {
+                val = 1;
+            }
+            key->rec_per_key[j] = val;
         }
-        _card_changed = false;
-        unlock();
     }
+    unlock();
 }
 
 #define HANDLE_INVALID_CURSOR() \
@@ -771,29 +814,36 @@ static int filter_key_part_compare (const void* left, const void* right) {
 // if key, table have proper info set. I had to verify by checking
 // in the debugger.
 //
-void set_key_filter(MY_BITMAP* key_filter, KEY* key, TABLE* table, bool get_offset_from_keypart) {
+void set_key_filter(
+    MY_BITMAP* key_filter,
+    KEY* key,
+    TABLE* table,
+    bool get_offset_from_keypart) {
+
     FILTER_KEY_PART_INFO parts[MAX_REF_PARTS];
     uint curr_skip_index = 0;
 
-    for (uint i = 0; i < get_key_parts(key); i++) {
+    for (uint i = 0; i < key->user_defined_key_parts; i++) {
         //
         // horrendous hack due to bugs in mysql, basically
         // we cannot always reliably get the offset from the same source
         //
-        parts[i].offset = get_offset_from_keypart ? key->key_part[i].offset : field_offset(key->key_part[i].field, table);
+        parts[i].offset =
+            get_offset_from_keypart ?
+                key->key_part[i].offset :
+                field_offset(key->key_part[i].field, table);
         parts[i].part_index = i;
     }
     qsort(
         parts, // start of array
-        get_key_parts(key), //num elements
+        key->user_defined_key_parts, //num elements
         sizeof(*parts), //size of each element
-        filter_key_part_compare
-        );
+        filter_key_part_compare);
 
     for (uint i = 0; i < table->s->fields; i++) {
         Field* field = table->field[i];
         uint curr_field_offset = field_offset(field, table);
-        if (curr_skip_index < get_key_parts(key)) {
+        if (curr_skip_index < key->user_defined_key_parts) {
             uint curr_skip_offset = 0;
             curr_skip_offset = parts[curr_skip_index].offset;
             if (curr_skip_offset == curr_field_offset) {
@@ -1595,7 +1645,11 @@ exit:
     return error;
 }
 
-bool ha_tokudb::can_replace_into_be_fast(TABLE_SHARE* table_share, KEY_AND_COL_INFO* kc_info, uint pk) {
+bool ha_tokudb::can_replace_into_be_fast(
+    TABLE_SHARE* table_share,
+    KEY_AND_COL_INFO* kc_info,
+    uint pk) {
+
     uint curr_num_DBs = table_share->keys + tokudb_test(hidden_primary_key);
     bool ret_val;
     if (curr_num_DBs == 1) {
@@ -1606,7 +1660,7 @@ bool ha_tokudb::can_replace_into_be_fast(TABLE_SHARE* table_share, KEY_AND_COL_I
     for (uint curr_index = 0; curr_index < table_share->keys; curr_index++) {
         if (curr_index == pk) continue;
         KEY* curr_key_info = &table_share->key_info[curr_index];
-        for (uint i = 0; i < get_key_parts(curr_key_info); i++) {
+        for (uint i = 0; i < curr_key_info->user_defined_key_parts; i++) {
             uint16 curr_field_index = curr_key_info->key_part[i].field->field_index;
             if (!bitmap_is_set(&kc_info->key_filters[curr_index],curr_field_index)) {
                 ret_val = false;
@@ -1692,7 +1746,8 @@ int ha_tokudb::initialize_share(const char* name, int mode) {
 
     /* Open other keys;  These are part of the share structure */
     for (uint i = 0; i < table_share->keys; i++) {
-        share->_key_descriptors[i]._parts = get_key_parts(&table_share->key_info[i]);
+        share->_key_descriptors[i]._parts =
+            table_share->key_info[i].user_defined_key_parts;
         if (i == primary_key) {
             share->_key_descriptors[i]._is_unique = true;
             share->_key_descriptors[i]._name = tokudb::memory::strdup("primary", 0);
@@ -1732,8 +1787,9 @@ int ha_tokudb::initialize_share(const char* name, int mode) {
         // the "infinity byte" in keys, and for placing the DBT size in the first four bytes
         //
         ref_length = sizeof(uint32_t) + sizeof(uchar);
-        KEY_PART_INFO *key_part = table->key_info[primary_key].key_part;
-        KEY_PART_INFO *end = key_part + get_key_parts(&table->key_info[primary_key]);
+        KEY_PART_INFO* key_part = table->key_info[primary_key].key_part;
+        KEY_PART_INFO* end =
+            key_part + table->key_info[primary_key].user_defined_key_parts;
         for (; key_part != end; key_part++) {
             ref_length += key_part->field->max_packed_col_length(key_part->length);
             TOKU_TYPE toku_type = mysql_to_toku_type(key_part->field);
@@ -1901,6 +1957,7 @@ int ha_tokudb::open(const char *name, int mode, uint test_if_locked) {
         if (ret_val == 0) {
             share->set_state(TOKUDB_SHARE::OPENED);
         } else {
+            free_key_and_col_info(&share->kc_info);
             share->set_state(TOKUDB_SHARE::ERROR);
         }
         share->unlock();
@@ -2616,13 +2673,13 @@ exit:
 }
 
 uint32_t ha_tokudb::place_key_into_mysql_buff(
-    KEY* key_info, 
-    uchar * record, 
-    uchar* data
-    ) 
-{
-    KEY_PART_INFO *key_part = key_info->key_part, *end = key_part + get_key_parts(key_info);
-    uchar *pos = data;
+    KEY* key_info,
+    uchar* record,
+    uchar* data) {
+
+    KEY_PART_INFO* key_part = key_info->key_part;
+    KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
+    uchar* pos = data;
 
     for (; key_part != end; key_part++) {
         if (key_part->field->null_bit) {
@@ -2682,15 +2739,14 @@ void ha_tokudb::unpack_key(uchar * record, DBT const *key, uint index) {
 }
 
 uint32_t ha_tokudb::place_key_into_dbt_buff(
-    KEY* key_info, 
-    uchar * buff, 
-    const uchar * record, 
-    bool* has_null, 
-    int key_length
-    ) 
-{
-    KEY_PART_INFO *key_part = key_info->key_part;
-    KEY_PART_INFO *end = key_part + get_key_parts(key_info);
+    KEY* key_info,
+    uchar* buff,
+    const uchar* record,
+    bool* has_null,
+    int key_length) {
+
+    KEY_PART_INFO* key_part = key_info->key_part;
+    KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
     uchar* curr_buff = buff;
     *has_null = false;
     for (; key_part != end && key_length > 0; key_part++) {
@@ -2870,25 +2926,29 @@ DBT* ha_tokudb::create_dbt_key_for_lookup(
 // Returns:
 //      the parameter key
 //
-DBT *ha_tokudb::pack_key(
-    DBT * key, 
-    uint keynr, 
-    uchar * buff, 
-    const uchar * key_ptr, 
-    uint key_length, 
-    int8_t inf_byte
-    ) 
-{
-    TOKUDB_HANDLER_DBUG_ENTER("key %p %u:%2.2x inf=%d", key_ptr, key_length, key_length > 0 ? key_ptr[0] : 0, inf_byte);
+DBT* ha_tokudb::pack_key(
+    DBT* key,
+    uint keynr,
+    uchar* buff,
+    const uchar* key_ptr,
+    uint key_length,
+    int8_t inf_byte) {
+
+    TOKUDB_HANDLER_DBUG_ENTER(
+        "key %p %u:%2.2x inf=%d",
+        key_ptr,
+        key_length,
+        key_length > 0 ? key_ptr[0] : 0,
+        inf_byte);
 #if TOKU_INCLUDE_EXTENDED_KEYS
     if (keynr != primary_key && !tokudb_test(hidden_primary_key)) {
         DBUG_RETURN(pack_ext_key(key, keynr, buff, key_ptr, key_length, inf_byte));
     }
 #endif
-    KEY *key_info = &table->key_info[keynr];
-    KEY_PART_INFO *key_part = key_info->key_part;
-    KEY_PART_INFO *end = key_part + get_key_parts(key_info);
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    KEY* key_info = &table->key_info[keynr];
+    KEY_PART_INFO* key_part = key_info->key_part;
+    KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
+    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -2930,31 +2990,30 @@ DBT *ha_tokudb::pack_key(
 }
 
 #if TOKU_INCLUDE_EXTENDED_KEYS
-DBT *ha_tokudb::pack_ext_key(
-    DBT * key, 
-    uint keynr, 
-    uchar * buff, 
-    const uchar * key_ptr, 
-    uint key_length, 
-    int8_t inf_byte
-    ) 
-{
+DBT* ha_tokudb::pack_ext_key(
+    DBT* key,
+    uint keynr,
+    uchar* buff,
+    const uchar* key_ptr,
+    uint key_length,
+    int8_t inf_byte) {
+
     TOKUDB_HANDLER_DBUG_ENTER("");
 
     // build a list of PK parts that are in the SK.  we will use this list to build the
     // extended key if necessary. 
-    KEY *pk_key_info = &table->key_info[primary_key];
-    uint pk_parts = get_key_parts(pk_key_info);
+    KEY* pk_key_info = &table->key_info[primary_key];
+    uint pk_parts = pk_key_info->user_defined_key_parts;
     uint pk_next = 0;
     struct {
         const uchar *key_ptr;
         KEY_PART_INFO *key_part;
     } pk_info[pk_parts];
 
-    KEY *key_info = &table->key_info[keynr];
-    KEY_PART_INFO *key_part = key_info->key_part;
-    KEY_PART_INFO *end = key_part + get_key_parts(key_info);
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    KEY* key_info = &table->key_info[keynr];
+    KEY_PART_INFO* key_part = key_info->key_part;
+    KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
+    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -4439,11 +4498,16 @@ cleanup:
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
 
-static bool index_key_is_null(TABLE *table, uint keynr, const uchar *key, uint key_len) {
+static bool index_key_is_null(
+    TABLE* table,
+    uint keynr,
+    const uchar* key,
+    uint key_len) {
+
     bool key_can_be_null = false;
-    KEY *key_info = &table->key_info[keynr];
-    KEY_PART_INFO *key_part = key_info->key_part;
-    KEY_PART_INFO *end = key_part + get_key_parts(key_info);
+    KEY* key_info = &table->key_info[keynr];
+    KEY_PART_INFO* key_part = key_info->key_part;
+    KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
     for (; key_part != end; key_part++) {
         if (key_part->null_bit) {
             key_can_be_null = true;
@@ -5979,11 +6043,7 @@ int ha_tokudb::info(uint flag) {
 #endif
     DB_TXN* txn = NULL;
     if (flag & HA_STATUS_VARIABLE) {
-        // Just to get optimizations right
         stats.records = share->row_count() + share->rows_from_locked_table;
-        if (stats.records == 0) {
-            stats.records++;
-        }
         stats.deleted = 0;
         if (!(flag & HA_STATUS_NO_LOCK)) {
             uint64_t num_rows = 0;
@@ -6002,9 +6062,6 @@ int ha_tokudb::info(uint flag) {
             if (error == 0) {
                 share->set_row_count(num_rows, false);
                 stats.records = num_rows;
-                if (stats.records == 0) {
-                    stats.records++;
-                }
             } else {
                 goto cleanup;
             }
@@ -6084,6 +6141,22 @@ int ha_tokudb::info(uint flag) {
                 }
                 stats.delete_length += frag_info.unused_bytes;
             }
+        }
+
+        /*
+        The following comment and logic has been taken from InnoDB and 
+        an old hack was removed that forced to always set stats.records > 0
+        ---
+        The MySQL optimizer seems to assume in a left join that n_rows
+        is an accurate estimate if it is zero. Of course, it is not,
+        since we do not have any locks on the rows yet at this phase.
+        Since SHOW TABLE STATUS seems to call this function with the
+        HA_STATUS_TIME flag set, while the left join optimizer does not
+        set that flag, we add one to a zero value if the flag is not
+        set. That way SHOW TABLE STATUS will show the best estimate,
+        while the optimizer never sees the table empty. */
+        if (stats.records == 0 && !(flag & HA_STATUS_TIME)) {
+            stats.records++;
         }
     }
     if ((flag & HA_STATUS_CONST)) {
@@ -6785,9 +6858,9 @@ void ha_tokudb::trace_create_table_info(const char *name, TABLE * form) {
                 "key:%d:%s:%d",
                 i,
                 key->name,
-                get_key_parts(key));
+                key->user_defined_key_parts);
             uint p;
-            for (p = 0; p < get_key_parts(key); p++) {
+            for (p = 0; p < key->user_defined_key_parts; p++) {
                 KEY_PART_INFO* key_part = &key->key_part[p];
                 Field* field = key_part->field;
                 TOKUDB_HANDLER_TRACE(
@@ -8565,6 +8638,10 @@ int ha_tokudb::delete_all_rows_internal() {
     uint curr_num_DBs = 0;
     DB_TXN* txn = NULL;
 
+    // this should be enough to handle locking as the higher level MDL
+    // on this table should prevent any new analyze tasks.
+    share->cancel_background_jobs();
+
     error = txn_begin(db_env, 0, &txn, 0, ha_thd());
     if (error) {
         goto cleanup;
@@ -8591,6 +8668,8 @@ int ha_tokudb::delete_all_rows_internal() {
             goto cleanup;
         }
     }
+
+    DEBUG_SYNC(ha_thd(), "tokudb_after_truncate_all_dictionarys");
 
     // zap the row count
     if (error == 0) {

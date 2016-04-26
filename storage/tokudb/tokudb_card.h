@@ -27,7 +27,7 @@ namespace tokudb {
     uint compute_total_key_parts(TABLE_SHARE *table_share) {
         uint total_key_parts = 0;
         for (uint i = 0; i < table_share->keys; i++) {
-            total_key_parts += get_key_parts(&table_share->key_info[i]);
+            total_key_parts += table_share->key_info[i].user_defined_key_parts;
         }
         return total_key_parts;
     }
@@ -156,13 +156,14 @@ namespace tokudb {
         uint orig_key_parts = 0;
         for (uint i = 0; i < table_share->keys; i++) {
             orig_key_offset[i] = orig_key_parts;
-            orig_key_parts += get_key_parts(&table_share->key_info[i]);
+            orig_key_parts += table_share->key_info[i].user_defined_key_parts;
         }
         // if orig card data exists, then use it to compute new card data
         if (error == 0) {
             uint next_key_parts = 0;
             for (uint i = 0; error == 0 && i < altered_table_share->keys; i++) {
-                uint ith_key_parts = get_key_parts(&altered_table_share->key_info[i]);
+                uint ith_key_parts =
+                    altered_table_share->key_info[i].user_defined_key_parts;
                 uint orig_key_index;
                 if (find_index_of_key(
                         altered_table_share->key_info[i].name,

@@ -1119,9 +1119,9 @@ void background_job_status_callback(
     table->field[3]->store(type, strlen(type), system_charset_info);
     table->field[4]->store(params, strlen(params), system_charset_info);
     if (user_scheduled)
-        table->field[5]->store("USER", sizeof("USER"), system_charset_info);
+        table->field[5]->store("USER", strlen("USER"), system_charset_info);
     else
-        table->field[5]->store("AUTO", sizeof("AUTO"), system_charset_info);
+        table->field[5]->store("AUTO", strlen("AUTO"), system_charset_info);
 
     field_store_time_t(table->field[6], scheduled_time);
     field_store_time_t(table->field[7], started_time);

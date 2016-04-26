@@ -453,7 +453,7 @@ static bool check_all_update_expressions(
 static bool full_field_in_key(TABLE* table, Field* field) {
     assert_always(table->s->primary_key < table->s->keys);
     KEY* key = &table->s->key_info[table->s->primary_key];
-    for (uint i = 0; i < get_key_parts(key); i++) {
+    for (uint i = 0; i < key->user_defined_key_parts; i++) {
         KEY_PART_INFO* key_part = &key->key_part[i];
         if (strcmp(field->field_name, key_part->field->field_name) == 0) {
             return key_part->length == field->field_length;
@@ -519,7 +519,7 @@ static bool check_point_update(Item* conds, TABLE* table) {
     if (bitmap_init(&pk_fields, NULL, table->s->fields, FALSE)) // 1 -> failure
         return false;
     KEY *key = &table->s->key_info[table->s->primary_key];
-    for (uint i = 0; i < get_key_parts(key); i++) 
+    for (uint i = 0; i < key->user_defined_key_parts; i++)
         bitmap_set_bit(&pk_fields, key->key_part[i].field->field_index);
 
     switch (conds->type()) {

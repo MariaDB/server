@@ -36,10 +36,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "sql_class.h"
 #include "sql_show.h"
 #include "discover.h"
-
-#if (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799)
 #include <binlog.h>
-#endif
+#include "debug_sync.h"
 
 #undef PACKAGE
 #undef VERSION

@@ -199,14 +199,4 @@ void tokudb_pretty_left_key(const DB* db, const DBT* key, String* out);
 void tokudb_pretty_right_key(const DB* db, const DBT* key, String* out);
 const char *tokudb_get_index_name(DB* db);
 
-inline uint get_key_parts(const KEY *key) {
-#if (50609 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || \
-    (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799) || \
-    (100009 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
-    return key->user_defined_key_parts;
-#else
-    return key->key_parts;
-#endif
-}
-
 #endif //#ifdef _HATOKU_HTON

@@ -674,6 +674,7 @@ int tokudb_end(handlerton* hton, ha_panic_function type) {
         // count the total number of prepared txn's that we discard
         long total_prepared = 0;
 #if TOKU_INCLUDE_XA
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "begin XA cleanup");
         while (1) {
             // get xid's 
             const long n_xid = 1;
@@ -698,6 +699,7 @@ int tokudb_end(handlerton* hton, ha_panic_function type) {
             }
             total_prepared += n_prepared;
         }
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "end XA cleanup");
 #endif
         error = db_env->close(
             db_env,
@@ -922,19 +924,25 @@ static int tokudb_rollback(handlerton * hton, THD * thd, bool all) {
 
 #if TOKU_INCLUDE_XA
 static bool tokudb_sync_on_prepare(void) {
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     // skip sync of log if fsync log period > 0
-    if (tokudb::sysvars::fsync_log_period > 0)
+    if (tokudb::sysvars::fsync_log_period > 0) {
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit");
         return false;
-    else 
+    } else {
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit");
         return true;
+    }
 }   
 
 static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
     TOKUDB_DBUG_ENTER("");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     int r = 0;
 
     // if tokudb_support_xa is disable, just return
     if (!tokudb::sysvars::support_xa(thd)) {
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %d", r);
         TOKUDB_DBUG_RETURN(r);
     }
 
@@ -944,7 +952,7 @@ static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
     if (txn) {
         uint32_t syncflag = tokudb_sync_on_prepare() ? 0 : DB_TXN_NOSYNC;
         TOKUDB_TRACE_FOR_FLAGS(
-            TOKUDB_DEBUG_TXN,
+            TOKUDB_DEBUG_XA,
             "doing txn prepare:%d:%p",
             all,
             txn);
@@ -957,15 +965,18 @@ static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
         // test hook to induce a crash on a debug build
         DBUG_EXECUTE_IF("tokudb_crash_prepare_after", DBUG_SUICIDE(););
     } else {
-        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_TXN, "nothing to prepare %d", all);
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "nothing to prepare %d", all);
     }
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %d", r);
     TOKUDB_DBUG_RETURN(r);
 }
 
 static int tokudb_xa_recover(handlerton* hton, XID* xid_list, uint len) {
     TOKUDB_DBUG_ENTER("");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     int r = 0;
     if (len == 0 || xid_list == NULL) {
+        TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %d", 0);
         TOKUDB_DBUG_RETURN(0);
     }
     long num_returned = 0;
@@ -976,11 +987,13 @@ static int tokudb_xa_recover(handlerton* hton, XID* xid_list, uint len) {
         &num_returned,
         DB_NEXT);
     assert_always(r == 0);
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %ld", num_returned);
     TOKUDB_DBUG_RETURN((int)num_returned);
 }
 
 static int tokudb_commit_by_xid(handlerton* hton, XID* xid) {
     TOKUDB_DBUG_ENTER("");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     int r = 0;
     DB_TXN* txn = NULL;
     TOKU_XA_XID* toku_xid = (TOKU_XA_XID*)xid;
@@ -993,11 +1006,13 @@ static int tokudb_commit_by_xid(handlerton* hton, XID* xid) {
 
     r = 0;
 cleanup:
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %d", r);
     TOKUDB_DBUG_RETURN(r);
 }
 
 static int tokudb_rollback_by_xid(handlerton* hton, XID*  xid) {
     TOKUDB_DBUG_ENTER("");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     int r = 0;
     DB_TXN* txn = NULL;
     TOKU_XA_XID* toku_xid = (TOKU_XA_XID*)xid;
@@ -1010,6 +1025,7 @@ static int tokudb_rollback_by_xid(handlerton* hton, XID*  xid) {
 
     r = 0;
 cleanup:
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "exit %d", r);
     TOKUDB_DBUG_RETURN(r);
 }
 

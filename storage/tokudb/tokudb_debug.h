@@ -50,6 +50,8 @@ static void tokudb_backtrace(void);
 #define TOKUDB_DEBUG_UPSERT                 (1<<12)
 #define TOKUDB_DEBUG_CHECK                  (1<<13)
 #define TOKUDB_DEBUG_ANALYZE                (1<<14)
+#define TOKUDB_DEBUG_XA                     (1<<15)
+#define TOKUDB_DEBUG_SHARE                  (1<<16)
 
 #define TOKUDB_TRACE(_fmt, ...) { \
     fprintf(stderr, "%u %s:%u %s " _fmt "\n", tokudb::thread::my_tid(), \
@@ -124,13 +126,67 @@ static void tokudb_backtrace(void);
     DBUG_RETURN(r); \
 }
 
-
 #define TOKUDB_HANDLER_DBUG_VOID_RETURN { \
     if (TOKUDB_UNLIKELY(tokudb::sysvars::debug & TOKUDB_DEBUG_RETURN)) { \
         TOKUDB_HANDLER_TRACE("return");       \
     } \
     DBUG_VOID_RETURN; \
 }
+
+#define TOKUDB_SHARE_TRACE(_fmt, ...) \
+    fprintf(stderr, "%u %p %s:%u TOUDB_SHARE::%s " _fmt "\n", \
+            tokudb::thread::my_tid(), this, __FILE__, __LINE__, \
+            __FUNCTION__, ##__VA_ARGS__);
+
+#define TOKUDB_SHARE_TRACE_FOR_FLAGS(_flags, _fmt, ...) { \
+    if (TOKUDB_UNLIKELY(TOKUDB_DEBUG_FLAGS(_flags))) { \
+        TOKUDB_SHARE_TRACE(_fmt, ##__VA_ARGS__); \
+    } \
+}
+
+#define TOKUDB_SHARE_DBUG_ENTER(_fmt, ...) { \
+    if (TOKUDB_UNLIKELY((tokudb::sysvars::debug & TOKUDB_DEBUG_ENTER) || \
+        (tokudb::sysvars::debug & TOKUDB_DEBUG_SHARE))) { \
+        TOKUDB_SHARE_TRACE(_fmt, ##__VA_ARGS__); \
+    } \
+} \
+    DBUG_ENTER(__FUNCTION__);
+
+#define TOKUDB_SHARE_DBUG_RETURN(r) { \
+    int rr = (r); \
+    if (TOKUDB_UNLIKELY((tokudb::sysvars::debug & TOKUDB_DEBUG_RETURN) || \
+        (tokudb::sysvars::debug & TOKUDB_DEBUG_SHARE) || \
+        (rr != 0 && (tokudb::sysvars::debug & TOKUDB_DEBUG_ERROR)))) { \
+        TOKUDB_SHARE_TRACE("return %d", rr); \
+    } \
+    DBUG_RETURN(rr); \
+}
+
+#define TOKUDB_SHARE_DBUG_RETURN_DOUBLE(r) { \
+    double rr = (r); \
+    if (TOKUDB_UNLIKELY((tokudb::sysvars::debug & TOKUDB_DEBUG_RETURN) || \
+        (tokudb::sysvars::debug & TOKUDB_DEBUG_SHARE))) { \
+        TOKUDB_SHARE_TRACE("return %f", rr); \
+    } \
+    DBUG_RETURN(rr); \
+}
+
+#define TOKUDB_SHARE_DBUG_RETURN_PTR(r) { \
+    if (TOKUDB_UNLIKELY((tokudb::sysvars::debug & TOKUDB_DEBUG_RETURN) || \
+        (tokudb::sysvars::debug & TOKUDB_DEBUG_SHARE))) { \
+        TOKUDB_SHARE_TRACE("return 0x%p", r); \
+    } \
+    DBUG_RETURN(r); \
+}
+
+#define TOKUDB_SHARE_DBUG_VOID_RETURN() { \
+    if (TOKUDB_UNLIKELY((tokudb::sysvars::debug & TOKUDB_DEBUG_RETURN) || \
+        (tokudb::sysvars::debug & TOKUDB_DEBUG_SHARE))) { \
+        TOKUDB_SHARE_TRACE("return");       \
+    } \
+    DBUG_VOID_RETURN; \
+}
+
 
 #define TOKUDB_DBUG_DUMP(s, p, len) \
 { \

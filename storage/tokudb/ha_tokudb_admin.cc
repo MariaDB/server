@@ -374,6 +374,7 @@ void standard_t::on_run() {
         _local_txn = false;
     }
 
+    assert_always(_share->key_file[0] != NULL);
     _result = _share->key_file[0]->stat64(_share->key_file[0], _txn, &stat64);
     if (_result != 0) {
         _result = HA_ADMIN_FAILED;
@@ -575,6 +576,7 @@ int standard_t::analyze_key_progress(void) {
 int standard_t::analyze_key(uint64_t* rec_per_key_part) {
     int error = 0;
     DB* db = _share->key_file[_current_key];
+    assert_always(db != NULL);
     uint64_t num_key_parts = _share->_key_descriptors[_current_key]._parts;
     uint64_t unique_rows[num_key_parts];
     bool is_unique = _share->_key_descriptors[_current_key]._is_unique;
@@ -897,6 +899,7 @@ int ha_tokudb::do_optimize(THD* thd) {
         }
 
         DB* db = share->key_file[i];
+        assert_always(db != NULL);
         error = db->optimize(db);
         if (error) {
             goto cleanup;
@@ -1016,7 +1019,8 @@ int ha_tokudb::check(THD* thd, HA_CHECK_OPT* check_opt) {
                 write_status_msg);
         }
         for (uint i = 0; i < num_DBs; i++) {
-            DB *db = share->key_file[i];
+            DB* db = share->key_file[i];
+            assert_always(db != NULL);
             const char* kname =
                 i == primary_key ? "primary" : table_share->key_info[i].name;
             snprintf(
