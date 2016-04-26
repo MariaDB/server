@@ -2620,14 +2620,16 @@ static void end_delayed_insert(THD *thd)
 
 void kill_delayed_threads(void)
 {
+  DBUG_ENTER("kill_delayed_threads");
   mysql_mutex_lock(&LOCK_delayed_insert); // For unlink from list
 
   I_List_iterator<Delayed_insert> it(delayed_threads);
   Delayed_insert *di;
   while ((di= it++))
   {
-    di->thd.killed= KILL_CONNECTION;
     mysql_mutex_lock(&di->thd.LOCK_thd_data);
+    if (di->thd.killed < KILL_CONNECTION)
+      di->thd.killed= KILL_CONNECTION;
     if (di->thd.mysys_var)
     {
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
@@ -2648,6 +2650,7 @@ void kill_delayed_threads(void)
     mysql_mutex_unlock(&di->thd.LOCK_thd_data);
   }
   mysql_mutex_unlock(&LOCK_delayed_insert); // For unlink from list
+  DBUG_VOID_RETURN;
 }
 
 
@@ -2845,6 +2848,12 @@ pthread_handler_t handle_delayed_insert(void *arg)
     /* Tell client that the thread is initialized */
     mysql_cond_signal(&di->cond_client);
 
+    /*
+      Inform mdl that it needs to call mysql_lock_abort to abort locks
+      for delayed insert.
+    */
+    thd->mdl_context.set_needs_thr_lock_abort(TRUE);
+
     /* Now wait until we get an insert or lock to handle */
     /* We will not abort as long as a client thread uses this thread */
 
@@ -2853,6 +2862,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       if (thd->killed)
       {
         uint lock_count;
+        DBUG_PRINT("delayed", ("Insert delayed killed"));
         /*
           Remove this from delay insert list so that no one can request a
           table from this
@@ -2869,6 +2879,9 @@ pthread_handler_t handle_delayed_insert(void *arg)
       }
 
       /* Shouldn't wait if killed or an insert is waiting. */
+      DBUG_PRINT("delayed",
+                 ("thd->killed: %d  di->status: %d  di->stacked_inserts: %d",
+                  thd->killed, di->status, di->stacked_inserts));
       if (!thd->killed && !di->status && !di->stacked_inserts)
       {
         struct timespec abstime;
@@ -2908,6 +2921,9 @@ pthread_handler_t handle_delayed_insert(void *arg)
         mysql_mutex_unlock(&di->thd.mysys_var->mutex);
         mysql_mutex_lock(&di->mutex);
       }
+      DBUG_PRINT("delayed",
+                 ("thd->killed: %d  di->tables_in_use: %d  thd->lock: %d",
+                  thd->killed, di->tables_in_use, thd->lock != 0));
 
       if (di->tables_in_use && ! thd->lock && !thd->killed)
       {
@@ -2968,8 +2984,18 @@ pthread_handler_t handle_delayed_insert(void *arg)
   {
     DBUG_ENTER("handle_delayed_insert-cleanup");
     di->table=0;
-    thd->killed= KILL_CONNECTION;	        // If error
     mysql_mutex_unlock(&di->mutex);
+
+    /*
+      Protect against mdl_locks trying to access open tables
+      We use KILL_CONNECTION_HARD here to ensure that
+      THD::notify_shared_lock() dosn't try to access open tables after
+      this.
+    */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    thd->killed= KILL_CONNECTION_HARD;	        // If error
+    thd->mdl_context.set_needs_thr_lock_abort(0);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     close_thread_tables(thd);			// Free the table
     thd->mdl_context.release_transactional_locks();

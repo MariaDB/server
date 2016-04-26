@@ -1878,38 +1878,55 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 {
   THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
+  DBUG_ENTER("THD::notify_shared_lock");
+  DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_CONNECTION;
-    mysql_mutex_lock(&in_use->mysys_var->mutex);
-    if (in_use->mysys_var->current_cond)
-      mysql_cond_broadcast(in_use->mysys_var->current_cond);
-    mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    /* This code is similar to kill_delayed_threads() */
+    DBUG_PRINT("info", ("kill delayed thread"));
+    mysql_mutex_lock(&in_use->LOCK_thd_data);
+    if (in_use->killed < KILL_CONNECTION)
+      in_use->killed= KILL_CONNECTION;
+    if (in_use->mysys_var)
+    {
+      mysql_mutex_lock(&in_use->mysys_var->mutex);
+      if (in_use->mysys_var->current_cond)
+        mysql_cond_broadcast(in_use->mysys_var->current_cond);
+
+      /* Abort if about to wait in thr_upgrade_write_delay_lock */
+      in_use->mysys_var->abort= 1;
+      mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    }
+    mysql_mutex_unlock(&in_use->LOCK_thd_data);
     signalled= TRUE;
   }
 
   if (needs_thr_lock_abort)
   {
     mysql_mutex_lock(&in_use->LOCK_thd_data);
-    for (TABLE *thd_table= in_use->open_tables;
-         thd_table ;
-         thd_table= thd_table->next)
+    /* If not already dying */
+    if (in_use->killed != KILL_CONNECTION_HARD)
     {
-      /*
-        Check for TABLE::needs_reopen() is needed since in some places we call
-        handler::close() for table instance (and set TABLE::db_stat to 0)
-        and do not remove such instances from the THD::open_tables
-        for some time, during which other thread can see those instances
-        (e.g. see partitioning code).
-      */
-      if (!thd_table->needs_reopen())
-        signalled|= mysql_lock_abort_for_thread(this, thd_table);
+      for (TABLE *thd_table= in_use->open_tables;
+           thd_table ;
+           thd_table= thd_table->next)
+      {
+        /*
+          Check for TABLE::needs_reopen() is needed since in some
+          places we call handler::close() for table instance (and set
+          TABLE::db_stat to 0) and do not remove such instances from
+          the THD::open_tables for some time, during which other
+          thread can see those instances (e.g. see partitioning code).
+        */
+        if (!thd_table->needs_reopen())
+          signalled|= mysql_lock_abort_for_thread(this, thd_table);
+      }
+      mysql_mutex_unlock(&in_use->LOCK_thd_data);
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
-  return signalled;
+  DBUG_RETURN(signalled);
 }
 
 
