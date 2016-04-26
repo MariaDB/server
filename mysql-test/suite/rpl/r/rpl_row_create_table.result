@@ -194,7 +194,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t9` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-)
+) ENGINE=MyISAM
 **** On Slave ****
 SHOW CREATE TABLE t8;
 Table	t8
@@ -207,7 +207,7 @@ Table	t9
 Create Table	CREATE TABLE `t9` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc

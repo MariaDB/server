@@ -153,7 +153,7 @@ slave-bin.000001	#	Query	#	#	COMMIT
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL
-)
+) ENGINE=MyISAM
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t5` (
   `a` int(11) DEFAULT NULL
