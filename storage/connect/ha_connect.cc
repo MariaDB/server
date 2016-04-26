@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0005 January 24, 2016";
+       char version[]= "Version 1.04.0006 March 12, 2016";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0005 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -757,7 +757,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
-  *partname= 0;
+  memset(partname, 0, sizeof(partname));
   bzero((char*) &xinfo, sizeof(XINFO));
   valid_info= false;
   valid_query_id= 0;
@@ -1150,7 +1150,7 @@ char *ha_connect::GetRealString(const char *s)
 {
   char *sv;
 
-  if (IsPartitioned() && s) {
+  if (IsPartitioned() && s && partname && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1173,7 +1173,9 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                            : table->s->connect_string;
 
     if (cnc.length)
-      opval= GetRealString(strz(xp->g, cnc));
+      opval= strz(xp->g, cnc);
+		else
+			opval= GetListOption(xp->g, opname, options->oplist);
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
@@ -2286,7 +2288,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 				op= OP_EQ;
 				break;
 			case HA_READ_AFTER_KEY:	  
-				op= (stlen >= len) ? (!i ? OP_GT : OP_LE) : OP_GE;
+				op= (stlen >= len || i > 0) ? (i > 0 ? OP_LE : OP_GT) : OP_GE;
 				break;
 			case HA_READ_KEY_OR_NEXT:
 				op= OP_GE;
@@ -3121,13 +3123,14 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (table->part_info) {
       if (GetStringOption("Filename") || GetStringOption("Tabname")
-          || GetStringOption("Connect")) {
-        strcpy(partname, decode(g, strrchr(name, '#') + 1));
+                                      || GetStringOption("Connect")) {
+        strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //      strcpy(partname, table->part_info->curr_part_elem->partition_name);
-        part_id= &table->part_info->full_part_field_set;
+//      part_id= &table->part_info->full_part_field_set;
       } else       // Inward table
-        strcpy(partname, strrchr(name, slash) + 1);
-        part_id= &table->part_info->full_part_field_set; // Temporary
+        strncpy(partname, strrchr(name, slash) + 1, sizeof(partname) - 1);
+
+      part_id= &table->part_info->full_part_field_set; // Temporary
       } // endif part_info
 #endif   // WITH_PARTITION_STORAGE_ENGINE
   } else
@@ -5167,7 +5170,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep) ? ',' : (!strcmp(sep, "\\t")) ? '\t' : *sep;
+  spc= (!sep) ? ',' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
@@ -5233,7 +5236,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
     goto err;
     } // endif rc
-
 
   if (!tab) {
     if (ttp == TAB_TBL) {
@@ -5303,8 +5305,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     case TAB_CSV:
       if (!fn && fnc != FNC_NO)
         sprintf(g->Message, "Missing %s file name", topt->type);
-      else
-        ok= true;
+			else if (sep && strlen(sep) > 1)
+				sprintf(g->Message, "Invalid separator %s", sep);
+			else
+				ok= true;
 
       break;
     case TAB_MYSQL:
@@ -5985,7 +5989,19 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif lrecl
 
-    } // endif type
+    } // endif type	JSON
+
+	if (type == TAB_CSV) {
+		const char *sep = options->separator;
+
+		if (sep && strlen(sep) > 1) {
+			sprintf(g->Message, "Invalid separator %s", sep);
+			my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+			rc= HA_ERR_INTERNAL_ERROR;
+			DBUG_RETURN(rc);
+		} // endif sep
+
+	} // endif type	CSV
 
   // Check column types
   for (field= table_arg->field; *field; field++) {
@@ -6136,7 +6152,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       strcpy(dbpath, name);
       p= strrchr(dbpath, slash);
-      strcpy(partname, ++p);
+      strncpy(partname, ++p, sizeof(partname) - 1);
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
@@ -6187,7 +6203,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
-      strcpy(partname, decode(g, strrchr(name, '#') + 1));
+      strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
@@ -6228,8 +6244,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
-            strcpy(partname, 
-                   decode(g, strrchr(name, (inward ? slash : '#')) + 1));
+            strncpy(partname, 
+                    decode(g, strrchr(name, (inward ? slash : '#')) + 1),
+										sizeof(partname) - 1);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
@@ -6773,7 +6790,7 @@ maria_declare_plugin(connect)
   0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.04.0005",                                  /* string version */
+  "1.04.0006",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

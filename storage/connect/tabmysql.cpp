@@ -19,7 +19,7 @@
 /*  ---------------                                                     */
 /*    TABMYSQL.CPP   - Source code                                      */
 /*    PLGDBSEM.H     - DB application declaration file                  */
-/*    TABMYSQL.H     - TABODBC classes declaration file                 */
+/*    TABMYSQL.H     - TABMYSQL classes declaration file                */
 /*    GLOBAL.H       - Global declaration file                          */
 /*                                                                      */
 /*  REQUIRED LIBRARIES:                                                 */
@@ -334,7 +334,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Database = GetStringCatInfo(g, "Database", Schema ? Schema : (char*)"*");
+    Database = GetStringCatInfo(g, "Database", Schema ? Schema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
@@ -857,7 +857,9 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-    Myc.Rewind();
+		if (Myc.Rewind(g, (Mode == MODE_READX) ? Query->GetStr() : NULL) != RC_OK)
+			return true;
+
     N = -1;
     return false;
     } // endif use

@@ -64,3 +64,70 @@ SELECT * FROM t2;
 
 DROP TABLE t2;
 DROP TABLE t1;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+
+--echo #
+--echo # Make local FIX table with indices matricule and nom/prenom
+--echo #
+CREATE TABLE t1
+(
+  matricule INT(4) KEY NOT NULL field_format='Z',
+  nom       VARCHAR(16) NOT NULL,
+  prenom    VARCHAR(20) NOT NULL,
+  sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
+  aanais    INT(4) NOT NULL,
+  mmnais    INT(2) NOT NULL,
+  ddentree  DATE NOT NULL date_format='YYYYMM',
+  ddnom     DATE NOT NULL date_format='YYYYMM',
+  brut      INT(5) NOT NULL,
+  net       DOUBLE(8,2) NOT NULL,
+  service   INT(2) NOT NULL,
+  sitmat    CHAR(1) NOT NULL,
+  formation CHAR(5) NOT NULL,
+  INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+
+--echo #
+--echo # Make MYSQL table with same indices
+--echo #
+CREATE TABLE t2
+(
+  matricule INT(4) KEY NOT NULL,
+  nom       VARCHAR(16) NOT NULL,
+  prenom    VARCHAR(20) NOT NULL,
+  sexe      SMALLINT(1) NOT NULL,
+  aanais    INT(4) NOT NULL,
+  mmnais    INT(2) NOT NULL,
+  ddentree  DATE NOT NULL date_format='YYYYMM',
+  ddnom     DATE NOT NULL date_format='YYYYMM',
+  brut      INT(5) NOT NULL,
+  net       DOUBLE(8,2) NOT NULL,
+  service   INT(2) NOT NULL,
+  sitmat    CHAR(1) NOT NULL,
+  formation CHAR(5) NOT NULL,
+  INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTIOn='mysql://root@localhost/test/t1';
+SELECT * FROM t2 limit 10;
+SELECT matricule, nom, prenom FROM t2 WHERE nom IN ('FOCH','MOGADOR');
+SELECT matricule, nom, prenom FROM t2 WHERE nom = 'FOCH' OR nom = 'MOGADOR';
+SELECT matricule, nom, prenom FROM t2 WHERE nom < 'ADDAX';
+SELECT matricule, nom, prenom FROM t2 WHERE nom <= 'ABEL';
+SELECT matricule, nom, prenom FROM t2 WHERE nom > 'YVON';
+SELECT matricule, nom, prenom FROM t2 WHERE nom >= 'YVON';
+SELECT matricule, nom, prenom FROM t2 WHERE nom <= 'ABEL' OR nom > 'YVON';
+SELECT matricule, nom, prenom FROM t2 WHERE nom > 'HELEN' AND nom < 'HEROS';
+SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS';
+SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS' AND prenom = 'PHILIPPE';
+SELECT matricule, nom, prenom FROM t2 ORDER BY nom LIMIT 10;
+SELECT a.nom, a.prenom, b.nom FROM t1 a STRAIGHT_JOIN t2 b ON a.prenom = b.prenom WHERE a.nom = 'FOCH' AND a.nom != b.nom;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/emp.txt
+--remove_file $MYSQLD_DATADIR/test/emp.fnx
