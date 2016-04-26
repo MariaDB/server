@@ -2119,7 +2119,6 @@ bool JOIN::make_aggr_tables_info()
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
   JOIN_TAB *curr_tab= join_tab + const_tables;
-  bool materialize_join= false;
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
   bool keep_row_order= false;
@@ -2377,11 +2376,6 @@ bool JOIN::make_aggr_tables_info()
       tmp_table_param.hidden_field_count= 
         tmp_all_fields1.elements - tmp_fields_list1.elements;
       
-      if (!exec_tmp_table->group && !exec_tmp_table->distinct)
-      {
-        // 1st tmp table were materializing join result
-        materialize_join= true;
-      }
       curr_tab++;
       aggr_tables++;
       bzero(curr_tab, sizeof(JOIN_TAB));
