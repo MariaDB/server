@@ -265,5 +265,12 @@ DROP USER bug42158@localhost;
 
 --echo End of 5.1 tests
 
+#
+# MDEV-9605 mysqlbinlog does not accept ssl-ca option as expected.
+#
+
+--error 1
+--exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
