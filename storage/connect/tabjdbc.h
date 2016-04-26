@@ -121,7 +121,7 @@ protected:
 	bool  MakeInsert(PGLOBAL g);
 	bool  MakeCommand(PGLOBAL g);
 	//bool  MakeFilter(PGLOBAL g, bool c);
-	bool  BindParameters(PGLOBAL g);
+	bool  SetParameters(PGLOBAL g);
 	//char *MakeUpdate(PGLOBAL g);
 	//char *MakeDelete(PGLOBAL g);
 
@@ -160,6 +160,7 @@ protected:
 	int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
 //bool     Scrollable;        // Use scrollable cursor --> in Ops
 	bool     Placed;            // True for position reading
+	bool     Prepared;          // True when using prepared statement
 	bool     Werr;							// Write error
 	bool     Rerr;							// Rewind error
 	PQRYRES  Qrp;               // Points to storage result

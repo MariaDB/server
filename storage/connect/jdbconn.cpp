@@ -708,15 +708,10 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	m_Tdb = tdbp;
 	jvm = nullptr;            // Pointer to the JVM (Java Virtual Machine)
 	env= nullptr;             // Pointer to native interface
-	jdi = nullptr;
-	job = nullptr;
-	xqid = nullptr;
-	xuid = nullptr;
-	xid = nullptr;
-	grs = nullptr;
-	readid = nullptr;
-	fetchid = nullptr;
-	typid = nullptr;
+	jdi = nullptr;						// Pointer to the JdbcInterface class
+	job = nullptr;						// The JdbcInterface class object
+	xqid = xuid = xid = grs = readid = fetchid = typid = nullptr;
+	prepid = xpid = pcid = nullptr;
 //m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
@@ -1245,7 +1240,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		fldid = env->GetMethodID(jdi, "DoubleField", "(ILjava/lang/String;)D");
 
 		if (fldid != nullptr)
-			val->SetValue((double)env->CallDoubleMethod(job, fldid, rank,jn));
+			val->SetValue((double)env->CallDoubleMethod(job, fldid, rank, jn));
 		else
 			val->Reset();
 
@@ -1318,10 +1313,23 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 /***********************************************************************/
 /*  Prepare an SQL statement for insert.                               */
 /***********************************************************************/
-int JDBConn::PrepareSQL(char *sql)
+bool JDBConn::PrepareSQL(char *sql)
 {
-	// TODO: implement prepared statement
-	return 0;
+	if (prepid == nullptr) {
+		prepid = env->GetMethodID(jdi, "CreatePrepStmt", "(Ljava/lang/String;)Z");
+
+		if (prepid == nullptr) {
+			strcpy(m_G->Message, "Cannot find method CreatePrepStmt");
+			return true;
+		}	// endif prepid
+
+	} // endif prepid
+	
+	// Create the prepared statement
+	jstring qry = env->NewStringUTF(sql);
+	jboolean b = env->CallBooleanMethod(job, prepid, qry);
+	env->DeleteLocalRef(qry);
+	return (bool)b;
 } // end of PrepareSQL
 
 /***********************************************************************/
@@ -1416,112 +1424,165 @@ int JDBConn::GetResultSize(char *sql, JDBCCOL *colp)
 	return colp->GetIntValue();
 } // end of GetResultSize
 
-#if 0
 /***********************************************************************/
 /*  Execute a prepared statement.                                      */
 /***********************************************************************/
 int JDBConn::ExecuteSQL(void)
 {
+	int rc = RC_FX;
 	PGLOBAL& g = m_G;
-	SWORD    ncol = 0;
-	RETCODE  rc;
-	SQLLEN   afrw = -1;
 
-	try {
-		do {
-			rc = SQLExecute(m_hstmt);
-		} while (rc == SQL_STILL_EXECUTING);
+	if (xpid == nullptr) {
+		// Get the methods used to execute a prepared statement
+		xpid = env->GetMethodID(jdi, "ExecutePrep", "()I");
 
-		if (!Check(rc))
-			ThrowDJX(rc, "SQLExecute", m_hstmt);
+		if (xpid == nullptr) {
+			strcpy(g->Message, "Cannot find method ExecutePrep");
+			return rc;
+		} // endif xpid
 
-		if (!Check(rc = SQLNumResultCols(m_hstmt, &ncol)))
-			ThrowDJX(rc, "SQLNumResultCols", m_hstmt);
+	} // endif xpid
 
-		if (ncol) {
-			// This should never happen while inserting
-			strcpy(g->Message, "Logical error while inserting");
-		} else {
-			// Insert, Update or Delete statement
-			if (!Check(rc = SQLRowCount(m_hstmt, &afrw)))
-				ThrowDJX(rc, "SQLRowCount", m_hstmt);
+	jint n = env->CallIntMethod(job, xpid);
 
-		} // endif ncol
+	switch ((int)n) {
+	case -1:
+	case -2:
+		strcpy(g->Message, "Exception error thrown while executing SQL");
+		break;
+	case -3:
+		strcpy(g->Message, "SQL statement is not prepared");
+		break;
+	default:
+		m_Aff = (int)n;
+		rc = RC_OK;
+	} // endswitch n
 
-	}
-	catch (DJX *x) {
-		sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
-		SQLCancel(m_hstmt);
-		rc = SQLFreeStmt(m_hstmt, SQL_DROP);
-		m_hstmt = NULL;
-
-		if (m_Transact) {
-			rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_ROLLBACK);
-			m_Transact = false;
-		} // endif m_Transact
-
-		afrw = -1;
-	} // end try/catch
-
-	return (int)afrw;
+	return rc;
 } // end of ExecuteSQL
 
 /***********************************************************************/
-/*  Bind a parameter for inserting.                                    */
+/*  Set a parameter for inserting.                                     */
 /***********************************************************************/
-bool JDBConn::BindParam(JDBCCOL *colp)
+bool JDBConn::SetParam(JDBCCOL *colp)
 {
-	void        *buf;
-	int          buftype = colp->GetResultType();
-	SQLUSMALLINT n = colp->GetRank();
-	SQLSMALLINT  ct, sqlt, dec, nul;
-	SQLULEN      colsize;
-	SQLLEN       len;
-	SQLLEN      *strlen = colp->GetStrLen();
-	SQLRETURN    rc;
+	PGLOBAL&   g = m_G;
+	int        rc = false;
+	PVAL       val = colp->GetValue();
+	jint       n, i = (jint)colp->GetRank();
+	jshort     s;
+	jlong      lg;
+//jfloat     f;
+	jdouble    d;
+	jclass     dat;
+	jobject    datobj;
+	jstring    jst = nullptr;
+	jthrowable exc;
+	jmethodID  dtc, setid = nullptr;
+
+	switch (val->GetType()) {
+	case TYPE_STRING:
+		setid = env->GetMethodID(jdi, "SetStringParm", "(ILjava/lang/String;)V");
+
+		if (setid == nullptr) {
+			strcpy(g->Message, "Cannot fing method SetStringParm");
+			return true;
+		}	// endif setid
+
+		jst = env->NewStringUTF(val->GetCharValue());
+		env->CallVoidMethod(job, setid, i, jst);
+		break;
+	case TYPE_INT:
+		setid = env->GetMethodID(jdi, "SetIntParm", "(II)V");
+
+		if (setid == nullptr) {
+			strcpy(g->Message, "Cannot fing method SetIntParm");
+			return true;
+		}	// endif setid
+
+		n = (jint)val->GetIntValue();
+		env->CallVoidMethod(job, setid, i, n);
+		break;
+	case TYPE_TINY:
+	case TYPE_SHORT:
+		setid = env->GetMethodID(jdi, "SetShortParm", "(IS)V");
+
+		if (setid == nullptr) {
+			strcpy(g->Message, "Cannot fing method SetShortParm");
+			return true;
+		}	// endif setid
+
+		s = (jshort)val->GetShortValue();
+		env->CallVoidMethod(job, setid, i, s);
+		break;
+	case TYPE_BIGINT:
+		setid = env->GetMethodID(jdi, "SetBigintParm", "(IJ)V");
+
+		if (setid == nullptr) {
+			strcpy(g->Message, "Cannot fing method SetBigintParm");
+			return true;
+		}	// endif setid
+
+		lg = (jlong)val->GetBigintValue();
+		env->CallVoidMethod(job, setid, i, lg);
+		break;
+	case TYPE_DOUBLE:
+	case TYPE_DECIM:
+		setid = env->GetMethodID(jdi, "SetDoubleParm", "(ID)V");
+
+		if (setid == nullptr) {
+			strcpy(g->Message, "Cannot fing method SetDoubleParm");
+			return true;
+		}	// endif setid
+
+		d = (jdouble)val->GetFloatValue();
+		env->CallVoidMethod(job, setid, i, d);
+		break;
+	case TYPE_DATE:
+		if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
+			strcpy(g->Message, "Cannot find Timestamp class");
+			return true;
+		} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
+			strcpy(g->Message, "Cannot find Timestamp class constructor");
+			return true;
+		}	// endif's
+
+		lg = (jlong)val->GetBigintValue() * 1000;
+
+		if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
+			strcpy(g->Message, "Cannot make Timestamp object");
+			return true;
+		} else if ((setid = env->GetMethodID(jdi, "SetTimestampParm", 
+			             "(ILjava/sql/Timestamp;)V")) == nullptr) {
+			strcpy(g->Message, "Cannot find method SetTimestampParm");
+			return true;
+		}	// endif setid
+
+		env->CallVoidMethod(job, setid, i, datobj);
+		break;
+	default:
+		sprintf(g->Message, "Parm type %d not supported", val->GetType());
+		return true;
+	}	// endswitch Type
+
+	if ((exc = env->ExceptionOccurred()) != nullptr) {
+		jboolean isCopy = false;
+		jmethodID tid = env->GetMethodID(env->FindClass("java/lang/Object"), "toString", "()Ljava/lang/String;");
+		jstring s = (jstring)env->CallObjectMethod(exc, tid);
+		const char* utf = env->GetStringUTFChars(s, &isCopy);
+		sprintf(g->Message, "SetParam: %s", utf);
+		env->DeleteLocalRef(s);
+		env->ExceptionClear();
+		rc = true;
+	} // endif exc
+
+	if (jst)
+		env->DeleteLocalRef(jst);
+
+	return rc;
+	} // end of SetParam
 
 #if 0
-	try {
-		// This function is often not or badly implemented by data sources
-		rc = SQLDescribeParam(m_hstmt, n, &sqlt, &colsize, &dec, &nul);
-
-		if (!Check(rc))
-			ThrowDJX(rc, "SQLDescribeParam", m_hstmt);
-
-	}
-	catch (DJX *x) {
-		sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
-#endif // 0
-		colsize = colp->GetPrecision();
-		sqlt = GetJDBCType(buftype);
-		dec = IsTypeNum(buftype) ? colp->GetScale() : 0;
-		nul = colp->IsNullable() ? SQL_NULLABLE : SQL_NO_NULLS;
-		//} // end try/catch
-
-		buf = colp->GetBuffer(0);
-		len = IsTypeChar(buftype) ? colp->GetBuflen() : 0;
-		ct = GetJDBCCType(buftype);
-		*strlen = IsTypeChar(buftype) ? SQL_NTS : 0;
-
-		try {
-			rc = SQLBindParameter(m_hstmt, n, SQL_PARAM_INPUT, ct, sqlt,
-				colsize, dec, buf, len, strlen);
-
-			if (!Check(rc))
-				ThrowDJX(rc, "SQLBindParameter", m_hstmt);
-
-		}
-		catch (DJX *x) {
-			strcpy(m_G->Message, x->GetErrorMessage(0));
-			SQLCancel(m_hstmt);
-			rc = SQLFreeStmt(m_hstmt, SQL_DROP);
-			m_hstmt = NULL;
-			return true;
-		} // end try/catch
-
-		return false;
-	} // end of BindParam
-
 	/***********************************************************************/
 	/*  Get the list of Data Sources and set it in qrp.                    */
 	/***********************************************************************/

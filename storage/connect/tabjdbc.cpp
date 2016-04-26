@@ -468,6 +468,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 {
 	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
+	uint   pos;
 	bool   b = false, oom = false;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
@@ -546,40 +547,44 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 
 	} // endfor colp
 
-	oom |= Query->Append(") VALUES (");
-
-	// Currently not using prepared statement
-//for (int i = 0; i < Nparm; i++)
-//	oom |= Query->Append("?,");
-
-	if (oom)
+	if ((oom |= Query->Append(") VALUES ("))) {
 		strcpy(g->Message, "MakeInsert: Out of memory");
-//else
-//	Query->RepLast(')');
+		return true;
+	} else // in case prepared statement fails
+		pos = Query->GetLength();
 
-	return oom;
+	// Make prepared statement
+	for (int i = 0; i < Nparm; i++)
+		oom |= Query->Append("?,");
+
+	if (oom) {
+		strcpy(g->Message, "MakeInsert: Out of memory");
+		return true;
+	} else
+		Query->RepLast(')');
+
+	// Now see if we can use prepared statement
+	if (Jcp->PrepareSQL(Query->GetStr()))
+		Query->Truncate(pos);     // Restore query to not prepared
+	else
+		Prepared = true;
+
+	return false;
 } // end of MakeInsert
 
 /***********************************************************************/
-/*  JDBC Bind Parameter function.                                      */
+/*  JDBC Set Parameter function.                                       */
 /***********************************************************************/
-bool TDBJDBC::BindParameters(PGLOBAL g)
+bool TDBJDBC::SetParameters(PGLOBAL g)
 {
-#if 0
 	PJDBCCOL colp;
 
-	for (colp = (PJDBCCOL)Columns; colp; colp = (PJDBCCOL)colp->Next) {
-		colp->AllocateBuffers(g, 0);
-
-		if (Jcp->BindParam(colp))
+	for (colp = (PJDBCCOL)Columns; colp; colp = (PJDBCCOL)colp->Next)
+		if (Jcp->SetParam(colp))
 			return true;
 
-	} // endfor colp
-
 	return false;
-#endif // 0
-	return true;
-} // end of BindParameters
+} // end of SetParameters
 
 /***********************************************************************/
 /*  MakeCommand: make the Update or Delete statement to send to the    */
@@ -1042,20 +1047,22 @@ int TDBJDBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBJDBC::WriteDB(PGLOBAL g)
 {
-#if 0
-	int n = Jcp->ExecuteSQL();
+	int  rc;
 
-	if (n < 0) {
-		AftRows = n;
-		return RC_FX;
-	} else
-		AftRows += n;
+	if (Prepared) {
+		if (SetParameters(g)) {
+			Werr = true;
+			rc = RC_FX;
+		} else if ((rc = Jcp->ExecuteSQL()) == RC_OK)
+			AftRows += Jcp->m_Aff;
+		else
+			Werr = true;
 
-	return RC_OK;
-#endif // 0
+		return rc;
+	} // endif  Prepared
+
 	// Statement was not prepared, we must construct and execute
 	// an insert query for each line to insert
-	int  rc;
 	uint len = Query->GetLength();
 	char buf[64];
 	bool oom = false;
@@ -1154,6 +1161,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 		PushWarning(g, this, 0);    // 0 means a Note
 	}	// endif Mode
 
+	Prepared = false;
 } // end of CloseDB
 
 /* --------------------------- JDBCCOL ------------------------------- */

@@ -103,9 +103,9 @@ public:
 	int     ExecuteQuery(char *sql);
 	int     ExecuteUpdate(char *sql);
 	int     Fetch(int pos = 0);
-	int     PrepareSQL(char *sql);
-	//int   ExecuteSQL(void);
-	//bool  BindParam(JDBCCOL *colp);
+	bool    PrepareSQL(char *sql);
+	int     ExecuteSQL(void);
+	bool    SetParam(JDBCCOL *colp);
 	int     ExecSQLcommand(char *sql);
 	void    SetColumnValue(int rank, PSZ name, PVAL val);
 	int     GetCatInfo(JCATPARM *cap);
@@ -134,10 +134,6 @@ protected:
 //void Free(void);
 
 protected:
-	// Static members
-	//static HENV m_henv;
-	//static int  m_nAlloc;            // per-Appl reference to HENV above
-
 	// Members
 	PGLOBAL   m_G;
 	TDBJDBC  *m_Tdb;
@@ -152,7 +148,10 @@ protected:
 	jmethodID readid;										// The ReadNext method ID
 	jmethodID fetchid;									// The Fetch method ID
 	jmethodID typid;										// The ColumnType method ID
-//DWORD     m_LoginTimeout;
+	jmethodID prepid;										// The CreatePrepStmt method ID
+	jmethodID xpid;										  // The ExecutePrep method ID
+	jmethodID pcid;										  // The ClosePrepStmt method ID
+	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;
 	char      m_IDQuoteChar[2];
