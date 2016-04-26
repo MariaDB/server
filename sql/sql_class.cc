@@ -1923,8 +1923,8 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         if (!thd_table->needs_reopen())
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
       }
-      mysql_mutex_unlock(&in_use->LOCK_thd_data);
     }
+    mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
   DBUG_RETURN(signalled);
 }
