@@ -3568,11 +3568,11 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of json_set_item_init
 
-char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+static char *json_set_item_core(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error, int w)
 {
 	char   *p, *path, *str = NULL;
-	int     w, rc;
+	int     rc;
 	my_bool b = true;
 	PJSON   jsp;
 	PJSNX   jsx;
@@ -3585,13 +3585,6 @@ char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		goto fin;
 	} else if (initid->const_item)
 		g->N = 1;
-
-	if (!strcmp(result, "$insert"))
-		w = 1;
-	else if (!strcmp(result, "$update"))
-		w = 2;
-	else
-		w = 0;
 
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
@@ -3671,7 +3664,13 @@ char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of json_set_item
+} // end of json_set_item_core
+
+char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	return json_set_item_core(initid, args, result, res_length, is_null, error, 0);
+}
 
 void json_set_item_deinit(UDF_INIT* initid)
 {
@@ -3689,8 +3688,7 @@ my_bool json_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *json_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
-	strcpy(result, "$insert");
-	return json_set_item(initid, args, result, res_length, is_null, p);
+	return json_set_item_core(initid, args, result, res_length, is_null, p, 1);
 } // end of json_insert_item
 
 void json_insert_item_deinit(UDF_INIT* initid)
@@ -3709,8 +3707,7 @@ my_bool json_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *json_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
-	strcpy(result, "$update");
-	return json_set_item(initid, args, result, res_length, is_null, p);
+	return json_set_item_core(initid, args, result, res_length, is_null, p, 2);
 } // end of json_update_item
 
 void json_update_item_deinit(UDF_INIT* initid)
