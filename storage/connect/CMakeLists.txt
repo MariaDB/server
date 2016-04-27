@@ -128,37 +128,10 @@ IF(WIN32)
 
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
-    find_library(MSXML_LIBRARY
-    NAMES msxml6 msxml4 msxml3 msxml2
-    PATHS
-    "C:/Program Files/Microsoft SDKs/Windows/v7.0A/Lib"
-    "C:/Program Files/Microsoft SDKs/Windows/v6.0A/Lib"
-    "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"
-    DOC "Specify the MSXML? library here."
-    )
-    IF(MSXML_LIBRARY MATCHES .*msxml6[.].*)
-      add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
-      message(STATUS "MSXML library version: msxml6")
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml4[.].*)
-      add_definitions(-DMSX4 -DDOMDOC_SUPPORT)
-      message("MSXML library version: msxml4")
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml3[.].*)
-      message("MSXML library version: msxml3")
-      add_definitions(-DMSX3 -DDOMDOC_SUPPORT)
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml2[.].*)
-      message("MSXML library version: msxml2")
-      add_definitions(-DMXS2 -DDOMDOC_SUPPORT)
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSE()
-      message(STATUS "msxml? library not found")
-    ENDIF()
+    add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
+    message(STATUS "MSXML library version: msxml6")
+    SET(MSXML_FOUND 1)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
 ENDIF(WIN32)
 
