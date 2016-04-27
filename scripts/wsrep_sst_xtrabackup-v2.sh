@@ -853,7 +853,8 @@ then
     then
 
         if [[ -d ${DATA}/.sst ]];then
-            wsrep_log_info "WARNING: Stale temporary SST directory: ${DATA}/.sst from previous state transfer"
+            wsrep_log_info "WARNING: Stale temporary SST directory: ${DATA}/.sst from previous state transfer. Removing"
+            rm -rf ${DATA}/.sst
         fi
         mkdir -p ${DATA}/.sst
         (recv_joiner $DATA/.sst "${stagemsg}-SST" 0 0) &
