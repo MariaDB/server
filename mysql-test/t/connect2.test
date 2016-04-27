@@ -7,7 +7,7 @@
 call mtr.add_suppression("Allocation failed");
 SET @old_debug= @@session.debug;
 set @old_thread_cache_size=@@global.thread_cache_size;
-
+set @@global.thread_cache_size=0;
 # Test connections to the
 
 connect(con1,localhost,root,,test,,);
@@ -32,7 +32,6 @@ select 1;
 disconnect con1;
 
 # Test connections to the extra port.
-
 connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
 select 1;
 disconnect con1;
