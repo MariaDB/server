@@ -9,6 +9,7 @@
 *.cpp text
 *.h text
 *.test text
+*.java text
 
 # Declare files that will always have LF line endings on checkout.
 *.result text eol=lf
@@ -29,3 +30,4 @@ storage/connect/mysql-test/connect/std_data/*.dat binary
 *.cc    diff=cpp
 *.ic    diff=cpp
 *.cpp   diff=cpp
+*.java  diff=cpp
