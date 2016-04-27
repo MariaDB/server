@@ -3498,13 +3498,11 @@ innobase_change_buffering_inited_ok:
 		}
 	}
 
-	if (innobase_open_files > (long) open_files_limit) {
+	if (innobase_open_files > (long) tc_size) {
 		fprintf(stderr,
                        "innodb_open_files should not be greater"
                        " than the open_files_limit.\n");
-		if (innobase_open_files > (long) tc_size) {
-			innobase_open_files = tc_size;
-		}
+		innobase_open_files = tc_size;
 	}
 
 	srv_max_n_open_files = (ulint) innobase_open_files;
