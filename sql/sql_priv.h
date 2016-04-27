@@ -320,10 +320,11 @@
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
 
+#endif /* !MYSQL_CLIENT */
+
 /* BINLOG_DUMP options */
 
 #define BINLOG_DUMP_NON_BLOCK   1
-#endif /* !MYSQL_CLIENT */
 
 #define BINLOG_SEND_ANNOTATE_ROWS_EVENT   2
 
