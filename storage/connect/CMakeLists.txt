@@ -265,14 +265,17 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   # TODO: detect Java SDK and the presence of JDBC connectors
+  # TODO: Find how to compile and install the JdbcInterface.java class
   # Find required libraries and include directories
-  # Find how to compile and install the JdbcInterface.java class
 
-  IF(JDBC_OK)
-    INCLUDE_DIRECTORIES(${JDBC_INCLUDE_DIR})
+  FIND_PACKAGE(JAVA)
+	FIND_PACKAGE(JNI)
+  IF (JAVA_FOUND AND JNI_FOUND)
+    INCLUDE_DIRECTORIES(${JNI_INCLUDE_DIR})
+    SET(JNI_LIBRARY  ${JNI_LIBRARIES})
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} JdbcInterface.java  
+		jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h)
     add_definitions(-DJDBC_SUPPORT)
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-      JdbcInterface.java tabjdbc.cpp jdbconn.cpp jdbccat.h jdbconn.h tabjdbc.h)
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()
