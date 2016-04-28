@@ -172,6 +172,7 @@ static int file_key_management_plugin_init(void *p)
 static int file_key_management_plugin_deinit(void *p)
 {
   keys.free_memory();
+  return 0;
 }
 
 /*

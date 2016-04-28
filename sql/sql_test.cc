@@ -54,7 +54,7 @@ static const char *lock_descriptions[] =
 };
 
 
-#ifdef EXTRA_DEBUG
+#ifndef DBUG_OFF
 
 void
 print_where(COND *cond,const char *info, enum_query_type query_type)
