@@ -577,6 +577,8 @@ class Rowid_seq_cursor
   uint ref_length;
 
 public:
+  virtual ~Rowid_seq_cursor() {}
+
   void init(READ_RECORD *info)
   {
     cache_start= info->cache_pos;
@@ -631,6 +633,7 @@ class Table_read_cursor : public Rowid_seq_cursor
   */
   READ_RECORD *read_record;
 public:
+  virtual ~Table_read_cursor() {}
 
   void init(READ_RECORD *info)
   {

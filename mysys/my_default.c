@@ -565,7 +565,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
   for (; *groups ; groups++)
     group.count++;
 
-  if (my_init_dynamic_array(&args, sizeof(char*),*argc, 32, MYF(0)))
+  if (my_init_dynamic_array(&args, sizeof(char*), 128, 64, MYF(0)))
     goto err;
 
   ctx.alloc= &alloc;

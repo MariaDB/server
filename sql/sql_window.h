@@ -89,8 +89,8 @@ public:
 class Window_spec : public Sql_alloc
 {
   bool window_names_are_checked;
-
  public:
+  virtual ~Window_spec() {}
 
   LEX_STRING *window_ref;
 

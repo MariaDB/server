@@ -2017,7 +2017,7 @@ JOIN::optimize_inner()
 	  TODO: Explain the quick_group part of the test below.
 	 */
         if ((ordered_index_usage != ordered_index_group_by) &&
-            (tmp_table_param.quick_group && !procedure || 
+            ((tmp_table_param.quick_group && !procedure) || 
 	     (tab->emb_sj_nest && 
 	      best_positions[const_tables].sj_strategy == SJ_OPT_LOOSE_SCAN)))
         {
@@ -3123,7 +3123,7 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     Explain_union *eu= output->get_union(nr);
     explain= &eu->fake_select_lex_explain;
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
-    for (int i=0 ; i < top_join_tab_count + aggr_tables; i++)
+    for (uint i=0 ; i < top_join_tab_count + aggr_tables; i++)
     {
       if (join_tab[i].filesort)
       {
@@ -3360,23 +3360,25 @@ JOIN::destroy()
 
   cleanup(1);
 
-  uint tables= table_count+aggr_tables;
-
-  if (join_tab) // We should not have tables > 0 and join_tab != NULL
-   for (JOIN_TAB *tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITH_CONST_TABLES);
-        tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
+  if (join_tab)
   {
-    if (tab->aggr)
+    DBUG_ASSERT(table_count+aggr_tables > 0);
+    for (JOIN_TAB *tab= first_linear_tab(this, WITH_BUSH_ROOTS,
+                                         WITH_CONST_TABLES);
+         tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
     {
-      free_tmp_table(thd, tab->table);
-      delete tab->tmp_table_param;
-      tab->tmp_table_param= NULL;
-      tab->aggr= NULL;
+      if (tab->aggr)
+      {
+        free_tmp_table(thd, tab->table);
+        delete tab->tmp_table_param;
+        tab->tmp_table_param= NULL;
+        tab->aggr= NULL;
+      }
+      tab->table= NULL;
     }
-
-    tab->table= NULL;
   }
- /* Cleanup items referencing temporary table columns */
+
+  /* Cleanup items referencing temporary table columns */
   cleanup_item_list(tmp_all_fields1);
   cleanup_item_list(tmp_all_fields3);
   destroy_sj_tmp_tables(this);
@@ -24426,9 +24428,6 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   DBUG_ENTER("select_describe");
   
   /* Update the QPF with latest values of using_temporary, using_filesort */
-  Explain_select *explain_sel;
-  uint select_nr= join->select_lex->select_number;
-
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())

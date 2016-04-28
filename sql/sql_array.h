@@ -239,6 +239,11 @@ public:
     delete_dynamic(&array);
   }
 
+  void free_memory()
+  {
+    delete_dynamic(&array);
+  }
+
   typedef int (*CMP_FUNC)(const Elem *el1, const Elem *el2);
 
   void sort(CMP_FUNC cmp_func)

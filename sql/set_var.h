@@ -414,6 +414,7 @@ extern sys_var *Sys_autocommit_ptr;
 CHARSET_INFO *get_old_charset_by_name(const char *old_name);
 
 int sys_var_init();
+uint sys_var_elements();
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags);
 void sys_var_end(void);
 
