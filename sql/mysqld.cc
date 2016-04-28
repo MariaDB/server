@@ -5103,6 +5103,9 @@ static int init_server_components()
     variables even when a wsrep provider is not loaded.
   */
 
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
+
   wsrep_thr_init();
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
@@ -5192,9 +5195,6 @@ static int init_server_components()
 
   init_global_table_stats();
   init_global_index_stats();
-
-  /* It's now safe to use thread specific memory */
-  mysqld_server_initialized= 1;
 
   /* Allow storage engine to give real error messages */
   if (ha_init_errors())
