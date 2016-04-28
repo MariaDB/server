@@ -516,6 +516,9 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (my_thread_init())
     return 1;
 
+  if (init_early_variables())
+    return 1;
+
   if (argc)
   {
     argcp= &argc;
