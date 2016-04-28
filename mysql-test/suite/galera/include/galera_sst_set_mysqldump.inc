@@ -6,6 +6,7 @@
 
 --connection node_1
 # We need a user with a password to perform SST, otherwise we hit LP #1378253
+CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
 --let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
