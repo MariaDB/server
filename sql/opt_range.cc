@@ -13105,7 +13105,17 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   num_blocks= (ha_rows)(table_records / keys_per_block) + 1;
 
   /* Compute the number of keys in a group. */
-  keys_per_group= (ha_rows) index_info->actual_rec_per_key(group_key_parts - 1);
+  if (!group_key_parts)
+  {
+    /* Summary over the whole table */
+    keys_per_group= table_records;
+  }
+  else
+  {
+    keys_per_group= (ha_rows) index_info->actual_rec_per_key(group_key_parts -
+                                                             1);
+  }
+
   if (keys_per_group == 0) /* If there is no statistics try to guess */
     /* each group contains 10% of all records */
     keys_per_group= (table_records / 10) + 1;

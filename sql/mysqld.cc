@@ -4087,39 +4087,44 @@ extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
-  /* If thread specific memory */
-  if (likely(is_thread_specific))
+ 
+  if (likely(is_thread_specific))  /* If thread specific memory */
   {
-    if (mysqld_server_initialized || thd)
-    {
-      /*
-        THD may not be set if we are called from my_net_init() before THD
-        thread has started.
-        However, this should never happen, so better to assert and
-        fix this.
-      */
-      DBUG_ASSERT(thd);
-      if (thd)
-      {
-        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.local_memory_used,
-                            size));
-        thd->status_var.local_memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
-                    !debug_assert_on_not_freed_memory);
-      }
-    }
+    /*
+      When thread specfic is set, both mysqld_server_initialized and thd
+      must be set
+    */
+    DBUG_ASSERT(mysqld_server_initialized && thd);
+
+    DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.local_memory_used,
+                        size));
+    thd->status_var.local_memory_used+= size;
+    DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
+                !debug_assert_on_not_freed_memory);
   }
   else if (likely(thd))
+  {
+    DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.global_memory_used,
+                        size));
     thd->status_var.global_memory_used+= size;
+  }
   else
   {
-    // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-    int64 volatile * volatile ptr=&global_status_var.global_memory_used;
-    my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+    update_global_memory_status(size);
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Check if we have missed some mallocs. THis can't be done for embedded
+      server as the main code may have done calls to malloc before starting
+      the embedded library.
+    */
+    DBUG_ASSERT(global_status_var.global_memory_used >= 0);
+#endif
   }
 }
 }
+
 
 /**
   Create a replication file name or base for file names.
@@ -4157,6 +4162,22 @@ rpl_make_log_name(const char *opt,
     DBUG_RETURN(NULL);
 }
 
+/* We have to setup my_malloc_size_cb_func early to catch all mallocs */
+
+static int init_early_variables()
+{
+  if (pthread_key_create(&THR_THD, NULL))
+  {
+    fprintf(stderr, "Fatal error: Can't create thread-keys\n");
+    return 1;
+  }
+  set_current_thd(0);
+  set_malloc_size_cb(my_malloc_size_cb_func);
+  global_status_var.global_memory_used= 0;
+  return 0;
+}
+
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -4167,15 +4188,6 @@ static int init_common_variables()
   connection_errors_max_connection= 0;
   connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
-
-  if (pthread_key_create(&THR_THD, NULL))
-  {
-    sql_print_error("Can't create thread-keys");
-    return 1;
-  }
-
-  set_current_thd(0);
-  set_malloc_size_cb(my_malloc_size_cb_func);
 
   init_libstrings();
   tzset();			// Set tzname
@@ -4713,6 +4725,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
+  mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
   mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
@@ -5186,6 +5199,9 @@ static int init_server_components()
     variables even when a wsrep provider is not loaded.
   */
 
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
+
   wsrep_thr_init();
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
@@ -5636,6 +5652,9 @@ int mysqld_main(int argc, char **argv)
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
   mysqld_server_started= mysqld_server_initialized= 0;
 
+  if (init_early_variables())
+    exit(1);
+
 #ifdef HAVE_NPTL
   ld_assume_kernel_is_set= (getenv("LD_ASSUME_KERNEL") != 0);
 #endif
@@ -5937,9 +5956,6 @@ int mysqld_main(int argc, char **argv)
   Events::set_original_state(Events::opt_event_scheduler);
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
-
-  /* It's now safe to use thread specific memory */
-  mysqld_server_initialized= 1;
 
   if (WSREP_ON)
   {
@@ -8309,15 +8325,16 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
 
 
 static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+                            struct system_status_var *status_var,
                             enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
-    *(longlong*) buff= (global_status_var.local_memory_used +
-                        global_status_var.global_memory_used);
+    *(longlong*) buff= (status_var->global_memory_used +
+                        status_var->local_memory_used);
   else
-    *(longlong*) buff= thd->status_var.local_memory_used;
+    *(longlong*) buff= status_var->local_memory_used;
   return 0;
 }
 
@@ -8746,7 +8763,9 @@ static int mysql_init_variables(void)
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
   bzero((uchar*) &mysql_tmpdir_list, sizeof(mysql_tmpdir_list));
-  bzero((char *) &global_status_var, sizeof(global_status_var));
+  /* Clear all except global_memory_used */
+  bzero((char*) &global_status_var, offsetof(STATUS_VAR,
+                                             last_cleared_system_status_var));
   opt_large_pages= 0;
   opt_super_large_pages= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -9992,6 +10011,7 @@ void refresh_status(THD *thd)
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
+  thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
 

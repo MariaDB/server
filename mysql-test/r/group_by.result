@@ -2709,3 +2709,17 @@ NULL
 100098
 100099
 drop table t0,t1,t2;
+#
+# MDEV-9602 crash in st_key::actual_rec_per_key when group by constant
+#
+create table t1 (a date not null,unique (a)) engine=innodb;
+Warnings:
+Warning	1286	Unknown storage engine 'innodb'
+Warning	1266	Using storage engine MyISAM for table 't1'
+select distinct a from t1 group by 'a';
+a
+insert into t1 values("2001-02-02"),("2001-02-03");
+select distinct a from t1 group by 'a';
+a
+2001-02-02
+drop table t1;

@@ -1964,6 +1964,7 @@ struct TABLE_LIST
   bool          updating;               /* for replicate-do/ignore table */
   bool		force_index;		/* prefer index over table scan */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
+  bool          crashed;                 /* Table was found crashed */
   table_map     dep_tables;             /* tables the table depends on      */
   table_map     on_expr_dep_tables;     /* tables on expression depends on  */
   struct st_nested_join *nested_join;   /* if the element is a nested join  */

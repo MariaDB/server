@@ -107,6 +107,10 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
   table flush, wait on thr_lock.c locks) while opening and locking table.
 */
 #define MYSQL_OPEN_IGNORE_KILLED                0x8000
+/**
+   Don't try to  auto-repair table
+*/
+#define MYSQL_OPEN_IGNORE_REPAIR                0x10000
 
 /** Please refer to the internals manual. */
 #define MYSQL_OPEN_REOPEN  (MYSQL_OPEN_IGNORE_FLUSH |\

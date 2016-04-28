@@ -4955,7 +4955,6 @@ err_during_init:
   delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  THD_CHECK_SENTRY(thd);
   delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
