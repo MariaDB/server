@@ -6642,7 +6642,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
     thd->security_ctx->host= my_strdup(my_localhost, MYF(0)); /* Host is unknown */
     create_new_thread(thd);
     connect_number++;
-    set_current_thd(thd);
+    set_current_thd(0);
     continue;
 
 errorconn:
