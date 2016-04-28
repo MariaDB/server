@@ -24672,7 +24672,7 @@ void JOIN::save_query_plan(Join_plan_state *save_to)
   }
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
          sizeof(POSITION) * (table_count + 1));
-  memset(best_positions, 0, sizeof(POSITION) * (table_count + 1));
+  memset((uchar*) best_positions, 0, sizeof(POSITION) * (table_count + 1));
   
   /* Save SJM nests */
   List_iterator<TABLE_LIST> it(select_lex->sj_nests);
