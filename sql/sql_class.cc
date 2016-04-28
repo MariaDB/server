@@ -1733,7 +1733,6 @@ THD::~THD()
     other types are handled explicitely
 */
 
-
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
 {
   ulong *end= (ulong*) ((uchar*) to_var +

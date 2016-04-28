@@ -1127,7 +1127,7 @@ rpl_slave_state::is_empty()
 }
 
 
-rpl_binlog_state::rpl_binlog_state()
+void rpl_binlog_state::init()
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -1136,7 +1136,6 @@ rpl_binlog_state::rpl_binlog_state()
                    MY_MUTEX_INIT_SLOW);
   initialized= 1;
 }
-
 
 void
 rpl_binlog_state::reset_nolock()

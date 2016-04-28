@@ -139,6 +139,12 @@ static bool start_binlog_background_thread();
 
 static rpl_binlog_state rpl_global_gtid_binlog_state;
 
+void setup_log_handling()
+{
+  rpl_global_gtid_binlog_state.init();
+}
+
+
 /**
    purge logs, master and slave sides both, related error code
    convertor.

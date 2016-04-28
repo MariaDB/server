@@ -182,6 +182,7 @@ struct binlog_send_info {
   {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
+    until_binlog_state.init();
   }
 };
 

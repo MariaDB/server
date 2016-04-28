@@ -367,7 +367,7 @@ static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 uint kill_cached_threads;
 static uint wake_thread;
 ulong max_used_connections;
-static volatile ulong cached_thread_count= 0;
+volatile ulong cached_thread_count= 0;
 static char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
@@ -1987,8 +1987,6 @@ static void __cdecl kill_server(int sig_ptr)
   if (wsrep_inited == 1)
     wsrep_deinit(true);
 
-  wsrep_thr_deinit();
-
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
     unireg_abort(1);				/* purecov: inspected */
@@ -2144,6 +2142,9 @@ static void mysqld_exit(int exit_code)
   set_malloc_size_cb(NULL);
   cleanup_tls();
   DBUG_LEAVE;
+  if (opt_endinfo && global_status_var.global_memory_used)
+    fprintf(stderr, "Warning: Memory not freed: %ld\n",
+            (long) global_status_var.global_memory_used);
   sd_notify(0, "STATUS=MariaDB server is down");
   exit(exit_code); /* purecov: inspected */
 }
@@ -2213,11 +2214,12 @@ void clean_up(bool print_message)
   free_global_client_stats();
   free_global_table_stats();
   free_global_index_stats();
-  delete_dynamic(&all_options);
+  delete_dynamic(&all_options);                 // This should be empty
   free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
 #endif
+  wsrep_thr_deinit();
   my_uuid_end();
   delete binlog_filter;
   delete global_rpl_filter;
@@ -5032,6 +5034,8 @@ static int init_server_components()
 
   /* Setup logs */
 
+  setup_log_handling();
+
   /*
     Enable old-fashioned error log, except when the user has requested
     help information. Since the implementation of plugin server
@@ -5202,7 +5206,9 @@ static int init_server_components()
   /* It's now safe to use thread specific memory */
   mysqld_server_initialized= 1;
 
+#ifndef EMBEDDED_LIBRARY
   wsrep_thr_init();
+#endif
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
   {
