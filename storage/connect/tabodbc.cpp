@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -818,7 +818,7 @@ int TDBODBC::GetMaxSize(PGLOBAL g)
     else if (!Cardinality(NULL))
       MaxSize = 10;   // To make MySQL happy
     else if ((MaxSize = Cardinality(g)) < 0)
-      MaxSize = 12;   // So we can see an error occured
+      MaxSize = 12;   // So we can see an error occurred
 
     } // endif MaxSize
 
@@ -912,19 +912,21 @@ bool TDBODBC::OpenDB(PGLOBAL g)
         if ((n = Ocp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
           strcpy(g->Message, "Cannot get result size");
           return true;
-          } // endif n
+				} else if (n) {
+					Ocp->m_Rows = n;
 
-        Ocp->m_Rows = n;
+					if ((Qrp = Ocp->AllocateResult(g)))
+						Memory = 2;            // Must be filled
+					else {
+						strcpy(g->Message, "Result set memory allocation failed");
+						return true;
+					} // endif n
 
-        if ((Qrp = Ocp->AllocateResult(g)))
-          Memory = 2;            // Must be filled
-        else {
-          strcpy(g->Message, "Result set memory allocation failed");
-          return true;
-          } // endif n
+				} else				 // Void result
+					Memory = 0;
 
-        Ocp->m_Rows = 0;
-      } else
+				Ocp->m_Rows = 0;
+			} else
         return true;
 
       } // endif Memory

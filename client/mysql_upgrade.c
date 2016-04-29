@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -649,7 +649,7 @@ static int get_upgrade_info_file_name(char* name)
 /*
   Read the content of mysql_upgrade_info file and
   compare the version number form file against
-  version number wich mysql_upgrade was compiled for
+  version number which mysql_upgrade was compiled for
 
   NOTE
   This is an optimization to avoid running mysql_upgrade

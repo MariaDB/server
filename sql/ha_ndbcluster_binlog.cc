@@ -3875,7 +3875,7 @@ restart:
       else if (ndb_latest_applied_binlog_epoch > 0)
       {
         sql_print_warning("NDB Binlog: cluster has reconnected. "
-                          "Changes to the database that occured while "
+                          "Changes to the database that occurred while "
                           "disconnected will not be in the binlog");
       }
       if (opt_ndb_extra_logging)

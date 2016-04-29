@@ -862,7 +862,7 @@ main(int argc, char** argv)
 	
 	if (res < 0)
 	{
-	  err <<" Restore: An error occured while restoring data. Exiting...";
+	  err <<" Restore: An error occurred while restoring data. Exiting...";
           err << endl;
 	  exitHandler(NDBT_FAILED);
 	}
@@ -875,7 +875,7 @@ main(int argc, char** argv)
       
       if (res < 0)
       {
-	err << "Restore: An error occured while restoring data. Exiting... "
+	err << "Restore: An error occurred while restoring data. Exiting... "
 	    << "res= " << res << endl;
 	exitHandler(NDBT_FAILED);
       }

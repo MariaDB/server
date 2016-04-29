@@ -1279,7 +1279,7 @@ bool XINDEX::MapInit(PGLOBAL g)
     IOFF *noff = (IOFF*)mbase;
 
     // Position the memory base at the offset of this index
-    mbase += noff[id].Low;
+    mbase += noff[id].v.Low;
     } // endif id
 
   //  Now start the mapping process.
@@ -2347,10 +2347,10 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif
 
-    NewOff.Low = (int)ftell(Xfile);
+    NewOff.v.Low = (int)ftell(Xfile);
 
     if (trace)
-      htrc("XFILE Open: NewOff.Low=%d\n", NewOff.Low);
+      htrc("XFILE Open: NewOff.v.Low=%d\n", NewOff.v.Low);
 
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
@@ -2358,10 +2358,10 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       memset(noff, 0, sizeof(noff));
       Write(g, noff, sizeof(IOFF), MAX_INDX, rc);
       fseek(Xfile, 0, SEEK_END);
-      NewOff.Low = (int)ftell(Xfile);
+      NewOff.v.Low = (int)ftell(Xfile);
 
       if (trace)
-        htrc("XFILE Open: NewOff.Low=%d\n", NewOff.Low);
+        htrc("XFILE Open: NewOff.v.Low=%d\n", NewOff.v.Low);
 
       } // endif id
 
@@ -2373,10 +2373,10 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       } // endif MAX_INDX
 
       if (trace)
-        htrc("XFILE Open: noff[%d].Low=%d\n", id, noff[id].Low);
+        htrc("XFILE Open: noff[%d].v.Low=%d\n", id, noff[id].v.Low);
 
     // Position the cursor at the offset of this index
-    if (fseek(Xfile, noff[id].Low, SEEK_SET)) {
+    if (fseek(Xfile, noff[id].v.Low, SEEK_SET)) {
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
@@ -2566,14 +2566,14 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif
 
-    NewOff.Low = (int)rc;
-    NewOff.High = (int)high;
+    NewOff.v.Low = (int)rc;
+    NewOff.v.High = (int)high;
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
       memset(noff, 0, sizeof(noff));
       rc = WriteFile(Hfile, noff, sizeof(noff), &drc, NULL);
-      NewOff.Low = (int)drc;
+      NewOff.v.Low = (int)drc;
       } // endif id
 
   } else if (mode == MODE_READ && id >= 0) {
@@ -2586,8 +2586,8 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       } // endif rc
 
     // Position the cursor at the offset of this index
-    rc = SetFilePointer(Hfile, noff[id].Low,
-                       (PLONG)&noff[id].High, FILE_BEGIN);
+    rc = SetFilePointer(Hfile, noff[id].v.Low,
+                       (PLONG)&noff[id].v.High, FILE_BEGIN);
 
     if (rc == INVALID_SET_FILE_POINTER) {
       sprintf(g->Message, MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
@@ -2649,7 +2649,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     if (id >= 0) {
       // New not sep index file. Write the header.
       memset(noff, 0, sizeof(noff));
-      NewOff.Low = write(Hfile, &noff, sizeof(noff));
+      NewOff.v.Low = write(Hfile, &noff, sizeof(noff));
       } // endif id
 
     if (trace)

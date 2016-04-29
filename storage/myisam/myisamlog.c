@@ -266,7 +266,7 @@ static void get_options(register int *argc, register char ***argv)
 	puts("         -u \"update\"         -v \"verbose\"   -w \"write file\"");
 	puts("         -D \"myisam compiled with DBUG\"   -P \"processes\"");
 	puts("\nOne can give a second and a third '-v' for more verbose.");
-	puts("Normaly one does a update (-u).");
+	puts("Normally one does a update (-u).");
 	puts("If a recover is done all writes and all possibly updates and deletes is done\nand errors are only counted.");
 	puts("If one gives table names as arguments only these tables will be updated\n");
 	help=1;

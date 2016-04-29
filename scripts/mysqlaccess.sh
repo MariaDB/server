@@ -441,7 +441,7 @@ use IPC::Open3;
 	$DEBUG   = 0;
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++>8
-#  Normaly nothing should be changed beneeth this line
+#  Normally nothing should be changed beneeth this line
 
 
 # ****************************
@@ -2342,7 +2342,7 @@ BEGIN {
      ."of `$MySQLaccess::script'."
  ,'Access_denied'
    => "Sorry,\n"
-     ."An error occured when trying to connect to the database\n"
+     ."An error occurred when trying to connect to the database\n"
      ."with the grant-tables:\n"
      ."* Maybe YOU do not have READ-access to this database?\n"
      ."* If you used the -U option, you may have supplied an invalid username?\n"
@@ -2352,24 +2352,24 @@ BEGIN {
      ."* If you used the -P option, you may have supplied an invalid password?\n"
  ,'Dbaccess_denied'
    => "Sorry,\n"
-     ."An error occured when trying to connect to the database\n"
+     ."An error occurred when trying to connect to the database\n"
      ."with the grant-tables. (dbaccess denied)\n"
  ,'Unknown_tmp_table'
    => "Sorry,\n"
-     ."An error occured when trying to work with the temporary tables in the database\n"
+     ."An error occurred when trying to work with the temporary tables in the database\n"
      ."with the grant-tables. (One of the temporary tables does not exist)\n"
  ,'Unknown_table'
    => "Sorry,\n"
-     ."An error occured when trying to work with some tables in the database\n"
+     ."An error occurred when trying to work with some tables in the database\n"
      ."with the grant-tables. (table does not exist)\n"
  ,'use_old_server'
    => "Sorry,\n"
-     ."An error occured when executing an SQL statement.\n"
+     ."An error occurred when executing an SQL statement.\n"
      ."You might consider altering the use of the parameter `--old_server' when \n"
      ."calling `$MySQLaccess::script'."
  ,'unknown_error'
    => "Sorry,\n"
-     ."An error occured when trying to connect to the database\n"
+     ."An error occurred when trying to connect to the database\n"
      ."with the grant-tables. (unknown error)\n"
  ,'anonymous_access'
    => "Accessing the db as an anonymous user.\n"
@@ -2422,7 +2422,7 @@ sub Print_Header {
 sub Print_Footer {
     if ($MySQLaccess::CMD) { #command-line mode
     print "\n"
-         ."BUGs can be reported at https://mariadb.atlassian.net/browse/MDEV\n";
+         ."BUGs can be reported at https://jira.mariadb.org\n";
     }
     if ($MySQLaccess::CGI) { #CGI-BIN mode
     if ($MySQLaccess::Param{'brief'}) {
@@ -2430,7 +2430,7 @@ sub Print_Footer {
     }
     print "<HR>\n"
          ."<ADDRESS>\n"
-         ."BUGs can be reported at <a href=\"https://mariadb.atlassian.net/browse/MDEV\">MariaDB JIRA</a><BR>\n"
+         ."BUGs can be reported at <a href=\"https://jira.mariadb.org\">MariaDB JIRA</a><BR>\n"
 #         ."Don't forget to mention the version $VERSION!<BR>\n"
          ."</ADDRESS>\n"
          ."</BODY>\n"

@@ -13,7 +13,6 @@
 
 namespace dena {
 
-void fatal_exit(const std::string& message);
 void fatal_abort(const std::string& message);
 
 };

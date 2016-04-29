@@ -76,9 +76,9 @@ bool String::real_alloc(uint32 length)
 
    @retval false Either the copy operation is complete or, if the size of the
    new buffer is smaller than the currently allocated buffer (if one exists),
-   no allocation occured.
+   no allocation occurred.
 
-   @retval true An error occured when attempting to allocate memory.
+   @retval true An error occurred when attempting to allocate memory.
 */
 bool String::realloc_raw(uint32 alloc_length)
 {

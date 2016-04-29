@@ -523,7 +523,7 @@ public:
 
     RETURN
       FALSE if parameter value has been set,
-      TRUE if error has occured.
+      TRUE if error has occurred.
   */
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it)= 0;
 
@@ -2363,7 +2363,7 @@ public:
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(cs, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
@@ -2513,7 +2513,7 @@ public:
 
   /*
     If value for parameter was not set we treat it as non-const
-    so noone will use parameters value in fix_fields still
+    so no one will use parameters value in fix_fields still
     parameter is constant during execution.
   */
   virtual table_map used_tables() const

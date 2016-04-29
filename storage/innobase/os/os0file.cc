@@ -2696,7 +2696,7 @@ try_again:
 			"Error in system call pread(). The operating"
 			" system error number is %lu.",(ulint) errno);
         } else {
-		/* Partial read occured */
+		/* Partial read occurred */
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
@@ -2827,7 +2827,7 @@ try_again:
 			"Error in system call pread(). The operating"
 			" system error number is %lu.",(ulint) errno);
         } else {
-		/* Partial read occured */
+		/* Partial read occurred */
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",

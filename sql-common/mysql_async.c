@@ -102,7 +102,7 @@ my_connect_async(struct mysql_async_context *b, my_socket fd,
     my_context_yield(&b->async_context);
     if (b->suspend_resume_hook)
       (*b->suspend_resume_hook)(FALSE, b->suspend_resume_hook_user_data);
-    if (b->events_occured & MYSQL_WAIT_TIMEOUT)
+    if (b->events_occurred & MYSQL_WAIT_TIMEOUT)
       return -1;
 
     s_err_size= sizeof(res);
@@ -149,7 +149,7 @@ my_recv_async(struct mysql_async_context *b, int fd,
     my_context_yield(&b->async_context);
     if (b->suspend_resume_hook)
       (*b->suspend_resume_hook)(FALSE, b->suspend_resume_hook_user_data);
-    if (b->events_occured & MYSQL_WAIT_TIMEOUT)
+    if (b->events_occurred & MYSQL_WAIT_TIMEOUT)
       return -1;
   }
 }
@@ -177,7 +177,7 @@ my_send_async(struct mysql_async_context *b, int fd,
     my_context_yield(&b->async_context);
     if (b->suspend_resume_hook)
       (*b->suspend_resume_hook)(FALSE, b->suspend_resume_hook_user_data);
-    if (b->events_occured & MYSQL_WAIT_TIMEOUT)
+    if (b->events_occurred & MYSQL_WAIT_TIMEOUT)
       return -1;
   }
 }
@@ -210,7 +210,7 @@ my_io_wait_async(struct mysql_async_context *b, enum enum_vio_io_event event,
   my_context_yield(&b->async_context);
   if (b->suspend_resume_hook)
     (*b->suspend_resume_hook)(FALSE, b->suspend_resume_hook_user_data);
-  return (b->events_occured & MYSQL_WAIT_TIMEOUT) ? 0 : 1;
+  return (b->events_occurred & MYSQL_WAIT_TIMEOUT) ? 0 : 1;
 }
 
 
@@ -349,7 +349,7 @@ mysql_get_timeout_value_ms(const MYSQL *mysql)
   }                                                                           \
                                                                               \
   b->active= 1;                                                               \
-  b->events_occured= ready_status;                                            \
+  b->events_occurred= ready_status;                                            \
   res= my_context_continue(&b->async_context);                                \
   b->active= 0;                                                               \
   if (res > 0)                                                                \
@@ -405,7 +405,7 @@ mysql_get_timeout_value_ms(const MYSQL *mysql)
   }                                                                           \
                                                                               \
   b->active= 1;                                                               \
-  b->events_occured= ready_status;                                            \
+  b->events_occurred= ready_status;                                            \
   res= my_context_continue(&b->async_context);                                \
   b->active= 0;                                                               \
   if (res > 0)                                                                \

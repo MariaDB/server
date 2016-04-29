@@ -191,7 +191,7 @@ Event_queue::deinit_queue()
   @param[out] created  set to TRUE if no error and the element is
                        added to the queue, FALSE otherwise
 
-  @retval TRUE  an error occured. The value of created is undefined,
+  @retval TRUE  an error occurred. The value of created is undefined,
                 the element was not deleted.
   @retval FALSE success
 */

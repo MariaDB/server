@@ -989,7 +989,7 @@ uchar TYPVAL<uchar>::MinMaxVal(bool b)
   {return (b) ? UINT_MAX8 : 0;}
 
 /***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/*  SafeAdd: adds a value and test whether overflow/underflow occurred. */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
@@ -1017,7 +1017,7 @@ inline double TYPVAL<double>::SafeAdd(double n1, double n2)
   } // end of SafeAdd
 
 /***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
+/*  SafeMult: multiply values and test whether overflow occurred.       */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
@@ -1344,10 +1344,13 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
-  bool rc;
+  bool rc = false;
 
-  if (p && n > 0) {
-    rc = n > Len;
+  if (!p || n == 0) {
+		Reset();
+		Null = Nullable;
+	} else if (p != Strp) {
+		rc = n > Len;
 
     if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
@@ -1366,10 +1369,6 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
       Reset();
 
     Null = false;
-  } else {
-    rc = false;
-    Reset();
-    Null = Nullable;
   } // endif p
 
   return rc;
@@ -1380,12 +1379,12 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue_psz(PSZ s)
   {
-  if (s) {
-    strncpy(Strp, s, Len);
+  if (!s) {
+		Reset();
+		Null = Nullable;
+	} else if (s != Strp) {
+		strncpy(Strp, s, Len);
     Null = false;
-  } else {
-    Reset();
-    Null = Nullable;
   } // endif s
 
   } // end of SetValue_psz
@@ -1643,7 +1642,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       assert(np == 1 || np == 2);
 
       if (np == 2)
-        strncpy(Strp, p[0], Len);
+				SetValue_psz(p[0]);
 
       if ((i = Len - (signed)strlen(Strp)) > 0)
         strncat(Strp, p[np - 1], i);
@@ -1651,11 +1650,11 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       break;
     case OP_MIN:
       assert(np == 2);
-      strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+			SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
       break;
     case OP_MAX:
       assert(np == 2);
-      strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+			SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
       break;
     default:
 //    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
