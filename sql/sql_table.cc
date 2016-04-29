@@ -9668,6 +9668,18 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 }
 
 
+static void flush_checksum(ha_checksum *row_crc, uchar **checksum_start,
+                           size_t *checksum_length)
+{
+  if (*checksum_start)
+  {
+    *row_crc= my_checksum(*row_crc, *checksum_start, *checksum_length);
+    *checksum_start= NULL;
+    *checksum_length= 0;
+  }
+}
+
+
 bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                           HA_CHECK_OPT *check_opt)
 {
@@ -9796,7 +9808,10 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
               Field *f= t->field[i];
 
               if (! thd->variables.old_mode && f->is_real_null(0))
+              {
+                flush_checksum(&row_crc, &checksum_start, &checksum_length);
                 continue;
+              }
              /*
                BLOB and VARCHAR have pointers in their field, we must convert
                to string; GEOMETRY is implemented on top of BLOB.
@@ -9808,12 +9823,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                 case MYSQL_TYPE_GEOMETRY:
                 case MYSQL_TYPE_BIT:
                 {
-                  if (checksum_start)
-                  {
-                    row_crc= my_checksum(row_crc, checksum_start, checksum_length);
-                    checksum_start= NULL;
-                    checksum_length= 0;
-                  }
+                  flush_checksum(&row_crc, &checksum_start, &checksum_length);
                   String tmp;
                   f->val_str(&tmp);
                   row_crc= my_checksum(row_crc, (uchar*) tmp.ptr(),
@@ -9821,29 +9831,14 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                   break;
                 }
                 default:
-                  if (checksum_start)
-                  {
-                    if (checksum_start + checksum_length == f->ptr)
-                    {
-                      checksum_length+= f->pack_length();
-                    }
-                    else
-                    {
-                      row_crc= my_checksum(row_crc, checksum_start, checksum_length);
-                      checksum_start= f->ptr;
-                      checksum_length= f->pack_length();
-                    }
-                  }
-                  else
-                  {
+                  if (!checksum_start)
                     checksum_start= f->ptr;
-                    checksum_length= f->pack_length();
-                  }
+                  DBUG_ASSERT(checksum_start + checksum_length == f->ptr);
+                  checksum_length+= f->pack_length();
                   break;
               }
             }
-            if (checksum_start)
-              row_crc= my_checksum(row_crc, checksum_start, checksum_length);
+            flush_checksum(&row_crc, &checksum_start, &checksum_length);
 
             crc+= row_crc;
           }
