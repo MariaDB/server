@@ -899,7 +899,9 @@ static bool validate_password(LEX_USER *user)
 {
   if (user->pwtext.length || !user->pwhash.length)
   {
-    struct validation_data data= { &user->user, &user->pwtext };
+    struct validation_data data= { &user->user,
+                                   user->pwtext.str ? &user->pwtext :
+                                   const_cast<LEX_STRING *>(&empty_lex_str) };
     if (plugin_foreach(NULL, do_validate,
                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
     {
