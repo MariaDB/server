@@ -2519,13 +2519,13 @@ row_merge_sort(
 	row_merge_block_t*	block,	/*!< in/out: 3 buffers */
 	int*			tmpfd,	/*!< in/out: temporary file handle
 					*/
-	const bool		update_progress,
+	/*const*/ bool		update_progress,
 					/*!< in: update progress
 					status variable or not */
-	const float 		pct_progress,
+	/*const*/ float 		pct_progress,
 					/*!< in: total progress percent
 					until now */
-	const float		pct_cost, /*!< in: current progress percent */
+	/*const*/ float		pct_cost, /*!< in: current progress percent */
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */

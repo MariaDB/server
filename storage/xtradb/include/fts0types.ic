@@ -280,6 +280,7 @@ err_exit:
 	return(ch);
 }
 
+#if !defined OBSCURITY_01
 /******************************************************************//**
 Get the first character's code position for FTS index partition */
 extern
@@ -288,7 +289,7 @@ innobase_strnxfrm(
 /*==============*/
         const CHARSET_INFO*	cs,	/*!< in: Character set */
         const uchar*		p2,	/*!< in: string */
-        const ulint		len2);	/*!< in: string length */
+        /*const*/ ulint		len2);	/*!< in: string length */
 
 /******************************************************************//**
 Select the FTS auxiliary index for the given character.
@@ -355,6 +356,7 @@ fts_select_next_index(
 
 	return((ulint) selected);
 }
+#endif
 
 /******************************************************************//**
 Return the selected FTS aux index suffix. */

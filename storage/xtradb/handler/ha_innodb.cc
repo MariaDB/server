@@ -3825,7 +3825,7 @@ mem_free_and_error:
 	interface and so can't be const. */
 
 	innobase_file_format_name =
-		(char*) trx_sys_file_format_id_to_name(format_id);
+		(char*) trx_sys_file_format_id_to_name((ulint)format_id);
 
 	/* Check innobase_file_format_check variable */
 	if (!innobase_file_format_check) {
@@ -3850,7 +3850,7 @@ mem_free_and_error:
 				"should be any value up to %s or its "
 				"equivalent numeric id",
 				trx_sys_file_format_id_to_name(
-					UNIV_FORMAT_MAX));
+					(ulint)UNIV_FORMAT_MAX));
 
 		goto mem_free_and_error;
 	}
@@ -6823,7 +6823,7 @@ innobase_strnxfrm(
 	const CHARSET_INFO*
 			cs,		/*!< in: Character set */
 	const uchar*	str,		/*!< in: string */
-	const ulint	len)		/*!< in: string length */
+	/*const*/ ulint	len)		/*!< in: string length */
 {
 	uchar		mystr[2];
 	ulint		value;
@@ -17114,7 +17114,7 @@ innobase_file_format_name_lookup(
 		     format_id++) {
 			const char*	name;
 
-			name = trx_sys_file_format_id_to_name(format_id);
+			name = trx_sys_file_format_id_to_name((ulint)format_id);
 
 			if (!innobase_strcasecmp(format_name, name)) {
 
@@ -17184,7 +17184,7 @@ innodb_file_format_name_validate(
 			/* Save a pointer to the name in the
 			'file_format_name_map' constant array. */
 			*static_cast<const char**>(save) =
-			    trx_sys_file_format_id_to_name(format_id);
+			    trx_sys_file_format_id_to_name((ulint)format_id);
 
 			return(0);
 		}
@@ -17227,7 +17227,7 @@ innodb_file_format_name_update(
 	}
 
 	*static_cast<const char**>(var_ptr)
-		= trx_sys_file_format_id_to_name(srv_file_format);
+		= trx_sys_file_format_id_to_name((ulint)srv_file_format);
 }
 
 /*************************************************************//**
@@ -17265,7 +17265,7 @@ innodb_file_format_max_validate(
 			'file_format_name_map' constant array. */
 			*static_cast<const char**>(save) =
 			    trx_sys_file_format_id_to_name(
-						(uint) format_id);
+						(ulint) format_id);
 
 			return(0);
 
@@ -17276,7 +17276,7 @@ innodb_file_format_max_validate(
 			  "InnoDB: invalid innodb_file_format_max "
 			  "value; can be any format up to %s "
 			  "or equivalent id of %d",
-			  trx_sys_file_format_id_to_name(UNIV_FORMAT_MAX),
+			  trx_sys_file_format_id_to_name((ulint)UNIV_FORMAT_MAX),
 			  UNIV_FORMAT_MAX);
 		}
 	}

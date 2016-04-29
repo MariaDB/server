@@ -1,0 +1,39 @@
+Changes to satisfy AIX/XLC Compiler and related Stuff.
+
+- First Parameter of trx_sys_file_format_id_to_name: Attribute const deleted
+Files: trx0sys.h, ha_innodb.cc, i_s.cc, trx0sys.cc
+
+- Third Parameter of innobase_strnxfrm: Attribute const deleted
+Files: fts0types.ic
+
+- Second Parameter of ib_cursor_insert_row: Attribute const deleted
+File: every occurence 
+
+- Second Parameter of ib_cursor_update_row: Attribute const deleted
+File: every occurence
+
+- Third Parameter of ib_cursor_update_row: Attribute const deleted
+File: every occurence
+
+- First Parameter of ib_tuple_get_n_user_cols: Attribute const deleted
+File: every occurence
+
+- First Parameter of ib_tuple_get_n_cols: Attribute const deleted
+File: every occurence
+
+- Second Parameter of  ib_tuple_copy: Attribute const deleted
+File: every occurence
+
+- Sixth Parameter of row_merge_sort: Attribute const deleted (bool update_progress)
+
+- Seventh Parameter of row_merge_sort:  Attribute const deleted (float pct_progress)
+
+- Eight Parameter of row_merge_sort: Attribute const deleted (float pct_cost)
+
+- Code added to reldef.cpp
+
+- ar -Xany -Cv -r storage/connect/ha_connect.so storage/connect/CMakeFiles/connect.dir/ha_connect.cc.o (build script hangs without)
+
+- Changes in allocator.hpp: DENA_ALLOCA_ALLOCATE first cast to void*, than  Type.
+
+- Changes in os0sync.h: "typedef ulint lock_word_t" for _AIX

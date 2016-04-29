@@ -1249,6 +1249,7 @@ sync_array_init(
 {
 	ulint		i;
 	ulint		n_slots;
+	FILE		*fid;
 
 	ut_a(sync_wait_array == NULL);
 	ut_a(srv_sync_array_size > 0);

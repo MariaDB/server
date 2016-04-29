@@ -21,6 +21,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Full Text Search interface
 ***********************************************************************/
 
+#define OBSCURITY_01 1
+
 #include "trx0roll.h"
 #include "row0mysql.h"
 #include "row0upd.h"

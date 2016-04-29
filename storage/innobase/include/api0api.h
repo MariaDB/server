@@ -655,7 +655,7 @@ ib_err_t
 ib_cursor_insert_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in/out: InnoDB cursor instance */
-	const ib_tpl_t	ib_tpl);	/*!< in: tuple to insert */
+	/*const*/ ib_tpl_t	ib_tpl);	/*!< in: tuple to insert */
 
 /*****************************************************************//**
 Update a row in a table.
@@ -665,8 +665,8 @@ ib_err_t
 ib_cursor_update_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in: InnoDB cursor instance */
-	const ib_tpl_t	ib_old_tpl,	/*!< in: Old tuple in table */
-	const ib_tpl_t	ib_new_tpl);	/*!< in: New tuple to update */
+	/*const*/ ib_tpl_t	ib_old_tpl,	/*!< in: Old tuple in table */
+	/*const*/ ib_tpl_t	ib_new_tpl);	/*!< in: New tuple to update */
 
 /*****************************************************************//**
 Delete a row in a table.
@@ -912,7 +912,7 @@ ib_err_t
 ib_tuple_copy(
 /*==========*/
 	ib_tpl_t	ib_dst_tpl,	/*!< in: destination tuple */
-	const ib_tpl_t	ib_src_tpl);	/*!< in: source tuple */
+	/*const*/ ib_tpl_t	ib_src_tpl);	/*!< in: source tuple */
 
 /*****************************************************************//**
 Create an InnoDB tuple used for index/table search.
@@ -957,7 +957,7 @@ Return the number of user columns in the tuple definition.
 ib_ulint_t
 ib_tuple_get_n_user_cols(
 /*=====================*/
-	const ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
+	/*const*/ ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
 
 /*****************************************************************//**
 Return the number of columns in the tuple definition.
@@ -966,7 +966,7 @@ Return the number of columns in the tuple definition.
 ib_ulint_t
 ib_tuple_get_n_cols(
 /*================*/
-	const ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
+	/*const*/ ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
 
 /*****************************************************************//**
 Destroy an InnoDB tuple. */
