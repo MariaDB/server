@@ -67,6 +67,7 @@ push @::global_suppressions,
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: cannot get fake InnoDB transaction ID),
    );
 
 

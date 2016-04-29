@@ -54,5 +54,20 @@ SHOW CREATE TABLE t2;
 # Cleanup
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-9853: WSREP says it cannot get fake InnoDB transaction ID
+--echo # followed by segmentation fault
+--echo #
+CREATE TABLE `t1`(`c1` INT) ENGINE=INNODB;
+
+SET autocommit=0;
+CREATE TABLE `t2` (`c1` INT) ENGINE=INNODB SELECT * FROM t1;
+COMMIT;
+SET autocommit=1;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--source include/galera_end.inc
 --echo # End of tests
 
