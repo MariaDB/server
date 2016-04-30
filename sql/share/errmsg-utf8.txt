@@ -6136,7 +6136,7 @@ ER_SLAVE_HEARTBEAT_FAILURE
   eng "Unexpected master's heartbeat data: %s"
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
+  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)."
 ER_UNUSED_14
   eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
