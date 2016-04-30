@@ -3458,7 +3458,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   }
 
   if (!old_row_exists || combo.pwtext.length || combo.pwhash.length)
-    if (validate_password(&combo))
+    if (!handle_as_role && validate_password(&combo))
       goto end;
 
   /* Update table columns with new privileges */
