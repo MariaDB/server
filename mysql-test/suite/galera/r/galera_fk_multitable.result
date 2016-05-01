@@ -11,7 +11,9 @@ ON DELETE CASCADE
 INSERT INTO t0 VALUES (0), (1);
 INSERT INTO t1 VALUES (0, 0);
 INSERT INTO t1 VALUES (1, 0);
+connection node_2;
 DELETE t0.*, t1.* FROM t0, t1 WHERE t0.f0 = 0 AND t1.f1 = 0;
+connection node_1;
 SELECT COUNT(*) = 1 FROM t0;
 COUNT(*) = 1
 1

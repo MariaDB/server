@@ -17,7 +17,9 @@ ON UPDATE CASCADE
 INSERT INTO t0 VALUES (0, 0);
 INSERT INTO t1 VALUES (0);
 INSERT INTO t2 VALUES (0);
+connection node_2;
 UPDATE t0 SET f1 = 1, f2 = 2;
+connection node_1;
 SELECT f1 = 1 FROM t1 WHERE f1 = 1;
 f1 = 1
 1

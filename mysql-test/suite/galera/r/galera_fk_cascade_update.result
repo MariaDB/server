@@ -18,7 +18,9 @@ ON UPDATE CASCADE
 INSERT INTO grandparent VALUES (1),(2);
 INSERT INTO parent VALUES (1,1), (2,2);
 INSERT INTO child VALUES (1,1), (2,2);
+connection node_2;
 UPDATE grandparent SET id = 3 WHERE id = 1;
+connection node_1;
 SELECT COUNT(*) = 1 FROM parent WHERE grandparent_id = 3;
 COUNT(*) = 1
 1

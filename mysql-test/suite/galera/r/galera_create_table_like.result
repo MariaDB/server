@@ -11,6 +11,7 @@ CREATE TABLE real_table3 LIKE schema1.myisam_table;
 CREATE TEMPORARY TABLE temp_table1 LIKE schema1.real_table;
 CREATE TEMPORARY TABLE temp_table2 LIKE schema1.temp_table;
 CREATE TEMPORARY TABLE temp_table3 LIKE schema1.myisam_table;
+connection node_2;
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'real_table' AND TABLE_SCHEMA = 'schema1';
 COUNT(*) = 1
 1
@@ -38,6 +39,7 @@ COUNT(*) = 0
 SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'temp_table3' AND TABLE_SCHEMA = 'schema2';
 COUNT(*) = 0
 1
+connection node_1;
 DROP TABLE schema1.real_table;
 DROP TABLE schema1.myisam_table;
 DROP TABLE schema2.real_table1;

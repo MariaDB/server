@@ -1,5 +1,7 @@
 SET GLOBAL wsrep_sync_wait = 7;
+connection node_2;
 SET GLOBAL wsrep_sync_wait = 7;
+connection node_1;
 CREATE DATABASE `database with space`;
 USE `database with space`;
 CREATE TABLE `table with space` (
@@ -24,6 +26,7 @@ CREATE TABLE `втора таблица` (
 KEY `първи индекс` (`първа колона`)
 );
 INSERT INTO `втора таблица` VALUES (1, 1);
+connection node_2;
 USE `database with space`;
 SELECT `second column with space` FROM `table with space`;
 second column with space
@@ -37,6 +40,7 @@ SELECT `втора колона` FROM `втора таблица`;
 втора колона
 1
 SET GLOBAL wsrep_sync_wait = (SELECT @@wsrep_sync_wait);
+connection node_1;
 DROP TABLE `database with space`.`table with space`;
 DROP TABLE `база`.`таблица`;
 DROP TABLE `втора база`.`втора таблица`;

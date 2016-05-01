@@ -1,4 +1,6 @@
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 START SLAVE;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 # Disable binary logging for current session
@@ -10,6 +12,7 @@ CREATE TABLE test.t3 AS SELECT * from t1;
 SET SQL_LOG_BIN=ON;
 INSERT INTO t1 VALUES(3);
 CREATE TABLE test.t4 AS SELECT * from t1;
+connection node_2;
 SELECT * FROM t1;
 f1
 1
@@ -27,6 +30,7 @@ f1
 1
 2
 3
+connection node_3;
 SHOW TABLES;
 Tables_in_test
 t1
@@ -41,8 +45,10 @@ f1
 2
 3
 # Cleanup
+connection node_1;
 DROP TABLE t1, t4;
 SET SQL_LOG_BIN=OFF;
 DROP TABLE t2, t3;
+connection node_3;
 STOP SLAVE;
 RESET SLAVE ALL;

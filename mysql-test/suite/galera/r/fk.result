@@ -1,6 +1,7 @@
 USE test;
 
 # On node_1
+connection node_1;
 CREATE TABLE networks (
 `tenant_id` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
 `id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
@@ -60,9 +61,11 @@ INSERT INTO ipallocations VALUES ('f37aa3fe-ab99-4d0f-a566-6cd3169d7516','10.25.
 select * from ports where ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
 tenant_id	id	name	network_id	mac_address	admin_state_up	status	device_id	device_owner
 	f37aa3fe-ab99-4d0f-a566-6cd3169d7516		f37aa3fe-ab99-4d0f-a566-6cd3169d7516	fa:16:3e:e3:cc:bb	1	DOWN	f37aa3fe-ab99-4d0f-a566-6cd3169d7516	network:router_gateway
+connection node_2;
 select * from ports where ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
 tenant_id	id	name	network_id	mac_address	admin_state_up	status	device_id	device_owner
 	f37aa3fe-ab99-4d0f-a566-6cd3169d7516		f37aa3fe-ab99-4d0f-a566-6cd3169d7516	fa:16:3e:e3:cc:bb	1	DOWN	f37aa3fe-ab99-4d0f-a566-6cd3169d7516	network:router_gateway
+connection node_1;
 DELETE FROM ports WHERE ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
 select * from networks;
 tenant_id	id	name	status	admin_state_up	shared
@@ -78,6 +81,7 @@ select * from ports;
 tenant_id	id	name	network_id	mac_address	admin_state_up	status	device_id	device_owner
 
 # On node_2
+connection node_2;
 select * from networks;
 tenant_id	id	name	status	admin_state_up	shared
 f37aa3fe-ab99-4d0f-a566-6cd3169d7516	f37aa3fe-ab99-4d0f-a566-6cd3169d7516	MyNet	ACTIVE	0	0
@@ -90,7 +94,10 @@ select * from ipallocations;
 port_id	ip_address	subnet_id	network_id
 select * from ports;
 tenant_id	id	name	network_id	mac_address	admin_state_up	status	device_id	device_owner
+connection node_1;
 drop table ipallocations;
 drop table subnets;
 drop table ports;
 drop table networks;
+disconnect node_2;
+disconnect node_1;

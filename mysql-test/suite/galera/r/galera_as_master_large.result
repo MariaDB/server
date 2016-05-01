@@ -2,7 +2,9 @@
 # MDEV-9044 : Getting binlog corruption on my Galera cluster (10.1.8)
 # making it impossible to async slave.
 #
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 START SLAVE;
+connection node_1;
 SELECT @@GLOBAL.BINLOG_CACHE_SIZE;
 @@GLOBAL.BINLOG_CACHE_SIZE
 8192
@@ -12,12 +14,14 @@ START TRANSACTION;
 INSERT INTO t1 VALUES(1, REPEAT('-', 10000));
 COMMIT;
 INSERT INTO t2 VALUES(1);
+connection node_2;
 SELECT c1, LENGTH(c2) FROM t1;
 c1	LENGTH(c2)
 1	10000
 SELECT * FROM t2;
 c1
 1
+connection node_3;
 SELECT c1, LENGTH(c2) FROM t1;
 c1	LENGTH(c2)
 1	10000
@@ -25,6 +29,8 @@ SELECT * FROM t2;
 c1
 1
 # Cleanup
+connection node_1;
 DROP TABLE t1, t2;
+connection node_3;
 STOP SLAVE;
 RESET SLAVE ALL;

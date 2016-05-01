@@ -3,6 +3,7 @@
 #
 
 # On node_1
+connection node_1;
 CREATE DATABASE test1;
 CREATE TABLE test1.t1 (a int, b int);
 CREATE TABLE test1.t2 (a int, b int);
@@ -18,8 +19,11 @@ GRANT EXECUTE ON PROCEDURE test1.pr1 TO role1;
 GRANT SELECT ON test1.t1 TO role1;
 GRANT SELECT (a) ON test1.t2 TO role1;
 # Open connections to the 2 nodes using 'foo' user.
+connect foo_node_1,127.0.0.1,foo,,test,$port_1,;
+connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
 
 # Connect with foo_node_1
+connection foo_node_1;
 SHOW GRANTS;
 Grants for foo@localhost
 GRANT role1 TO 'foo'@'localhost'
@@ -55,6 +59,7 @@ pr1
 pr1
 
 # Connect with foo_node_2
+connection foo_node_2;
 SHOW GRANTS;
 Grants for foo@localhost
 GRANT role1 TO 'foo'@'localhost'
@@ -93,13 +98,16 @@ pr1
 #
 #
 # Connect with node_1
+connection node_1;
 REVOKE EXECUTE ON PROCEDURE test1.pr1 FROM role1;
 
 # Connect with foo_node_1
+connection foo_node_1;
 CALL test1.pr1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test1.pr1'
 
 # Connect with foo_node_2
+connection foo_node_2;
 CALL test1.pr1();
 ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test1.pr1'
 #
@@ -107,9 +115,11 @@ ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test1
 #
 
 # Connect with node_1
+connection node_1;
 DROP ROLE role1;
 
 # Connect with foo_node_1
+connection foo_node_1;
 FLUSH TABLES;
 SELECT * FROM mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
@@ -131,6 +141,7 @@ CURRENT_ROLE()
 role1
 
 # Connect with foo_node_2
+connection foo_node_2;
 FLUSH TABLES;
 SELECT * FROM mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
@@ -150,7 +161,11 @@ NULL
 SELECT CURRENT_ROLE();
 CURRENT_ROLE()
 role1
+disconnect foo_node_2;
 # Connect with node_1
+connection node_1;
 DROP USER foo@localhost;
 DROP DATABASE test1;
+disconnect node_2;
+disconnect node_1;
 # End of test

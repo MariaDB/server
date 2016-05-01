@@ -10,13 +10,17 @@ REFERENCES parent(id)
 ) ENGINE=InnoDB;
 INSERT INTO parent VALUES (1), (2);
 INSERT INTO child VALUES (1,1);
+connection node_1;
 SET AUTOCOMMIT = OFF;
 START TRANSACTION;
 DELETE FROM parent WHERE id = 2;
+connection node_2;
 SET AUTOCOMMIT = OFF;
 START TRANSACTION;
 INSERT INTO child VALUES (2, 2);
+connection node_1;
 COMMIT;
+connection node_2;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 DROP TABLE child;

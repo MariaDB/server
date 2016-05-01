@@ -3,6 +3,7 @@ CREATE TABLE ten (f1 INTEGER);
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 SET GLOBAL binlog_cache_size=4096;
 SET GLOBAL max_binlog_cache_size=4096;
+connection node_1a;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 INSERT INTO t1 SELECT REPEAT('a', 767) FROM ten;
