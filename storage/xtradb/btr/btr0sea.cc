@@ -68,11 +68,11 @@ being updated in-place! We can use fact (1) to perform unique searches to
 indexes. */
 
 UNIV_INTERN prio_rw_lock_t*	btr_search_latch_arr
-					MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
+					MY_ALIGNED(CACHE_LINE_SIZE);
 
 /** The adaptive hash index */
 UNIV_INTERN btr_search_sys_t*	btr_search_sys
-					MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
+					MY_ALIGNED(CACHE_LINE_SIZE);
 
 #ifdef UNIV_PFS_RWLOCK
 /* Key to register btr_search_sys with performance schema */
