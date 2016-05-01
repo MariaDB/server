@@ -1236,11 +1236,10 @@ static inline double rint(double x)
   Provide defaults for the CPU cache line size, if it has not been detected by
   CMake using getconf
 */
-#if !defined(CPU_LEVEL1_DCACHE_LINESIZE) || CPU_LEVEL1_DCACHE_LINESIZE == 0
-  #if CPU_LEVEL1_DCACHE_LINESIZE == 0
-    #undef CPU_LEVEL1_DCACHE_LINESIZE
-  #endif
-
+#if CPU_LEVEL1_DCACHE_LINESIZE == 0
+  #undef CPU_LEVEL1_DCACHE_LINESIZE
+#endif
+#if !defined(CPU_LEVEL1_DCACHE_LINESIZE)
   #if defined(__s390__)
     #define CPU_LEVEL1_DCACHE_LINESIZE 256
   #elif defined(__powerpc__) || defined(__aarch64__)
