@@ -6984,3 +6984,6 @@ void Item_func_last_value::fix_length_and_dec()
   Type_std_attributes::set(last_value);
   maybe_null=          last_value->maybe_null;
 }
+
+
+

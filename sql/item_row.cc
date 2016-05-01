@@ -160,3 +160,21 @@ void Item_row::bring_value()
   for (uint i= 0; i < arg_count; i++)
     args[i]->bring_value();
 }
+
+
+Item* Item_row::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_row *copy= (Item_row *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  copy->args= (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg_clone= args[i]->build_clone(thd, mem_root);
+    if (!arg_clone)
+      return 0;
+    copy->args[i]= arg_clone;
+  }
+  return copy;
+}
+

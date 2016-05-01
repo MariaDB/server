@@ -119,7 +119,8 @@ public:
   {
     return "row_number";
   }
-  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_row_number>(thd, mem_root, this); }
 };
 
 
@@ -188,6 +189,8 @@ public:
     peer_tracker.cleanup();
     Item_sum_int::cleanup();
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_rank>(thd, mem_root, this); }
 };
 
 
@@ -251,6 +254,8 @@ class Item_sum_dense_rank: public Item_sum_int
     peer_tracker.cleanup();
     Item_sum_int::cleanup();
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_dense_rank>(thd, mem_root, this); }
 };
 
 /*
@@ -342,6 +347,8 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_percent_rank>(thd, mem_root, this); }
 
  private:
   longlong cur_rank;   // Current rank of the current row.
@@ -419,6 +426,9 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
   }
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_cume_dist>(thd, mem_root, this); }
 
  private:
   ulonglong current_row_count_;
@@ -487,6 +497,9 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_ntile>(thd, mem_root, this); }
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
@@ -751,6 +764,8 @@ public:
   bool fix_fields(THD *thd, Item **ref);
 
   bool resolve_window_name(THD *thd);
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 };
 

@@ -250,6 +250,9 @@ public:
   }
 
   void init_expr_cache_tracker(THD *thd);
+  
+  Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 
   friend class select_result_interceptor;

@@ -2382,6 +2382,7 @@ export const char *optimizer_switch_names[]=
   "table_elimination",
   "extended_keys",
   "exists_to_in",
+  "condition_pushdown_for_derived",
   "default", NullS
 };
 static bool fix_optimizer_switch(sys_var *self, THD *thd,

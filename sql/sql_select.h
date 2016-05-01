@@ -188,7 +188,7 @@ typedef enum_nested_loop_state
 Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
 int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
-
+Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
 
 #include "sql_explain.h"
 

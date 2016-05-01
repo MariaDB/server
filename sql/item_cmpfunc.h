@@ -26,6 +26,7 @@
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
 #define PCRE_STATIC 1             /* Important on Windows */
 #include "pcre.h"                 /* pcre header file */
+#include "item.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 inline Item_result item_cmp_type(const Item *a, const Item *b)
@@ -124,6 +125,7 @@ public:
     comparators= 0;
   }
   friend class Item_func;
+  friend class Item_bool_rowready_func2;
 };
 
 
@@ -243,6 +245,8 @@ public:
   Item_func_istrue(THD *thd, Item *a): Item_func_truth(thd, a, true, true) {}
   ~Item_func_istrue() {}
   virtual const char* func_name() const { return "istrue"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_istrue>(thd, mem_root, this); }
 };
 
 
@@ -257,6 +261,8 @@ public:
     Item_func_truth(thd, a, true, false) {}
   ~Item_func_isnottrue() {}
   virtual const char* func_name() const { return "isnottrue"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_isnottrue>(thd, mem_root, this); }
 };
 
 
@@ -270,6 +276,8 @@ public:
   Item_func_isfalse(THD *thd, Item *a): Item_func_truth(thd, a, false, true) {}
   ~Item_func_isfalse() {}
   virtual const char* func_name() const { return "isfalse"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_isfalse>(thd, mem_root, this); }
 };
 
 
@@ -284,6 +292,8 @@ public:
     Item_func_truth(thd, a, false, false) {}
   ~Item_func_isnotfalse() {}
   virtual const char* func_name() const { return "isnotfalse"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_isnotfalse>(thd, mem_root, this); }
 };
 
 
@@ -345,6 +355,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_in_optimizer>(thd, mem_root, this); }
 };
 
 
@@ -498,6 +510,17 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_bool_rowready_func2 *clone=
+      (Item_bool_rowready_func2 *) Item_func::build_clone(thd, mem_root);
+    if (clone)
+    {
+      clone->cmp.comparators= 0;
+    }
+    return clone;
+  }      
+
 };
 
 /**
@@ -520,6 +543,8 @@ public:
     Item_args::propagate_equal_fields(thd, Context_boolean(), cond);
     return this;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_xor>(thd, mem_root, this); }
 };
 
 class Item_func_not :public Item_bool_func
@@ -536,6 +561,8 @@ public:
   Item *neg_transformer(THD *thd);
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_not>(thd, mem_root, this); }
 };
 
 class Item_maxmin_subselect;
@@ -583,6 +610,8 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_trig_cond>(thd, mem_root, this); }
 };
 
 class Item_func_not_all :public Item_func_not
@@ -658,6 +687,8 @@ public:
   uint in_equality_no;
   virtual uint exists2in_reserved_items() { return 1; };
   friend class  Arg_comparator;
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_eq>(thd, mem_root, this); }
 };
 
 class Item_func_equal :public Item_bool_rowready_func2
@@ -680,6 +711,8 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, true);
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_equal>(thd, mem_root, this); }
 };
 
 
@@ -694,6 +727,8 @@ public:
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return ">="; }
   Item *negated_item(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_ge>(thd, mem_root, this); }
 };
 
 
@@ -708,6 +743,8 @@ public:
   cond_result eq_cmp_result() const { return COND_FALSE; }
   const char *func_name() const { return ">"; }
   Item *negated_item(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_gt>(thd, mem_root, this); }
 };
 
 
@@ -722,6 +759,8 @@ public:
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return "<="; }
   Item *negated_item(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_le>(thd, mem_root, this); }
 };
 
 
@@ -736,6 +775,8 @@ public:
   cond_result eq_cmp_result() const { return COND_FALSE; }
   const char *func_name() const { return "<"; }
   Item *negated_item(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_lt>(thd, mem_root, this); }
 };
 
 
@@ -759,6 +800,8 @@ public:
   Item *negated_item(THD *thd);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_ne>(thd, mem_root, this); }
 };
 
 
@@ -839,6 +882,8 @@ public:
                                       cond);
     return this;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_between>(thd, mem_root, this); }
 };
 
 
@@ -857,6 +902,8 @@ public:
     agg_arg_charsets_for_comparison(cmp_collation, args, 2);
     fix_char_length(2); // returns "1" or "0" or "-1"
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_strcmp>(thd, mem_root, this); }
 };
 
 
@@ -887,6 +934,8 @@ public:
     str->append(func_name());
     print_args(str, 0, query_type);
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_interval>(thd, mem_root, this); }
 };
 
 
@@ -909,6 +958,8 @@ public:
   }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_coalesce>(thd, mem_root, this); }
 };
 
 
@@ -958,6 +1009,8 @@ public:
   {
     return Item_func_case_abbreviation2::decimal_precision2(args);
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_ifnull>(thd, mem_root, this); }
 };
 
 
@@ -981,6 +1034,8 @@ public:
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_if>(thd, mem_root, this); }
 private:
   void cache_type_info(Item *source);
 };
@@ -1047,6 +1102,8 @@ public:
                                                          cond, &args[2]);
     return this;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_nullif>(thd, mem_root, this); }
 };
 
 
@@ -1230,7 +1287,6 @@ public:
     item_dec->set_decimal_value(dec);
   }
   Item_result result_type() { return DECIMAL_RESULT; }
-
 };
 
 
@@ -1488,6 +1544,19 @@ public:
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_case>(thd, mem_root, this); }
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_func_case *clone= (Item_func_case *) Item_func::build_clone(thd, mem_root);
+    if (clone)
+    {
+      clone->case_item= 0;
+      clone->arg_buffer= 0;
+      bzero(&clone->cmp_items, sizeof(cmp_items));
+    }
+    return clone;
+  } 
 };
 
 /*
@@ -1584,6 +1653,18 @@ public:
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_in>(thd, mem_root, this); }
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd, mem_root);
+    if (clone)
+    {
+      clone->array= 0;
+      bzero(&clone->cmp_items, sizeof(cmp_items));
+    }
+    return clone;
+  }      
 };
 
 class cmp_item_row :public cmp_item
@@ -1678,6 +1759,8 @@ public:
                         bool top_level);
   table_map not_null_tables() const { return 0; }
   Item *neg_transformer(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_isnull>(thd, mem_root, this); }
 };
 
 /* Functions used by HAVING for rewriting IN subquery */
@@ -1723,6 +1806,8 @@ public:
   Item *neg_transformer(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   void top_level_item() { abort_on_null=1; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_isnotnull>(thd, mem_root, this); }
 };
 
 
@@ -1862,6 +1947,9 @@ public:
   void cleanup();
 
   bool find_selective_predicates_list_processor(uchar *arg);
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_like>(thd, mem_root, this); }
 };
 
 
@@ -1967,6 +2055,8 @@ public:
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_regex>(thd, mem_root, this); }
 
   virtual inline void print(String *str, enum_query_type query_type)
   {
@@ -1994,6 +2084,8 @@ public:
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_regexp_instr>(thd, mem_root, this); }
 };
 
 
@@ -2071,6 +2163,7 @@ public:
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(uchar *opt_arg);
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -2243,6 +2336,7 @@ public:
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
+  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
@@ -2388,6 +2482,8 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_cond_and>(thd, mem_root, this); }
 };
 
 inline bool is_cond_and(Item *item)
@@ -2412,6 +2508,8 @@ public:
   table_map not_null_tables() const { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd);
   Item *neg_transformer(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_cond_or>(thd, mem_root, this); }
 };
 
 class Item_func_dyncol_check :public Item_bool_func
@@ -2420,6 +2518,8 @@ public:
   Item_func_dyncol_check(THD *thd, Item *str): Item_bool_func(thd, str) {}
   longlong val_int();
   const char *func_name() const { return "column_check"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_dyncol_check>(thd, mem_root, this); }
 };
 
 class Item_func_dyncol_exists :public Item_bool_func
@@ -2429,6 +2529,8 @@ public:
     Item_bool_func(thd, str, num) {}
   longlong val_int();
   const char *func_name() const { return "column_exists"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_dyncol_exists>(thd, mem_root, this); }
 };
 
 inline bool is_cond_or(Item *item)

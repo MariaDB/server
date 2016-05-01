@@ -57,6 +57,7 @@ public:
   {
     return trace_unsupported_by_check_vcol_func_processor("proc"); 
   }
+  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
 class Item_proc_real :public Item_proc
