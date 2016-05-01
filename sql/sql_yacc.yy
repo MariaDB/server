@@ -5730,12 +5730,16 @@ create_table_option:
           }
         | IDENT_sys equal TEXT_STRING_sys
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, true, &Lex->create_info.option_list,
                                   &Lex->option_list_last);
           }
         | IDENT_sys equal ident
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, false, &Lex->create_info.option_list,
                                   &Lex->option_list_last);
@@ -6440,12 +6444,16 @@ attribute:
           }
         | IDENT_sys equal TEXT_STRING_sys
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, true, &Lex->last_field->option_list,
                                   &Lex->option_list_last);
           }
         | IDENT_sys equal ident
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, false, &Lex->last_field->option_list,
                                   &Lex->option_list_last);
@@ -6834,12 +6842,16 @@ all_key_opt:
           { Lex->last_key->key_create_info.comment= $2; }
         | IDENT_sys equal TEXT_STRING_sys
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, true, &Lex->option_list,
                                   &Lex->option_list_last);
           }
         | IDENT_sys equal ident
           {
+            if ($3.length > ENGINE_OPTION_MAX_LENGTH)
+              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
             new (thd->mem_root)
               engine_option_value($1, $3, false, &Lex->option_list,
                                   &Lex->option_list_last);

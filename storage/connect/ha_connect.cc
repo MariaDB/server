@@ -4783,7 +4783,11 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
       DBUG_RETURN(rc);
 
     // Get the share info from the .frm file
-    if (!open_table_def(thd, share)) {
+    Dummy_error_handler error_handler;
+    thd->push_internal_handler(&error_handler);
+    bool got_error= open_table_def(thd, share);
+    thd->pop_internal_handler();
+    if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {
         if (check_privileges(thd, pos, db))
@@ -4795,12 +4799,6 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-
-//  This below was done to avoid DBUG_ASSERT in some case that
-//  we don't know anymore what they were. It was suppressed because
-//  it did cause assertion in other cases (see MDEV-7935)
-//  } else       // Avoid infamous DBUG_ASSERT
-//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file

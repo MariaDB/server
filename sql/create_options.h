@@ -23,7 +23,8 @@
 #define SQL_CREATE_OPTIONS_INCLUDED
 
 #include "sql_class.h"
-//#include "handler.h"
+
+enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 
 class engine_option_value: public Sql_alloc
 {
