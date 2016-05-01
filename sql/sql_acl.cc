@@ -1263,15 +1263,12 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   }
   freeze_size(&acl_hosts);
 
-  if (init_read_record(&read_record_info, thd, table=tables[USER_TABLE].table,
-                       NULL, 1, 1, FALSE))
-    goto end;
-  table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   (void) my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                        0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                        (void (*)(void *))free_acl_role, 0);
 
+  table= tables[USER_TABLE].table,
   username_char_length= MY_MIN(table->field[1]->char_length(),
                                USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
@@ -1282,6 +1279,10 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
                     "unsupported 3.20 format.");
     goto end;
   }
+
+  if (init_read_record(&read_record_info, thd, table, NULL, 1, 1, FALSE))
+    goto end;
+  table->use_all_columns();
 
   DBUG_PRINT("info",("user table fields: %d, password length: %d",
 		     table->s->fields, password_length));
@@ -1294,6 +1295,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       mysql_mutex_unlock(&LOCK_global_system_variables);
       sql_print_error("Fatal error: mysql.user table is in old format, "
                       "but server started with --secure-auth option.");
+      end_read_record(&read_record_info);
       goto end;
     }
     mysql_user_table_is_in_short_password_format= true;
