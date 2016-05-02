@@ -66,6 +66,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	seq_1_to_15_step_2	index	NULL	PRIMARY	8	NULL	#	Using index
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	#	Storage engine handles GROUP BY
+create view v1 as select count(*) from seq_1_to_15_step_2;
+select * from v1;
+count(*)
+8
+drop view v1;
 #
 # The engine can't optimize the following queries
 #

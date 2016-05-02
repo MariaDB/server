@@ -30,6 +30,10 @@ select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t
 --replace_column 9 #
 explain select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t1;
 
+create view v1 as select count(*) from seq_1_to_15_step_2;
+select * from v1;
+drop view v1;
+
 --echo #
 --echo # The engine can't optimize the following queries
 --echo #
