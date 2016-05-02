@@ -2037,7 +2037,7 @@ static int check_user_can_set_role(const char *user, const char *host,
   {
     /* have to clear the privileges */
     /* get the current user */
-    acl_user= find_user_exact(host, user);
+    acl_user= find_user_wild(host, user, ip);
     if (acl_user == NULL)
     {
       my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
