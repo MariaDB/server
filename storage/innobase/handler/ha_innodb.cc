@@ -2736,7 +2736,7 @@ ha_innobase::ha_innobase(
 	:handler(hton, table_arg),
 	int_table_flags(HA_REC_NOT_IN_SEQ |
 		  HA_NULL_IN_KEY | HA_CAN_VIRTUAL_COLUMNS |
-		  HA_CAN_INDEX_BLOBS |
+		  HA_CAN_INDEX_BLOBS | HA_CONCURRENT_OPTIMIZE |
 		  HA_CAN_SQL_HANDLER |
 		  HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
 		  HA_PRIMARY_KEY_IN_READ_INDEX |

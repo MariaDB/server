@@ -1,0 +1,22 @@
+#
+# MDEV-9155 Enabling Defragmenting in 10.1.8 still causes OPTIMIZE TABLE to take metadatalocks
+#
+source include/have_innodb.inc;
+source include/have_sequence.inc;
+
+set global innodb_defragment=1;
+create table t1 (a int not null primary key auto_increment, b varchar(256), key second(a, b)) engine=innodb;
+insert t1 select null, repeat('a', 256) from seq_1_to_100;
+select count(*) from t1;
+
+connect (con1,localhost,root);
+start transaction;
+select count(*) from t1;
+
+connection default;
+optimize table t1;
+
+connection con1;
+drop table t1;
+
+set global innodb_defragment=default;
