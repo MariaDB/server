@@ -717,16 +717,23 @@ fil_node_open_file(
 		}
 
 		if (UNIV_UNLIKELY(space->flags != flags)) {
-			fprintf(stderr,
-				"InnoDB: Error: table flags are 0x%lx"
-				" in the data dictionary\n"
-				"InnoDB: but the flags in file %s are 0x%lx!\n",
-				space->flags, node->name, flags);
+			ulint sflags = (space->flags & ~FSP_FLAGS_MASK_DATA_DIR);
+			ulint fflags = (flags & ~FSP_FLAGS_MASK_DATA_DIR_ORACLE);
 
-			ut_error;
-		}
+			/* DATA_DIR option is on different place on MariaDB
+			compared to MySQL. If this is the difference. Fix
+			it. */
 
-		if (UNIV_UNLIKELY(space->flags != flags)) {
+			if (sflags == fflags) {
+				fprintf(stderr,
+					"InnoDB: Warning: Table flags 0x%lx"
+					" in the data dictionary but in file %s are 0x%lx!\n"
+					" Temporally corrected because DATA_DIR option to 0x%lx.\n",
+					space->flags, node->name, flags, space->flags);
+
+				flags = space->flags;
+			}
+
 			if (!dict_tf_verify_flags(space->flags, flags)) {
 				fprintf(stderr,
 					"InnoDB: Error: table flags are 0x%lx"
@@ -3797,8 +3804,18 @@ fil_open_single_table_tablespace(
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
 		tablespace was relocated. */
+
+		ulint newf = def.flags;
+		if (newf != mod_flags) {
+			if (FSP_FLAGS_HAS_DATA_DIR(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR);
+			} else if(FSP_FLAGS_HAS_DATA_DIR_ORACLE(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR_ORACLE);
+			}
+		}
+
 		if (def.valid && def.id == id
-		    && (def.flags & ~FSP_FLAGS_MASK_DATA_DIR) == mod_flags) {
+		    && newf == mod_flags) {
 			valid_tablespaces_found++;
 		} else {
 			def.valid = false;
@@ -3826,8 +3843,17 @@ fil_open_single_table_tablespace(
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
 		tablespace was relocated. */
+		ulint newf = remote.flags;
+		if (newf != mod_flags) {
+			if (FSP_FLAGS_HAS_DATA_DIR(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR);
+			} else if(FSP_FLAGS_HAS_DATA_DIR_ORACLE(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR_ORACLE);
+			}
+		}
+
 		if (remote.valid && remote.id == id
-		    && (remote.flags & ~FSP_FLAGS_MASK_DATA_DIR) == mod_flags) {
+		    && newf == mod_flags) {
 			valid_tablespaces_found++;
 		} else {
 			remote.valid = false;
@@ -3856,8 +3882,17 @@ fil_open_single_table_tablespace(
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
 		tablespace was relocated. */
+		ulint newf = dict.flags;
+		if (newf != mod_flags) {
+			if (FSP_FLAGS_HAS_DATA_DIR(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR);
+			} else if(FSP_FLAGS_HAS_DATA_DIR_ORACLE(newf)) {
+				newf = (newf & ~FSP_FLAGS_MASK_DATA_DIR_ORACLE);
+			}
+		}
+
 		if (dict.valid && dict.id == id
-		    && (dict.flags & ~FSP_FLAGS_MASK_DATA_DIR) == mod_flags) {
+		    && newf == mod_flags) {
 			valid_tablespaces_found++;
 		} else {
 			dict.valid = false;

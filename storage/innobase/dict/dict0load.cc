@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2241,8 +2242,9 @@ dict_get_and_save_data_dir_path(
 	bool		dict_mutex_own)	/*!< in: true if dict_sys->mutex
 					is owned already */
 {
-	if (DICT_TF_HAS_DATA_DIR(table->flags)
-	    && (!table->data_dir_path)) {
+	bool is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
+
+	if (!is_temp && !table->data_dir_path && table->space) {
 		char*	path = fil_space_get_first_path(table->space);
 
 		if (!dict_mutex_own) {
@@ -2254,6 +2256,7 @@ dict_get_and_save_data_dir_path(
 		}
 
 		if (path) {
+			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
 			dict_save_data_dir_path(table, path);
 			mem_free(path);
 		}
@@ -2394,16 +2397,14 @@ err_exit:
 			}
 
 			/* Use the remote filepath if needed. */
-			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-				/* This needs to be added to the table
-				from SYS_DATAFILES */
-				dict_get_and_save_data_dir_path(table, true);
+			/* This needs to be added to the tablex1
+			from SYS_DATAFILES */
+			dict_get_and_save_data_dir_path(table, true);
 
-				if (table->data_dir_path) {
-					filepath = os_file_make_remote_pathname(
+			if (table->data_dir_path) {
+				filepath = os_file_make_remote_pathname(
 						table->data_dir_path,
 						table->name, "ibd");
-				}
 			}
 
 			/* Try to open the tablespace.  We set the
