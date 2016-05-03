@@ -63,7 +63,7 @@
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
-#define DBUG_PRINT(x ...)
+#define DBUG_PRINT(x,y)
 #endif
 
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
