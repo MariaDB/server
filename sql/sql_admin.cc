@@ -622,16 +622,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     /*
       Close all instances of the table to allow MyISAM "repair"
-      to rename files.
+      (which is internally also used from "optimize") to rename files.
       @todo: This code does not close all instances of the table.
       It only closes instances in other connections, but if this
       connection has LOCK TABLE t1 a READ, t1 b WRITE,
       both t1 instances will be kept open.
       There is no need to execute this branch for InnoDB, which does
-      repair by recreate. There is no need to do it for OPTIMIZE,
-      which doesn't move files around.
-      Hence, this code should be moved to prepare_for_repair(),
-      and executed only for MyISAM engine.
+      repair by recreate.
+      Hence, this code should be executed only for MyISAM engine.
     */
     if (lock_type == TL_WRITE && !table->table->s->tmp_table)
     {
