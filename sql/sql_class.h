@@ -3878,6 +3878,7 @@ public:
   bool                      wsrep_apply_toi; /* applier processing in TOI */
   bool                      wsrep_skip_append_keys;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  ulong                     wsrep_affected_rows;
 #endif /* WITH_WSREP */
 };
 
