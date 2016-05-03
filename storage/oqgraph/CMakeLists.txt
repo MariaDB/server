@@ -59,7 +59,7 @@ ELSE(MSVC)
   # Fix lp bug 1221555 with -fpermissive, so that errors in gcc 4.7 become warnings for the time being
   STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive" PARENT_SCOPE)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive")
 ENDIF(MSVC)
 
 ADD_DEFINITIONS(-DBOOST_NO_RTTI=1 -DBOOST_NO_TYPEID=1 -DBOOST_DISABLE_ASSERTS=1)
