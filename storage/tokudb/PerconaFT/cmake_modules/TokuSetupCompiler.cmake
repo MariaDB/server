@@ -74,8 +74,8 @@ set_cflags_if_supported(
 
 if (CMAKE_CXX_FLAGS MATCHES -fno-implicit-templates)
   # must append this because mysql sets -fno-implicit-templates and we need to override it
-  check_cxx_compiler_flag(-fimplicit-templates HAVE_CXX_-fimplicit-templates)
-  if (HAVE_CXX_-fimplicit-templates)
+  check_cxx_compiler_flag(-fimplicit-templates HAVE_CXX_IMPLICIT_TEMPLATES)
+  if (HAVE_CXX_IMPLICIT_TEMPLATES)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fimplicit-templates")
   endif ()
 endif()

@@ -312,6 +312,12 @@ buf_flush_flush_list_in_progress(void)
 /*==================================*/
 	__attribute__((warn_unused_result));
 
+/** If LRU list of a buf_pool is less than this size then LRU eviction
+should not happen. This is because when we do LRU flushing we also put
+the blocks on free list. If LRU list is very small then we can end up
+in thrashing. */
+#define BUF_LRU_MIN_LEN		256
+
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
 ibool

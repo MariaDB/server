@@ -757,7 +757,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
-  *partname= 0;
+  memset(partname, 0, sizeof(partname));
   bzero((char*) &xinfo, sizeof(XINFO));
   valid_info= false;
   valid_query_id= 0;
@@ -1150,7 +1150,7 @@ char *ha_connect::GetRealString(const char *s)
 {
   char *sv;
 
-  if (IsPartitioned() && s) {
+  if (IsPartitioned() && s && partname && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1173,7 +1173,9 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                            : table->s->connect_string;
 
     if (cnc.length)
-      opval= GetRealString(strz(xp->g, cnc));
+      opval= strz(xp->g, cnc);
+		else
+			opval= GetListOption(xp->g, opname, options->oplist);
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
@@ -2286,7 +2288,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 				op= OP_EQ;
 				break;
 			case HA_READ_AFTER_KEY:	  
-				op= (stlen >= len) ? (!i ? OP_GT : OP_LE) : OP_GE;
+				op= (stlen >= len || i > 0) ? (i > 0 ? OP_LE : OP_GT) : OP_GE;
 				break;
 			case HA_READ_KEY_OR_NEXT:
 				op= OP_GE;
@@ -3121,13 +3123,14 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (table->part_info) {
       if (GetStringOption("Filename") || GetStringOption("Tabname")
-          || GetStringOption("Connect")) {
-        strcpy(partname, decode(g, strrchr(name, '#') + 1));
+                                      || GetStringOption("Connect")) {
+        strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //      strcpy(partname, table->part_info->curr_part_elem->partition_name);
-        part_id= &table->part_info->full_part_field_set;
+//      part_id= &table->part_info->full_part_field_set;
       } else       // Inward table
-        strcpy(partname, strrchr(name, slash) + 1);
-        part_id= &table->part_info->full_part_field_set; // Temporary
+        strncpy(partname, strrchr(name, slash) + 1, sizeof(partname) - 1);
+
+      part_id= &table->part_info->full_part_field_set; // Temporary
       } // endif part_info
 #endif   // WITH_PARTITION_STORAGE_ENGINE
   } else
@@ -4054,7 +4057,7 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 {
   const char *db= (dbn && *dbn) ? dbn : NULL;
   TABTYPE     type=GetRealType(options);
@@ -4081,6 +4084,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_VEC:
     case TAB_JSON:
       if (options->filename && *options->filename) {
+        if (!quick) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(__WIN__)
         s= "\\";
@@ -4099,7 +4103,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
           my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
           return true;
           } // endif path
-
+        }
       } else
         return false;
 
@@ -4121,10 +4125,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
         Otherwise it's a DML, the table was normally opened, locked,
         privilege were already checked, and table->grant.privilege is set.
         With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+
+        Unless we're in prelocking mode, in this case table->grant.privilege
+        is only checked in start_stmt(), not in external_lock().
       */
       if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
         return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-      if (table->grant.privilege & FILE_ACL)
+      if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
         return false;
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(access_denied_error_code(thd->password), MYF(0),
@@ -4307,6 +4314,9 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   MODE    newmode;
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
+
+  if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
   switch (lock_type) {
@@ -6142,7 +6152,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       strcpy(dbpath, name);
       p= strrchr(dbpath, slash);
-      strcpy(partname, ++p);
+      strncpy(partname, ++p, sizeof(partname) - 1);
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
@@ -6193,7 +6203,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
-      strcpy(partname, decode(g, strrchr(name, '#') + 1));
+      strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
@@ -6234,8 +6244,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
-            strcpy(partname, 
-                   decode(g, strrchr(name, (inward ? slash : '#')) + 1));
+            strncpy(partname, 
+                    decode(g, strrchr(name, (inward ? slash : '#')) + 1),
+										sizeof(partname) - 1);
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {

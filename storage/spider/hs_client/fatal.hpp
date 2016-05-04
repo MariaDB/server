@@ -22,8 +22,6 @@
 
 namespace dena {
 
-void fatal_exit(const String& message);
-void fatal_exit(const char *message);
 void fatal_abort(const String& message);
 void fatal_abort(const char *message);
 

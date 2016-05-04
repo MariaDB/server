@@ -459,6 +459,20 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
+	ulint n_indexes = UT_LIST_GET_LEN((prebuilt->table)->indexes);
+
+	/* If InnoDB dictionary and MySQL frm file are not consistent
+	use "Copy" method. */
+	if (prebuilt->table->dict_frm_mismatch) {
+
+		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+			ER_NO_SUCH_INDEX);
+		ib_push_frm_error(user_thd, prebuilt->table, altered_table,
+			n_indexes, true);
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE). */
 	bool	online = true;

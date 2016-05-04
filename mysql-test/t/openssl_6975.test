@@ -17,6 +17,7 @@ let $mysql=$MYSQL --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$
 disable_abort_on_error;
 echo TLS1.2 ciphers: user is ok with any cipher;
 exec $mysql                  --ssl-cipher=AES128-SHA256;
+--replace_result DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-GCM-SHA384
 exec $mysql                  --ssl-cipher=TLSv1.2;
 echo TLS1.2 ciphers: user requires SSLv3 cipher RC4-SHA;
 exec $mysql --user ssl_sslv3 --ssl-cipher=AES128-SHA256;
