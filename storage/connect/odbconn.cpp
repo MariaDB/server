@@ -1458,7 +1458,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
         n++;
 
     // n can be 0 for query such as Select count(*) from table
-    if (n && n != (UWORD)ncol)
+    if (n && n > (UWORD)ncol)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     // Now bind the column buffers
