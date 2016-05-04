@@ -49,6 +49,8 @@ Created 9/6/1995 Heikki Tuuri
 #ifdef HAVE_WINDOWS_ATOMICS
 typedef LONG lock_word_t;	/*!< On Windows, InterlockedExchange operates
 				on LONG variable */
+#elif defined(_AIX)
+typedef ulint lock_word_t;
 #elif defined(HAVE_ATOMIC_BUILTINS) && !defined(HAVE_ATOMIC_BUILTINS_BYTE)
 typedef ulint lock_word_t;
 #else

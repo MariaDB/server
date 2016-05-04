@@ -1432,7 +1432,7 @@ ib_err_t
 ib_cursor_insert_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in/out: InnoDB cursor instance */
-	const ib_tpl_t	ib_tpl)		/*!< in: tuple to insert */
+	/*const*/ ib_tpl_t	ib_tpl)		/*!< in: tuple to insert */
 {
 	ib_ulint_t	i;
 	ib_qry_node_t*	node;
@@ -1761,8 +1761,8 @@ ib_err_t
 ib_cursor_update_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in: InnoDB cursor instance */
-	const ib_tpl_t	ib_old_tpl,	/*!< in: Old tuple in table */
-	const ib_tpl_t	ib_new_tpl)	/*!< in: New tuple to update */
+	/*const*/ ib_tpl_t	ib_old_tpl,	/*!< in: Old tuple in table */
+	/*const*/ ib_tpl_t	ib_new_tpl)	/*!< in: New tuple to update */
 {
 	upd_t*		upd;
 	ib_err_t	err;
@@ -2990,7 +2990,7 @@ ib_err_t
 ib_tuple_copy(
 /*==========*/
 	ib_tpl_t	ib_dst_tpl,	/*!< in: destination tuple */
-	const ib_tpl_t	ib_src_tpl)	/*!< in: source tuple */
+	/*const*/ ib_tpl_t	ib_src_tpl)	/*!< in: source tuple */
 {
 	ulint		i;
 	ulint		n_fields;
@@ -3115,7 +3115,7 @@ UNIV_INTERN
 ib_ulint_t
 ib_tuple_get_n_user_cols(
 /*=====================*/
-	const ib_tpl_t	ib_tpl)		/*!< in: Tuple for current table */
+	/*const*/ ib_tpl_t	ib_tpl)		/*!< in: Tuple for current table */
 {
 	const ib_tuple_t*	tuple = (const ib_tuple_t*) ib_tpl;
 
@@ -3135,7 +3135,7 @@ UNIV_INTERN
 ib_ulint_t
 ib_tuple_get_n_cols(
 /*================*/
-	const ib_tpl_t	ib_tpl)		/*!< in: Tuple for table/index */
+	/*const*/ ib_tpl_t	ib_tpl)		/*!< in: Tuple for table/index */
 {
 	const ib_tuple_t*	tuple = (const ib_tuple_t*) ib_tpl;
 

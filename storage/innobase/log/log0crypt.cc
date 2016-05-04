@@ -127,32 +127,9 @@ static
 const crypt_info_t*
 get_crypt_info(
 /*===========*/
-	const byte* log_block)
-{
+	const byte* log_block) {
 	ib_uint64_t checkpoint_no = log_block_get_checkpoint_no(log_block);
 	return get_crypt_info(checkpoint_no);
-}
-
-/*********************************************************************//**
-Print checkpoint no from log block and all encryption keys from
-checkpoints if they are present. Used for problem analysis. */
-void
-log_crypt_print_checkpoint_keys(
-/*============================*/
-	const byte* log_block)
-{
-	ib_uint64_t checkpoint_no = log_block_get_checkpoint_no(log_block);
-
-	if (crypt_info.size()) {
-		fprintf(stderr, "InnoDB: redo log checkpoint: %lu [ chk key ]: ", checkpoint_no);
-		for (size_t i = 0; i < crypt_info.size(); i++) {
-			struct crypt_info_t* it = &crypt_info[i];
-			fprintf(stderr, "[ %lu %u ] ",
-				it->checkpoint_no,
-				it->key_version);
-		}
-		fprintf(stderr, "\n");
-	}
 }
 
 /*********************************************************************//**
@@ -301,22 +278,12 @@ Add crypt info to set if it is not already present
 @return true if successfull, false if not- */
 static
 bool
-add_crypt_info(
-/*===========*/
-	crypt_info_t*	info,		/*!< in: crypt info */
-	bool		checkpoint_read)/*!< in: do we read checkpoint */
+add_crypt_info(crypt_info_t* info)
 {
-	const crypt_info_t* found=NULL;
 	/* so that no one is searching array while we modify it */
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
-	found = get_crypt_info(info->checkpoint_no);
-
-	/* If one crypt info is found then we add a new one only if we
-	are reading checkpoint from the log. New checkpoints will always
-	use the first created crypt info. */
-	if (found != NULL &&
-		( found->checkpoint_no == info->checkpoint_no || !checkpoint_read)) {
+	if (get_crypt_info(info->checkpoint_no) != NULL) {
 		// already present...
 		return true;
 	}
@@ -389,7 +356,7 @@ log_crypt_set_ver_and_key(
 
 	}
 
-	add_crypt_info(&info, false);
+	add_crypt_info(&info);
 }
 
 /********************************************************
@@ -547,7 +514,7 @@ log_crypt_read_checkpoint_buf(
 		memcpy(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce, buf + 24, MY_AES_BLOCK_SIZE);
 
-		if (!add_crypt_info(&info, true)) {
+		if (!add_crypt_info(&info)) {
 			return false;
 		}
 		buf += LOG_CRYPT_ENTRY_SIZE;

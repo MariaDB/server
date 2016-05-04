@@ -839,11 +839,11 @@ UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
-	const ulint	id)	/*!< in: id of the file format */
+	/*const*/ ulint	id)	/*!< in: id of the file format */
 {
 	ut_a(id < FILE_FORMAT_NAME_N);
 
-	return(file_format_name_map[id]);
+	return((char*)file_format_name_map[id]);
 }
 
 /*****************************************************************//**
@@ -1282,7 +1282,7 @@ UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
-	const ulint	id)	/*!< in: id of the file format */
+	/*const*/ ulint	id)	/*!< in: id of the file format */
 {
 	if (!(id < FILE_FORMAT_NAME_N)) {
 		/* unknown id */

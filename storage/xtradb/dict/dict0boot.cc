@@ -464,22 +464,12 @@ dict_boot(void)
 	if (err == DB_SUCCESS) {
 		if (srv_read_only_mode && !ibuf_is_empty()) {
 
-			if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Change buffer must be empty when --innodb-read-only "
-					"is set!"
-					"You can try to recover the database with innodb_force_recovery=5");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Change buffer must be empty when --innodb-read-only "
+				"is set!");
 
-				err = DB_ERROR;
-			} else {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Change buffer not empty when --innodb-read-only "
-					"is set! but srv_force_recovery = %d, ignoring.",
-					srv_force_recovery);
-			}
-		}
-
-		if (err == DB_SUCCESS) {
+			err = DB_ERROR;
+		} else {
 			/* Load definitions of other indexes on system tables */
 
 			dict_load_sys_table(dict_sys->sys_tables);

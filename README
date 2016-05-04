@@ -1,3 +1,8 @@
+###############################################################
+Make mariadb build again in AIX with XLC Compiler.
+See CHANGES_AIX and build_mariadb.sh for Details.
+###############################################################
+
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 

@@ -5972,7 +5972,7 @@ i_s_dict_fill_sys_tables(
 	const char* file_format;
 	const char* row_format;
 
-	file_format = trx_sys_file_format_id_to_name(atomic_blobs);
+	file_format = trx_sys_file_format_id_to_name((ulint)atomic_blobs);
 	if (!compact) {
 		row_format = "Redundant";
 	} else if (!atomic_blobs) {
@@ -7663,7 +7663,7 @@ i_s_dict_fill_sys_tablespaces(
 
 	DBUG_ENTER("i_s_dict_fill_sys_tablespaces");
 
-	file_format = trx_sys_file_format_id_to_name(atomic_blobs);
+	file_format = trx_sys_file_format_id_to_name((ulint)atomic_blobs);
 	if (!atomic_blobs) {
 		row_format = "Compact or Redundant";
 	} else if DICT_TF_GET_ZIP_SSIZE(flags) {

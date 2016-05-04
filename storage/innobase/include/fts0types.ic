@@ -288,7 +288,7 @@ innobase_strnxfrm(
 /*==============*/
         const CHARSET_INFO*	cs,	/*!< in: Character set */
         const uchar*		p2,	/*!< in: string */
-        const ulint		len2);	/*!< in: string length */
+        /*const*/ ulint		len2);	/*!< in: string length */
 
 /******************************************************************//**
 Select the FTS auxiliary index for the given character.

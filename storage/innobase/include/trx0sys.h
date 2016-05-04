@@ -361,7 +361,7 @@ UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
-	const ulint	id);		/*!< in: id of the file format */
+	/*const*/ ulint	id);		/*!< in: id of the file format */
 /*****************************************************************//**
 Set the file format id unconditionally except if it's already the
 same value.
@@ -466,7 +466,7 @@ UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
-	const ulint	id);	/*!< in: id of the file format */
+	/*const*/ ulint	id);	/*!< in: id of the file format */
 
 #ifdef UNIV_DEBUG
 /*************************************************************//**

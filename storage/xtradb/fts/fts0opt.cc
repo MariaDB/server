@@ -25,6 +25,8 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 
 ***********************************************************************/
 
+#define OBSCURITY_01 1
+
 #include "fts0fts.h"
 #include "row0sel.h"
 #include "que0types.h"
