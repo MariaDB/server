@@ -190,6 +190,12 @@ extern "C" {
 } // extern "C"
 #endif   // XMSG
 
+#if defined(__WIN__)
+CRITICAL_SECTION parsec;      // Used calling the Flex parser
+#else   // !__WIN__
+pthread_mutex_t parmut;
+#endif  // !__WIN__
+
 /***********************************************************************/
 /*  Utility functions.                                                 */
 /***********************************************************************/
@@ -634,6 +640,7 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
+	InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
@@ -678,8 +685,10 @@ static int connect_done_func(void *)
   XmlCleanupParserLib();
 #endif   // LIBXML2_SUPPORT
 
-#if !defined(__WIN__)
-//PROFILE_End();                Causes signal 11
+#if defined(__WIN__)
+	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
+#else    // !__WIN__
+	PROFILE_End();
 #endif   // !__WIN__
 
   for (pc= user_connect::to_users; pc; pc= pn) {
@@ -5172,7 +5181,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   spc= (!sep) ? ',' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
-  tbl= topt->tablist;
+	tbl= topt->tablist;
   col= topt->colist;
 
   if (topt->oplist) {
@@ -5305,8 +5314,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	case TAB_JDBC:
 		if (fnc & FNC_DRIVER) {
 			ok= true;
-		} else if (!url) {
-				strcpy(g->Message, "Missing URL");
+		} else if (!url && !(url= strz(g, create_info->connect_string))) {
+			strcpy(g->Message, "Missing URL");
 		} else {
 			// Store ODBC additional parameters
 			sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));

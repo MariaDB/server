@@ -741,32 +741,33 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 
 //  } // end of ~JDBConn
 
-#if 0
 /***********************************************************************/
 /*  Screen for errors.                                                 */
 /***********************************************************************/
-bool JDBConn::Check(RETCODE rc)
+char *JDBConn::Check(void)
 {
-	switch (rc) {
-	case SQL_SUCCESS_WITH_INFO:
-		if (trace) {
-			DJX x(rc);
+	if (env->ExceptionCheck()) {
+		char *msg;
+		jthrowable exc = env->ExceptionOccurred();
+		jmethodID tid = env->GetMethodID(env->FindClass("java/lang/Object"),
+			"toString", "()Ljava/lang/String;");
 
-			if (x.BuildErrorMessage(this, m_hstmt))
-				htrc("JDBC Success With Info, hstmt=%p %s\n",
-				m_hstmt, x.GetErrorMessage(0));
+		if (exc != nullptr && tid != nullptr) {
+			jstring s = (jstring)env->CallObjectMethod(exc, tid);
+			const char *utf = env->GetStringUTFChars(s, (jboolean)false);
+			env->DeleteLocalRef(s);
+			msg = PlugDup(m_G, utf);
+		} else
+			msg = "Exception occured";
 
-		} // endif trace
+		env->ExceptionClear();
+		return msg;
+	} // endif Check
 
-		// Fall through
-	case SQL_SUCCESS:
-	case SQL_NO_DATA_FOUND:
-		return true;
-	} // endswitch rc
-
-	return false;
+	return NULL;
 } // end of Check
 
+#if 0
 /***********************************************************************/
 /*  Utility routine.                                                   */
 /***********************************************************************/
@@ -911,14 +912,10 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 			rc = JNI_GetCreatedJavaVMs(jvms, 1, &jsz);
 
 			if (rc == JNI_OK && jsz == 1) {
-				JavaVMAttachArgs args;
-
-				args.version = JNI_VERSION_1_6;
-				args.name = NULL;
-				args.group = NULL;
 				jvm = jvms[0];
-				rc = jvm->AttachCurrentThread((void**)&env, &args);
+				rc = jvm->AttachCurrentThread((void**)&env, nullptr);
 			} // endif rc
+
 		}	// end of block
 
 		if (rc == JNI_OK)
@@ -1176,11 +1173,11 @@ void JDBConn::Close()
 void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
 	PGLOBAL&   g = m_G;
+	char      *msg;
 	jint       ctyp;
 	jlong      dtv;
 	jstring    cn, jn = nullptr;
 	jobject    dob;
-	jthrowable exc;
 	jmethodID  fldid = nullptr;
 
 	if (rank == 0)
@@ -1191,14 +1188,8 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 	ctyp = env->CallIntMethod(job, typid, rank, jn);
 
-	if ((exc = env->ExceptionOccurred()) != nullptr) {
-		jboolean isCopy = false;
-		jmethodID tid = env->GetMethodID(env->FindClass("java/lang/Object"), "toString", "()Ljava/lang/String;");
-		jstring s = (jstring)env->CallObjectMethod(exc, tid);
-		const char* utf = env->GetStringUTFChars(s, &isCopy);
-		sprintf(g->Message, "SetColumnValue: %s", utf);
-		env->DeleteLocalRef(s);
-		env->ExceptionClear();
+	if ((msg = Check())) {
+		sprintf(g->Message, "Getting ctyp: %s", msg);
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 	} // endif Check
 
@@ -1304,6 +1295,14 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	default:
 		val->Reset();
 	} // endswitch Type
+
+	if ((msg = Check())) {
+		if (rank == 0)
+			env->DeleteLocalRef(jn);
+
+		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", msg, rank, (int)ctyp);
+		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
+	} // endif Check
 
 	if (rank == 0)
 		env->DeleteLocalRef(jn);
@@ -1467,6 +1466,7 @@ int JDBConn::ExecuteSQL(void)
 bool JDBConn::SetParam(JDBCCOL *colp)
 {
 	PGLOBAL&   g = m_G;
+	char      *msg;
 	int        rc = false;
 	PVAL       val = colp->GetValue();
 	jint       n, i = (jint)colp->GetRank();
@@ -1477,7 +1477,6 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	jclass     dat;
 	jobject    datobj;
 	jstring    jst = nullptr;
-	jthrowable exc;
 	jmethodID  dtc, setid = nullptr;
 
 	switch (val->GetType()) {
@@ -1531,7 +1530,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		setid = env->GetMethodID(jdi, "SetDoubleParm", "(ID)V");
 
 		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot fing method SetDoubleParm");
+			strcpy(g->Message, "Cannot find method SetDoubleParm");
 			return true;
 		}	// endif setid
 
@@ -1565,16 +1564,10 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		return true;
 	}	// endswitch Type
 
-	if ((exc = env->ExceptionOccurred()) != nullptr) {
-		jboolean isCopy = false;
-		jmethodID tid = env->GetMethodID(env->FindClass("java/lang/Object"), "toString", "()Ljava/lang/String;");
-		jstring s = (jstring)env->CallObjectMethod(exc, tid);
-		const char* utf = env->GetStringUTFChars(s, &isCopy);
-		sprintf(g->Message, "SetParam: %s", utf);
-		env->DeleteLocalRef(s);
-		env->ExceptionClear();
+	if ((msg = Check())) {
+		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), msg);
 		rc = true;
-	} // endif exc
+	} // endif msg
 
 	if (jst)
 		env->DeleteLocalRef(jst);
@@ -1987,7 +1980,6 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		} // endfor n
 
 		// Now fetch the result
-		// Extended fetch cannot be used because of STRBLK's
 		for (i = 0; i < qrp->Maxres; i++) {
 			if ((rc = Fetch(0)) == 0)
 				break;
@@ -2001,7 +1993,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		} // endfor i
 
-		if (rc == RC_OK)
+		if (rc > 0)
 			qrp->Truncated = true;
 
 		return i;

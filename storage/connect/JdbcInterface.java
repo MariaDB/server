@@ -536,7 +536,7 @@ public class JdbcInterface {
 		System.out.println("No result set");
 	  } else try {
 		BigDecimal bigDecimal = (n > 0) ? rs.getBigDecimal(n) : rs.getBigDecimal(name);
-        return bigDecimal != null ? bigDecimal.longValue() : null;
+        return bigDecimal != null ? bigDecimal.longValue() : 0;
 	  } catch (SQLException se) {
 		System.out.println(se);
 	  } //end try/catch

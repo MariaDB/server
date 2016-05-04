@@ -108,11 +108,17 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
 	Jpath = GetStringCatInfo(g, "Jpath", "");
 	Driver = GetStringCatInfo(g, "Driver", NULL);
-	Desc = Url = GetStringCatInfo(g, "Url", NULL);
+	Desc = Url = GetStringCatInfo(g, "Connect", NULL);
 
 	if (!Url && !Catfunc) {
-		sprintf(g->Message, "Missing URL for JDBC table %s", Name);
-		return true;
+		// Look in the option list (deprecated)
+		Url = GetStringCatInfo(g, "Url", NULL);
+
+		if (!Url) {
+			sprintf(g->Message, "Missing URL for JDBC table %s", Name);
+			return true;
+		} // endif Url
+
 	} // endif Connect
 
 	Tabname = GetStringCatInfo(g, "Name",
@@ -198,7 +204,7 @@ int JDBCPARM::CheckSize(int rows)
 	if (Url && rows == 1) {
 		// Are we connected to a MySQL JDBC connector?
 		bool b = (!strncmp(Url, "jdbc:mysql:", 11) ||
-			!strncmp(Url, "jdbc:mariadb:", 13));
+			        !strncmp(Url, "jdbc:mariadb:", 13));
 		return b ? INT_MIN32 : rows;
 	} else
 		return rows;
@@ -1669,6 +1675,8 @@ TDBJTB::TDBJTB(PJDBCDEF tdp) : TDBJDRV(tdp)
 	Ops.Url = tdp->Url;
 	Ops.User = tdp->Username;
 	Ops.Pwd = tdp->Password;
+	Ops.Fsize = 0;
+	Ops.Scrollable = false;
 } // end of TDBJTB constructor
 
 /***********************************************************************/

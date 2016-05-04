@@ -123,7 +123,7 @@ public:
 
 	// JDBC operations
 protected:
-//bool Check(RETCODE rc);
+	char *Check(void);
 //void ThrowDJX(int rc, PSZ msg/*, HSTMT hstmt = SQL_NULL_HSTMT*/);
 //void ThrowDJX(PSZ msg);
 //void AllocConnect(DWORD dwOptions);

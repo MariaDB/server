@@ -268,12 +268,14 @@ IF(CONNECT_WITH_JDBC)
   # TODO: Find how to compile and install the JdbcInterface.java class
   # Find required libraries and include directories
 
-  FIND_PACKAGE(JAVA)
-	FIND_PACKAGE(JNI)
+  FIND_PACKAGE(Java REQUIRED)
+	FIND_PACKAGE(JNI REQUIRED)
   IF (JAVA_FOUND AND JNI_FOUND)
-    INCLUDE_DIRECTORIES(${JNI_INCLUDE_DIR})
-    SET(JNI_LIBRARY  ${JNI_LIBRARIES})
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} JdbcInterface.java  
+    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
+    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
+    SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY})
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+		JdbcInterface.java JdbcInterface.class  
 		jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
