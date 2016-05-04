@@ -66,7 +66,8 @@ class engine_option_value: public Sql_alloc
       link(start, end);
     }
   }
-  static uchar *frm_read(const uchar *buff, engine_option_value **start,
+  static uchar *frm_read(const uchar *buff, const uchar *buff_end,
+                         engine_option_value **start,
                          engine_option_value **end, MEM_ROOT *root);
   void link(engine_option_value **start, engine_option_value **end);
   uint frm_length();

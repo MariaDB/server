@@ -685,20 +685,25 @@ uchar *engine_table_options_frm_image(uchar *buff,
 
   @returns pointer to byte after last recorded in the buffer
 */
-uchar *engine_option_value::frm_read(const uchar *buff, engine_option_value **start,
+uchar *engine_option_value::frm_read(const uchar *buff, const uchar *buff_end,
+                                     engine_option_value **start,
                                      engine_option_value **end, MEM_ROOT *root)
 {
   LEX_STRING name, value;
   uint len;
+#define need_buff(N)  if (buff + (N) >= buff_end) return NULL
 
+  need_buff(3);
   name.length= buff[0];
   buff++;
+  need_buff(name.length + 2);
   if (!(name.str= strmake_root(root, (const char*)buff, name.length)))
     return NULL;
   buff+= name.length;
   len= uint2korr(buff);
   value.length= len & ~FRM_QUOTED_VALUE;
   buff+= 2;
+  need_buff(value.length);
   if (!(value.str= strmake_root(root, (const char*)buff, value.length)))
     return NULL;
   buff+= value.length;
@@ -735,8 +740,8 @@ bool engine_table_options_frm_read(const uchar *buff, uint length,
 
   while (buff < buff_end && *buff)
   {
-    if (!(buff= engine_option_value::frm_read(buff, &share->option_list, &end,
-                                              root)))
+    if (!(buff= engine_option_value::frm_read(buff, buff_end,
+                                              &share->option_list, &end, root)))
       DBUG_RETURN(TRUE);
   }
   buff++;
@@ -745,7 +750,7 @@ bool engine_table_options_frm_read(const uchar *buff, uint length,
   {
     while (buff < buff_end && *buff)
     {
-      if (!(buff= engine_option_value::frm_read(buff,
+      if (!(buff= engine_option_value::frm_read(buff, buff_end,
                                                 &share->field[count]->option_list,
                                                 &end, root)))
         DBUG_RETURN(TRUE);
@@ -757,7 +762,7 @@ bool engine_table_options_frm_read(const uchar *buff, uint length,
   {
     while (buff < buff_end && *buff)
     {
-      if (!(buff= engine_option_value::frm_read(buff,
+      if (!(buff= engine_option_value::frm_read(buff, buff_end,
                                                 &share->key_info[count].option_list,
                                                 &end, root)))
         DBUG_RETURN(TRUE);
