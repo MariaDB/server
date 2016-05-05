@@ -543,7 +543,6 @@ optimize table t1;
 proceed with the normal connection
 handler t1 read next;
 c1
-1
 handler t1 close;
 read the result from the other connection
 Table	Op	Msg_type	Msg_text

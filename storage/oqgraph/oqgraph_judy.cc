@@ -23,6 +23,28 @@
 */
 
 #include "oqgraph_judy.h"
+
+/*
+  Currently the only active code that can return error is:
+    judy_bitset::reset()/J1U()
+    judy_bitset::setbit()/J1S()
+
+  In most cases errors are either about wrong parameters passed to Judy
+  functions or internal structures corruption. These definitely deserve
+  abnormal process termination instead of exit() as it is done by original
+  JUDYERROR.
+
+  TODO: there's one exception that should be handled properly though: OOM.
+*/
+#include <stdio.h>
+#define JUDYERROR(CallerFile, CallerLine, JudyFunc, JudyErrno, JudyErrID) \
+    {                                                                     \
+        (void) fprintf(stderr, "File '%s', line %d: %s(), "               \
+           "JU_ERRNO_* == %d, ID == %d\n",                                \
+           CallerFile, CallerLine,                                        \
+           JudyFunc, JudyErrno, JudyErrID);                               \
+        abort();                                                          \
+    }
 #include <Judy.h>
 
 void open_query::judy_bitset::clear()

@@ -7,7 +7,7 @@
 connect (ssl_con,localhost,root,,,,,SSL read_timeout=5);
 
 --echo # Check ssl turned on
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Ssl_cipher';
 
 # --error CR_SERVER_LOST

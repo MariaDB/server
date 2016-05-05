@@ -533,7 +533,7 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 /*********************************************************************************/
 my_bool JSNX::CheckPath(PGLOBAL g)
 {
-	PJVAL   val;
+	PJVAL   val= NULL;
 	PJSON   row = Row;
 
 	for (int i = 0; i < Nod && row; i++) {
@@ -1302,7 +1302,7 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 {
 	char fn[_MAX_PATH];
   unsigned long i, k, m, n;
-	long fl, j = -1;
+	long fl= 0, j = -1;
 
   reslen = args->arg_count + 2;
 
@@ -2087,7 +2087,7 @@ my_bool json_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,
 char *json_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                          unsigned long *res_length, char *, char *)
 {
-  char   *str;
+  char   *str= 0;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
 	if (!g->Xchk) {
@@ -2621,7 +2621,7 @@ char *json_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
-		PJSON top;
+		PJSON top= 0;
 		PJVAL jvp;
 		PJSON jsp[2] = {NULL, NULL};
 
@@ -4721,7 +4721,7 @@ char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	my_bool b = true;
 	PJSON   jsp;
 	PJSNX   jsx;
-	PJVAL   jvp;
+	PJVAL   jvp= 0;
 	PBSON   bsp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PGLOBAL gb = GetMemPtr(g, args, 0);
@@ -4742,6 +4742,7 @@ char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true, false, true)) {
 			PUSH_WARNING("CheckMemory error");
+                        goto fin;
 		} else
 			jvp = MakeValue(g, args, 0);
 

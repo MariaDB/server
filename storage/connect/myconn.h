@@ -80,7 +80,7 @@ class DllItem MYSQLC {
   int     Fetch(PGLOBAL g, int pos);
   char   *GetCharField(int i);
   int     GetFieldLength(int i);
-  void    Rewind(void);
+  int     Rewind(PGLOBAL g, PSZ sql);
   void    FreeResult(void);
   void    Close(void);
 

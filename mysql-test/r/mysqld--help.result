@@ -1066,7 +1066,7 @@ The following options may be given as the first argument:
  --table-open-cache=# 
  The number of cached open tables
  --tc-heuristic-recover=name 
- Decision to use in heuristic recover process. One of: 
+ Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
@@ -1155,10 +1155,8 @@ bulk-insert-buffer-size 8388608
 changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
-character-set-server latin1
 character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)
-collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
 console FALSE
@@ -1424,7 +1422,7 @@ sysdate-is-now FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431
-tc-heuristic-recover COMMIT
+tc-heuristic-recover OFF
 thread-cache-size 0
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000

@@ -80,7 +80,7 @@ EOF
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
 SET SQL_MODE="";
 use test;
-create table t1(a int) engine=example;
+create table t1(a int) engine=example charset=latin1;
 EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR < $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql

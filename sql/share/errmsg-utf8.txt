@@ -6136,7 +6136,7 @@ ER_SLAVE_HEARTBEAT_FAILURE
   eng "Unexpected master's heartbeat data: %s"
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
+  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)."
 ER_UNUSED_14
   eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
@@ -6506,8 +6506,8 @@ ER_PARTITION_EXCHANGE_FOREIGN_KEY
   swe "Tabellen att byta ut mot partition har foreign key referenser: '%-.64s'"
 ER_NO_SUCH_KEY_VALUE
   eng "Key value '%-.192s' was not found in table '%-.192s.%-.192s'"
-ER_RPL_INFO_DATA_TOO_LONG
-  eng "Data for column '%s' too long"
+ER_VALUE_TOO_LONG
+  eng "Too long value for '%s'"
 ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
   eng "Replication event checksum verification failed while reading from network."
 ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
