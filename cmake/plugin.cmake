@@ -211,6 +211,8 @@ MACRO(MYSQL_ADD_PLUGIN)
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
         IF (ARG_STORAGE_ENGINE)
           SET(ver " = %{version}-%{release}")
+        ELSE()
+          SET(ver "")
         ENDIF()
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} PARENT_SCOPE)
 
