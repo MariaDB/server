@@ -73,7 +73,7 @@ protected:
 }; // end of JDBCDEF
 
 #if !defined(NJDBC)
-#include "JDBConn.h"
+#include "jdbconn.h"
 
 /***********************************************************************/
 /*  This is the JDBC Access Method class declaration for files from    */

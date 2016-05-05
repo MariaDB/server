@@ -47,7 +47,9 @@
 
 #if defined(__WIN__)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif // __WIN__
+#else   // !__WIN__
+#define nullptr 0
+#endif  // !__WIN__
 
 int GetConvSize();
 
@@ -61,6 +63,9 @@ int GetConvSize();
 #define ASSERT(f)          ((void)0)
 #define DEBUG_ONLY(f)      ((void)0)
 #endif  // !_DEBUG
+
+// To avoid gcc warning
+int TranslateJDBCType(int stp, int prec, int& len, char& v);
 
 /***********************************************************************/
 /*  GetJDBCType: returns the SQL_TYPE corresponding to a PLG type.      */
@@ -155,7 +160,7 @@ int TranslateJDBCType(int stp, int prec, int& len, char& v)
 static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, char *db,
 	char *tab, PQRYRES qrp)
 {
-	size_t    m, n;
+//size_t    m, n;
 	JCATPARM *cap;
 
 #if defined(_DEBUG)
@@ -174,8 +179,8 @@ static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, char *db,
 		goto fin;
 	} // endif rc
 
-	m = (size_t)qrp->Maxres;
-	n = (size_t)qrp->Nbcol;
+//m = (size_t)qrp->Maxres;
+//n = (size_t)qrp->Nbcol;
 	cap = (JCATPARM *)PlugSubAlloc(g, NULL, sizeof(JCATPARM));
 	memset(cap, 0, sizeof(JCATPARM));
 	cap->Id = fid;
@@ -1157,10 +1162,12 @@ void JDBConn::Close()
 
 		if (did == nullptr)
 			printf("ERROR: method JdbcDisconnect() not found !");
-		else
-			rc = env->CallIntMethod(job, did);
+		else if ((rc = env->CallIntMethod(job, did)))
+			printf("jdbcDisconnect: rc=%d", (int)rc);
 
-		rc = jvm->DetachCurrentThread();
+		if ((rc = jvm->DetachCurrentThread()))
+			printf("DetachCurrentThread: rc = %d", (int)rc);
+
 		//rc = jvm->DestroyJavaVM();
 		m_Opened = false;
 	}	// endif m_Opened
@@ -1687,8 +1694,8 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		int     len, qcol = 5;
 		PQRYRES qrp = NULL;
 		PCOLRES crp;
-		USHORT  i;
-		jint   *n;
+		ushort  i;
+		jint   *n = nullptr;
 		jstring label;
 		jmethodID colid;
 		int     rc = ExecSQLcommand(src);
@@ -1872,7 +1879,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	int JDBConn::GetCatInfo(JCATPARM *cap)
 	{
 		PGLOBAL& g = m_G;
-		void    *buffer;
+//	void    *buffer;
 		int      i;
 		PSZ      fnc = "Unknown";
 		uint     n, ncol;
@@ -1946,7 +1953,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		env->DeleteLocalRef(parms);
 
 		// n because we no more ignore the first column
-		if ((n = qrp->Nbcol) > (int)ncol) {
+		if ((n = qrp->Nbcol) > (uint)ncol) {
 			strcpy(g->Message, MSG(COL_NUM_MISM));
 			return -1;
 		} // endif n
@@ -1972,9 +1979,10 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 			if (crp->Type == TYPE_STRING) {
 				pbuf[n] = (char*)PlugSubAlloc(g, NULL, len);
-				buffer = pbuf[n];
-			} else
-				buffer = pval[n]->GetTo_Val();
+//			buffer = pbuf[n];
+      } // endif Type
+//		} else
+//			buffer = pval[n]->GetTo_Val();
 
 			n++;
 		} // endfor n
