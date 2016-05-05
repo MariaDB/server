@@ -6104,7 +6104,7 @@ int handler::ha_write_row(uchar *buf)
       current_thd->wsrep_exec_mode != REPL_RECV &&
       current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
   {
-    current_thd->transaction_rollback_request= TRUE;
+    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
@@ -6148,7 +6148,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
       current_thd->wsrep_exec_mode != REPL_RECV &&
       current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
   {
-    current_thd->transaction_rollback_request= TRUE;
+    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     return ER_ERROR_DURING_COMMIT;
   }
@@ -6186,7 +6186,7 @@ int handler::ha_delete_row(const uchar *buf)
       current_thd->wsrep_exec_mode != REPL_RECV &&
       current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
   {
-    current_thd->transaction_rollback_request= TRUE;
+    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     return ER_ERROR_DURING_COMMIT;
   }
