@@ -14418,6 +14418,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       if (table->outer_join && !table->embedding && table->table)
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
+      if (!(straight_join || table->straight))
+        table->dep_tables= table->embedding? table->embedding->dep_tables: 0;
       if (table->on_expr)
       {
         /* Add ON expression to the WHERE or upper-level ON condition. */
