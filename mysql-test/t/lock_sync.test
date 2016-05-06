@@ -406,6 +406,12 @@ let $restore_table= t2;
 --echo # 2.8 REPLACE with a subquery.
 --echo # 
 --echo # Same is true for this statement as well.
+
+--echo # Suppress warnings for REPLACE ... SELECT
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+--enable_query_log
+
 let $statement= replace into t2 select i+5 from t1;
 let $restore_table= t2;
 --source include/check_no_concurrent_insert.inc
@@ -873,116 +879,6 @@ set @@global.concurrent_insert= @old_concurrent_insert;
 
 
 --echo #
---echo # Test for bug #45143 "All connections hang on concurrent ALTER TABLE".
---echo #
---echo # Concurrent execution of statements which required weak write lock
---echo # (TL_WRITE_ALLOW_WRITE) on several instances of the same table and
---echo # statements which tried to acquire stronger write lock (TL_WRITE,
---echo # TL_WRITE_ALLOW_READ) on this table might have led to deadlock.
-#
-# Suppress warnings for INSERTs that use get_lock().
-#
-disable_query_log;
-call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-enable_query_log;
-
---disable_warnings
-drop table if exists t1;
-drop view if exists v1;
---enable_warnings
---echo # Create auxiliary connections used through the test.
-connect (con_bug45143_1,localhost,root,,test,,);
-connect (con_bug45143_3,localhost,root,,test,,);
-connect (con_bug45143_2,localhost,root,,test,,);
-connection default;
---echo # Reset DEBUG_SYNC facility before using it.
-set debug_sync= 'RESET';
---echo # Turn off logging so calls to locking subsystem performed
---echo # for general_log table won't interfere with our test.
-set @old_general_log = @@global.general_log;
-set @@global.general_log= OFF;
-
-create table t1 (i int) engine=InnoDB;
---echo # We have to use view in order to make LOCK TABLES avoid
---echo # acquiring SNRW metadata lock on table.
-create view v1 as select * from t1;
-insert into t1 values (1);
---echo # Prepare user lock which will be used for resuming execution of
---echo # the first statement after it acquires TL_WRITE_ALLOW_WRITE lock.
-select get_lock("lock_bug45143_wait", 0);
-
-connection con_bug45143_1;
---echo # Sending:
---send insert into t1 values (get_lock("lock_bug45143_wait", 100));
-
-connection con_bug45143_2;
---echo # Wait until the above INSERT takes TL_WRITE_ALLOW_WRITE lock on 't1'
---echo # and then gets blocked on user lock 'lock_bug45143_wait'.
-let $wait_condition= select count(*)= 1 from information_schema.processlist
-                       where state= 'User lock' and
-                             info='insert into t1 values (get_lock("lock_bug45143_wait", 100))';
---source include/wait_condition.inc
---echo # Ensure that upcoming SELECT waits after acquiring TL_WRITE_ALLOW_WRITE
---echo # lock for the first instance of 't1'.
-set debug_sync='thr_multi_lock_after_thr_lock SIGNAL parked WAIT_FOR go';
---echo # Sending:
---send select count(*) > 0 from t1 as a, t1 as b for update;
-
-connection con_bug45143_3;
---echo # Wait until the above SELECT ... FOR UPDATE is blocked after
---echo # acquiring lock for the the first instance of 't1'.
-set debug_sync= 'now WAIT_FOR parked';
---echo # Send LOCK TABLE statement which will try to get TL_WRITE lock on 't1':
---send lock table v1 write;
-
-connection default;
---echo # Wait until this LOCK TABLES statement starts waiting for table lock.
-let $wait_condition= select count(*)= 1 from information_schema.processlist
-                       where state= 'Waiting for table level lock' and
-                             info='lock table v1 write';
---source include/wait_condition.inc
---echo # Allow SELECT ... FOR UPDATE to resume.
---echo # Since it already has TL_WRITE_ALLOW_WRITE lock on the first instance
---echo # of 't1' it should be able to get lock on the second instance without
---echo # waiting, even although there is another thread which has such lock
---echo # on this table and also there is a thread waiting for a TL_WRITE on it.
-set debug_sync= 'now SIGNAL go';
-
-connection con_bug45143_2;
---echo # Reap SELECT ... FOR UPDATE
---reap
-
-connection default;
---echo # Resume execution of the INSERT statement.
-select release_lock("lock_bug45143_wait");
-
-connection con_bug45143_1;
---echo # Reap INSERT statement.
---echo # In Statement and Mixed replication mode we get here "Unsafe 
---echo # for binlog" warnings. In row mode there are no warnings.
---echo # Hide the discrepancy.
---disable_warnings
---reap
---enable_warnings
-
-
-connection con_bug45143_3;
---echo # Reap LOCK TABLES statement.
---reap
-unlock tables;
-
-connection default;
---echo # Do clean-up.
-disconnect con_bug45143_1;
-disconnect con_bug45143_2;
-disconnect con_bug45143_3;
-set debug_sync= 'RESET';
-set @@global.general_log= @old_general_log;
-drop view v1;
-drop table t1;
-
-
---echo #
 --echo # Bug#50821 Deadlock between LOCK TABLES and ALTER TABLE
 --echo #
 
@@ -1048,55 +944,6 @@ disconnect con1;
 connection default;
 DROP EVENT e2;
 SET DEBUG_SYNC="RESET";
-
-
---echo #
---echo # Bug#55930 Assertion `thd->transaction.stmt.is_empty() ||
---echo #           thd->in_sub_stmt || (thd->state..
---echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
-CREATE TABLE t1(a INT) engine=InnoDB;
-INSERT INTO t1 VALUES (1), (2);
-
-connect (con1, localhost, root);
-connect (con2, localhost, root);
-
-connection con1;
-SET SESSION lock_wait_timeout= 1;
-SET DEBUG_SYNC= 'ha_admin_open_ltable SIGNAL opti_recreate WAIT_FOR opti_analyze';
---echo # Sending:
---send OPTIMIZE TABLE t1
-
-connection con2;
-SET DEBUG_SYNC= 'now WAIT_FOR opti_recreate';
-SET DEBUG_SYNC= 'after_lock_tables_takes_lock SIGNAL thrlock WAIT_FOR release_thrlock';
---echo # Sending:
---send INSERT INTO t1 VALUES (3)
-
-connection default;
-SET DEBUG_SYNC= 'now WAIT_FOR thrlock';
-SET DEBUG_SYNC= 'now SIGNAL opti_analyze';
-
-connection con1;
---echo # Reaping: OPTIMIZE TABLE t1
---reap
-SET DEBUG_SYNC= 'now SIGNAL release_thrlock';
-disconnect con1;
---source include/wait_until_disconnected.inc
-
-connection con2;
---echo # Reaping: INSERT INTO t1 VALUES (3)
---reap
-disconnect con2;
---source include/wait_until_disconnected.inc
-
-connection default;
-DROP TABLE t1;
-SET DEBUG_SYNC= 'RESET';
 
 
 --echo #

@@ -6,48 +6,6 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (c1 INT);
 INSERT INTO t1 VALUES (1);
 connect  con1, localhost, root,,;
-HANDLER t1 OPEN;
-connection default;
-LOCK TABLE t1 WRITE;
-SET DEBUG_SYNC='mdl_upgrade_lock SIGNAL waiting';
-TRUNCATE TABLE t1;
-connect  con2, localhost, root,,;
-SET DEBUG_SYNC='now WAIT_FOR waiting';
-KILL QUERY @id;
-disconnect con2;
-connection default;
-ERROR 70100: Query execution was interrupted
-UNLOCK TABLES;
-connection con1;
-# Release shared metadata lock by closing HANDLER.
-HANDLER t1 CLOSE;
-disconnect con1;
-connection default;
-DROP TABLE t1;
-SET DEBUG_SYNC='RESET';
-CREATE TABLE t1 (c1 INT);
-INSERT INTO t1 VALUES (1);
-connect  con1, localhost, root,,;
-HANDLER t1 OPEN;
-connection default;
-LOCK TABLE t1 WRITE;
-SET DEBUG_SYNC='mdl_upgrade_lock SIGNAL waiting';
-TRUNCATE TABLE t1;
-connect  con2, localhost, root,,;
-SET DEBUG_SYNC='now WAIT_FOR waiting';
-disconnect con2;
-connection con1;
-HANDLER t1 CLOSE;
-disconnect con1;
-connection default;
-ERROR 42S02: Table 'test.t1' doesn't exist
-UNLOCK TABLES;
-DROP TABLE t1;
-ERROR 42S02: Unknown table 'test.t1'
-SET DEBUG_SYNC='RESET';
-CREATE TABLE t1 (c1 INT);
-INSERT INTO t1 VALUES (1);
-connect  con1, localhost, root,,;
 START TRANSACTION;
 INSERT INTO t1 VALUES (2);
 connection default;

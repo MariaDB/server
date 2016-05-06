@@ -4794,7 +4794,8 @@ end_with_restore_list:
     if (lock_tables_precheck(thd, all_tables))
       goto error;
 
-    thd->variables.option_bits|= OPTION_TABLE_LOCK;
+    thd->variables.option_bits|= OPTION_TABLE_LOCK | OPTION_NOT_AUTOCOMMIT;
+    thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
 
     res= lock_tables_open_and_lock_tables(thd, all_tables);
 

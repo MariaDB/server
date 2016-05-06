@@ -1054,24 +1054,24 @@ commit;
 --echo # an open HANDLER, ER_LOCK_DEADLOCK is reported.
 --echo #
 create table t1 (a int, key a(a));
-create  table t2 like t1;
 handler t1 open;
 connection con1;
-lock table t1 write, t2 write;
+select get_lock('lock1', 10);
 connection default;
-send drop table t2;
+send select get_lock('lock1', 10);
 connection con2;
---echo # Waiting for 'drop table t2' to get blocked...
+--echo # Waiting for 'select get_lock('lock1', 10)' to get blocked...
 let $wait_condition=select count(*)=1 from information_schema.processlist
-                    where state='Waiting for table metadata lock' and
-                          info='drop table t2';
+                    where state='User lock' and
+                          info='select get_lock(\'lock1\', 10)';
 --source include/wait_condition.inc
 connection con1;
 --error ER_LOCK_DEADLOCK
 drop table t1;
-unlock tables;
+select release_lock('lock1');
 connection default;
 reap;
+select release_lock('lock1');
 
 --echo # Demonstrate that there is no deadlock with FLUSH TABLE,
 --echo # even though it is waiting for the other table to go away
@@ -1118,6 +1118,7 @@ connection default;
 handler t1 read a next;
 
 --echo # Unblock 'lock tables t1 write'.
+select * from t1; # Release MDL_SHARED_READ held by HANDLER
 commit;
 
 connection con1;
@@ -1132,7 +1133,7 @@ connection con1;
 --echo # Waiting for 'handler t1 read a next' to get blocked...
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table level lock" and
+  where state = "Waiting for table metadata lock" and
         info = "handler t1 read a next";
 --source include/wait_condition.inc
 
@@ -1259,10 +1260,6 @@ handler t1 read a last;
 insert into t1 (a, b) values (7, 7);
 handler t1 read a last;
 commit;
-connection con1;
---echo # Demonstrate that the HANDLER doesn't hold MDL_SHARED_WRITE.
-lock table t1 write;
-unlock tables;
 connection default;
 handler t1 read a prev;
 handler t1 close;

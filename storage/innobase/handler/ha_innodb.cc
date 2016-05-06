@@ -18932,7 +18932,6 @@ free_share(
 	mysql_mutex_unlock(&innobase_share_mutex);
 }
 
-#if 0
 /*********************************************************************//**
 Returns number of THR_LOCK locks used for one instance of InnoDB table.
 InnoDB no longer relies on THR_LOCK locks so 0 value is returned.
@@ -18948,7 +18947,6 @@ ha_innobase::lock_count(void) const
 {
 	return 0;
 }
-#endif
 
 /*****************************************************************//**
 Supposed to convert a MySQL table lock stored in the 'lock' field of the
@@ -19195,8 +19193,6 @@ ha_innobase::store_lock(
 
 		lock.type = lock_type;
 	}
-
-	*to++= &lock;
 
 	if (!trx_is_started(trx)
 	    && (m_prebuilt->select_lock_type != LOCK_NONE

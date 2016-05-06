@@ -2150,6 +2150,11 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
     request for metadata locks and TABLE_LIST elements.
   */
   reset();
+  if (thd->variables.option_bits & OPTION_AUTOCOMMIT)
+  {
+    thd->variables.option_bits&= ~(OPTION_NOT_AUTOCOMMIT);
+    thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
+  }
 }
 
 

@@ -274,7 +274,7 @@ public:
 
 	void free_foreign_key_create_info(char* str);
 
-	//uint lock_count(void) const;
+	uint lock_count(void) const;
 
 	THR_LOCK_DATA** store_lock(
 		THD*			thd,

@@ -46,7 +46,6 @@ a	b
 1	10
 2	20
 3	30
-4	40
 insert into t2 values (1);
 ERROR HY000: Table 't2' was not locked with LOCK TABLES
 commit;
@@ -59,7 +58,6 @@ a	b
 1	10
 2	20
 3	30
-4	40
 select * from t2;
 a
 1
@@ -72,7 +70,6 @@ a	b
 1	10
 2	20
 3	30
-4	40
 5	50
 select * from t2;
 a
@@ -84,7 +81,6 @@ a	b
 1	10
 2	20
 3	30
-4	40
 5	50
 select * from t2;
 a
