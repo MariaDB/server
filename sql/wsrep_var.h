@@ -83,4 +83,6 @@ extern bool wsrep_slave_threads_update       UPDATE_ARGS;
 extern bool wsrep_desync_check               CHECK_ARGS;
 extern bool wsrep_desync_update              UPDATE_ARGS;
 
+extern bool wsrep_max_ws_size_update         UPDATE_ARGS;
+
 #endif /* WSREP_VAR_H */

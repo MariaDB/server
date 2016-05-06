@@ -19,7 +19,7 @@
 #include "sql_class.h" // THD, IO_CACHE
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */
-#define WSREP_MAX_WS_SIZE (0xFFFFFFFFUL - HEAP_PAGE_SIZE)
+#define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
 
 /*
   Write the contents of a cache to a memory buffer.

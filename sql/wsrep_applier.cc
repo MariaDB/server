@@ -39,15 +39,9 @@ static Log_event* wsrep_read_log_event(
   const char *error= 0;
   Log_event *res=  0;
 
-  if (data_len > wsrep_max_ws_size)
-  {
-    error = "Event too big";
-    goto err;
-  }
+  res= Log_event::read_log_event(buf, data_len, &error, description_event,
+                                 true);
 
-  res= Log_event::read_log_event(buf, data_len, &error, description_event, true);
-
-err:
   if (!res)
   {
     DBUG_ASSERT(error != 0);
