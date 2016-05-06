@@ -1037,10 +1037,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 124 shift/reduce conflicts.
+  Currently there are 123 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 124
+%expect 123
 
 /*
    Comments for TOKENS.
@@ -5695,7 +5695,19 @@ create_select:
           {
             Select->parsing_place= NO_MATTER;
           }
-          table_expression
+          /*
+            TODO:
+            The following sequence repeats a few times:
+                  opt_table_expression
+                  opt_order_clause
+                  opt_limit_clause
+                  opt_select_lock_type
+            Perhaps they can be grouped into a dedicated rule.
+          */
+          opt_table_expression
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
           {
             /*
               The following work only with the local list, the global list
@@ -8535,7 +8547,10 @@ select_paren_derived:
             Lex->current_select->set_braces(true);
           }
           SELECT_SYM select_part2_derived
-          table_expression
+          opt_table_expression
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
           {
             if (setup_select_in_parentheses(Lex))
               MYSQL_YYABORT;
@@ -8566,24 +8581,20 @@ select_part2:
         | select_options_and_item_list into opt_select_lock_type
         | select_options_and_item_list
           opt_into
-          from_clause
-          opt_where_clause
-          opt_group_clause
-          opt_having_clause
-          opt_window_clause
+          table_expression
           opt_order_clause
           opt_limit_clause
           opt_procedure_clause
           opt_into
           opt_select_lock_type
           {
-            if ($2 && $11)
+            if ($2 && $7)
             {
               /* double "INTO" clause */
               my_error(ER_WRONG_USAGE, MYF(0), "INTO", "INTO");
               MYSQL_YYABORT;
             }
-            if ($10 && ($2 || $11))
+            if ($6 && ($2 || $7))
             {
               /* "INTO" with "PROCEDURE ANALYSE" */
               my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "INTO");
@@ -8606,25 +8617,25 @@ select_options_and_item_list:
           }
         ;
 
+
+/**
+  <table expression>, as in the SQL standard.
+*/
 table_expression:
-          opt_from_clause
+          from_clause
           opt_where_clause
           opt_group_clause
           opt_having_clause
           opt_window_clause
-          opt_order_clause
-          opt_limit_clause
-          opt_procedure_clause
-          opt_select_lock_type
+        ;
+
+opt_table_expression:
+            /* Empty */
+          | table_expression
         ;
 
 from_clause:
           FROM table_reference_list
-        ;
-
-opt_from_clause:
-          /* empty */
-        | from_clause
         ;
 
 table_reference_list:
@@ -11208,7 +11219,10 @@ select_derived2:
           {
             Select->parsing_place= NO_MATTER;
           }
-          table_expression
+          opt_table_expression
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
         ;
 
 get_select_lex:
@@ -11946,9 +11960,11 @@ opt_procedure_clause:
 
             if (&lex->select_lex != lex->current_select)
             {
+              // SELECT * FROM t1 UNION SELECT * FROM t2 PROCEDURE ANALYSE();
               my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "subquery");
               MYSQL_YYABORT;
             }
+
             lex->proc_list.elements=0;
             lex->proc_list.first=0;
             lex->proc_list.next= &lex->proc_list.first;
@@ -16359,7 +16375,10 @@ union_option:
 
 query_specification:
           SELECT_SYM select_init2_derived
-          table_expression
+          opt_table_expression
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
           {
             $$= Lex->current_select->master_unit()->first_select();
           }
