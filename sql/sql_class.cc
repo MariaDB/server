@@ -1650,6 +1650,8 @@ void THD::free_connection()
   net.vio= 0;
   net_end(&net);
 #endif
+ if (!cleanup_done)
+   cleanup();
   ha_close_connection(this);
   plugin_thdvar_cleanup(this);
   mysql_audit_free_thd(this);
@@ -1719,8 +1721,6 @@ THD::~THD()
 #endif
   if (!free_connection_done)
     free_connection();
-  if (!cleanup_done)
-    cleanup();
 
   mdl_context.destroy();
 
