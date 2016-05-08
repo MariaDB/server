@@ -1105,7 +1105,7 @@ int compare_field_values(Dep_value_field *a, Dep_value_field *b, void *unused)
 
   uint b_ratio= b->field->table->tablenr*MAX_FIELDS +
                 b->field->field_index;
-  return (a_ratio < b_ratio)? -1 : ((a_ratio == b_ratio)? 0 : 1);
+  return (a_ratio < b_ratio)? 1 : ((a_ratio == b_ratio)? 0 : -1);
 }
 
 

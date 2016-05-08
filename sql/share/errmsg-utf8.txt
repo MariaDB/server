@@ -7154,3 +7154,50 @@ ER_WRONG_ORDER_IN_WITH_CLAUSE
         eng "The definition of the table '%s' refers to the table '%s' defined later in a non-recursive WITH clause"
 ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
         eng "Recursive queries in WITH clause are not supported yet"
+
+#
+# Internal errors, not used
+#
+skip-to-error-number 2000
+
+# MySQL 5.7 error numbers starts here
+skip-to-error-number 3000
+
+ER_MYSQL_57_TEST
+        eng "5.7 test"
+
+# MariaDB extra error numbers starts from 4000
+skip-to-error-number 4000
+
+ER_WRONG_WINDOW_SPEC_NAME
+        eng "Window specification with name '%s' is not defined"
+ER_DUP_WINDOW_NAME
+        eng "Multiple window specifications with the same name '%s'"
+ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC
+        eng "Window specification referencing another one '%s' cannot contain partition list"
+ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC
+        eng "Referenced window specification '%s' already contains order list"
+ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC
+        eng "Referenced window specification '%s' cannot contain window frame"
+ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS
+        eng "Unacceptable combination of window frame bound specifications"
+ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+        eng "Window function is allowed only in SELECT list and ORDER BY clause"
+ER_WINDOW_FUNCTION_IN_WINDOW_SPEC
+        eng "Window function is not allowed in window specification"
+ER_NOT_ALLOWED_WINDOW_FRAME
+        eng "Window frame is not allowed with '%s'"
+ER_NO_ORDER_LIST_IN_WINDOW_SPEC
+        eng "No order list in window specification for '%s'"
+ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY
+        eng "RANGE-type frame requires ORDER BY clause with single sort key"
+ER_WRONG_TYPE_FOR_ROWS_FRAME
+        eng "Integer is required for ROWS-type frame"
+ER_WRONG_TYPE_FOR_RANGE_FRAME
+        eng "Numeric datatype is required for RANGE-type frame"
+ER_FRAME_EXCLUSION_NOT_SUPPORTED
+        eng "Frame exclusion is not supported yet"
+ER_WINDOW_FUNCTION_DONT_HAVE_FRAME
+        eng "This window function may not have a window frame"
+ER_INVALID_NTILE_ARGUMENT
+        eng "Argument of NTILE must be greater than 0"

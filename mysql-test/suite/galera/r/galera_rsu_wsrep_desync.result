@@ -1,10 +1,14 @@
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 SET GLOBAL wsrep_desync=1;
 SET wsrep_OSU_method=RSU;
 SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 SET GLOBAL wsrep_desync=0;
 SET DEBUG_SYNC= 'now SIGNAL continue';
+connection node_1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -17,6 +21,7 @@ wsrep_desync	OFF
 SET wsrep_OSU_method=TOI;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 SET GLOBAL wsrep_desync=0;
 Warnings:
@@ -24,10 +29,12 @@ Warning	1231	'wsrep_desync' is already OFF.
 SET wsrep_OSU_method=RSU;
 SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+connection node_1a;
 SET GLOBAL wsrep_desync=1;
 ERROR HY000: Operation 'desync' failed for SET GLOBAL wsrep_desync=1
 SET GLOBAL wsrep_desync=0;
 SET DEBUG_SYNC= 'now SIGNAL continue';
+connection node_1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -39,4 +46,5 @@ DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
 CALL mtr.add_suppression("Protocol violation");
 CALL mtr.add_suppression("desync failed");
+connection node_2;
 CALL mtr.add_suppression("Protocol violation");

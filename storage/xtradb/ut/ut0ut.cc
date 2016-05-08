@@ -46,9 +46,6 @@ Created 5/11/1994 Heikki Tuuri
 # include <string>
 #endif /* UNIV_HOTBACKUP */
 
-/** A constant to prevent the compiler from optimizing ut_delay() away. */
-UNIV_INTERN ibool	ut_always_false	= FALSE;
-
 #ifdef __WIN__
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
@@ -398,25 +395,21 @@ Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return	dummy value */
 UNIV_INTERN
-ulint
+void
 ut_delay(
 /*=====*/
 	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
 {
-	ulint	i, j;
+	ulint	i;
 
-	j = 0;
+	UT_LOW_PRIORITY_CPU();
 
 	for (i = 0; i < delay * 50; i++) {
-		j += i;
 		UT_RELAX_CPU();
+		UT_COMPILER_BARRIER();
 	}
 
-	if (ut_always_false) {
-		ut_always_false = (ibool) j;
-	}
-
-	return(j);
+	UT_RESUME_PRIORITY_CPU();
 }
 #endif /* !UNIV_HOTBACKUP */
 

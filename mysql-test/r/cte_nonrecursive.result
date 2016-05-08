@@ -746,3 +746,16 @@ with t(f1,f1) as (select * from t1 where b >= 'c')
 select t1.b from t2,t1 where t1.a = t2.c;
 ERROR 42S21: Duplicate column name 'f1'
 drop table t1,t2;
+#
+# Bug mdev-9937: View used in the specification of with table 
+#                refers to the base table with the same name 
+#
+create table t1 (a int);
+insert into t1 values (20), (30), (10);
+create view v1 as select * from t1 where a > 10;
+with t1 as (select * from v1) select * from t1;
+a
+20
+30
+drop view v1;
+drop table t1;

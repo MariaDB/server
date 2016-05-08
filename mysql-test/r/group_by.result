@@ -1346,12 +1346,43 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR JOIN (PRIMARY,i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	144	
+#
+#  For this explain, the query plan is weird: if we are using 
+#  the primary key for reasons other than doing grouping, can't
+#  GROUP BY code take advantage of this?  Well, currently it doesnt:
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index; Using filesort
+#  Here's a proof it is really doing sorting:
+flush status;
+SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
+show status like 'Sort_%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	144
+Sort_scan	1
+# Proof ends.
+# 
+#  For this explain, the query plan is weird: if we are using 
+#  the primary key for reasons other than doing sorting, can't
+#  ORDER BY code take advantage of this?  Well, currently it doesnt:
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index; Using filesort
+#  Here's a proof it is really doing sorting:
+flush status;
+SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
+show status like 'Sort_%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	144
+Sort_scan	1
+# Proof ends.
+# 
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 a
 1
@@ -2678,3 +2709,17 @@ NULL
 100098
 100099
 drop table t0,t1,t2;
+#
+# MDEV-9602 crash in st_key::actual_rec_per_key when group by constant
+#
+create table t1 (a date not null,unique (a)) engine=innodb;
+Warnings:
+Warning	1286	Unknown storage engine 'innodb'
+Warning	1266	Using storage engine MyISAM for table 't1'
+select distinct a from t1 group by 'a';
+a
+insert into t1 values("2001-02-02"),("2001-02-03");
+select distinct a from t1 group by 'a';
+a
+2001-02-02
+drop table t1;

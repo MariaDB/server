@@ -263,7 +263,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
      my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
      DBUG_RETURN(TRUE);
   }
-  if (!(table= table_list->table) || !table->created)
+  if (!(table= table_list->table) || !table->is_created())
   {
       my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
 	       table_list->view_db.str, table_list->view_name.str);
@@ -490,27 +490,31 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   if (query_plan.using_filesort)
   {
-    uint         length= 0;
-    SORT_FIELD  *sortorder;
 
     {
+      Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
+
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
-	  !(file_sort= filesort(thd, table, sortorder, length,
-                                select, HA_POS_ERROR,
-                                true,
-                                fs_tracker)))
+      if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
         goto got_error;
+
       thd->inc_examined_row_count(file_sort->examined_rows);
       /*
         Filesort has already found and selected the rows we want to delete,
         so we don't need the where clause
       */
       delete select;
-      free_underlaid_joins(thd, select_lex);
+
+      /*
+        If we are not in DELETE ... RETURNING, we can free subqueries. (in
+        DELETE ... RETURNING we can't, because the RETURNING part may have
+        a subquery in it)
+      */
+      if (!with_select)
+        free_underlaid_joins(thd, select_lex);
       select= 0;
     }
   }
@@ -737,7 +741,7 @@ got_error:
     wild_num            - number of wildcards used in optional SELECT clause 
     field_list          - list of items in optional SELECT clause
     conds		- conditions
-
+l
   RETURN VALUE
     FALSE OK
     TRUE  error
@@ -758,7 +762,8 @@ got_error:
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
-      setup_fields(thd, NULL, field_list, MARK_COLUMNS_READ, NULL, 0) ||
+      setup_fields(thd, Ref_ptr_array(),
+                   field_list, MARK_COLUMNS_READ, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);

@@ -2,11 +2,13 @@
 # MDEV-8831 : enforce_storage_engine doesn't block table creation on
 # other nodes (galera cluster)
 #
+connection node_1;
 SET @@enforce_storage_engine=INNODB;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 CREATE TABLE t2(i INT) ENGINE=MYISAM;
 ERROR 42000: Unknown storage engine 'MyISAM'
 INSERT INTO t1 VALUES(1);
+connection node_2;
 SHOW TABLES;
 Tables_in_test
 t1
@@ -14,6 +16,7 @@ SELECT COUNT(*)=1 FROM t1;
 COUNT(*)=1
 1
 CREATE TABLE t2(i INT) ENGINE=MYISAM;
+connection node_1;
 SHOW TABLES;
 Tables_in_test
 t1

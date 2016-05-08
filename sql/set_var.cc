@@ -64,7 +64,7 @@ int sys_var_init()
   /* Must be already initialized. */
   DBUG_ASSERT(system_charset_info != NULL);
 
-  if (my_hash_init(&system_variable_hash, system_charset_info, 100, 0,
+  if (my_hash_init(&system_variable_hash, system_charset_info, 700, 0,
                    0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
     goto error;
 
@@ -76,6 +76,11 @@ int sys_var_init()
 error:
   fprintf(stderr, "failed to initialize System variables");
   DBUG_RETURN(1);
+}
+
+uint sys_var_elements()
+{
+  return system_variable_hash.records;
 }
 
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags)

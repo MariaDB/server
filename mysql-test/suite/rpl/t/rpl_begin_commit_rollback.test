@@ -129,7 +129,6 @@ source include/wait_for_slave_sql_to_start.inc;
 --echo # SAVEPOINT and ROLLBACK TO have the same problem in BUG#43263
 --echo # This was reported by BUG#50407
 connection master;
-echo SET SESSION AUTOCOMMIT=0;
 let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1);
 
 BEGIN;
@@ -157,7 +156,6 @@ COMMIT;
 source include/show_binlog_events.inc;
 sync_slave_with_master;
 
---echo [on slave]
 --echo #
 --echo # Verify INSERT statements in savepoints are executed, for MyISAM table
 --echo # is not effected by ROLLBACK TO

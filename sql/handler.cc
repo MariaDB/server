@@ -295,7 +295,7 @@ handler *get_ha_partition(partition_info *part_info)
 static const char **handler_errmsgs;
 
 C_MODE_START
-static const char **get_handler_errmsgs()
+static const char **get_handler_errmsgs(int nr)
 {
   return handler_errmsgs;
 }
@@ -386,12 +386,10 @@ int ha_init_errors(void)
 */
 static int ha_finish_errors(void)
 {
-  const char    **errmsgs;
-
   /* Allocate a pointer array for the error message strings. */
-  if (! (errmsgs= my_error_unregister(HA_ERR_FIRST, HA_ERR_LAST)))
-    return 1;
-  my_free(errmsgs);
+  my_error_unregister(HA_ERR_FIRST, HA_ERR_LAST);
+  my_free(handler_errmsgs);
+  handler_errmsgs= 0;
   return 0;
 }
 
@@ -3079,6 +3077,7 @@ int handler::update_auto_increment()
   if (unlikely(nr == ULONGLONG_MAX))
       DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
 
+  DBUG_ASSERT(nr != 0);
   DBUG_PRINT("info",("auto_increment: %llu  nb_reserved_values: %llu",
                      nr, append ? nb_reserved_values : 0));
 

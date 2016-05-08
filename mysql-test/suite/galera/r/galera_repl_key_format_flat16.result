@@ -1,13 +1,16 @@
+connection node_1;
 SET GLOBAL wsrep_provider_options = 'repl.key_format=FLAT16';
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (123);
 CREATE TABLE t2 (f1 VARCHAR(256)) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (REPEAT('a', 256));
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
 UPDATE t1 SET f1 = 234;
 UPDATE t2 SET f1 = REPEAT('b', 256);
+connection node_1;
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 234;
 COUNT(*) = 1
 1

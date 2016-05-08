@@ -37,12 +37,15 @@ if (!$_galera_port)
 
 if ($galera_debug)
 {
+--disable_query_log
   --echo connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
+--enable_query_log
 }
 
 # Temporal solution to avoid concurrent IST MDEV-7178
 --sleep 1
 
 # Open a connection
+--disable_query_log
 --connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
-
+--enable_query_log

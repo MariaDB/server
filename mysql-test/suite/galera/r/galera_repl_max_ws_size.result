@@ -1,3 +1,4 @@
+connection node_1;
 CREATE TABLE t1 (f1 VARCHAR(512)) ENGINE=InnoDB;
 SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
 INSERT INTO t1 VALUES (REPEAT('a', 512));

@@ -28,6 +28,7 @@
 #include "mem_root_array.h"
 #include "sql_cmd.h"
 #include "sql_alter.h"                // Alter_info
+#include "sql_window.h"
 
 /* YACC and LEX Definitions */
 
@@ -47,6 +48,7 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 
@@ -643,6 +645,7 @@ public:
     derived tables/views handling.
   */
   TABLE_LIST *derived;
+  bool is_view;
   /* With clause attached to this unit (if any) */
   With_clause *with_clause;
   /* With element where this unit is used as the specification (if any) */
@@ -721,6 +724,7 @@ public:
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
 /*
   SELECT_LEX - store information of parsed SELECT statment
@@ -799,9 +803,9 @@ public:
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
   SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
-  // Arrays of pointers to top elements of all_fields list
-  Item **ref_pointer_array;
-  size_t ref_pointer_array_size; // Number of elements in array.
+
+  /// Array of pointers to top elements of all_fields list
+  Ref_ptr_array ref_pointer_array;
 
   /*
     number of items in select_list and HAVING clause used to get number
@@ -897,6 +901,12 @@ public:
     joins on the right.
   */
   List<String> *prev_join_using;
+
+  /**
+    The set of those tables whose fields are referenced in the select list of
+    this select level.
+  */
+  table_map select_list_tables;
 
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
@@ -1087,6 +1097,24 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
+
+  List<Window_spec> window_specs;
+  void prepare_add_window_spec(THD *thd);
+  bool add_window_def(THD *thd, LEX_STRING *win_name, LEX_STRING *win_ref,
+                      SQL_I_List<ORDER> win_partition_list,
+                      SQL_I_List<ORDER> win_order_list,
+                      Window_frame *win_frame);
+  bool add_window_spec(THD *thd, LEX_STRING *win_ref,
+                       SQL_I_List<ORDER> win_partition_list,
+                       SQL_I_List<ORDER> win_order_list,
+                       Window_frame *win_frame);
+  List<Item_window_func> window_funcs;
+  bool add_window_func(Item_window_func *win_func)
+  {
+    return window_funcs.push_back(win_func);
+  }
+
+  bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
 private:
   bool m_non_agg_field_used;
@@ -2755,6 +2783,14 @@ public:
       limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+
+  SQL_I_List<ORDER> save_group_list;
+  SQL_I_List<ORDER> save_order_list;
+  LEX_STRING *win_ref;
+  Window_frame *win_frame;
+  Window_frame_bound *frame_top_bound;
+  Window_frame_bound *frame_bottom_bound;
+  Window_spec *win_spec;
 
   inline void free_set_stmt_mem_root()
   {

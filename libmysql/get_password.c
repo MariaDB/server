@@ -46,7 +46,7 @@
 #endif
 #endif
 #ifdef alpha_linux_port
-#include <asm/ioctls.h>				/* QQ; Fix this in configure */
+#include <asm/ioctls.h>
 #include <asm/termiobits.h>
 #endif
 #else

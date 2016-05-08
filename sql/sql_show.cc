@@ -2960,8 +2960,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         thread in this thread. However it's better that we notice it eventually
         than hide it.
       */
-      table->field[12]->store((longlong) (tmp->status_var.local_memory_used +
-                                          sizeof(THD)),
+      table->field[12]->store((longlong) tmp->status_var.local_memory_used,
                               FALSE);
       table->field[12]->set_notnull();
       table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
@@ -3044,7 +3043,7 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_mutex_lock(&LOCK_show_status);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 200, 20, MYF(0)))
+      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 250, 50, MYF(0)))
   {
     res= 1;
     goto err;
@@ -3257,7 +3256,8 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff, scope);
+      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+                                          status_var, scope);
     
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
@@ -3389,10 +3389,14 @@ end:
   DBUG_RETURN(res);
 }
 
-/* collect status for all running threads */
+/*
+  collect status for all running threads
+  Return number of threads used
+*/
 
-void calc_sum_of_all_status(STATUS_VAR *to)
+uint calc_sum_of_all_status(STATUS_VAR *to)
 {
+  uint count= 0;
   DBUG_ENTER("calc_sum_of_all_status");
 
   /* Ensure that thread id not killed during loop */
@@ -3403,16 +3407,21 @@ void calc_sum_of_all_status(STATUS_VAR *to)
 
   /* Get global values as base */
   *to= global_status_var;
+  to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
   while ((tmp= it++))
   {
+    count++;
     if (!tmp->status_in_global)
+    {
       add_to_status(to, &tmp->status_var);
+      to->local_memory_used+= tmp->status_var.local_memory_used;
+    }
   }
   
   mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(count);
 }
 
 

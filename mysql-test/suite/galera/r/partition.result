@@ -13,10 +13,12 @@ SELECT * FROM t1;
 pk	i
 
 # On node_1
+connection node_1;
 SELECT * FROM t1;
 pk	i
 
 # On node_2
+connection node_2;
 SELECT * FROM t1;
 pk	i
 DROP TABLE t1;
@@ -26,6 +28,7 @@ DROP TABLE t1;
 #
 
 # On node_1
+connection node_1;
 CREATE TABLE test.t1 (
 i INT UNSIGNED NOT NULL AUTO_INCREMENT,
 PRIMARY KEY (i)
@@ -46,6 +49,7 @@ i
 9
 
 # On node_2
+connection node_2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -70,15 +74,18 @@ i
 9
 
 # On node_1
+connection node_1;
 ALTER TABLE t1 TRUNCATE PARTITION p2;
 SELECT * FROM test.t1;
 i
 
 # On node_2
+connection node_2;
 SELECT * FROM test.t1;
 i
 
 # On node_1
+connection node_1;
 ALTER TABLE t1 DROP PARTITION p2;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -91,6 +98,7 @@ t1	CREATE TABLE `t1` (
  PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
 
 # On node_2
+connection node_2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -104,11 +112,13 @@ DROP TABLE t1, p1;
 #
 # MDEV-5146: Bulk loads into partitioned table not working
 #
+connection node_1;
 # Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
 # entries.
 SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
@@ -116,9 +126,11 @@ wsrep_last_committed_diff
 1
 DROP TABLE t1;
 # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 101 FROM t1;
 COUNT(*) = 101
 1
@@ -127,14 +139,19 @@ wsrep_last_committed_diff
 DROP TABLE t1;
 # Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
 # entries.
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = OFF;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
 wsrep_last_committed_diff
 1
 DROP TABLE t1;
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = 1;;
+disconnect node_2;
+disconnect node_1;
 # End of test

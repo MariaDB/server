@@ -367,7 +367,7 @@ static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 uint kill_cached_threads;
 static uint wake_thread;
 ulong max_used_connections;
-static volatile ulong cached_thread_count= 0;
+volatile ulong cached_thread_count= 0;
 static char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
@@ -1987,8 +1987,6 @@ static void __cdecl kill_server(int sig_ptr)
   if (wsrep_inited == 1)
     wsrep_deinit(true);
 
-  wsrep_thr_deinit();
-
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
     unireg_abort(1);				/* purecov: inspected */
@@ -2144,6 +2142,9 @@ static void mysqld_exit(int exit_code)
   set_malloc_size_cb(NULL);
   cleanup_tls();
   DBUG_LEAVE;
+  if (opt_endinfo && global_status_var.global_memory_used)
+    fprintf(stderr, "Warning: Memory not freed: %ld\n",
+            (long) global_status_var.global_memory_used);
   sd_notify(0, "STATUS=MariaDB server is down");
   exit(exit_code); /* purecov: inspected */
 }
@@ -2213,11 +2214,12 @@ void clean_up(bool print_message)
   free_global_client_stats();
   free_global_table_stats();
   free_global_index_stats();
-  delete_dynamic(&all_options);
+  delete_dynamic(&all_options);                 // This should be empty
   free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
 #endif
+  wsrep_thr_deinit();
   my_uuid_end();
   delete binlog_filter;
   delete global_rpl_filter;
@@ -2234,13 +2236,12 @@ void clean_up(bool print_message)
 
   if (print_message && my_default_lc_messages && server_start_time)
     sql_print_information(ER_DEFAULT(ER_SHUTDOWN_COMPLETE),my_progname);
-  cleanup_errmsgs();
   MYSQL_CALLBACK(thread_scheduler, end, ());
   thread_scheduler= 0;
   mysql_library_end();
   finish_client_errs();
-  (void) my_error_unregister(ER_ERROR_FIRST, ER_ERROR_LAST); // finish server errs
-  DBUG_PRINT("quit", ("Error messages freed"));
+  cleanup_errmsgs();
+  free_error_messages();
   /* Tell main we are ready */
   logger.cleanup_end();
   sys_var_end();
@@ -4088,39 +4089,44 @@ extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
-  /* If thread specific memory */
-  if (likely(is_thread_specific))
+ 
+  if (likely(is_thread_specific))  /* If thread specific memory */
   {
-    if (mysqld_server_initialized || thd)
-    {
-      /*
-        THD may not be set if we are called from my_net_init() before THD
-        thread has started.
-        However, this should never happen, so better to assert and
-        fix this.
-      */
-      DBUG_ASSERT(thd);
-      if (thd)
-      {
-        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.local_memory_used,
-                            size));
-        thd->status_var.local_memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
-                    !debug_assert_on_not_freed_memory);
-      }
-    }
+    /*
+      When thread specfic is set, both mysqld_server_initialized and thd
+      must be set
+    */
+    DBUG_ASSERT(mysqld_server_initialized && thd);
+
+    DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.local_memory_used,
+                        size));
+    thd->status_var.local_memory_used+= size;
+    DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
+                !debug_assert_on_not_freed_memory);
   }
   else if (likely(thd))
+  {
+    DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.global_memory_used,
+                        size));
     thd->status_var.global_memory_used+= size;
+  }
   else
   {
-    // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-    int64 volatile * volatile ptr=&global_status_var.global_memory_used;
-    my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+    update_global_memory_status(size);
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Check if we have missed some mallocs. THis can't be done for embedded
+      server as the main code may have done calls to malloc before starting
+      the embedded library.
+    */
+    DBUG_ASSERT(global_status_var.global_memory_used >= 0);
+#endif
   }
 }
 }
+
 
 /**
   Create a replication file name or base for file names.
@@ -4158,6 +4164,22 @@ rpl_make_log_name(const char *opt,
     DBUG_RETURN(NULL);
 }
 
+/* We have to setup my_malloc_size_cb_func early to catch all mallocs */
+
+static int init_early_variables()
+{
+  if (pthread_key_create(&THR_THD, NULL))
+  {
+    fprintf(stderr, "Fatal error: Can't create thread-keys\n");
+    return 1;
+  }
+  set_current_thd(0);
+  set_malloc_size_cb(my_malloc_size_cb_func);
+  global_status_var.global_memory_used= 0;
+  return 0;
+}
+
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -4168,15 +4190,6 @@ static int init_common_variables()
   connection_errors_max_connection= 0;
   connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
-
-  if (pthread_key_create(&THR_THD, NULL))
-  {
-    sql_print_error("Can't create thread-keys");
-    return 1;
-  }
-
-  set_current_thd(0);
-  set_malloc_size_cb(my_malloc_size_cb_func);
 
   init_libstrings();
   tzset();			// Set tzname
@@ -4714,6 +4727,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
+  mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
   mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
@@ -5020,6 +5034,8 @@ static int init_server_components()
 
   /* Setup logs */
 
+  setup_log_handling();
+
   /*
     Enable old-fashioned error log, except when the user has requested
     help information. Since the implementation of plugin server
@@ -5187,7 +5203,12 @@ static int init_server_components()
     variables even when a wsrep provider is not loaded.
   */
 
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
+
+#ifndef EMBEDDED_LIBRARY
   wsrep_thr_init();
+#endif
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
   {
@@ -5637,6 +5658,9 @@ int mysqld_main(int argc, char **argv)
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
   mysqld_server_started= mysqld_server_initialized= 0;
 
+  if (init_early_variables())
+    exit(1);
+
 #ifdef HAVE_NPTL
   ld_assume_kernel_is_set= (getenv("LD_ASSUME_KERNEL") != 0);
 #endif
@@ -5938,9 +5962,6 @@ int mysqld_main(int argc, char **argv)
   Events::set_original_state(Events::opt_event_scheduler);
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
-
-  /* It's now safe to use thread specific memory */
-  mysqld_server_initialized= 1;
 
   if (WSREP_ON)
   {
@@ -8310,15 +8331,16 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
 
 
 static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+                            struct system_status_var *status_var,
                             enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
-    *(longlong*) buff= (global_status_var.local_memory_used +
-                        global_status_var.global_memory_used);
+    *(longlong*) buff= (status_var->global_memory_used +
+                        status_var->local_memory_used);
   else
-    *(longlong*) buff= thd->status_var.local_memory_used;
+    *(longlong*) buff= status_var->local_memory_used;
   return 0;
 }
 
@@ -8747,7 +8769,9 @@ static int mysql_init_variables(void)
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
   bzero((uchar*) &mysql_tmpdir_list, sizeof(mysql_tmpdir_list));
-  bzero((char *) &global_status_var, sizeof(global_status_var));
+  /* Clear all except global_memory_used */
+  bzero((char*) &global_status_var, offsetof(STATUS_VAR,
+                                             last_cleared_system_status_var));
   opt_large_pages= 0;
   opt_super_large_pages= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -9428,7 +9452,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   /* prepare all_options array */
   my_init_dynamic_array(&all_options, sizeof(my_option),
-                        array_elements(my_long_options),
+                        array_elements(my_long_options) +
+                        sys_var_elements(),
                         array_elements(my_long_options)/4, MYF(0));
   add_many_options(&all_options, my_long_options, array_elements(my_long_options));
   sys_var_add_options(&all_options, 0);
@@ -9992,6 +10017,7 @@ void refresh_status(THD *thd)
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
+  thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
 

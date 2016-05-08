@@ -998,7 +998,7 @@ int mrn_free_share(MRN_SHARE *share)
 
 TABLE_SHARE *mrn_get_table_share(TABLE_LIST *table_list, int *error)
 {
-  uint key_length;
+  uint key_length __attribute__((unused));
   TABLE_SHARE *share;
   THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();

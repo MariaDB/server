@@ -1544,22 +1544,26 @@ int plugin_init(int *argc, char **argv, int flags)
   init_alloc_root(&plugin_vars_mem_root, 4096, 4096, MYF(0));
   init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
 
-  if (my_hash_init(&bookmark_hash, &my_charset_bin, 16, 0, 0,
+  if (my_hash_init(&bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
       goto err;
 
 
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 
+  /*
+    The 80 is from 2016-04-27 when we had 71 default plugins
+    Big enough to avoid many mallocs even in future
+  */
   if (my_init_dynamic_array(&plugin_dl_array,
                             sizeof(struct st_plugin_dl *), 16, 16, MYF(0)) ||
       my_init_dynamic_array(&plugin_array,
-                            sizeof(struct st_plugin_int *), 16, 16, MYF(0)))
+                            sizeof(struct st_plugin_int *), 80, 32, MYF(0)))
     goto err;
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
   {
-    if (my_hash_init(&plugin_hash[i], system_charset_info, 16, 0, 0,
+    if (my_hash_init(&plugin_hash[i], system_charset_info, 32, 0, 0,
                      get_plugin_hash_key, NULL, HASH_UNIQUE))
       goto err;
   }

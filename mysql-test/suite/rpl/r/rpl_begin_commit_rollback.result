@@ -116,7 +116,6 @@ include/wait_for_slave_sql_to_start.inc
 # SAVEPOINT and ROLLBACK TO have the same problem in BUG#43263
 # This was reported by BUG#50407
 connection master;
-SET SESSION AUTOCOMMIT=0
 BEGIN;
 INSERT INTO db1.t1 VALUES(20);
 # 
@@ -164,7 +163,6 @@ master-bin.000001	#	Query	#	#	use `db1`; INSERT INTO db1.t2 VALUES("after rollba
 master-bin.000001	#	Query	#	#	use `db1`; INSERT INTO db1.t1 VALUES(50)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection slave;
-[on slave]
 #
 # Verify INSERT statements in savepoints are executed, for MyISAM table
 # is not effected by ROLLBACK TO

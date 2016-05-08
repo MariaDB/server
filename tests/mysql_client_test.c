@@ -16227,7 +16227,6 @@ static void test_change_user()
   const char *db= "mysqltest_user_test_database";
   int rc;
   MYSQL*       conn;
-
   DBUG_ENTER("test_change_user");
   myheader("test_change_user");
 
@@ -16238,6 +16237,9 @@ static void test_change_user()
 
   sprintf(buff, "create database %s", db);
   rc= mysql_query(mysql, buff);
+  myquery(rc);
+
+  rc= mysql_query(mysql, "SET SQL_MODE=''");
   myquery(rc);
 
   sprintf(buff,
@@ -17481,7 +17483,6 @@ static void test_wl4166_2()
   mysql_stmt_close(stmt);
   rc= mysql_query(mysql, "drop table t1");
   myquery(rc);
-
 }
 
 

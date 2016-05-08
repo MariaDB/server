@@ -61,6 +61,39 @@ XML_TAG::XML_TAG(int l, String f, String v)
 }
 
 
+/*
+  Field and line terminators must be interpreted as sequence of unsigned char.
+  Otherwise, non-ascii terminators will be negative on some platforms,
+  and positive on others (depending on the implementation of char).
+*/
+class Term_string
+{
+  const uchar *m_ptr;
+  uint m_length;
+  int m_initial_byte;
+public:
+  Term_string(const String &str) :
+    m_ptr(static_cast<const uchar*>(static_cast<const void*>(str.ptr()))),
+    m_length(str.length()),
+    m_initial_byte((uchar) (str.length() ? str.ptr()[0] : INT_MAX))
+  { }
+  void set(const uchar *str, uint length, int initial_byte)
+  {
+    m_ptr= str;
+    m_length= length;
+    m_initial_byte= initial_byte;
+  }
+  void reset() { set(NULL, 0, INT_MAX); }
+  const uchar *ptr() const { return m_ptr; }
+  uint length() const { return m_length; }
+  int initial_byte() const { return m_initial_byte; }
+  bool eq(const Term_string &other) const
+  {
+    return length() == other.length() && !memcmp(ptr(), other.ptr(), length());
+  }
+};
+
+
 #define GET (stack_pos != stack ? *--stack_pos : my_b_get(&cache))
 #define PUSH(A) *(stack_pos++)=(A)
 
@@ -69,10 +102,10 @@ class READ_INFO {
   String data;                          /* Read buffer */
   uint fixed_length;                    /* Length of the fixed length record */
   uint max_length;                      /* Max length of row */
-  const uchar *field_term_ptr,*line_term_ptr;
-  const char  *line_start_ptr,*line_start_end;
-  uint	field_term_length,line_term_length,enclosed_length;
-  int	field_term_char,line_term_char,enclosed_char,escape_char;
+  Term_string m_field_term;             /* FIELDS TERMINATED BY 'string' */
+  Term_string m_line_term;              /* LINES TERMINATED BY 'string' */
+  Term_string m_line_start;             /* LINES STARTING BY 'string' */
+  int	enclosed_char,escape_char;
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
   NET *io_net;
@@ -86,6 +119,70 @@ class READ_INFO {
     *to= chr;
     return false;
   }
+
+  /**
+    Read a tail of a multi-byte character.
+    The first byte of the character is assumed to be already
+    read from the file and appended to "str".
+
+    @returns  true  - if EOF happened unexpectedly
+    @returns  false - no EOF happened: found a good multi-byte character,
+                                       or a bad byte sequence
+
+    Note:
+    The return value depends only on EOF:
+    - read_mbtail() returns "false" is a good character was read, but also
+    - read_mbtail() returns "false" if an incomplete byte sequence was found
+      and no EOF happened.
+
+    For example, suppose we have an ujis file with bytes 0x8FA10A, where:
+    - 0x8FA1 is an incomplete prefix of a 3-byte character
+      (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
+    - 0x0A is a line demiliter
+    This file has some broken data, the trailing [A1-FE] is missing.
+
+    In this example it works as follows:
+    - 0x8F is read from the file and put into "data" before the call
+      for read_mbtail()
+    - 0xA1 is read from the file and put into "data" by read_mbtail()
+    - 0x0A is kept in the read queue, so the next read iteration after
+      the current read_mbtail() call will normally find it and recognize as
+      a line delimiter
+    - the current call for read_mbtail() returns "false",
+      because no EOF happened
+  */
+  bool read_mbtail(String *str)
+  {
+    int chlen;
+    if ((chlen= my_charlen(read_charset, str->end() - 1, str->end())) == 1)
+      return false; // Single byte character found
+    for (uint32 length0= str->length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
+    {
+      int chr= GET;
+      if (chr == my_b_EOF)
+      {
+        DBUG_PRINT("info", ("read_mbtail: chlen=%d; unexpected EOF", chlen));
+        return true; // EOF
+      }
+      str->append(chr);
+      chlen= my_charlen(read_charset, str->ptr() + length0, str->end());
+      if (chlen == MY_CS_ILSEQ)
+      {
+        /**
+          It has been an incomplete (but a valid) sequence so far,
+          but the last byte turned it into a bad byte sequence.
+          Unget the very last byte.
+        */
+        str->length(str->length() - 1);
+        PUSH(chr);
+        DBUG_PRINT("info", ("read_mbtail: ILSEQ"));
+        return false; // Bad byte sequence
+      }
+    }
+    DBUG_PRINT("info", ("read_mbtail: chlen=%d", chlen));
+    return false; // Good multi-byte character
+  }
+
 public:
   bool error,line_cuted,found_null,enclosed;
   uchar	*row_start,			/* Found row starts here */
@@ -101,7 +198,11 @@ public:
   int read_fixed_length(void);
   int next_line(void);
   char unescape(char chr);
-  int terminator(const uchar *ptr, uint length);
+  bool terminator(const uchar *ptr, uint length);
+  bool terminator(const Term_string &str)
+  { return terminator(str.ptr(), str.length()); }
+  bool terminator(int chr, const Term_string &str)
+  { return str.initial_byte() == chr && terminator(str); }
   bool find_start_of_fields();
   /* load xml */
   List<XML_TAG> taglist;
@@ -284,22 +385,25 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       Let us also prepare SET clause, altough it is probably empty
       in this case.
     */
-    if (setup_fields(thd, 0, set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
-        setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
+    if (setup_fields(thd, Ref_ptr_array(),
+                     set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
+        setup_fields(thd, Ref_ptr_array(), set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
   }
   else
   {						// Part field list
     /* TODO: use this conds for 'WITH CHECK OPTIONS' */
-    if (setup_fields(thd, 0, fields_vars, MARK_COLUMNS_WRITE, 0, 0) ||
-        setup_fields(thd, 0, set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
+    if (setup_fields(thd, Ref_ptr_array(),
+                     fields_vars, MARK_COLUMNS_WRITE, 0, 0) ||
+        setup_fields(thd, Ref_ptr_array(),
+                     set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
         check_that_all_fields_are_given_values(thd, table, table_list))
       DBUG_RETURN(TRUE);
     /* Add all fields with default functions to table->write_set. */
     if (table->default_field)
       table->mark_default_fields_for_write();
     /* Fix the expressions in SET clause */
-    if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
+    if (setup_fields(thd, Ref_ptr_array(), set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
   }
   switch_to_nullable_trigger_fields(fields_vars, table);
@@ -1348,8 +1452,9 @@ READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
 		     String &field_term, String &line_start, String &line_term,
 		     String &enclosed_par, int escape, bool get_it_from_net,
 		     bool is_fifo)
-  :file(file_par), fixed_length(tot_length), escape_char(escape),
-   found_end_of_line(false), eof(false),
+  :file(file_par), fixed_length(tot_length),
+   m_field_term(field_term), m_line_term(line_term), m_line_start(line_start),
+   escape_char(escape), found_end_of_line(false), eof(false),
    error(false), line_cuted(false), found_null(false), read_charset(cs)
 {
   data.set_thread_specific();
@@ -1358,39 +1463,17 @@ READ_INFO::READ_INFO(THD *thd, File file_par, uint tot_length, CHARSET_INFO *cs,
     Otherwise, non-ascii terminators will be negative on some platforms,
     and positive on others (depending on the implementation of char).
   */
-  field_term_ptr=
-    static_cast<const uchar*>(static_cast<const void*>(field_term.ptr()));
-  field_term_length= field_term.length();
-  line_term_ptr=
-    static_cast<const uchar*>(static_cast<const void*>(line_term.ptr()));
-  line_term_length= line_term.length();
 
   level= 0; /* for load xml */
-  if (line_start.length() == 0)
-  {
-    line_start_ptr=0;
-    start_of_line= 0;
-  }
-  else
-  {
-    line_start_ptr= line_start.ptr();
-    line_start_end=line_start_ptr+line_start.length();
-    start_of_line= 1;
-  }
+  start_of_line= line_start.length() != 0;
   /* If field_terminator == line_terminator, don't use line_terminator */
-  if (field_term_length == line_term_length &&
-      !memcmp(field_term_ptr,line_term_ptr,field_term_length))
-  {
-    line_term_length=0;
-    line_term_ptr= NULL;
-  }
-  enclosed_char= (enclosed_length=enclosed_par.length()) ?
-    (uchar) enclosed_par[0] : INT_MAX;
-  field_term_char= field_term_length ? field_term_ptr[0] : INT_MAX;
-  line_term_char= line_term_length ? line_term_ptr[0] : INT_MAX;
+  if (m_field_term.eq(m_line_term))
+    m_line_term.reset();
+  enclosed_char= enclosed_par.length() ? (uchar) enclosed_par[0] : INT_MAX;
 
   /* Set of a stack for unget if long terminators */
-  uint length= MY_MAX(cs->mbmaxlen, MY_MAX(field_term_length, line_term_length)) + 1;
+  uint length= MY_MAX(cs->mbmaxlen, MY_MAX(m_field_term.length(),
+                                           m_line_term.length())) + 1;
   set_if_bigger(length,line_start.length());
   stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
 
@@ -1432,7 +1515,7 @@ READ_INFO::~READ_INFO()
 }
 
 
-inline int READ_INFO::terminator(const uchar *ptr,uint length)
+inline bool READ_INFO::terminator(const uchar *ptr, uint length)
 {
   int chr=0;					// Keep gcc happy
   uint i;
@@ -1444,11 +1527,11 @@ inline int READ_INFO::terminator(const uchar *ptr,uint length)
     }
   }
   if (i == length)
-    return 1;
+    return true;
   PUSH(chr);
   while (i-- > 1)
     PUSH(*--ptr);
-  return 0;
+  return false;
 }
 
 
@@ -1516,12 +1599,12 @@ int READ_INFO::read_field()
         chr= escape_char;
       }
 #ifdef ALLOW_LINESEPARATOR_IN_STRINGS
-      if (chr == line_term_char)
+      if (chr == m_line_term.initial_byte())
 #else
-      if (chr == line_term_char && found_enclosed_char == INT_MAX)
+      if (chr == m_line_term.initial_byte() && found_enclosed_char == INT_MAX)
 #endif
       {
-	if (terminator(line_term_ptr,line_term_length))
+	if (terminator(m_line_term))
 	{					// Maybe unexpected linefeed
 	  enclosed=0;
 	  found_end_of_line=1;
@@ -1538,9 +1621,7 @@ int READ_INFO::read_field()
 	  continue;
 	}
 	// End of enclosed field if followed by field_term or line_term
-	if (chr == my_b_EOF ||
-	    (chr == line_term_char && terminator(line_term_ptr,
-                                                 line_term_length)))
+	if (chr == my_b_EOF || terminator(chr, m_line_term))
         {
           /* Maybe unexpected linefeed */
 	  enclosed=1;
@@ -1549,8 +1630,7 @@ int READ_INFO::read_field()
 	  row_end=  (uchar *) data.end();
 	  return 0;
 	}
-	if (chr == field_term_char &&
-	    terminator(field_term_ptr,field_term_length))
+	if (terminator(chr, m_field_term))
 	{
 	  enclosed=1;
 	  row_start= (uchar *) data.ptr() + 1;
@@ -1565,9 +1645,10 @@ int READ_INFO::read_field()
 	/* copy the found term character to 'to' */
 	chr= found_enclosed_char;
       }
-      else if (chr == field_term_char && found_enclosed_char == INT_MAX)
+      else if (chr == m_field_term.initial_byte() &&
+               found_enclosed_char == INT_MAX)
       {
-	if (terminator(field_term_ptr,field_term_length))
+	if (terminator(m_field_term))
 	{
 	  enclosed=0;
 	  row_start= (uchar *) data.ptr();
@@ -1575,38 +1656,9 @@ int READ_INFO::read_field()
 	  return 0;
 	}
       }
-#ifdef USE_MB
-      if (my_mbcharlen(read_charset, chr) > 1)
-      {
-        uint32 length0= data.length();
-        int ml= my_mbcharlen(read_charset, chr);
-        data.append(chr);
-
-        for (int i= 1; i < ml; i++)
-        {
-          chr= GET;
-          if (chr == my_b_EOF)
-          {
-            /*
-             Need to back up the bytes already ready from illformed
-             multi-byte char 
-            */
-            data.length(length0);
-            goto found_eof;
-          }
-          data.append(chr);
-        }
-        if (my_ismbchar(read_charset,
-                        (const char *) data.ptr() + length0,
-                        (const char *) data.end()))
-          continue;
-        for (int i= 0; i < ml; i++)
-          PUSH(data.end()[-1 - i]);
-        data.length(length0);
-        chr= GET;
-      }
-#endif
       data.append(chr);
+      if (use_mb(read_charset) && read_mbtail(&data))
+        goto found_eof;
     }
     /*
     ** We come here if buffer is too small. Enlarge it and continue
@@ -1665,13 +1717,10 @@ int READ_INFO::read_fixed_length()
       data.append((uchar) unescape((char) chr));
       continue;
     }
-    if (chr == line_term_char)
-    {
-      if (terminator(line_term_ptr,line_term_length))
-      {						// Maybe unexpected linefeed
-        found_end_of_line=1;
-        break;
-      }
+    if (terminator(chr, m_line_term))
+    {						// Maybe unexpected linefeed
+      found_end_of_line= true;
+      break;
     }
     data.append(chr);
   }
@@ -1690,14 +1739,14 @@ found_eof:
 int READ_INFO::next_line()
 {
   line_cuted=0;
-  start_of_line= line_start_ptr != 0;
+  start_of_line= m_line_start.length() != 0;
   if (found_end_of_line || eof)
   {
     found_end_of_line=0;
     return eof;
   }
   found_end_of_line=0;
-  if (!line_term_length)
+  if (!m_line_term.length())
     return 0;					// No lines
   for (;;)
   {
@@ -1725,10 +1774,11 @@ int READ_INFO::next_line()
         or a broken byte sequence was found.
         Check if the sequence is a prefix of the "LINES TERMINATED BY" string.
       */
-      if ((uchar) buf[0] == line_term_char && i <= line_term_length &&
-          !memcmp(buf, line_term_ptr, i))
+      if ((uchar) buf[0] == m_line_term.initial_byte() &&
+          i <= m_line_term.length() &&
+          !memcmp(buf, m_line_term.ptr(), i))
       {
-        if (line_term_length == i)
+        if (m_line_term.length() == i)
         {
           /*
             We found a "LINES TERMINATED BY" string that consists
@@ -1742,10 +1792,11 @@ int READ_INFO::next_line()
           that still needs to be checked is (line_term_length - i).
           Note, READ_INFO::terminator() assumes that the leftmost byte of the
           argument is already scanned from the file and is checked to
-          be a known prefix (e.g. against line_term_char).
+          be a known prefix (e.g. against line_term.initial_char()).
           So we need to pass one extra byte.
         */
-        if (terminator(line_term_ptr + i - 1, line_term_length - i + 1))
+        if (terminator(m_line_term.ptr() + i - 1,
+                       m_line_term.length() - i + 1))
           return 0;
       }
       /*
@@ -1768,7 +1819,7 @@ int READ_INFO::next_line()
         return 1;
       continue;
     }
-    if (buf[0] == line_term_char && terminator(line_term_ptr,line_term_length))
+    if (terminator(buf[0], m_line_term))
       return 0;
     line_cuted= true;
   }
@@ -1777,30 +1828,12 @@ int READ_INFO::next_line()
 
 bool READ_INFO::find_start_of_fields()
 {
-  int chr;
- try_again:
-  do
+  for (int chr= GET ; chr != my_b_EOF ; chr= GET)
   {
-    if ((chr=GET) == my_b_EOF)
-    {
-      found_end_of_line=eof=1;
-      return 1;
-    }
-  } while ((char) chr != line_start_ptr[0]);
-  for (const char *ptr=line_start_ptr+1 ; ptr != line_start_end ; ptr++)
-  {
-    chr=GET;					// Eof will be checked later
-    if ((char) chr != *ptr)
-    {						// Can't be line_start
-      PUSH(chr);
-      while (--ptr != line_start_ptr)
-      {						// Restart with next char
-	PUSH( *ptr);
-      }
-      goto try_again;
-    }
+    if (terminator(chr, m_line_start))
+      return false;
   }
-  return 0;
+  return (found_end_of_line= eof= true);
 }
 
 
@@ -1881,26 +1914,8 @@ int READ_INFO::read_value(int delim, String *val)
   int chr;
   String tmp;
 
-  for (chr= GET; my_tospace(chr) != delim && chr != my_b_EOF;)
+  for (chr= GET; my_tospace(chr) != delim && chr != my_b_EOF; chr= GET)
   {
-#ifdef USE_MB
-    if (my_mbcharlen(read_charset, chr) > 1)
-    {
-      DBUG_PRINT("read_xml",("multi byte"));
-      int i, ml= my_mbcharlen(read_charset, chr);
-      for (i= 1; i < ml; i++) 
-      {
-        val->append(chr);
-        /*
-          Don't use my_tospace() in the middle of a multi-byte character
-          TODO: check that the multi-byte sequence is valid.
-        */
-        chr= GET; 
-        if (chr == my_b_EOF)
-          return chr;
-      }
-    }
-#endif
     if(chr == '&')
     {
       tmp.length(0);
@@ -1920,8 +1935,11 @@ int READ_INFO::read_value(int delim, String *val)
       }
     }
     else
+    {
       val->append(chr);
-    chr= GET;
+      if (use_mb(read_charset) && read_mbtail(val))
+        return my_b_EOF;
+    }
   }            
   return my_tospace(chr);
 }
@@ -1990,11 +2008,11 @@ int READ_INFO::read_xml(THD *thd)
       }
       
       // row tag should be in ROWS IDENTIFIED BY '<row>' - stored in line_term 
-      if((tag.length() == line_term_length -2) &&
-         (memcmp(tag.ptr(), line_term_ptr + 1, tag.length()) == 0))
+      if((tag.length() == m_line_term.length() - 2) &&
+         (memcmp(tag.ptr(), m_line_term.ptr() + 1, tag.length()) == 0))
       {
         DBUG_PRINT("read_xml", ("start-of-row: %i %s %s", 
-                                level,tag.c_ptr_safe(), line_term_ptr));
+                                level,tag.c_ptr_safe(), m_line_term.ptr()));
       }
       
       if(chr == ' ' || chr == '>')
@@ -2061,8 +2079,8 @@ int READ_INFO::read_xml(THD *thd)
         chr= my_tospace(GET);
       }
       
-      if((tag.length() == line_term_length -2) &&
-         (memcmp(tag.ptr(), line_term_ptr + 1, tag.length()) == 0))
+      if((tag.length() == m_line_term.length() - 2) &&
+         (memcmp(tag.ptr(), m_line_term.ptr() + 1, tag.length()) == 0))
       {
          DBUG_PRINT("read_xml", ("found end-of-row %i %s", 
                                  level, tag.c_ptr_safe()));

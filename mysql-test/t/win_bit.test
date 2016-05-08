@@ -1,0 +1,89 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int
+);
+
+create table t2 (
+  pk int primary key,
+  a int,
+  b int
+);
+
+
+
+insert into t1 values
+( 1 , 0, 1),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 8),
+( 5 , 2, 32),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+
+insert into t2 values
+( 1 , 0, 2),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 4),
+( 5 , 2, 16),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+
+
+
+--echo # Test bit functions on only one partition.
+select pk, a, b,
+    bit_or(b) over (order by pk) as bit_or,
+    bit_and(b) over (order by pk) as bit_and,
+    bit_xor(b) over (order by pk) as bit_xor
+from t1;
+
+select pk, a, b,
+    bit_or(b) over (order by pk) as bit_or,
+    bit_and(b) over (order by pk) as bit_and,
+    bit_xor(b) over (order by pk) as bit_xor
+from t2;
+
+--echo # Test multiple partitions with bit functions.
+select pk, a, b,
+    bit_or(b) over (partition by a order by pk) as bit_or,
+    bit_and(b) over (partition by a order by pk) as bit_and,
+    bit_xor(b) over (partition by a order by pk) as bit_xor
+from t1;
+
+select pk, a, b,
+    bit_or(b) over (partition by a order by pk) as bit_or,
+    bit_and(b) over (partition by a order by pk) as bit_and,
+    bit_xor(b) over (partition by a order by pk) as bit_xor
+from t2;
+
+--echo # Test remove function for bit functions using a sliding window.
+select pk, a, b,
+    bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as bit_or,
+    bit_and(b) over (partition by a order by pk) as bit_and,
+    bit_xor(b) over (partition by a order by pk) as bit_xor
+from t1;
+
+select pk, a, b,
+    bit_or(b) over (partition by a order by pk) as bit_or,
+    bit_and(b) over (partition by a order by pk) as bit_and,
+    bit_xor(b) over (partition by a order by pk) as bit_xor
+from t2;
+
+
+
+
+
+
+
+#select pk, a, b, bit_or(b) over (order by a) as count from t1 order by a, pk;
+#select pk, a, b, bit_and(b) over (order by a ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as count from t1 order by a, pk;
+#select pk, a, b, bit_xor(b) over (order by a, pk  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as count from t2 order by pk;
+#select pk, a, b, bit_or(b) over (order by a, pk  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as count from t2 order by pk;
+#select pk, a, b, bit_and(b) over (order by a, pk  ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) as count from t3 order by pk;
+
+drop table t1;
+drop table t2;

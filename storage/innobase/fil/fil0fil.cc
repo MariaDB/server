@@ -737,11 +737,9 @@ fil_node_open_file(
 			}
 		}
 
-		if (size_bytes >= FSP_EXTENT_SIZE * UNIV_PAGE_SIZE) {
+		if (size_bytes >= (1024*1024)) {
 			/* Truncate the size to whole extent size. */
-			size_bytes = ut_2pow_round(size_bytes,
-						   FSP_EXTENT_SIZE *
-						   UNIV_PAGE_SIZE);
+			size_bytes = ut_2pow_round(size_bytes, (1024*1024));
 		}
 
 		if (!fsp_flags_is_compressed(flags)) {

@@ -1243,7 +1243,8 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 Item_sum_sum::Item_sum_sum(THD *thd, Item_sum_sum *item) 
   :Item_sum_num(thd, item),
    Type_handler_hybrid_field_type(item),
-   curr_dec_buff(item->curr_dec_buff)
+   curr_dec_buff(item->curr_dec_buff),
+   count(item->count)
 {
   /* TODO: check if the following assignments are really needed */
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
@@ -1265,6 +1266,7 @@ void Item_sum_sum::clear()
 {
   DBUG_ENTER("Item_sum_sum::clear");
   null_value=1;
+  count= 0;
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
   {
     curr_dec_buff= 0;
@@ -1318,25 +1320,57 @@ void Item_sum_sum::fix_length_and_dec()
 bool Item_sum_sum::add()
 {
   DBUG_ENTER("Item_sum_sum::add");
+  add_helper(false);
+  DBUG_RETURN(0);
+}
+
+void Item_sum_sum::add_helper(bool perform_removal)
+{
+  DBUG_ENTER("Item_sum_sum::add_helper");
+
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
   {
     my_decimal value;
     const my_decimal *val= aggr->arg_val_decimal(&value);
     if (!aggr->arg_is_null(true))
     {
-      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff^1),
-                     val, dec_buffs + curr_dec_buff);
+      if (perform_removal)
+      {
+        DBUG_ASSERT(count > 0);
+        my_decimal_sub(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
+                       dec_buffs + curr_dec_buff, val);
+        count--;
+      }
+      else
+      {
+        count++;
+        my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
+                       val, dec_buffs + curr_dec_buff);
+      }
       curr_dec_buff^= 1;
-      null_value= 0;
+      null_value= (count > 0) ? 0 : 1;
     }
   }
   else
   {
-    sum+= aggr->arg_val_real();
+    if (perform_removal)
+      sum-= aggr->arg_val_real();
+    else
+      sum+= aggr->arg_val_real();
     if (!aggr->arg_is_null(true))
-      null_value= 0;
+    {
+      if (perform_removal)
+      {
+        DBUG_ASSERT(count > 0);
+        count--;
+      }
+      else
+        count++;
+
+      null_value= (count > 0) ? 0 : 1;
+    }
   }
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1384,6 +1418,13 @@ my_decimal *Item_sum_sum::val_decimal(my_decimal *val)
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
     return (dec_buffs + curr_dec_buff);
   return val_decimal_from_real(val);
+}
+
+void Item_sum_sum::remove()
+{
+  DBUG_ENTER("Item_sum_sum::remove");
+  add_helper(true);
+  DBUG_VOID_RETURN;
 }
 
 /**
@@ -1531,6 +1572,19 @@ bool Item_sum_count::add()
   return 0;
 }
 
+
+/*
+  Remove a row. This is used by window functions.
+*/
+
+void Item_sum_count::remove()
+{
+  DBUG_ASSERT(aggr->Aggrtype() == Aggregator::SIMPLE_AGGREGATOR);
+  if (aggr->arg_is_null(false))
+    return;
+  count--;
+}
+
 longlong Item_sum_count::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -1624,6 +1678,16 @@ bool Item_sum_avg::add()
   if (!aggr->arg_is_null(true))
     count++;
   return FALSE;
+}
+
+void Item_sum_avg::remove()
+{
+  Item_sum_sum::remove();
+  if (!aggr->arg_is_null(true))
+  {
+    DBUG_ASSERT(count > 0);
+    count--;
+  }
 }
 
 double Item_sum_avg::val_real()
@@ -2086,6 +2150,8 @@ longlong Item_sum_bit::val_int()
 void Item_sum_bit::clear()
 {
   bits= reset_bits;
+  if (as_window_function)
+    clear_as_window();
 }
 
 Item *Item_sum_or::copy_or_same(THD* thd)
@@ -2093,13 +2159,77 @@ Item *Item_sum_or::copy_or_same(THD* thd)
   return new (thd->mem_root) Item_sum_or(thd, this);
 }
 
+bool Item_sum_bit::clear_as_window()
+{
+  memset(bit_counters, 0, sizeof(bit_counters));
+  num_values_added= 0;
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::remove_as_window(ulonglong value)
+{
+  DBUG_ASSERT(as_window_function);
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    if (!bit_counters[i])
+    {
+      // Don't attempt to remove values that were never added.
+      DBUG_ASSERT((value & (1 << i)) == 0);
+      continue;
+    }
+    bit_counters[i]-= (value & (1 << i)) ? 1 : 0;
+  }
+  DBUG_ASSERT(num_values_added > 0);
+  // Prevent overflow;
+  num_values_added = std::min(num_values_added, num_values_added - 1);
+  set_bits_from_counters();
+  return 0;
+}
+
+bool Item_sum_bit::add_as_window(ulonglong value)
+{
+  DBUG_ASSERT(as_window_function);
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    bit_counters[i]+= (value & (1 << i)) ? 1 : 0;
+  }
+  // Prevent overflow;
+  num_values_added = std::max(num_values_added, num_values_added + 1);
+  set_bits_from_counters();
+  return 0;
+}
+
+void Item_sum_or::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    value|= bit_counters[i] > 0 ? (1 << i) : 0;
+  }
+  bits= value | reset_bits;
+}
 
 bool Item_sum_or::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits|=value;
+  }
   return 0;
+}
+
+void Item_sum_xor::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    value|= (bit_counters[i] % 2) ? (1 << i) : 0;
+  }
+  bits= value ^ reset_bits;
 }
 
 Item *Item_sum_xor::copy_or_same(THD* thd)
@@ -2112,10 +2242,31 @@ bool Item_sum_xor::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits^=value;
+  }
   return 0;
 }
 
+void Item_sum_and::set_bits_from_counters()
+{
+  ulonglong value= 0;
+  if (!num_values_added)
+  {
+    bits= reset_bits;
+    return;
+  }
+
+  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  {
+    // We've only added values of 1 for this bit.
+    if (bit_counters[i] == num_values_added)
+      value|= (1 << i);
+  }
+  bits= value & reset_bits;
+}
 Item *Item_sum_and::copy_or_same(THD* thd)
 {
   return new (thd->mem_root) Item_sum_and(thd, this);
@@ -2126,7 +2277,11 @@ bool Item_sum_and::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
   if (!args[0]->null_value)
+  {
+    if (as_window_function)
+      return add_as_window(value);
     bits&=value;
+  }
   return 0;
 }
 
@@ -2314,6 +2469,10 @@ void Item_sum_bit::reset_field()
 
 void Item_sum_bit::update_field()
 {
+  // We never call update_field when computing the function as a window
+  // function. Setting bits to a random value invalidates the bits counters and
+  // the result of the bit function becomes erroneous.
+  DBUG_ASSERT(!as_window_function);
   uchar *res=result_field->ptr;
   bits= uint8korr(res);
   add();
@@ -2896,7 +3055,7 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
                   field->table->s->null_bytes);
     int res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset);
     if (res)
-      return (*order_item)->asc ? res : -res;
+      return ((*order_item)->direction == ORDER::ORDER_ASC) ? res : -res;
   }
   /*
     We can't return 0 because in that case the tree class would remove this
@@ -3372,8 +3531,8 @@ bool Item_func_group_concat::setup(THD *thd)
     if (!ref_pointer_array)
       DBUG_RETURN(TRUE);
     memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
-    if (setup_order(thd, ref_pointer_array, context->table_list, list,
-                    all_fields, *order))
+    if (setup_order(thd, Ref_ptr_array(ref_pointer_array, n_elems),
+                    context->table_list, list,  all_fields, *order))
       DBUG_RETURN(TRUE);
   }
 
@@ -3507,9 +3666,9 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
       if (i)
         str->append(',');
       orig_args[i + arg_count_field]->print(str, query_type);
-      if (order[i]->asc)
+      if (order[i]->direction == ORDER::ORDER_ASC)
         str->append(STRING_WITH_LEN(" ASC"));
-      else
+     else
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }

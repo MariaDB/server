@@ -6890,7 +6890,7 @@ lock_clust_rec_modify_check_and_lock(
 	lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 
 	lock_mutex_enter();
-	trx_t*		trx = thr_get_trx(thr);
+	trx_t*		trx __attribute__((unused))= thr_get_trx(thr);
 
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
@@ -6954,7 +6954,7 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 	lock_mutex_enter();
 
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
@@ -7063,7 +7063,7 @@ lock_sec_rec_read_check_and_lock(
 		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 	}
 
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 	lock_mutex_enter();
 
 	ut_ad(mode != LOCK_X
@@ -7146,7 +7146,7 @@ lock_clust_rec_read_check_and_lock(
 	}
 
 	lock_mutex_enter();
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 
 	ut_ad(mode != LOCK_X
 	      || lock_table_has(trx, index->table, LOCK_IX));

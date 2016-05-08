@@ -658,7 +658,7 @@ typedef struct system_variables
 
   /* Error messages */
   MY_LOCALE *lc_messages;
-  const char **errmsgs;             /* lc_messages->errmsg->errmsgs */
+  const char ***errmsgs;             /* lc_messages->errmsg->errmsgs */
 
   /* Locale Support */
   MY_LOCALE *lc_time_names;
@@ -823,6 +823,20 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
+
+/*
+  Update global_memory_used. We have to do this with atomic_add as the
+  global value can change outside of LOCK_status.
+*/
+inline void update_global_memory_status(int64 size)
+{
+  DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
+                      (longlong) global_status_var.global_memory_used,
+                      size));
+  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+  int64 volatile * volatile ptr= &global_status_var.global_memory_used;
+  my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+}
 
 /**
   Get collation by name, send error to client on failure.
@@ -3846,9 +3860,11 @@ public:
 
   void add_status_to_global()
   {
+    DBUG_ASSERT(status_in_global == 0);
     mysql_mutex_lock(&LOCK_status);
     add_to_status(&global_status_var, &status_var);
     /* Mark that this THD status has already been added in global status */
+    status_var.global_memory_used= 0;
     status_in_global= 1;
     mysql_mutex_unlock(&LOCK_status);
   }
@@ -4527,16 +4543,9 @@ inline uint tmp_table_max_key_parts() { return MI_MAX_KEY_SEG; }
 
 class TMP_TABLE_PARAM :public Sql_alloc
 {
-private:
-  /* Prevent use of these (not safe because of lists and copy_field) */
-  TMP_TABLE_PARAM(const TMP_TABLE_PARAM &);
-  void operator=(TMP_TABLE_PARAM &);
-
 public:
   List<Item> copy_funcs;
-  List<Item> save_copy_funcs;
   Copy_field *copy_field, *copy_field_end;
-  Copy_field *save_copy_field, *save_copy_field_end;
   uchar	    *group_buff;
   Item	    **items_to_copy;			/* Fields in tmp table */
   TMP_ENGINE_COLUMNDEF *recinfo, *start_recinfo;
@@ -4571,7 +4580,13 @@ public:
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
   uint	quick_group;
-  bool  using_indirect_summary_function;
+  /**
+    Enabled when we have atleast one outer_sum_func. Needed when used
+    along with distinct.
+
+    @see create_tmp_table
+  */
+  bool  using_outer_summary_function;
   CHARSET_INFO *table_charset;
   bool schema_table;
   /* TRUE if the temp table is created for subquery materialization. */
@@ -4601,9 +4616,10 @@ public:
   TMP_TABLE_PARAM()
     :copy_field(0), group_parts(0),
      group_length(0), group_null_parts(0),
-    schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-    precomputed_group_by(0),
-    force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
+     using_outer_summary_function(0),
+     schema_table(0), materialized_subquery(0), force_not_null_cols(0),
+     precomputed_group_by(0),
+     force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {}
   ~TMP_TABLE_PARAM()
   {
@@ -4615,8 +4631,8 @@ public:
     if (copy_field)				/* Fix for Intel compiler */
     {
       delete [] copy_field;
-      save_copy_field= copy_field= NULL;
-      save_copy_field_end= copy_field_end= NULL;
+      copy_field= NULL;
+      copy_field_end= NULL;
     }
   }
 };

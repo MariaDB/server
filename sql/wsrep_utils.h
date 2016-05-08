@@ -233,7 +233,7 @@ private:
 
 } /* namespace wsp */
 
-extern wsp::Config_state wsrep_config_state;
+extern wsp::Config_state *wsrep_config_state;
 
 namespace wsp {
 /* a class to manage env vars array */

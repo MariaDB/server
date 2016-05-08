@@ -256,7 +256,7 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
   fprintf(f,"  255,                        /* max_sort_char */\n");
   fprintf(f,"  ' ',                        /* pad_char      */\n");
   fprintf(f,"  0,                          /* escape_with_backslash_is_dangerous */\n");
-  
+  fprintf(f,"  1,                          /* levels_for_order   */\n");
   fprintf(f,"  &my_charset_8bit_handler,\n");
   if (cs->state & MY_CS_BINSORT)
     fprintf(f,"  &my_collation_8bit_bin_handler,\n");
@@ -270,9 +270,9 @@ static void
 fprint_copyright(FILE *file)
 {
   fprintf(file,
-"/* Copyright 2000-2008 MySQL AB, 2008 Sun Microsystems Inc.\n"
+"/* Copyright 2000-2008 MySQL AB, 2008 Sun Microsystems, Inc.\n"
 "   Copyright 2010-2011 Monty Program Ab\n"
-"   Copyright (c) 2003, 2011, Oracle and/or its affiliates\n"
+"   Copyright (c) 2000, 2011, Oracle and/or its affiliates.\n"
 "\n"
 "   This program is free software; you can redistribute it and/or modify\n"
 "   it under the terms of the GNU General Public License as published by\n"
@@ -333,7 +333,7 @@ main(int argc, char **argv  __attribute__((unused)))
   fprintf(f, "    ./conf_to_src ../sql/share/charsets/ > FILE\n");
   fprintf(f, "*/\n\n");
   fprint_copyright(f);
-  fprintf(f,"#include <my_global.h>\n");
+  fprintf(f,"#include \"strings_def.h\"\n");
   fprintf(f,"#include <m_ctype.h>\n\n");
   
   

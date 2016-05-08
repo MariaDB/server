@@ -1,3 +1,4 @@
+connection node_2;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
@@ -18,8 +19,11 @@ SET @@session.wsrep_dirty_reads=ON;
 SELECT * FROM t1;
 i
 1
+connection node_1;
 SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;
 # End of test

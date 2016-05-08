@@ -231,9 +231,10 @@ struct rpl_binlog_state
   /* Auxiliary buffer to sort gtid list. */
   DYNAMIC_ARRAY gtid_sort_array;
 
-  rpl_binlog_state();
+   rpl_binlog_state() :initialized(0) {}
   ~rpl_binlog_state();
 
+  void init();
   void reset_nolock();
   void reset();
   void free();

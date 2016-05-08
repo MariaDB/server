@@ -1224,7 +1224,8 @@ bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
     for temporal columns, so the query:
       WHERE temporal_column='string'
     cannot return multiple distinct temporal values.
-    QQ: perhaps we could allow INT/DECIMAL/DOUBLE types for temporal items.
+
+    TODO: perhaps we could allow INT/DECIMAL/DOUBLE types for temporal items.
   */
   return result_type() == item->result_type();
 }

@@ -205,43 +205,56 @@ void init_master_log_pos(Master_info* mi)
 
 /**
   Parses the IO_CACHE for "key=" and returns the "key".
+  If no '=' found, returns the whole line (for END_MARKER).
 
   @param key      [OUT]               Key buffer
   @param max_size [IN]                Maximum buffer size
   @param f        [IN]                IO_CACHE file
+  @param found_equal [OUT]            Set true if a '=' was found.
 
   @retval 0                           Either "key=" or '\n' found
   @retval 1                           EOF
 */
-static int read_mi_key_from_file(char *key, int max_size, IO_CACHE *f)
+static int
+read_mi_key_from_file(char *key, int max_size, IO_CACHE *f, bool *found_equal)
 {
   int i= 0, c;
-  char *last_p;
 
   DBUG_ENTER("read_key_from_file");
 
-  while (((c= my_b_get(f)) != '\n') && (c != my_b_EOF))
-  {
-    last_p= key + i;
-
-    if (i < max_size)
-    {
-      if (c == '=')
-      {
-        /* We found '=', replace it by 0 and return. */
-        *last_p= 0;
-        DBUG_RETURN(0);
-      }
-      else
-        *last_p= c;
-    }
-    ++i;
-  }
-
-  if (c == my_b_EOF)
+  *found_equal= false;
+  if (max_size <= 0)
     DBUG_RETURN(1);
-
-  DBUG_RETURN(0);
+  for (;;)
+  {
+    if (i >= max_size-1)
+    {
+      key[i] = '\0';
+      DBUG_RETURN(0);
+    }
+    c= my_b_get(f);
+    if (c == my_b_EOF)
+    {
+      DBUG_RETURN(1);
+    }
+    else if (c == '\n')
+    {
+      key[i]= '\0';
+      DBUG_RETURN(0);
+    }
+    else if (c == '=')
+    {
+      key[i]= '\0';
+      *found_equal= true;
+      DBUG_RETURN(0);
+    }
+    else
+    {
+      key[i]= c;
+      ++i;
+    }
+  }
+  /* NotReached */
 }
 
 enum {
@@ -539,6 +552,10 @@ file '%s')", fname);
       if (lines >= LINE_FOR_LAST_MYSQL_FUTURE)
       {
         uint i;
+        bool got_eq;
+        bool seen_using_gtid= false;
+        bool seen_do_domain_ids=false, seen_ignore_domain_ids=false;
+
         /* Skip lines used by / reserved for MySQL >= 5.6. */
         for (i= LINE_FOR_FIRST_MYSQL_5_6; i <= LINE_FOR_LAST_MYSQL_FUTURE; ++i)
         {
@@ -551,11 +568,12 @@ file '%s')", fname);
           for "key=" and returns the "key" if found. The "value" can then the
           parsed on case by case basis. The "unknown" lines would be ignored to
           facilitate downgrades.
+          10.0 does not have the END_MARKER before any left-overs at the end
+          of the file. So ignore any but the first occurrence of a key.
         */
-        while (!read_mi_key_from_file(buf, sizeof(buf), &mi->file))
+        while (!read_mi_key_from_file(buf, sizeof(buf), &mi->file, &got_eq))
         {
-          /* using_gtid */
-          if (!strncmp(buf, STRING_WITH_LEN("using_gtid")))
+          if (got_eq && !seen_using_gtid && !strcmp(buf, "using_gtid"))
           {
             int val;
             if (!init_intvar_from_file(&val, &mi->file, 0))
@@ -566,15 +584,13 @@ file '%s')", fname);
                 mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
               else
                 mi->using_gtid= Master_info::USE_GTID_NO;
-              continue;
+              seen_using_gtid= true;
             } else {
               sql_print_error("Failed to initialize master info using_gtid");
               goto errwithmsg;
             }
           }
-
-          /* DO_DOMAIN_IDS */
-          if (!strncmp(buf, STRING_WITH_LEN("do_domain_ids")))
+          else if (got_eq && !seen_do_domain_ids && !strcmp(buf, "do_domain_ids"))
           {
             if (mi->domain_id_filter.init_ids(&mi->file,
                                               Domain_id_filter::DO_DOMAIN_IDS))
@@ -582,11 +598,10 @@ file '%s')", fname);
               sql_print_error("Failed to initialize master info do_domain_ids");
               goto errwithmsg;
             }
-            continue;
+            seen_do_domain_ids= true;
           }
-
-          /* IGNORE_DOMAIN_IDS */
-          if (!strncmp(buf, STRING_WITH_LEN("ignore_domain_ids")))
+          else if (got_eq && !seen_ignore_domain_ids &&
+                   !strcmp(buf, "ignore_domain_ids"))
           {
             if (mi->domain_id_filter.init_ids(&mi->file,
                                               Domain_id_filter::IGNORE_DOMAIN_IDS))
@@ -595,9 +610,9 @@ file '%s')", fname);
                               "ignore_domain_ids");
               goto errwithmsg;
             }
-            continue;
+            seen_ignore_domain_ids= true;
           }
-          else if (!strncmp(buf, STRING_WITH_LEN("END_MARKER")))
+          else if (!got_eq && !strcmp(buf, "END_MARKER"))
           {
             /*
               Guard agaist extra left-overs at the end of file, in case a later

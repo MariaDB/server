@@ -1,3 +1,4 @@
+connection node_1;
 CREATE USER 'user1';
 CREATE
 DEFINER = 'user1'
@@ -18,12 +19,14 @@ DETERMINISTIC
 NO SQL
 SQL SECURITY INVOKER
 RETURN 123;
+connection node_1;
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
     MODIFIES SQL DATA
     COMMENT 'f1_comment'
 RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_2;
 SELECT 1 FROM DUAL;
 1
 1
@@ -33,6 +36,7 @@ f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTIO
     MODIFIES SQL DATA
     COMMENT 'f1_comment'
 RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_1;
 SHOW CREATE FUNCTION f2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
@@ -40,6 +44,7 @@ f2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` 
     DETERMINISTIC
     SQL SECURITY INVOKER
 RETURN 123	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_2;
 SHOW CREATE FUNCTION f2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
@@ -53,6 +58,7 @@ f1(1) = 'abc'
 SELECT f2('abc') = 123;
 f2('abc') = 123
 1
+connection node_1;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP USER 'user1';

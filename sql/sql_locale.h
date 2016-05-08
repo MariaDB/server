@@ -19,7 +19,7 @@
 typedef struct my_locale_errmsgs
 {
   const char *language;
-  const char **errmsgs;
+  const char ***errmsgs;
 } MY_LOCALE_ERRMSGS;
 
 #include "my_global.h"                          /* uint */

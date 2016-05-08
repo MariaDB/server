@@ -1,0 +1,289 @@
+create table t1 (a int, b varchar(32));
+insert into t1 values
+(4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
+insert into t1 values
+(3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
+with recursive
+a1(a,b) as
+(select * from t1 where t1.a>3
+union
+select * from b1 where b1.a >3
+union
+select * from c1 where c1.a>3),
+b1(a,b) as
+(select * from a1 where a1.b > 'ccc'
+union
+select * from c1 where c1.b > 'ddd'),
+c1(a,b) as
+(select * from a1 where a1.a<6 and a1.b< 'zz'
+union
+select * from b1 where b1.b > 'auu')
+select * from c1;
+ERROR HY000: No anchors for recursive WITH element 'b1'
+drop table t1;
+create table  folks(id int, name char(32), dob date, father int, mother int);
+insert into folks values
+(100, 'Vasya', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(8, 'Grandma Sally', '1943-08-23', 5, 6),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+with recursive 
+ancestors
+as
+(
+select *
+from folks
+where name = 'Vasya' and dob = '2000-01-01'
+  union 
+select p.id, p.name, p.dob, p.father, p.mother
+from folks as p, ancestors AS a
+where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+id	name	dob	father	mother
+100	Vasya	2000-01-01	20	30
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+with recursive 
+ancestors
+as
+(
+select p.*
+from folks as p, ancestors AS a
+where p.id = a.father or p.id = a.mother
+union
+select *
+from folks
+where name = 'Vasya' and dob = '2000-01-01'
+)
+select * from ancestors;
+id	name	dob	father	mother
+100	Vasya	2000-01-01	20	30
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+with recursive
+ancestors
+as
+(
+select *
+from folks
+where name = 'Cousin Eddie'
+  union 
+select p.*
+from folks as p, ancestors as a
+where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+id	name	dob	father	mother
+67	Cousin Eddie	1992-02-28	25	27
+25	Uncle Jim	1968-11-18	8	7
+27	Auntie Melinda	1971-03-29	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+with recursive
+ancestors
+as
+(
+select *
+from  folks
+where name = 'Vasya' or name='Sister Amy'
+  union 
+select  p.*
+from folks as p, ancestors as a
+where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+id	name	dob	father	mother
+100	Vasya	2000-01-01	20	30
+98	Sister Amy	2001-06-20	20	30
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+with recursive 
+prev_gen
+as
+(
+select folks.*
+from folks, prev_gen
+where folks.id=prev_gen.father or folks.id=prev_gen.mother
+union
+select * 
+from folks
+where name='Vasya'
+),
+ancestors
+as
+(
+select *
+from folks
+where name='Vasya'
+  union 
+select *
+from ancestors
+union
+select *
+from prev_gen
+)
+select ancestors.name, ancestors.dob from ancestors;
+name	dob
+Vasya	2000-01-01
+Dad	1970-02-02
+Mom	1975-03-03
+Grandpa Bill	1940-04-05
+Grandma Ann	1941-10-15
+Grandma Sally	1943-08-23
+Grandgrandma Martha	1923-05-17
+with recursive
+descendants
+as
+(
+select *
+from folks
+where name = 'Grandpa Bill'
+  union 
+select folks.*
+from folks, descendants as d
+where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+id	name	dob	father	mother
+10	Grandpa Bill	1940-04-05	NULL	NULL
+20	Dad	1970-02-02	10	9
+100	Vasya	2000-01-01	20	30
+98	Sister Amy	2001-06-20	20	30
+with recursive
+descendants
+as
+(
+select *
+from folks
+where name = 'Grandma Sally'
+  union 
+select folks.*
+from folks, descendants as d
+where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+id	name	dob	father	mother
+8	Grandma Sally	1943-08-23	5	6
+30	Mom	1975-03-03	8	7
+25	Uncle Jim	1968-11-18	8	7
+100	Vasya	2000-01-01	20	30
+98	Sister Amy	2001-06-20	20	30
+67	Cousin Eddie	1992-02-28	25	27
+with recursive
+ancestors
+as
+(
+select *
+from folks 
+where name = 'Vasya' and dob = '2000-01-01'
+  union
+select p.*   
+from folks as p, ancestors AS a   
+where p.id = a.father OR p.id = a.mother
+)
+select *
+from ancestors t1, ancestors t2 
+where exists (select * from ancestors a 
+where a.father=t1.id AND a.mother=t2.id);
+id	name	dob	father	mother	id	name	dob	father	mother
+20	Dad	1970-02-02	10	9	30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL	9	Grandma Ann	1941-10-15	NULL	NULL
+with 
+ancestor_couples(husband, h_dob, wife, w_dob)
+as
+(
+with recursive 
+ancestors
+as
+(
+select *
+from folks 
+where name = 'Vasya'
+  union
+select p.*   
+from folks as p, ancestors AS a   
+where p.id = a.father OR p.id = a.mother
+)
+select t1.name, t1.dob, t2.name, t2.dob
+from ancestors t1, ancestors t2 
+where exists (select * from ancestors a 
+where a.father=t1.id AND a.mother=t2.id)
+)
+select * from ancestor_couples;
+husband	h_dob	wife	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+with recursive
+ancestors
+as
+(
+select *
+from folks 
+where name = 'Vasya' and dob = '2000-01-01'
+  union 
+select p.*
+from folks as p, ancestors AS a
+where p.id = a.father
+union
+select p.*
+from folks as p, ancestors AS a
+where p.id = a.mother
+)
+select * from ancestors;
+id	name	dob	father	mother
+100	Vasya	2000-01-01	20	30
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+9	Grandma Ann	1941-10-15	NULL	NULL
+10	Grandpa Bill	1940-04-05	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Vasya' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+drop table folks;

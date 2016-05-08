@@ -202,7 +202,7 @@ wsrep_uuid_t     local_uuid   = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t    local_seqno  = WSREP_SEQNO_UNDEFINED;
 long             wsrep_protocol_version = 3;
 
-wsp::Config_state wsrep_config_state;
+wsp::Config_state *wsrep_config_state;
 
 // Boolean denoting if server is in initial startup phase. This is needed
 // to make sure that main thread waiting in wsrep_sst_wait() is signaled
@@ -281,7 +281,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   *sst_req     = NULL;
   *sst_req_len = 0;
 
-  wsrep_member_status_t memb_status= wsrep_config_state.get_status();
+  wsrep_member_status_t memb_status= wsrep_config_state->get_status();
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
   {
@@ -442,7 +442,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
 
 out:
   if (view->status == WSREP_VIEW_PRIMARY) wsrep_startup= FALSE;
-  wsrep_config_state.set(memb_status, view);
+  wsrep_config_state->set(memb_status, view);
 
   return WSREP_CB_SUCCESS;
 }
@@ -484,7 +484,7 @@ static void wsrep_synced_cb(void* app_ctx)
     signal_main= true;
 
   }
-  wsrep_config_state.set(WSREP_MEMBER_SYNCED);
+  wsrep_config_state->set(WSREP_MEMBER_SYNCED);
   mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
@@ -753,6 +753,8 @@ done:
 /* Initialize wsrep thread LOCKs and CONDs */
 void wsrep_thr_init()
 {
+  DBUG_ENTER("wsrep_thr_init");
+  wsrep_config_state = new wsp::Config_state;
 #ifdef HAVE_PSI_INTERFACE
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
@@ -772,6 +774,7 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -819,6 +822,8 @@ void wsrep_deinit(bool free_options)
 /* Destroy wsrep thread LOCKs and CONDs */
 void wsrep_thr_deinit()
 {
+  if (!wsrep_config_state)
+    return;                                     // Never initialized
   mysql_mutex_destroy(&LOCK_wsrep_ready);
   mysql_cond_destroy(&COND_wsrep_ready);
   mysql_mutex_destroy(&LOCK_wsrep_sst);
@@ -832,6 +837,8 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
   mysql_mutex_destroy(&LOCK_wsrep_desync);
   mysql_mutex_destroy(&LOCK_wsrep_config_state);
+  delete wsrep_config_state;
+  wsrep_config_state= 0;                        // Safety
 }
 
 void wsrep_recover()

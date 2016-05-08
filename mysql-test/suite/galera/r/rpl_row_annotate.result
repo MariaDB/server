@@ -1,14 +1,18 @@
 # On node_2
+connection node_2;
 RESET MASTER;
 # On node_1
+connection node_1;
 RESET MASTER;
 CREATE TABLE t1(i INT)ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 DELETE FROM t1 WHERE i = 1;
 # On node_2
+connection node_2;
 INSERT INTO t1 VALUES(2);
 DELETE FROM t1 WHERE i = 2;
 # On node_1
+connection node_1;
 SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM <start_pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-bin.000001	#	Gtid_list	1	#	[]
@@ -36,6 +40,7 @@ mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
 mysqld-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
 mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
 # On node_2
+connection node_2;
 SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM <start_pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-bin.000001	#	Gtid_list	2	#	[]
@@ -63,4 +68,6 @@ mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
 mysqld-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
 mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
 DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;
 # End of test

@@ -908,7 +908,8 @@ THD::THD(bool is_wsrep_applier)
   */
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
-  status_var.local_memory_used= status_var.global_memory_used= 0;
+  status_var.local_memory_used= sizeof(THD);
+  status_var.global_memory_used= 0;
   main_da.init();
 
   /*
@@ -1641,6 +1642,8 @@ THD::~THD()
     that memory allocation counting is done correctly
   */
   set_current_thd(this);
+  if (!status_in_global)
+    add_status_to_global();
 
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
@@ -1703,6 +1706,7 @@ THD::~THD()
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
+  status_var.local_memory_used-= sizeof(THD);
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
@@ -1710,7 +1714,7 @@ THD::~THD()
     DBUG_ASSERT(status_var.local_memory_used == 0 ||
                 !debug_assert_on_not_freed_memory);
   }
-
+  update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
@@ -1748,12 +1752,17 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
-  to_var->local_memory_used+=   from_var->local_memory_used;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
     global value can change outside of LOCK_status.
   */
+  if (to_var == &global_status_var)
+  {
+    DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
+                        (longlong) global_status_var.global_memory_used,
+                        (longlong) from_var->global_memory_used));
+  }
   // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
   int64 volatile * volatile ptr= &to_var->global_memory_used;
   my_atomic_add64_explicit(ptr, from_var->global_memory_used,

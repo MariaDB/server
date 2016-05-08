@@ -1,3 +1,4 @@
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY);
 CREATE TABLE t3 (f1 INTEGER PRIMARY KEY);
@@ -23,6 +24,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t3;
 COUNT(*) = 1
 1
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
@@ -32,6 +34,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t3;
 COUNT(*) = 1
 1
+connection node_1;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

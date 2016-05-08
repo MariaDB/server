@@ -1,0 +1,34 @@
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+
+--enable_warnings
+--echo # 
+--echo # MDEV-7885: EXPLAIN shows wrong info for ORDER BY query
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+ 
+create table t2 (key1 int, col1 int, key(key1));  
+insert into t2 select a,a from t0;
+insert into t2 select 15,15 from t1;
+alter table t2 add key2 int, add key(key2);
+--echo # This must show "Using filesort":
+explain 
+select * from t2 ignore index for order by (key1) where col1<0 order by key1 limit 10;
+
+drop table t0, t1, t2;
+
+--echo # 
+--echo # MDEV-8857: [Upstream too] EXPLAIN incorrectly shows Distinct for tables using join buffer
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+create table t1 (a int, filler char(200), key(a));
+insert into t1 select A.a + B.a* 10, 'AAAAAAAAAAAAAAAAAAAA' from t0 A, t0 B where B.a in (0,1);
+explain select distinct A.a from t0 A, t1 B where A.a+B.a> 0;
+
+drop table t0, t1;
+

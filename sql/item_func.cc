@@ -132,6 +132,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
   while ((item= li++))
   {
     with_sum_func|= item->with_sum_func;
+    with_window_func|= item->with_window_func;
     with_field|= item->with_field;
   }
 }
@@ -226,6 +227,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
       with_subselect|=        item->has_subquery();
@@ -431,7 +433,7 @@ void Item_args::propagate_equal_fields(THD *thd,
   See comments in Item_cond::split_sum_func()
 */
 
-void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
+void Item_func::split_sum_func(THD *thd,  Ref_ptr_array ref_pointer_array,
                                List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
@@ -4904,9 +4906,16 @@ Item_func_set_user_var::update_hash(void *ptr, uint length,
     If we set a variable explicitely to NULL then keep the old
     result type of the variable
   */
-  if ((null_value= args[0]->null_value) && null_item)
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    /* args[0]->null_value may be outdated */
+    null_value= ((Item_field*)args[0])->field->is_null();
+  }
+  else
+    null_value= args[0]->null_value;
+  if (null_value && null_item)
     res_type= m_var_entry->type;                 // Don't change type of item
-  if (::update_hash(m_var_entry, (null_value= args[0]->null_value),
+  if (::update_hash(m_var_entry, null_value,
                     ptr, length, res_type, cs, unsigned_arg))
   {
     null_value= 1;

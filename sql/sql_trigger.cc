@@ -1581,7 +1581,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       DBUG_RETURN(0);
 
 err_with_lex_cleanup:
-      // QQ: anything else ?
       lex_end(&lex);
       thd->lex= old_lex;
       thd->spcont= save_spcont;

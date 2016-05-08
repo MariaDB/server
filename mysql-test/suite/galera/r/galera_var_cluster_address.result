@@ -1,3 +1,6 @@
+connection node_1;
+connection node_2;
+connection node_1;
 SET GLOBAL wsrep_cluster_address = 'foo://';
 SET SESSION wsrep_sync_wait=0;
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
@@ -14,19 +17,24 @@ wsrep_local_state	0
 SHOW STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
 wsrep_local_state_comment	Initialized
+connection node_2;
 SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 1
 1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
+connection node_1;
+connection node_2;
 SET GLOBAL wsrep_cluster_address = @@wsrep_cluster_address;
+connection node_1;
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 2
 1
+connection node_1;
 SET GLOBAL wsrep_cluster_address = 'gcomm://192.0.2.1';
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 ERROR 08S01: WSREP has not yet prepared node for application use
@@ -42,7 +50,10 @@ wsrep_local_state	0
 SHOW STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
 wsrep_local_state_comment	Initialized
+connection node_1;
+connection node_2;
 SET GLOBAL wsrep_cluster_address = @@wsrep_cluster_address;
+connection node_1;
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1

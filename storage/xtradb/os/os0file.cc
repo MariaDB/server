@@ -1561,7 +1561,7 @@ os_file_set_nocache_if_needed(os_file_t file, const char* name,
 	}
 
 	if (srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT
-	    || (type == OS_LOG_FILE
+	    || (type == OS_DATA_FILE
 		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
 		    || (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)))) {
 		os_file_set_nocache(file, name, mode_str);

@@ -1,7 +1,10 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
 SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
 FLUSH TABLES WITH READ LOCK;
+connection node_1;
 INSERT INTO t1 VALUES (1);
+connection node_2;
 SHOW TABLES;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SELECT * FROM t1;

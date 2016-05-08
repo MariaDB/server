@@ -512,7 +512,10 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
   {
     With_clause *with_clause=sl->get_with_clause();
     if (with_clause && (found= with_clause->find_table_def(table)))
-      return found;      
+      return found; 
+    /* Do not look for the table's definition beyond the scope of the view */
+    if (sl->master_unit()->is_view)
+      break;      
   }
   return found;
 }

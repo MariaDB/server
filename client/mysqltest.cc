@@ -703,7 +703,7 @@ public:
     DBUG_ASSERT(ds->str);
 
 #ifdef EXTRA_DEBUG
-    DBUG_PRINT("QQ", ("str: %*s", (int) ds->length, ds->str));
+    DBUG_PRINT("extra", ("str: %*s", (int) ds->length, ds->str));
 #endif
 
     if (fwrite(ds->str, 1, ds->length, m_file) != ds->length)

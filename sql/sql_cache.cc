@@ -354,7 +354,7 @@ const uchar *query_state_map;
 #include "emb_qcache.h"
 #endif
 
-#if !defined(EXTRA_DBUG) && !defined(DBUG_OFF)
+#if defined(EXTRA_DEBUG) && !defined(DBUG_OFF)
 #define RW_WLOCK(M) {DBUG_PRINT("lock", ("rwlock wlock 0x%lx",(ulong)(M))); \
   if (!mysql_rwlock_wrlock(M)) DBUG_PRINT("lock", ("rwlock wlock ok")); \
   else DBUG_PRINT("lock", ("rwlock wlock FAILED %d", errno)); }

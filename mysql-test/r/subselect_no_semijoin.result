@@ -82,7 +82,7 @@ SELECT 1 FROM (SELECT 1 as a) b WHERE 1 IN (SELECT (SELECT a));
 1
 1
 select (SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE(1));
-ERROR HY000: Incorrect usage of PROCEDURE and subquery
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(1))' at line 1
 SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE((SELECT 1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1))' at line 1
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NULL;

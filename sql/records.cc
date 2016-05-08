@@ -39,7 +39,7 @@ int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_buffer(READ_RECORD *info);
-static int rr_from_pointers(READ_RECORD *info);
+int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
 static int rr_cmp(uchar *a,uchar *b);
@@ -316,7 +316,7 @@ void end_read_record(READ_RECORD *info)
   }
   if (info->table)
   {
-    if (info->table->created)
+    if (info->table->is_created())
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
     if (info->read_record != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();
@@ -535,7 +535,7 @@ static int rr_unpack_from_tempfile(READ_RECORD *info)
   return 0;
 }
 
-static int rr_from_pointers(READ_RECORD *info)
+int rr_from_pointers(READ_RECORD *info)
 {
   int tmp;
   uchar *cache_pos;

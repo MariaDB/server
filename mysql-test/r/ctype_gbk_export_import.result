@@ -1,0 +1,3903 @@
+DROP DATABASE IF EXISTS gbk;
+CREATE DATABASE gbk DEFAULT CHARACTER SET gbk;
+USE gbk;
+CREATE TABLE t1 (
+id INT NOT NULL,
+a1 TEXT NOT NULL,
+a2 TEXT CHARACTER SET utf8 NOT NULL,
+b1 BLOB NOT NULL,
+eol TEXT NOT NULL);
+CREATE PROCEDURE populate()
+BEGIN
+TRUNCATE TABLE t1;
+INSERT INTO t1 SET id=1, a1=0xEE5C, a2=_gbk 0xEE5C, b1=0xEE5C, eol='$';
+INSERT INTO t1 SET id=2, a1=0xEE5C5C, a2=_gbk 0xEE5C5C, b1=0xEE5C5C, eol='$';
+END|
+CREATE FUNCTION cmt(id INT, field_name TEXT, field_value BLOB)
+RETURNS TEXT CHARACTER SET utf8
+BEGIN
+DECLARE comment TEXT CHARACTER SET utf8;
+DECLARE expected_value_01 BLOB;
+DECLARE expected_value_02 BLOB;
+SET comment= CASE field_name WHEN 'a1' THEN 'TEXT-GBK' WHEN 'a2' THEN 'TEXT-UTF8' WHEN 'b1' THEN 'BLOB' ELSE '' END;
+SET expected_value_01= CASE field_name WHEN 'a1' THEN 0xEE5C WHEN 'a2' THEN 0xE9A0AB WHEN 'b1' THEN 0xEE5C ELSE '' END;
+SET expected_value_02= CASE field_name WHEN 'a1' THEN 0xEE5C5C WHEN 'a2' THEN 0xE9A0AB5C WHEN 'b1' THEN 0xEE5C5C ELSE '' END;
+RETURN IF(CASE id
+WHEN 1 THEN expected_value_01
+WHEN 2 THEN expected_value_02
+ELSE ''
+            END <> field_value,
+CONCAT('BAD-', comment), '');
+END|
+CREATE FUNCTION display_file(file BLOB) RETURNS TEXT CHARACTER SET utf8
+BEGIN
+SET file=REPLACE(file, 0x09, '----');
+SET file=REPLACE(file, 0x0A, '++++');
+RETURN REPLACE(REPLACE(HEX(file), '2D2D2D2D','-'), '2B2B2B2B','|');
+END|
+CREATE VIEW v1 AS
+SELECT
+id,
+CONCAT(RPAD(HEX(a1),50,' '), cmt(id, 'a1', a1)) AS a1,
+CONCAT(RPAD(HEX(a2),50,' '), cmt(id, 'a2', a2)) AS a2,
+CONCAT(RPAD(HEX(b1),50,' '), cmt(id, 'b1', b1)) AS b1,
+CONCAT(RPAD(HEX(eol),50,' '), IF(eol<>'$','BAD-EOL','')) AS eol,
+'---' AS `---`
+FROM t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a1` text NOT NULL,
+  `a2` text CHARACTER SET utf8 NOT NULL,
+  `b1` blob NOT NULL,
+  `eol` text NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=gbk
+#
+# Dump using SELECT INTO OUTFILE
+#
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto 
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto }{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=auto CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk 
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk }{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=gbk CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-5CEE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-5CEE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET gbk
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET utf8
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET utf8}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=auto 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=gbk 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 }
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=utf8 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:  zh_CN.gbk
+OUTFILE: --default-character-set=utf8 CHARACTER SET binary
+INFILE:  --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+#
+# Dump using mysqldump -Tdir
+#
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=auto 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=binary 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary }
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=binary CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=binary CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=binary CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=gbk 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=utf8 
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9978BE78E9509E9A0AB5C0924                        BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	EE5C5C0924                                        BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=binary
+INFILE:    --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
+id	1
+a1	3F09E9A03F                                        BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09E9A0AB5C                                    BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	24                                                BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=auto 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=auto CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=auto CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=auto CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=binary 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=binary CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=binary CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=binary CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=gbk 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=gbk CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=gbk CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=gbk CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=utf8 
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=utf8 CHARACTER SET gbk
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=utf8 CHARACTER SET utf8
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F5C                                              BAD-TEXT-GBK
+a2	3F5C                                              BAD-TEXT-UTF8
+b1	EE5C                                              
+eol	24                                                
+---	---
+id	2
+a1	3F5C5C                                            BAD-TEXT-GBK
+a2	3F5C5C                                            BAD-TEXT-UTF8
+b1	EE5C5C                                            
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=gbk
+INFILE:    --default-character-set=utf8 CHARACTER SET binary
+file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
+id	1
+a1	3F093F093F0924                                    BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+id	2
+a1	EE5C09EE5C09EE5C0924                              BAD-TEXT-GBK
+a2	                                                  BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=auto 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=auto CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=auto CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=auto CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=auto CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=binary 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=binary CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=binary CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=binary CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=binary CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=gbk 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=gbk CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=gbk CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=gbk CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=gbk CHARACTER SET binary}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 }
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=utf8 
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 }
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=utf8 CHARACTER SET gbk
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9978B3F                                          BAD-TEXT-UTF8
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C09E9A0AB5C093F5C5C                        BAD-TEXT-GBK
+a2	24                                                BAD-TEXT-UTF8
+b1	                                                  BAD-BLOB
+eol	                                                  BAD-EOL
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET gbk}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=utf8 CHARACTER SET utf8
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	EE5C                                              
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	EE5C5C                                            
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET utf8}
+
+
+Start of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET binary}
+Locale:    zh_CN.gbk
+mysqldump: --default-character-set=utf8
+INFILE:    --default-character-set=utf8 CHARACTER SET binary
+file	31-E9A0AB-E9A0AB-3F5C5C-24|32-E9A0AB5C5C-E9A0AB5C5C-3F5C5C5C5C-24|
+id	1
+a1	E9A03F                                            BAD-TEXT-GBK
+a2	E9A0AB                                            
+b1	3F5C                                              BAD-BLOB
+eol	24                                                
+---	---
+id	2
+a1	E9A0AB5C                                          BAD-TEXT-GBK
+a2	E9A0AB5C                                          
+b1	3F5C5C                                            BAD-BLOB
+eol	24                                                
+---	---
+End of {zh_CN.gbk}{--default-character-set=utf8}{--default-character-set=utf8 CHARACTER SET binary}
+
+
+DROP DATABASE gbk;
+USE test;

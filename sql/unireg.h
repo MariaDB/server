@@ -43,15 +43,16 @@
 #define PLUGINDIR	"lib/plugin"
 #endif
 
-#define CURRENT_THD_ERRMSGS current_thd->variables.errmsgs
-#define DEFAULT_ERRMSGS     my_default_lc_messages->errmsgs->errmsgs
+#define MAX_ERROR_RANGES 4  /* 1000-2000, 2000-3000, 3000-4000, 4000-5000 */
+#define ERRORS_PER_RANGE 1000
 
-#define ER(X)         CURRENT_THD_ERRMSGS[(X) - ER_ERROR_FIRST]
-#define ER_DEFAULT(X) DEFAULT_ERRMSGS[(X) - ER_ERROR_FIRST]
-#define ER_SAFE(X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER(X) : "Invalid error code")
-#define ER_SAFE_THD(T,X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER_THD(T,X) : "Invalid error code")
-#define ER_THD(thd,X) ((thd)->variables.errmsgs[(X) - ER_ERROR_FIRST])
-#define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, X) : ER_DEFAULT(X))
+#define DEFAULT_ERRMSGS           my_default_lc_messages->errmsgs->errmsgs
+#define CURRENT_THD_ERRMSGS       (current_thd)->variables.errmsgs
+
+#define ER_DEFAULT(X) DEFAULT_ERRMSGS[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X)% ERRORS_PER_RANGE]
+#define ER_THD(thd,X) ((thd)->variables.errmsgs[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X) % ERRORS_PER_RANGE])
+#define ER(X)         ER_THD(current_thd, (X))
+#define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, (X)) : ER_DEFAULT(X))
 
 #define ME_INFO (ME_HOLDTANG+ME_OLDWIN+ME_NOREFRESH)
 #define ME_ERROR (ME_BELL+ME_OLDWIN+ME_NOREFRESH)
