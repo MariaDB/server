@@ -2972,7 +2972,6 @@ void unlink_thd(THD *thd)
 
   unlink_not_visible_thd(thd);
   thd->free_connection();
-  dec_thread_count();
 
   DBUG_VOID_RETURN;
 }
@@ -3117,6 +3116,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
     if (!wsrep_applier && put_in_cache && cache_thread(thd))
       DBUG_RETURN(0);                             // Thread is reused
     delete thd;
+    dec_thread_count();
   }
 
   DBUG_PRINT("info", ("killing thread"));
@@ -6418,6 +6418,7 @@ void create_thread_to_handle_connection(CONNECT *connect)
       /* Get thread from cache */
       thread_cache.push_back(connect);
       wake_thread++;
+      thread_safe_decrement32(&thread_count);
       mysql_cond_signal(&COND_thread_cache);
       mysql_mutex_unlock(&LOCK_thread_cache);
       DBUG_PRINT("info",("Thread created"));
