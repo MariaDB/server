@@ -2172,6 +2172,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   name_visibility_map= 0;
+  with_dep= 0;
   join= 0;
 }
 

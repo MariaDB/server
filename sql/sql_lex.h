@@ -546,6 +546,14 @@ public:
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  void move_node(st_select_lex_node *where_to_move)
+  {
+    if (where_to_move == this)
+      return;
+    *prev= next;
+    *where_to_move->prev= this;
+    next= where_to_move;
+  }
   st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
                                           st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
@@ -695,6 +703,7 @@ public:
   bool prepare(THD *thd, select_result *result, ulong additional_options);
   bool optimize();
   bool exec();
+  bool exec_recursive();
   bool cleanup();
   inline void unclean() { cleaned= 0; }
   void reinit_exec_mechanism();
@@ -911,6 +920,8 @@ public:
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
 
+  table_map with_dep;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -1097,6 +1108,8 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
+  bool check_unrestricted_recursive(); 
+
 
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);

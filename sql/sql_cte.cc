@@ -21,14 +21,17 @@
     true    on failure
 */
 
-bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
+bool check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list)
 {
   for (With_clause *with_clause= with_clauses_list;
        with_clause;
        with_clause= with_clause->next_with_clause)
   {
-    if (with_clause->check_dependencies())
+    if (with_clause->check_dependencies(thd))
       return true;
+    if (with_clause->check_anchors())
+      return true;
+    with_clause->move_anchors_ahead();
   }
   return false;
 }
@@ -57,7 +60,7 @@ bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
     false   otherwise
 */
 
-bool With_clause::check_dependencies()
+bool With_clause::check_dependencies(THD *thd)
 {
   if (dependencies_are_checked)
     return false;
@@ -84,9 +87,14 @@ bool With_clause::check_dependencies()
 	return true;
       }
     }
-    with_elem->check_dependencies_in_unit(with_elem->spec);   
+    if (with_elem->check_dependencies_in_spec(thd))
+      return true;
   }
   /* Build the transitive closure of the direct dependencies found above */
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+    with_elem->derived_dep_map= with_elem->base_dep_map;
   for (With_element *with_elem= first_elem;
        with_elem != NULL;
        with_elem= with_elem->next_elem)
@@ -94,8 +102,8 @@ bool With_clause::check_dependencies()
     table_map with_elem_map=  with_elem->get_elem_map();
     for (With_element *elem= first_elem; elem != NULL; elem= elem->next_elem)
     {
-      if (elem->dependency_map & with_elem_map)
-        elem->dependency_map |= with_elem->dependency_map;
+      if (elem->derived_dep_map & with_elem_map)
+        elem->derived_dep_map |= with_elem->derived_dep_map;
     }   
   }
 
@@ -107,7 +115,7 @@ bool With_clause::check_dependencies()
        with_elem != NULL;
        with_elem= with_elem->next_elem)
   {
-    if (with_elem->dependency_map & with_elem->get_elem_map())
+    if (with_elem->derived_dep_map & with_elem->get_elem_map())
       with_elem->is_recursive= true;
   }   
   for (With_element *with_elem= first_elem;
@@ -115,10 +123,12 @@ bool With_clause::check_dependencies()
        with_elem= with_elem->next_elem)
   {
     if (with_elem->is_recursive)
-    {  
+    {
+#if 0  
       my_error(ER_RECURSIVE_QUERY_IN_WITH_CLAUSE, MYF(0),
                with_elem->query_name->str);
       return true;
+#endif
     }
   }
 
@@ -152,7 +162,39 @@ bool With_clause::check_dependencies()
 }
 
 
-/**
+bool With_element::check_dependencies_in_spec(THD *thd)
+{ 
+  for (st_select_lex *sl=  spec->first_select(); sl; sl= sl->next_select())
+  {
+    check_dependencies_in_select(sl, sl->with_dep);
+    base_dep_map|= sl->with_dep;
+  }
+  return false;
+}
+
+
+void With_element::check_dependencies_in_select(st_select_lex *sl, table_map &dep_map)
+{
+  for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
+  {
+    tbl->with_internal_reference_map= 0;
+    if (!tbl->with)
+      tbl->with= owner->find_table_def(tbl);
+    if (!tbl->with && tbl->select_lex)
+      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
+    if (tbl->with && tbl->with->owner== this->owner)
+    {
+      dep_map|= tbl->with->get_elem_map();
+      tbl->with_internal_reference_map= get_elem_map();
+    }
+  }
+  st_select_lex_unit *inner_unit= sl->first_inner_unit();
+  for (; inner_unit; inner_unit= inner_unit->next_unit())
+    check_dependencies_in_unit(inner_unit, dep_map);
+}
+
+
+ /**
   @brief
     Check dependencies on the sibling with tables used in the given unit
 
@@ -166,24 +208,102 @@ bool With_clause::check_dependencies()
     dependency_map of this element.
 */
 
-void With_element::check_dependencies_in_unit(st_select_lex_unit *unit)
+void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
+                                              table_map &dep_map)
 {
   st_select_lex *sl= unit->first_select();
   for (; sl; sl= sl->next_select())
   {
-    for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
-    {
-      if (!tbl->with)
-        tbl->with= owner->find_table_def(tbl);
-      if (!tbl->with && tbl->select_lex)
-        tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
-      if (tbl->with && tbl->with->owner== this->owner)
-        set_dependency_on(tbl->with);
-    }
-    st_select_lex_unit *inner_unit= sl->first_inner_unit();
-    for (; inner_unit; inner_unit= inner_unit->next_unit())
-      check_dependencies_in_unit(inner_unit);
+    check_dependencies_in_select(sl, dep_map);
   }
+}
+
+
+bool With_clause::check_anchors()
+{
+  /* Find mutually recursive with elements */
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    if (!with_elem->is_recursive)
+      continue;
+
+    table_map with_elem_dep= with_elem->derived_dep_map;
+    table_map with_elem_map= with_elem->get_elem_map();
+    for (With_element *elem= with_elem;
+         elem != NULL;
+	 elem= elem->next_elem)
+    {
+      if (!elem->is_recursive)
+        continue;
+
+      if (elem == with_elem ||
+	  ((elem->derived_dep_map & with_elem_map) &&
+	   (with_elem_dep & elem->get_elem_map())))
+	{
+	  with_elem->mutually_recursive|= elem->get_elem_map();
+	  elem->mutually_recursive|= with_elem_map;
+	}
+    }
+ 
+    for (st_select_lex *sl= with_elem->spec->first_select();
+         sl;
+         sl= sl->next_select())
+    {
+      if (!(with_elem->mutually_recursive & sl->with_dep))
+      {
+        with_elem->with_anchor= true;
+        break;
+      }
+    }
+  }
+
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    if (!with_elem->is_recursive || with_elem->with_anchor)
+      continue;
+
+    table_map anchored= 0;
+    for (With_element *elem= with_elem;
+	 elem != NULL;
+	 elem= elem->next_elem)
+    {
+      if (elem->mutually_recursive && elem->with_anchor)
+	  anchored |= elem->get_elem_map();
+    }
+    table_map non_anchored= with_elem->mutually_recursive & ~anchored;
+    with_elem->work_dep_map= non_anchored & with_elem->base_dep_map;
+  }
+
+  /*Building transitive clousure on work_dep_map*/
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    table_map with_elem_map= with_elem->get_elem_map();
+    for (With_element *elem= first_elem; elem != NULL; elem= elem->next_elem)
+    {
+      if (elem->work_dep_map & with_elem_map)
+	elem->work_dep_map|= with_elem->work_dep_map;
+    }
+  }
+
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    if (with_elem->work_dep_map & with_elem->get_elem_map())
+    {
+      my_error(ER_RECURSIVE_WITHOUT_ANCHORS, MYF(0),
+      with_elem->query_name->str);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 
@@ -438,8 +558,8 @@ With_element::rename_columns_of_derived_unit(THD *thd,
       item->is_autogenerated_name= false;
     }
   }
-
-  make_valid_column_names(thd, select->item_list);
+  else
+    make_valid_column_names(thd, select->item_list);
 
   unit->columns_are_renamed= true;
 
@@ -484,6 +604,47 @@ bool With_element::prepare_unreferenced(THD *thd)
   thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
   return rc;
 }
+
+
+
+void With_clause::move_anchors_ahead()
+{
+  for (With_element *with_elem= first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    if (with_elem->is_recursive)
+     with_elem->move_anchors_ahead();
+  }
+}
+	
+
+void With_element::move_anchors_ahead()
+{
+  st_select_lex *next_sl;
+  st_select_lex *new_pos= spec->first_select();
+  st_select_lex *last_sl;
+  new_pos->linkage= UNION_TYPE;
+  for (st_select_lex *sl= new_pos; sl; sl= next_sl)
+  {
+    next_sl= sl->next_select(); 
+    if (is_anchor(sl))
+    {
+      sl->move_node(new_pos);
+      new_pos= sl->next_select();
+    }
+    last_sl= sl;
+  }
+  if (spec->union_distinct)
+    spec->union_distinct= last_sl;
+  first_recursive= new_pos;
+}
+
+
+bool With_element::is_anchor(st_select_lex *sel)
+{
+  return !(mutually_recursive & sel->with_dep);
+}   
 
 
 /**
@@ -540,7 +701,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
 {
   with= with_elem;
-  if (!with_elem->is_referenced())
+  if (!with_elem->is_referenced() || with_elem->is_recursive)
     derived= with_elem->spec;
   else 
   {
@@ -549,6 +710,102 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
     derived->with_element= with_elem;
   }
   with_elem->inc_references();
+  return false;
+}
+
+
+bool TABLE_LIST::is_recursive_with_table()
+{
+  return with && with->is_recursive;
+}
+
+
+bool TABLE_LIST::is_with_table_recursive_reference()
+{
+  return (with_internal_reference_map &&
+          (with->mutually_recursive & with_internal_reference_map));
+}
+
+
+
+bool st_select_lex::check_unrestricted_recursive()
+{
+  With_element *with_elem= get_with_element();
+  if (!with_elem)
+    return false;
+  table_map unrestricted= 0;
+  table_map encountered= 0;
+  if (with_elem->check_unrestricted_recursive(this, 
+					      unrestricted, 
+					      encountered))
+    return true;
+  with_elem->owner->unrestricted|= unrestricted;
+  return false;
+}
+
+
+bool With_element::check_unrestricted_recursive(st_select_lex *sel, 
+					        table_map &unrestricted, 
+						table_map &encountered)
+{
+  List_iterator<TABLE_LIST> ti(sel->leaf_tables);
+  TABLE_LIST *tbl;
+  while ((tbl= ti++))
+  {
+    if (tbl->get_unit() && !tbl->is_with_table())
+    {
+      st_select_lex_unit *unit= tbl->get_unit();
+      if (tbl->is_materialized_derived())
+      {
+        table_map dep_map;
+        check_dependencies_in_unit(unit, dep_map);
+        if (dep_map & get_elem_map())
+        {
+	  my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
+	  	   MYF(0), query_name->str);
+	  return true;
+        }
+      }
+      if (check_unrestricted_recursive(unit->first_select(), 
+					     unrestricted, 
+				             encountered))
+        return true;
+      if (!(tbl->is_recursive_with_table() && unit->with_element->owner == owner))
+        continue;
+      With_element *with_elem= unit->with_element;
+      if (encountered & with_elem->get_elem_map())
+        unrestricted|= with_elem->mutually_recursive;
+      else
+        encountered|= with_elem->get_elem_map();
+    }
+  }
+  for (With_element *with_elem= sel->get_with_element()->owner->first_elem;
+       with_elem != NULL;
+       with_elem= with_elem->next_elem)
+  {
+    if (!with_elem->is_recursive && (unrestricted & with_elem->get_elem_map()))
+      continue;
+    if (encountered & with_elem->get_elem_map())
+    {
+      uint cnt= 0;
+      table_map mutually_recursive= with_elem->mutually_recursive;
+      for (table_map map= mutually_recursive >> with_elem->number;
+           map != 0;
+           map>>= 1) 
+      {
+        if (map & 1)
+        { 
+          if (cnt)
+          { 
+            unrestricted|= with_elem->mutually_recursive;
+            break;
+          }
+          else
+            cnt++;
+	}
+      }
+    }
+  }
   return false;
 }
 
@@ -601,4 +858,5 @@ void With_element::print(String *str, enum_query_type query_type)
   spec->print(str, query_type);
   str->append(')');
 }
+
 

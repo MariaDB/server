@@ -4,6 +4,7 @@
 #include "sql_lex.h"
 
 class With_clause;
+class select_union;
 
 /**
   @class With_clause
@@ -21,13 +22,22 @@ private:
   With_clause *owner;      // with clause this object belongs to
   With_element *next_elem; // next element in the with clause
   uint number;  // number of the element in the with clause (starting from 0)
-  /* 
-    The map dependency_map has 1 in the i-th position if the query that
-    specifies this element contains a reference to the element number i
-    in the query FROM list.
-  */
   table_map elem_map;  // The map where with only one 1 set in this->number   
-  table_map dependency_map;
+  /* 
+    The map base_dep_map has 1 in the i-th position if the query that
+    specifies this with element contains a reference to the with element number i
+    in the query FROM list.
+    (In this case this with element depends directly on the i-th with element.)  
+  */
+  table_map base_dep_map; 
+  /* 
+    The map derived_dep_map has 1 in i-th position if this with element depends
+    directly or indirectly from the i-th with element. 
+  */
+  table_map derived_dep_map; 
+  table_map work_dep_map;  // dependency map used for work
+  /* Dependency map of with elements mutually recursive with this with element */
+  table_map mutually_recursive; 
   /* 
     Total number of references to this element in the FROM lists of
     the queries that are in the scope of the element (including
@@ -42,6 +52,8 @@ private:
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return 1 << number; }
+ 
+  TABLE *table;
  
 public:
   /*
@@ -64,20 +76,40 @@ public:
   */
   bool is_recursive;
 
+  bool with_anchor;
+
+  st_select_lex *first_recursive;
+  
+  uint level;
+
+  select_union *partial_result;
+  select_union *final_result;
+  select_union_recursive *rec_result;
+  TABLE *result_table;
+
   With_element(LEX_STRING *name,
                List <LEX_STRING> list,
                st_select_lex_unit *unit)
-    : next_elem(NULL), dependency_map(0), references(0),
+    : next_elem(NULL), base_dep_map(0), derived_dep_map(0),
+      work_dep_map(0), mutually_recursive(0), 
+      references(0), table(NULL),
       query_name(name), column_list(list), spec(unit),
-      is_recursive(false) {}
+      is_recursive(false), with_anchor(false),
+      partial_result(NULL), final_result(NULL),
+      rec_result(NULL), result_table(NULL)
+  { reset();}
 
-  void check_dependencies_in_unit(st_select_lex_unit *unit);
-
+  bool check_dependencies_in_spec(THD *thd);
+  
+  void check_dependencies_in_select(st_select_lex *sl, table_map &dep_map);
+      
+  void check_dependencies_in_unit(st_select_lex_unit *unit, table_map &dep_map);
+ 
   void  set_dependency_on(With_element *with_elem)
-  { dependency_map|= with_elem->get_elem_map(); }
+  { base_dep_map|= with_elem->get_elem_map(); }
 
   bool check_dependency_on(With_element *with_elem)
-  { return dependency_map & with_elem->get_elem_map(); }
+  { return base_dep_map & with_elem->get_elem_map(); }
 
   bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end);
 
@@ -91,9 +123,42 @@ public:
 
   bool prepare_unreferenced(THD *thd);
 
-  void print(String *str, enum_query_type query_type);
+  bool check_unrestricted_recursive(st_select_lex *sel,
+                                    table_map &unrestricted,
+                                    table_map &encountered);
+
+   void print(String *str, enum_query_type query_type);
+
+  void set_table(TABLE *tab) { table= tab; }
+
+  TABLE *get_table() { return table; }
+
+  bool is_anchor(st_select_lex *sel);
+
+  void move_anchors_ahead(); 
+
+  bool is_unrestricted();
+
+  bool is_with_prepared_anchor();
+
+  void mark_as_with_prepared_anchor();
+
+  bool is_cleaned();
+
+  void mark_as_cleaned();
+
+  void reset()
+  {
+    level= 0;
+  }
+
+  void set_result_table(TABLE *tab) { result_table= tab; }
 
   friend class With_clause;
+  friend
+  bool st_select_lex::check_unrestricted_recursive();
+  friend
+  bool TABLE_LIST::is_with_table_recursive_reference();
 };
 
 
@@ -126,6 +191,10 @@ private:
   /* Set to true if dependencies between with elements have been checked */
   bool dependencies_are_checked; 
 
+  table_map unrestricted;
+  table_map with_prepared_anchor;
+  table_map cleaned;
+
 public:
  /* If true the specifier RECURSIVE is present in the with clause */
   bool with_recursive;
@@ -133,7 +202,8 @@ public:
   With_clause(bool recursive_fl, With_clause *emb_with_clause)
     : owner(NULL), first_elem(NULL), elements(0),
       embedding_with_clause(emb_with_clause), next_with_clause(NULL),
-    dependencies_are_checked(false),
+      dependencies_are_checked(false),
+    unrestricted(0), with_prepared_anchor(0), cleaned(0),
       with_recursive(recursive_fl)
   { last_next= &first_elem; }
 
@@ -159,7 +229,11 @@ public:
 
   With_clause *pop() { return embedding_with_clause; }
       
-  bool check_dependencies();
+  bool check_dependencies(THD *thd);
+
+  bool check_anchors();
+
+  void move_anchors_ahead();
 
   With_element *find_table_def(TABLE_LIST *table);
 
@@ -169,10 +243,45 @@ public:
 
   void print(String *str, enum_query_type query_type);
 
+  friend class With_element;
+
   friend
-  bool check_dependencies_in_with_clauses(With_clause *with_clauses_list);
+  bool check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list);
+  friend
+  bool st_select_lex::check_unrestricted_recursive();
 
 };
 
+inline
+bool With_element::is_unrestricted() 
+{
+  return owner->unrestricted & get_elem_map();
+}
+
+inline
+
+bool With_element::is_with_prepared_anchor() 
+{
+  return owner->with_prepared_anchor & get_elem_map();
+}
+
+inline
+void With_element::mark_as_with_prepared_anchor() 
+{
+  owner->with_prepared_anchor|= mutually_recursive;
+}
+
+
+inline
+bool With_element::is_cleaned() 
+{
+  return owner->cleaned & get_elem_map();
+}
+
+inline
+void With_element::mark_as_cleaned() 
+{
+  owner->cleaned|= get_elem_map();
+}
 
 #endif /* SQL_CTE_INCLUDED */

@@ -28,6 +28,8 @@
 #include "sql_cursor.h"
 #include "sql_base.h"                           // fill_record
 #include "filesort.h"                           // filesort_free_buffers
+#include "sql_view.h"
+#include "sql_cte.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
@@ -96,6 +98,26 @@ int select_union::send_data(List<Item> &values)
       return -1;
   }
   return 0;
+}
+
+int select_union_recursive::send_data(List<Item> &values)
+{
+  int rc= select_union::send_data(values);
+
+  if (!write_err)
+  { 
+    int err;
+    if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
+    {
+      bool is_duplicate;
+      rc= create_internal_tmp_table_from_heap(thd, incr_table,
+                                              tmp_table_param.start_recinfo, 
+                                              &tmp_table_param.recinfo,
+					      err, 1, &is_duplicate);
+    }
+  }
+  
+  return rc;
 }
 
 
@@ -171,6 +193,61 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
   return FALSE;
 }
 
+bool
+select_union_recursive::create_result_table(THD *thd_arg,
+                                            List<Item> *column_types,
+                                            bool is_union_distinct,
+                                            ulonglong options,
+                                            const char *alias,
+                                            bool bit_fields_as_long,
+                                            bool create_table,
+                                            bool keep_row_order)
+{
+  if (select_union::create_result_table(thd_arg, column_types,
+                                        is_union_distinct, options,
+                                        alias, bit_fields_as_long,
+                                        create_table, keep_row_order))
+    return true;
+  
+  if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
+                                      (ORDER*) 0, false, 1,
+                                      options, HA_POS_ERROR, alias,
+                                      !create_table, keep_row_order)))
+    return true;
+
+  incr_table->keys_in_use_for_query.clear_all();
+  for (uint i=0; i < table->s->fields; i++)
+    incr_table->field[i]->flags &= ~PART_KEY_FLAG;
+
+  if (create_table)
+  {
+    incr_table->file->extra(HA_EXTRA_WRITE_CACHE);
+    incr_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+  }
+
+  TABLE *rec_table= 0;
+  if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
+                                     (ORDER*) 0, false, 1,
+                                     options, HA_POS_ERROR, alias,
+                                     !create_table, keep_row_order)))
+    return true;
+
+  rec_table->keys_in_use_for_query.clear_all();
+  for (uint i=0; i < table->s->fields; i++)
+    rec_table->field[i]->flags &= ~PART_KEY_FLAG;
+
+  if (create_table)
+  {
+    rec_table->file->extra(HA_EXTRA_WRITE_CACHE);
+    rec_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+  }
+
+  if (rec_tables.push_back(rec_table))
+    return true;
+
+  return false;
+}
+
 
 /**
   Reset and empty the temporary table that stores the materialized query
@@ -186,6 +263,29 @@ void select_union::cleanup()
   table->file->ha_delete_all_rows();
 }
 
+
+void select_union_recursive::cleanup()
+{
+  select_union::cleanup();
+  free_tmp_table(thd, table);
+
+  incr_table->file->extra(HA_EXTRA_RESET_STATE);
+  incr_table->file->ha_delete_all_rows();
+  //free_io_cache(incr_table);
+  //filesort_free_buffers(incr_table,0);
+  free_tmp_table(thd, incr_table);
+
+  List_iterator<TABLE> it(rec_tables);
+  TABLE *tab;
+  while ((tab= it++))
+  {
+    tab->file->extra(HA_EXTRA_RESET_STATE);
+    tab->file->ha_delete_all_rows();
+    //free_io_cache(tab);
+    //filesort_free_buffers(tab,0);
+    free_tmp_table(thd, tab);
+  }
+}
 
 
 /**
@@ -332,11 +432,14 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
 }
 
 
+
+
 bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
                                  ulong additional_options)
 {
   SELECT_LEX *lex_select_save= thd_arg->lex->current_select;
   SELECT_LEX *sl, *first_sl= first_select();
+  bool is_recursive= with_element && with_element->is_recursive;
   select_result *tmp_result;
   bool is_union_select;
   bool instantiate_tmp_table= false;
@@ -404,8 +507,15 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     }
     else
     {
-      if (!(tmp_result= union_result=
-              new (thd_arg->mem_root) select_union(thd_arg)))
+      if (!is_recursive)
+	union_result= new (thd_arg->mem_root) select_union(thd_arg);
+      else
+      {
+        with_element->rec_result=
+          new (thd_arg->mem_root) select_union_recursive(thd_arg);
+        union_result=  with_element->rec_result;
+      }
+      if (!(tmp_result= union_result))
         goto err; /* purecov: inspected */
       instantiate_tmp_table= true;
     }
@@ -414,7 +524,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     tmp_result= sel_result;
 
   sl->context.resolve_in_select_list= TRUE;
-
+ 
   for (;sl; sl= sl->next_select())
   {
     bool can_skip_order_by;
@@ -477,6 +587,13 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       types= first_sl->item_list;
     else if (sl == first_sl)
     {
+      if (is_recursive)
+      {
+        if (derived->with->rename_columns_of_derived_unit(thd, this))
+	  goto err; 
+        if (check_duplicate_names(thd, sl->item_list, 0))
+          goto err;
+      }
       types.empty();
       List_iterator_fast<Item> it(sl->item_list);
       Item *item_tmp;
@@ -489,6 +606,23 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
       if (thd_arg->is_fatal_error)
 	goto err; // out of memory
+
+      if (is_recursive)
+      {
+
+        ulonglong create_options;
+        create_options= (first_sl->options | thd_arg->variables.option_bits |
+                     TMP_TABLE_ALL_COLUMNS);
+        if (union_result->create_result_table(thd, &types,
+                                              MY_TEST(union_distinct),
+                                              create_options, "", false,
+                                              instantiate_tmp_table, false))
+          goto err;
+        if (!derived->table)
+          derived->table= derived->derived_result->table= 
+            with_element->rec_result->rec_tables.head();
+        with_element->mark_as_with_prepared_anchor();      
+      }
     }
     else
     {
@@ -507,6 +641,10 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 	  DBUG_RETURN(TRUE);
       }
     }
+    if (with_element && !with_element->is_anchor(sl))
+    {
+      sl->uncacheable|= UNCACHEABLE_UNITED;
+    } 
   }
 
   /*
@@ -580,9 +718,11 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     if (global_parameters()->ftfunc_list->elements)
       create_options= create_options | TMP_TABLE_FORCE_MYISAM;
 
-    if (union_result->create_result_table(thd, &types, MY_TEST(union_distinct),
-                                          create_options, "", false,
-                                          instantiate_tmp_table))
+    
+    if (!is_recursive &&
+         union_result->create_result_table(thd, &types, MY_TEST(union_distinct),
+                                           create_options, "", false,
+                                           instantiate_tmp_table, false))
       goto err;
     if (fake_select_lex && !fake_select_lex->first_cond_optimization)
     {
@@ -783,6 +923,12 @@ bool st_select_lex_unit::exec()
 
   if (saved_error)
     DBUG_RETURN(saved_error);
+
+  if (with_element && with_element->is_recursive && !describe)
+  {
+    saved_error= exec_recursive();
+    DBUG_RETURN(saved_error);
+  }
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -1009,6 +1155,89 @@ err:
 }
 
 
+
+bool st_select_lex_unit::exec_recursive()
+{
+  st_select_lex *lex_select_save= thd->lex->current_select;
+  st_select_lex *first_recursive_sel= with_element->first_recursive;
+  TABLE *incr_table= with_element->rec_result->incr_table;
+  TABLE *result_table= with_element->result_table;
+  ha_rows last_union_records= 0;
+  ha_rows examined_rows= 0;
+  bool unrestricted= with_element->is_unrestricted();
+  bool is_stabilized= false;
+  DBUG_ENTER("st_select_lex_unit::exec_recursive");
+  bool with_anchor= with_element->with_anchor;
+  st_select_lex *first_sl= first_select();
+  st_select_lex *barrier= with_anchor ? first_recursive_sel : NULL;
+  List_iterator_fast<TABLE> li(with_element->rec_result->rec_tables);
+  TABLE *rec_table;
+
+  do
+  {
+    if ((saved_error= incr_table->file->ha_delete_all_rows()))
+      goto err;
+
+    for (st_select_lex *sl= first_sl ; sl != barrier; sl= sl->next_select())
+    {
+      thd->lex->current_select= sl;
+      sl->join->exec();
+      saved_error= sl->join->error;
+      if (!saved_error)
+      {
+         examined_rows+= thd->get_examined_row_count();
+         thd->set_examined_row_count(0);
+         if (union_result->flush())
+         {
+	   thd->lex->current_select= lex_select_save;
+	   DBUG_RETURN(1);
+         }
+      }
+      if (saved_error)
+      {
+        thd->lex->current_select= lex_select_save;
+        goto err;
+      }
+    }
+
+    if (with_element->level == 0)
+    {
+      first_sl= first_recursive_sel;
+      barrier= NULL;
+    }
+
+    table->file->info(HA_STATUS_VARIABLE);
+    if (table->file->stats.records ==  last_union_records)
+    {
+       is_stabilized= true;
+    }
+    else
+    {
+      last_union_records= table->file->stats.records;
+      with_element->level++;
+    }
+    li.rewind();
+    while ((rec_table= li++))
+    {
+      if ((saved_error= incr_table->insert_all_rows_into(thd, rec_table,
+                                                         !unrestricted)))
+	  goto err;
+    }
+  } while (!is_stabilized); 
+
+  if ((saved_error= table->insert_all_rows_into(thd,
+                                                result_table,
+                                                true)))
+    goto err;
+
+  thd->lex->current_select= lex_select_save;
+err:
+  thd->lex->set_limit_rows_examined();
+  DBUG_RETURN(saved_error);
+    
+}
+
+
 bool st_select_lex_unit::cleanup()
 {
   int error= 0;
@@ -1023,6 +1252,13 @@ bool st_select_lex_unit::cleanup()
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
     error|= sl->cleanup();
 
+  if (union_result && with_element && with_element->is_recursive)
+  {
+    ((select_union_recursive *) union_result)->cleanup();
+    delete union_result;
+    union_result= 0;
+  }
+  
   if (fake_select_lex)
   {
     error|= fake_select_lex->cleanup();
@@ -1046,7 +1282,10 @@ bool st_select_lex_unit::cleanup()
     }
   }
 
-  if (union_result)
+  if (with_element && with_element->is_recursive)
+    with_element->mark_as_cleaned();
+
+  if (union_result && !(with_element->is_recursive))
   {
     delete union_result;
     union_result=0; // Safety

@@ -978,6 +978,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   List<Item> *item_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
+  List<LEX_STRING> *lex_str_list;
   Statement_information_item *stmt_info_item;
   String *string;
   TABLE_LIST *table_list;
@@ -2052,6 +2053,8 @@ END_OF_INPUT
 %type <with_clause> opt_with_clause with_clause
 
 %type <lex_str_ptr> query_name
+
+%type <lex_str_list> opt_with_column_list
 
 %%
 
@@ -14077,13 +14080,18 @@ with_list:
 with_list_element:
 	  query_name
 	  opt_with_column_list 
+          {
+            $2= new List<LEX_STRING> (Lex->with_column_list);
+            if ($2 == NULL)
+              MYSQL_YYABORT;
+            Lex->with_column_list.empty();
+          }
           AS '(' remember_name subselect remember_end ')'
  	  {
-            With_element *elem= new With_element($1, Lex->with_column_list, $6->master_unit());
+            With_element *elem= new With_element($1, *$2, $7->master_unit());
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-	    Lex->with_column_list.empty();
-	    if (elem->set_unparsed_spec(thd, $5+1, $7))
+	    if (elem->set_unparsed_spec(thd, $6+1, $8))
               MYSQL_YYABORT;
 	  }
 	;
@@ -14091,8 +14099,9 @@ with_list_element:
 
 opt_with_column_list:
           /* empty */
-          {}
+          { $$= NULL; }
         | '(' with_column_list ')'
+          { $$= NULL; }
         ;
 
 

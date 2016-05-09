@@ -3669,6 +3669,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     s->checked_keys.init();
     s->needed_reg.init();
     table_vector[i]=s->table=table=tables->table;
+    s->tab_list= tables;
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
     set_statistics_for_table(join->thd, table);
@@ -11423,6 +11424,11 @@ bool error_if_full_join(JOIN *join)
 void JOIN_TAB::cleanup()
 {
   DBUG_ENTER("JOIN_TAB::cleanup");
+  
+  if (tab_list && tab_list->is_with_table_recursive_reference() &&
+    tab_list->with->is_cleaned())
+  DBUG_VOID_RETURN;
+
   DBUG_PRINT("enter", ("tab: %p  table %s.%s",
                        this,
                        (table ? table->s->db.str : "?"),
@@ -11592,7 +11598,7 @@ bool JOIN_TAB::preread_init()
   }
 
   /* Materialize derived table/view. */
-  if (!derived->get_unit()->executed &&
+  if ((!derived->get_unit()->executed  || derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
