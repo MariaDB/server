@@ -129,6 +129,7 @@
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 #include "jdbccat.h"
+#include "jdbconn.h"
 #endif   // JDBC_SUPPORT
 #include "xtable.h"
 #include "tabmysql.h"
@@ -169,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0006 March 12, 2016";
+       char version[]= "Version 1.04.0006 May 08, 2016";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -189,6 +190,10 @@ extern "C" {
        char *msg_path;
 } // extern "C"
 #endif   // XMSG
+
+#if defined(JDBC_SUPPORT)
+	     char *JvmPath;
+#endif   // JDBC_SUPPORT
 
 #if defined(__WIN__)
 CRITICAL_SECTION parsec;      // Used calling the Flex parser
@@ -667,6 +672,9 @@ static int connect_init_func(void *p)
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   BINCOL::SetEndian();        // Initialize host endian setting
+#if defined(JDBC_SUPPORT)
+	JDBConn::SetJVM();
+#endif   // JDBC_SUPPORT
   DBUG_RETURN(0);
 } // end of connect_init_func
 
@@ -683,13 +691,17 @@ static int connect_done_func(void *)
 
 #ifdef LIBXML2_SUPPORT
   XmlCleanupParserLib();
-#endif   // LIBXML2_SUPPORT
+#endif // LIBXML2_SUPPORT
 
-#if defined(__WIN__)
+#ifdef JDBC_SUPPORT
+	JDBConn::ResetJVM();
+#endif // JDBC_SUPPORT
+
+#if	defined(__WIN__)
 	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else    // !__WIN__
+#else   // !__WIN__
 	PROFILE_End();
-#endif   // !__WIN__
+#endif  // !__WIN__
 
   for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
@@ -6835,6 +6847,15 @@ static MYSQL_SYSVAR_STR(errmsg_dir_path, msg_path,
        "../../../../storage/connect/");     // for testing
 #endif   // XMSG
 
+#if defined(JDBC_SUPPORT)
+static MYSQL_SYSVAR_STR(jvm_path, JvmPath,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Path to the directory where is the JVM lib",
+	//     check_jvm_path, update_jvm_path,
+	NULL, NULL,	NULL);
+#endif   // JDBC_SUPPORT
+
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
   MYSQL_SYSVAR(conv_size),
@@ -6852,7 +6873,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
   MYSQL_SYSVAR(json_grp_size),
-  NULL
+	MYSQL_SYSVAR(jvm_path),
+	NULL
 };
 
 maria_declare_plugin(connect)

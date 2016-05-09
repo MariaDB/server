@@ -60,6 +60,9 @@ typedef struct tagJCATPARM {
 	PUCHAR   Pat;                // Table type or column pattern
 } JCATPARM;
 
+typedef jint(JNICALL *CRTJVM) (JavaVM **, void **, void *);
+typedef jint(JNICALL *GETJVM) (JavaVM **, jsize, jsize *);
+
 // JDBC connection to a data source
 class TDBJDBC;
 class JDBCCOL;
@@ -114,8 +117,11 @@ public:
 	PQRYRES GetMetaData(PGLOBAL g, char *src);
 
 public:
-	// Set special options
-//void OnSetOptions(HSTMT hstmt);
+	// Set static variables
+	static void SetJVM(void)
+		{	LibJvm = NULL; CreateJavaVM = NULL; GetCreatedJavaVMs = NULL; }
+	static void ResetJVM(void);
+	static bool GetJVM(PGLOBAL g);
 
 	// Implementation
 public:
@@ -126,15 +132,17 @@ protected:
 	char *Check(void);
 //void ThrowDJX(int rc, PSZ msg/*, HSTMT hstmt = SQL_NULL_HSTMT*/);
 //void ThrowDJX(PSZ msg);
-//void AllocConnect(DWORD dwOptions);
-//void Connect(void);
-//bool DriverConnect(DWORD Options);
-//void VerifyConnect(void);
-//void GetConnectInfo(void);
 //void Free(void);
 
 protected:
 	// Members
+#if defined(__WIN__)
+	static HANDLE LibJvm;              // Handle to the jvm DLL
+#else   // !__WIN__
+	static void  *LibJvm;              // Handle for the jvm shared library
+#endif  // !__WIN__
+	static CRTJVM CreateJavaVM;
+	static GETJVM GetCreatedJavaVMs;
 	PGLOBAL   m_G;
 	TDBJDBC  *m_Tdb;
 	JavaVM   *jvm;                      // Pointer to the JVM (Java Virtual Machine)

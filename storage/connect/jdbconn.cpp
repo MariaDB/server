@@ -17,17 +17,19 @@
 #include <direct.h>                      // for getcwd
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
-#endif
+#endif   // __BORLANDC__
 //#include <windows.h>
-#else
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
-#else
+#else   // !UNIX
 //nclude <io.h>
-#endif
+#endif  // !UNIX
+#include <stdio.h>
+#include <stdlib.h>                      // for getenv
 //nclude <fcntl.h>
 #define NODW
-#endif
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Required objects includes.                                         */
@@ -52,6 +54,14 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
 int GetConvSize();
+extern char *JvmPath;      // The connect_jvm_path global variable value
+
+/***********************************************************************/
+/*  Static JDBConn objects.                                            */
+/***********************************************************************/
+void  *JDBConn::LibJvm = NULL;
+CRTJVM JDBConn::CreateJavaVM = NULL;
+GETJVM JDBConn::GetCreatedJavaVMs = NULL;
 
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */
@@ -618,90 +628,6 @@ PQRYRES JDBCPrimaryKeys(PGLOBAL g, JDBConn *op, char *dsn, char *table)
 	/************************************************************************/
 	return qrp;
 } // end of JDBCPrimaryKeys
-
-/**************************************************************************/
-/*  Statistics: constructs the result blocks containing statistics        */
-/*  about one or several tables to be retrieved by GetData commands.      */
-/**************************************************************************/
-PQRYRES JDBCStatistics(PGLOBAL g, JDBConn *op, char *dsn, char *pat,
-	int un, int acc)
-{
-	static int buftyp[] ={ TYPE_STRING,
-		TYPE_STRING, TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-		TYPE_STRING, TYPE_SHORT, TYPE_SHORT, TYPE_STRING,
-		TYPE_STRING, TYPE_INT, TYPE_INT, TYPE_STRING };
-	static unsigned int length[] ={ 0, 0, 0, 6, 0, 0, 6, 6, 0, 2, 10, 10, 128 };
-	int      n, ncol = 13;
-	int     maxres;
-	PQRYRES  qrp;
-	JCATPARM *cap;
-	JDBConn *jcp = op;
-
-	if (!op) {
-		/**********************************************************************/
-		/*  Open the connection with the JDBC data source.                    */
-		/**********************************************************************/
-		jcp = new(g)JDBConn(g, NULL);
-
-		if (jcp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-			return NULL;
-
-	} // endif op
-
-	/************************************************************************/
-	/*  Do an evaluation of the result size.                                */
-	/************************************************************************/
-	n = 1 + jcp->GetMaxValue(SQL_MAX_COLUMNS_IN_INDEX);
-	maxres = (n) ? (int)n : 32;
-	n = jcp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
-	length[1] = (n) ? (n + 1) : 128;
-	n = jcp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-	length[2] = length[5] = (n) ? (n + 1) : 128;
-	n = jcp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
-	length[0] = length[4] = (n) ? (n + 1) : length[2];
-	n = jcp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
-	length[7] = (n) ? (n + 1) : 128;
-
-	if (trace)
-		htrc("SemStatistics: max=%d pat=%s\n", maxres, SVP(pat));
-
-	/************************************************************************/
-	/*  Allocate the structure used to refer to the result set.             */
-	/************************************************************************/
-	qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
-		buftyp, NULL, length, false, true);
-
-	if (trace)
-		htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
-
-	cap = AllocCatInfo(g, CAT_STAT, NULL, pat, qrp);
-	cap->Unique = (un < 0) ? SQL_INDEX_UNIQUE : (UWORD)un;
-	cap->Accuracy = (acc < 0) ? SQL_QUICK : (UWORD)acc;
-
-	/************************************************************************/
-	/*  Now get the results into blocks.                                    */
-	/************************************************************************/
-	if ((n = jcp->GetCatInfo(cap)) >= 0) {
-		qrp->Nblin = n;
-		//  ResetNullValues(cap);
-
-		if (trace)
-			htrc("Statistics: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
-
-	} else
-		qrp = NULL;
-
-	/************************************************************************/
-	/*  Close any local connection.                                         */
-	/************************************************************************/
-	if (!op)
-		jcp->Close();
-
-	/************************************************************************/
-	/*  Return the result pointer for use by GetData routines.              */
-	/************************************************************************/
-	return qrp;
-} // end of Statistics
 #endif // 0
 
 /***********************************************************************/
@@ -843,12 +769,97 @@ int JDBConn::GetMaxValue(int n)
 } // end of GetMaxValue
 
 /***********************************************************************/
+/*  Reset the JVM library.                                             */
+/***********************************************************************/
+void JDBConn::ResetJVM(void)
+{
+	if (!LibJvm) {
+#if defined(__WIN__)
+		FreeLibrary((HMODULE)LibJvm);
+#else   // !__WIN__
+		dlclose(LibJvm);
+#endif  // !__WIN__
+		LibJvm = NULL;
+		CreateJavaVM = NULL;
+		GetCreatedJavaVMs	= NULL;
+	} // endif LibJvm
+
+} // end of ResetJVM
+
+/***********************************************************************/
+/*  Dynamically link the JVM library.                                  */
+/*  The purpose of this function is to allow using the CONNECT plugin  */
+/*  for other table types when the Java JDK is not installed.          */
+/***********************************************************************/
+bool JDBConn::GetJVM(PGLOBAL g)
+{
+	if (!LibJvm) {
+		char soname[512];
+
+		if (JvmPath)
+			strcat(strcpy(soname, JvmPath), "\\jvm.dll");
+		else
+			strcpy(soname, "jvm.dll");
+
+#if defined(__WIN__)
+		// Load the desired shared library
+		if (!(LibJvm = LoadLibrary(soname))) {
+			char  buf[256];
+			DWORD rc = GetLastError();
+
+			sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+				(LPTSTR)buf, sizeof(buf), NULL);
+			strcat(strcat(g->Message, ": "), buf);
+		} else if (!(CreateJavaVM = (CRTJVM)GetProcAddress((HINSTANCE)LibJvm,
+				                                               "JNI_CreateJavaVM"))) {
+			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
+			FreeLibrary((HMODULE)LibJvm);
+			LibJvm = NULL;
+		} else if (!(GetCreatedJavaVMs = (GETJVM)GetProcAddress((HINSTANCE)LibJvm,
+			                                                      "JNI_GetCreatedJavaVMs"))) {
+			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_GetCreatedJavaVMs");
+			FreeLibrary((HMODULE)LibJvm);
+			LibJvm = NULL;
+		} // endif LibJvm
+#else   // !__WIN__
+		const char *error = NULL;
+
+		// Load the desired shared library
+		if (!(LibJvm = dlopen(soname, RTLD_LAZY))) {
+			error = dlerror();
+			sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+		} else if (!(CreateJavaVM = (CRTJVM)dlsym(LibJvm, "JNI_CreateJavaVM"))) {
+			error = dlerror();
+			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_CreateJavaVM", SVP(error));
+			dlclose(LibJvm);
+			LibJvm = NULL;
+		} else if (!(GetCreatedJavaVMs = (CRTJVM)dlsym(LibJvm, "JNI_GetCreatedJavaVMs"))) {
+			error = dlerror();
+			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetCreatedJavaVMs", SVP(error));
+			dlclose(LibJvm);
+			LibJvm = NULL;
+		} // endif LibJvm
+#endif  // !__WIN__
+
+	} // endif LibJvm
+
+	return LibJvm == NULL;
+} // end of GetJVM
+
+/***********************************************************************/
 /*  Open: connect to a data source.                                    */
 /***********************************************************************/
 int JDBConn::Open(PSZ jpath, PJPARM sop)
 {
 	PGLOBAL& g = m_G;
+
+	if (GetJVM(g))
+		return true;
+
 	PSTRG    jpop = new(g) STRING(g, 512, "-Djava.class.path=");
+  char    *cp = NULL;
 	char     sep;
 
 #if defined(__WIN__)
@@ -872,14 +883,25 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 	//================== prepare loading of Java VM ============================
 	JavaVMInitArgs vm_args;                        // Initialization arguments
 	JavaVMOption* options = new JavaVMOption[1];   // JVM invocation options
-
+  
 	// where to find java .class
-	jpop->Append(getenv("CLASSPATH"));
+  if ((cp = PlugDup(m_G, getenv("CLASSPATH"))))
+		jpop->Append(cp);
+  
+  if (trace) {
+    htrc("CLASSPATH=%s\n", cp);
+    htrc("jpath=%s\n", jpath);
+  } // endif trace
 
-	if (jpath) {
-		jpop->Append(sep);
+	if (jpath && *jpath) {
+    if (cp)
+		  jpop->Append(sep);
+
 		jpop->Append(jpath);
 	}	// endif jpath
+
+  if (trace)
+    htrc("%s\n", jpop->GetStr());
 
 	options[0].optionString =	jpop->GetStr();
 //options[1].optionString =	"-verbose:jni";
@@ -889,7 +911,7 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 	vm_args.ignoreUnrecognized = false; // invalid options make the JVM init fail
 
 	//=============== load and initialize Java VM and JNI interface =============
-	jint rc = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
+	jint rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
 	delete options;    // we then no longer need the initialisation options.
 
 	switch (rc) {
@@ -914,7 +936,7 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 			JavaVM* jvms[1];
 			jsize   jsz;
 
-			rc = JNI_GetCreatedJavaVMs(jvms, 1, &jsz);
+			rc = GetCreatedJavaVMs(jvms, 1, &jsz);
 
 			if (rc == JNI_OK && jsz == 1) {
 				jvm = jvms[0];
@@ -1952,6 +1974,9 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		// Not used anymore
 		env->DeleteLocalRef(parms);
 
+    if (trace)
+      htrc("Method %s returned %d columns\n", fnc, ncol);
+
 		// n because we no more ignore the first column
 		if ((n = qrp->Nbcol) > (uint)ncol) {
 			strcpy(g->Message, MSG(COL_NUM_MISM));
@@ -1989,9 +2014,12 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		// Now fetch the result
 		for (i = 0; i < qrp->Maxres; i++) {
-			if ((rc = Fetch(0)) == 0)
+			if ((rc = Fetch(0)) == 0) {
+        if (trace)
+          htrc("End of fetches i=%d\n", i);
+
 				break;
-			else if (rc < 0)
+			} else if (rc < 0)
 				return -1;
 
 			for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {

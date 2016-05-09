@@ -514,10 +514,11 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     } // endif getdef
 #else   // !__WIN__
   const char *error = NULL;
-  Dl_info dl_info;
     
 #if 0  // Don't know what all this stuff does
-  // The OEM lib must retrieve exported CONNECT variables
+	Dl_info dl_info;
+
+	// The OEM lib must retrieve exported CONNECT variables
   if (dladdr(&connect_hton, &dl_info)) {
     if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0) {
       error = dlerror();
