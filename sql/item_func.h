@@ -773,6 +773,15 @@ public:
 };
 
 
+class Item_func_hash :public Item_int_func
+{
+public:
+  Item_func_hash(THD *thd, Item *a): Item_int_func(thd, a)
+  {}
+  int val_int();
+  const char *func_name() const { return "HASH"; }
+};
+
 class Item_func_mod :public Item_num_op
 {
 public:

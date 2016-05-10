@@ -1915,7 +1915,9 @@ void Item_func_int_div::fix_length_and_dec()
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
 
-
+int Item_func_hash::val_int(){
+    
+}
 longlong Item_func_mod::int_op()
 {
   DBUG_ASSERT(fixed == 1);
