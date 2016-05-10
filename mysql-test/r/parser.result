@@ -709,7 +709,8 @@ ERROR HY000: Incorrect usage of PROCEDURE and subquery
 SELECT 1 FROM DUAL PROCEDURE ANALYSE() 
 UNION
 SELECT 1 FROM t1;
-ERROR HY000: Incorrect usage of UNION and SELECT ... PROCEDURE ANALYSE()
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT 1 FROM t1' at line 2
 (SELECT 1 FROM t1)
 UNION 
 (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
@@ -739,10 +740,10 @@ Warnings:
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 INTO @var17727401 FROM DUAL;
 SELECT 1 INTO @var17727401_1 FROM t1 INTO @var17727401_2;
-ERROR HY000: Incorrect usage of INTO and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 1
 SELECT 1 INTO @var17727401_1 FROM DUAL
 INTO @var17727401_2;
-ERROR HY000: Incorrect usage of INTO and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 2
 SELECT 1 INTO @var17727401 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
 Warnings:
 Warning	1329	No data - zero rows fetched, selected, or processed
@@ -754,7 +755,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT 1 INTO @var17727401_1
 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1
 INTO @var17727401_2;
-ERROR HY000: Incorrect usage of INTO and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 3
 SELECT (SELECT 1 FROM t1 INTO @var17727401);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401)' at line 1
 SELECT 1 FROM (SELECT 1 FROM t1 INTO @var17727401) a;
@@ -762,16 +763,16 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT EXISTS(SELECT 1 FROM t1 INTO @var17727401);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401)' at line 1
 SELECT 1 FROM t1 INTO @var17727401 UNION SELECT 1 FROM t1 INTO t1;
-ERROR HY000: Incorrect usage of UNION and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 INTO t1' at line 1
 (SELECT 1 FROM t1 INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1);
 ERROR HY000: Incorrect usage of UNION and INTO
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
 Warnings:
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
-ERROR HY000: Incorrect usage of PROCEDURE and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()' at line 1
 SELECT 1 FROM t1 PROCEDURE ANALYSE() INTO @var17727401;
-ERROR HY000: Incorrect usage of PROCEDURE and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401' at line 1
 # ORDER and LIMIT clause combinations
 (SELECT 1 FROM t1 ORDER BY 1) ORDER BY 1;
 1
@@ -817,19 +818,19 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT 1 FROM (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1 ORDER BY 1) a;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1) a' at line 1
 SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
 SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1);
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1) a;
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
 SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1);
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1) a;
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
 SELECT (SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1);
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1) a;
@@ -841,25 +842,25 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1) a;
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1' at line 1
 SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1);
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1) a;
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1' at line 1
 SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1);
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1) a;
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1' at line 1
 SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1);
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1) a;
 ERROR HY000: Incorrect usage of UNION and LIMIT
 SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1' at line 1
 SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1);
 ERROR HY000: Incorrect usage of UNION and ORDER BY
 SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1) a;

@@ -1793,7 +1793,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_default_time_precision
         case_stmt_body opt_bin_mod
         opt_if_exists_table_element opt_if_not_exists_table_element
-        opt_into opt_procedure_clause
 	opt_recursive
 
 %type <object_ddl_options>
@@ -8533,7 +8532,8 @@ select_paren:
             */
             Lex->current_select->set_braces(true);
           }
-          SELECT_SYM select_part2
+          SELECT_SYM select_options_and_item_list select_part3
+          opt_select_lock_type
           {
             if (setup_select_in_parentheses(Lex))
               MYSQL_YYABORT;
@@ -8559,48 +8559,40 @@ select_paren_derived:
         ;
 
 select_init2:
-          select_part2
+          select_options_and_item_list
+          opt_table_expression
+          opt_select_lock_type
           {
-            LEX *lex= Lex;
             /* Parentheses carry no meaning here */
-            lex->current_select->set_braces(false);
+            Lex->current_select->set_braces(false);
           }
           union_clause
+        | select_options_and_item_list
+          select_part3_union_not_ready
+          opt_select_lock_type
+          {
+            /* Parentheses carry no meaning here */
+            Lex->current_select->set_braces(false);
+          }
+        ;
+
+
+select_part3:
+          opt_table_expression
+        | select_part3_union_not_ready
         ;
 
 /*
-  Theoretically we can merge all 3 right hand sides of the select_part2
-  rule into one, however such a transformation adds one shift/reduce
-  conflict more.
+  The SELECT parts after select_item_list that cannot be followed by UNION.
 */
-select_part2:
-          select_options_and_item_list
-          opt_order_clause
-          opt_limit_clause
-          opt_select_lock_type
-        | select_options_and_item_list into opt_select_lock_type
-        | select_options_and_item_list
-          opt_into
-          table_expression
-          opt_order_clause
-          opt_limit_clause
-          opt_procedure_clause
-          opt_into
-          opt_select_lock_type
-          {
-            if ($2 && $7)
-            {
-              /* double "INTO" clause */
-              my_error(ER_WRONG_USAGE, MYF(0), "INTO", "INTO");
-              MYSQL_YYABORT;
-            }
-            if ($6 && ($2 || $7))
-            {
-              /* "INTO" with "PROCEDURE ANALYSE" */
-              my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "INTO");
-              MYSQL_YYABORT;
-            }
-          }
+select_part3_union_not_ready:
+          order_or_limit
+        | into opt_table_expression opt_order_clause opt_limit_clause
+        | table_expression into
+        | table_expression procedure_clause
+        | table_expression order_or_limit
+        | table_expression order_or_limit into
+        | table_expression order_or_limit procedure_clause
         ;
 
 select_options_and_item_list:
@@ -11946,9 +11938,8 @@ choice:
 	| DEFAULT { $$= HA_CHOICE_UNDEF; }
 	;
 
-opt_procedure_clause:
-          /* empty */ { $$= false; }
-        | PROCEDURE_SYM ident /* Procedure name */
+procedure_clause:
+          PROCEDURE_SYM ident /* Procedure name */
           {
             LEX *lex=Lex;
 
@@ -11989,7 +11980,6 @@ opt_procedure_clause:
           {
             /* Subqueries are allowed from now.*/
             Lex->expr_allows_subselect= true;
-            $$= true;
           }
         ;
 
@@ -12067,11 +12057,6 @@ select_outvar:
                                           Lex->sphead)) :
                                 NULL;
           }
-        ;
-
-opt_into:
-          /* empty */ { $$= false; }
-        | into        { $$= true; }
         ;
 
 into:
