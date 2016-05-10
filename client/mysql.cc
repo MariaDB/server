@@ -5122,8 +5122,10 @@ static const char *construct_prompt()
             processed_prompt.append("localhost");
           else
           {
-            char hostname[HOST_NAME_MAX];
-            if (gethostname(hostname, sizeof(hostname)) == 0)
+            static char hostname[FN_REFLEN];
+            if (hostname[0])
+              processed_prompt.append(hostname);
+            else if (gethostname(hostname, sizeof(hostname)) == 0)
               processed_prompt.append(hostname);
             else
               processed_prompt.append("gethostname(2) failed");
