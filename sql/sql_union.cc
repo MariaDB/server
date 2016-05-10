@@ -1285,7 +1285,7 @@ bool st_select_lex_unit::cleanup()
   if (with_element && with_element->is_recursive)
     with_element->mark_as_cleaned();
 
-  if (union_result && !(with_element->is_recursive))
+  if (union_result && !(with_element &&with_element->is_recursive))
   {
     delete union_result;
     union_result=0; // Safety

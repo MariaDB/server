@@ -4,7 +4,7 @@ insert into t1 values
 insert into t1 values
 (3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
 
---ERROR 1984
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
 with recursive
 a1(a,b) as
 (select * from t1 where t1.a>3

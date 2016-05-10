@@ -636,6 +636,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   bool res= FALSE;
   DBUG_PRINT("enter", ("unit 0x%lx", (ulong) unit));
 
+  if (!unit)
+    DBUG_RETURN(FALSE);
+
   SELECT_LEX *first_select= unit->first_select();
 
   if (unit->prepared && derived->is_recursive_with_table() &&
@@ -665,7 +668,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   // Skip already prepared views/DT
-  if (!unit || unit->prepared ||
+  if (unit->prepared ||
       (derived->merged_for_insert && 
        !(derived->is_multitable() &&
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||

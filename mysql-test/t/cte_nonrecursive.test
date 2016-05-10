@@ -376,27 +376,30 @@ with recursive
      s as (select a from t1 where b>='d')
   select * from t,s where t.a=s.a;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
 with recursive t as (select * from s where a>2),
                s as (select a from t1,r where t1.a>r.c), 
                r as (select c from t,t2 where t.a=t2.c) 
   select * from r where r.c<7;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from s where a>2),
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from s where a>2),
      s as (select a from t1,r where t1.a>r.c), 
      r as (select c from t,t2 where t.a=t2.c) 
   select * from r where r.c<7;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from t1
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from t1
              where a in (select c from s where b<='ccc') and  b>'b'),
      s as (select * from t1,t2
              where t1.a=t2.c and t1.c in (select a from t where a<5))
  select * from s where s.b>'aaa';
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from t1 where b>'aaa' and b <='d') 
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive 
+  t as (select * from t1 where b>'aaa' and b <='d') 
   select t.b from t,t2
     where t.a=t2.c and
           t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
