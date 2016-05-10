@@ -1919,7 +1919,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <variable> internal_variable_name
 
 %type <select_lex> subselect
-        get_select_lex query_specification 
+        get_select_lex query_term
         query_expression_body
 
 %type <boolfunc2creator> comp_op
@@ -11122,7 +11122,7 @@ select_derived_union:
             if (add_select_to_union_list(Lex, (bool)$3, FALSE))
               MYSQL_YYABORT;
           }
-          query_specification
+          query_term
           {
             /*
               Remove from the name resolution context stack the context of the
@@ -16358,7 +16358,7 @@ union_option:
         | ALL       { $$=0; }
         ;
 
-query_specification:
+query_term:
           SELECT_SYM select_init2_derived
           opt_table_expression
           opt_order_clause
@@ -16375,14 +16375,14 @@ query_specification:
         ;
 
 query_expression_body:
-          query_specification
+          query_term
         | query_expression_body
           UNION_SYM union_option 
           {
             if (add_select_to_union_list(Lex, (bool)$3, FALSE))
               MYSQL_YYABORT;
           }
-          query_specification
+          query_term
           {
             Lex->pop_context();
             $$= $1;
