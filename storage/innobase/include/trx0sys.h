@@ -357,13 +357,11 @@ trx_sys_close(void);
 /*****************************************************************//**
 Get the name representation of the file format from its id.
 @return	pointer to the name */
-#pragma namemanglingrule(fnparmtype, on)
 UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
 	const ulint	id);		/*!< in: id of the file format */
-#pragma namemanglingrule(fnparmtype, pop)
 /*****************************************************************//**
 Set the file format id unconditionally except if it's already the
 same value.
@@ -464,13 +462,11 @@ trx_sys_file_format_max_upgrade(
 /*****************************************************************//**
 Get the name representation of the file format from its id.
 @return	pointer to the name */
-#pragma namemanglingrule(fnparmtype, on)
 UNIV_INTERN
 const char*
 trx_sys_file_format_id_to_name(
 /*===========================*/
 	const ulint	id);	/*!< in: id of the file format */
-#pragma namemanglingrule(fnparmtype, pop)
 
 #ifdef UNIV_DEBUG
 /*************************************************************//**
