@@ -589,6 +589,8 @@ public:
   mysql_cond_t COND_binlog_background_thread;
   mysql_cond_t COND_binlog_background_thread_end;
 
+  void stop_background_thread();
+
   using MYSQL_LOG::generate_name;
   using MYSQL_LOG::is_open;
 

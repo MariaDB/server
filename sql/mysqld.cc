@@ -1717,6 +1717,7 @@ static void close_connections(void)
 
   Events::deinit();
   end_slave();
+  mysql_bin_log.stop_background_thread();
 
   /*
     Give threads time to die.
