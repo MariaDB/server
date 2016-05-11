@@ -386,6 +386,7 @@ row_merge_file_create(
 /*********************************************************************//**
 Merge disk files.
 @return DB_SUCCESS or error code */
+#pragma namemanglingrule(fnparmtype, on)
 UNIV_INTERN
 dberr_t
 row_merge_sort(
@@ -404,6 +405,7 @@ row_merge_sort(
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	__attribute__((nonnull(1,2,3,4,5)));
+#pragma namemanglingrule(fnparmtype, pop)
 /*********************************************************************//**
 Allocate a sort buffer.
 @return own: sort buffer */

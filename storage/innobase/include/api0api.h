@@ -651,22 +651,26 @@ ib_open_table_by_name(
 Insert a row to a table.
 @return	DB_SUCCESS or err code */
 
+#pragma namemanglingrule(fnparmtype, on)
 ib_err_t
 ib_cursor_insert_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in/out: InnoDB cursor instance */
 	const ib_tpl_t	ib_tpl);	/*!< in: tuple to insert */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /*****************************************************************//**
 Update a row in a table.
 @return	DB_SUCCESS or err code */
 
+#pragma namemanglingrule(fnparmtype, on)
 ib_err_t
 ib_cursor_update_row(
 /*=================*/
 	ib_crsr_t	ib_crsr,	/*!< in: InnoDB cursor instance */
 	const ib_tpl_t	ib_old_tpl,	/*!< in: Old tuple in table */
 	const ib_tpl_t	ib_new_tpl);	/*!< in: New tuple to update */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /*****************************************************************//**
 Delete a row in a table.
@@ -908,11 +912,13 @@ Copy the contents of  source tuple to destination tuple. The tuples
 must be of the same type and belong to the same table/index.
 @return	DB_SUCCESS or error code */
 
+#pragma namemanglingrule(fnparmtype, on)
 ib_err_t
 ib_tuple_copy(
 /*==========*/
 	ib_tpl_t	ib_dst_tpl,	/*!< in: destination tuple */
 	const ib_tpl_t	ib_src_tpl);	/*!< in: source tuple */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /*****************************************************************//**
 Create an InnoDB tuple used for index/table search.
@@ -954,19 +960,23 @@ ib_clust_read_tuple_create(
 Return the number of user columns in the tuple definition.
 @return	number of user columns */
 
+#pragma namemanglingrule(fnparmtype, on)
 ib_ulint_t
 ib_tuple_get_n_user_cols(
 /*=====================*/
 	const ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /*****************************************************************//**
 Return the number of columns in the tuple definition.
 @return	number of columns */
 
+#pragma namemanglingrule(fnparmtype, on)
 ib_ulint_t
 ib_tuple_get_n_cols(
 /*================*/
 	const ib_tpl_t	ib_tpl);	/*!< in: Tuple for current table */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /*****************************************************************//**
 Destroy an InnoDB tuple. */

@@ -282,6 +282,7 @@ err_exit:
 
 /******************************************************************//**
 Get the first character's code position for FTS index partition */
+#pragma namemanglingrule(fnparmtype, on)
 extern
 ulint
 innobase_strnxfrm(
@@ -289,6 +290,7 @@ innobase_strnxfrm(
         const CHARSET_INFO*	cs,	/*!< in: Character set */
         const uchar*		p2,	/*!< in: string */
         const ulint		len2);	/*!< in: string length */
+#pragma namemanglingrule(fnparmtype, pop)
 
 /******************************************************************//**
 Select the FTS auxiliary index for the given character.
