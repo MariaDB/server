@@ -1915,8 +1915,8 @@ void Item_func_int_div::fix_length_and_dec()
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
 
-int Item_func_hash::val_int(){
-    
+longlong Item_func_hash::val_int(){
+    return args[0]->val_int();
 }
 longlong Item_func_mod::int_op()
 {

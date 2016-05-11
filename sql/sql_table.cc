@@ -3207,7 +3207,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
                            uint *key_count, int create_table_mode)
-{
+{   
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,blob_columns,max_key_length;
@@ -3223,6 +3223,26 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
+//scan the the whole alter list  //work
+//and add one field if length of blob is zero 
+    List_iterator<Key> key_iter(alter_info->alter_list);
+    Key *key_iter_key;
+    Key_part_spec *temp_colms;
+    while((key_iter_key=key_iter++)){
+            List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
+            while((temp_colms=key_iter_key++)){
+                while ((sql_field=it++) &&
+                        my_strcasecmp(system_charset_info,
+                        column->field_name.str,
+                        sql_field->field_name))
+                        field++;
+                        if(sql_field->sql_type==MYSQL_TYPE_BLOB){
+                            //here we go
+                            //make a virtual field 
+                        }
+            }
+        }
+        it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields=blob_columns=0;
   create_info->varchar= 0;
@@ -3874,10 +3894,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
               Field::GEOM_POINT)
             column->length= MAX_LEN_GEOM_POINT_FIELD;
-	  if (!column->length)
+	  if (!column->length)//change
 	  {
+        /*
 	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
 	    DBUG_RETURN(TRUE);
+        */
+         
 	  }
 	}
 #ifdef HAVE_SPATIAL

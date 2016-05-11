@@ -9551,7 +9551,7 @@ function_call_keyword:
                 if($$==NULL)
                     MYSQL_YYABORT;
             }
-        }
+        
         | INSERT '(' expr ',' expr ',' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_insert(thd, $3, $5, $7, $9);
