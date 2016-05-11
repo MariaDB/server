@@ -1,0 +1,23 @@
+CREATE AGGREGATE FUNCTION sum(x INT)  RETURNS INT
+BEGIN
+	DECLARE sum INT DEFAULT 0;
+	DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN sum;
+	LOOP 
+		FETCH GROUP NEXT ROW;
+		SET sum:=sum+x;
+	END LOOP;
+END
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (name VARCHAR(20) ,sal int(10));
+INSERT INTO t1 (name, sal) VALUES ('John', 1000);
+INSERT INTO t1 (name, sal) VALUES ('Varun', 2000);
+INSERT INTO t1 (name, sal) VALUES ('Doe', 3000);
+INSERT INTO t1 (name, sal) VALUES ('Alex', 900);
+INSERT INTO t1 (name, sal) VALUES ('Bob', 500);
+select sum(sal) from t1;
+drop table t1;
+
