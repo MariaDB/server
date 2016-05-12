@@ -80,8 +80,6 @@ IF(UNIX)
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
   SET(IPHLPAPI_LIBRARY "")
-ELSE(AIX)
- SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ELSE(NOT UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
