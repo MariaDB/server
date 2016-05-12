@@ -3538,37 +3538,9 @@ void jsoncontains_path_deinit(UDF_INIT* initid)
 } // end of jsoncontains_path_deinit
 
 /*********************************************************************************/
-/*  Set Json items of a Json document according to path.                         */
+/*  This function is used by the json_set/insert/update_item functions.          */
 /*********************************************************************************/
-my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
-{
-	unsigned long reslen, memlen;
-	int n = IsJson(args, 0);
-
-	if (!(args->arg_count % 2)) {
-		strcpy(message, "This function must have an odd number of arguments");
-		return true;
-	} else if (!n && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "First argument must be a json item");
-		return true;
-	} else
-		CalcLen(args, false, reslen, memlen);
-
-	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		memlen += fl * 3;
-	} else if (n != 3)
-		memlen += args->lengths[0] * 3;
-
-	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of json_set_item_init
-
-char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path, *str = NULL;
@@ -3586,12 +3558,16 @@ char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-	if (!strcmp(result, "$insert"))
+	if (!strcmp(result, "$set"))
+		w = 0;
+	else if (!strcmp(result, "$insert"))
 		w = 1;
 	else if (!strcmp(result, "$update"))
 		w = 2;
-	else
-		w = 0;
+	else {
+		PUSH_WARNING("Logical error, please contact CONNECT developer");
+		goto err;
+	}	// endelse
 
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
@@ -3660,10 +3636,10 @@ char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)str;
 
- err:
+err:
 	g->jump_level--;
 
- fin:
+fin:
 	if (!str) {
 		*is_null = 1;
 		*res_length = 0;
@@ -3671,6 +3647,44 @@ char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
+} // end of handle_item
+
+/*********************************************************************************/
+/*  Set Json items of a Json document according to path.                         */
+/*********************************************************************************/
+my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+	int n = IsJson(args, 0);
+
+	if (!(args->arg_count % 2)) {
+		strcpy(message, "This function must have an odd number of arguments");
+		return true;
+	} else if (!n && args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	if (n == 2 && args->args[0]) {
+		char fn[_MAX_PATH];
+		long fl;
+
+		memcpy(fn, args->args[0], args->lengths[0]);
+		fn[args->lengths[0]] = 0;
+		fl = GetFileLength(fn);
+		memlen += fl * 3;
+	} else if (n != 3)
+		memlen += args->lengths[0] * 3;
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of json_set_item_init
+
+char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *p)
+{
+	strcpy(result, "$set");
+	return handle_item(initid, args, result, res_length, is_null, p);
 } // end of json_set_item
 
 void json_set_item_deinit(UDF_INIT* initid)
@@ -3690,7 +3704,7 @@ char *json_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
 	strcpy(result, "$insert");
-	return json_set_item(initid, args, result, res_length, is_null, p);
+	return handle_item(initid, args, result, res_length, is_null, p);
 } // end of json_insert_item
 
 void json_insert_item_deinit(UDF_INIT* initid)
@@ -3710,7 +3724,7 @@ char *json_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
 	strcpy(result, "$update");
-	return json_set_item(initid, args, result, res_length, is_null, p);
+	return handle_item(initid, args, result, res_length, is_null, p);
 } // end of json_update_item
 
 void json_update_item_deinit(UDF_INIT* initid)
@@ -4706,14 +4720,9 @@ void jbin_item_merge_deinit(UDF_INIT* initid)
 } // end of jbin_item_merge_deinit
 
 /*********************************************************************************/
-/*  Set Json items of a Json document according to path.                         */
+/*  This function is used by the jbin_set/insert/update functions.               */
 /*********************************************************************************/
-my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
-{
-	return json_set_item_init(initid, args, message);
-} // end of jbin_set_item_init
-
-char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path;
@@ -4732,12 +4741,16 @@ char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-	if (!strcmp(result, "$insert"))
+	if (!strcmp(result, "$set"))
+		w = 0;
+	else if (!strcmp(result, "$insert"))
 		w = 1;
 	else if (!strcmp(result, "$update"))
 		w = 2;
-	else
-		w = 0;
+	else {
+		PUSH_WARNING("Logical error, please contact CONNECT developer");
+		goto fin;
+	}	// endelse
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true, false, true)) {
@@ -4791,7 +4804,7 @@ char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)bsp;
 
- fin:
+fin:
 	if (!bsp) {
 		*is_null = 1;
 		*res_length = 0;
@@ -4799,6 +4812,21 @@ char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = sizeof(BSON);
 
 	return (char*)bsp;
+} // end of bin_handle_item
+
+/*********************************************************************************/
+/*  Set Json items of a Json document according to path.                         */
+/*********************************************************************************/
+my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return json_set_item_init(initid, args, message);
+} // end of jbin_set_item_init
+
+char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *p)
+{
+	strcpy(result, "$set");
+	return bin_handle_item(initid, args, result, res_length, is_null, p);
 } // end of jbin_set_item
 
 void jbin_set_item_deinit(UDF_INIT* initid)
@@ -4818,7 +4846,7 @@ char *jbin_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
 	strcpy(result, "$insert");
-	return jbin_set_item(initid, args, result, res_length, is_null, p);
+	return bin_handle_item(initid, args, result, res_length, is_null, p);
 } // end of jbin_insert_item
 
 void jbin_insert_item_deinit(UDF_INIT* initid)
@@ -4838,7 +4866,7 @@ char *jbin_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
 {
 	strcpy(result, "$update");
-	return jbin_set_item(initid, args, result, res_length, is_null, p);
+	return bin_handle_item(initid, args, result, res_length, is_null, p);
 } // end of jbin_update_item
 
 void jbin_update_item_deinit(UDF_INIT* initid)
@@ -4999,3 +5027,30 @@ void json_serialize_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of json_serialize_deinit
+
+/*********************************************************************************/
+/*  Utility function returning an environment variable value.                    */
+/*********************************************************************************/
+my_bool envar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	if (args->arg_count != 1) {
+		strcpy(message, "Unique argument must be an environment variable name");
+		return true;
+	} else
+		return false;
+
+} // end of envar_init
+
+char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *, char *)
+{
+	char *str, name[256];
+	int   n = MY_MIN(args->lengths[0], sizeof(name) - 1);
+
+	memcpy(name, args->args[0], n);
+	name[n] = 0;
+	str = getenv(name);
+	*res_length = (str) ? strlen(str) : 0;
+	return str;
+} // end of envar
+
