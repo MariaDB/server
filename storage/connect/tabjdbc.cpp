@@ -95,7 +95,7 @@ bool ExactInfo(void);
 /***********************************************************************/
 JDBCDEF::JDBCDEF(void)
 {
-	Jpath = Driver = Url = Tabname = Tabschema = Username = NULL;
+	Driver = Url = Tabname = Tabschema = Username = NULL;
 	Password = Tabcat = Tabtype = Srcdef = Qchar = Qrystr = Sep = NULL;
 	Options = Quoted = Maxerr = Maxres = Memory = 0;
 	Scrollable = Xsrc = false;
@@ -106,7 +106,6 @@ JDBCDEF::JDBCDEF(void)
 /***********************************************************************/
 bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
-	Jpath = GetStringCatInfo(g, "Jpath", "");
 	Driver = GetStringCatInfo(g, "Driver", NULL);
 	Desc = Url = GetStringCatInfo(g, "Connect", NULL);
 
@@ -222,7 +221,6 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 	Cnp = NULL;
 
 	if (tdp) {
-		Jpath = tdp->Jpath;
 		Ops.Driver = tdp->Driver;
 		Ops.Url = tdp->Url;
 		TableName = tdp->Tabname;
@@ -241,7 +239,6 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 		Memory = tdp->Memory;
 		Ops.Scrollable = tdp->Scrollable;
 	} else {
-		Jpath = NULL;
 		TableName = NULL;
 		Schema = NULL;
 		Ops.Driver = NULL;
@@ -286,7 +283,6 @@ TDBJDBC::TDBJDBC(PTDBJDBC tdbp) : TDBASE(tdbp)
 {
 	Jcp = tdbp->Jcp;            // is that right ?
 	Cnp = tdbp->Cnp;
-	Jpath = tdbp->Jpath;
 	TableName = tdbp->TableName;
 	Schema = tdbp->Schema;
 	Ops = tdbp->Ops;
@@ -684,7 +680,7 @@ int TDBJDBC::Cardinality(PGLOBAL g)
 		char     qry[96], tbn[64];
 		JDBConn *jcp = new(g)JDBConn(g, this);
 
-		if (jcp->Open(Jpath, &Ops) == RC_FX)
+		if (jcp->Open(&Ops) == RC_FX)
 			return -1;
 
 		// Table name can be encoded in UTF-8
@@ -795,7 +791,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 	else if (Jcp->IsOpen())
 		Jcp->Close();
 
-	if (Jcp->Open(Jpath, &Ops) == RC_FX)
+	if (Jcp->Open(&Ops) == RC_FX)
 		return true;
 	else if (Quoted)
 		Quote = Jcp->GetQuoteChar();
@@ -1545,7 +1541,7 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 	} else if (Jcp->IsOpen())
 		Jcp->Close();
 
-	if (Jcp->Open(Jpath, &Ops) == RC_FX)
+	if (Jcp->Open(&Ops) == RC_FX)
 		return true;
 
 	Use = USE_OPEN;       // Do it now in case we are recursively called
@@ -1657,7 +1653,7 @@ void JSRCCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBJDRV::GetResult(PGLOBAL g)
 {
-	return JDBCDrivers(g, Jpath, Maxres, false);
+	return JDBCDrivers(g, Maxres, false);
 } // end of GetResult
 
 /* ---------------------------TDBJTB class --------------------------- */
@@ -1667,7 +1663,6 @@ PQRYRES TDBJDRV::GetResult(PGLOBAL g)
 /***********************************************************************/
 TDBJTB::TDBJTB(PJDBCDEF tdp) : TDBJDRV(tdp)
 {
-	Jpath = tdp->Jpath;
 	Schema = tdp->Tabschema;
 	Tab = tdp->Tabname;
 	Tabtype = tdp->Tabtype;
@@ -1684,7 +1679,7 @@ TDBJTB::TDBJTB(PJDBCDEF tdp) : TDBJDRV(tdp)
 /***********************************************************************/
 PQRYRES TDBJTB::GetResult(PGLOBAL g)
 {
-	return JDBCTables(g, Jpath, Schema, Tab, Tabtype, Maxres, false, &Ops);
+	return JDBCTables(g, Schema, Tab, Tabtype, Maxres, false, &Ops);
 } // end of GetResult
 
 /* --------------------------TDBJDBCL class -------------------------- */
@@ -1694,7 +1689,7 @@ PQRYRES TDBJTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBJDBCL::GetResult(PGLOBAL g)
 {
-	return JDBCColumns(g, Jpath, Schema, Tab, NULL, Maxres, false, &Ops);
+	return JDBCColumns(g, Schema, Tab, NULL, Maxres, false, &Ops);
 } // end of GetResult
 
 #if 0

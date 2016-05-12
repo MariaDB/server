@@ -54,7 +54,8 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
 int GetConvSize();
-extern char *JvmPath;      // The connect_jvm_path global variable value
+extern char *JvmPath;     // The connect_jvm_path global variable value
+extern char *ClassPath;   // The connect_class_path global variable value
 
 /***********************************************************************/
 /*  Static JDBConn objects.                                            */
@@ -213,8 +214,8 @@ fin:
 /*  JDBCColumns: constructs the result blocks containing all columns   */
 /*  of a JDBC table that will be retrieved by GetData commands.        */
 /***********************************************************************/
-PQRYRES JDBCColumns(PGLOBAL g, char *jpath, char *db, char *table,
-	char *colpat, int maxres, bool info, PJPARM sjp)
+PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table, char *colpat,
+	                             int maxres, bool info, PJPARM sjp)
 {
 	int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
 									 TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -236,7 +237,7 @@ PQRYRES JDBCColumns(PGLOBAL g, char *jpath, char *db, char *table,
 	if (!info) {
 		jcp = new(g)JDBConn(g, NULL);
 
-		if (jcp->Open(jpath, sjp) != RC_OK)  // openReadOnly + noJDBCdialog
+		if (jcp->Open(sjp) != RC_OK)  // openReadOnly + noJDBCdialog
 			return NULL;
 
 		if (table && !strchr(table, '%')) {
@@ -315,11 +316,11 @@ PQRYRES JDBCColumns(PGLOBAL g, char *jpath, char *db, char *table,
 /*  JDBCSrcCols: constructs the result blocks containing the              */
 /*  description of all the columns of a Srcdef option.                    */
 /**************************************************************************/
-PQRYRES JDBCSrcCols(PGLOBAL g, char *jpath, char *src, PJPARM sjp)
+PQRYRES JDBCSrcCols(PGLOBAL g, char *src, PJPARM sjp)
 {
 	JDBConn *jcp = new(g)JDBConn(g, NULL);
 
-	if (jcp->Open(jpath, sjp))
+	if (jcp->Open(sjp))
 		return NULL;
 
 	return jcp->GetMetaData(g, src);
@@ -329,8 +330,8 @@ PQRYRES JDBCSrcCols(PGLOBAL g, char *jpath, char *src, PJPARM sjp)
 /*  JDBCTables: constructs the result blocks containing all tables in     */
 /*  an JDBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
-PQRYRES JDBCTables(PGLOBAL g, char *jpath, char *db, char *tabpat,
-	                 char *tabtyp, int maxres, bool info, PJPARM sjp)
+PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat, char *tabtyp,
+	                            int maxres, bool info, PJPARM sjp)
 {
 	int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
 		                   TYPE_STRING, TYPE_STRING};
@@ -352,7 +353,7 @@ PQRYRES JDBCTables(PGLOBAL g, char *jpath, char *db, char *tabpat,
 		/**********************************************************************/
 		jcp = new(g)JDBConn(g, NULL);
 
-		if (jcp->Open(jpath, sjp) == RC_FX)
+		if (jcp->Open(sjp) == RC_FX)
 			return NULL;
 
 		if (!maxres)
@@ -429,7 +430,7 @@ PQRYRES JDBCTables(PGLOBAL g, char *jpath, char *db, char *tabpat,
 /*  drivers available on the local host.                                 */
 /*  Called with info=true to have result column names.                   */
 /*************************************************************************/
-PQRYRES JDBCDrivers(PGLOBAL g, char *jpath, int maxres, bool info)
+PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info)
 {
 	int      buftyp[] ={TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING};
 	XFLD     fldtyp[] ={FLD_NAME, FLD_EXTRA, FLD_DEFAULT, FLD_REM };
@@ -446,7 +447,7 @@ PQRYRES JDBCDrivers(PGLOBAL g, char *jpath, int maxres, bool info)
 	if (!info) {
 		jcp = new(g) JDBConn(g, NULL);
 
-		if (jcp->Open(jpath, NULL) != RC_OK)
+		if (jcp->Open(NULL) != RC_OK)
 			return NULL;
 
 		if (!maxres)
@@ -796,12 +797,12 @@ bool JDBConn::GetJVM(PGLOBAL g)
 	if (!LibJvm) {
 		char soname[512];
 
+#if defined(__WIN__)
 		if (JvmPath)
 			strcat(strcpy(soname, JvmPath), "\\jvm.dll");
 		else
 			strcpy(soname, "jvm.dll");
 
-#if defined(__WIN__)
 		// Load the desired shared library
 		if (!(LibJvm = LoadLibrary(soname))) {
 			char  buf[256];
@@ -826,6 +827,11 @@ bool JDBConn::GetJVM(PGLOBAL g)
 #else   // !__WIN__
 		const char *error = NULL;
 
+		if (JvmPath)
+			strcat(strcpy(soname, JvmPath), "/libjvm.so");
+		else
+			strcpy(soname, "libjvm.so");
+
 		// Load the desired shared library
 		if (!(LibJvm = dlopen(soname, RTLD_LAZY))) {
 			error = dlerror();
@@ -835,7 +841,7 @@ bool JDBConn::GetJVM(PGLOBAL g)
 			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_CreateJavaVM", SVP(error));
 			dlclose(LibJvm);
 			LibJvm = NULL;
-		} else if (!(GetCreatedJavaVMs = (CRTJVM)dlsym(LibJvm, "JNI_GetCreatedJavaVMs"))) {
+		} else if (!(GetCreatedJavaVMs = (GETJVM)dlsym(LibJvm, "JNI_GetCreatedJavaVMs"))) {
 			error = dlerror();
 			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetCreatedJavaVMs", SVP(error));
 			dlclose(LibJvm);
@@ -851,112 +857,103 @@ bool JDBConn::GetJVM(PGLOBAL g)
 /***********************************************************************/
 /*  Open: connect to a data source.                                    */
 /***********************************************************************/
-int JDBConn::Open(PSZ jpath, PJPARM sop)
+int JDBConn::Open(PJPARM sop)
 {
 	PGLOBAL& g = m_G;
 
+	// Link or check whether jvm library was linked
 	if (GetJVM(g))
 		return true;
 
-	PSTRG    jpop = new(g) STRING(g, 512, "-Djava.class.path=");
-  char    *cp = NULL;
-	char     sep;
+	// Firstly check whether the jvm was already created
+	JavaVM* jvms[1];
+	jsize   jsz;
+	jint    rc = GetCreatedJavaVMs(jvms, 1, &jsz);
+
+	if (rc == JNI_OK && jsz == 1) {
+		// jvm already existing
+		jvm = jvms[0];
+		rc = jvm->AttachCurrentThread((void**)&env, nullptr);
+
+		if (rc != JNI_OK) {
+			strcpy(g->Message, "Cannot attach jvm to the current thread");
+			return RC_FX;
+		} // endif rc
+
+	} else {
+		// Create a new jvm
+		PSTRG    jpop = new(g)STRING(g, 512, "-Djava.class.path=");
+		char    *cp = NULL;
+		char     sep;
 
 #if defined(__WIN__)
-	sep = ';';
+		sep = ';';
 #else
-	sep = ':';
+		sep = ':';
 #endif
 
-	if (sop) {
-		m_Driver = sop->Driver;
-		m_Url = sop->Url;
-		m_User = sop->User;
-		m_Pwd = sop->Pwd;
-		m_Scrollable = sop->Scrollable;
-		m_RowsetSize = sop->Fsize;
-		//m_LoginTimeout = sop->Cto;
-		//m_QueryTimeout = sop->Qto;
-		//m_UseCnc = sop->UseCnc;
-	} // endif sop
+		//================== prepare loading of Java VM ============================
+		JavaVMInitArgs vm_args;                        // Initialization arguments
+		JavaVMOption* options = new JavaVMOption[1];   // JVM invocation options
 
-	//================== prepare loading of Java VM ============================
-	JavaVMInitArgs vm_args;                        // Initialization arguments
-	JavaVMOption* options = new JavaVMOption[1];   // JVM invocation options
-  
-	// where to find java .class
-  if ((cp = PlugDup(m_G, getenv("CLASSPATH"))))
-		jpop->Append(cp);
-  
-  if (trace) {
-    htrc("CLASSPATH=%s\n", cp);
-    htrc("jpath=%s\n", jpath);
-  } // endif trace
+		// where to find java .class
+		if ((cp = PlugDup(m_G, getenv("CLASSPATH"))))
+			jpop->Append(cp);
 
-	if (jpath && *jpath) {
-    if (cp)
-		  jpop->Append(sep);
+		if (trace) {
+			htrc("CLASSPATH=%s\n", getenv("CLASSPATH"));
+			htrc("ClassPath=%s\n", ClassPath);
+		} // endif trace
 
-		jpop->Append(jpath);
-	}	// endif jpath
+		if (ClassPath && *ClassPath) {
+			if (cp)
+				jpop->Append(sep);
 
-  if (trace)
-    htrc("%s\n", jpop->GetStr());
+			jpop->Append(ClassPath);
+		}	// endif ClassPath
 
-	options[0].optionString =	jpop->GetStr();
-//options[1].optionString =	"-verbose:jni";
-	vm_args.version = JNI_VERSION_1_6;             // minimum Java version
-	vm_args.nOptions = 1;                          // number of options
-	vm_args.options = options;
-	vm_args.ignoreUnrecognized = false; // invalid options make the JVM init fail
+		if (trace)
+			htrc("%s\n", jpop->GetStr());
 
-	//=============== load and initialize Java VM and JNI interface =============
-	jint rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
-	delete options;    // we then no longer need the initialisation options.
+		options[0].optionString =	jpop->GetStr();
+		//options[1].optionString =	"-verbose:jni";
+		vm_args.version = JNI_VERSION_1_6;             // minimum Java version
+		vm_args.nOptions = 1;                          // number of options
+		vm_args.options = options;
+		vm_args.ignoreUnrecognized = false; // invalid options make the JVM init fail
 
-	switch (rc) {
-	case JNI_OK:
-		strcpy(g->Message, "VM successfully created");
-		break;
-	case JNI_ERR:
-		strcpy(g->Message, "Initialising JVM failed: unknown error");
-		return RC_FX;
-	case JNI_EDETACHED:
-		strcpy(g->Message, "Thread detached from the VM");
-		return RC_FX;
-	case JNI_EVERSION:
-		strcpy(g->Message, "JNI version error");
-		return RC_FX;
-	case JNI_ENOMEM:
-		strcpy(g->Message, "Not enough memory");
-		return RC_FX;
-	case JNI_EEXIST:
-		strcpy(g->Message, "VM already created");
-		{
-			JavaVM* jvms[1];
-			jsize   jsz;
+		//=============== load and initialize Java VM and JNI interface =============
+		rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
+		delete options;    // we then no longer need the initialisation options.
 
-			rc = GetCreatedJavaVMs(jvms, 1, &jsz);
-
-			if (rc == JNI_OK && jsz == 1) {
-				jvm = jvms[0];
-				rc = jvm->AttachCurrentThread((void**)&env, nullptr);
-			} // endif rc
-
-		}	// end of block
-
-		if (rc == JNI_OK)
+		switch (rc) {
+		case JNI_OK:
+			strcpy(g->Message, "VM successfully created");
 			break;
-		else
+		case JNI_ERR:
+			strcpy(g->Message, "Initialising JVM failed: unknown error");
 			return RC_FX;
+		case JNI_EDETACHED:
+			strcpy(g->Message, "Thread detached from the VM");
+			return RC_FX;
+		case JNI_EVERSION:
+			strcpy(g->Message, "JNI version error");
+			return RC_FX;
+		case JNI_ENOMEM:
+			strcpy(g->Message, "Not enough memory");
+			return RC_FX;
+		case JNI_EEXIST:
+			strcpy(g->Message, "VM already created");
+			return RC_FX;
+		case JNI_EINVAL:
+			strcpy(g->Message, "Invalid arguments");
+			return RC_FX;
+		default:
+			sprintf(g->Message, "Unknown return code %d", rc);
+			return RC_FX;
+		} // endswitch rc
 
-	case JNI_EINVAL:
-		strcpy(g->Message, "Invalid arguments");
-		return RC_FX;
-	default:
-		sprintf(g->Message, "Unknown return code %d", rc);
-		return RC_FX;
-	} // endswitch rc
+	} // endif rc
 
 	//=============== Display JVM version =======================================
 //jint ver = env->GetVersion();
@@ -969,6 +966,44 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 		strcpy(g->Message, "ERROR: class JdbcInterface not found !");
 		return RC_FX;
 	} // endif jdi
+
+#if 0		// Suppressed because it does not make any usable change
+	if (b && jpath && *jpath) {
+		// Try to add that path the the jvm class path
+		jmethodID alp =	env->GetStaticMethodID(jdi, "addLibraryPath",
+			"(Ljava/lang/String;)I");
+
+		if (alp == nullptr) {
+			env->ExceptionDescribe();
+			env->ExceptionClear();
+		} else {
+			char *msg;
+			jstring path = env->NewStringUTF(jpath);
+			rc = env->CallStaticIntMethod(jdi, alp, path);
+
+			if ((msg = Check())) {
+				strcpy(g->Message, msg);
+				env->DeleteLocalRef(path);
+				return RC_FX;
+			} else switch (rc) {
+				case JNI_OK:
+					printf("jpath added\n");
+					break;
+				case JNI_EEXIST:
+					printf("jpath already exist\n");
+					break;
+				case JNI_ERR:
+				default:
+					strcpy(g->Message, "Error adding jpath");
+					env->DeleteLocalRef(path);
+					return RC_FX;
+				}	// endswitch rc
+
+			env->DeleteLocalRef(path);
+		}	// endif alp
+
+	}	// endif jpath
+#endif // 0
 
 	// if class found, continue
 	jmethodID ctor = env->GetMethodID(jdi, "<init>", "()V");
@@ -1002,6 +1037,18 @@ int JDBConn::Open(PSZ jpath, PJPARM sop)
 	// Build the java string array
 	jobjectArray parms = env->NewObjectArray(4,    // constructs java array of 4
 		env->FindClass("java/lang/String"), NULL);   // Strings
+
+	if (sop) {
+		m_Driver = sop->Driver;
+		m_Url = sop->Url;
+		m_User = sop->User;
+		m_Pwd = sop->Pwd;
+		m_Scrollable = sop->Scrollable;
+		m_RowsetSize = sop->Fsize;
+		//m_LoginTimeout = sop->Cto;
+		//m_QueryTimeout = sop->Qto;
+		//m_UseCnc = sop->UseCnc;
+	} // endif sop
 
 	// change some elements
 	if (m_Driver)

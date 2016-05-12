@@ -5027,3 +5027,30 @@ void json_serialize_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of json_serialize_deinit
+
+/*********************************************************************************/
+/*  Utility function returning an environment variable value.                    */
+/*********************************************************************************/
+my_bool envar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	if (args->arg_count != 1) {
+		strcpy(message, "Unique argument must be an environment variable name");
+		return true;
+	} else
+		return false;
+
+} // end of envar_init
+
+char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *, char *)
+{
+	char *str, name[256];
+	int   n = MY_MIN(args->lengths[0], sizeof(name) - 1);
+
+	memcpy(name, args->args[0], n);
+	name[n] = 0;
+	str = getenv(name);
+	*res_length = (str) ? strlen(str) : 0;
+	return str;
+} // end of envar
+

@@ -21,9 +21,9 @@ typedef struct jdbc_parms {
 char   *JDBCCheckConnection(PGLOBAL g, char *dsn, int cop);
 #endif   // PROMPT_OK
 //PQRYRES JDBCDataSources(PGLOBAL g, int maxres, bool info);
-PQRYRES JDBCColumns(PGLOBAL g, char *jpath, char *db, char *table,
+PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table,
 	char *colpat, int maxres, bool info, PJPARM sop);
-PQRYRES JDBCSrcCols(PGLOBAL g, char *jpath, char *src, PJPARM sop);
-PQRYRES JDBCTables(PGLOBAL g, char *jpath, char *db, char *tabpat,
+PQRYRES JDBCSrcCols(PGLOBAL g, char *src, PJPARM sop);
+PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat,
 	char *tabtyp, int maxres, bool info, PJPARM sop);
-PQRYRES JDBCDrivers(PGLOBAL g, char *jpath, int maxres, bool info);
+PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info);

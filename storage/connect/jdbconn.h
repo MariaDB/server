@@ -32,15 +32,6 @@
 typedef unsigned char *PUCHAR;
 #endif   // !__WIN__
 
-// Field Flags, used to indicate status of fields
-//efine SQL_FIELD_FLAG_DIRTY    0x1
-//efine SQL_FIELD_FLAG_NULL     0x2
-
-// Update options flags
-//efine SQL_SETPOSUPDATES       0x0001
-//efine SQL_POSITIONEDSQL       0x0002
-//efine SQL_GDBOUND             0x0004
-
 enum JCATINFO {
 	CAT_TAB   =     1,      // JDBC Tables
 	CAT_COL   =     2,      // JDBC Columns
@@ -82,7 +73,7 @@ private:
 public:
 	JDBConn(PGLOBAL g, TDBJDBC *tdbp);
 
-	int  Open(PSZ jpath, PJPARM sop);
+	int  Open(PJPARM sop);
 	int  Rewind(char *sql);
 	void Close(void);
 	PQRYRES AllocateResult(PGLOBAL g);

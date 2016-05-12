@@ -31,7 +31,6 @@ public:
 
 	// Implementation
 	virtual const char *GetType(void) { return "JDBC"; }
-	PSZ  GetJpath(void) { return Jpath; }
 	PSZ  GetTabname(void) { return Tabname; }
 	PSZ  GetTabschema(void) { return Tabschema; }
 	PSZ  GetTabcat(void) { return Tabcat; }
@@ -48,7 +47,6 @@ public:
 
 protected:
 	// Members
-	PSZ     Jpath;              /* Java class path                       */
 	PSZ     Driver;             /* JDBC driver                           */
 	PSZ     Url;                /* JDBC driver URL                       */
 	PSZ     Tabname;            /* External table name                   */
@@ -130,7 +128,6 @@ protected:
 	JDBCCOL *Cnp;               // Points to count(*) column
 	JDBCPARM Ops;               // Additional parameters
 	PSTRG    Query;             // Constructed SQL query
-	char    *Jpath;             // Java class path
 	char    *TableName;         // Points to JDBC table name
 	char    *Schema;            // Points to JDBC table Schema
 	char    *User;              // User connect info
@@ -282,7 +279,7 @@ protected:
 class TDBJDRV : public TDBCAT {
 public:
 	// Constructor
-	TDBJDRV(PJDBCDEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres; Jpath = tdp->Jpath;}
+	TDBJDRV(PJDBCDEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres;}
 
 protected:
 	// Specific routines
@@ -290,7 +287,6 @@ protected:
 
 	// Members
 	int      Maxres;            // Returned lines limit
-	char    *Jpath;             // Java class path
 }; // end of class TDBJDRV
 
 /***********************************************************************/
@@ -306,7 +302,6 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Jpath;             // Points to Java classpath
 	char    *Schema;            // Points to schema name or NULL
 	char    *Tab;               // Points to JDBC table name or pattern
 	char    *Tabtype;           // Points to JDBC table type

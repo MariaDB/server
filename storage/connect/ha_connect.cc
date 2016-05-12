@@ -193,12 +193,13 @@ extern "C" {
 
 #if defined(JDBC_SUPPORT)
 	     char *JvmPath;
+			 char *ClassPath;
 #endif   // JDBC_SUPPORT
 
 #if defined(__WIN__)
 CRITICAL_SECTION parsec;      // Used calling the Flex parser
 #else   // !__WIN__
-pthread_mutex_t parmut;
+pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
 #endif  // !__WIN__
 
 /***********************************************************************/
@@ -5156,7 +5157,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 	PJPARM      sjp= NULL;
-	char       *jpath= NULL;
 	char       *driver= NULL;
 	char       *url= NULL;
 	char       *tabtyp = NULL;
@@ -5223,7 +5223,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
 #if defined(JDBC_SUPPORT)
-		jpath= GetListOption(g, "Jpath", topt->oplist, NULL);
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
 		url= GetListOption(g, "URL", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
@@ -5510,15 +5509,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case FNC_NO:
 				case FNC_COL:
 					if (src) {
-						qrp= JDBCSrcCols(g, jpath, (char*)src, sjp);
+						qrp= JDBCSrcCols(g, (char*)src, sjp);
 						src= NULL;     // for next tests
 					} else
-						qrp= JDBCColumns(g, jpath, shm, tab, NULL,
-														 mxr, fnc == FNC_COL, sjp);
+						qrp= JDBCColumns(g, shm, tab, NULL, mxr, fnc == FNC_COL, sjp);
 
 					break;
 				case FNC_TABLE:
-					qrp= JDBCTables(g, dsn, shm, tab, tabtyp, mxr, true, sjp);
+					qrp= JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
 					break;
 #if 0
 				case FNC_DSN:
@@ -5526,7 +5524,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #endif // 0
 				case FNC_DRIVER:
-					qrp= JDBCDrivers(g, jpath, mxr, true);
+					qrp= JDBCDrivers(g, mxr, true);
 					break;
 				default:
 					sprintf(g->Message, "invalid catfunc %s", fncn);
@@ -6853,6 +6851,12 @@ static MYSQL_SYSVAR_STR(jvm_path, JvmPath,
 	"Path to the directory where is the JVM lib",
 	//     check_jvm_path, update_jvm_path,
 	NULL, NULL,	NULL);
+
+static MYSQL_SYSVAR_STR(class_path, ClassPath,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java class path",
+	//     check_class_path, update_class_path,
+	NULL, NULL, NULL);
 #endif   // JDBC_SUPPORT
 
 
@@ -6873,7 +6877,10 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
   MYSQL_SYSVAR(json_grp_size),
+#if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
+	MYSQL_SYSVAR(class_path),
+#endif   // JDBC_SUPPORT
 	NULL
 };
 
