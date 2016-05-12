@@ -152,6 +152,31 @@ static void tc_remove_table(TABLE *table)
 }
 
 
+static void tc_remove_all_unused_tables(TDC_element *element,
+                                        TABLE_list *purge_tables,
+                                        bool mark_flushed)
+{
+  TABLE *table;
+
+  element->wait_for_mdl_deadlock_detector();
+  /*
+    Mark share flushed in order to ensure that it gets
+    automatically deleted once it is no longer referenced.
+
+    Note that code in TABLE_SHARE::wait_for_old_version() assumes that
+    marking share flushed is followed by purge of unused table
+    shares.
+  */
+  if (mark_flushed)
+    element->flushed= true;
+  while ((table= element->free_tables.pop_front()))
+  {
+    tc_remove_table(table);
+    purge_tables->push_front(table);
+  }
+}
+
+
 /**
   Free all unused TABLE objects.
 
@@ -176,17 +201,8 @@ struct tc_purge_arg
 
 static my_bool tc_purge_callback(TDC_element *element, tc_purge_arg *arg)
 {
-  TABLE *table;
-
   mysql_mutex_lock(&element->LOCK_table_share);
-  element->wait_for_mdl_deadlock_detector();
-  if (arg->mark_flushed)
-    element->flushed= true;
-  while ((table= element->free_tables.pop_front()))
-  {
-    tc_remove_table(table);
-    arg->purge_tables.push_front(table);
-  }
+  tc_remove_all_unused_tables(element, &arg->purge_tables, arg->mark_flushed);
   mysql_mutex_unlock(&element->LOCK_table_share);
   return FALSE;
 }
@@ -880,23 +896,9 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 
   element->ref_count++;
 
-  element->wait_for_mdl_deadlock_detector();
-  /*
-    Mark share flushed in order to ensure that it gets
-    automatically deleted once it is no longer referenced.
+  tc_remove_all_unused_tables(element, &purge_tables,
+                              remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE);
 
-    Note that code in TABLE_SHARE::wait_for_old_version() assumes that
-    marking share flushed is followed by purge of unused table
-    shares.
-  */
-  if (remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
-    element->flushed= true;
-
-  while ((table= element->free_tables.pop_front()))
-  {
-    tc_remove_table(table);
-    purge_tables.push_front(table);
-  }
   if (kill_delayed_threads)
     kill_delayed_threads_for_table(element);
 
