@@ -2232,6 +2232,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       if (net_allocate_new_packet(net, thd, MYF(0)))
         break;
 
+      PSI_statement_locker *save_locker= thd->m_statement_psi;
+      sql_digest_state *save_digest= thd->m_digest;
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
+
       while (packet_length)
       {
         current_com++;
@@ -2263,6 +2268,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
 
 com_multi_end:
+      thd->m_statement_psi= save_locker;
+      thd->m_digest= save_digest;
+
       /* release old buffer */
       DBUG_ASSERT(net->buff == net->write_pos); // nothing to send
       my_free(readbuff);
