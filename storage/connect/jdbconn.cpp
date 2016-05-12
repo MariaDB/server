@@ -774,7 +774,7 @@ int JDBConn::GetMaxValue(int n)
 /***********************************************************************/
 void JDBConn::ResetJVM(void)
 {
-	if (!LibJvm) {
+	if (LibJvm) {
 #if defined(__WIN__)
 		FreeLibrary((HMODULE)LibJvm);
 #else   // !__WIN__
@@ -863,7 +863,7 @@ int JDBConn::Open(PJPARM sop)
 
 	// Link or check whether jvm library was linked
 	if (GetJVM(g))
-		return true;
+		return RC_FX;
 
 	// Firstly check whether the jvm was already created
 	JavaVM* jvms[1];
