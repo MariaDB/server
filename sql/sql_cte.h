@@ -82,9 +82,8 @@ public:
   
   uint level;
 
-  select_union *partial_result;
-  select_union *final_result;
   select_union_recursive *rec_result;
+
   TABLE *result_table;
 
   With_element(LEX_STRING *name,
@@ -95,9 +94,8 @@ public:
       references(0), table(NULL),
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
-      partial_result(NULL), final_result(NULL),
-      rec_result(NULL), result_table(NULL)
-  { reset();}
+      level(0), rec_result(NULL), result_table(NULL)
+  {}
 
   bool check_dependencies_in_spec(THD *thd);
   
@@ -147,10 +145,7 @@ public:
 
   void mark_as_cleaned();
 
-  void reset()
-  {
-    level= 0;
-  }
+  void reset_for_exec();
 
   void set_result_table(TABLE *tab) { result_table= tab; }
 
@@ -283,5 +278,15 @@ void With_element::mark_as_cleaned()
 {
   owner->cleaned|= get_elem_map();
 }
+
+
+inline
+void With_element::reset_for_exec()
+{
+  level= 0;
+  owner->with_prepared_anchor&= ~mutually_recursive;
+  owner->cleaned&= ~get_elem_map();    
+}
+
 
 #endif /* SQL_CTE_INCLUDED */

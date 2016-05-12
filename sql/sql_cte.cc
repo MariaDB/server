@@ -731,7 +731,7 @@ bool TABLE_LIST::is_with_table_recursive_reference()
 bool st_select_lex::check_unrestricted_recursive()
 {
   With_element *with_elem= get_with_element();
-  if (!with_elem)
+  if (!with_elem ||!with_elem->is_recursive)
     return false;
   table_map unrestricted= 0;
   table_map encountered= 0;
@@ -806,6 +806,18 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
       }
     }
   }
+  ti.rewind();
+  while ((tbl= ti++))
+  {
+    for (TABLE_LIST *tab= tbl; tab; tab= tab->embedding)
+    {
+      if (tab->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
+      {
+        unrestricted|= get_elem_map();
+	break;
+      }
+    }
+  }
   return false;
 }
 
@@ -824,9 +836,9 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
 
 void With_clause::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("WITH "));
+  str->append(STRING_WITH_LEN("with "));
   if (with_recursive)
-    str->append(STRING_WITH_LEN("RECURSIVE "));
+    str->append(STRING_WITH_LEN("recursive "));
   for (With_element *with_elem= first_elem;
        with_elem != NULL;
        with_elem= with_elem->next_elem)
@@ -853,7 +865,7 @@ void With_clause::print(String *str, enum_query_type query_type)
 void With_element::print(String *str, enum_query_type query_type)
 {
   str->append(query_name);
-  str->append(STRING_WITH_LEN(" AS "));
+  str->append(STRING_WITH_LEN(" as "));
   str->append('(');
   spec->print(str, query_type);
   str->append(')');

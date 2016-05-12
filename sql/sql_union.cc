@@ -514,6 +514,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         with_element->rec_result=
           new (thd_arg->mem_root) select_union_recursive(thd_arg);
         union_result=  with_element->rec_result;
+        fake_select_lex= NULL;
       }
       if (!(tmp_result= union_result))
         goto err; /* purecov: inspected */
@@ -615,7 +616,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
                      TMP_TABLE_ALL_COLUMNS);
         if (union_result->create_result_table(thd, &types,
                                               MY_TEST(union_distinct),
-                                              create_options, "", false,
+                                              create_options, derived->alias,
+                                              false,
                                               instantiate_tmp_table, false))
           goto err;
         if (!derived->table)
@@ -932,7 +934,7 @@ bool st_select_lex_unit::exec()
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
-    if (!fake_select_lex)
+    if (!fake_select_lex && !(with_element && with_element->is_recursive))
       union_result->cleanup();
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
@@ -973,7 +975,7 @@ bool st_select_lex_unit::exec()
       {
 	records_at_start= table->file->stats.records;
 	sl->join->exec();
-        if (sl == union_distinct)
+        if (sl == union_distinct && !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
@@ -1315,6 +1317,8 @@ void st_select_lex_unit::reinit_exec_mechanism()
       */
       field->fixed= 0;
     }
+    if (with_element && with_element->is_recursive)
+      with_element->reset_for_exec();
   }
 #endif
 }

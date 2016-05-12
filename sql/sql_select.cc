@@ -816,6 +816,8 @@ JOIN::prepare(TABLE_LIST *tables_init,
                           &hidden_group_fields,
                           &select_lex->select_n_reserved))
     DBUG_RETURN(-1);
+  if (select_lex->check_unrestricted_recursive())
+    DBUG_RETURN(-1);
   /* Resolve the ORDER BY that was skipped, then remove it. */
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
@@ -24491,7 +24493,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    if (unit->union_needs_tmp_table())
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= "UNION RESULT";

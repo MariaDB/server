@@ -237,5 +237,66 @@ as
 select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
+
+prepare stmt1 from "
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Vasya' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+";
+
+execute stmt1;
+execute stmt1;
+
+deallocate prepare stmt1;
+
+
+create view v1 as
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Vasya' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+show create view v1;
+
+select * from v1;
+
+drop view v1;
+
+
+explain extended
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Vasya' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+
 drop table folks;
 
