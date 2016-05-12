@@ -575,7 +575,9 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
 #endif // 0
 
   // Is the library already loaded?
+#if !defined(_AIX)
   if (!Hdll && !(Hdll = dlopen(soname, RTLD_NOLOAD)))
+#endif
     // Load the desired shared library
     if (!(Hdll = dlopen(soname, RTLD_LAZY))) {
       error = dlerror();

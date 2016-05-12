@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -187,13 +187,14 @@ void
 row_merge_drop_temp_indexes(void);
 /*=============================*/
 
-/*********************************************************************//**
-Creates temporary merge files, and if UNIV_PFS_IO defined, register
-the file descriptor with Performance Schema.
+/** Create temporary merge files in the given paramater path, and if
+UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
+@param[in]	path	location for creating temporary merge files.
 @return File descriptor */
 UNIV_INTERN
 int
-row_merge_file_create_low(void)
+row_merge_file_create_low(
+const char*	path)
 /*===========================*/
 	__attribute__((warn_unused_result));
 /*********************************************************************//**
@@ -379,8 +380,8 @@ UNIV_INTERN
 int
 row_merge_file_create(
 /*==================*/
-	merge_file_t*	merge_file)	/*!< out: merge file structure */
-	__attribute__((nonnull));
+merge_file_t*	merge_file,
+const char*	path);
 /*********************************************************************//**
 Merge disk files.
 @return DB_SUCCESS or error code */
