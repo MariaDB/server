@@ -8518,9 +8518,8 @@ select:
           }
         ;
 
-/* Need select_init2 for subselects. */
 select_init:
-          SELECT_SYM select_init2
+          SELECT_SYM select_options_and_item_list select_init3
         | '(' select_paren ')' union_opt
         ;
 
@@ -8558,8 +8557,7 @@ select_paren_derived:
         | '(' select_paren_derived ')'
         ;
 
-select_init2:
-          select_options_and_item_list
+select_init3:
           opt_table_expression
           opt_select_lock_type
           {
@@ -8567,8 +8565,7 @@ select_init2:
             Lex->current_select->set_braces(false);
           }
           union_clause
-        | select_options_and_item_list
-          select_part3_union_not_ready
+        | select_part3_union_not_ready
           opt_select_lock_type
           {
             /* Parentheses carry no meaning here */
@@ -16638,7 +16635,7 @@ view_select:
         ;
 
 view_select_aux:
-          SELECT_SYM select_init2
+          SELECT_SYM select_options_and_item_list select_init3
         | '(' select_paren ')' union_opt
         ;
 
