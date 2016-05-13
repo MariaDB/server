@@ -11112,14 +11112,7 @@ select_derived_union:
               MYSQL_YYABORT;
             }
           }
-        | select_derived_union
-          UNION_SYM
-          union_option
-          {
-            if (add_select_to_union_list(Lex, (bool)$3, FALSE))
-              MYSQL_YYABORT;
-          }
-          query_term
+        | select_derived_union union_head_non_top query_term
           {
             /*
               Remove from the name resolution context stack the context of the
@@ -16349,6 +16342,17 @@ order_or_limit:
         | limit_clause
         ;
 
+/*
+  Start a UNION, for non-top level query expressions.
+*/
+union_head_non_top:
+          UNION_SYM union_option
+          {
+            if (add_select_to_union_list(Lex, (bool)$2, FALSE))
+              MYSQL_YYABORT;
+          }
+        ;
+
 union_option:
           /* empty */ { $$=1; }
         | DISTINCT  { $$=1; }
@@ -16373,13 +16377,7 @@ query_term:
 
 query_expression_body:
           query_term
-        | query_expression_body
-          UNION_SYM union_option 
-          {
-            if (add_select_to_union_list(Lex, (bool)$3, FALSE))
-              MYSQL_YYABORT;
-          }
-          query_term
+        | query_expression_body union_head_non_top query_term
           {
             Lex->pop_context();
             $$= $1;
