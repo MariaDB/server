@@ -22,10 +22,16 @@ option(WITH_JEMALLOC "WITH_JEMALLOC" NO)
 #Enable 64 bit file offsets
 SET(_LARGE_FILES 1)
 
-# Compiler/Linker Flags
 
-SET(CMAKE_CC_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE -DUNIX -DFUNCPROTO=15 -O2")
-SET(CMAKE_CXX_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE -DUNIX -DFUNCPROTO=15 -O2")
+# Compiler/Linker Flags 
+# "-qarch=pwr7 -qtune=pwr7" is essential,so customize this value to your target cpu (power 6/7/8/whatever)
+#  or you will have a very bad time with innodb.
+
+SET(CMAKE_CC_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -qarch=pwr7 -qtune=pwr7 -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE \
+-DUNIX -DFUNCPROTO=15 -O2")
+SET(CMAKE_CXX_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -qarch=pwr7 -qtune=pwr7 -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE \
+-DUNIX -DFUNCPROTO=15 -O2")
+
  
 STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_EXE_LINKER_FLAGS
  "${CMAKE_EXE_LINKER_FLAGS}")
