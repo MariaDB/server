@@ -14,20 +14,23 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
 
 
+# This will never work with AIX, so switching off per default
+option(WITH_UNIT_TESTS "WITH_UNIT_TESTS" OFF)
+option(WITH_JEMALLOC "WITH_JEMALLOC" NO)
+
+
 #Enable 64 bit file offsets
 SET(_LARGE_FILES 1)
 
-# Fix xlC oddity - it complains about same inline function defined multiple times
-# in different compilation units  
-INCLUDE(CheckCXXCompilerFlag)
- CHECK_CXX_COMPILER_FLAG("-qstaticinline" HAVE_QSTATICINLINE)
- IF(HAVE_QSTATICINLINE)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -qstaticinline")
- ENDIF()
+# Compiler/Linker Flags
+
+SET(CMAKE_CC_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE -DUNIX -DFUNCPROTO=15 -O2")
+SET(CMAKE_CXX_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE -DUNIX -DFUNCPROTO=15 -O2")
  
-# The following is required to export all symbols 
-# (also with leading underscore)
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS
+STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_EXE_LINKER_FLAGS
+ "${CMAKE_EXE_LINKER_FLAGS}")
+STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS
   "${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS}")
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_C_FLAGS
+STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_SHARED_LIBRARY_LINK_C_FLAGS
   "${CMAKE_SHARED_LIBRARY_LINK_C_FLAGS}")
+
