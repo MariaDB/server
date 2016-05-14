@@ -205,13 +205,13 @@ select_union_recursive::create_result_table(THD *thd_arg,
 {
   if (select_union::create_result_table(thd_arg, column_types,
                                         is_union_distinct, options,
-                                        alias, bit_fields_as_long,
+                                        "", bit_fields_as_long,
                                         create_table, keep_row_order))
     return true;
   
   if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
-                                      options, HA_POS_ERROR, alias,
+                                      options, HA_POS_ERROR, "",
                                       !create_table, keep_row_order)))
     return true;
 

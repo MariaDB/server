@@ -239,15 +239,15 @@ as
 (
 select *
 from folks 
-where name = 'Vasya' and dob = '2000-01-01'
+where name = 'Vasya'
   union 
 select p.*
-from folks as p, ancestors AS a
-where p.id = a.father
+from folks as p, ancestors as fa
+where p.id = fa.father
 union
 select p.*
-from folks as p, ancestors AS a
-where p.id = a.mother
+from folks as p, ancestors as ma
+where p.id = ma.mother
 )
 select * from ancestors;
 id	name	dob	father	mother
@@ -346,7 +346,37 @@ id	name	dob	father	mother
 9	Grandma Ann	1941-10-15	NULL	NULL
 8	Grandma Sally	1943-08-23	5	6
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
-drop view v1;
+create view v2 as
+with recursive
+ancestors
+as
+(
+select *
+from folks 
+where name = 'Vasya'
+  union 
+select p.*
+from folks as p, ancestors as fa
+where p.id = fa.father
+union
+select p.*
+from folks as p, ancestors as ma
+where p.id = ma.mother
+)
+select * from ancestors;
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where (`folks`.`name` = 'Vasya') union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `fa`) where (`p`.`id` = `fa`.`father`) union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `ma`) where (`p`.`id` = `ma`.`mother`))select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
+select * from v2;
+id	name	dob	father	mother
+100	Vasya	2000-01-01	20	30
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+9	Grandma Ann	1941-10-15	NULL	NULL
+10	Grandpa Bill	1940-04-05	NULL	NULL
+8	Grandma Sally	1943-08-23	5	6
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+drop view v1,v2;
 explain extended
 with recursive 
 ancestors

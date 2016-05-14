@@ -199,15 +199,15 @@ as
 (
   select *
     from folks 
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Vasya'
   union 
   select p.*
-    from folks as p, ancestors AS a
-      where p.id = a.father
+    from folks as p, ancestors as fa
+      where p.id = fa.father
   union
   select p.*
-    from folks as p, ancestors AS a
-      where p.id = a.mother
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
 )
 select * from ancestors;
 
@@ -279,8 +279,30 @@ show create view v1;
 
 select * from v1;
 
-drop view v1;
+create view v2 as
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Vasya'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
 
+show create view v2;
+
+select * from v2;
+
+drop view v1,v2;
 
 explain extended
 with recursive 

@@ -330,8 +330,10 @@ With_element *With_clause::find_table_def(TABLE_LIST *table)
        with_elem != NULL;
        with_elem= with_elem->next_elem)
   {
-    if (my_strcasecmp(system_charset_info, with_elem->query_name->str, table->table_name) == 0) 
+    if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
+		      table->table_name) == 0) 
     {
+      table->set_derived();
       return with_elem;
     }
   }
@@ -740,6 +742,8 @@ bool st_select_lex::check_unrestricted_recursive()
 					      encountered))
     return true;
   with_elem->owner->unrestricted|= unrestricted;
+  if (with_sum_func)
+    with_elem->owner->unrestricted|= with_elem->mutually_recursive;
   return false;
 }
 
@@ -813,7 +817,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
     {
       if (tab->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
       {
-        unrestricted|= get_elem_map();
+        unrestricted|= mutually_recursive;
 	break;
       }
     }
