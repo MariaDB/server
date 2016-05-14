@@ -1076,16 +1076,11 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
+  in_bootstrap= FALSE;
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(thread_count == 1);
-  in_bootstrap= FALSE;
-  /*
-    dec_thread_count will signal bootstrap() function that we have ended as
-    thread_count will become 0.
-  */
-  dec_thread_count();
+  DBUG_ASSERT(thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif

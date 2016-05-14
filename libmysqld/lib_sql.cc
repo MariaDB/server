@@ -426,7 +426,6 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   THD *thd= (THD*)mysql->thd;
   mysql_mutex_lock(&LOCK_thread_count);
   thd->clear_data_list();
-  thread_count--;
   thd->store_globals();
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -700,7 +699,6 @@ void *create_embedded_thd(int client_flag)
   bzero((char*) &thd->net, sizeof(thd->net));
 
   mysql_mutex_lock(&LOCK_thread_count);
-  thread_count++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;

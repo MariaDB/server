@@ -39,7 +39,6 @@ static bool no_threads_end(THD *thd, bool put_in_cache)
   {
     unlink_thd(thd);
     delete thd;
-    dec_thread_count();
   }
   return 1;                                     // Abort handle_one_connection
 }

@@ -1077,6 +1077,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   save_prep_leaf_list= FALSE;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
+  inc_thread_count();
 }
 
 
@@ -1766,6 +1767,7 @@ THD::~THD()
   }
   update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
+  dec_thread_count();
   DBUG_VOID_RETURN;
 }
 

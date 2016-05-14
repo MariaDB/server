@@ -1778,7 +1778,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
   }
 
   thd->real_id=pthread_self(); // Keep purify happy
-  thread_count++;
   thread_created++;
   threads.append(thd);
 
@@ -1876,7 +1875,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
     thd->unlink();
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
-    dec_thread_count();
   }
   my_thread_end();
   return(NULL);

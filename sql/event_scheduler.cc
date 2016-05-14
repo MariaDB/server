@@ -134,7 +134,6 @@ post_init_event_thread(THD *thd)
     return TRUE;
   }
 
-  thread_safe_increment32(&thread_count);
   add_to_active_threads(thd);
   inc_thread_running();
   return FALSE;

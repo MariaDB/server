@@ -2073,7 +2073,6 @@ public:
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     mysql_mutex_unlock(&LOCK_thread_count);
-    thread_safe_increment32(&thread_count);
     DBUG_VOID_RETURN;
   }
   ~Delayed_insert()
@@ -2104,7 +2103,6 @@ public:
     my_free(thd.query());
     thd.security_ctx->user= 0;
     thd.security_ctx->host= 0;
-    dec_thread_count();
   }
 
   /* The following is for checking when we can delete ourselves */

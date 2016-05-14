@@ -201,7 +201,6 @@ void threadpool_remove_connection(THD *thd)
   close_connection(thd, 0);
   unlink_thd(thd);
   delete thd;
-  dec_thread_count();
 
   /*
     Free resources associated with this connection: 
