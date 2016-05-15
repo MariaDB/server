@@ -3225,21 +3225,56 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
 //scan the the whole alter list  //work
 //and add one field if length of blob is zero 
-    List_iterator<Key> key_iter(alter_info->alter_list);
+    
+    List_iterator<Key> key_iter(alter_info->key_list);
     Key *key_iter_key;
     Key_part_spec *temp_colms;
+    char num = '1';
+    bool is_blob_unique=false;
     while((key_iter_key=key_iter++)){
             List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
-            while((temp_colms=key_iter_key++)){
+            while((temp_colms=key_part_iter++)){
                 while ((sql_field=it++) &&
                         my_strcasecmp(system_charset_info,
-                        column->field_name.str,
+                        temp_colms->field_name.str,
                         sql_field->field_name))
                         field++;
-                        if(sql_field->sql_type==MYSQL_TYPE_BLOB){
+                if(sql_field->sql_type==MYSQL_TYPE_BLOB){
+                            is_blob_unique=true;
+                }
+            }
+            if(is_blob_unique){
                             //here we go
                             //make a virtual field 
-                        }
+                    key_part_iter.rewind();
+                    Create_field *cf = new (thd->mem_root) Create_field();
+                    cf->flags=NOT_NULL_FLAG;
+                    cf->length=cf->char_length=4;
+                    cf->charset=NULL;
+                    char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
+                    //cf->field_name=strcat(name,&num);
+                    strcpy(name,"hash_col");
+                    strcpy(name,"_");
+                    strcpy(name,&num);
+                    num++;
+                    cf->field_name=name;
+                    cf->sql_type=MYSQL_TYPE_LONG;
+                    //add the virtual colmn info 
+                    Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+                    char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));
+                    strcpy(hash_exp,"hash(");
+                    temp_colms=key_part_iter++;
+                    strcat(hash_exp,temp_colms->field_name.str);
+                    while((temp_colms=key_part_iter++)){
+                        strcat(hash_exp,(const char * )",");
+                        strcat(hash_exp,temp_colms->field_name.str);
+                    }
+                    strcat(hash_exp,(const char * )")");
+                    v->expr_str.str= hash_exp;
+                    v->expr_str.length= strlen(hash_exp);
+                    v->expr_item= NULL;
+                    cf->vcol_info=v;
+                    alter_info->create_list.push_back(cf,thd->mem_root);
             }
         }
         it.rewind();
