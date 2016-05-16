@@ -3231,52 +3231,70 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     Key_part_spec *temp_colms;
     char num = '1';
     bool is_blob_unique=false;
-    while((key_iter_key=key_iter++)){
+    int key_initial_elements=alter_info->key_list.elements;
+    while((key_iter_key=key_iter++)&&key_initial_elements){
+            key_initial_elements--;
             List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
             while((temp_colms=key_part_iter++)){
                 while ((sql_field=it++) &&
                         my_strcasecmp(system_charset_info,
                         temp_colms->field_name.str,
-                        sql_field->field_name))
-                        field++;
+                        sql_field->field_name)){}
+                        
                 if(sql_field->sql_type==MYSQL_TYPE_BLOB){
                             is_blob_unique=true;
                 }
             }
             if(is_blob_unique){
-                            //here we go
-                            //make a virtual field 
-                    key_part_iter.rewind();
-                    Create_field *cf = new (thd->mem_root) Create_field();
-                    cf->flags=NOT_NULL_FLAG;
-                    cf->length=cf->char_length=4;
-                    cf->charset=NULL;
-                    char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
-                    //cf->field_name=strcat(name,&num);
-                    strcpy(name,"hash_col");
-                    strcpy(name,"_");
-                    strcpy(name,&num);
-                    num++;
-                    cf->field_name=name;
-                    cf->sql_type=MYSQL_TYPE_LONG;
-                    //add the virtual colmn info 
-                    Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-                    char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));
-                    strcpy(hash_exp,"hash(");
-                    temp_colms=key_part_iter++;
-                    strcat(hash_exp,temp_colms->field_name.str);
-                    while((temp_colms=key_part_iter++)){
-                        strcat(hash_exp,(const char * )",");
-                        strcat(hash_exp,temp_colms->field_name.str);
-                    }
-                    strcat(hash_exp,(const char * )")");
-                    v->expr_str.str= hash_exp;
-                    v->expr_str.length= strlen(hash_exp);
-                    v->expr_item= NULL;
-                    cf->vcol_info=v;
-                    alter_info->create_list.push_back(cf,thd->mem_root);
+                //here we go
+                //make a virtual field 
+                key_part_iter.rewind();
+                Create_field *cf = new (thd->mem_root) Create_field();
+                cf->flags=NOT_NULL_FLAG;
+                cf->length=cf->char_length=4;
+                cf->charset=NULL;
+                char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
+                //cf->field_name=strcat(name,&num);
+                strcpy(name,"hash_col");
+                strcat(name,"_");
+                strcat(name,&num);
+                num++;
+                cf->field_name=name;
+                cf->stored_in_db=true;
+                cf->sql_type=MYSQL_TYPE_LONG;
+                //add the virtual colmn info 
+                Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+                char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));
+                strcpy(hash_exp,"hash(");
+                temp_colms=key_part_iter++;
+                strcat(hash_exp,temp_colms->field_name.str);
+                while((temp_colms=key_part_iter++)){
+                     strcat(hash_exp,(const char * )",");
+                     strcat(hash_exp,temp_colms->field_name.str);
+                }
+                strcat(hash_exp,(const char * )")");
+                v->expr_str.str= hash_exp;
+                v->expr_str.length= strlen(hash_exp);
+                v->expr_item= NULL;
+                v->set_stored_in_db_flag(true);
+                cf->vcol_info=v;
+                alter_info->create_list.push_back(cf,thd->mem_root);
+                //now create  the key field kind 
+                //of harder then prevoius one i guess
+                Key *t_key;
+                LEX_STRING  null_lex_str = {NULL,0};
+                t_key= new (thd->mem_root)Key(Key::UNIQUE, null_lex_str, HA_KEY_ALG_UNDEF, false,
+                           DDL_options(false ?
+                           DDL_options::OPT_IF_NOT_EXISTS :
+                           DDL_options::OPT_NONE));
+                //#include"sql_class.h"
+                t_key->columns.push_back(new (thd->mem_root) 
+                                        Key_part_spec(sql_field->field_name,
+                                            strlen(sql_field->field_name), 0),thd->mem_root);
+                alter_info->key_list.push_back(t_key, thd->mem_root);
+                
             }
-        }
+    }
         it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields=blob_columns=0;
@@ -3886,8 +3904,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    sql_field->charset->mbminlen > 1 || // ucs2 doesn't work yet
 	    (ft_key_charset && sql_field->charset != ft_key_charset))
 	{
-	    my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
-	    DBUG_RETURN(-1);
+        my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
+        DBUG_RETURN(-1);
 	}
 	ft_key_charset=sql_field->charset;
 	/*
