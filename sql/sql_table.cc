@@ -3281,17 +3281,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 alter_info->create_list.push_back(cf,thd->mem_root);
                 //now create  the key field kind 
                 //of harder then prevoius one i guess
-                Key *t_key;
-                LEX_STRING  null_lex_str = {NULL,0};
-                t_key= new (thd->mem_root)Key(Key::UNIQUE, null_lex_str, HA_KEY_ALG_UNDEF, false,
-                           DDL_options(false ?
-                           DDL_options::OPT_IF_NOT_EXISTS :
-                           DDL_options::OPT_NONE));
-                //#include"sql_class.h"
-                t_key->columns.push_back(new (thd->mem_root) 
-                                        Key_part_spec(sql_field->field_name,
-                                            strlen(sql_field->field_name), 0),thd->mem_root);
-                alter_info->key_list.push_back(t_key, thd->mem_root);
+//                Key *t_key;
+//                LEX_STRING  null_lex_str = {NULL,0};
+//                t_key= new (thd->mem_root)Key(Key::UNIQUE, null_lex_str, HA_KEY_ALG_UNDEF, false,
+//                           DDL_options(false ?
+//                           DDL_options::OPT_IF_NOT_EXISTS :
+//                           DDL_options::OPT_NONE));
+//                //#include"sql_class.h"
+//                t_key->columns.push_back(new (thd->mem_root) 
+//                                        Key_part_spec(sql_field->field_name,
+//                                            strlen(sql_field->field_name), 0),thd->mem_root);
+//                alter_info->key_list.push_back(t_key, thd->mem_root);
+                key_iter_key->columns.delete_elements();
+                key_iter_key->columns.push_back(new (thd->mem_root) 
+                                Key_part_spec(name,
+                                strlen(name), 0),thd->mem_root);
                 
             }
     }
