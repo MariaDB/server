@@ -173,7 +173,12 @@ error:
   return TRUE;
 }
 
-
+/*
+ * to chech the total number of blob uniques in the table
+ * */
+int check_total_blob_unique(TABLE *table){
+   // table->s->field;
+}
 /*
   Check if insert fields are correct.
 
