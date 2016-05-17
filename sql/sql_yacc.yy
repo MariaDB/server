@@ -1878,7 +1878,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <table_list>
         join_table_list  join_table
-        table_factor table_ref esc_table_ref
+        table_factor table_ref_select table_ref esc_table_ref
+        table_primary_ident table_primary_derived
         select_derived derived_table_list
         select_derived_union
 
@@ -10766,7 +10767,8 @@ when_list:
 /* Equivalent to <table reference> in the SQL:2003 standard. */
 /* Warning - may return NULL in case of incomplete SELECT */
 table_ref:
-          table_factor { $$=$1; }
+          table_factor     { $$= $1; }
+        | table_ref_select { $$= $1; }
         | join_table
           {
             LEX *lex= Lex;
@@ -10967,6 +10969,11 @@ use_partition:
 */   
 /* Warning - may return NULL in case of incomplete SELECT */
 table_factor:
+          table_primary_ident
+        | table_primary_derived
+        ;
+
+table_primary_ident:
           {
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
@@ -10982,7 +10989,10 @@ table_factor:
               MYSQL_YYABORT;
             Select->add_joined_table($$);
           }
-        | select_derived_init get_select_lex select_derived2
+        ;
+
+table_ref_select:
+          select_derived_init get_select_lex select_derived2
           {
             LEX *lex= Lex;
             SELECT_LEX *sel= lex->current_select;
@@ -11000,25 +11010,27 @@ table_factor:
             /* incomplete derived tables return NULL, we must be
                nested in select_derived rule to be here. */
           }
-          /*
-            Represents a flattening of the following rules from the SQL:2003
-            standard. This sub-rule corresponds to the sub-rule
-            <table primary> ::= ... | <derived table> [ AS ] <correlation name>
-            
-            The following rules have been flattened into query_expression_body
-            (since we have no <with clause>).
+        ;
 
-            <derived table> ::= <table subquery>
-            <table subquery> ::= <subquery>
-            <subquery> ::= <left paren> <query expression> <right paren>
-            <query expression> ::= [ <with clause> ] <query expression body>
 
-            For the time being we use the non-standard rule
-            select_derived_union which is a compromise between the standard
-            and our parser. Possibly this rule could be replaced by our
-            query_expression_body.
-          */
-        | '(' get_select_lex select_derived_union ')' opt_table_alias
+/*
+  Represents a flattening of the following rules from the SQL:2003
+  standard. This sub-rule corresponds to the sub-rule
+  <table primary> ::= ... | <derived table> [ AS ] <correlation name>
+
+  <derived table> ::= <table subquery>
+  <table subquery> ::= <subquery>
+  <subquery> ::= <left paren> <query expression> <right paren>
+  <query expression> ::= [ <with clause> ] <query expression body>
+
+  For the time being we use the non-standard rule
+  select_derived_union which is a compromise between the standard
+  and our parser. Possibly this rule could be replaced by our
+  query_expression_body.
+*/
+
+table_primary_derived:
+          '(' get_select_lex select_derived_union ')' opt_table_alias
           {
             /* Use $2 instead of Lex->current_select as derived table will
                alter value of Lex->current_select. */
@@ -11097,7 +11109,6 @@ table_factor:
             if (!($$= sel->add_table_to_list(lex->thd,
                                              ti, $8, 0,
                                              TL_READ, MDL_SHARED_READ)))
-
               MYSQL_YYABORT;
             sel->add_joined_table($$);
           } 
