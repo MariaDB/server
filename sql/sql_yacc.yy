@@ -1920,7 +1920,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <variable> internal_variable_name
 
 %type <select_lex> subselect
-        get_select_lex
+        get_select_lex get_select_lex_derived
         query_expression_body
 
 %type <boolfunc2creator> comp_op
@@ -11188,21 +11188,15 @@ select_part2_derived:
 
 /* handle contents of parentheses in join expression */
 select_derived:
-          get_select_lex
+          get_select_lex_derived derived_table_list
           {
             LEX *lex= Lex;
-            if ($1->init_nested_join(lex->thd))
-              MYSQL_YYABORT;
-          }
-          derived_table_list
-          {
-            LEX *lex= Lex;
-            /* for normal joins, $3 != NULL and end_nested_join() != NULL,
+            /* for normal joins, $2 != NULL and end_nested_join() != NULL,
                for derived tables, both must equal NULL */
 
-            if (!($$= $1->end_nested_join(lex->thd)) && $3)
+            if (!($$= $1->end_nested_join(lex->thd)) && $2)
               MYSQL_YYABORT;
-            if (!$3 && $$)
+            if (!$2 && $$)
             {
               my_parse_error(thd, ER_SYNTAX_ERROR);
               MYSQL_YYABORT;
@@ -11240,6 +11234,15 @@ select_derived2:
 get_select_lex:
           /* Empty */ { $$= Select; }
         ;
+
+get_select_lex_derived:
+          get_select_lex
+          {
+            LEX *lex= Lex;
+            if ($1->init_nested_join(lex->thd))
+              MYSQL_YYABORT;
+          }
+       ;
 
 select_derived_init:
           SELECT_SYM
