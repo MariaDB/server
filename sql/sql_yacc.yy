@@ -1919,7 +1919,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <variable> internal_variable_name
 
 %type <select_lex> subselect
-        get_select_lex query_term
+        get_select_lex
         query_expression_body
 
 %type <boolfunc2creator> comp_op
@@ -16378,24 +16378,33 @@ union_option:
         | ALL       { $$=0; }
         ;
 
+/*
+  Corresponds to the SQL Standard
+  <query specification> ::=
+    SELECT [ <set quantifier> ] <select list> <table expression>
+
+  Notes:
+  - We allow more options in addition to <set quantifier>
+  - <table expression> is optional in MariaDB
+*/
+query_specification:
+          SELECT_SYM select_init2_derived opt_table_expression
+        ;
+
 query_term:
-          SELECT_SYM select_init2_derived
-          opt_table_expression
+          query_specification
           opt_order_clause
           opt_limit_clause
           opt_select_lock_type
-          {
-            $$= Lex->current_select->master_unit()->first_select();
-          }
         | '(' select_paren_derived ')'
           opt_union_order_or_limit
-          {
-            $$= Lex->current_select->master_unit()->first_select();
-          }
         ;
 
 query_expression_body:
           query_term
+          {
+            $$= Lex->current_select->master_unit()->first_select();
+          }
         | query_expression_body union_head_non_top query_term
           {
             Lex->pop_context();
@@ -16407,7 +16416,7 @@ query_expression_body:
 subselect:
           subselect_start opt_with_clause query_expression_body subselect_end
           { 
-	    $3->set_with_clause($2);
+            $3->set_with_clause($2);
             $$= $3;
           }
         ;
