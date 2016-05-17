@@ -54,6 +54,12 @@ get_collation_number_internal(const char *name)
 }
 
 
+static my_bool is_multi_byte_ident(CHARSET_INFO *cs, uchar ch)
+{
+  int chlen= my_charlen(cs, (const char *) &ch, (const char *) &ch + 1);
+  return MY_CS_IS_TOOSMALL(chlen) ? TRUE : FALSE;
+}
+
 static my_bool init_state_maps(struct charset_info_st *cs)
 {
   uint i;
@@ -73,10 +79,8 @@ static my_bool init_state_maps(struct charset_info_st *cs)
       state_map[i]=(uchar) MY_LEX_IDENT;
     else if (my_isdigit(cs,i))
       state_map[i]=(uchar) MY_LEX_NUMBER_IDENT;
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-    else if (my_mbcharlen(cs, i)>1)
+    else if (is_multi_byte_ident(cs, i))
       state_map[i]=(uchar) MY_LEX_IDENT;
-#endif
     else if (my_isspace(cs,i))
       state_map[i]=(uchar) MY_LEX_SKIP;
     else
@@ -902,15 +906,13 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
   const char *to_start= to;
   const char *end, *to_end=to_start + (to_length ? to_length-1 : 2*length);
   my_bool overflow= FALSE;
-#ifdef USE_MB
-  my_bool use_mb_flag= use_mb(charset_info);
-#endif
   for (end= from + length; from < end; from++)
   {
     char escape= 0;
 #ifdef USE_MB
-    int tmp_length;
-    if (use_mb_flag && (tmp_length= my_ismbchar(charset_info, from, end)))
+    int tmp_length= use_mb(charset_info) ? my_charlen(charset_info, from, end) :
+                                           1;
+    if (tmp_length > 1)
     {
       if (to + tmp_length > to_end)
       {
@@ -933,7 +935,7 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
      multi-byte character into a valid one. For example, 0xbf27 is not
      a valid GBK character, but 0xbf5c is. (0x27 = ', 0x5c = \)
     */
-    if (use_mb_flag && (tmp_length= my_mbcharlen(charset_info, *from)) > 1)
+    if (tmp_length < 1) /* Bad byte sequence */
       escape= *from;
     else
 #endif

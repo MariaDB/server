@@ -834,7 +834,6 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    my_mbcharlen_8bit,	/* mbcharlen */
     my_numchars_8bit,
     my_charpos_8bit,
     my_well_formed_len_8bit,

@@ -6571,37 +6571,35 @@ int read_line(char *buf, int size)
 
     if (!skip_char)
     {
-      /* Could be a multibyte character */
-      /* This code is based on the code in "sql_load.cc" */
-#ifdef USE_MB
-      int charlen = my_mbcharlen(charset_info, (unsigned char) c);
-      /* We give up if multibyte character is started but not */
-      /* completed before we pass buf_end */
-      if ((charlen > 1) && (p + charlen) <= buf_end)
+      *p++= c;
+      if (use_mb(charset_info))
       {
-	int i;
-	char* mb_start = p;
-
-	*p++ = c;
-
-	for (i= 1; i < charlen; i++)
-	{
-	  c= my_getc(cur_file->file);
-	  if (feof(cur_file->file))
-	    goto found_eof;
-	  *p++ = c;
-	}
-	if (! my_ismbchar(charset_info, mb_start, p))
-	{
-	  /* It was not a multiline char, push back the characters */
-	  /* We leave first 'c', i.e. pretend it was a normal char */
-	  while (p-1 > mb_start)
-	    my_ungetc(*--p);
-	}
+        const char *mb_start= p - 1;
+        /* Could be a multibyte character */
+        /* See a similar code in "sql_load.cc" */
+        for ( ; p < buf_end; )
+        {
+          int charlen= my_charlen(charset_info, mb_start, p);
+          if (charlen > 0)
+            break; /* Full character */
+          if (MY_CS_IS_TOOSMALL(charlen))
+          {
+            /* We give up if multibyte character is started but not */
+            /* completed before we pass buf_end */
+            c= my_getc(cur_file->file);
+            if (feof(cur_file->file))
+              goto found_eof;
+            *p++ = c;
+            continue;
+          }
+          DBUG_ASSERT(charlen == MY_CS_ILSEQ);
+          /* It was not a multiline char, push back the characters */
+          /* We leave first 'c', i.e. pretend it was a normal char */
+          while (p - 1 > mb_start)
+            my_ungetc(*--p);
+          break;
+        }
       }
-      else
-#endif
-	*p++= c;
     }
   }
   die("The input buffer is too small for this query.x\n"      \

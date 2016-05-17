@@ -38,7 +38,7 @@
     const char *acc_end= (ACC) + (LEN);                                 \
     for (ptr_str= (STR) ; ptr_str < (END) ; ptr_str+= mbl)              \
     {                                                                   \
-      mbl= my_mbcharlen((CS), *(uchar*)ptr_str);                        \
+      mbl= my_charlen_fix((CS), ptr_str, (END));                        \
       if (mbl < 2)                                                      \
       {                                                                 \
         DBUG_ASSERT(mbl == 1);                                          \
@@ -63,10 +63,9 @@ end:                                                                    \
 char *my_strchr(CHARSET_INFO *cs, const char *str, const char *end,
                 pchar c)
 {
-  uint mbl;
   while (str < end)
   {
-    mbl= my_mbcharlen(cs, *(uchar *)str);
+    uint mbl= my_ismbchar(cs, str, end);
     if (mbl < 2)
     {
       if (*str == c)
