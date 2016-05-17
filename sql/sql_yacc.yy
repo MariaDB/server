@@ -11018,20 +11018,20 @@ table_factor:
             and our parser. Possibly this rule could be replaced by our
             query_expression_body.
           */
-        | '('opt_with_clause get_select_lex select_derived_union ')' opt_table_alias
+        | '(' get_select_lex select_derived_union ')' opt_table_alias
           {
-            /* Use $3 instead of Lex->current_select as derived table will
+            /* Use $2 instead of Lex->current_select as derived table will
                alter value of Lex->current_select. */
-            if (!($4 || $6) && $3->embedding &&
-                !$3->embedding->nested_join->join_list.elements)
+            if (!($3 || $5) && $2->embedding &&
+                !$2->embedding->nested_join->join_list.elements)
             {
-              /* we have a derived table ($4 == NULL) but no alias,
+              /* we have a derived table ($3 == NULL) but no alias,
                  Since we are nested in further parentheses so we
                  can pass NULL to the outer level parentheses
                  Permits parsing of "((((select ...))) as xyz)" */
               $$= 0;
             }
-            else if (!$4)
+            else if (!$3)
             {
               /* Handle case of derived table, alias may be NULL if there
                  are no outer parentheses, add_table_to_list() will throw
@@ -11039,13 +11039,12 @@ table_factor:
               LEX *lex=Lex;
               SELECT_LEX *sel= lex->current_select;
               SELECT_LEX_UNIT *unit= sel->master_unit();
-              unit->set_with_clause($2);
               lex->current_select= sel= unit->outer_select();
               Table_ident *ti= new (thd->mem_root) Table_ident(unit);
               if (ti == NULL)
                 MYSQL_YYABORT;
               if (!($$= sel->add_table_to_list(lex->thd,
-                                               ti, $6, 0,
+                                               ti, $5, 0,
                                                TL_READ, MDL_SHARED_READ)))
 
                 MYSQL_YYABORT;
@@ -11053,11 +11052,11 @@ table_factor:
               lex->pop_context();
               lex->nest_level--;
             }
-            /*else if (($4->select_lex &&
-                      $4->select_lex->master_unit()->is_union() &&
-                      ($4->select_lex->master_unit()->first_select() ==
-                       $4->select_lex || !$4->lifted)) || $6)*/
-            else if ($6 != NULL)
+            /*else if (($3->select_lex &&
+                      $3->select_lex->master_unit()->is_union() &&
+                      ($3->select_lex->master_unit()->first_select() ==
+                       $3->select_lex || !$3->lifted)) || $5)*/
+            else if ($5 != NULL)
             {
               /*
                 Tables with or without joins within parentheses cannot
@@ -11070,7 +11069,7 @@ table_factor:
             {
               /* nested join: FROM (t1 JOIN t2 ...),
                  nest_level is the same as in the outer query */
-              $$= $4;
+              $$= $3;
             }
             /*
               Fields in derived table can be used in upper select in
@@ -11082,6 +11081,26 @@ table_factor:
                 !$$->derived->first_select()->next_select())
               $$->select_lex->add_where_field($$->derived->first_select());
           }
+          /* Represents derived table with WITH clause */
+        | '(' get_select_lex subselect_start
+              with_clause query_expression_body
+              subselect_end ')' opt_table_alias
+          {
+            LEX *lex=Lex;
+            SELECT_LEX *sel= $2;
+            SELECT_LEX_UNIT *unit= $5->master_unit();
+            Table_ident *ti= new (thd->mem_root) Table_ident(unit);
+            if (ti == NULL)
+              MYSQL_YYABORT;
+            $5->set_with_clause($4);
+            lex->current_select= sel;
+            if (!($$= sel->add_table_to_list(lex->thd,
+                                             ti, $8, 0,
+                                             TL_READ, MDL_SHARED_READ)))
+
+              MYSQL_YYABORT;
+            sel->add_joined_table($$);
+          } 
         ;
 
 /*
@@ -14014,7 +14033,6 @@ opt_with_clause:
 	| with_clause
           {
             $$= $1;
-            Lex->derived_tables|= DERIVED_WITH;
           }
 	;
 
@@ -14026,6 +14044,7 @@ with_clause:
              new With_clause($2, Lex->curr_with_clause);
              if (with_clause == NULL)
                MYSQL_YYABORT;
+             Lex->derived_tables|= DERIVED_WITH;
              Lex->curr_with_clause= with_clause;
              with_clause->add_to_list(Lex->with_clauses_list_last_next);
           }
