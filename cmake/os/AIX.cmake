@@ -32,11 +32,6 @@ SET(CMAKE_CC_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcplus
 SET(CMAKE_CXX_FLAGS "-q64 -qlanglvl=extended0x -qmaxmem=-1 -qstaticinline -qcpluscmt -qarch=pwr7 -qtune=pwr7 -Dalloca=__alloca -D_H_ALLOCA -DNDEBUG -DSYSV -D_AIX -D_AIX64 -D_AIX61 -D_AIX71 -D_ALL_SOURCE \
 -DUNIX -DFUNCPROTO=15 -O2")
 
- 
-STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_EXE_LINKER_FLAGS
- "${CMAKE_EXE_LINKER_FLAGS}")
-STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS}")
-STRING(REPLACE "-b64" "-bexpall" "-bexpfull" "-bnoipath" "-bbigtoc" CMAKE_SHARED_LIBRARY_LINK_C_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_C_FLAGS}")
-
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,-b64 -Wl,-bexpall -Wl,-bexpfull -Wl,-bnoipath -Wl,-bbigtoc")
+SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,-b64 -Wl,-bexpall -Wl,-bexpfull -Wl,-bnoipath -Wl,-bbigtoc")
+SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-Wl,-b64 -Wl,-bexpall -Wl,-bexpfull -Wl,-bnoipath -Wl,-bbigtoc")
