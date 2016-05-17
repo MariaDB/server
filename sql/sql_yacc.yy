@@ -1037,10 +1037,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 123 shift/reduce conflicts.
+  Currently there are 104 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 123
+%expect 104
 
 /*
    Comments for TOKENS.
@@ -1878,7 +1878,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <table_list>
         join_table_list  join_table
-        table_factor table_ref_select table_ref esc_table_ref
+        table_factor table_ref esc_table_ref
         table_primary_ident table_primary_derived
         select_derived derived_table_list
         select_derived_union
@@ -10768,7 +10768,6 @@ when_list:
 /* Warning - may return NULL in case of incomplete SELECT */
 table_ref:
           table_factor     { $$= $1; }
-        | table_ref_select { $$= $1; }
         | join_table
           {
             LEX *lex= Lex;
@@ -11006,9 +11005,6 @@ table_ref_select:
             }
             if ($2->init_nested_join(lex->thd))
               MYSQL_YYABORT;
-            $$= 0;
-            /* incomplete derived tables return NULL, we must be
-               nested in select_derived rule to be here. */
           }
         ;
 
@@ -11201,6 +11197,12 @@ select_derived:
               my_parse_error(thd, ER_SYNTAX_ERROR);
               MYSQL_YYABORT;
             }
+          }
+        | get_select_lex_derived table_ref_select
+          {
+            LEX *lex= Lex;
+            $$= $1->end_nested_join(lex->thd);
+            DBUG_ASSERT($$ == NULL);
           }
         ;
 
