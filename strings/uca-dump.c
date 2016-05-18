@@ -35,19 +35,29 @@ struct uca_item_st
 #define MY_UCA_CMASK	63
 #define MY_UCA_PSHIFT	6
 #else
-#define MY_UCA_NPAGES	256
+#define MY_UCA_NPAGES	4352 /* 0x110000 characters / 0x100 chars per page */
 #define MY_UCA_NCHARS	256
 #define MY_UCA_CMASK	255
 #define MY_UCA_PSHIFT	8
 #endif
 
-static char *pname[]= {"", "2", "3"};
+#define MAX_ALLOWED_CODE 0x10FFFF
+
+/* Name that goes into all array names */
+static const char *global_name_prefix= "uca520";
+
+/* Name prefix that goes into page weight array names after global_name_prefix */
+static char *pname_prefix[]= {"_p", "_p", "_p"};
+
+/* Name suffix that goes into page weight array names after page number */
+static char *pname_suffix[]= {"", "_w2", "_w3"};
+
 
 int main(int ac, char **av)
 {
   char str[256];
   char *weights[64];
-  struct uca_item_st uca[64*1024];
+  static struct uca_item_st uca[MAX_ALLOWED_CODE+1];
   size_t code, w;
   int pageloaded[MY_UCA_NPAGES];
   
@@ -63,7 +73,7 @@ int main(int ac, char **av)
     
     code= strtol(str,NULL,16);
     
-    if (str[0]=='#' || (code > 0xFFFF))
+    if (str[0]=='#' || (code > MAX_ALLOWED_CODE))
       continue;
     if ((comment=strchr(str,'#')))
     {
@@ -129,7 +139,7 @@ int main(int ac, char **av)
   
   
   /* Now set implicit weights */
-  for (code=0; code <= 0xFFFF; code++)
+  for (code=0; code <= MAX_ALLOWED_CODE; code++)
   {
     size_t base, aaaa, bbbb;
     
@@ -173,7 +183,7 @@ int main(int ac, char **av)
   printf("#define MY_UCA_NCHARS %d\n",MY_UCA_NCHARS);
   printf("#define MY_UCA_CMASK  %d\n",MY_UCA_CMASK);
   printf("#define MY_UCA_PSHIFT %d\n",MY_UCA_PSHIFT);
-  
+
   for (w=0; w<3; w++)
   {
     size_t page;
@@ -186,6 +196,7 @@ int main(int ac, char **av)
       size_t nchars= 0;
       size_t mchars;
       size_t ndefs= 0;
+      size_t code_line_start= page * MY_UCA_NCHARS;
       
       pagemaxlen[page]= 0;
       
@@ -256,8 +267,9 @@ int main(int ac, char **av)
       */
       
       
-      printf("uint16 page%03Xdata%s[]= { /* %04X (%d weights per char) */\n",
-              page, pname[w], page*MY_UCA_NCHARS, maxnum);
+      printf("static const uint16 %s%s%03X%s[]= { /* %04X (%d weights per char) */\n",
+              global_name_prefix, pname_prefix[w], (int) page, pname_suffix[w],
+              (int) page*MY_UCA_NCHARS, (int) maxnum);
       
       for (offs=0; offs < MY_UCA_NCHARS; offs++)
       {
@@ -293,11 +305,14 @@ int main(int ac, char **av)
           printf("0x%04X", tmp);
           if ((offs+1 != MY_UCA_NCHARS) || (i+1!=maxnum))
             printf(",");
+          else
+            printf(" ");
           nchars++;
         }
         if (nchars >=mchars)
         {
-          printf("\n");
+          printf(" /* %04X */\n", (int) code_line_start);
+          code_line_start= code + 1;
           nchars=0;
         }
         else
@@ -308,7 +323,8 @@ int main(int ac, char **av)
       printf("};\n\n");
     }
 
-    printf("uchar uca_length%s[%d]={\n", pname[w], MY_UCA_NPAGES);
+    printf("const uchar %s_length%s[%d]={\n",
+           global_name_prefix, pname_suffix[w], MY_UCA_NPAGES);
     for (page=0; page < MY_UCA_NPAGES; page++)
     {
       printf("%d%s%s",pagemaxlen[page],page<MY_UCA_NPAGES-1?",":"",(page+1) % 16 ? "":"\n");
@@ -316,7 +332,8 @@ int main(int ac, char **av)
     printf("};\n");
 
 
-    printf("uint16 *uca_weight%s[%d]={\n", pname[w], MY_UCA_NPAGES);
+    printf("static const uint16 *%s_weight%s[%d]={\n",
+           global_name_prefix, pname_suffix[w], MY_UCA_NPAGES);
     for (page=0; page < MY_UCA_NPAGES; page++)
     {
       const char *comma= page < MY_UCA_NPAGES-1 ? "," : "";
@@ -324,7 +341,9 @@ int main(int ac, char **av)
       if (!pagemaxlen[page])
         printf("NULL       %s%s%s", w ? " ": "",  comma , nline);
       else
-        printf("page%03Xdata%s%s%s", page, pname[w], comma, nline);
+        printf("%s%s%03X%s%s%s",
+               global_name_prefix, pname_prefix[w], (int) page, pname_suffix[w],
+               comma, nline);
     }
     printf("};\n");
   }
