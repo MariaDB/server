@@ -185,9 +185,8 @@ static bool refresh_provider_options()
   char* opts= wsrep->options_get(wsrep);
   if (opts)
   {
-    if (wsrep_provider_options) my_free((void *)wsrep_provider_options);
-    wsrep_provider_options = (char*)my_memdup(opts, strlen(opts) + 1, 
-                                              MYF(MY_WME));
+    wsrep_provider_options_init(opts);
+    free(opts);
   }
   else
   {
