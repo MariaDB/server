@@ -216,6 +216,7 @@ static bool refresh_provider_options()
     get_provider_option_value(wsrep_provider_options,
                               (char*)"repl.max_ws_size",
                               &wsrep_max_ws_size);
+    free(opts);
   }
   else
   {
