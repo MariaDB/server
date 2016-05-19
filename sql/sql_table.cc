@@ -3255,8 +3255,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 cf->charset=NULL;
                 char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
                 //cf->field_name=strcat(name,&num);
-                strcpy(name,"hash_col");
-                strcat(name,"_");
+                strcpy(name,"DB_ROW_HASH_");
                 strcat(name,&num);
                 num++;
                 cf->field_name=name;

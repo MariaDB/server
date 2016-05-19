@@ -673,7 +673,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   ulonglong id;
   COPY_INFO info;
   TABLE *table= 0;
-  List_iterator_fast<List_item> its(values_list);
+ 
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
@@ -728,7 +728,21 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     if (open_and_lock_tables(thd, table_list, TRUE, 0))
       DBUG_RETURN(TRUE);
   }
-
+    //now assume that table list contains only one table //work
+    //simple insert 
+    //now i need to add default value into  value_list
+    context= &thd->lex->select_lex.context;
+    Field ** f=table_list->table->field;
+    List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
+    for(uint i=0;i<table_list->table->s->fields;i++){
+        if(strncmp((*f)->field_name,"DB_ROW_HASH_",12)==0){
+            i_list->push_back(new (thd->mem_root) 
+                Item_default_value(thd,context),thd->mem_root);
+        }
+        f++;
+    }
+     List_iterator_fast<List_item> its(values_list);
+     
   lock_type= table_list->lock_type;
 
   THD_STAGE_INFO(thd, stage_init);
@@ -747,7 +761,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   /* mysql_prepare_insert set table_list->table if it was not set */
   table= table_list->table;
 
-  context= &thd->lex->select_lex.context;
+  
   /*
     These three asserts test the hypothesis that the resetting of the name
     resolution context below is not necessary at all since the list of local

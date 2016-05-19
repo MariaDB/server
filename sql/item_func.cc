@@ -1916,7 +1916,15 @@ void Item_func_int_div::fix_length_and_dec()
 }
 
 longlong Item_func_hash::val_int(){
-    return args[0]->val_int();
+    String * str =  args[0]->val_str();
+    int length = str->length();
+    char * ptr= str->c_ptr();
+    int return_val = 1;
+    for(int i=0;i<length;i++){
+        return_val +=((int)*ptr)*2;
+        ptr++;
+    }
+    return return_val;
 }
 longlong Item_func_mod::int_op()
 {
