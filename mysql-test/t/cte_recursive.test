@@ -27,7 +27,7 @@ drop table t1;
 create table  folks(id int, name char(32), dob date, father int, mother int);
 
 insert into folks values
-(100, 'Vasya', '2000-01-01', 20, 30),
+(100, 'Me', '2000-01-01', 20, 30),
 (20, 'Dad', '1970-02-02', 10, 9),
 (30, 'Mom', '1975-03-03', 8, 7),
 (10, 'Grandpa Bill', '1940-04-05', null, null),
@@ -47,7 +47,7 @@ as
 (
   select *
     from folks
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
   union 
   select p.id, p.name, p.dob, p.father, p.mother
     from folks as p, ancestors AS a
@@ -65,7 +65,7 @@ as
   union
   select *
     from folks
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
 )
 select * from ancestors;
 
@@ -89,7 +89,7 @@ as
 (
   select *
     from  folks
-      where name = 'Vasya' or name='Sister Amy'
+      where name = 'Me' or name='Sister Amy'
   union 
   select  p.*
     from folks as p, ancestors as a
@@ -107,14 +107,14 @@ as
   union
   select * 
     from folks
-      where name='Vasya'
+      where name='Me'
 ),
 ancestors
 as
 (
   select *
     from folks
-      where name='Vasya'
+      where name='Me'
   union 
   select *
     from ancestors
@@ -160,7 +160,7 @@ as
 (
   select *
     from folks 
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
   union
   select p.*   
     from folks as p, ancestors AS a   
@@ -181,7 +181,7 @@ as
 (
   select *
     from folks 
-       where name = 'Vasya'
+       where name = 'Me'
   union
   select p.*   
     from folks as p, ancestors AS a   
@@ -200,7 +200,7 @@ as
 (
   select *
     from folks 
-      where name = 'Vasya'
+      where name = 'Me'
   union 
   select p.*
     from folks as p, ancestors as fa
@@ -223,7 +223,7 @@ as
   union
   select h.*, w.*
     from folks v, folks h, folks w
-      where v.name = 'Vasya' and
+      where v.name = 'Me' and
             (v.father = h.id AND v.mother= w.id)
 ),
 coupled_ancestors (id, name, dob, father, mother)
@@ -246,7 +246,7 @@ as
 (
   select *
     from folks
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
   union 
   select p.id, p.name, p.dob, p.father, p.mother
     from folks as p, ancestors AS a
@@ -268,7 +268,7 @@ as
 (
   select *
     from folks
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
   union 
   select p.id, p.name, p.dob, p.father, p.mother
     from folks as p, ancestors AS a
@@ -287,7 +287,7 @@ as
 (
   select *
     from folks 
-      where name = 'Vasya'
+      where name = 'Me'
   union 
   select p.*
     from folks as p, ancestors as fa
@@ -312,7 +312,7 @@ as
 (
   select *
     from folks
-      where name = 'Vasya' and dob = '2000-01-01'
+      where name = 'Me' and dob = '2000-01-01'
   union 
   select p.id, p.name, p.dob, p.father, p.mother
     from folks as p, ancestors AS a
@@ -325,9 +325,9 @@ with recursive
 ancestor_ids (id)
 as
 (
-  select father from folks where name = 'Vasya'
+  select father from folks where name = 'Me'
   union
-  select mother from folks where name = 'Vasya'
+  select mother from folks where name = 'Me'
   union
   select father from folks, ancestor_ids a  where folks.id = a.id
   union
@@ -347,7 +347,7 @@ as
 (
   select *
     from folks 
-      where name = 'Vasya'
+      where name = 'Me'
   union all
   select p.*
     from folks as p, ancestors as fa
@@ -367,9 +367,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father, 1 from folks where name = 'Vasya' and  father is not null
+  select father, 1 from folks where name = 'Me' and  father is not null
   union all
-  select mother, 1 from folks where name = 'Vasya' and  mother is not null
+  select mother, 1 from folks where name = 'Me' and  mother is not null
   union all
   select father, fa.generation+1 from folks, ancestor_ids fa
     where folks.id = fa.id and (father not in (select id from ancestor_ids))
@@ -388,9 +388,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father from folks where name = 'Vasya' and  father is not null
+  select father from folks where name = 'Me' and  father is not null
   union all
-  select mother from folks where name = 'Vasya' and  mother is not null
+  select mother from folks where name = 'Me' and  mother is not null
   union all
   select father, fa.generation+1 from folks, ancestor_ids fa
     where folks.id = fa.id and (father not in (select id from ancestor_ids))
@@ -405,9 +405,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father, 1 from folks where name = 'Vasya' and  father is not null
+  select father, 1 from folks where name = 'Me' and  father is not null
   union all
-  select mother, 1 from folks where name = 'Vasya' and  mother is not null
+  select mother, 1 from folks where name = 'Me' and  mother is not null
   union all
   select father, fa.generation+1 from folks, ancestor_ids fa
     where folks.id = fa.id and father is not null and
@@ -428,9 +428,9 @@ with recursive
 coupled_ancestor_ids (id)
 as
 (
-  select father from folks where name = 'Vasya' and father is not null
+  select father from folks where name = 'Me' and father is not null
   union 
-  select mother from folks where name = 'Vasya' and mother is not null
+  select mother from folks where name = 'Me' and mother is not null
   union
   select n.father 
     from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
@@ -452,9 +452,9 @@ with recursive
 coupled_ancestor_ids (id)
 as
 (
-  select father from folks where name = 'Vasya' and father is not null
+  select father from folks where name = 'Me' and father is not null
   union 
-  select mother from folks where name = 'Vasya' and mother is not null
+  select mother from folks where name = 'Me' and mother is not null
   union
   select n.father 
     from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
@@ -476,9 +476,9 @@ with recursive
 ancestor_ids (id)
 as
 (
-  select father from folks where name = 'Vasya'
+  select father from folks where name = 'Me'
   union
-  select mother from folks where name = 'Vasya'
+  select mother from folks where name = 'Me'
   union
   select father from folks left join ancestor_ids a on folks.id = a.id
   union
@@ -497,9 +497,9 @@ with recursive
 ancestor_ids (id)
 as
 (
-  select father from folks where name = 'Vasya'
+  select father from folks where name = 'Me'
   union
-  select mother from folks where name = 'Vasya'
+  select mother from folks where name = 'Me'
   union
   select father from folks left join ancestor_ids a on folks.id = a.id
   union
@@ -517,9 +517,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father, 1 from folks where name = 'Vasya'
+  select father, 1 from folks where name = 'Me'
   union
-  select mother, 1 from folks where name = 'Vasya'
+  select mother, 1 from folks where name = 'Me'
   union
   select father, a.generation+1 from folks, ancestor_ids a
     where folks.id = a.id
@@ -540,9 +540,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father, 1 from folks where name = 'Vasya'
+  select father, 1 from folks where name = 'Me'
   union
-  select mother, 1 from folks where name = 'Vasya'
+  select mother, 1 from folks where name = 'Me'
   union
   select max(father), max(a.generation)+1 from folks, ancestor_ids a
     where folks.id = a.id
@@ -565,9 +565,9 @@ with recursive
 ancestor_ids (id, generation)
 as
 (
-  select father, 1 from folks where name = 'Vasya'
+  select father, 1 from folks where name = 'Me'
   union
-  select mother, 1 from folks where name = 'Vasya'
+  select mother, 1 from folks where name = 'Me'
   union
   select max(father), a.generation+1 from folks, ancestor_ids a
     where folks.id = a.id
