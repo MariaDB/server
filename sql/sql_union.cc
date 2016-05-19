@@ -266,14 +266,18 @@ void select_union::cleanup()
 
 void select_union_recursive::cleanup()
 {
-  select_union::cleanup();
-  free_tmp_table(thd, table);
+  if (table)
+  {
+    select_union::cleanup();
+    free_tmp_table(thd, table);
+  }
 
-  incr_table->file->extra(HA_EXTRA_RESET_STATE);
-  incr_table->file->ha_delete_all_rows();
-  //free_io_cache(incr_table);
-  //filesort_free_buffers(incr_table,0);
-  free_tmp_table(thd, incr_table);
+  if (incr_table)
+  {
+    incr_table->file->extra(HA_EXTRA_RESET_STATE);
+    incr_table->file->ha_delete_all_rows();
+    free_tmp_table(thd, incr_table);
+  }
 
   List_iterator<TABLE> it(rec_tables);
   TABLE *tab;
@@ -281,8 +285,6 @@ void select_union_recursive::cleanup()
   {
     tab->file->extra(HA_EXTRA_RESET_STATE);
     tab->file->ha_delete_all_rows();
-    //free_io_cache(tab);
-    //filesort_free_buffers(tab,0);
     free_tmp_table(thd, tab);
   }
 }

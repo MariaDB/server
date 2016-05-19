@@ -771,7 +771,7 @@ exit:
   */
   if (res)
   {
-    if (derived->table)
+    if (derived->table && !derived->is_with_table_recursive_reference())
       free_tmp_table(thd, derived->table);
     delete derived->derived_result;
   }

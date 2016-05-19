@@ -1108,7 +1108,7 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
-  bool check_unrestricted_recursive(); 
+  bool check_unrestricted_recursive(bool only_standards_compliant); 
 
 
   List<Window_spec> window_specs;

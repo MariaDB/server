@@ -35,6 +35,7 @@ private:
     directly or indirectly from the i-th with element. 
   */
   table_map derived_dep_map; 
+  table_map sq_dep_map;
   table_map work_dep_map;  // dependency map used for work
   /* Dependency map of with elements mutually recursive with this with element */
   table_map mutually_recursive; 
@@ -90,7 +91,7 @@ public:
                List <LEX_STRING> list,
                st_select_lex_unit *unit)
     : next_elem(NULL), base_dep_map(0), derived_dep_map(0),
-      work_dep_map(0), mutually_recursive(0), 
+      sq_dep_map(0), work_dep_map(0), mutually_recursive(0), 
       references(0), table(NULL),
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
@@ -151,7 +152,8 @@ public:
 
   friend class With_clause;
   friend
-  bool st_select_lex::check_unrestricted_recursive();
+  bool 
+  st_select_lex::check_unrestricted_recursive(bool only_standard_compliant);
   friend
   bool TABLE_LIST::is_with_table_recursive_reference();
 };
@@ -241,9 +243,11 @@ public:
   friend class With_element;
 
   friend
-  bool check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list);
+  bool
+  check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list);
   friend
-  bool st_select_lex::check_unrestricted_recursive();
+  bool
+  st_select_lex::check_unrestricted_recursive(bool only_standard_compliant);
 
 };
 

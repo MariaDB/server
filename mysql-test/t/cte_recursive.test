@@ -34,7 +34,8 @@ insert into folks values
 (9, 'Grandma Ann', '1941-10-15', null, null),
 (25, 'Uncle Jim', '1968-11-18', 8, 7),
 (98, 'Sister Amy', '2001-06-20', 20, 30),
-(8, 'Grandma Sally', '1943-08-23', 5, 6),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
 (6, 'Grandgrandma Martha', '1923-05-17', null, null),
 (67, 'Cousin Eddie', '1992-02-28', 25, 27),
 (27, 'Auntie Melinda', '1971-03-29', null, null); 
@@ -319,6 +320,270 @@ as
 )
 select * from ancestors;
 
+
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Vasya'
+  union
+  select mother from folks where name = 'Vasya'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Vasya'
+  union all
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union all
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Vasya' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Vasya' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set standards_compliant_cte=0;
+set optimizer_switch='materialization=off,subquery_cache=off';
+
+--ERROR ER_WITH_COL_WRONG_LIST
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father from folks where name = 'Vasya' and  father is not null
+  union all
+  select mother from folks where name = 'Vasya' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Vasya' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Vasya' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and father is not null and
+          (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and mother is not null and
+          (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set optimizer_switch=default;
+set standards_compliant_cte=1;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Vasya' and father is not null
+  union 
+  select mother from folks where name = 'Vasya' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+set statement standards_compliant_cte=0 for
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Vasya' and father is not null
+  union 
+  select mother from folks where name = 'Vasya' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Vasya'
+  union
+  select mother from folks where name = 'Vasya'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standards_compliant_cte=0 for
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Vasya'
+  union
+  select mother from folks where name = 'Vasya'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Vasya'
+  union
+  select mother, 1 from folks where name = 'Vasya'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Vasya'
+  union
+  select mother, 1 from folks where name = 'Vasya'
+  union
+  select max(father), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standards_compliant_cte=0 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Vasya'
+  union
+  select mother, 1 from folks where name = 'Vasya'
+  union
+  select max(father), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
 
 drop table folks;
 

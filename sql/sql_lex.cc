@@ -3189,6 +3189,8 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 
 bool st_select_lex_unit::union_needs_tmp_table()
 {
+  if (with_element && with_element->is_recursive)
+    return true;
   return union_distinct != NULL ||
     global_parameters()->order_list.elements != 0 ||
     thd->lex->sql_command == SQLCOM_INSERT_SELECT ||
@@ -4236,6 +4238,7 @@ void st_select_lex::update_correlated_cache()
 
   while ((tl= ti++))
   {
+    //    is_correlated|= tl->is_with_table_recursive_reference();
     if (tl->on_expr)
       is_correlated|= MY_TEST(tl->on_expr->used_tables() & OUTER_REF_TABLE_BIT);
     for (TABLE_LIST *embedding= tl->embedding ; embedding ;

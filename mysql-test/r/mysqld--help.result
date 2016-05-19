@@ -1033,6 +1033,9 @@ The following options may be given as the first argument:
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
+ --standards-compliant-cte 
+ Allow only standards compiant CTE
+ (Defaults to on; use --skip-standards-compliant-cte to disable.)
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -1414,6 +1417,7 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 stack-trace TRUE
+standards-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE

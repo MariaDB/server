@@ -7156,6 +7156,8 @@ ER_RECURSIVE_WITHOUT_ANCHORS
         eng "No anchors for recursive WITH element '%s'"
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materiazed derived"
+ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+        eng "Restrictions imposed on recursive definitions are violated for table '%s'"
 #
 # Internal errors, not used
 #

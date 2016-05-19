@@ -173,8 +173,10 @@ bool With_element::check_dependencies_in_spec(THD *thd)
 }
 
 
-void With_element::check_dependencies_in_select(st_select_lex *sl, table_map &dep_map)
+void With_element::check_dependencies_in_select(st_select_lex *sl,
+                                                table_map &dep_map)
 {
+  bool is_sq_select= sl->master_unit()->item != NULL;
   for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
   {
     tbl->with_internal_reference_map= 0;
@@ -186,6 +188,8 @@ void With_element::check_dependencies_in_select(st_select_lex *sl, table_map &de
     {
       dep_map|= tbl->with->get_elem_map();
       tbl->with_internal_reference_map= get_elem_map();
+      if (is_sq_select)
+        sq_dep_map|= tbl->with->get_elem_map();
     }
   }
   st_select_lex_unit *inner_unit= sl->first_inner_unit();
@@ -730,7 +734,7 @@ bool TABLE_LIST::is_with_table_recursive_reference()
 
 
 
-bool st_select_lex::check_unrestricted_recursive()
+bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
 {
   With_element *with_elem= get_with_element();
   if (!with_elem ||!with_elem->is_recursive)
@@ -742,8 +746,16 @@ bool st_select_lex::check_unrestricted_recursive()
 					      encountered))
     return true;
   with_elem->owner->unrestricted|= unrestricted;
-  if (with_sum_func)
+  if (with_sum_func ||
+      (with_elem->sq_dep_map & with_elem->mutually_recursive))
     with_elem->owner->unrestricted|= with_elem->mutually_recursive;
+  if (only_standards_compliant && with_elem->is_unrestricted())
+  {
+    my_error(ER_NOT_STANDARDS_COMPLIANT_RECURSIVE,
+	     MYF(0), with_elem->query_name->str);
+    return true;
+  }
+
   return false;
 }
 
@@ -756,24 +768,27 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
   TABLE_LIST *tbl;
   while ((tbl= ti++))
   {
-    if (tbl->get_unit() && !tbl->is_with_table())
-    {
-      st_select_lex_unit *unit= tbl->get_unit();
-      if (tbl->is_materialized_derived())
+    st_select_lex_unit *unit= tbl->get_unit();
+    if (unit)
+    { 
+      if(!tbl->is_with_table())
       {
-        table_map dep_map;
-        check_dependencies_in_unit(unit, dep_map);
-        if (dep_map & get_elem_map())
+        if (tbl->is_materialized_derived())
         {
-	  my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
-	  	   MYF(0), query_name->str);
-	  return true;
+          table_map dep_map;
+          check_dependencies_in_unit(unit, dep_map);
+          if (dep_map & get_elem_map())
+          {
+	    my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
+	  	     MYF(0), query_name->str);
+	    return true;
+          }
         }
+        if (check_unrestricted_recursive(unit->first_select(), 
+					 unrestricted, 
+				         encountered))
+          return true;
       }
-      if (check_unrestricted_recursive(unit->first_select(), 
-					     unrestricted, 
-				             encountered))
-        return true;
       if (!(tbl->is_recursive_with_table() && unit->with_element->owner == owner))
         continue;
       With_element *with_elem= unit->with_element;
@@ -792,8 +807,8 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
     if (encountered & with_elem->get_elem_map())
     {
       uint cnt= 0;
-      table_map mutually_recursive= with_elem->mutually_recursive;
-      for (table_map map= mutually_recursive >> with_elem->number;
+      table_map encountered_mr= encountered & with_elem->mutually_recursive;
+      for (table_map map= encountered_mr >> with_elem->number;
            map != 0;
            map>>= 1) 
       {

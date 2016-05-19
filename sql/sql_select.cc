@@ -816,8 +816,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
                           &hidden_group_fields,
                           &select_lex->select_n_reserved))
     DBUG_RETURN(-1);
-  if (select_lex->check_unrestricted_recursive())
-    DBUG_RETURN(-1);
   /* Resolve the ORDER BY that was skipped, then remove it. */
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
@@ -861,6 +859,12 @@ JOIN::prepare(TABLE_LIST *tables_init,
   With_clause *with_clause=select_lex->get_with_clause();
   if (with_clause && with_clause->prepare_unreferenced_elements(thd))
     DBUG_RETURN(1);
+
+  With_element *with_elem= select_lex->get_with_element();
+  if (with_elem &&
+      select_lex->check_unrestricted_recursive(
+                      thd->variables.only_standards_compliant_cte))
+    DBUG_RETURN(-1);
   
   int res= check_and_do_in_subquery_rewrites(this);
 
