@@ -120,7 +120,8 @@ public:
 
 	// JDBC operations
 protected:
-	char *Check(void);
+	bool gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig);
+	bool Check(jint rc = 0);
 //void ThrowDJX(int rc, PSZ msg/*, HSTMT hstmt = SQL_NULL_HSTMT*/);
 //void ThrowDJX(PSZ msg);
 //void Free(void);
@@ -150,9 +151,11 @@ protected:
 	jmethodID prepid;										// The CreatePrepStmt method ID
 	jmethodID xpid;										  // The ExecutePrep method ID
 	jmethodID pcid;										  // The ClosePrepStmt method ID
+	jmethodID errid;										// The GetErrmsg method ID
 	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;
+	char     *Msg;
 	char      m_IDQuoteChar[2];
 	PSZ       m_Driver;
 	PSZ       m_Url;

@@ -38,7 +38,6 @@
 #include "plgdbsem.h"
 #include "xobject.h"
 #include "xtable.h"
-#include "jdbccat.h"
 #include "tabjdbc.h"
 //#include "jdbconn.h"
 //#include "plgcnx.h"                       // For DB types
@@ -118,6 +117,7 @@ int TranslateJDBCType(int stp, int prec, int& len, char& v)
 		break;
 	case 2:   // NUMERIC
 	case 3:   // DECIMAL
+	case -3:  // VARBINARY
 		type = TYPE_DECIM;
 		break;
 	case 4:   // INTEGER
@@ -155,7 +155,6 @@ int TranslateJDBCType(int stp, int prec, int& len, char& v)
 		break;
 	case 0:   // NULL
 	case -2:  // BINARY
-	case -3:  // VARBINARY
 	case -4:  // LONGVARBINARY
 	default:
 		type = TYPE_ERROR;
@@ -318,12 +317,15 @@ PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table, char *colpat,
 /**************************************************************************/
 PQRYRES JDBCSrcCols(PGLOBAL g, char *src, PJPARM sjp)
 {
+	PQRYRES  qrp;
 	JDBConn *jcp = new(g)JDBConn(g, NULL);
 
 	if (jcp->Open(sjp))
 		return NULL;
 
-	return jcp->GetMetaData(g, src);
+	qrp = jcp->GetMetaData(g, src);
+	jcp->Close();
+	return qrp;
 } // end of JDBCSrcCols
 
 /**************************************************************************/
@@ -361,14 +363,14 @@ PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat, char *tabtyp,
 
 		n = jcp->GetMaxValue(2);					// Max catalog name length
 
-		if (n < 0)
-			return NULL;
+//	if (n < 0)
+//		return NULL;
 
-		length[0] = (n) ? (n + 1) : 0;
+		length[0] = (n > 0) ? (n + 1) : 0;
 		n = jcp->GetMaxValue(3);					// Max schema name length
-		length[1] = (n) ? (n + 1) : 0;
+		length[1] = (n > 0) ? (n + 1) : 0;
 		n = jcp->GetMaxValue(4);					// Max table name length
-		length[2] = (n) ? (n + 1) : 128;
+		length[2] = (n > 0) ? (n + 1) : 128;
 	} else {
 		maxres = 0;
 		length[0] = 128;
@@ -642,11 +644,12 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	env= nullptr;             // Pointer to native interface
 	jdi = nullptr;						// Pointer to the JdbcInterface class
 	job = nullptr;						// The JdbcInterface class object
-	xqid = xuid = xid = grs = readid = fetchid = typid = nullptr;
+	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
 //m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
+	Msg = NULL;
 	m_Driver = NULL;
 	m_Url = NULL;
 	m_User = NULL;
@@ -676,10 +679,11 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 /***********************************************************************/
 /*  Screen for errors.                                                 */
 /***********************************************************************/
-char *JDBConn::Check(void)
+bool JDBConn::Check(jint rc)
 {
+	jstring s;
+
 	if (env->ExceptionCheck()) {
-		char *msg;
 		jthrowable exc = env->ExceptionOccurred();
 		jmethodID tid = env->GetMethodID(env->FindClass("java/lang/Object"),
 			"toString", "()Ljava/lang/String;");
@@ -688,16 +692,38 @@ char *JDBConn::Check(void)
 			jstring s = (jstring)env->CallObjectMethod(exc, tid);
 			const char *utf = env->GetStringUTFChars(s, (jboolean)false);
 			env->DeleteLocalRef(s);
-			msg = PlugDup(m_G, utf);
+			Msg = PlugDup(m_G, utf);
 		} else
-			msg = "Exception occured";
+			Msg = "Exception occured";
 
 		env->ExceptionClear();
-		return msg;
-	} // endif Check
+	} else if (rc < 0) {
+		s = (jstring)env->CallObjectMethod(job, errid);
+		Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+	}	else
+		Msg = NULL;
 
-	return NULL;
+	return (Msg != NULL);
 } // end of Check
+
+/***********************************************************************/
+/*  Get MethodID if not exists yet.                                    */
+/***********************************************************************/
+bool  JDBConn::gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig)
+{
+	if (mid == nullptr) {
+		mid = env->GetMethodID(jdi, name, sig);
+
+		if (Check()) {
+			strcpy(g->Message, Msg);
+			return true;
+		} else
+			return false;
+
+	} else
+		return false;
+
+} // end of gmID
 
 #if 0
 /***********************************************************************/
@@ -758,15 +784,17 @@ void JDBConn::OnSetOptions(HSTMT hstmt)
 /***********************************************************************/
 int JDBConn::GetMaxValue(int n)
 {
-	jmethodID maxid = env->GetMethodID(jdi, "GetMaxValue", "(I)I");
+	jint      m;
+	jmethodID maxid = nullptr;
 
-	if (maxid == nullptr) {
-		strcpy(m_G->Message, "ERROR: method GetMaxValue not found !");
+	if (gmID(m_G, maxid, "GetMaxValue", "(I)I"))
 		return -1;
-	} // endif maxid
 
 	// call method
-	return (int)env->CallIntMethod(job, maxid, n);
+	if (Check(m = env->CallIntMethod(job, maxid, n)))
+		htrc("GetMaxValue: %s", Msg);
+
+	return (int)m;
 } // end of GetMaxValue
 
 /***********************************************************************/
@@ -859,6 +887,7 @@ bool JDBConn::GetJVM(PGLOBAL g)
 /***********************************************************************/
 int JDBConn::Open(PJPARM sop)
 {
+	bool		 err = false;
 	PGLOBAL& g = m_G;
 
 	// Link or check whether jvm library was linked
@@ -881,8 +910,10 @@ int JDBConn::Open(PJPARM sop)
 		} // endif rc
 
 	} else {
-		// Create a new jvm
-		PSTRG    jpop = new(g)STRING(g, 512, "-Djava.class.path=");
+		/*******************************************************************/
+		/*  Create a new jvm																							 */
+		/*******************************************************************/
+		PSTRG    jpop = new(g)STRING(g, 512, "-Djava.class.path=.");
 		char    *cp = NULL;
 		char     sep;
 
@@ -897,23 +928,21 @@ int JDBConn::Open(PJPARM sop)
 		JavaVMOption* options = new JavaVMOption[1];   // JVM invocation options
 
 		// where to find java .class
-		if ((cp = PlugDup(m_G, getenv("CLASSPATH"))))
-			jpop->Append(cp);
-
-		if (trace) {
-			htrc("CLASSPATH=%s\n", getenv("CLASSPATH"));
-			htrc("ClassPath=%s\n", ClassPath);
-		} // endif trace
-
 		if (ClassPath && *ClassPath) {
-			if (cp)
-				jpop->Append(sep);
-
+			jpop->Append(sep);
 			jpop->Append(ClassPath);
 		}	// endif ClassPath
 
-		if (trace)
+		if ((cp = getenv("CLASSPATH"))) {
+			jpop->Append(sep);
+			jpop->Append(cp);
+		} // endif cp
+
+		if (trace) {
+			htrc("ClassPath=%s\n", ClassPath);
+			htrc("CLASSPATH=%s\n", cp);
 			htrc("%s\n", jpop->GetStr());
+		} // endif trace
 
 		options[0].optionString =	jpop->GetStr();
 		//options[1].optionString =	"-verbose:jni";
@@ -981,7 +1010,7 @@ int JDBConn::Open(PJPARM sop)
 			jstring path = env->NewStringUTF(jpath);
 			rc = env->CallStaticIntMethod(jdi, alp, path);
 
-			if ((msg = Check())) {
+			if ((msg = Check(rc))) {
 				strcpy(g->Message, msg);
 				env->DeleteLocalRef(path);
 				return RC_FX;
@@ -1022,33 +1051,36 @@ int JDBConn::Open(PJPARM sop)
 		return RC_FX;
 	} // endif job
 
-	if (!sop)						 // DRIVER catalog table
-		return RC_OK;
-
-	jmethodID cid = env->GetMethodID(jdi, "JdbcConnect", "([Ljava/lang/String;IZ)I");
+	errid = env->GetMethodID(jdi, "GetErrmsg", "()Ljava/lang/String;");
 
 	if (env->ExceptionCheck()) {
-		strcpy(g->Message, "ERROR: method JdbcConnect() not found!");
+		strcpy(g->Message, "ERROR: method GetErrmsg() not found!");
 		env->ExceptionDescribe();
 		env->ExceptionClear();
 		return RC_FX;
 	} // endif Check
 
+	if (!sop)						 // DRIVER catalog table
+		return RC_OK;
+
+	jmethodID cid = nullptr;
+
+	if (gmID(g, cid, "JdbcConnect", "([Ljava/lang/String;IZ)I"))
+		return RC_FX;
+
 	// Build the java string array
 	jobjectArray parms = env->NewObjectArray(4,    // constructs java array of 4
 		env->FindClass("java/lang/String"), NULL);   // Strings
 
-	if (sop) {
-		m_Driver = sop->Driver;
-		m_Url = sop->Url;
-		m_User = sop->User;
-		m_Pwd = sop->Pwd;
-		m_Scrollable = sop->Scrollable;
-		m_RowsetSize = sop->Fsize;
-		//m_LoginTimeout = sop->Cto;
-		//m_QueryTimeout = sop->Qto;
-		//m_UseCnc = sop->UseCnc;
-	} // endif sop
+	m_Driver = sop->Driver;
+	m_Url = sop->Url;
+	m_User = sop->User;
+	m_Pwd = sop->Pwd;
+	m_Scrollable = sop->Scrollable;
+	m_RowsetSize = sop->Fsize;
+	//m_LoginTimeout = sop->Cto;
+	//m_QueryTimeout = sop->Qto;
+	//m_UseCnc = sop->UseCnc;
 
 	// change some elements
 	if (m_Driver)
@@ -1065,23 +1097,17 @@ int JDBConn::Open(PJPARM sop)
 
 	// call method
 	rc = env->CallIntMethod(job, cid, parms, m_RowsetSize, m_Scrollable);
+	err = Check(rc);
+	env->DeleteLocalRef(parms);				 	// Not used anymore
 
-	// Not used anymore
-	env->DeleteLocalRef(parms);
-
-	if (rc != (jint)0) {
-		strcpy(g->Message, "Connection failed");
+	if (err) {
+		sprintf(g->Message, "Connecting: %s rc=%d", Msg, (int)rc);
 		return RC_FX;
-	} // endif rc
+	}	// endif Msg
 
-	typid = env->GetMethodID(jdi, "ColumnType", "(ILjava/lang/String;)I");
-
-	if (env->ExceptionCheck()) {
-		strcpy(g->Message, "ERROR: method ColumnType() not found!");
-		env->ExceptionDescribe();
-		env->ExceptionClear();
+	if (gmID(g, typid, "ColumnType", "(ILjava/lang/String;)I"))
 		return RC_FX;
-	} else
+	else
 		m_Opened = true;
 
 	return RC_OK;
@@ -1092,43 +1118,37 @@ int JDBConn::Open(PJPARM sop)
 /***********************************************************************/
 int JDBConn::ExecSQLcommand(char *sql)
 {
-	int      rc = RC_NF;
+	int      rc;
 	jint     n;
 	jstring  qry;
 	PGLOBAL& g = m_G;
 
-	if (xid == nullptr) {
-		// Get the methods used to execute a query and get the result
-		xid = env->GetMethodID(jdi, "Execute", "(Ljava/lang/String;)I");
-
-		if (xid == nullptr) {
-			strcpy(g->Message, "Cannot find method Execute");
-			return RC_FX;
-		} else
-			grs = env->GetMethodID(jdi, "GetResult", "()I");
-
-		if (grs == nullptr) {
-			strcpy(g->Message, "Cannot find method GetResult");
-			return RC_FX;
-		} // endif grs
-
-	}	// endif xid
+	// Get the methods used to execute a query and get the result
+	if (gmID(g, xid, "Execute", "(Ljava/lang/String;)I") ||
+			gmID(g, grs, "GetResult", "()I"))
+		return RC_FX;
 
 	qry = env->NewStringUTF(sql);
 	n = env->CallIntMethod(job, xid, qry);
 	env->DeleteLocalRef(qry);
 
-	if (n < 0) {
-		sprintf(g->Message, "Error executing %s", sql);
+	if (Check(n)) {
+		sprintf(g->Message, "Execute: %s", Msg);
 		return RC_FX;
 	} // endif n
 
-	if ((m_Ncol = env->CallIntMethod(job, grs))) {
+	m_Ncol = env->CallIntMethod(job, grs);
+
+	if (Check(m_Ncol)) {
+		sprintf(g->Message, "GetResult: %s", Msg);
+		rc = RC_FX;
+	} else if (m_Ncol) {
 		strcpy(g->Message, "Result set column number");
 		rc = RC_OK;						// A result set was returned
 	} else {
 		m_Aff = (int)n;			  // Affected rows
 		strcpy(g->Message, "Affected rows");
+		rc = RC_NF;
 	} // endif ncol
 
 	return rc;
@@ -1139,44 +1159,29 @@ int JDBConn::ExecSQLcommand(char *sql)
 /***********************************************************************/
 int JDBConn::Fetch(int pos)
 {
-	jint rc;
+	jint     rc = JNI_ERR;
+	PGLOBAL& g = m_G;
 
 	if (m_Full)						// Result set has one row
 		return 1;
 
 	if (pos) {
 		if (!m_Scrollable) {
-			strcpy(m_G->Message, "Cannot fetch(pos) if FORWARD ONLY");
-		  return -1;
-	  }	else if (fetchid == nullptr) {
-			fetchid = env->GetMethodID(jdi, "Fetch", "(I)Z");
-
-			if (fetchid == nullptr) {
-				strcpy(m_G->Message, "Cannot find method Fetch");
-				return -1;
-			}	// endif fetchid
-
-		}	// endif's
+			strcpy(g->Message, "Cannot fetch(pos) if FORWARD ONLY");
+		  return rc;
+		} else if (gmID(m_G, fetchid, "Fetch", "(I)Z"))
+			return rc;
 
 		if (env->CallBooleanMethod(job, fetchid, pos))
 			rc = m_Rows;
-		else
-			rc = -1;
 
 	} else {
-		if (readid == nullptr) {
-			readid = env->GetMethodID(jdi, "ReadNext", "()I");
-
-			if (readid == nullptr) {
-				strcpy(m_G->Message, "Cannot find method ReadNext");
-				return -1;
-			}	// endif readid
-
-		}	// endif readid
+		if (gmID(g, readid, "ReadNext", "()I"))
+			return rc;
 
 		rc = env->CallBooleanMethod(job, readid);
 
-		if (rc >= 0) {
+		if (!Check(rc)) {
 			if (rc == 0)
 				m_Full = (m_Fetch == 1);
 			else
@@ -1184,7 +1189,7 @@ int JDBConn::Fetch(int pos)
 
 			m_Rows += (int)rc;
 		} else
-			strcpy(m_G->Message, "Error fetching next row");
+			sprintf(g->Message, "Fetch: %s", Msg);
 
 	} // endif pos
 
@@ -1201,15 +1206,8 @@ int JDBConn::Rewind(char *sql)
 	if (m_Full)
 		rbuf = m_Rows;           // No need to "rewind"
 	else if (m_Scrollable) {
-		if (fetchid == nullptr) {
-			fetchid = env->GetMethodID(jdi, "Fetch", "(I)Z");
-
-			if (fetchid == nullptr) {
-				strcpy(m_G->Message, "Cannot find method Fetch");
-				return -1;
-			}	// endif readid
-
-		}	// endif readid
+		if (gmID(m_G, fetchid, "Fetch", "(I)Z"))
+			return -1;
 
 		jboolean b = env->CallBooleanMethod(job, fetchid, 0);
 
@@ -1227,15 +1225,15 @@ void JDBConn::Close()
 {
 	if (m_Opened) {
 		jint      rc;
-		jmethodID did = env->GetMethodID(jdi, "JdbcDisconnect", "()I");
+		jmethodID did = nullptr;
 
-		if (did == nullptr)
-			printf("ERROR: method JdbcDisconnect() not found !");
-		else if ((rc = env->CallIntMethod(job, did)))
-			printf("jdbcDisconnect: rc=%d", (int)rc);
+		if (gmID(m_G, did, "JdbcDisconnect", "()I"))
+			printf("%s\n", Msg);
+		else if (Check(env->CallIntMethod(job, did)))
+			printf("jdbcDisconnect: %s\n", Msg);
 
-		if ((rc = jvm->DetachCurrentThread()))
-			printf("DetachCurrentThread: rc = %d", (int)rc);
+		if ((rc = jvm->DetachCurrentThread()) != JNI_OK)
+			printf("DetachCurrentThread: rc=%d\n", (int)rc);
 
 		//rc = jvm->DestroyJavaVM();
 		m_Opened = false;
@@ -1249,7 +1247,6 @@ void JDBConn::Close()
 void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
 	PGLOBAL&   g = m_G;
-	char      *msg;
 	jint       ctyp;
 	jlong      dtv;
 	jstring    cn, jn = nullptr;
@@ -1262,10 +1259,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 		}	// endif name
 
+	// Returns 666 is case of error
 	ctyp = env->CallIntMethod(job, typid, rank, jn);
 
-	if ((msg = Check())) {
-		sprintf(g->Message, "Getting ctyp: %s", msg);
+	if (Check((ctyp == 666) ? -1 : 1)) {
+		sprintf(g->Message, "Getting ctyp: %s", Msg);
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 	} // endif Check
 
@@ -1303,6 +1301,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 		break;
 	case 8:           // DOUBLE
+	case 2:           // NUMERIC
 	case 3:           // DECIMAL
 		fldid = env->GetMethodID(jdi, "DoubleField", "(ILjava/lang/String;)D");
 
@@ -1372,11 +1371,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		val->Reset();
 	} // endswitch Type
 
-	if ((msg = Check())) {
+	if (Check()) {
 		if (rank == 0)
 			env->DeleteLocalRef(jn);
 
-		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", msg, rank, (int)ctyp);
+		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", Msg, rank, (int)ctyp);
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 	} // endif Check
 
@@ -1390,21 +1389,22 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 /***********************************************************************/
 bool JDBConn::PrepareSQL(char *sql)
 {
-	if (prepid == nullptr) {
-		prepid = env->GetMethodID(jdi, "CreatePrepStmt", "(Ljava/lang/String;)Z");
+	bool		 b = true;
+	PGLOBAL& g = m_G;
 
-		if (prepid == nullptr) {
-			strcpy(m_G->Message, "Cannot find method CreatePrepStmt");
-			return true;
-		}	// endif prepid
+	if (!gmID(g, prepid, "CreatePrepStmt", "(Ljava/lang/String;)I")) {
+		// Create the prepared statement
+		jstring qry = env->NewStringUTF(sql);
 
+		if (Check(env->CallBooleanMethod(job, prepid, qry)))
+			sprintf(g->Message, "CreatePrepStmt: %s", Msg);
+		else
+			b = false;
+
+		env->DeleteLocalRef(qry);
 	} // endif prepid
-	
-	// Create the prepared statement
-	jstring qry = env->NewStringUTF(sql);
-	jboolean b = env->CallBooleanMethod(job, prepid, qry);
-	env->DeleteLocalRef(qry);
-	return (bool)b;
+
+	return b;
 } // end of PrepareSQL
 
 /***********************************************************************/
@@ -1412,32 +1412,25 @@ bool JDBConn::PrepareSQL(char *sql)
 /***********************************************************************/
 int JDBConn::ExecuteQuery(char *sql)
 {
+	int			 rc = RC_FX;
 	jint     ncol;
 	jstring  qry;
 	PGLOBAL& g = m_G;
 
-	if (xqid == nullptr) {
-		// Get the methods used to execute a query and get the result
-		xqid = env->GetMethodID(jdi, "ExecuteQuery", "(Ljava/lang/String;)I");
+	// Get the methods used to execute a query and get the result
+	if (!gmID(g, xqid, "ExecuteQuery", "(Ljava/lang/String;)I")) {
+		qry = env->NewStringUTF(sql);
+		ncol = env->CallIntMethod(job, xqid, qry);
 
-		if (xqid == nullptr) {
-			strcpy(g->Message, "Cannot find method ExecuteQuery");
-			return RC_FX;
-		} // endif !xqid
+		if (!Check(ncol)) {
+			m_Ncol = (int)ncol;
+			m_Aff = 0;			  // Affected rows
+			rc = RC_OK;
+		} else
+			sprintf(g->Message, "ExecuteQuery: %s", Msg);
 
-	}	// endif xqid
-
-	qry = env->NewStringUTF(sql);
-	ncol = env->CallIntMethod(job, xqid, qry);
-	env->DeleteLocalRef(qry);
-
-	if (ncol < 0) {
-		sprintf(g->Message, "Error executing %s: ncol = %d", sql, ncol);
-		return RC_FX;
-	} else {
-		m_Ncol = (int)ncol;
-		m_Aff = 0;			  // Affected rows
-	} // endif ncol
+		env->DeleteLocalRef(qry);
+	} // endif xqid
 
 	return RC_OK;
 } // end of ExecuteQuery
@@ -1447,34 +1440,27 @@ int JDBConn::ExecuteQuery(char *sql)
 /***********************************************************************/
 int JDBConn::ExecuteUpdate(char *sql)
 {
+	int      rc = RC_FX;
 	jint     n;
 	jstring  qry;
 	PGLOBAL& g = m_G;
 
-	if (xuid == nullptr) {
-		// Get the methods used to execute a query and get the affected rows
-		xuid = env->GetMethodID(jdi, "ExecuteUpdate", "(Ljava/lang/String;)I");
+	// Get the methods used to execute a query and get the affected rows
+	if (!gmID(g, xuid, "ExecuteUpdate", "(Ljava/lang/String;)I")) {
+		qry = env->NewStringUTF(sql);
+		n = env->CallIntMethod(job, xuid, qry);
 
-		if (xuid == nullptr) {
-			strcpy(g->Message, "Cannot find method ExecuteUpdate");
-			return RC_FX;
-		} // endif !xuid
+		if (!Check(n)) {
+			m_Ncol = 0;
+			m_Aff = (int)n;			  // Affected rows
+			rc = RC_OK;
+		} else
+			sprintf(g->Message, "ExecuteUpdate: %s n=%d", Msg, n);
 
-	}	// endif xuid
+		env->DeleteLocalRef(qry);
+	} // endif xuid
 
-	qry = env->NewStringUTF(sql);
-	n = env->CallIntMethod(job, xuid, qry);
-	env->DeleteLocalRef(qry);
-
-	if (n < 0) {
-		sprintf(g->Message, "Error executing %s: n = %d", sql, n);
-		return RC_FX;
-	} else {
-		m_Ncol = 0;
-		m_Aff = (int)n;			  // Affected rows
-	} // endif n
-
-	return RC_OK;
+	return rc;
 } // end of ExecuteUpdate
 
 /***********************************************************************/
@@ -1507,31 +1493,20 @@ int JDBConn::ExecuteSQL(void)
 	int rc = RC_FX;
 	PGLOBAL& g = m_G;
 
-	if (xpid == nullptr) {
-		// Get the methods used to execute a prepared statement
-		xpid = env->GetMethodID(jdi, "ExecutePrep", "()I");
+	// Get the methods used to execute a prepared statement
+	if (!gmID(g, xpid, "ExecutePrep", "()I")) {
+		jint n = env->CallIntMethod(job, xpid);
 
-		if (xpid == nullptr) {
-			strcpy(g->Message, "Cannot find method ExecutePrep");
-			return rc;
-		} // endif xpid
+		if (n == -3)
+			strcpy(g->Message, "SQL statement is not prepared");
+		else if (Check(n))
+			sprintf(g->Message, "ExecutePrep: %s", Msg);
+		else {
+			m_Aff = (int)n;
+			rc = RC_OK;
+		} // endswitch n
 
 	} // endif xpid
-
-	jint n = env->CallIntMethod(job, xpid);
-
-	switch ((int)n) {
-	case -1:
-	case -2:
-		strcpy(g->Message, "Exception error thrown while executing SQL");
-		break;
-	case -3:
-		strcpy(g->Message, "SQL statement is not prepared");
-		break;
-	default:
-		m_Aff = (int)n;
-		rc = RC_OK;
-	} // endswitch n
 
 	return rc;
 } // end of ExecuteSQL
@@ -1542,8 +1517,7 @@ int JDBConn::ExecuteSQL(void)
 bool JDBConn::SetParam(JDBCCOL *colp)
 {
 	PGLOBAL&   g = m_G;
-	char      *msg;
-	int        rc = false;
+	bool       rc = false;
 	PVAL       val = colp->GetValue();
 	jint       n, i = (jint)colp->GetRank();
 	jshort     s;
@@ -1557,58 +1531,38 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 	switch (val->GetType()) {
 	case TYPE_STRING:
-		setid = env->GetMethodID(jdi, "SetStringParm", "(ILjava/lang/String;)V");
-
-		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot fing method SetStringParm");
+		if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
 			return true;
-		}	// endif setid
 
 		jst = env->NewStringUTF(val->GetCharValue());
 		env->CallVoidMethod(job, setid, i, jst);
 		break;
 	case TYPE_INT:
-		setid = env->GetMethodID(jdi, "SetIntParm", "(II)V");
-
-		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot fing method SetIntParm");
+		if (gmID(g, setid, "SetIntParm", "(II)V"))
 			return true;
-		}	// endif setid
 
 		n = (jint)val->GetIntValue();
 		env->CallVoidMethod(job, setid, i, n);
 		break;
 	case TYPE_TINY:
 	case TYPE_SHORT:
-		setid = env->GetMethodID(jdi, "SetShortParm", "(IS)V");
-
-		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot fing method SetShortParm");
+		if (gmID(g, setid, "SetShortParm", "(IS)V"))
 			return true;
-		}	// endif setid
 
 		s = (jshort)val->GetShortValue();
 		env->CallVoidMethod(job, setid, i, s);
 		break;
 	case TYPE_BIGINT:
-		setid = env->GetMethodID(jdi, "SetBigintParm", "(IJ)V");
-
-		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot fing method SetBigintParm");
+		if (gmID(g, setid, "SetBigintParm", "(IJ)V"))
 			return true;
-		}	// endif setid
 
 		lg = (jlong)val->GetBigintValue();
 		env->CallVoidMethod(job, setid, i, lg);
 		break;
 	case TYPE_DOUBLE:
 	case TYPE_DECIM:
-		setid = env->GetMethodID(jdi, "SetDoubleParm", "(ID)V");
-
-		if (setid == nullptr) {
-			strcpy(g->Message, "Cannot find method SetDoubleParm");
+		if (gmID(g, setid, "SetDoubleParm", "(ID)V"))
 			return true;
-		}	// endif setid
 
 		d = (jdouble)val->GetFloatValue();
 		env->CallVoidMethod(job, setid, i, d);
@@ -1627,11 +1581,8 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
 			strcpy(g->Message, "Cannot make Timestamp object");
 			return true;
-		} else if ((setid = env->GetMethodID(jdi, "SetTimestampParm", 
-			             "(ILjava/sql/Timestamp;)V")) == nullptr) {
-			strcpy(g->Message, "Cannot find method SetTimestampParm");
+		} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
 			return true;
-		}	// endif setid
 
 		env->CallVoidMethod(job, setid, i, datobj);
 		break;
@@ -1640,8 +1591,8 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		return true;
 	}	// endswitch Type
 
-	if ((msg = Check())) {
-		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), msg);
+	if (Check()) {
+		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), Msg);
 		rc = true;
 	} // endif msg
 
@@ -1707,14 +1658,10 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		int       i, n, size;
 		PCOLRES   crp;
 		jstring   js;
-		jmethodID gdid = env->GetMethodID(jdi, "GetDrivers", "([Ljava/lang/String;I)I");
-
-		if (env->ExceptionCheck()) {
-			strcpy(m_G->Message, "ERROR: method GetDrivers() not found!");
-			env->ExceptionDescribe();
-			env->ExceptionClear();
+		jmethodID gdid = nullptr;
+		
+		if (gmID(m_G, gdid, "GetDrivers", "([Ljava/lang/String;I)I"))
 			return true;
-		} // endif Check
 
 		// Build the java string array
 		jobjectArray s = env->NewObjectArray(4 * qrp->Maxres,
@@ -1766,7 +1713,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		ushort  i;
 		jint   *n = nullptr;
 		jstring label;
-		jmethodID colid;
+		jmethodID colid = nullptr;
 		int     rc = ExecSQLcommand(src);
 
 		if (rc == RC_NF) {
@@ -1779,20 +1726,8 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			return NULL;
 		} // endif's
 
-		colid = env->GetMethodID(jdi, "ColumnDesc", "(I[I)Ljava/lang/String;");
-
-		if (colid == nullptr) {
-			strcpy(m_G->Message, "ERROR: method ColumnDesc() not found!");
+		if (gmID(g, colid, "ColumnDesc", "(I[I)Ljava/lang/String;"))
 			return NULL;
-		} // endif colid
-
-		// Build the java string array
-		jintArray val = env->NewIntArray(4);
-
-		if (val == nullptr) {
-			strcpy(m_G->Message, "Cannot allocate jint array");
-			return NULL;
-		} // endif colid
 
 		// Get max column name length
 		len = GetMaxValue(5);
@@ -1813,11 +1748,28 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			case 5: crp->Name = "Nullable";  break;
 		} // endswitch i
 
+		// Build the java string array
+		jintArray val = env->NewIntArray(4);
+
+		if (val == nullptr) {
+			strcpy(m_G->Message, "Cannot allocate jint array");
+			return NULL;
+		} // endif colid
+
 		/************************************************************************/
 		/*  Now get the results into blocks.                                    */
 		/************************************************************************/
 		for (i = 0; i < m_Ncol; i++) {
-			label = (jstring)env->CallObjectMethod(job, colid, i + 1, val);
+			if (!(label = (jstring)env->CallObjectMethod(job, colid, i + 1, val))) {
+				if (Check())
+					sprintf(g->Message, "ColumnDesc: %s", Msg);
+				else
+					strcpy(g->Message, "No result metadata");
+
+				env->ReleaseIntArrayElements(val, n, 0);
+				return NULL;
+			} // endif label
+
 			name = env->GetStringUTFChars(label, (jboolean)false);
 			crp = qrp->Colresp;                    // Column_Name
 			crp->Kdata->SetValue((char*)name, i);
@@ -1835,7 +1787,6 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		/* Cleanup */
 		env->ReleaseIntArrayElements(val, n, 0);
-		Close();
 
 		/************************************************************************/
 		/*  Return the result pointer for use by GetData routines.              */
@@ -1962,7 +1913,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		PVAL    *pval = NULL;
 		char*   *pbuf = NULL;
 		jobjectArray parms;
-		jmethodID    catid;
+		jmethodID    catid = nullptr;
 
 		if (qrp->Maxres <= 0)
 			return 0;				 			// 0-sized result"
@@ -2008,15 +1959,17 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 			return -1;
 		} // endswitch infotype
 
-		catid = env->GetMethodID(jdi, fnc, "([Ljava/lang/String;)I");
-
-		if (catid == nullptr) {
-			sprintf(g->Message, "ERROR: method %s not found !", fnc);
+		if (gmID(g, catid, fnc, "([Ljava/lang/String;)I"))
 			return -1;
-		} // endif maxid
 
 		// call method
 		ncol = env->CallIntMethod(job, catid, parms);
+
+		if (Check(ncol)) {
+			sprintf(g->Message, "%s: %s", fnc, Msg);
+			env->DeleteLocalRef(parms);
+			return -1;
+		}	// endif Check
 
 		// Not used anymore
 		env->DeleteLocalRef(parms);
@@ -2061,13 +2014,15 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 
 		// Now fetch the result
 		for (i = 0; i < qrp->Maxres; i++) {
-			if ((rc = Fetch(0)) == 0) {
+			if (Check(rc = Fetch(0))) {
+				sprintf(g->Message, "Fetch: %s", Msg);
+				return -1;
+			} if (rc == 0) {
         if (trace)
           htrc("End of fetches i=%d\n", i);
 
 				break;
-			} else if (rc < 0)
-				return -1;
+			} // endif rc
 
 			for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {
 				SetColumnValue(n + 1, nullptr, pval[n]);

@@ -1,7 +1,7 @@
 /************* TabJDBC C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABJDBC                                               */
 /* -------------                                                       */
-/*  Version 1.0                                                        */
+/*  Version 1.1                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -34,8 +34,10 @@
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
+#define MYSQL_SERVER 1
 #include "my_global.h"
 #include "sql_class.h"
+#include "sql_servers.h"
 #if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
@@ -67,7 +69,6 @@
 #include "plgdbsem.h"
 #include "mycat.h"
 #include "xtable.h"
-#include "jdbccat.h"
 #include "tabjdbc.h"
 #include "tabmul.h"
 #include "reldef.h"
@@ -102,10 +103,106 @@ JDBCDEF::JDBCDEF(void)
 }  // end of JDBCDEF constructor
 
 /***********************************************************************/
+/*  Called on table construction.                                      */
+/***********************************************************************/
+bool JDBCDEF::SetParms(PJPARM sjp)
+{
+	sjp->Url= Url;
+	sjp->User= Username;
+	sjp->Pwd= Password;
+	return true;
+}  // end of SetParms
+
+/***********************************************************************/
+/* Parse connection string                                             */
+/*                                                                     */
+/* SYNOPSIS                                                            */
+/*   ParseURL()                                                        */
+/*   Url                 The connection string to parse                */
+/*                                                                     */
+/* DESCRIPTION                                                         */
+/*   This is used to set the Url in case a wrapper server as been      */
+/*   specified. This is rather experimental yet.                       */
+/*                                                                     */
+/* RETURN VALUE                                                        */
+/*   RC_OK       Url was a true URL                                    */
+/*   RC_NF       Url was a server name/table                           */
+/*   RC_FX       Error                                                 */
+/*                                                                     */
+/***********************************************************************/
+int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
+{
+	if (strncmp(url, "jdbc:", 5)) {
+		// No "jdbc:" in connection string. Must be a straight
+		// "server" or "server/table"
+		// ok, so we do a little parsing, but not completely!
+		if ((Tabname= strchr(url, '/'))) {
+			// If there is a single '/' in the connection string,
+			// this means the user is specifying a table name
+			*Tabname++= '\0';
+
+			// there better not be any more '/'s !
+			if (strchr(Tabname, '/'))
+				return RC_FX;
+
+		} else if (b) {
+			// Otherwise, straight server name, 
+			Tabname = GetStringCatInfo(g, "Name", NULL);
+			Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+		} // endelse
+
+		if (trace)
+			htrc("server: %s Tabname: %s", url, Tabname);
+
+		// Now make the required URL
+		FOREIGN_SERVER *server, server_buffer;
+
+		// get_server_by_name() clones the server if exists
+		if (!(server= get_server_by_name(current_thd->mem_root, url, &server_buffer))) {
+			sprintf(g->Message, "Server %s does not exist!", url);
+			return RC_FX;
+		} // endif server
+
+		if (strncmp(server->host, "jdbc:", 5)) {
+			// Now make the required URL
+			Url = (PSZ)PlugSubAlloc(g, NULL, 0);
+			strcat(strcpy(Url, "jdbc:"), server->scheme);
+			strcat(strcat(Url, "://"), server->host);
+
+			if (server->port) {
+				char buf[16];
+
+				sprintf(buf, "%d", server->port);
+				strcat(strcat(Url, ":"), buf);
+			} // endif port
+
+			if (server->db)
+				strcat(strcat(Url, "/"), server->db);
+
+			PlugSubAlloc(g, NULL, strlen(Url) + 1);
+		} else		 // host is a URL
+			Url = PlugDup(g, server->host);
+
+		if (server->username)
+			Username = PlugDup(g, server->username);
+
+		if (server->password)
+			Password = PlugDup(g, server->password);
+
+		return RC_NF;
+	} // endif
+
+	// Url was a JDBC URL, nothing to do
+	return RC_OK;
+} // end of ParseURL
+
+/***********************************************************************/
 /*  DefineAM: define specific AM block values from JDBC file.          */
 /***********************************************************************/
 bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
+	int rc = RC_OK;
+
 	Driver = GetStringCatInfo(g, "Driver", NULL);
 	Desc = Url = GetStringCatInfo(g, "Connect", NULL);
 
@@ -120,28 +217,33 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
 	} // endif Connect
 
-	Tabname = GetStringCatInfo(g, "Name",
-		(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
-	Tabname = GetStringCatInfo(g, "Tabname", Tabname);
-	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
-	Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
-	Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
-	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
-	Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
-	Username = GetStringCatInfo(g, "User", NULL);
-	Password = GetStringCatInfo(g, "Password", NULL);
+	if (Url)
+		rc = ParseURL(g, Url);
+
+	if (rc == RC_FX)						// Error
+		return true;
+	else if (rc == RC_OK) {			// Url was not a server name
+		Tabname = GetStringCatInfo(g, "Name",
+			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
+		Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+		Username = GetStringCatInfo(g, "User", NULL);
+		Password = GetStringCatInfo(g, "Password", NULL);
+	} // endif rc
 
 	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
 		Read_Only = true;
 
+	Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
+	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
+	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
+	Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
+	Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
 	Qrystr = GetStringCatInfo(g, "Query_String", "?");
 	Sep = GetStringCatInfo(g, "Separator", NULL);
 	Xsrc = GetBoolCatInfo("Execsrc", FALSE);
 	Maxerr = GetIntCatInfo("Maxerr", 0);
 	Maxres = GetIntCatInfo("Maxres", 0);
 	Quoted = GetIntCatInfo("Quoted", 0);
-//Options = JDBConn::noJDBCDialog;
-//Options = JDBConn::noJDBCDialog | JDBConn::useCursorLib;
 //Cto= GetIntCatInfo("ConnectTimeout", DEFAULT_LOGIN_TIMEOUT);
 //Qto= GetIntCatInfo("QueryTimeout", DEFAULT_QUERY_TIMEOUT);
 	Scrollable = GetBoolCatInfo("Scrollable", false);
@@ -274,6 +376,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 	Ncol = 0;
 	Nparm = 0;
 	Placed = false;
+	Prepared = false;
 	Werr = false;
 	Rerr = false;
 	Ops.Fsize = Ops.CheckSize(Rows);
