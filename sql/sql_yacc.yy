@@ -10990,23 +10990,6 @@ table_primary_ident:
           }
         ;
 
-table_ref_select:
-          select_derived_init get_select_lex select_derived2
-          {
-            LEX *lex= Lex;
-            SELECT_LEX *sel= lex->current_select;
-            if ($1)
-            {
-              if (sel->set_braces(1))
-              {
-                my_parse_error(thd, ER_SYNTAX_ERROR);
-                MYSQL_YYABORT;
-              }
-            }
-            if ($2->init_nested_join(lex->thd))
-              MYSQL_YYABORT;
-          }
-        ;
 
 
 /*
@@ -11198,11 +11181,24 @@ select_derived:
               MYSQL_YYABORT;
             }
           }
-        | get_select_lex_derived table_ref_select
+        | get_select_lex_derived select_derived_init
+          {
+            // Now we have the same st_select_lex that we had in the beginning
+            DBUG_ASSERT($1 == Lex->current_select);
+          }
+          select_derived2
           {
             LEX *lex= Lex;
-            $$= $1->end_nested_join(lex->thd);
-            DBUG_ASSERT($$ == NULL);
+            SELECT_LEX *sel= lex->current_select;
+            if ($2)
+            {
+              if (sel->set_braces(1))
+              {
+                my_parse_error(thd, ER_SYNTAX_ERROR);
+                MYSQL_YYABORT;
+              }
+            }
+            $$= NULL;
           }
         ;
 
