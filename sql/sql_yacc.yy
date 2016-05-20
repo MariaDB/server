@@ -11194,12 +11194,7 @@ select_derived:
     SELECT * FROM (SELECT * FROM t1);
 */
 derived_query_specification:
-          get_select_lex_derived select_derived_init
-          {
-            // Now we have the same st_select_lex that we had in the beginning
-            DBUG_ASSERT($1 == Lex->current_select);
-          }
-          select_derived2
+          SELECT_SYM select_derived_init select_derived2
           {
             LEX *lex= Lex;
             SELECT_LEX *sel= lex->current_select;
@@ -11252,9 +11247,11 @@ get_select_lex_derived:
        ;
 
 select_derived_init:
-          SELECT_SYM
+          get_select_lex
           {
             LEX *lex= Lex;
+            if ($1->init_nested_join(lex->thd))
+              MYSQL_YYABORT;
 
             if (! lex->parsing_options.allows_derived)
             {
@@ -11274,6 +11271,8 @@ select_derived_init:
             $$= embedding &&
                 !embedding->nested_join->join_list.elements;
             /* return true if we are deeply nested */
+            // Now we have the same st_select_lex that we had in the beginning
+            DBUG_ASSERT($1 == Lex->current_select);
           }
         ;
 
