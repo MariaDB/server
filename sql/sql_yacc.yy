@@ -11247,32 +11247,18 @@ get_select_lex_derived:
        ;
 
 select_derived_init:
-          get_select_lex
           {
             LEX *lex= Lex;
-            if ($1->init_nested_join(lex->thd))
-              MYSQL_YYABORT;
-
             if (! lex->parsing_options.allows_derived)
             {
               my_error(ER_VIEW_SELECT_DERIVED, MYF(0));
               MYSQL_YYABORT;
             }
 
-            SELECT_LEX *sel= lex->current_select;
-            TABLE_LIST *embedding;
-            if (!sel->embedding || sel->end_nested_join(lex->thd))
-            {
-              /* we are not in parentheses */
-              my_parse_error(thd, ER_SYNTAX_ERROR);
-              MYSQL_YYABORT;
-            }
-            embedding= Select->embedding;
+            TABLE_LIST *embedding= lex->current_select->embedding;
             $$= embedding &&
                 !embedding->nested_join->join_list.elements;
             /* return true if we are deeply nested */
-            // Now we have the same st_select_lex that we had in the beginning
-            DBUG_ASSERT($1 == Lex->current_select);
           }
         ;
 
