@@ -1037,10 +1037,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 104 shift/reduce conflicts.
+  Currently there are 102 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 104
+%expect 102
 
 /*
    Comments for TOKENS.
@@ -11121,6 +11121,11 @@ select_derived_union:
               MYSQL_YYABORT;
             }
           }
+        | derived_query_specification
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
+          { $$= NULL; }
         | select_derived_union union_head_non_top query_term
           {
             /*
@@ -11181,7 +11186,15 @@ select_derived:
               MYSQL_YYABORT;
             }
           }
-        | get_select_lex_derived select_derived_init
+        ;
+
+/*
+  Similar to query_specification, but for derived tables.
+  Example: the inner parenthesized SELECT in this query:
+    SELECT * FROM (SELECT * FROM t1);
+*/
+derived_query_specification:
+          get_select_lex_derived select_derived_init
           {
             // Now we have the same st_select_lex that we had in the beginning
             DBUG_ASSERT($1 == Lex->current_select);
@@ -11198,7 +11211,6 @@ select_derived:
                 MYSQL_YYABORT;
               }
             }
-            $$= NULL;
           }
         ;
 
@@ -11224,9 +11236,6 @@ select_derived2:
             Select->parsing_place= NO_MATTER;
           }
           opt_table_expression
-          opt_order_clause
-          opt_limit_clause
-          opt_select_lock_type
         ;
 
 get_select_lex:

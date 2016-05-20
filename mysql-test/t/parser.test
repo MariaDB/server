@@ -975,7 +975,7 @@ let $q=SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1;
 eval $q;
 --error ER_PARSE_ERROR
 eval SELECT ($q);
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
 
 let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1;
@@ -1020,4 +1020,13 @@ INSERT INTO t1 VALUES ( 2 );
 SELECT *
 FROM ( (SELECT a FROM t1 ORDER BY a) UNION (SELECT 1 as b ORDER BY b ) ) AS a1
 WHERE a1.a = 1 OR a1.a = 2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10080 Derived tables allow double LIMIT clause
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+--error ER_PARSE_ERROR
+SELECT * FROM  (SELECT * FROM t1 LIMIT 1 LIMIT 2) t1;
 DROP TABLE t1;
