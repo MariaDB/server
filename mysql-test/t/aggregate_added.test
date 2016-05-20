@@ -1,0 +1,15 @@
+CREATE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello, ', str, '!');
+SELECT * FROM mysql.proc WHERE name like 'f1';
+SELECT f1('world');
+
+DROP FUNCTION f1;
+
+
+CREATE AGGREGATE FUNCTION f1(str char(20))
+RETURNS TEXT
+RETURN CONCAT('Hello2, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+ 
+DROP FUNCTION f1;

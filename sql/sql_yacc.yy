@@ -1763,6 +1763,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_if_not_exists
         opt_if_exists
 
+
 /*
   Bit field of MYSQL_START_TRANS_OPT_* flags.
 */
@@ -1940,13 +1941,13 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         view_algorithm view_or_trigger_or_sp_or_event
         definer_tail no_definer_tail
         view_suid view_tail view_list_opt view_list view_select
-        view_check_option trigger_tail sp_tail sf_tail event_tail
+        view_check_option trigger_tail sp_tail sf_tail event_tail sf_tail2
         udf_tail udf_tail2
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
         fulltext_key_opt spatial_key_opt fulltext_key_opts spatial_key_opts
-	keep_gcc_happy
+    keep_gcc_happy
         key_using_alg
         part_column_list
         server_def server_options_list server_option
@@ -2533,6 +2534,7 @@ create:
           }
         | create_or_replace
           {
+	          printf("CREATING FUNCTION\n");
             Lex->create_info.set($1);
             Lex->create_view_mode= ($1.or_replace() ? VIEW_CREATE_OR_REPLACE :
                                                       VIEW_CREATE_NEW);
@@ -15729,7 +15731,7 @@ view_or_trigger_or_sp_or_event:
 definer_tail:
           view_tail
         | trigger_tail
-        | sp_tail
+        | sp_tail 
         | sf_tail
         | event_tail
         ;
@@ -15980,14 +15982,18 @@ udf_tail2:
             lex->udf.dl= $7.str;
           }
         ;
-
 sf_tail:
-          FUNCTION_SYM /* $1 */
+          AGGREGATE_SYM sf_tail2 {  }
+        | sf_tail2               {  }
+        ;
+
+sf_tail2:
+          FUNCTION_SYM/* $1 */
           opt_if_not_exists /* $2 */
           sp_name /* $3 */
           '(' /* $4 */
           { /* $5 */
-            LEX *lex= Lex;
+	          LEX *lex= Lex;
             Lex_input_stream *lip= YYLIP;
             const char* tmp_param_begin;
 
@@ -16120,6 +16126,8 @@ sp_tail:
             sp->restore_thd_mem_root(thd);
           }
         ;
+
+
 
 /*************************************************************************/
 
