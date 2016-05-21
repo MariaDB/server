@@ -1458,7 +1458,7 @@ int JDBConn::ExecuteQuery(char *sql)
 		env->DeleteLocalRef(qry);
 	} // endif xqid
 
-	return RC_OK;
+	return rc;
 } // end of ExecuteQuery
 
 /***********************************************************************/
