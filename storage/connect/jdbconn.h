@@ -53,6 +53,9 @@ typedef struct tagJCATPARM {
 
 typedef jint(JNICALL *CRTJVM) (JavaVM **, void **, void *);
 typedef jint(JNICALL *GETJVM) (JavaVM **, jsize, jsize *);
+#if defined(_DEBUG)
+typedef jint(JNICALL *GETDEF) (void *);
+#endif   // _DEBUG
 
 // JDBC connection to a data source
 class TDBJDBC;
@@ -109,8 +112,15 @@ public:
 
 public:
 	// Set static variables
-	static void SetJVM(void)
-		{	LibJvm = NULL; CreateJavaVM = NULL; GetCreatedJavaVMs = NULL; }
+	static void SetJVM(void) {
+		LibJvm = NULL; 
+	  CreateJavaVM = NULL; 
+	  GetCreatedJavaVMs = NULL;
+#if defined(_DEBUG)
+		GetDefaultJavaVMInitArgs = NULL;
+#endif   // _DEBUG
+	}	// end of SetJVM
+
 	static void ResetJVM(void);
 	static bool GetJVM(PGLOBAL g);
 
@@ -135,6 +145,9 @@ protected:
 #endif  // !__WIN__
 	static CRTJVM CreateJavaVM;
 	static GETJVM GetCreatedJavaVMs;
+#if defined(_DEBUG)
+	static GETDEF GetDefaultJavaVMInitArgs;
+#endif   // _DEBUG
 	PGLOBAL   m_G;
 	TDBJDBC  *m_Tdb;
 	JavaVM   *jvm;                      // Pointer to the JVM (Java Virtual Machine)
@@ -152,6 +165,12 @@ protected:
 	jmethodID xpid;										  // The ExecutePrep method ID
 	jmethodID pcid;										  // The ClosePrepStmt method ID
 	jmethodID errid;										// The GetErrmsg method ID
+	jmethodID chrfldid;									// The StringField method ID
+	jmethodID intfldid;									// The IntField method ID
+	jmethodID dblfldid;									// The DoubleField method ID
+	jmethodID fltfldid;									// The FloatField method ID
+	jmethodID datfldid;									// The TimestampField method ID
+	jmethodID bigfldid;									// The BigintField method ID
 	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;

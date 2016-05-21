@@ -62,6 +62,9 @@ extern char *ClassPath;   // The connect_class_path global variable value
 void  *JDBConn::LibJvm = NULL;
 CRTJVM JDBConn::CreateJavaVM = NULL;
 GETJVM JDBConn::GetCreatedJavaVMs = NULL;
+#if defined(_DEBUG)
+GETDEF JDBConn::GetDefaultJavaVMInitArgs = NULL;
+#endif   // _DEBUG
 
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */
@@ -646,6 +649,7 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	job = nullptr;						// The JdbcInterface class object
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
+	chrfldid = intfldid = dblfldid = fltfldid = datfldid = bigfldid = nullptr;
 //m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
@@ -811,6 +815,9 @@ void JDBConn::ResetJVM(void)
 		LibJvm = NULL;
 		CreateJavaVM = NULL;
 		GetCreatedJavaVMs	= NULL;
+#if defined(_DEBUG)
+		GetDefaultJavaVMInitArgs = NULL;
+#endif   // _DEBUG
 	} // endif LibJvm
 
 } // end of ResetJVM
@@ -851,6 +858,14 @@ bool JDBConn::GetJVM(PGLOBAL g)
 			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_GetCreatedJavaVMs");
 			FreeLibrary((HMODULE)LibJvm);
 			LibJvm = NULL;
+#if defined(_DEBUG)
+		} else if (!(GetDefaultJavaVMInitArgs = (GETDEF)GetProcAddress((HINSTANCE)LibJvm,
+			  "JNI_GetDefaultJavaVMInitArgs"))) {
+			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(),
+				"JNI_GetDefaultJavaVMInitArgs");
+			FreeLibrary((HMODULE)LibJvm);
+			LibJvm = NULL;
+#endif   // _DEBUG
 		} // endif LibJvm
 #else   // !__WIN__
 		const char *error = NULL;
@@ -874,7 +889,15 @@ bool JDBConn::GetJVM(PGLOBAL g)
 			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetCreatedJavaVMs", SVP(error));
 			dlclose(LibJvm);
 			LibJvm = NULL;
-		} // endif LibJvm
+#if defined(_DEBUG)
+	  } else if (!(GetDefaultJavaVMInitArgs = (GETDEF)dlsym(LibJvm,
+		    "JNI_GetDefaultJavaVMInitArgs"))) {
+		  error = dlerror();
+			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetDefaultJavaVMInitArgs", SVP(error));
+			dlclose(LibJvm);
+			LibJvm = NULL;
+#endif   // _DEBUG
+	} // endif LibJvm
 #endif  // !__WIN__
 
 	} // endif LibJvm
@@ -919,13 +942,17 @@ int JDBConn::Open(PJPARM sop)
 
 #if defined(__WIN__)
 		sep = ';';
+#define N 1
+//#define N 2
+//#define N 3
 #else
 		sep = ':';
+#define N 1
 #endif
 
 		//================== prepare loading of Java VM ============================
 		JavaVMInitArgs vm_args;                        // Initialization arguments
-		JavaVMOption* options = new JavaVMOption[1];   // JVM invocation options
+		JavaVMOption* options = new JavaVMOption[N];   // JVM invocation options
 
 		// where to find java .class
 		if (ClassPath && *ClassPath) {
@@ -945,9 +972,20 @@ int JDBConn::Open(PJPARM sop)
 		} // endif trace
 
 		options[0].optionString =	jpop->GetStr();
-		//options[1].optionString =	"-verbose:jni";
+#if N == 2
+		options[1].optionString =	"-Xcheck:jni";
+#endif
+#if N == 3
+		options[1].optionString =	"-Xms256M";
+		options[2].optionString =	"-Xmx512M";
+#endif
+#if defined(_DEBUG)
+		vm_args.version = JNI_VERSION_1_2;             // minimum Java version
+		rc = GetDefaultJavaVMInitArgs(&vm_args);
+#else
 		vm_args.version = JNI_VERSION_1_6;             // minimum Java version
-		vm_args.nOptions = 1;                          // number of options
+#endif   // _DEBUG
+		vm_args.nOptions = N;                          // number of options
 		vm_args.options = options;
 		vm_args.ignoreUnrecognized = false; // invalid options make the JVM init fail
 
@@ -985,8 +1023,10 @@ int JDBConn::Open(PJPARM sop)
 	} // endif rc
 
 	//=============== Display JVM version =======================================
-//jint ver = env->GetVersion();
-//cout << ((ver>>16)&0x0f) << "."<<(ver&0x0f) << endl;
+#if defined(_DEBUG)
+  jint ver = env->GetVersion();
+  printf("JVM Version %d.%d\n", ((ver>>16)&0x0f), (ver&0x0f));
+#endif   //_DEBUG
 
 	// try to find the JdbcInterface class
 	jdi = env->FindClass("JdbcInterface");
@@ -1251,7 +1291,6 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	jlong      dtv;
 	jstring    cn, jn = nullptr;
 	jobject    dob;
-	jmethodID  fldid = nullptr;
 
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
@@ -1271,11 +1310,8 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 12:          // VARCHAR
 	case -1:          // LONGVARCHAR
 	case 1:           // CHAR
-		fldid = env->GetMethodID(jdi, "StringField",
-			                       "(ILjava/lang/String;)Ljava/lang/String;");
-
-		if (fldid != nullptr) {
-			cn = (jstring)env->CallObjectMethod(job, fldid, (jint)rank, jn);
+		if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;")) {
+			cn = (jstring)env->CallObjectMethod(job, chrfldid, (jint)rank, jn);
 
 			if (cn) {
 				const char *field = env->GetStringUTFChars(cn, (jboolean)false);
@@ -1292,10 +1328,8 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 4:           // INTEGER
 	case 5:           // SMALLINT
 	case -6:          // TINYINT
-		fldid = env->GetMethodID(jdi, "IntField", "(ILjava/lang/String;)I");
-
-		if (fldid != nullptr)
-			val->SetValue((int)env->CallIntMethod(job, fldid, rank, jn));
+		if (!gmID(g, intfldid, "IntField", "(ILjava/lang/String;)I"))
+			val->SetValue((int)env->CallIntMethod(job, intfldid, rank, jn));
 		else
 			val->Reset();
 
@@ -1303,20 +1337,16 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 8:           // DOUBLE
 	case 2:           // NUMERIC
 	case 3:           // DECIMAL
-		fldid = env->GetMethodID(jdi, "DoubleField", "(ILjava/lang/String;)D");
-
-		if (fldid != nullptr)
-			val->SetValue((double)env->CallDoubleMethod(job, fldid, rank, jn));
+		if (!gmID(g, dblfldid, "DoubleField", "(ILjava/lang/String;)D"))
+			val->SetValue((double)env->CallDoubleMethod(job, dblfldid, rank, jn));
 		else
 			val->Reset();
 
 		break;
 	case 7:           // REAL
 	case 6:           // FLOAT
-		fldid = env->GetMethodID(jdi, "FloatField", "(ILjava/lang/String;)F");
-
-		if (fldid != nullptr)
-			val->SetValue((float)env->CallFloatMethod(job, fldid, rank, jn));
+		if (!gmID(g, fltfldid, "FloatField", "(ILjava/lang/String;)F"))
+			val->SetValue((float)env->CallFloatMethod(job, fltfldid, rank, jn));
 		else
 			val->Reset();
 
@@ -1324,11 +1354,9 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 91:          // DATE
 	case 92:          // TIME
 	case 93:          // TIMESTAMP
-		fldid = env->GetMethodID(jdi, "TimestampField",
-			                       "(ILjava/lang/String;)Ljava/sql/Timestamp;");
-
-		if (fldid != nullptr) {
-			dob = env->CallObjectMethod(job, fldid, (jint)rank, jn);
+		if (!gmID(g, datfldid, "TimestampField",
+			                     "(ILjava/lang/String;)Ljava/sql/Timestamp;")) {
+			dob = env->CallObjectMethod(job, datfldid, (jint)rank, jn);
 
 			if (dob) {
 				jclass jts = env->FindClass("java/sql/Timestamp");
@@ -1354,10 +1382,8 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 		break;
 	case -5:          // BIGINT
-		fldid = env->GetMethodID(jdi, "BigintField", "(ILjava/lang/String;)J");
-
-		if (fldid != nullptr)
-			val->SetValue((long long)env->CallLongMethod(job, fldid, (jint)rank, jn));
+		if (!gmID(g, bigfldid, "BigintField", "(ILjava/lang/String;)J"))
+			val->SetValue((long long)env->CallLongMethod(job, bigfldid, (jint)rank, jn));
 		else
 			val->Reset();
 
