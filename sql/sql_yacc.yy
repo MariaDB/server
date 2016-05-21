@@ -1882,6 +1882,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_primary_ident table_primary_derived
         select_derived derived_table_list
         select_derived_union
+        derived_query_specification
 
 %type <date_time_type> date_time_type;
 %type <interval> interval
@@ -11113,34 +11114,39 @@ table_primary_derived:
   subqueries have their own union rules.
 */
 select_derived_union:
-          select_derived opt_union_order_or_limit
+          select_derived
+        | select_derived union_order_or_limit
           {
-            if ($1 && $2)
+            if ($1)
             {
               my_parse_error(thd, ER_SYNTAX_ERROR);
               MYSQL_YYABORT;
             }
           }
-        | derived_query_specification
-          opt_order_clause
-          opt_limit_clause
-          opt_select_lock_type
-          { $$= NULL; }
-        | select_derived_union union_head_non_top query_term
+        | select_derived union_head_non_top
           {
-            /*
-              Remove from the name resolution context stack the context of the
-              last select in the union.
-             */
-            Lex->pop_context();
+            if ($1)
+            {
+              my_parse_error(thd, ER_SYNTAX_ERROR);
+              MYSQL_YYABORT;
+            }
+          }
+          union_list_derived_part2
+        | derived_query_specification opt_select_lock_type
+        | derived_query_specification order_or_limit opt_select_lock_type
+        | derived_query_specification opt_select_lock_type union_list_derived
+       ;
 
-            if ($1 != NULL)
-            {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
-              MYSQL_YYABORT;
-            }
-          }
-        ;
+union_list_derived_part2:
+         query_term_union_not_ready { Lex->pop_context(); }
+       | query_term_union_ready     { Lex->pop_context(); }
+       | query_term_union_ready     { Lex->pop_context(); } union_list_derived
+       ;
+
+union_list_derived:
+         union_head_non_top union_list_derived_part2
+       ;
+
 
 /* The equivalent of select_init2 for nested queries. */
 select_init2_derived:
@@ -11206,6 +11212,7 @@ derived_query_specification:
                 MYSQL_YYABORT;
               }
             }
+            $$= NULL;
           }
         ;
 
@@ -16398,12 +16405,18 @@ query_specification:
         ;
 
 query_term:
-          query_specification
-          opt_order_clause
-          opt_limit_clause
-          opt_select_lock_type
+          query_term_union_ready
+        | query_term_union_not_ready
+        ;
+
+query_term_union_not_ready:
+          query_specification order_or_limit opt_select_lock_type
+        | '(' select_paren_derived ')' union_order_or_limit
+        ;
+
+query_term_union_ready:
+          query_specification opt_select_lock_type
         | '(' select_paren_derived ')'
-          opt_union_order_or_limit
         ;
 
 query_expression_body:
