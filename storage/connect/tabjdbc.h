@@ -7,6 +7,7 @@
 /***********************************************************************/
 #include "colblk.h"
 #include "resource.h"
+#include "jdbccat.h"
 
 typedef class JDBCDEF *PJDBCDEF;
 typedef class TDBJDBC *PTDBJDBC;
@@ -44,6 +45,8 @@ public:
 	virtual int  Indexable(void) { return 2; }
 	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
 	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	int  ParseURL(PGLOBAL g, char *url, bool b = true);
+	bool SetParms(PJPARM sjp);
 
 protected:
 	// Members

@@ -119,6 +119,7 @@
 #undef  OFFSET
 
 #define NOPARSE
+#define NJDBC
 #if defined(UNIX)
 #include "osutil.h"
 #endif   // UNIX
@@ -128,7 +129,7 @@
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
-#include "jdbccat.h"
+#include "tabjdbc.h"
 #include "jdbconn.h"
 #endif   // JDBC_SUPPORT
 #include "xtable.h"
@@ -5224,7 +5225,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif
 #if defined(JDBC_SUPPORT)
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
-		url= GetListOption(g, "URL", topt->oplist, NULL);
+//	url= GetListOption(g, "URL", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 #endif   // JDBC_SUPPORT
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
@@ -5325,18 +5326,31 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	case TAB_JDBC:
 		if (fnc & FNC_DRIVER) {
 			ok= true;
-		} else if (!url && !(url= strz(g, create_info->connect_string))) {
+		} else if (!(url= strz(g, create_info->connect_string))) {
 			strcpy(g->Message, "Missing URL");
 		} else {
-			// Store ODBC additional parameters
+			// Store JDBC additional parameters
+			int      rc;
+			PJDBCDEF jdef= new(g) JDBCDEF();
+
+			jdef->SetName(create_info->alias);
 			sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 			sjp->Driver= driver;
-			sjp->Url= url;
-			sjp->User= (char*)user;
-			sjp->Pwd= (char*)pwd;
 			sjp->Fsize= 0;
 			sjp->Scrollable= false;
-			ok= true;
+
+			if ((rc = jdef->ParseURL(g, url, false)) == RC_OK) {
+				sjp->Url= url;
+				sjp->User= (char*)user;
+				sjp->Pwd= (char*)pwd;
+				ok= true;
+			} else if (rc == RC_NF) {
+				if (jdef->GetTabname())
+					tab= jdef->GetTabname();
+
+				ok= jdef->SetParms(sjp);
+			} // endif rc
+
 		} // endif's
 
 		supfnc |= (FNC_DRIVER | FNC_TABLE);
@@ -5775,11 +5789,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						switch (typ) {
 						case TYPE_DOUBLE:
+						case TYPE_DECIM:
 							// Some data sources do not count dec in length (prec)
 							prec += (dec + 2);        // To be safe
-							break;
-						case TYPE_DECIM:
-							prec= len;
 							break;
 						default:
 							dec= 0;
