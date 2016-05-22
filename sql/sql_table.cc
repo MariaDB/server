@@ -3291,6 +3291,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 //                                        Key_part_spec(sql_field->field_name,
 //                                            strlen(sql_field->field_name), 0),thd->mem_root);
 //                alter_info->key_list.push_back(t_key, thd->mem_root);
+                key_iter_key->type=NULL;
                 key_iter_key->columns.delete_elements();
                 key_iter_key->columns.push_back(new (thd->mem_root) 
                                 Key_part_spec(name,

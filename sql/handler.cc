@@ -5872,7 +5872,7 @@ int handler::ha_write_row(uchar *buf)
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-
+/*  First need to whether inserted record is unique or not */
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
