@@ -3246,15 +3246,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 }
             }
             if(is_blob_unique){
-                //here we go
-                //make a virtual field 
+                /* make a virtual field */
                 key_part_iter.rewind();
                 Create_field *cf = new (thd->mem_root) Create_field();
                 cf->flags=NOT_NULL_FLAG;
                 cf->length=cf->char_length=4;
                 cf->charset=NULL;
                 char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
-                //cf->field_name=strcat(name,&num);
                 strcpy(name,"DB_ROW_HASH_");
                 strcat(name,&num);
                 num++;
@@ -3278,20 +3276,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 v->set_stored_in_db_flag(true);
                 cf->vcol_info=v;
                 alter_info->create_list.push_back(cf,thd->mem_root);
-                //now create  the key field kind 
-                //of harder then prevoius one i guess
-//                Key *t_key;
-//                LEX_STRING  null_lex_str = {NULL,0};
-//                t_key= new (thd->mem_root)Key(Key::UNIQUE, null_lex_str, HA_KEY_ALG_UNDEF, false,
-//                           DDL_options(false ?
-//                           DDL_options::OPT_IF_NOT_EXISTS :
-//                           DDL_options::OPT_NONE));
-//                //#include"sql_class.h"
-//                t_key->columns.push_back(new (thd->mem_root) 
-//                                        Key_part_spec(sql_field->field_name,
-//                                            strlen(sql_field->field_name), 0),thd->mem_root);
-//                alter_info->key_list.push_back(t_key, thd->mem_root);
-                key_iter_key->type=NULL;
+                /*
+                  Now create  the key field kind 
+                  of harder then prevoius one i guess 
+                */
+                key_iter_key->type=Key::MULTIPLE;
                 key_iter_key->columns.delete_elements();
                 key_iter_key->columns.push_back(new (thd->mem_root) 
                                 Key_part_spec(name,
