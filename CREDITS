@@ -1,25 +1,30 @@
-MariaDB is brought to you by the MariaDB foundation, a USA non profit
-organization.
+MariaDB is brought to you by the MariaDB Foundation, a non profit
+organization registered in the USA.
 
-The current main members and sponsors of the MariaDB foundation are:
+The current main members and sponsors of the MariaDB Foundation are:
 
-Automattic      http://automattic.com  (2014)
-SkySQL Ab	http://www.skysql.com  (2013, 2014)
-Booking.com	http://www.booking.com (2013)
-Parallels       http://www.parallels.com/products/plesk  (2013)
+MariaDB Corporation	http://www.mariadb.com  (2013 - 2016)
+Booking.com		http://www.booking.com (2013 - 2016)
+Parallels       	http://www.parallels.com/products/plesk  (2013 - 2016)
+Automattic              http://automattic.com  (2014 - 2016)
+Verkkokauppa.com	http://verkkokauppa.com (2015 - 2016)
+Visma			http://visma.com/ (2015 - 2016)
+Webyog			http://webyog.com (2015 - 2016)
+Wikimedia Foundation    http://wikimedia.org (2015 - 2016)
+Acronis			http://acronis.com (2016)
 
 For a full list of supporters and sponsors see
-https://mariadb.org/en/supporters/
+https://mariadb.org/about/supporters/
 
-You can also do this by doing SHOW CONTRIBUTORS.
+You can also do this by running SHOW CONTRIBUTORS.
 
 For all corporate memberships and sponsorships please contact the
-MariaDB foundation Board via foundation@mariadb.org.
+MariaDB Foundation Board via foundation@mariadb.org.
 
-The MariaDB foundation is responsible for the MariaDB source
+The MariaDB Foundation is responsible for the MariaDB source
 repository, the official MariaDB binaries and http://mariadb.org.
 
-The MariaDB foundation provides also, among other things, the
+The MariaDB Foundation also provides, among other things, the
 following services to the MariaDB community:
 
 - Code reviews and applying patches for MariaDB
@@ -28,17 +33,19 @@ following services to the MariaDB community:
 - Bug fixing in MariaDB (for bugs that affects a large part of the community)
 - Building the official MariaDB binaries
 - Maintaining http://mariadb.org
+- Documenting MariaDB in the MariaDB Knowledge Base http://mariadb.com/kb
 
-To be able to do the above we need help from cooperations and individuals!
+To be able to do the above we need help from corporations and individuals!
 
-You can help support MariaDB by be becoming a MariaDB developer or a
-member or sponsor of the MariaDB foundation!
+You can help support MariaDB by becoming a MariaDB developer or a
+member or sponsor of the MariaDB Foundation. To donate or sponsor, 
+go to https://mariadb.org/donate/
 
-You can get a list of all main authors of MariaDB / MySQL by doing
+You can get a list of all the main authors of MariaDB / MySQL by running 
 SHOW AUTHORS;
 
-You can get a list sponsors and contributors by doing
+You can get a list sponsors and contributors by running 
 SHOW CONTRIBUTORS;
 
-You can read more about the MariaDB foundation at:
-https://mariadb.org/en/foundation/
+You can read more about the MariaDB Foundation at:
+https://mariadb.org/about/

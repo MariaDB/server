@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -632,7 +632,7 @@ void Log_to_csv_event_handler::cleanup()
   indicated in the return value. 
 
   @retval  FALSE   OK
-  @retval  TRUE    error occured
+  @retval  TRUE    error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -797,7 +797,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -1108,7 +1108,7 @@ void Log_to_file_event_handler::flush()
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool LOGGER::error_log_print(enum loglevel level, const char *format,
@@ -1266,7 +1266,7 @@ bool LOGGER::flush_general_log()
 
   RETURN
     FALSE   OK
-    TRUE    error occured
+    TRUE    error occurred
 */
 
 bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
@@ -2218,6 +2218,7 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
     DBUG_RETURN(0);
 
   char buf[1024];
+
   String log_query(buf, sizeof(buf), &my_charset_bin);
   if (log_query.copy(STRING_WITH_LEN("SAVEPOINT "), &my_charset_bin) ||
       append_identifier(thd, &log_query,
@@ -2249,13 +2250,15 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
 
+  if (wsrep_emulate_bin_log)
+    DBUG_RETURN(0);
+
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
     non-transactional table. Otherwise, truncate the binlog cache starting
     from the SAVEPOINT command.
   */
-  if (!wsrep_emulate_bin_log &&
-      unlikely(trans_has_updated_non_trans_table(thd) ||
+  if (unlikely(trans_has_updated_non_trans_table(thd) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
   {
     char buf[1024];
@@ -2271,6 +2274,17 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
   }
 
   binlog_trans_log_truncate(thd, *(my_off_t*)sv);
+
+  /*
+    When a SAVEPOINT is executed inside a stored function/trigger we force the
+    pending event to be flushed with a STMT_END_F flag and clear the table maps
+    as well to ensure that following DMLs will have a clean state to start
+    with. ROLLBACK inside a stored routine has to finalize possibly existing
+    current row-based pending event with cleaning up table maps. That ensures
+    that following DMLs will have a clean state to start with.
+   */
+  if (thd->in_sub_stmt)
+    thd->clear_binlog_table_maps();
 
   DBUG_RETURN(0);
 }
@@ -2825,7 +2839,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 
   RETURN
     FASE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
@@ -2927,7 +2941,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
@@ -6043,10 +6057,17 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   /*
     We only end the statement if we are in a top-level statement.  If
     we are inside a stored function, we do not end the statement since
-    this will close all tables on the slave.
+    this will close all tables on the slave. But there can be a special case
+    where we are inside a stored function/trigger and a SAVEPOINT is being
+    set in side the stored function/trigger. This SAVEPOINT execution will
+    force the pending event to be flushed without an STMT_END_F flag. This
+    will result in a case where following DMLs will be considered as part of
+    same statement and result in data loss on slave. Hence in this case we
+    force the end_stmt to be true.
   */
-  bool const end_stmt=
-    thd->locked_tables_mode && thd->lex->requires_prelocking();
+  bool const end_stmt= (thd->in_sub_stmt && thd->lex->sql_command ==
+                        SQLCOM_SAVEPOINT) ? true :
+    (thd->locked_tables_mode && thd->lex->requires_prelocking());
   if (thd->binlog_flush_pending_rows_event(end_stmt, using_trans))
     DBUG_RETURN(error);
 
@@ -6382,7 +6403,7 @@ binlog_checkpoint_callback(void *cookie)
   /*
     For every supporting engine, we increment the xid_count and issue a
     commit_checkpoint_request(). Then we can count when all
-    commit_checkpoint_notify() callbacks have occured, and then log a new
+    commit_checkpoint_notify() callbacks have occurred, and then log a new
     binlog checkpoint event.
   */
   mysql_bin_log.mark_xids_active(entry->binlog_id, 1);
@@ -8013,12 +8034,14 @@ int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_bin_log");
 
+  thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(&LOCK_log);
   if (!timeout)
     mysql_cond_wait(&update_cond, &LOCK_log);
   else
     ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
                               const_cast<struct timespec *>(timeout));
+  thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
 
@@ -8028,12 +8051,14 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_binlog_end_pos");
 
+  thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)
     mysql_cond_wait(&update_cond, get_binlog_end_pos_lock());
   else
     ret= mysql_cond_timedwait(&update_cond, get_binlog_end_pos_lock(),
                               timeout);
+  thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
 
@@ -8455,6 +8480,9 @@ void sql_print_information(const char *format, ...)
   va_list args;
   DBUG_ENTER("sql_print_information");
 
+  if (disable_log_notes)
+    DBUG_VOID_RETURN;                 // Skip notes during start/shutdown
+  
   va_start(args, format);
   error_log_print(INFORMATION_LEVEL, format, args);
   va_end(args);
@@ -9147,12 +9175,10 @@ int TC_LOG_MMAP::recover()
     the first byte after magic signature is set to current
     number of storage engines on startup
   */
-  if (data[sizeof(tc_log_magic)] != total_ha_2pc)
+  if (data[sizeof(tc_log_magic)] > total_ha_2pc)
   {
     sql_print_error("Recovery failed! You must enable "
-                    "exactly %d storage engines that support "
-                    "two-phase commit protocol",
-                    data[sizeof(tc_log_magic)]);
+                    "all engines that were enabled at the moment of the crash");
     goto err1;
   }
 
@@ -9571,9 +9597,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
-  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   my_thread_end();
 

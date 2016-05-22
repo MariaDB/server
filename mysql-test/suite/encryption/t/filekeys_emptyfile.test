@@ -1,0 +1,4 @@
+let SEARCH_PATTERN=System key id 1 is missing at;
+source filekeys_badtest.inc;
+
+--echo # Test checks if opening an empty filekeys does not crash the server.

@@ -202,6 +202,9 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
+select create_options from information_schema.tables where table_name='t1';
+create_options
+DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
 # CREATE TABLE LIKE statement on table with INDEX/DATA DIRECTORY
 # options should not fail. Per documentation newly created table
 # should not inherit value of these options from the original table.

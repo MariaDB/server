@@ -1565,3 +1565,57 @@ EXECUTE stmt;
 EXECUTE stmt;
 
 DROP TABLE t1,t2,t3,t4,t5,t6;
+
+--echo #
+--echo # MDEV-8852 Implicit or explicit CAST from MAX(string) to INT,DOUBLE,DECIMAL does not produce warnings
+--echo #
+SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);
+
+
+--echo #
+--echo #  MDEV-8918 Wrong result for CAST(AVG(a) AS SIGNED)
+--echo #
+CREATE TABLE t1 (id INT, a BIGINT);
+INSERT INTO t1 VALUES (1,0x7FFFFFFFFFFFFFFF),(2,0x7FFFFFFFFFFFFFFF);
+SELECT id, AVG(a) AS avg, CAST(MIN(a) AS SIGNED) AS cast_min FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+SELECT id, AVG(a) AS avg, CAST(AVG(a) AS SIGNED) AS cast_avg FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9656 Assertion `0' failed in Item_sum_field::get_tmp_table_field()
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT VAR_POP(1) FROM t1 GROUP BY @a := 's';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8921 Wrong result for CAST(AVG(double_column) AS SIGNED)
+--echo #
+CREATE TABLE t1 (id INT, a DOUBLE);
+INSERT INTO t1 VALUES (1,0x7FFFFFFFFFFFFFFF),(2,0x7FFFFFFFFFFFFFFF);
+SELECT id, AVG(a) AS avg, CAST(MIN(a) AS SIGNED) AS cast_min,CAST(AVG(a) AS SIGNED) AS cast_avg FROM t1 GROUP BY id HAVING avg!=123 ORDER BY id;
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+SELECT MIN(a), SUM(a), CAST(SUM(a) AS SIGNED), CAST(AVG(a) AS SIGNED) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7195 AVG() loses precision in INT context
+--echo #
+CREATE TABLE t1 (
+  auto SERIAL,
+  fld1 bigint unsigned NOT NULL,
+  companynr tinyint(2) unsigned zerofill DEFAULT '00' NOT NULL,
+  UNIQUE fld1 (fld1)
+);
+INSERT INTO t1 VALUES (1,0x7FFFFFFFFFFFFFFF,00);
+INSERT INTO t1 VALUES (2,0x7FFFFFFFFFFFFFFE,37);
+INSERT INTO t1 VALUES (3,0x7FFFFFFFFFFFFFFC,37);
+SELECT companynr, AVG(fld1), AVG(fld1)<<0 AS avg1, CAST(AVG(fld1) AS UNSIGNED)<<0 AS avg2 FROM t1 GROUP BY companynr;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

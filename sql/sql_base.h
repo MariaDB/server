@@ -16,7 +16,6 @@
 #ifndef SQL_BASE_INCLUDED
 #define SQL_BASE_INCLUDED
 
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_trigger.h"                        /* trg_event_type */
 #include "sql_class.h"                          /* enum_mark_columns */
 #include "mysqld.h"                             /* key_map */
@@ -108,6 +107,10 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
   table flush, wait on thr_lock.c locks) while opening and locking table.
 */
 #define MYSQL_OPEN_IGNORE_KILLED                0x8000
+/**
+   Don't try to  auto-repair table
+*/
+#define MYSQL_OPEN_IGNORE_REPAIR                0x10000
 
 /** Please refer to the internals manual. */
 #define MYSQL_OPEN_REOPEN  (MYSQL_OPEN_IGNORE_FLUSH |\
@@ -151,6 +154,7 @@ bool find_and_use_temporary_table(THD *thd, const TABLE_LIST *tl,
 TABLE *find_temporary_table(THD *thd, const char *table_key,
                             uint table_key_length);
 void close_thread_tables(THD *thd);
+void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           List<Item> &fields,
                                           List<Item> &values,

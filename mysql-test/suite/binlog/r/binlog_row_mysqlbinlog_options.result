@@ -65,8 +65,8 @@ CREATE TABLE t1 (a INT, b INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -96,8 +96,8 @@ CREATE TABLE t2 (a INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test2`.`t2`
 ### SET
@@ -116,8 +116,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `new_test1`.`t1`
 ### WHERE
@@ -143,8 +143,8 @@ CREATE TABLE t3 (a INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test3`.`t3` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test3`.`t3`
 ### SET
@@ -163,8 +163,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -181,8 +181,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -215,8 +215,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test3`.`t3` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `new_test3`.`t3`
 ### WHERE
@@ -277,8 +277,8 @@ CREATE TABLE t1 (a INT, b INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -308,8 +308,8 @@ CREATE TABLE t2 (a INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test2`.`t2`
 ### SET
@@ -328,8 +328,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `new_test1`.`t1`
 ### WHERE
@@ -355,8 +355,8 @@ CREATE TABLE t3 (a INT)
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test3`.`t3` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test3`.`t3`
 ### SET
@@ -375,8 +375,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -393,8 +393,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test1`.`t1` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `new_test1`.`t1`
 ### SET
@@ -427,8 +427,8 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-# at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `new_test3`.`t3` mapped to number #
+# at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `new_test3`.`t3`
 ### WHERE

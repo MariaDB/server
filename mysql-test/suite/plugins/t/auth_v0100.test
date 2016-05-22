@@ -6,7 +6,8 @@ if (!$AUTH_0X0100_SO) {
 
 install soname 'auth_0x0100';
 
-select plugin_name, plugin_type_version from information_schema.plugins where plugin_type='authentication' order by plugin_name;
+select plugin_name, plugin_type_version from information_schema.plugins where
+plugin_type='authentication' and plugin_library is not null order by plugin_name;
 
 create user tt identified via auth_0x0100;
 create user zzzzzzzzzzzzzzzz;

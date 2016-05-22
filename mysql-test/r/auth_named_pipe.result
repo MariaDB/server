@@ -1,0 +1,10 @@
+INSTALL SONAME 'auth_named_pipe';
+CREATE USER 'USERNAME' IDENTIFIED WITH named_pipe;
+SELECT USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+USERNAME@localhost	USERNAME@%
+DROP USER 'USERNAME';
+CREATE USER nosuchuser IDENTIFIED WITH named_pipe;
+ERROR 28000: Access denied for user 'nosuchuser'@'localhost'
+DROP USER nosuchuser;
+UNINSTALL SONAME 'auth_named_pipe';

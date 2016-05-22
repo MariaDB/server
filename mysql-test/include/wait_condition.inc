@@ -39,6 +39,7 @@ let $wait_timeout= 0;
 let $wait_condition_reps= 0;
 while ($wait_counter)
 {
+    --error 0,ER_NO_SUCH_TABLE,ER_LOCK_WAIT_TIMEOUT,ER_UNKNOWN_COM_ERROR
     let $success= `$wait_condition`;
     inc $wait_condition_reps;
     if ($success)

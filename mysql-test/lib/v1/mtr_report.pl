@@ -306,7 +306,7 @@ sub mtr_report_stats ($) {
 		/Slave: Query caused different errors on master and slave/ or
 		/Slave: Table .* doesn't exist/ or
 		/Slave: Table width mismatch/ or
-		/Slave: The incident LOST_EVENTS occured on the master/ or
+		/Slave: The incident LOST_EVENTS occurred on the master/ or
 		/Slave: Unknown error.* 1105/ or
 		/Slave: Can't drop database.* database doesn't exist/ or
                 /Slave SQL:.*(?:error.* \d+|Query:.*)/ or

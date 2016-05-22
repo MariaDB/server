@@ -59,7 +59,7 @@ select * from t1;
 t
 0000-00-00 00:00:00
 drop table t1;
-CREATE TABLE t1 (a timestamp, b date, c time, d datetime);
+CREATE TABLE t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, b date, c time, d datetime);
 insert into t1 (b,c,d) values(now(),curtime(),now());
 Warnings:
 Note	1265	Data truncated for column 'b' at row 1

@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmy_print_defaults\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMY_PRINT_DEFAULTS" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMY_PRINT_DEFAULTS" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -87,7 +80,9 @@ Display a help message and exit\&.
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-c \fR\fB\fIfile_name\fR\fR
 .sp
-Read only the given option file\&.
+Read only the given option file\&. If no extension is given, default extension(.ini or .cnf) will 
+be used\&. \fB\-\-config-file\fR is deprecated, use \fB\-\-defaults\-file\fR instead\&. If \fB\-\-defaults\-file\fR is 
+the first option, then read this file only, do not read global or per\-user config files; should be the first option.
 .RE
 .sp
 .RS 4
@@ -126,7 +121,8 @@ string is
 \fB\-\-extra\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-e \fR\fB\fIfile_name\fR\fR
 .sp
-Read this option file after the global option file but (on Unix) before the user option file\&.
+Read this option file after the global option file but (on Unix) before the user option 
+file\&. Should be the first option\&. \fB\-\-extra\-file\fR is deprecated, use  \fB\-\-defaults\-extra\-file\fR\&.
 .RE
 .sp
 .RS 4
@@ -153,12 +149,27 @@ In addition to the groups named on the command line, read groups that have the g
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" my_print_defaults: --mysqld option
+.\" mysqld option: my_print_defaults
+\fB\-\-mysqld\fR
+.sp
+Read the same set of groups that the mysqld binary does.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" my_print_defaults: no-defaults option
 .\" no-defaults option: my_print_defaults
 \fB\-\-no\-defaults\fR,
 \fB\-n\fR
 .sp
-Return an empty string\&.
+Return an empty string (useful for scripts)\&.
 .RE
 .sp
 .RS 4
@@ -195,7 +206,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -204,8 +215,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

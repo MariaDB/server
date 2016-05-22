@@ -8,12 +8,32 @@
 SET @orig = @@global.innodb_buffer_pool_load_now;
 SELECT @orig;
 
+let $old_status= `SELECT variable_value FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status'`;
+
+# A previous test could have run buffer pool dump already; 
+# in this case we want to make sure that the current time is different 
+# from the timestamp in the status variable.
+# We should have had a smart wait condition here, like the commented one below,
+# but we can't because of MDEV-9867, so there will be just sleep instead.
+# And it might be not enough to sleep one second, so we'll have to sleep two. 
+# let $wait_condition =
+#  SELECT TRIM(SUBSTR('$old_status', -8)) != DATE_FORMAT(CURTIME(), '%k:%i:%s');
+# -- source include/wait_condition.inc
+
+if (`SELECT variable_value LIKE '%dump completed at%' FROM information_schema.global_status
+     WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status'`)
+{
+  -- sleep 2
+}
+
 # Do the dump
 SET GLOBAL innodb_buffer_pool_dump_now = ON;
 
 # Wait for the dump to complete
 let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
+  SELECT variable_value != '$old_status'
+     AND SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
   FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
 -- source include/wait_condition.inc

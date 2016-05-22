@@ -82,6 +82,12 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
+#if defined(__linux__) && defined(__powerpc__)
+/* Used to detect at runtime if we have vpmsum instructions (PowerISA 2.07) */
+#include <sys/auxv.h>
+#include <bits/hwcap.h>
+#endif /* defined(__linux__) && defined(__powerpc__) */
+
 #include <string.h>
 
 ib_ut_crc32_t	ut_crc32;
@@ -93,6 +99,7 @@ static ibool		ut_crc32_slice8_table_initialized = FALSE;
 
 /* Flag that tells whether the CPU supports CRC32 or not */
 UNIV_INTERN bool	ut_crc32_sse2_enabled = false;
+UNIV_INTERN bool	ut_crc32_power8_enabled = false;
 
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
@@ -173,6 +180,28 @@ for RHEL4 support (GCC 3 doesn't support this instruction) */
 	    : "=c"(crc) : "c"(crc), "d"(buf)); \
 	len -= 8, buf += 8
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
+
+#if defined(__powerpc__)
+extern "C" {
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+};
+#endif /* __powerpc__ */
+
+UNIV_INLINE
+ib_uint32_t
+ut_crc32_power8(
+/*===========*/
+		 const byte*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 ulint		 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+  return crc32_vpmsum(0, buf, len);
+#else
+		 ut_error;
+		 /* silence compiler warning about unused parameters */
+		 return((ib_uint32_t) buf[len]);
+#endif /* __powerpc__ */
+}
 
 /********************************************************************//**
 Calculates CRC32 using CPU instructions.
@@ -309,8 +338,16 @@ ut_crc32_init()
 
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
+#if defined(__linux__) && defined(__powerpc__) && defined(AT_HWCAP2) \
+        && !defined(WORDS_BIGENDIAN)
+	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07)
+		 ut_crc32_power8_enabled = true;
+#endif /* defined(__linux__) && defined(__powerpc__) */
+
 	if (ut_crc32_sse2_enabled) {
 		ut_crc32 = ut_crc32_sse42;
+	} else if (ut_crc32_power8_enabled) {
+		ut_crc32 = ut_crc32_power8;
 	} else {
 		ut_crc32_slice8_table_init();
 		ut_crc32 = ut_crc32_slice8;

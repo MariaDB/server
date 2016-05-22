@@ -41,6 +41,9 @@ SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 FLUSH TABLES;
 
 # Error ER_CANT_OPEN_FILE syscall error 'repair_test.mrn.0000104' (No such file or directory)
+# The (Error 0)[0]" replaces is for Solaris
+#
+--replace_result "(Error 0)[0]" "(No such file or directory)"
 --error ER_CANT_OPEN_FILE
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 

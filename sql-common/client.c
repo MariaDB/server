@@ -1,5 +1,5 @@
-/* Copyright (c) 2003, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+/* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,10 +129,6 @@ static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
 
-#if !defined(__WIN__)
-static int wait_for_data(my_socket fd, uint timeout);
-#endif
-
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 
 /* Server error code and message */
@@ -169,188 +165,6 @@ static int get_vio_connect_timeout(MYSQL *mysql)
   return timeout_ms;
 }
 
-
-/****************************************************************************
-  A modified version of connect().  my_connect() allows you to specify
-  a timeout value, in seconds, that we should wait until we
-  derermine we can't connect to a particular host.  If timeout is 0,
-  my_connect() will behave exactly like connect().
-
-  Base version coded by Steve Bernacki, Jr. <steve@navinet.net>
-*****************************************************************************/
-
-int my_connect(my_socket fd, const struct sockaddr *name, uint namelen,
-	       uint timeout)
-{
-#if defined(__WIN__)
-  DBUG_ENTER("my_connect");
-  DBUG_RETURN(connect(fd, (struct sockaddr*) name, namelen));
-#else
-  int flags, res, s_err;
-  DBUG_ENTER("my_connect");
-  DBUG_PRINT("enter", ("fd: %d  timeout: %u", fd, timeout));
-
-  /*
-    If they passed us a timeout of zero, we should behave
-    exactly like the normal connect() call does.
-  */
-
-  if (timeout == 0)
-    DBUG_RETURN(connect(fd, (struct sockaddr*) name, namelen));
-
-  flags = fcntl(fd, F_GETFL, 0);	  /* Set socket to not block */
-#ifdef O_NONBLOCK
-  fcntl(fd, F_SETFL, flags | O_NONBLOCK);  /* and save the flags..  */
-#endif
-
-  DBUG_PRINT("info", ("connecting non-blocking"));
-  res= connect(fd, (struct sockaddr*) name, namelen);
-  DBUG_PRINT("info", ("connect result: %d  errno: %d", res, errno));
-  s_err= errno;			/* Save the error... */
-  fcntl(fd, F_SETFL, flags);
-  if ((res != 0) && (s_err != EINPROGRESS))
-  {
-    errno= s_err;			/* Restore it */
-    DBUG_RETURN(-1);
-  }
-  if (res == 0)				/* Connected quickly! */
-    DBUG_RETURN(0);
-  DBUG_RETURN(wait_for_data(fd, timeout));
-#endif
-}
-
-
-/*
-  Wait up to timeout seconds for a connection to be established.
-
-  We prefer to do this with poll() as there is no limitations with this.
-  If not, we will use select()
-*/
-
-#if !defined(__WIN__)
-
-static int wait_for_data(my_socket fd, uint timeout)
-{
-#ifdef HAVE_POLL
-  struct pollfd ufds;
-  int res;
-  DBUG_ENTER("wait_for_data");
-
-  DBUG_PRINT("info", ("polling"));
-  ufds.fd= fd;
-  ufds.events= POLLIN | POLLPRI;
-  if (!(res= poll(&ufds, 1, (int) timeout*1000)))
-  {
-    DBUG_PRINT("info", ("poll timed out"));
-    errno= EINTR;
-    DBUG_RETURN(-1);
-  }
-  DBUG_PRINT("info",
-             ("poll result: %d  errno: %d  revents: 0x%02d  events: 0x%02d",
-              res, errno, ufds.revents, ufds.events));
-  if (res < 0 || !(ufds.revents & (POLLIN | POLLPRI)))
-    DBUG_RETURN(-1);
-  /*
-    At this point, we know that something happened on the socket.
-    But this does not means that everything is alright.
-    The connect might have failed. We need to retrieve the error code
-    from the socket layer. We must return success only if we are sure
-    that it was really a success. Otherwise we might prevent the caller
-    from trying another address to connect to.
-  */
-  {
-    int         s_err;
-    socklen_t   s_len= sizeof(s_err);
-
-    DBUG_PRINT("info", ("Get SO_ERROR from non-blocked connected socket."));
-    res= getsockopt(fd, SOL_SOCKET, SO_ERROR, &s_err, &s_len);
-    DBUG_PRINT("info", ("getsockopt res: %d  s_err: %d", res, s_err));
-    if (res)
-      DBUG_RETURN(res);
-    /* getsockopt() was successful, check the retrieved status value. */
-    if (s_err)
-    {
-      errno= s_err;
-      DBUG_RETURN(-1);
-    }
-    /* Status from connect() is zero. Socket is successfully connected. */
-  }
-  DBUG_RETURN(0);
-#else
-  SOCKOPT_OPTLEN_TYPE s_err_size = sizeof(uint);
-  fd_set sfds;
-  struct timeval tv;
-  time_t start_time, now_time;
-  int res, s_err;
-  DBUG_ENTER("wait_for_data");
-
-  if (fd >= FD_SETSIZE)				/* Check if wrong error */
-    DBUG_RETURN(0);					/* Can't use timeout */
-
-  /*
-    Our connection is "in progress."  We can use the select() call to wait
-    up to a specified period of time for the connection to suceed.
-    If select() returns 0 (after waiting howevermany seconds), our socket
-    never became writable (host is probably unreachable.)  Otherwise, if
-    select() returns 1, then one of two conditions exist:
-   
-    1. An error occured.  We use getsockopt() to check for this.
-    2. The connection was set up sucessfully: getsockopt() will
-    return 0 as an error.
-   
-    Thanks goes to Andrew Gierth <andrew@erlenstar.demon.co.uk>
-    who posted this method of timing out a connect() in
-    comp.unix.programmer on August 15th, 1997.
-  */
-
-  FD_ZERO(&sfds);
-  FD_SET(fd, &sfds);
-  /*
-    select could be interrupted by a signal, and if it is, 
-    the timeout should be adjusted and the select restarted
-    to work around OSes that don't restart select and 
-    implementations of select that don't adjust tv upon
-    failure to reflect the time remaining
-   */
-  start_time= my_time(0);
-  for (;;)
-  {
-    tv.tv_sec = (long) timeout;
-    tv.tv_usec = 0;
-#if defined(HPUX10)
-    if ((res = select(fd+1, NULL, (int*) &sfds, NULL, &tv)) > 0)
-      break;
-#else
-    if ((res = select(fd+1, NULL, &sfds, NULL, &tv)) > 0)
-      break;
-#endif
-    if (res == 0)					/* timeout */
-      DBUG_RETURN(-1);
-    now_time= my_time(0);
-    timeout-= (uint) (now_time - start_time);
-    if (errno != EINTR || (int) timeout <= 0)
-      DBUG_RETURN(-1);
-  }
-
-  /*
-    select() returned something more interesting than zero, let's
-    see if we have any errors.  If the next two statements pass,
-    we've got an open socket!
-  */
-
-  s_err=0;
-  if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char*) &s_err, &s_err_size) != 0)
-    DBUG_RETURN(-1);
-
-  if (s_err)
-  {						/* getsockopt could succeed */
-    errno = s_err;
-    DBUG_RETURN(-1);					/* but return an error... */
-  }
-  DBUG_RETURN(0);					/* ok */
-#endif /* HAVE_POLL */
-}
-#endif /* !defined(__WIN__) */
 
 /**
   Set the internal error message to mysql handler
@@ -1941,35 +1755,39 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const char **errptr)
 {
   SSL *ssl;
-  X509 *server_cert;
-  char *cp1, *cp2;
-  char *buf;
+  X509 *server_cert= NULL;
+  char *cn= NULL;
+  int cn_loc= -1;
+  ASN1_STRING *cn_asn1= NULL;
+  X509_NAME_ENTRY *cn_entry= NULL;
+  X509_NAME *subject= NULL;
+  int ret_validation= 1;
+
   DBUG_ENTER("ssl_verify_server_cert");
   DBUG_PRINT("enter", ("server_hostname: %s", server_hostname));
 
   if (!(ssl= (SSL*)vio->ssl_arg))
   {
     *errptr= "No SSL pointer found";
-    DBUG_RETURN(1);
+    goto error;
   }
 
   if (!server_hostname)
   {
     *errptr= "No server hostname supplied";
-    DBUG_RETURN(1);
+    goto error;
   }
 
   if (!(server_cert= SSL_get_peer_certificate(ssl)))
   {
     *errptr= "Could not get server certificate";
-    DBUG_RETURN(1);
+    goto error;
   }
 
   if (X509_V_OK != SSL_get_verify_result(ssl))
   {
     *errptr= "Failed to verify the server certificate";
-    X509_free(server_cert);
-    DBUG_RETURN(1);
+    goto error;
   }
   /*
     We already know that the certificate exchanged was valid; the SSL library
@@ -1977,35 +1795,57 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     are what we expect.
   */
 
-  buf= X509_NAME_oneline(X509_get_subject_name(server_cert), 0, 0);
-  X509_free (server_cert);
+  /*
+   Some notes for future development
+   We should check host name in alternative name first and then if needed check in common name.
+   Currently yssl doesn't support alternative name.
+   openssl 1.0.2 support X509_check_host method for host name validation, we may need to start using
+   X509_check_host in the future.
+  */
 
-  if (!buf)
+  subject= X509_get_subject_name(server_cert);
+  cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+  if (cn_loc < 0)
   {
-    *errptr= "Out of memory";
-    DBUG_RETURN(1);
+    *errptr= "Failed to get CN location in the certificate subject";
+    goto error;
   }
 
-  DBUG_PRINT("info", ("hostname in cert: %s", buf));
-  cp1= strstr(buf, "/CN=");
-  if (cp1)
+  cn_entry= X509_NAME_get_entry(subject, cn_loc);
+  if (cn_entry == NULL)
   {
-    cp1+= 4; /* Skip the "/CN=" that we found */
-    /* Search for next / which might be the delimiter for email */
-    cp2= strchr(cp1, '/');
-    if (cp2)
-      *cp2= '\0';
-    DBUG_PRINT("info", ("Server hostname in cert: %s", cp1));
-    if (!strcmp(cp1, server_hostname))
-    {
-      free(buf);
-      /* Success */
-      DBUG_RETURN(0);
-    }
+    *errptr= "Failed to get CN entry using CN location";
+    goto error;
   }
+
+  cn_asn1 = X509_NAME_ENTRY_get_data(cn_entry);
+  if (cn_asn1 == NULL)
+  {
+    *errptr= "Failed to get CN from CN entry";
+    goto error;
+  }
+
+  cn= (char *) ASN1_STRING_data(cn_asn1);
+
+  if ((size_t)ASN1_STRING_length(cn_asn1) != strlen(cn))
+  {
+    *errptr= "NULL embedded in the certificate CN";
+    goto error;
+  }
+
+  DBUG_PRINT("info", ("Server hostname in cert: %s", cn));
+  if (!strcmp(cn, server_hostname))
+  {
+    /* Success */
+    ret_validation= 0;
+  }
+
   *errptr= "SSL certificate validation failure";
-  free(buf);
-  DBUG_RETURN(1);
+
+error:
+  if (server_cert != NULL)
+    X509_free (server_cert);
+  DBUG_RETURN(ret_validation);
 }
 
 #endif /* HAVE_OPENSSL */
@@ -3165,19 +3005,20 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
 static int
 connect_sync_or_async(MYSQL *mysql, NET *net, my_socket fd,
-                      const struct sockaddr *name, uint namelen)
+                      struct sockaddr *name, uint namelen)
 {
+  int vio_timeout = get_vio_connect_timeout(mysql);
+
   if (mysql->options.extension && mysql->options.extension->async_context &&
       mysql->options.extension->async_context->active)
   {
     my_bool old_mode;
-    int vio_timeout= get_vio_connect_timeout(mysql);
     vio_blocking(net->vio, FALSE, &old_mode);
     return my_connect_async(mysql->options.extension->async_context, fd,
                             name, namelen, vio_timeout);
   }
 
-  return my_connect(fd, name, namelen, mysql->options.connect_timeout);
+  return vio_socket_connect(net->vio, name, namelen, vio_timeout);
 }
 
 
@@ -4521,6 +4362,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
       stacksize= ASYNC_CONTEXT_DEFAULT_STACK_SIZE;
     if (my_context_init(&ctxt->async_context, stacksize))
     {
+      set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
       my_free(ctxt);
       DBUG_RETURN(1);
     }

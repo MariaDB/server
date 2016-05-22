@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqlshow\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLSHOW\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLSHOW\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -38,8 +31,7 @@ client can be used to quickly see which databases exist, their tables, or a tabl
 \fBmysqlshow\fR
 provides a command\-line interface to several SQL
 SHOW
-statements\&. See
-Section\ \&12.4.5, \(lqSHOW Syntax\(rq\&. The same information can be obtained by using those statements directly\&. For example, you can issue them from the
+statements\&. The same information can be obtained by using those statements directly\&. For example, you can issue them from the
 \fBmysql\fR
 client program\&.
 .PP
@@ -118,8 +110,7 @@ and
 [client]
 option file groups\&.
 \fBmysqlshow\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
+also supports the options for processing option files described.
 .sp
 .RS 4
 .ie n \{\
@@ -148,10 +139,9 @@ Display a help message and exit\&.
 .\" mysqlshow: character-sets-dir option
 .\" character-sets-dir option: mysqlshow
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR,
-\fB\-c\fR
+\fB\-c\fR \fIpath\fR\fR
 .sp
-The directory where character sets are installed\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+The directory where character sets are installed\&.
 .RE
 .sp
 .RS 4
@@ -218,7 +208,7 @@ string is
 .\" debug-check option: mysqlshow
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print some debugging information when the program exits\&.
 .RE
 .sp
 .RS 4
@@ -233,7 +223,22 @@ Print some debugging information when the program exits\&. This option was added
 .\" debug-info option: mysqlshow
 \fB\-\-debug\-info\fR
 .sp
-Print debugging information and memory and CPU usage statistics when the program exits\&. This option was added in MySQL 5\&.1\&.14\&.
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: default-auth option
+.\" default-auth option: mysqlshow
+\fB\-\-default\-auth=\fR\fB\fIname\fR
+.sp
+Default authentication client-side plugin to use\&.
 .RE
 .sp
 .RS 4
@@ -250,8 +255,7 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp
 Use
 \fIcharset_name\fR
-as the default character set\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+as the default character set\&.
 .RE
 .sp
 .RS 4
@@ -294,12 +298,27 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlshow: defaults-group-suffix option
+.\" defaults-group-suffix option: mysqlshow
+\fB\-\-defaults\-group\-suffix=\fR\fB\fIsuffix\fR\fR
+.sp
+In addition to the groups named on the command line, read groups that have the given suffix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqlshow: host option
 .\" host option: mysqlshow
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -359,8 +378,7 @@ option on the command line,
 \fBmysqlshow\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
 .RE
 .sp
 .RS 4
@@ -377,6 +395,21 @@ Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can
 \fB\-W\fR
 .sp
 On Windows, connect to the server via a named pipe\&. This option applies only if the server supports named\-pipe connections\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: plugin-dir option
+.\" plugin-dir option: mysqlshow
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
 .RE
 .sp
 .RS 4
@@ -407,8 +440,7 @@ The TCP/IP port number to use for the connection\&.
 .\" protocol option: mysqlshow
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
-The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&. For details on the allowable values, see
-Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -474,12 +506,137 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .\}
 .\" mysqlshow: SSL options
 .\" SSL options: mysqlshow
-\fB\-\-ssl*\fR
-.sp
-Options that begin with
 \fB\-\-ssl\fR
-specify whether to connect to the server via SSL and indicate where to find SSL keys and certificates\&. See
-Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL CA option
+.\" SSL CA option: mysqlshow
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL CA Path option
+.\" SSL CA Path option: mysqlshow
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Cert option
+.\" SSL Cert option: mysqlshow
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Cipher option
+.\" SSL Cipher option: mysqlshow
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Key option
+.\" SSL Key option: mysqlshow
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Crl option
+.\" SSL CRL option: mysqlshow
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Crlpath option
+.\" SSL Crlpath option: mysqlshow
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysqlshow
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -511,7 +668,7 @@ Display extra information about each table\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -548,7 +705,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -557,8 +714,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

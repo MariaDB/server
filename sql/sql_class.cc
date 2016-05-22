@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +30,6 @@
 
 #include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_class.h"
 #include "sql_cache.h"                          // query_cache_abort
 #include "sql_base.h"                           // close_thread_tables
@@ -856,6 +855,7 @@ THD::THD(bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
+   protocol_text(this), protocol_binary(this),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -901,7 +901,8 @@ THD::THD(bool is_wsrep_applier)
    wsrep_apply_toi(false),
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
-   wsrep_apply_format(0)
+   wsrep_apply_format(0),
+   wsrep_ignore_table(false)
 #endif
 {
   ulong tmp;
@@ -913,7 +914,8 @@ THD::THD(bool is_wsrep_applier)
   */
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
-  status_var.local_memory_used= status_var.global_memory_used= 0;
+  status_var.local_memory_used= sizeof(THD);
+  status_var.global_memory_used= 0;
   main_da.init();
 
   /*
@@ -1026,6 +1028,7 @@ THD::THD(bool is_wsrep_applier)
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
+  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1440,7 +1443,8 @@ void THD::init(void)
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
-#endif
+  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+#endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1633,6 +1637,8 @@ THD::~THD()
     that memory allocation counting is done correctly
   */
   set_current_thd(this);
+  if (!status_in_global)
+    add_status_to_global();
 
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
@@ -1695,13 +1701,14 @@ THD::~THD()
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
+  status_var.local_memory_used-= sizeof(THD);
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
     DBUG_ASSERT(status_var.local_memory_used == 0);
   }
-
+  update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
@@ -1719,6 +1726,7 @@ THD::~THD()
     This function assumes that all variables at start are long/ulong and
     other types are handled explicitely
 */
+
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
 {
@@ -1739,12 +1747,17 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
-  to_var->local_memory_used+=   from_var->local_memory_used;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
     global value can change outside of LOCK_status.
   */
+  if (to_var == &global_status_var)
+  {
+    DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
+                        (longlong) global_status_var.global_memory_used,
+                        (longlong) from_var->global_memory_used));
+  }
   // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
   int64 volatile * volatile ptr= &to_var->global_memory_used;
   my_atomic_add64_explicit(ptr, from_var->global_memory_used,
@@ -1816,7 +1829,8 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 void THD::awake(killed_state state_to_set)
 {
   DBUG_ENTER("THD::awake");
-  DBUG_PRINT("enter", ("this: %p current_thd: %p", this, current_thd));
+  DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
+                       this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
@@ -1959,46 +1973,63 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 {
   THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
+  DBUG_ENTER("THD::notify_shared_lock");
+  DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_CONNECTION;
-    mysql_mutex_lock(&in_use->mysys_var->mutex);
-    if (in_use->mysys_var->current_cond)
-      mysql_cond_broadcast(in_use->mysys_var->current_cond);
-    mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    /* This code is similar to kill_delayed_threads() */
+    DBUG_PRINT("info", ("kill delayed thread"));
+    mysql_mutex_lock(&in_use->LOCK_thd_data);
+    if (in_use->killed < KILL_CONNECTION)
+      in_use->killed= KILL_CONNECTION;
+    if (in_use->mysys_var)
+    {
+      mysql_mutex_lock(&in_use->mysys_var->mutex);
+      if (in_use->mysys_var->current_cond)
+        mysql_cond_broadcast(in_use->mysys_var->current_cond);
+
+      /* Abort if about to wait in thr_upgrade_write_delay_lock */
+      in_use->mysys_var->abort= 1;
+      mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    }
+    mysql_mutex_unlock(&in_use->LOCK_thd_data);
     signalled= TRUE;
   }
 
   if (needs_thr_lock_abort)
   {
     mysql_mutex_lock(&in_use->LOCK_thd_data);
-    for (TABLE *thd_table= in_use->open_tables;
-         thd_table ;
-         thd_table= thd_table->next)
+    /* If not already dying */
+    if (in_use->killed != KILL_CONNECTION_HARD)
     {
-      /*
-        Check for TABLE::needs_reopen() is needed since in some places we call
-        handler::close() for table instance (and set TABLE::db_stat to 0)
-        and do not remove such instances from the THD::open_tables
-        for some time, during which other thread can see those instances
-        (e.g. see partitioning code).
-      */
-      if (!thd_table->needs_reopen())
+      for (TABLE *thd_table= in_use->open_tables;
+           thd_table ;
+           thd_table= thd_table->next)
       {
-        signalled|= mysql_lock_abort_for_thread(this, thd_table);
-        if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+        /*
+          Check for TABLE::needs_reopen() is needed since in some
+          places we call handler::close() for table instance (and set
+          TABLE::db_stat to 0) and do not remove such instances from
+          the THD::open_tables for some time, during which other
+          thread can see those instances (e.g. see partitioning code).
+        */
+        if (!thd_table->needs_reopen())
         {
-          WSREP_DEBUG("remove_table_from_cache: %llu",
-                      (unsigned long long) this->real_id);
-          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+          signalled|= mysql_lock_abort_for_thread(this, thd_table);
+          if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+          {
+            WSREP_DEBUG("remove_table_from_cache: %llu",
+                        (unsigned long long) this->real_id);
+            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+          }
         }
       }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
-  return signalled;
+  DBUG_RETURN(signalled);
 }
 
 
@@ -2073,7 +2104,7 @@ bool THD::store_globals()
   */
   mysys_var->id= thread_id;
 #ifdef __NR_gettid
-  os_thread_id= syscall(__NR_gettid);
+  os_thread_id= (uint32)syscall(__NR_gettid);
 #else
   os_thread_id= 0;
 #endif
@@ -2199,6 +2230,10 @@ void THD::cleanup_after_query()
   if (rgi_slave)
     rgi_slave->cleanup_after_query();
 #endif
+
+#ifdef WITH_WSREP
+  wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
+#endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
 }
@@ -4025,6 +4060,12 @@ void thd_increment_bytes_sent(void *thd, ulong length)
   }
 }
 
+my_bool thd_net_is_killed()
+{
+  THD *thd= current_thd;
+  return thd && thd->killed ? 1 : 0;
+}
+
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
@@ -5159,9 +5200,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user = invoker_user;
     definer->host= invoker_host;
-    definer->password= null_lex_str;
-    definer->plugin= empty_lex_str;
-    definer->auth= empty_lex_str;
+    definer->reset_auth();
   }
   else
 #endif
@@ -5442,6 +5481,94 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
                          &argument);
 }
 
+/*
+  Tells if two (or more) tables have auto_increment columns and we want to
+  lock those tables with a write lock.
+
+  SYNOPSIS
+    has_two_write_locked_tables_with_auto_increment
+      tables        Table list
+
+  NOTES:
+    Call this function only when you have established the list of all tables
+    which you'll want to update (including stored functions, triggers, views
+    inside your statement).
+*/
+
+static bool
+has_write_table_with_auto_increment(TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    /* we must do preliminary checks as table->table may be NULL */
+    if (!table->placeholder() &&
+        table->table->found_next_number_field &&
+        (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      return 1;
+  }
+
+  return 0;
+}
+
+/*
+   checks if we have select tables in the table list and write tables
+   with auto-increment column.
+
+  SYNOPSIS
+   has_two_write_locked_tables_with_auto_increment_and_select
+      tables        Table list
+
+  RETURN VALUES
+
+   -true if the table list has atleast one table with auto-increment column
+
+
+         and atleast one table to select from.
+   -false otherwise
+*/
+
+static bool
+has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
+{
+  bool has_select= false;
+  bool has_auto_increment_tables = has_write_table_with_auto_increment(tables);
+  for(TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+     if (!table->placeholder() &&
+        (table->lock_type <= TL_READ_NO_INSERT))
+      {
+        has_select= true;
+        break;
+      }
+  }
+  return(has_select && has_auto_increment_tables);
+}
+
+/*
+  Tells if there is a table whose auto_increment column is a part
+  of a compound primary key while is not the first column in
+  the table definition.
+
+  @param tables Table list
+
+  @return true if the table exists, fais if does not.
+*/
+
+static bool
+has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    /* we must do preliminary checks as table->table may be NULL */
+    if (!table->placeholder() &&
+        table->table->found_next_number_field &&
+        (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        && table->table->s->next_number_keypart != 0)
+      return 1;
+  }
+
+  return 0;
+}
 
 /**
   Decide on logging format to use for the statement and issue errors
@@ -5514,16 +5641,13 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
      BINLOG_FORMAT = STATEMENT and at least one table uses a storage
      engine limited to row-logging.
 
-  6. Error: Cannot execute row injection: binlogging impossible since
-     BINLOG_FORMAT = STATEMENT.
-
-  7. Warning: Unsafe statement binlogged in statement format since
+  6. Warning: Unsafe statement binlogged in statement format since
      BINLOG_FORMAT = STATEMENT.
 
   In addition, we can produce the following error (not depending on
   the variables of the decision diagram):
 
-  8. Error: Cannot execute statement: binlogging impossible since more
+  7. Error: Cannot execute statement: binlogging impossible since more
      than one engine is involved and at least one engine is
      self-logging.
 
@@ -5628,6 +5752,31 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                            prelocked_mode_name[locked_tables_mode]));
     }
 #endif
+
+    if (wsrep_binlog_format() != BINLOG_FORMAT_ROW && tables)
+    {
+      /*
+        DML statements that modify a table with an auto_increment column based on
+        rows selected from a table are unsafe as the order in which the rows are
+        fetched fron the select tables cannot be determined and may differ on
+        master and slave.
+       */
+      if (has_write_table_with_auto_increment_and_select(tables))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
+
+      if (has_write_table_auto_increment_not_first_in_pk(tables))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
+
+      /*
+        A query that modifies autoinc column in sub-statement can make the
+        master and slave inconsistent.
+        We can solve these problems in mixed mode by switching to binlogging
+        if at least one updated table is used by sub-statement
+       */
+      if (lex->requires_prelocking() &&
+          has_write_table_with_auto_increment(lex->first_not_own_table()))
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
+    }
 
     /*
       Get the capabilities vector for all involved storage engines and
@@ -5802,10 +5951,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (lex->is_stmt_row_injection())
         {
           /*
-            6. Error: Cannot execute row injection since
-               BINLOG_FORMAT = STATEMENT
+            We have to log the statement as row or give an error.
+            Better to accept what master gives us than stopping replication.
           */
-          my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_MODE), MYF(0));
+          set_current_stmt_binlog_format_row();
         }
         else if ((flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0 &&
                  sqlcom_can_generate_row_events(this))
@@ -5833,7 +5982,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           DBUG_PRINT("info", ("binlog_unsafe_warning_flags: 0x%x",
                               binlog_unsafe_warning_flags));
         }
-        /* log in statement format! */
+        /* log in statement format (or row if row event)! */
       }
       /* No statement-only engines and binlog_format != STATEMENT.
          I.e., nothing prevents us from row logging if needed. */
@@ -6175,7 +6324,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 
   uchar *row_data= memory.slot(0);
 
-  size_t const len= pack_row(table, table->write_set, row_data, record);
+  size_t const len= pack_row(table, table->rpl_write_set, row_data, record);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6199,13 +6348,6 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
-  /**
-    Save a reference to the original read and write set bitmaps.
-    We will need this to restore the bitmaps at the end.
-   */
-  MY_BITMAP *old_read_set= table->read_set;
-  MY_BITMAP *old_write_set= table->write_set;
-
   size_t const before_maxlen = max_row_length(table, before_record);
   size_t const after_maxlen  = max_row_length(table, after_record);
 
@@ -6218,7 +6360,7 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 
   size_t const before_size= pack_row(table, table->read_set, before_row,
                                         before_record);
-  size_t const after_size= pack_row(table, table->write_set, after_row,
+  size_t const after_size= pack_row(table, table->rpl_write_set, after_row,
                                        after_record);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -6247,10 +6389,6 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   int error=  ev->add_row_data(before_row, before_size) ||
               ev->add_row_data(after_row, after_size);
 
-  /* restore read/write set for the rest of execution */
-  table->column_bitmaps_set_no_signal(old_read_set,
-                                      old_write_set);
-
   return error;
 
 }
@@ -6261,11 +6399,13 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
   /**
-    Save a reference to the original read and write set bitmaps.
-    We will need this to restore the bitmaps at the end.
-   */
+    Save a reference to the original read bitmaps
+    We will need this to restore the bitmaps at the end as
+    binlog_prepare_row_images() may change table->read_set.
+    table->read_set is used by pack_row and deep in
+    binlog_prepare_pending_events().
+  */
   MY_BITMAP *old_read_set= table->read_set;
-  MY_BITMAP *old_write_set= table->write_set;
 
   /** 
      This will remove spurious fields required during execution but
@@ -6302,9 +6442,9 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 
   int error= ev->add_row_data(row_data, len);
 
-  /* restore read/write set for the rest of execution */
+  /* restore read set for the rest of execution */
   table->column_bitmaps_set_no_signal(old_read_set,
-                                      old_write_set);
+                                      table->write_set);
 
   return error;
 }

@@ -27,7 +27,9 @@ UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 
 --connection node_2
 # Make sure IST will block ...
-SET GLOBAL wsrep_provider_options = 'dbug=d,recv_IST_after_apply_trx';
+--let $galera_sync_point = recv_IST_after_apply_trx
+--source include/galera_set_sync_point.inc
+
 SET SESSION wsrep_sync_wait = 0;
 
 

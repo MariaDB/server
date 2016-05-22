@@ -523,6 +523,7 @@ typedef struct st_maria_share
      Keep of track of last insert page, used to implement insert order
   */
   uint last_insert_page;
+  pgcache_page_no_t last_insert_bitmap;
 } MARIA_SHARE;
 
 
@@ -1351,7 +1352,8 @@ void _ma_remap_file(MARIA_HA *info, my_off_t size);
 
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
-int maria_delete_table_files(const char *name, myf sync_dir);
+int maria_delete_table_files(const char *name, my_bool temporary,
+                             myf sync_dir);
 
 /*
   This cannot be in my_base.h as it clashes with HA_SPATIAL.

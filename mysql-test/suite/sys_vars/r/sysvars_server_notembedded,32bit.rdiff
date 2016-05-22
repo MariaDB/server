@@ -1,5 +1,5 @@
---- suite/sys_vars/r/sysvars_server_notembedded.result
-+++ suite/sys_vars/r/sysvars_server_notembedded,32bit.reject
+--- suite/sys_vars/r/sysvars_server_notembedded.result	2016-03-22 21:25:49.000000000 +0100
++++ suite/sys_vars/r/sysvars_server_notembedded.reject	2016-03-23 01:11:50.000000000 +0100
 @@ -57,7 +57,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	1
@@ -179,7 +179,7 @@
  VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; possible purges happen at startup and at binary log rotation
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	99
-@@ -841,7 +841,7 @@
+@@ -855,7 +855,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -188,7 +188,7 @@
  VARIABLE_COMMENT	The number of connections on extra-port
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	100000
-@@ -883,7 +883,7 @@
+@@ -897,7 +897,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -197,7 +197,7 @@
  VARIABLE_COMMENT	A dedicated thread is created to flush all tables at the given interval
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
-@@ -925,7 +925,7 @@
+@@ -939,7 +939,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	84
  VARIABLE_SCOPE	GLOBAL
@@ -206,7 +206,7 @@
  VARIABLE_COMMENT	The maximum length of the word to be included in a FULLTEXT index. Note: FULLTEXT indexes must be rebuilt after changing this variable
  NUMERIC_MIN_VALUE	10
  NUMERIC_MAX_VALUE	84
-@@ -939,7 +939,7 @@
+@@ -953,7 +953,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4
  VARIABLE_SCOPE	GLOBAL
@@ -215,7 +215,7 @@
  VARIABLE_COMMENT	The minimum length of the word to be included in a FULLTEXT index. Note: FULLTEXT indexes must be rebuilt after changing this variable
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	84
-@@ -953,7 +953,7 @@
+@@ -967,7 +967,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	20
  VARIABLE_SCOPE	GLOBAL
@@ -224,7 +224,7 @@
  VARIABLE_COMMENT	Number of best matches to use for query expansion
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1000
-@@ -1012,7 +1012,7 @@
+@@ -1026,7 +1026,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The maximum length of the result of function  GROUP_CONCAT()
  NUMERIC_MIN_VALUE	4
@@ -233,7 +233,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1247,7 +1247,7 @@
+@@ -1261,7 +1261,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -242,7 +242,7 @@
  VARIABLE_COMMENT	Number of bytes used for a histogram. If set to 0, no histograms are created by ANALYZE.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	255
-@@ -1275,7 +1275,7 @@
+@@ -1289,7 +1289,7 @@
  GLOBAL_VALUE_ORIGIN	AUTO
  DEFAULT_VALUE	128
  VARIABLE_SCOPE	GLOBAL
@@ -251,7 +251,7 @@
  VARIABLE_COMMENT	How many host names should be cached to avoid resolving.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	65536
-@@ -1387,7 +1387,7 @@
+@@ -1401,7 +1401,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	28800
  VARIABLE_SCOPE	SESSION
@@ -260,7 +260,7 @@
  VARIABLE_COMMENT	The number of seconds the server waits for activity on an interactive connection before closing it
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -1418,7 +1418,7 @@
+@@ -1432,7 +1432,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The size of the buffer that is used for joins
  NUMERIC_MIN_VALUE	128
@@ -269,7 +269,7 @@
  NUMERIC_BLOCK_SIZE	128
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1443,7 +1443,7 @@
+@@ -1457,7 +1457,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	SESSION
@@ -278,7 +278,7 @@
  VARIABLE_COMMENT	Controls what join operations can be executed with join buffers. Odd numbers are used for plain join buffers while even numbers are used for linked buffers
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	8
-@@ -1474,7 +1474,7 @@
+@@ -1488,7 +1488,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The size of the buffer used for index blocks for MyISAM tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford
  NUMERIC_MIN_VALUE	0
@@ -287,7 +287,7 @@
  NUMERIC_BLOCK_SIZE	4096
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1695,7 +1695,7 @@
+@@ -1709,7 +1709,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	31536000
  VARIABLE_SCOPE	SESSION
@@ -296,7 +296,7 @@
  VARIABLE_COMMENT	Timeout in seconds to wait for a lock before returning an error.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -1835,7 +1835,7 @@
+@@ -1863,7 +1863,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
@@ -305,7 +305,7 @@
  VARIABLE_COMMENT	Write to slow log every #th slow query. Set to 1 to log everything. Increase it to reduce the size of the slow or the performance impact of slow logging
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -1863,7 +1863,7 @@
+@@ -1905,7 +1905,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
@@ -314,7 +314,7 @@
  VARIABLE_COMMENT	Log some not critical warnings to the general log file.Value can be between 0 and 11. Higher values mean more verbosity
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -1919,7 +1919,7 @@
+@@ -1961,7 +1961,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4194304
  VARIABLE_SCOPE	SESSION
@@ -323,7 +323,7 @@
  VARIABLE_COMMENT	Max packet length to send to or receive from the server
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
-@@ -1929,14 +1929,14 @@
+@@ -1971,14 +1971,14 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	MAX_BINLOG_CACHE_SIZE
  SESSION_VALUE	NULL
@@ -341,7 +341,7 @@
  NUMERIC_BLOCK_SIZE	4096
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1947,7 +1947,7 @@
+@@ -1989,7 +1989,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1073741824
  VARIABLE_SCOPE	GLOBAL
@@ -350,7 +350,7 @@
  VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value.
  NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	1073741824
-@@ -1957,14 +1957,14 @@
+@@ -1999,14 +1999,14 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	MAX_BINLOG_STMT_CACHE_SIZE
  SESSION_VALUE	NULL
@@ -368,7 +368,7 @@
  NUMERIC_BLOCK_SIZE	4096
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1975,7 +1975,7 @@
+@@ -2017,7 +2017,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	151
  VARIABLE_SCOPE	GLOBAL
@@ -377,7 +377,7 @@
  VARIABLE_COMMENT	The number of simultaneous clients allowed
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	100000
-@@ -1989,7 +1989,7 @@
+@@ -2031,7 +2031,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	100
  VARIABLE_SCOPE	GLOBAL
@@ -386,7 +386,7 @@
  VARIABLE_COMMENT	If there is more than this number of interrupted connections from a host this host will be blocked from further connections
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2003,7 +2003,7 @@
+@@ -2045,7 +2045,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	20
  VARIABLE_SCOPE	SESSION
@@ -395,7 +395,7 @@
  VARIABLE_COMMENT	Don't start more than this number of threads to handle INSERT DELAYED statements. If set to zero INSERT DELAYED will be not used
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
-@@ -2031,7 +2031,7 @@
+@@ -2073,7 +2073,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	64
  VARIABLE_SCOPE	SESSION
@@ -404,7 +404,7 @@
  VARIABLE_COMMENT	Max number of errors/warnings to store for a statement
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	65535
-@@ -2048,7 +2048,7 @@
+@@ -2090,7 +2090,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Don't allow creation of heap tables bigger than this
  NUMERIC_MIN_VALUE	16384
@@ -413,7 +413,7 @@
  NUMERIC_BLOCK_SIZE	1024
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -2059,7 +2059,7 @@
+@@ -2101,7 +2101,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	20
  VARIABLE_SCOPE	SESSION
@@ -422,7 +422,7 @@
  VARIABLE_COMMENT	Don't start more than this number of threads to handle INSERT DELAYED statements. If set to zero INSERT DELAYED will be not used
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
-@@ -2087,7 +2087,7 @@
+@@ -2129,7 +2129,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	SESSION
@@ -431,7 +431,7 @@
  VARIABLE_COMMENT	Max number of bytes in sorted records
  NUMERIC_MIN_VALUE	4
  NUMERIC_MAX_VALUE	8388608
-@@ -2101,7 +2101,7 @@
+@@ -2143,7 +2143,7 @@
  GLOBAL_VALUE_ORIGIN	AUTO
  DEFAULT_VALUE	1048576
  VARIABLE_SCOPE	GLOBAL
@@ -440,7 +440,7 @@
  VARIABLE_COMMENT	The maximum BLOB length to send to server from mysql_send_long_data API. Deprecated option; use max_allowed_packet instead.
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	4294967295
-@@ -2115,7 +2115,7 @@
+@@ -2157,7 +2157,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	16382
  VARIABLE_SCOPE	GLOBAL
@@ -449,7 +449,7 @@
  VARIABLE_COMMENT	Maximum number of prepared statements in the server
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
-@@ -2143,7 +2143,7 @@
+@@ -2185,7 +2185,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4294967295
  VARIABLE_SCOPE	SESSION
@@ -458,7 +458,7 @@
  VARIABLE_COMMENT	Limit assumed max number of seeks when looking up rows based on a key
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2157,7 +2157,7 @@
+@@ -2199,7 +2199,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	SESSION
@@ -467,7 +467,7 @@
  VARIABLE_COMMENT	The number of bytes to use when sorting BLOB or TEXT values (only the first max_sort_length bytes of each value are used; the rest are ignored)
  NUMERIC_MIN_VALUE	4
  NUMERIC_MAX_VALUE	8388608
-@@ -2171,7 +2171,7 @@
+@@ -2213,7 +2213,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -476,7 +476,7 @@
  VARIABLE_COMMENT	Maximum stored procedure recursion depth
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	255
-@@ -2199,7 +2199,7 @@
+@@ -2241,7 +2241,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	32
  VARIABLE_SCOPE	SESSION
@@ -485,7 +485,7 @@
  VARIABLE_COMMENT	Unused, will be removed.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2227,7 +2227,7 @@
+@@ -2269,7 +2269,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4294967295
  VARIABLE_SCOPE	GLOBAL
@@ -494,7 +494,7 @@
  VARIABLE_COMMENT	After this many write locks, allow some read locks to run in between
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2241,7 +2241,7 @@
+@@ -2283,7 +2283,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	GLOBAL
@@ -503,7 +503,7 @@
  VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1048576
-@@ -2255,7 +2255,7 @@
+@@ -2297,7 +2297,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	8
  VARIABLE_SCOPE	GLOBAL
@@ -512,7 +512,7 @@
  VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1024
-@@ -2269,7 +2269,7 @@
+@@ -2311,7 +2311,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -521,7 +521,7 @@
  VARIABLE_COMMENT	Don't write queries to slow log that examine fewer rows than that
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -2283,7 +2283,7 @@
+@@ -2325,7 +2325,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	262144
  VARIABLE_SCOPE	SESSION
@@ -530,7 +530,7 @@
  VARIABLE_COMMENT	Size of buffer to use when using MRR with range access
  NUMERIC_MIN_VALUE	8192
  NUMERIC_MAX_VALUE	2147483647
-@@ -2297,10 +2297,10 @@
+@@ -2339,10 +2339,10 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	256
  VARIABLE_SCOPE	SESSION
@@ -543,7 +543,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -2311,7 +2311,7 @@
+@@ -2353,7 +2353,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	GLOBAL
@@ -552,7 +552,7 @@
  VARIABLE_COMMENT	Block size to be used for MyISAM index pages
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	16384
-@@ -2325,7 +2325,7 @@
+@@ -2367,7 +2367,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	6
  VARIABLE_SCOPE	GLOBAL
@@ -561,7 +561,7 @@
  VARIABLE_COMMENT	Default pointer size to be used for MyISAM tables
  NUMERIC_MIN_VALUE	2
  NUMERIC_MAX_VALUE	7
-@@ -2335,9 +2335,9 @@
+@@ -2377,9 +2377,9 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	MYISAM_MAX_SORT_FILE_SIZE
  SESSION_VALUE	NULL
@@ -573,7 +573,7 @@
  VARIABLE_SCOPE	GLOBAL
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Don't use the fast sort index method to created index if the temporary file would get bigger than this
-@@ -2349,14 +2349,14 @@
+@@ -2391,14 +2391,14 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	MYISAM_MMAP_SIZE
  SESSION_VALUE	NULL
@@ -591,7 +591,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	YES
-@@ -2381,10 +2381,10 @@
+@@ -2423,10 +2423,10 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
@@ -604,7 +604,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -2398,7 +2398,7 @@
+@@ -2440,7 +2440,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
  NUMERIC_MIN_VALUE	4096
@@ -613,7 +613,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -2451,7 +2451,7 @@
+@@ -2493,7 +2493,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	16384
  VARIABLE_SCOPE	SESSION
@@ -622,7 +622,7 @@
  VARIABLE_COMMENT	Buffer length for TCP/IP and socket communication
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1048576
-@@ -2465,7 +2465,7 @@
+@@ -2507,7 +2507,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	30
  VARIABLE_SCOPE	SESSION
@@ -631,7 +631,7 @@
  VARIABLE_COMMENT	Number of seconds to wait for more data from a connection before aborting the read
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -2479,7 +2479,7 @@
+@@ -2521,7 +2521,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	SESSION
@@ -640,7 +640,7 @@
  VARIABLE_COMMENT	If a read on a communication port is interrupted, retry this many times before giving up
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -2493,7 +2493,7 @@
+@@ -2535,7 +2535,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	60
  VARIABLE_SCOPE	SESSION
@@ -649,7 +649,7 @@
  VARIABLE_COMMENT	Number of seconds to wait for a block to be written to a connection before aborting the write
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -2563,7 +2563,7 @@
+@@ -2605,7 +2605,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
@@ -658,7 +658,7 @@
  VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search; 1 - prune plans based on number of retrieved rows
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1
-@@ -2577,7 +2577,7 @@
+@@ -2619,7 +2619,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	62
  VARIABLE_SCOPE	SESSION
@@ -667,7 +667,7 @@
  VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value; if set to 63, the optimizer will switch to the original find_best search. NOTE: The value 63 and its associated behaviour is deprecated
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	63
-@@ -2591,7 +2591,7 @@
+@@ -2633,7 +2633,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	100
  VARIABLE_SCOPE	SESSION
@@ -676,7 +676,7 @@
  VARIABLE_COMMENT	Controls number of record samples to check condition selectivity
  NUMERIC_MIN_VALUE	10
  NUMERIC_MAX_VALUE	4294967295
-@@ -2619,7 +2619,7 @@
+@@ -2661,7 +2661,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	SESSION
@@ -685,7 +685,7 @@
  VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join.5 - additionally use selectivity of certain non-range predicates calculated on record samples
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	5
-@@ -2647,7 +2647,7 @@
+@@ -2689,7 +2689,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -694,7 +694,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented user@host accounts. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2661,7 +2661,7 @@
+@@ -2703,7 +2703,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -703,7 +703,7 @@
  VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	200
-@@ -2675,7 +2675,7 @@
+@@ -2717,7 +2717,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -712,7 +712,7 @@
  VARIABLE_COMMENT	Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2689,7 +2689,7 @@
+@@ -2731,7 +2731,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -721,7 +721,7 @@
  VARIABLE_COMMENT	Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
-@@ -2703,7 +2703,7 @@
+@@ -2745,7 +2745,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -730,7 +730,7 @@
  VARIABLE_COMMENT	Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2717,7 +2717,7 @@
+@@ -2759,7 +2759,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -739,7 +739,7 @@
  VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_HISTORY. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
-@@ -2731,7 +2731,7 @@
+@@ -2773,7 +2773,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -748,7 +748,7 @@
  VARIABLE_COMMENT	Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2745,7 +2745,7 @@
+@@ -2787,7 +2787,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -757,7 +757,7 @@
  VARIABLE_COMMENT	Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1024
-@@ -2759,7 +2759,7 @@
+@@ -2801,7 +2801,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -766,7 +766,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented hosts. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2773,7 +2773,7 @@
+@@ -2815,7 +2815,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	80
  VARIABLE_SCOPE	GLOBAL
@@ -775,7 +775,7 @@
  VARIABLE_COMMENT	Maximum number of condition instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2787,7 +2787,7 @@
+@@ -2829,7 +2829,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -784,7 +784,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented condition objects. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2801,7 +2801,7 @@
+@@ -2843,7 +2843,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1024
  VARIABLE_SCOPE	GLOBAL
@@ -793,7 +793,7 @@
  VARIABLE_COMMENT	Maximum length considered for digest text, when stored in performance_schema tables.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
-@@ -2801,7 +2801,7 @@
+@@ -2857,7 +2857,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	50
  VARIABLE_SCOPE	GLOBAL
@@ -802,7 +802,7 @@
  VARIABLE_COMMENT	Maximum number of file instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2815,7 +2815,7 @@
+@@ -2871,7 +2871,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	32768
  VARIABLE_SCOPE	GLOBAL
@@ -811,7 +811,7 @@
  VARIABLE_COMMENT	Maximum number of opened instrumented files.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
-@@ -2829,7 +2829,7 @@
+@@ -2885,7 +2885,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -820,7 +820,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented files. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2843,7 +2843,7 @@
+@@ -2899,7 +2899,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	200
  VARIABLE_SCOPE	GLOBAL
@@ -829,7 +829,7 @@
  VARIABLE_COMMENT	Maximum number of mutex instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2857,7 +2857,7 @@
+@@ -2913,7 +2913,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -838,7 +838,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented MUTEX objects. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	104857600
-@@ -2871,7 +2871,7 @@
+@@ -2927,7 +2927,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	40
  VARIABLE_SCOPE	GLOBAL
@@ -847,7 +847,7 @@
  VARIABLE_COMMENT	Maximum number of rwlock instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2885,7 +2885,7 @@
+@@ -2941,7 +2941,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -856,7 +856,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented RWLOCK objects. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	104857600
-@@ -2899,7 +2899,7 @@
+@@ -2955,7 +2955,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	GLOBAL
@@ -865,7 +865,7 @@
  VARIABLE_COMMENT	Maximum number of socket instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2913,7 +2913,7 @@
+@@ -2969,7 +2969,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -874,7 +874,7 @@
  VARIABLE_COMMENT	Maximum number of opened instrumented sockets. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2927,7 +2927,7 @@
+@@ -2983,7 +2983,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	150
  VARIABLE_SCOPE	GLOBAL
@@ -883,7 +883,7 @@
  VARIABLE_COMMENT	Maximum number of stage instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2941,7 +2941,7 @@
+@@ -2997,7 +2997,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	178
  VARIABLE_SCOPE	GLOBAL
@@ -892,7 +892,7 @@
  VARIABLE_COMMENT	Maximum number of statement instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2955,7 +2955,7 @@
+@@ -3011,7 +3011,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -901,7 +901,7 @@
  VARIABLE_COMMENT	Maximum number of opened instrumented tables. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2969,7 +2969,7 @@
+@@ -3025,7 +3025,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -910,7 +910,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented tables. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2983,7 +2983,7 @@
+@@ -3039,7 +3039,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	50
  VARIABLE_SCOPE	GLOBAL
@@ -919,7 +919,7 @@
  VARIABLE_COMMENT	Maximum number of thread instruments.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	256
-@@ -2997,7 +2997,7 @@
+@@ -3053,7 +3053,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -928,7 +928,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented threads. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -3011,7 +3011,7 @@
+@@ -3067,7 +3067,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -937,7 +937,7 @@
  VARIABLE_COMMENT	Size of session attribute string buffer per thread. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -3025,7 +3025,7 @@
+@@ -3081,7 +3081,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	100
  VARIABLE_SCOPE	GLOBAL
@@ -946,7 +946,7 @@
  VARIABLE_COMMENT	Maximum number of rows in SETUP_ACTORS.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1024
-@@ -3039,7 +3039,7 @@
+@@ -3095,7 +3095,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	100
  VARIABLE_SCOPE	GLOBAL
@@ -955,7 +955,7 @@
  VARIABLE_COMMENT	Maximum number of rows in SETUP_OBJECTS.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1048576
-@@ -3053,7 +3053,7 @@
+@@ -3109,7 +3109,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	-1
  VARIABLE_SCOPE	GLOBAL
@@ -964,7 +964,7 @@
  VARIABLE_COMMENT	Maximum number of instrumented users. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -3123,7 +3123,7 @@
+@@ -3179,7 +3179,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	32768
  VARIABLE_SCOPE	SESSION
@@ -973,7 +973,7 @@
  VARIABLE_COMMENT	The size of the buffer that is allocated when preloading indexes
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
-@@ -3151,7 +3151,7 @@
+@@ -3207,7 +3207,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	15
  VARIABLE_SCOPE	SESSION
@@ -982,7 +982,7 @@
  VARIABLE_COMMENT	Limit of query profiling memory
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
-@@ -3165,7 +3165,7 @@
+@@ -3221,7 +3221,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	5
  VARIABLE_SCOPE	SESSION
@@ -991,7 +991,7 @@
  VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3221,10 +3221,10 @@
+@@ -3277,10 +3277,10 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION ONLY
@@ -1004,7 +1004,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3235,7 +3235,7 @@
+@@ -3291,7 +3291,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	16384
  VARIABLE_SCOPE	SESSION
@@ -1013,7 +1013,7 @@
  VARIABLE_COMMENT	Allocation block size for query parsing and execution
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	4294967295
-@@ -3249,7 +3249,7 @@
+@@ -3305,7 +3305,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1048576
  VARIABLE_SCOPE	GLOBAL
@@ -1022,7 +1022,7 @@
  VARIABLE_COMMENT	Don't cache results that are bigger than this
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3263,7 +3263,7 @@
+@@ -3319,7 +3319,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4096
  VARIABLE_SCOPE	GLOBAL
@@ -1031,7 +1031,7 @@
  VARIABLE_COMMENT	The minimum size for blocks allocated by the query cache
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3280,7 +3280,7 @@
+@@ -3336,7 +3336,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	The memory allocated to store results from old queries
  NUMERIC_MIN_VALUE	0
@@ -1040,7 +1040,7 @@
  NUMERIC_BLOCK_SIZE	1024
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3333,7 +3333,7 @@
+@@ -3389,7 +3389,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	24576
  VARIABLE_SCOPE	SESSION
@@ -1049,7 +1049,7 @@
  VARIABLE_COMMENT	Persistent buffer for query parsing and execution
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	4294967295
-@@ -3347,7 +3347,7 @@
+@@ -3403,7 +3403,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4096
  VARIABLE_SCOPE	SESSION
@@ -1058,7 +1058,7 @@
  VARIABLE_COMMENT	Allocation block size for storing ranges during optimization
  NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	4294967295
-@@ -3361,7 +3361,7 @@
+@@ -3417,7 +3417,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	131072
  VARIABLE_SCOPE	SESSION
@@ -1067,7 +1067,7 @@
  VARIABLE_COMMENT	Each thread that does a sequential scan allocates a buffer of this size for each table it scans. If you do many sequential scans, you may want to increase this value
  NUMERIC_MIN_VALUE	8192
  NUMERIC_MAX_VALUE	2147483647
-@@ -3389,7 +3389,7 @@
+@@ -3445,7 +3445,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	262144
  VARIABLE_SCOPE	SESSION
@@ -1076,7 +1076,7 @@
  VARIABLE_COMMENT	When reading rows in sorted order after a sort, the rows are read through this buffer to avoid a disk seeks
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	2147483647
-@@ -3669,10 +3669,10 @@
+@@ -3725,10 +3725,10 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	8388608
  VARIABLE_SCOPE	SESSION
@@ -1089,7 +1089,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3711,7 +3711,7 @@
+@@ -3767,7 +3767,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -1098,7 +1098,7 @@
  VARIABLE_COMMENT	Uniquely identifies the server instance in the community of replication partners
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3837,7 +3837,7 @@
+@@ -3893,7 +3893,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -1107,7 +1107,7 @@
  VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3879,7 +3879,7 @@
+@@ -3935,7 +3935,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1073741824
  VARIABLE_SCOPE	GLOBAL
@@ -1116,7 +1116,7 @@
  VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave.
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
-@@ -3907,7 +3907,7 @@
+@@ -3963,7 +3963,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	131072
  VARIABLE_SCOPE	GLOBAL
@@ -1125,7 +1125,7 @@
  VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2147483647
-@@ -3935,7 +3935,7 @@
+@@ -3991,7 +3991,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -1134,7 +1134,7 @@
  VARIABLE_COMMENT	If non-zero, number of threads to spawn to apply in parallel events on the slave that were group-committed on the master or were logged with GTID in different replication domains. Note that these threads are in addition to the IO and SQL threads, which are always created by a replication slave
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3991,7 +3991,7 @@
+@@ -4047,7 +4047,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	GLOBAL
@@ -1143,7 +1143,7 @@
  VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout, before giving up and stopping
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -4019,7 +4019,7 @@
+@@ -4075,7 +4075,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
@@ -1152,7 +1152,7 @@
  VARIABLE_COMMENT	If creating the thread takes longer than this value (in seconds), the Slow_launch_threads counter will be incremented
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
-@@ -4078,7 +4078,7 @@
+@@ -4134,7 +4134,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Each thread that needs to do a sort allocates a buffer of this size
  NUMERIC_MIN_VALUE	1024
@@ -1161,7 +1161,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4369,7 +4369,7 @@
+@@ -4425,7 +4425,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	256
  VARIABLE_SCOPE	GLOBAL
@@ -1170,7 +1170,7 @@
  VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	524288
-@@ -4467,7 +4467,7 @@
+@@ -4523,7 +4523,7 @@
  GLOBAL_VALUE_ORIGIN	AUTO
  DEFAULT_VALUE	400
  VARIABLE_SCOPE	GLOBAL
@@ -1179,7 +1179,7 @@
  VARIABLE_COMMENT	The number of cached table definitions
  NUMERIC_MIN_VALUE	400
  NUMERIC_MAX_VALUE	524288
-@@ -4481,7 +4481,7 @@
+@@ -4537,7 +4537,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2000
  VARIABLE_SCOPE	GLOBAL
@@ -1188,7 +1188,7 @@
  VARIABLE_COMMENT	The number of cached open tables
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	524288
-@@ -4495,7 +4495,7 @@
+@@ -4551,7 +4551,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -1197,7 +1197,7 @@
  VARIABLE_COMMENT	How many threads we should keep in a cache for reuse
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
-@@ -4509,7 +4509,7 @@
+@@ -4565,7 +4565,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	GLOBAL
@@ -1206,7 +1206,7 @@
  VARIABLE_COMMENT	Permits the application to give the threads system a hint for the desired number of threads that should be run at the same time.This variable has no effect, and is deprecated. It will be removed in a future release.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	512
-@@ -4694,7 +4694,7 @@
+@@ -4750,7 +4750,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MySQL will automatically convert it to an on-disk MyISAM or Aria table
  NUMERIC_MIN_VALUE	1024
@@ -1215,7 +1215,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4705,7 +4705,7 @@
+@@ -4761,7 +4761,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	8192
  VARIABLE_SCOPE	SESSION
@@ -1224,7 +1224,7 @@
  VARIABLE_COMMENT	Allocation block size for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -4719,7 +4719,7 @@
+@@ -4775,7 +4775,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4096
  VARIABLE_SCOPE	SESSION
@@ -1233,7 +1233,7 @@
  VARIABLE_COMMENT	Persistent buffer for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -4817,7 +4817,7 @@
+@@ -4873,7 +4873,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	28800
  VARIABLE_SCOPE	SESSION
@@ -1242,7 +1242,7 @@
  VARIABLE_COMMENT	The number of seconds the server waits for activity on a connection before closing it
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -4921,7 +4921,7 @@
+@@ -4977,7 +4977,7 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	OPEN_FILES_LIMIT
  VARIABLE_SCOPE	GLOBAL
@@ -1251,7 +1251,7 @@
  VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -4934,7 +4934,7 @@
+@@ -4990,7 +4990,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Sets the internal state of the RAND() generator for replication purposes
  NUMERIC_MIN_VALUE	0
@@ -1260,7 +1260,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4944,7 +4944,7 @@
+@@ -5000,7 +5000,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Sets the internal state of the RAND() generator for replication purposes
  NUMERIC_MIN_VALUE	0
@@ -1269,7 +1269,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5029,7 +5029,7 @@
+@@ -5085,7 +5085,7 @@
  VARIABLE_NAME	LOG_TC_SIZE
  GLOBAL_VALUE_ORIGIN	AUTO
  VARIABLE_SCOPE	GLOBAL

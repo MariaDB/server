@@ -16,6 +16,10 @@
 #ifndef _decimal_h
 #define _decimal_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum
 {TRUNCATE=0, HALF_EVEN, HALF_UP, CEILING, FLOOR}
   decimal_round_mode;
@@ -111,6 +115,10 @@ void max_decimal(int precision, int frac, decimal_t *to);
 
 #define E_DEC_ERROR            31
 #define E_DEC_FATAL_ERROR      30
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

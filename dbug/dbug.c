@@ -1106,6 +1106,7 @@ void _db_enter_(const char *_func_, const char *_file_,
   }
   save_errno= errno;
 
+  _stack_frame_->line= -1;
   _stack_frame_->func= cs->func;
   _stack_frame_->file= cs->file;
   cs->func=  _func_;
@@ -1161,14 +1162,17 @@ void _db_enter_(const char *_func_, const char *_file_,
  *
  */
 
-void _db_return_(uint _line_, struct _db_stack_frame_ *_stack_frame_)
+void _db_return_(struct _db_stack_frame_ *_stack_frame_)
 {
   int save_errno=errno;
   uint _slevel_= _stack_frame_->level & ~TRACE_ON;
   CODE_STATE *cs;
   get_code_state_or_return;
 
-  if (cs->framep != _stack_frame_)
+  if (_stack_frame_->line == 0)
+    return;
+
+  if (_stack_frame_->line == -1 || cs->framep != _stack_frame_)
   {
     char buf[512];
     my_snprintf(buf, sizeof(buf), ERR_MISSING_RETURN, cs->func);
@@ -1183,7 +1187,7 @@ void _db_return_(uint _line_, struct _db_stack_frame_ *_stack_frame_)
     {
       if (!cs->locked)
         pthread_mutex_lock(&THR_LOCK_dbug);
-      DoPrefix(cs, _line_);
+      DoPrefix(cs, _stack_frame_->line);
       Indent(cs, cs->level);
       (void) fprintf(cs->stack->out_file->file, "<%s\n", cs->func);
       DbugFlush(cs);

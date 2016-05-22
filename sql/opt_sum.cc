@@ -341,7 +341,8 @@ int opt_sum_query(THD *thd,
           there are no outer joins.
         */
         if (!conds && !((Item_sum_count*) item)->get_arg(0)->maybe_null &&
-            !outer_tables && maybe_exact_count)
+            !outer_tables && maybe_exact_count &&
+            ((item->used_tables() & OUTER_REF_TABLE_BIT) == 0))
         {
           if (!is_exact_count)
           {
@@ -369,7 +370,8 @@ int opt_sum_query(THD *thd,
           indexes to find the key.
         */
         Item *expr=item_sum->get_arg(0);
-        if (expr->real_item()->type() == Item::FIELD_ITEM)
+        if (((expr->used_tables() & OUTER_REF_TABLE_BIT) == 0) &&
+            expr->real_item()->type() == Item::FIELD_ITEM)
         {
           uchar key_buff[MAX_KEY_LENGTH];
           TABLE_REF ref;
@@ -654,12 +656,13 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
   if (!cond)
     DBUG_RETURN(TRUE);
   Field *field= field_part->field;
-  if (cond->used_tables() & OUTER_REF_TABLE_BIT)
+  table_map cond_used_tables= cond->used_tables();
+  if (cond_used_tables & OUTER_REF_TABLE_BIT)
   { 
     DBUG_RETURN(FALSE);
   } 
-  if (!(cond->used_tables() & field->table->map) &&
-      MY_TEST(cond->used_tables() & ~PSEUDO_TABLE_BITS))
+  if (!(cond_used_tables & field->table->map) &&
+      MY_TEST(cond_used_tables & ~PSEUDO_TABLE_BITS))
   {
     /* Condition doesn't restrict the used table */
     DBUG_RETURN(!cond->const_item());

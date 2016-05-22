@@ -568,7 +568,15 @@ public:
     str_length+= arg_length;
     return FALSE;
   }
-  void print(String *print) const;
+  void print(String *to) const;
+  void print_with_conversion(String *to, CHARSET_INFO *cs) const;
+  void print(String *to, CHARSET_INFO *cs) const
+  {
+    if (my_charset_same(charset(), cs))
+      print(to);
+    else
+      print_with_conversion(to, cs);
+  }
 
   bool append_for_single_quote(const char *st, uint len);
   bool append_for_single_quote(const String *s)

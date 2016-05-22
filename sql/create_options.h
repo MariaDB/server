@@ -23,7 +23,8 @@
 #define SQL_CREATE_OPTIONS_INCLUDED
 
 #include "sql_class.h"
-//#include "handler.h"
+
+enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 
 class engine_option_value: public Sql_alloc
 {
@@ -66,7 +67,8 @@ class engine_option_value: public Sql_alloc
       link(start, end);
     }
   }
-  static uchar *frm_read(const uchar *buff, engine_option_value **start,
+  static uchar *frm_read(const uchar *buff, const uchar *buff_end,
+                         engine_option_value **start,
                          engine_option_value **end, MEM_ROOT *root);
   void link(engine_option_value **start, engine_option_value **end);
   uint frm_length();

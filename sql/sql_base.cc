@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -168,11 +168,6 @@ static bool check_and_update_table_version(THD *thd, TABLE_LIST *tables,
                                            TABLE_SHARE *table_share);
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry);
 static bool auto_repair_table(THD *thd, TABLE_LIST *table_list);
-static bool
-has_write_table_with_auto_increment(TABLE_LIST *tables);
-static bool
-has_write_table_with_auto_increment_and_select(TABLE_LIST *tables);
-static bool has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables);
 
 
 /**
@@ -1137,13 +1132,20 @@ bool close_temporary_tables(THD *thd)
     DBUG_RETURN(FALSE);
   DBUG_ASSERT(!thd->rgi_slave);
 
+  /*
+    Ensure we don't have open HANDLERs for tables we are about to close.
+    This is necessary when close_temporary_tables() is called as part
+    of execution of BINLOG statement (e.g. for format description event).
+  */
+  mysql_ha_rm_temporary_tables(thd);
   if (!mysql_bin_log.is_open())
   {
     TABLE *tmp_next;
-    for (table= thd->temporary_tables; table; table= tmp_next)
+    for (TABLE *t= thd->temporary_tables; t; t= tmp_next)
     {
-      tmp_next= table->next;
-      close_temporary(table, 1, 1);
+      tmp_next= t->next;
+      mysql_lock_remove(thd, thd->lock, t);
+      close_temporary(t, 1, 1);
     }
     thd->temporary_tables= 0;
     DBUG_RETURN(FALSE);
@@ -1239,6 +1241,7 @@ bool close_temporary_tables(THD *thd)
                           strlen(table->s->table_name.str));
         s_query.append(',');
         next= table->next;
+        mysql_lock_remove(thd, thd->lock, table);
         close_temporary(table, 1, 1);
       }
       thd->clear_error();
@@ -2286,6 +2289,16 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       */
       if (dd_frm_is_view(thd, path))
       {
+        /*
+          If parent_l of the table_list is non null then a merge table
+          has this view as child table, which is not supported.
+        */
+        if (table_list->parent_l)
+        {
+          my_error(ER_WRONG_MRG_TABLE, MYF(0));
+          DBUG_RETURN(true);
+        }
+
         if (!tdc_open_view(thd, table_list, alias, key, key_length,
                            CHECK_METADATA_VERSION))
         {
@@ -2557,8 +2570,13 @@ retry_share:
         (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                               table_list);
       else if (share->crashed)
-        (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
-                                              table_list);
+      {
+        if (!(flags & MYSQL_OPEN_IGNORE_REPAIR))
+          (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
+                                                table_list);
+        else
+          table_list->crashed= 1;  /* Mark that table was crashed */
+      }
       goto err_lock;
     }
     if (open_table_entry_fini(thd, share, table))
@@ -4698,17 +4716,6 @@ restart:
     if (!tbl)
       continue;
 
-    if (WSREP_ON                               &&
-        wsrep_replicate_myisam                 &&
-        tables                                 &&
-        tbl->file->ht == myisam_hton           &&
-        sqlcom_can_generate_row_events(thd)    &&
-        thd->get_command() != COM_STMT_PREPARE &&
-        tables->lock_type >= TL_WRITE_ALLOW_WRITE)
-    {
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
-    }
-
     /* Schema tables may not have a TABLE object here. */
     if (tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
     {
@@ -4733,6 +4740,17 @@ restart:
       else
         tbl->reginfo.lock_type= tables->lock_type;
     }
+  }
+
+  if (WSREP_ON                                 &&
+      wsrep_replicate_myisam                   &&
+      (*start)                                 &&
+      (*start)->table                          &&
+      (*start)->table->file->ht == myisam_hton &&
+      sqlcom_can_generate_row_events(thd)      &&
+      thd->get_command() != COM_STMT_PREPARE)
+  {
+    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
 
 error:
@@ -5406,65 +5424,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
     {
       if (!table->placeholder())
 	*(ptr++)= table->table;
-    }
-
-    /*
-    DML statements that modify a table with an auto_increment column based on
-    rows selected from a table are unsafe as the order in which the rows are
-    fetched fron the select tables cannot be determined and may differ on
-    master and slave.
-    */
-    if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables &&
-        has_write_table_with_auto_increment_and_select(tables))
-      thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
-    /* Todo: merge all has_write_table_auto_inc with decide_logging_format */
-    if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables)
-    {
-      if (has_write_table_auto_increment_not_first_in_pk(tables))
-        thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
-    }
-
-#ifdef NOT_USED_IN_MARIADB
-    /* 
-     INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
-     can be unsafe.
-     */
-    uint unique_keys= 0;
-    for (TABLE_LIST *query_table= tables; query_table && unique_keys <= 1;
-         query_table= query_table->next_global)
-      if(query_table->table)
-      {
-        uint keys= query_table->table->s->keys, i= 0;
-        unique_keys= 0;
-        for (KEY* keyinfo= query_table->table->s->key_info;
-             i < keys && unique_keys <= 1; i++, keyinfo++)
-        {
-          if (keyinfo->flags & HA_NOSAME)
-            unique_keys++;
-        }
-        if (!query_table->placeholder() &&
-            query_table->lock_type >= TL_WRITE_ALLOW_WRITE &&
-            unique_keys > 1 && thd->lex->sql_command == SQLCOM_INSERT &&
-            /* Duplicate key update is not supported by INSERT DELAYED */
-            thd->get_command() != COM_DELAYED_INSERT &&
-            thd->lex->duplicates == DUP_UPDATE)
-          thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
-      }
-#endif
- 
-    /* We have to emulate LOCK TABLES if we are statement needs prelocking. */
-    if (thd->lex->requires_prelocking())
-    {
-
-      /*
-        A query that modifies autoinc column in sub-statement can make the 
-        master and slave inconsistent.
-        We can solve these problems in mixed mode by switching to binlogging 
-        if at least one updated table is used by sub-statement
-      */
-      if (thd->wsrep_binlog_format() != BINLOG_FORMAT_ROW && tables &&
-          has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
-        thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
 
     DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
@@ -6447,6 +6406,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       */
       table_name && table_name[0] &&
       (my_strcasecmp(table_alias_charset, table_list->alias, table_name) ||
+       (db_name && db_name[0] && (!table_list->db || !table_list->db[0])) ||
        (db_name && db_name[0] && table_list->db && table_list->db[0] &&
         (table_list->schema_table ?
          my_strcasecmp(system_charset_info, db_name, table_list->db) :
@@ -6920,7 +6880,10 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
 
   for (uint i= 0; (item=li++); i++)
   {
-    if (field_name && item->real_item()->type() == Item::FIELD_ITEM)
+    if (field_name &&
+        (item->real_item()->type() == Item::FIELD_ITEM ||
+         ((item->type() == Item::REF_ITEM) &&
+          (((Item_ref *)item)->ref_type() == Item_ref::VIEW_REF))))
     {
       Item_ident *item_field= (Item_ident*) item;
 
@@ -7039,35 +7002,6 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
         break;
       }
       else if (find->eq(item,0))
-      {
-        found= li.ref();
-        *counter= i;
-        *resolution= RESOLVED_IGNORING_ALIAS;
-        break;
-      }
-    }
-    else if (table_name && item->type() == Item::REF_ITEM &&
-             ((Item_ref *)item)->ref_type() == Item_ref::VIEW_REF)
-    {
-      /*
-        TODO:Here we process prefixed view references only. What we should 
-        really do is process all types of Item_ref's. But this will currently 
-        lead to a clash with the way references to outer SELECTs (from the 
-        HAVING clause) are handled in e.g. :
-        SELECT 1 FROM t1 AS t1_o GROUP BY a
-          HAVING (SELECT t1_o.a FROM t1 AS t1_i GROUP BY t1_i.a LIMIT 1).
-        Processing all Item_ref's here will cause t1_o.a to resolve to itself.
-        We still need to process the special case of Item_direct_view_ref 
-        because in the context of views they have the same meaning as 
-        Item_field for tables.
-      */
-      Item_ident *item_ref= (Item_ident *) item;
-      if (field_name && item_ref->name && item_ref->table_name &&
-          !my_strcasecmp(system_charset_info, item_ref->name, field_name) &&
-          !my_strcasecmp(table_alias_charset, item_ref->table_name,
-                         table_name) &&
-          (!db_name || (item_ref->db_name && 
-                        !strcmp (item_ref->db_name, db_name))))
       {
         found= li.ref();
         *counter= i;
@@ -8041,7 +7975,7 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
     from_clause   Top-level list of table references in the FROM clause
     tables	  Table list (select_lex->table_list)
     leaves        List of join table leaves list (select_lex->leaf_tables)
-    refresh       It is onle refresh for subquery
+    refresh       It is only refresh for subquery
     select_insert It is SELECT ... INSERT command
     full_table_list a parameter to pass to the make_leaves_list function
 
@@ -8225,7 +8159,6 @@ bool setup_tables_and_check_access(THD *thd,
                                    ulong want_access,
                                    bool full_table_list)
 {
-  bool first_table= true;
   DBUG_ENTER("setup_tables_and_check_access");
 
   if (setup_tables(thd, context, from_clause, tables,
@@ -8234,16 +8167,16 @@ bool setup_tables_and_check_access(THD *thd,
 
   List_iterator<TABLE_LIST> ti(leaves);
   TABLE_LIST *table_list;
-  while((table_list= ti++))
+  ulong access= want_access_first;
+  while ((table_list= ti++))
   {
     if (table_list->belong_to_view && !table_list->view && 
-        check_single_table_access(thd, first_table ? want_access_first :
-                                  want_access, table_list, FALSE))
+        check_single_table_access(thd, access, table_list, FALSE))
     {
       tables->hide_view_error(thd);
       DBUG_RETURN(TRUE);
     }
-    first_table= 0;
+    access= want_access;
   }
   DBUG_RETURN(FALSE);
 }
@@ -8635,7 +8568,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
     TODO
 
   RETURN
-    TRUE  if some error occured (e.g. out of memory)
+    TRUE  if some error occurred (e.g. out of memory)
     FALSE if all is OK
 */
 
@@ -8745,7 +8678,7 @@ err_no_arena:
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8836,7 +8769,61 @@ err:
 }
 
 
-/*
+/**
+  Prepare Item_field's for fill_record_n_invoke_before_triggers()
+
+  This means redirecting from table->field to
+  table->field_to_fill(), if needed.
+*/
+void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
+{
+  Field** field= table->field_to_fill();
+
+  if (field != table->field)
+  {
+    List_iterator_fast<Item> it(items);
+    Item *item;
+
+    while ((item= it++))
+      item->walk(&Item::switch_to_nullable_fields_processor, 1, (uchar*)field);
+    table->triggers->reset_extra_null_bitmap();
+  }
+}
+
+
+/**
+  Test NOT NULL constraint after BEFORE triggers
+*/
+static bool not_null_fields_have_null_values(TABLE *table)
+{
+  Field **orig_field= table->field;
+  Field **filled_field= table->field_to_fill();
+
+  if (filled_field != orig_field)
+  {
+    THD *thd=table->in_use;
+    for (uint i=0; i < table->s->fields; i++)
+    {
+      Field *of= orig_field[i];
+      Field *ff= filled_field[i];
+      if (ff != of)
+      {
+        // copy after-update flags to of, copy before-update flags to ff
+        swap_variables(uint32, of->flags, ff->flags);
+        if (ff->is_real_null())
+        {
+          ff->set_notnull(); // for next row WHERE condition in UPDATE
+          if (convert_null_to_field_value_or_error(of) || thd->is_error())
+            return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
   Fill fields in list with values from the list of items and invoke
   before triggers.
 
@@ -8853,7 +8840,7 @@ err:
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8864,14 +8851,18 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
 {
   bool result;
   Table_triggers_list *triggers= table->triggers;
-  result= (fill_record(thd, table, fields, values, ignore_errors) ||
-           (triggers && triggers->process_triggers(thd, event,
-                                                   TRG_ACTION_BEFORE, TRUE)));
+
+  result= fill_record(thd, table, fields, values, ignore_errors);
+
+  if (!result && triggers)
+    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||
+            not_null_fields_have_null_values(table);
+
   /*
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers && table)
+  if (!result && triggers)
   {
     List_iterator_fast<Item> f(fields);
     Item *fld;
@@ -8909,7 +8900,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8922,6 +8913,9 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
+  uint autoinc_index= table->next_number_field
+                        ? table->next_number_field->field_index
+                        : ~0U;
   DBUG_ENTER("fill_record");
 
   if (!*ptr)
@@ -8947,7 +8941,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     DBUG_ASSERT(field->table == table);
 
     value=v++;
-    if (field == table->next_number_field)
+    if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
     if (field->vcol_info && 
         value->type() != Item::DEFAULT_VALUE_ITEM && 
@@ -9001,7 +8995,7 @@ err:
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -9012,9 +9006,12 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 {
   bool result;
   Table_triggers_list *triggers= table->triggers;
-  result= (fill_record(thd, table, ptr, values, ignore_errors, FALSE) ||
-           (triggers && triggers->process_triggers(thd, event,
-                                                   TRG_ACTION_BEFORE, TRUE)));
+
+  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE);
+
+  if (!result && triggers && *ptr)
+    result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||
+            not_null_fields_have_null_values(table);
   /*
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
@@ -9222,98 +9219,6 @@ bool is_equal(const LEX_STRING *a, const LEX_STRING *b)
 {
   return a->length == b->length && !strncmp(a->str, b->str, a->length);
 }
-
-
-/*
-  Tells if two (or more) tables have auto_increment columns and we want to
-  lock those tables with a write lock.
-
-  SYNOPSIS
-    has_two_write_locked_tables_with_auto_increment
-      tables        Table list
-
-  NOTES:
-    Call this function only when you have established the list of all tables
-    which you'll want to update (including stored functions, triggers, views
-    inside your statement).
-*/
-
-static bool
-has_write_table_with_auto_increment(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE))
-      return 1;
-  }
-
-  return 0;
-}
-
-/*
-   checks if we have select tables in the table list and write tables
-   with auto-increment column.
-
-  SYNOPSIS
-   has_two_write_locked_tables_with_auto_increment_and_select
-      tables        Table list
-
-  RETURN VALUES
-
-   -true if the table list has atleast one table with auto-increment column
-
-
-         and atleast one table to select from.
-   -false otherwise
-*/
-
-static bool
-has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
-{
-  bool has_select= false;
-  bool has_auto_increment_tables = has_write_table_with_auto_increment(tables);
-  for(TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-     if (!table->placeholder() &&
-        (table->lock_type <= TL_READ_NO_INSERT))
-      {
-        has_select= true;
-        break;
-      }
-  }
-  return(has_select && has_auto_increment_tables);
-}
-
-/*
-  Tells if there is a table whose auto_increment column is a part
-  of a compound primary key while is not the first column in
-  the table definition.
-
-  @param tables Table list
-
-  @return true if the table exists, fais if does not.
-*/
-
-static bool
-has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE)
-        && table->table->s->next_number_keypart != 0)
-      return 1;
-  }
-
-  return 0;
-}
-
-
 
 /*
   Open and lock system tables for read.

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -261,7 +261,13 @@ row_ins_sec_index_entry_by_modify(
 	update = row_upd_build_sec_rec_difference_binary(
 		rec, cursor->index, *offsets, entry, heap);
 
-	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
+	/* If operating in fake_change mode then flow will not mark the record
+	deleted but will still assume it and take delete-mark path. Condition
+	below has a different path if record is not marked deleted but we need
+	to still by-pass it given that original flow has taken this path for
+	fake_change mode execution assuming record is delete-marked. */
+	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
+	    && UNIV_UNLIKELY(!thr_get_trx(thr)->fake_changes)) {
 		/* We should never insert in place of a record that
 		has not been delete-marked. The only exception is when
 		online CREATE INDEX copied the changes that we already
@@ -730,10 +736,12 @@ row_ins_set_detailed(
 	rewind(srv_misc_tmpfile);
 
 	if (os_file_set_eof(srv_misc_tmpfile)) {
+		std::string fk_str;
 		ut_print_name(srv_misc_tmpfile, trx, TRUE,
 			      foreign->foreign_table_name);
-		dict_print_info_on_foreign_key_in_create_format(
-			srv_misc_tmpfile, trx, foreign, FALSE);
+		fk_str = dict_print_info_on_foreign_key_in_create_format(
+			trx, foreign, FALSE);
+		fputs(fk_str.c_str(), srv_misc_tmpfile);
 		trx_set_detailed_error_from_file(trx, srv_misc_tmpfile);
 	} else {
 		trx_set_detailed_error(trx, "temp file operation failed");
@@ -798,6 +806,8 @@ row_ins_foreign_report_err(
 	const dtuple_t*	entry)		/*!< in: index entry in the parent
 					table */
 {
+	std::string fk_str;
+
 	if (srv_read_only_mode) {
 		return;
 	}
@@ -812,8 +822,9 @@ row_ins_foreign_report_err(
 	fputs("Foreign key constraint fails for table ", ef);
 	ut_print_name(ef, trx, TRUE, foreign->foreign_table_name);
 	fputs(":\n", ef);
-	dict_print_info_on_foreign_key_in_create_format(ef, trx, foreign,
+	fk_str = dict_print_info_on_foreign_key_in_create_format(trx, foreign,
 							TRUE);
+	fputs(fk_str.c_str(), ef);
 	putc('\n', ef);
 	fputs(errstr, ef);
 	fputs(" in parent table, in index ", ef);
@@ -853,6 +864,8 @@ row_ins_foreign_report_add_err(
 	const dtuple_t*	entry)		/*!< in: index entry to insert in the
 					child table */
 {
+	std::string fk_str;
+
 	if (srv_read_only_mode) {
 		return;
 	}
@@ -866,8 +879,9 @@ row_ins_foreign_report_add_err(
 	fputs("Foreign key constraint fails for table ", ef);
 	ut_print_name(ef, trx, TRUE, foreign->foreign_table_name);
 	fputs(":\n", ef);
-	dict_print_info_on_foreign_key_in_create_format(ef, trx, foreign,
+	fk_str = dict_print_info_on_foreign_key_in_create_format(trx, foreign,
 							TRUE);
+	fputs(fk_str.c_str(), ef);
 	fputs("\nTrying to add in child table, in index ", ef);
 	ut_print_name(ef, trx, FALSE, foreign->foreign_index->name);
 	if (entry) {
@@ -1509,6 +1523,7 @@ run_again:
 
 		if (!srv_read_only_mode && check_ref) {
 			FILE*	ef = dict_foreign_err_file;
+			std::string fk_str;
 
 			row_ins_set_detailed(trx, foreign);
 
@@ -1518,8 +1533,9 @@ run_again:
 			ut_print_name(ef, trx, TRUE,
 				      foreign->foreign_table_name);
 			fputs(":\n", ef);
-			dict_print_info_on_foreign_key_in_create_format(
-				ef, trx, foreign, TRUE);
+			fk_str = dict_print_info_on_foreign_key_in_create_format(
+				trx, foreign, TRUE);
+			fputs(fk_str.c_str(), ef);
 			fputs("\nTrying to add to index ", ef);
 			ut_print_name(ef, trx, FALSE,
 				      foreign->foreign_index->name);
@@ -2354,24 +2370,34 @@ row_ins_clust_index_entry_low(
 	big_rec_t*	big_rec		= NULL;
 	mtr_t		mtr;
 	mem_heap_t*	offsets_heap	= NULL;
+	ulint		search_mode;
 
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!dict_index_is_unique(index)
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
 
+	/* If running with fake_changes mode on then switch from modify to
+	search so that code takes only s-latch and not x-latch.
+	For dry-run (fake-changes) s-latch is acceptable. Taking x-latch will
+	make it more restrictive and will block real changes/workflow. */
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
+		search_mode = (mode & BTR_MODIFY_TREE)
+			      ? BTR_SEARCH_TREE : BTR_SEARCH_LEAF;
+	} else {
+		search_mode = mode;
+	}
+
 	mtr_start_trx(&mtr, thr_get_trx(thr));
 
 	if (mode == BTR_MODIFY_LEAF && dict_index_is_online_ddl(index)) {
-		if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
-			mode = BTR_SEARCH_LEAF | BTR_ALREADY_S_LATCHED;
-		} else {
-			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		}
+
+		/* We really don't need to OR mode but will leave it for
+		code consistency. */
+		mode |= BTR_ALREADY_S_LATCHED;
+		search_mode |= BTR_ALREADY_S_LATCHED;
+
 		mtr_s_lock(dict_index_get_lock(index), &mtr);
-	} else if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
-		mode = (mode & BTR_MODIFY_TREE)
-			? BTR_SEARCH_TREE : BTR_SEARCH_LEAF;
 	}
 
 	cursor.thr = thr;
@@ -2380,7 +2406,7 @@ row_ins_clust_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	err = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE, mode,
+	err = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE, search_mode,
 				    &cursor, 0, __FILE__, __LINE__, &mtr);
 
 	if (err != DB_SUCCESS) {
@@ -2506,9 +2532,14 @@ err_exit:
 			effectively "roll back" the operation. */
 			ut_a(err == DB_SUCCESS);
 			dtuple_big_rec_free(big_rec);
+		} else if (big_rec != NULL
+			   && UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
+			dtuple_big_rec_free(big_rec);
 		}
 
-		if (err == DB_SUCCESS && dict_index_is_online_ddl(index)) {
+		if (err == DB_SUCCESS
+		    && dict_index_is_online_ddl(index)
+		    && UNIV_LIKELY(!thr_get_trx(thr)->fake_changes)) {
 			row_log_table_insert(rec, index, offsets);
 		}
 
@@ -2552,8 +2583,8 @@ err_exit:
 
 			if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 
-				/* skip store extern */
-				mem_heap_free(big_rec->heap);
+				dtuple_convert_back_big_rec(
+					index, entry, big_rec);
 				goto func_exit;
 			}
 
@@ -2573,7 +2604,8 @@ err_exit:
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
-			    && dict_index_is_online_ddl(index)) {
+			    && dict_index_is_online_ddl(index)
+			    && !UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 				row_log_table_insert(
 					insert_rec, index, offsets);
 			}
@@ -2659,7 +2691,7 @@ row_ins_sec_index_entry_low(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	btr_cur_t	cursor;
-	ulint		search_mode	= mode | BTR_INSERT;
+	ulint		search_mode;
 	dberr_t		err		= DB_SUCCESS;
 	ulint		n_unique;
 	mtr_t		mtr;
@@ -2673,6 +2705,18 @@ row_ins_sec_index_entry_low(
 	ut_ad(thr_get_trx(thr)->id);
 	mtr_start_trx(&mtr, trx);
 
+	/* If running with fake_changes mode on then avoid using insert buffer
+	and also switch from modify to search so that code takes only s-latch
+	and not x-latch. For dry-run (fake-changes) s-latch is acceptable.
+	Taking x-latch will make it more restrictive and will block real
+	changes/workflow. */
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
+		search_mode = (mode & BTR_MODIFY_TREE)
+			      ? BTR_SEARCH_TREE : BTR_SEARCH_LEAF;
+	} else {
+		search_mode = mode | BTR_INSERT;
+	}
+
 	/* Ensure that we acquire index->lock when inserting into an
 	index with index->online_status == ONLINE_INDEX_COMPLETE, but
 	could still be subject to rollback_inplace_alter_table().
@@ -2680,11 +2724,24 @@ row_ins_sec_index_entry_low(
 	The memory object cannot be freed as long as we have an open
 	reference to the table, or index->table->n_ref_count > 0. */
 	const bool check = *index->name == TEMP_INDEX_PREFIX;
+
 	if (check) {
+
 		DEBUG_SYNC_C("row_ins_sec_index_enter");
-		if (mode == BTR_MODIFY_LEAF) {
+
+		/* mode = MODIFY_LEAF is synonymous to search_mode = SEARCH_LEAF
+		search_mode = SEARCH_TREE suggest operation in fake_change mode
+		so continue to s-latch in this mode too. */
+
+		if (mode == BTR_MODIFY_LEAF || search_mode == BTR_SEARCH_TREE) {
+
+			ut_ad((search_mode == BTR_SEARCH_TREE
+			       && thr_get_trx(thr)->fake_changes)
+			      || mode == BTR_MODIFY_LEAF);
+
 			search_mode |= BTR_ALREADY_S_LATCHED;
 			mtr_s_lock(dict_index_get_lock(index), &mtr);
+
 		} else {
 			mtr_x_lock(dict_index_get_lock(index), &mtr);
 		}
@@ -2695,14 +2752,13 @@ row_ins_sec_index_entry_low(
 		}
 	}
 
-	/* Note that we use PAGE_CUR_LE as the search mode, because then
-	the function will return in both low_match and up_match of the
-	cursor sensible values */
-
 	if (!thr_get_trx(thr)->check_unique_secondary) {
 		search_mode |= BTR_IGNORE_SEC_UNIQUE;
 	}
 
+	/* Note that we use PAGE_CUR_LE as the search mode, because then
+	the function will return in both low_match and up_match of the
+	cursor sensible values */
 	err = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
 					  search_mode,
 					  &cursor, 0, __FILE__, __LINE__, &mtr);
@@ -2795,10 +2851,7 @@ row_ins_sec_index_entry_low(
 
 		btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
-			UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)
-			? BTR_SEARCH_LEAF
-			: (btr_latch_mode)
-			(search_mode & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
+			search_mode & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE),
 			&cursor, 0, __FILE__, __LINE__, &mtr);
 	}
 

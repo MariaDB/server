@@ -44,8 +44,6 @@ usr/share/mysql/mysql-test/suite/jp/r
 usr/share/mysql/mysql-test/suite/jp/include
 usr/share/mysql/mysql-test/suite/jp/std_data
 usr/share/mysql/mysql-test/suite/maria
-usr/share/mysql/mysql-test/suite/maria/t
-usr/share/mysql/mysql-test/suite/maria/r
 usr/share/mysql/mysql-test/suite/funcs_2
 usr/share/mysql/mysql-test/suite/funcs_2/lib
 usr/share/mysql/mysql-test/suite/funcs_2/t

@@ -489,7 +489,7 @@ maria_declare_plugin(semisync_master)
   semi_sync_master_status_vars,	/* status variables */
   semi_sync_master_system_vars,	/* system variables */
   "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

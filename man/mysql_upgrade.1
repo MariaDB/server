@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql_upgrade\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQL_UPGRADE\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQL_UPGRADE\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,27 +15,23 @@
 .\" upgrading MySQL
 .\" MySQL: upgrading
 .SH "NAME"
-mysql_upgrade \- check tables for MySQL upgrade
+mysql_upgrade \- check tables for MariaDB upgrade
 .SH "SYNOPSIS"
 .HP \w'\fBmysql_upgrade\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
 \fBmysql_upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
 \fBmysql_upgrade\fR
-examines all tables in all databases for incompatibilities with the current version of MySQL Server\&.
+examines all tables in all databases for incompatibilities with the current version of the MariaDB Server\&.
 \fBmysql_upgrade\fR
 also upgrades the system tables so that you can take advantage of new privileges or capabilities that might have been added\&.
 .PP
 \fBmysql_upgrade\fR
-should be executed each time you upgrade MySQL\&. It supersedes the older
-\fBmysql_fix_privilege_tables\fR
-script, which should no longer be used\&.
+should be executed each time you upgrade MariaDB\&.
 .PP
 If a table is found to have a possible incompatibility,
 \fBmysql_upgrade\fR
-performs a table check\&. If any problems are found, a table repair is attempted\&. If the table cannot be repaired, see
-Section\ \&2.4.4, \(lqRebuilding or Repairing Tables or Indexes\(rq
-for manual table repair strategies\&.
+performs a table check\&. If any problems are found, a table repair is attempted\&.
 .if n \{\
 .sp
 .\}
@@ -74,14 +63,9 @@ with administrator privileges\&. You can do this by running a Command Prompt as 
 .ps -1
 .br
 .PP
-You should always back up your current MySQL installation
+You should always back up your current MariaDB installation
 \fIbefore\fR
-performing an upgrade\&. See
-Section\ \&6.2, \(lqDatabase Backup Methods\(rq\&.
-.PP
-Some upgrade incompatibilities may require special handling before you upgrade your MySQL installation and run
-\fBmysql_upgrade\fR\&. See
-Section\ \&2.4.1, \(lqUpgrading MySQL\(rq, for instructions on determining whether any such incompatibilities apply to your installation and how to handle them\&.
+performing an upgrade\&.
 .sp .5v
 .RE
 .PP
@@ -149,8 +133,7 @@ option entails, see the description of the
 FOR UPGRADE
 option of the
 CHECK TABLE
-statement (see
-Section\ \&12.4.2.3, \(lqCHECK TABLE Syntax\(rq)\&.
+statement\&.
 .RE
 .sp
 .RS 4
@@ -168,52 +151,25 @@ that contains SQL statements to upgrade the tables in the
 mysql
 database\&.
 .RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Prior to MySQL 5\&.1\&.31,
-\fBmysql_upgrade\fR
-does not run the second
-\fBmysqlcheck\fR
-command, which is necessary to re\-encode database or table names that contain nonalphanumeric characters\&. (They still appear after the upgrade with the
-#mysql50#
-prefix described in
-Section\ \&8.2.3, \(lqMapping of Identifiers to File Names\(rq\&.) If you have such database or table names, execute the second
-\fBmysqlcheck\fR
-command manually after executing
-\fBmysql_upgrade\fR\&.
-.RE
 .PP
-All checked and repaired tables are marked with the current MySQL version number\&. This ensures that next time you run
+All checked and repaired tables are marked with the current MariaDB version number\&. This ensures that next time you run
 \fBmysql_upgrade\fR
 with the same version of the server, it can tell whether there is any need to check or repair the table again\&.
 .\" mysql_upgrade_info file: mysql_upgrade
 .\" mysql_upgrade: mysql_upgrade_info file
 .PP
 \fBmysql_upgrade\fR
-also saves the MySQL version number in a file named
+also saves the MariaDB version number in a file named
 mysql_upgrade_info
 in the data directory\&. This is used to quickly check whether all tables have been checked for this release so that table\-checking can be skipped\&. To ignore this file and perform the check regardless, use the
 \fB\-\-force\fR
 option\&.
 .PP
-If you install MySQL from RPM packages on Linux, you must install the server and client RPMs\&.
+If you install MariaDB from RPM packages on Linux, you must install the server and client RPMs\&.
 \fBmysql_upgrade\fR
 is included in the server RPM but requires the client RPM because the latter includes
-\fBmysqlcheck\fR\&. (See
-Section\ \&2.6.1, \(lqInstalling MySQL from RPM Packages on Linux\(rq\&.)
+\fBmysqlcheck\fR\&.
 .PP
-In MySQL 5\&.1\&.7,
-\fBmysql_upgrade \fR
-was added as a shell script and worked only for Unix systems\&. As of MySQL 5\&.1\&.10,
-\fBmysql_upgrade\fR
-is an executable binary and is available on all systems\&.
 .PP
 \fBmysql_upgrade\fR
 supports the following options, which can be specified on the command line or in the
@@ -225,8 +181,7 @@ option file groups\&. Other options are passed to
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR
 option\&.
 \fBmysql_upgrade\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
+also supports the options for processing option files\&.
 .sp
 .RS 4
 .ie n \{\
@@ -238,7 +193,8 @@ Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\
 .\}
 .\" mysql_upgrade: help option
 .\" help option: mysql_upgrade
-\fB\-\-help\fR
+\fB\-\-help\fR,
+\fB\-?\fR
 .sp
 Display a short help message and exit\&.
 .RE
@@ -255,7 +211,22 @@ Display a short help message and exit\&.
 .\" basedir option: mysql_upgrade
 \fB\-\-basedir=\fR\fB\fIpath\fR\fR
 .sp
-The path to the MySQL installation directory\&. This option is accepted for backward compatibility but ignored\&.
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: character-sets-dir option
+.\" character-sets-dir option: mysql_upgrade
+\fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
 .RE
 .sp
 .RS 4
@@ -270,7 +241,23 @@ The path to the MySQL installation directory\&. This option is accepted for back
 .\" datadir option: mysql_upgrade
 \fB\-\-datadir=\fR\fB\fIpath\fR\fR
 .sp
-The path to the data directory\&. This option is accepted for backward compatibility but ignored\&.
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: debug option
+.\" debug option: mysql_upgrade
+\fB\-\-debug=\fR\fB\fIpath\fR\fR,
+\fB\-# \fIpath\fR\fR
+.sp
+For debug builds, output debug log\&.
 .RE
 .sp
 .RS 4
@@ -285,7 +272,7 @@ The path to the data directory\&. This option is accepted for backward compatibi
 .\" debug-check option: mysql_upgrade
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print some debugging information when the program exits\&.
 .RE
 .sp
 .RS 4
@@ -301,7 +288,22 @@ Print some debugging information when the program exits\&. This option was added
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
-Print debugging information and memory and CPU usage statistics when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: default-character-set option
+.\" default-character-set option: mysql_upgrade
+\fB\-\-default\-character\-set=\fR\fB\fIname\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
 .RE
 .sp
 .RS 4
@@ -322,7 +324,256 @@ file and force execution of
 \fBmysqlcheck\fR
 even if
 \fBmysql_upgrade\fR
-has already been executed for the current version of MySQL\&.
+has already been executed for the current version of MariaDB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: host option
+.\" host option: mysql_upgrade
+\fB\-\-host\fR
+.sp
+Connect to MariaDB on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: password option
+.\" password option: mysql_upgrade
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server\&. If you use the short option form (\fB\-p\fR), you
+\fIcannot\fR
+have a space between the option and the password\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-password\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmysql_upgrade\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: port option
+.\" port option: mysql_upgrade
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: protocol option
+.\" protocol option: mysql_upgrade
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: silent option
+.\" silent option: mysql_upgrade
+\fB\-\-silent\fR
+.sp
+Print less information\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: socket option
+.\" socket option: mysql_upgrade
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+For connections to
+localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL options
+.\" SSL options: mysql_upgrade
+\fB\-\-ssl\fR
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL CA option
+.\" SSL CA option: mysql_upgrade
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL CA Path option
+.\" SSL CA Path option: mysql_upgrade
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Cert option
+.\" SSL Cert option: mysql_upgrade
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Cipher option
+.\" SSL Cipher option: mysql_upgrade
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Key option
+.\" SSL Key option: mysql_upgrade
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Crl option
+.\" SSL CRL option: mysql_upgrade
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Crlpath option
+.\" SSL Crlpath option: mysql_upgrade
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysql_upgrade
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -338,7 +589,23 @@ has already been executed for the current version of MySQL\&.
 \fB\-\-tmpdir=\fR\fB\fIpath\fR\fR,
 \fB\-t \fR\fB\fIpath\fR\fR
 .sp
-The path name of the directory to use for creating temporary files\&. This option was added in MySQL 5\&.1\&.25\&.
+The path name of the directory to use for creating temporary files\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: upgrade-system-tables option
+.\" upgrade-system-tables option: mysql_upgrade
+\fB\-\-upgrade\-system\-tables\fR\fR,
+\fB\-s \fR
+.sp
+Only upgrade the system tables in the mysql database\&. Tables in other databases are not checked or touched\&.
 .RE
 .sp
 .RS 4
@@ -354,8 +621,7 @@ The path name of the directory to use for creating temporary files\&. This optio
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&. The default user name is
-root\&.
+The MariaDB user name to use when connecting to the server and not using the current login\&.
 .RE
 .sp
 .RS 4
@@ -370,7 +636,45 @@ root\&.
 .\" verbose option: mysql_upgrade
 \fB\-\-verbose\fR
 .sp
-Verbose mode\&. Print more information about what the program does\&.
+Display more output about the process\&. Using it twice will print connection 
+arguments; using it 3 times will print out all CHECK, RENAME and ALTER TABLE 
+commands used during the check phase; using it 4 times (added in MariaDB 10.0.14)
+will also write out all mysqlcheck commands used\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: version option
+.\" version option: mysql_upgrade
+\fB\-\-version\fR,
+\fB\-V\fR
+.sp
+Output version information and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_upgrade: version-check option
+.\" version-check option: mysql_upgrade
+\fB\-\-version\-check\fR,
+\fB\-k\fR
+.sp
+Run this program only if its 'server version' matches the version 
+of the server to which it's connecting. Note: the 'server version' 
+of the program is the version of the MariaDB server with which 
+it was built/distributed. Defaults to on; use \fB\-\-skip\-version\-check\fR to disable\&.
 .RE
 .sp
 .RS 4
@@ -389,13 +693,11 @@ Cause binary logging to be enabled while
 \fBmysql_upgrade\fR
 runs\&. This is the default behavior; to disable binary logging during the upgrade, use the inverse of this option (that is, start the program with
 \fB\-\-skip\-write\-binlog\fR)\&.
-.sp
-This option was introduced in MySQL 5\&.1\&.40\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -404,8 +706,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

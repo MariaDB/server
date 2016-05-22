@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates
-   Copyright (c) 2009, 2013, Monty Program Ab
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -486,7 +486,7 @@ int handle_options(int *argc, char ***argv,
 				     "unsupported by option '--%s'",
                                      my_progname, optp->name);
 	    if (!option_is_loose)
-	      return EXIT_ARGUMENT_INVALID;
+	      DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
 	  }
 	  else

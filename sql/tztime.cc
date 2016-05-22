@@ -309,7 +309,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
     Note: See description of TIME_to_gmt_sec() function first.
     In order to perform MYSQL_TIME -> my_time_t conversion we need to build table
     which defines "shifted by tz offset and leap seconds my_time_t" ->
-    my_time_t function wich is almost the same (except ranges of ambiguity)
+    my_time_t function which is almost the same (except ranges of ambiguity)
     as reverse function to piecewise linear function used for my_time_t ->
     "shifted my_time_t" conversion and which is also specified as table in
     zoneinfo file or in our db (It is specified as start of time type ranges
@@ -612,7 +612,7 @@ sec_to_TIME(MYSQL_TIME * tmp, my_time_t t, long offset)
 
 
 /*
-  Find time range wich contains given my_time_t value
+  Find time range which contains given my_time_t value
 
   SYNOPSIS
     find_time_range()
@@ -708,7 +708,7 @@ find_transition_type(my_time_t t, const TIME_ZONE_INFO *sp)
   TODO
     We can improve this function by creating joined array of transitions and
     leap corrections. This will require adding extra field to TRAN_TYPE_INFO
-    for storing number of "extra" seconds to minute occured due to correction
+    for storing number of "extra" seconds to minute occurred due to correction
     (60th and 61st second, look how we calculate them as "hit" in this
     function).
     Under realistic assumptions about frequency of transitions the same array
@@ -2771,7 +2771,7 @@ main(int argc, char **argv)
 #ifdef TESTTIME
 
 /*
-   Some simple brute-force test wich allowed to catch a pair of bugs.
+   Some simple brute-force test which allowed to catch a pair of bugs.
    Also can provide interesting facts about system's time zone support
    implementation.
 */

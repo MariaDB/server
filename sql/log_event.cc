@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -308,7 +308,7 @@ public:
   ~Write_on_release_cache()
   {
     copy_event_cache_to_file_and_reinit(m_cache, m_file);
-    if (m_flags | FLUSH_F)
+    if (m_flags & FLUSH_F)
       fflush(m_file);
   }
 
@@ -817,6 +817,18 @@ const char* Log_event::get_type_str(Log_event_type type)
   case GTID_EVENT: return "Gtid";
   case GTID_LIST_EVENT: return "Gtid_list";
   case START_ENCRYPTION_EVENT: return "Start_encryption";
+
+  /* The following is only for mysqlbinlog */
+  case IGNORABLE_LOG_EVENT: return "Ignorable log event";
+  case ROWS_QUERY_LOG_EVENT: return "MySQL Rows_query";
+  case GTID_LOG_EVENT: return "MySQL Gtid";
+  case ANONYMOUS_GTID_LOG_EVENT: return "MySQL Anonymous_Gtid";
+  case PREVIOUS_GTIDS_LOG_EVENT: return "MySQL Previous_gtids";
+  case HEARTBEAT_LOG_EVENT: return "Heartbeat";
+  case TRANSACTION_CONTEXT_EVENT: return "Transaction_context";
+  case VIEW_CHANGE_EVENT: return "View_change";
+  case XA_PREPARE_LOG_EVENT: return "XA_prepare";
+
   default: return "Unknown";				/* impossible */
   }
 }
@@ -1007,7 +1019,7 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
   Log_event::pack_info()
 */
 
-void Log_event::pack_info(THD *thd, Protocol *protocol)
+void Log_event::pack_info(Protocol *protocol)
 {
   protocol->store("", &my_charset_bin);
 }
@@ -1016,8 +1028,7 @@ void Log_event::pack_info(THD *thd, Protocol *protocol)
 /**
   Only called by SHOW BINLOG EVENTS
 */
-int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
-                        my_off_t pos)
+int Log_event::net_send(Protocol *protocol, const char* log_name, my_off_t pos)
 {
   const char *p= strrchr(log_name, FN_LIBCHAR);
   const char *event_type;
@@ -1031,7 +1042,7 @@ int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
   protocol->store(event_type, strlen(event_type), &my_charset_bin);
   protocol->store((uint32) server_id);
   protocol->store((ulonglong) log_pos);
-  pack_info(thd, protocol);
+  pack_info(protocol);
   return protocol->write();
 }
 #endif /* HAVE_REPLICATION */
@@ -1381,9 +1392,9 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
     if (packet->append(file, data_len - LOG_EVENT_MINIMAL_HEADER_LEN))
     {
       /*
-        Fatal error occured when appending rest of the event
+        Fatal error occurred when appending rest of the event
         to packet, possible failures:
-	1. EOF occured when reading from file, it's really an error
+	1. EOF occurred when reading from file, it's really an error
            as there's supposed to be more bytes available.
            file->error will have been set to number of bytes left to read
         2. Read was interrupted, file->error would normally be set to -1
@@ -1541,9 +1552,11 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
   DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
   DBUG_DUMP_EVENT_BUF(buf, event_len);
 
-  /* Check the integrity */
-  if (event_len < EVENT_LEN_OFFSET ||
-      (uchar)buf[EVENT_TYPE_OFFSET] >= ENUM_END_EVENT)
+  /*
+    Check the integrity; This is needed because handle_slave_io() doesn't
+    check if packet is of proper length.
+ */
+  if (event_len < EVENT_LEN_OFFSET)
   {
     *error="Sanity check failed";		// Needed to free buffer
     DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
@@ -1720,6 +1733,18 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     case DELETE_ROWS_EVENT:
       ev = new Delete_rows_log_event(buf, event_len, fdle);
       break;
+
+      /* MySQL GTID events are ignored */
+    case GTID_LOG_EVENT:
+    case ANONYMOUS_GTID_LOG_EVENT:
+    case PREVIOUS_GTIDS_LOG_EVENT:
+    case TRANSACTION_CONTEXT_EVENT:
+    case VIEW_CHANGE_EVENT:
+    case XA_PREPARE_LOG_EVENT:
+      ev= new Ignorable_log_event(buf, fdle,
+                                  get_type_str((Log_event_type) event_type));
+      break;
+
     case TABLE_MAP_EVENT:
       ev = new Table_map_log_event(buf, event_len, fdle);
       break;
@@ -1740,10 +1765,22 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev = new Start_encryption_log_event(buf, event_len, fdle);
       break;
     default:
-      DBUG_PRINT("error",("Unknown event code: %d",
-                          (int) buf[EVENT_TYPE_OFFSET]));
-      ev= NULL;
-      break;
+      /*
+        Create an object of Ignorable_log_event for unrecognized sub-class.
+        So that SLAVE SQL THREAD will only update the position and continue.
+      */
+      if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
+      {
+        ev= new Ignorable_log_event(buf, fdle,
+                                    get_type_str((Log_event_type) event_type));
+      }
+      else
+      {
+        DBUG_PRINT("error",("Unknown event code: %d",
+                            (int) buf[EVENT_TYPE_OFFSET]));
+        ev= NULL;
+        break;
+      }
     }
   }
 
@@ -2124,6 +2161,7 @@ my_b_write_sint32_and_uint32(IO_CACHE *file, int32 si, uint32 ui)
   @param[out] typestr_length   Size of typestr
   
   @retval   - number of bytes scanned from ptr.
+              Except in case of NULL, in which case we return 1 to indicate ok
 */
 
 static size_t
@@ -2156,41 +2194,57 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
   switch (type) {
   case MYSQL_TYPE_LONG:
     {
+      strmake(typestr, "INT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       int32 si= sint4korr(ptr);
       uint32 ui= uint4korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      strmake(typestr, "INT", typestr_length);
       return 4;
     }
 
   case MYSQL_TYPE_TINY:
     {
+      strmake(typestr, "TINYINT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       my_b_write_sint32_and_uint32(file, (int) (signed char) *ptr,
                                   (uint) (unsigned char) *ptr);
-      strmake(typestr, "TINYINT", typestr_length);
       return 1;
     }
 
   case MYSQL_TYPE_SHORT:
     {
+      strmake(typestr, "SHORTINT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       int32 si= (int32) sint2korr(ptr);
       uint32 ui= (uint32) uint2korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      strmake(typestr, "SHORTINT", typestr_length);
       return 2;
     }
   
   case MYSQL_TYPE_INT24:
     {
+      strmake(typestr, "MEDIUMINT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       int32 si= sint3korr(ptr);
       uint32 ui= uint3korr(ptr);
       my_b_write_sint32_and_uint32(file, si, ui);
-      strmake(typestr, "MEDIUMINT", typestr_length);
       return 3;
     }
 
   case MYSQL_TYPE_LONGLONG:
     {
+      strmake(typestr, "LONGINT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       char tmp[64];
       size_t length;
       longlong si= sint8korr(ptr);
@@ -2202,7 +2256,6 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
         longlong10_to_str((longlong) ui, tmp, 10);
         my_b_printf(file, " (%s)", tmp);        
       }
-      strmake(typestr, "LONGINT", typestr_length);
       return 8;
     }
 
@@ -2210,45 +2263,47 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     {
       uint precision= meta >> 8;
       uint decimals= meta & 0xFF;
+      my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
+                  precision, decimals);
+      if (!ptr)
+        goto return_null;
+
       uint bin_size= my_decimal_get_binary_size(precision, decimals);
-      uint length;
       my_decimal dec;
       binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) ptr, &dec,
                         precision, decimals);
-      int i, end;
-      char buff[512], *pos;
-      pos= buff;
-      pos+= sprintf(buff, "%s", dec.sign() ? "-" : "");
-      end= ROUND_UP(dec.frac) + ROUND_UP(dec.intg)-1;
-      for (i=0; i < end; i++)
-        pos+= sprintf(pos, "%09d.", dec.buf[i]);
-      pos+= sprintf(pos, "%09d", dec.buf[i]);
-      length= (uint) (pos - buff);
+      int length= DECIMAL_MAX_STR_LENGTH;
+      char buff[DECIMAL_MAX_STR_LENGTH + 1];
+      decimal2string(&dec, buff, &length, 0, 0, 0);
       my_b_write(file, (uchar*)buff, length);
-      my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
-                  precision, decimals);
       return bin_size;
     }
 
   case MYSQL_TYPE_FLOAT:
     {
+      strmake(typestr, "FLOAT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       float fl;
       float4get(fl, ptr);
       char tmp[320];
       sprintf(tmp, "%-20g", (double) fl);
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
-      strmake(typestr, "FLOAT", typestr_length);
       return 4;
     }
 
   case MYSQL_TYPE_DOUBLE:
     {
       double dbl;
+      strmake(typestr, "DOUBLE", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       float8get(dbl, ptr);
       char tmp[320];
       sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
       my_b_printf(file, tmp, "%s");
-      strcpy(typestr, "DOUBLE");
       return 8;
     }
   
@@ -2256,33 +2311,46 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     {
       /* Meta-data: bit_len, bytes_in_rec, 2 bytes */
       uint nbits= ((meta >> 8) * 8) + (meta & 0xFF);
+      my_snprintf(typestr, typestr_length, "BIT(%d)", nbits);
+      if (!ptr)
+        goto return_null;
+
       length= (nbits + 7) / 8;
       my_b_write_bit(file, ptr, nbits);
-      my_snprintf(typestr, typestr_length, "BIT(%d)", nbits);
       return length;
     }
 
   case MYSQL_TYPE_TIMESTAMP:
     {
+      strmake(typestr, "TIMESTAMP", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       uint32 i32= uint4korr(ptr);
       my_b_printf(file, "%d", i32);
-      strmake(typestr, "TIMESTAMP", typestr_length);
       return 4;
     }
 
   case MYSQL_TYPE_TIMESTAMP2:
     {
+      my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", meta);
+      if (!ptr)
+        goto return_null;
+
       char buf[MAX_DATE_STRING_REP_LENGTH];
       struct timeval tm;
       my_timestamp_from_binary(&tm, ptr, meta);
       int buflen= my_timeval_to_str(&tm, buf, meta);
       my_b_write(file, (uchar*)buf, buflen);
-      my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", meta);
       return my_timestamp_binary_length(meta);
     }
 
   case MYSQL_TYPE_DATETIME:
     {
+      strmake(typestr, "DATETIME", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       ulong d, t;
       uint64 i64= uint8korr(ptr); /* YYYYMMDDhhmmss */
       d= (ulong) (i64 / 1000000);
@@ -2291,47 +2359,59 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       my_b_printf(file, "%04d-%02d-%02d %02d:%02d:%02d",
                   (int) (d / 10000), (int) (d % 10000) / 100, (int) (d % 100),
                   (int) (t / 10000), (int) (t % 10000) / 100, (int) t % 100);
-      strmake(typestr, "DATETIME", typestr_length);
       return 8;
     }
 
   case MYSQL_TYPE_DATETIME2:
     {
+      my_snprintf(typestr, typestr_length, "DATETIME(%d)", meta);
+      if (!ptr)
+        goto return_null;
+
       char buf[MAX_DATE_STRING_REP_LENGTH];
       MYSQL_TIME ltime;
       longlong packed= my_datetime_packed_from_binary(ptr, meta);
       TIME_from_longlong_datetime_packed(&ltime, packed);
       int buflen= my_datetime_to_str(&ltime, buf, meta);
       my_b_write_quoted(file, (uchar *) buf, buflen);
-      my_snprintf(typestr, typestr_length, "DATETIME(%d)", meta);
       return my_datetime_binary_length(meta);
     }
 
   case MYSQL_TYPE_TIME:
     {
+      strmake(typestr, "TIME",  typestr_length);
+      if (!ptr)
+        goto return_null;
+
       int32 tmp= sint3korr(ptr);
       int32 i32= tmp >= 0 ? tmp : - tmp;
       const char *sign= tmp < 0 ? "-" : "";
       my_b_printf(file, "'%s%02d:%02d:%02d'",
                   sign, i32 / 10000, (i32 % 10000) / 100, i32 % 100, i32);
-      strmake(typestr, "TIME",  typestr_length);
       return 3;
     }
 
   case MYSQL_TYPE_TIME2:
     {
+      my_snprintf(typestr, typestr_length, "TIME(%d)", meta);
+      if (!ptr)
+        goto return_null;
+
       char buf[MAX_DATE_STRING_REP_LENGTH];
       MYSQL_TIME ltime;
       longlong packed= my_time_packed_from_binary(ptr, meta);
       TIME_from_longlong_time_packed(&ltime, packed);
       int buflen= my_time_to_str(&ltime, buf, meta);
       my_b_write_quoted(file, (uchar *) buf, buflen);
-      my_snprintf(typestr, typestr_length, "TIME(%d)", meta);
       return my_time_binary_length(meta);
     }
 
   case MYSQL_TYPE_NEWDATE:
     {
+      strmake(typestr, "DATE", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       uint32 tmp= uint3korr(ptr);
       int part;
       char buf[11];
@@ -2353,39 +2433,50 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       *pos--= (char) ('0'+part%10); part/=10;
       *pos=   (char) ('0'+part);
       my_b_printf(file , "'%s'", buf);
-      strmake(typestr, "DATE", typestr_length);
       return 3;
     }
     
   case MYSQL_TYPE_DATE:
     {
+      strmake(typestr, "DATE", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       uint i32= uint3korr(ptr);
       my_b_printf(file , "'%04d:%02d:%02d'",
                   (int)(i32 / (16L * 32L)), (int)(i32 / 32L % 16L),
                   (int)(i32 % 32L));
-      strmake(typestr, "DATE", typestr_length);
       return 3;
     }
   
   case MYSQL_TYPE_YEAR:
     {
+      strmake(typestr, "YEAR", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       uint32 i32= *ptr;
       my_b_printf(file, "%04d", i32+ 1900);
-      strmake(typestr, "YEAR", typestr_length);
       return 1;
     }
   
   case MYSQL_TYPE_ENUM:
     switch (meta & 0xFF) {
     case 1:
-      my_b_printf(file, "%d", (int) *ptr);
       strmake(typestr, "ENUM(1 byte)", typestr_length);
+      if (!ptr)
+        goto return_null;
+
+      my_b_printf(file, "%d", (int) *ptr);
       return 1;
     case 2:
       {
+        strmake(typestr, "ENUM(2 bytes)", typestr_length);
+      if (!ptr)
+        goto return_null;
+
         int32 i32= uint2korr(ptr);
         my_b_printf(file, "%d", i32);
-        strmake(typestr, "ENUM(2 bytes)", typestr_length);
         return 2;
       }
     default:
@@ -2395,31 +2486,46 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     break;
     
   case MYSQL_TYPE_SET:
-    my_b_write_bit(file, ptr , (meta & 0xFF) * 8);
     my_snprintf(typestr, typestr_length, "SET(%d bytes)", meta & 0xFF);
+      if (!ptr)
+        goto return_null;
+
+    my_b_write_bit(file, ptr , (meta & 0xFF) * 8);
     return meta & 0xFF;
   
   case MYSQL_TYPE_BLOB:
     switch (meta) {
     case 1:
+      strmake(typestr, "TINYBLOB/TINYTEXT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       length= *ptr;
       my_b_write_quoted(file, ptr + 1, length);
-      strmake(typestr, "TINYBLOB/TINYTEXT", typestr_length);
       return length + 1;
     case 2:
+      strmake(typestr, "BLOB/TEXT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       length= uint2korr(ptr);
       my_b_write_quoted(file, ptr + 2, length);
-      strmake(typestr, "BLOB/TEXT", typestr_length);
       return length + 2;
     case 3:
+      strmake(typestr, "MEDIUMBLOB/MEDIUMTEXT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       length= uint3korr(ptr);
       my_b_write_quoted(file, ptr + 3, length);
-      strmake(typestr, "MEDIUMBLOB/MEDIUMTEXT", typestr_length);
       return length + 3;
     case 4:
+      strmake(typestr, "LONGBLOB/LONGTEXT", typestr_length);
+      if (!ptr)
+        goto return_null;
+
       length= uint4korr(ptr);
       my_b_write_quoted(file, ptr + 4, length);
-      strmake(typestr, "LONGBLOB/LONGTEXT", typestr_length);
       return length + 4;
     default:
       my_b_printf(file, "!! Unknown BLOB packlen=%d", length);
@@ -2430,10 +2536,16 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
   case MYSQL_TYPE_VAR_STRING:
     length= meta;
     my_snprintf(typestr, typestr_length, "VARSTRING(%d)", length);
+    if (!ptr)
+      goto return_null;
+
     return my_b_write_quoted_with_length(file, ptr, length);
 
   case MYSQL_TYPE_STRING:
     my_snprintf(typestr, typestr_length, "STRING(%d)", length);
+    if (!ptr)
+      goto return_null;
+
     return my_b_write_quoted_with_length(file, ptr, length);
 
   case MYSQL_TYPE_DECIMAL:
@@ -2454,6 +2566,9 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
   }
   *typestr= 0;
   return 0;
+
+return_null:
+  return my_b_write(file, (uchar*) "NULL", 4) ? 0 : 1;
 }
 
 
@@ -2482,25 +2597,27 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
   uint null_bit_index= 0;
   char typestr[64]= "";
   
-  value+= (m_width + 7) / 8;
+  /*
+    Skip metadata bytes which gives the information about nullabity of master
+    columns. Master writes one bit for each affected column.
+   */
+
+  value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
   
   my_b_printf(file, "%s", prefix);
   
   for (size_t i= 0; i < td->size(); i ++)
   {
+    size_t size;
     int is_null= (null_bits[null_bit_index / 8] 
                   >> (null_bit_index % 8))  & 0x01;
 
     if (bitmap_is_set(cols_bitmap, i) == 0)
       continue;
     
-    if (is_null)
+    my_b_printf(file, "###   @%d=", static_cast<int>(i + 1));
+    if (!is_null)
     {
-      my_b_printf(file, "###   @%lu=NULL", (ulong)i + 1);
-    }
-    else
-    {
-      my_b_printf(file, "###   @%lu=", (ulong)i + 1);
       size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
       if (value + fsize > m_rows_end)
       {
@@ -2509,23 +2626,20 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
         value+= fsize;
         return 0;
       }
-      size_t size= log_event_print_value(file, value,
-                                         td->type(i), td->field_metadata(i),
-                                         typestr, sizeof(typestr));
-      if (!size)
-        return 0;
-
-      value+= size;
     }
+    if (!(size= log_event_print_value(file,is_null? NULL: value,
+                                      td->type(i), td->field_metadata(i),
+                                      typestr, sizeof(typestr))))
+      return 0;
+
+    if (!is_null)
+      value+= size;
 
     if (print_event_info->verbose > 1)
     {
       my_b_write(file, (uchar*)" /* ", 4);
 
-      if (typestr[0])
-        my_b_printf(file, "%s ", typestr);
-      else
-        my_b_printf(file, "type=%d ", td->type(i));
+      my_b_printf(file, "%s ", typestr);
       
       my_b_printf(file, "meta=%d nullable=%d is_null=%d ",
                   td->field_metadata(i),
@@ -2788,7 +2902,7 @@ Log_event::continue_group(rpl_group_info *rgi)
     show the catalog ??
 */
 
-void Query_log_event::pack_info(THD *thd, Protocol *protocol)
+void Query_log_event::pack_info(Protocol *protocol)
 {
   // TODO: show the catalog ??
   char buf_mem[1024];
@@ -2798,7 +2912,7 @@ void Query_log_event::pack_info(THD *thd, Protocol *protocol)
       && db && db_len)
   {
     buf.append(STRING_WITH_LEN("use "));
-    append_identifier(thd, &buf, db, db_len);
+    append_identifier(protocol->thd, &buf, db, db_len);
     buf.append(STRING_WITH_LEN("; "));
   }
   if (query && q_len)
@@ -3411,7 +3525,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   
   slave_proxy_id= thread_id = uint4korr(buf + Q_THREAD_ID_OFFSET);
   exec_time = uint4korr(buf + Q_EXEC_TIME_OFFSET);
-  db_len = (uint)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
+  db_len = (uchar)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
   error_code = uint2korr(buf + Q_ERR_CODE_OFFSET);
 
   /*
@@ -4263,7 +4377,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           rgi->gtid_pending= false;
 
           gtid= rgi->current_gtid;
-          if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
+          if (rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id,
+                                                       true, false))
           {
             int errcode= thd->get_stmt_da()->sql_errno();
             if (!is_parallel_retry_error(rgi, errcode))
@@ -4312,6 +4427,15 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
         if (thd->m_digest != NULL)
           thd->m_digest->reset(thd->m_token_array, max_digest_length);
+
+         if (thd->slave_thread)
+         {
+           /*
+             The opt_log_slow_slave_statements variable can be changed
+             dynamically, so we have to set the sql_log_slow respectively.
+           */
+           thd->variables.sql_log_slow= opt_log_slow_slave_statements;
+         }
 
         thd->enable_slow_log= thd->variables.sql_log_slow;
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
@@ -4473,7 +4597,7 @@ compare_errors:
 
 end:
   if (sub_id && !thd->is_slave_error)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
+    rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
@@ -4603,7 +4727,7 @@ Start_log_event_v3::Start_log_event_v3()
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Start_log_event_v3::pack_info(THD *thd, Protocol *protocol)
+void Start_log_event_v3::pack_info(Protocol *protocol)
 {
   char buf[12 + ST_SERVER_VER_LEN + 14 + 22], *pos;
   pos= strmov(buf, "Server ver: ");
@@ -4890,6 +5014,12 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[HEARTBEAT_LOG_EVENT-1]= 0;
       post_header_len[IGNORABLE_LOG_EVENT-1]= 0;
       post_header_len[ROWS_QUERY_LOG_EVENT-1]= 0;
+      post_header_len[GTID_LOG_EVENT-1]= 0;
+      post_header_len[ANONYMOUS_GTID_LOG_EVENT-1]= 0;
+      post_header_len[PREVIOUS_GTIDS_LOG_EVENT-1]= 0;
+      post_header_len[TRANSACTION_CONTEXT_EVENT-1]= 0;
+      post_header_len[VIEW_CHANGE_EVENT-1]= 0;
+      post_header_len[XA_PREPARE_LOG_EVENT-1]= 0;
       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
@@ -5364,7 +5494,7 @@ void Start_encryption_log_event::print(FILE* file,
   **************************************************************************/
 
 /*
-  Load_log_event::pack_info()
+  Load_log_event::print_query()
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
@@ -5467,13 +5597,13 @@ void Load_log_event::print_query(THD *thd, bool need_db, const char *cs,
 }
 
 
-void Load_log_event::pack_info(THD *thd, Protocol *protocol)
+void Load_log_event::pack_info(Protocol *protocol)
 {
   char query_buffer[1024];
   String query_str(query_buffer, sizeof(query_buffer), system_charset_info);
 
   query_str.length(0);
-  print_query(thd, TRUE, NULL, &query_str, 0, 0, NULL);
+  print_query(protocol->thd, TRUE, NULL, &query_str, 0, 0, NULL);
   protocol->store(query_str.ptr(), query_str.length(), &my_charset_bin);
 }
 #endif /* defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT) */
@@ -6144,7 +6274,7 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rotate_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rotate_log_event::pack_info(Protocol *protocol)
 {
   StringBuffer<256> tmp(log_cs);
   tmp.length(0);
@@ -6307,7 +6437,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
+    rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     flush_relay_log_info(rli);
     
     /*
@@ -6356,7 +6486,7 @@ Rotate_log_event::do_shall_skip(rpl_group_info *rgi)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
+void Binlog_checkpoint_log_event::pack_info(Protocol *protocol)
 {
   protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
 }
@@ -6593,7 +6723,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 
 #ifdef HAVE_REPLICATION
 void
-Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
+Gtid_log_event::pack_info(Protocol *protocol)
 {
   char buf[6+5+10+1+10+1+20+1+4+20+1];
   char *p;
@@ -6812,7 +6942,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
     for (i= 0; i < count; ++i)
     {
       if (!(sub_id_list[i]=
-            rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+            rpl_global_gtid_slave_state->next_sub_id(list[i].domain_id)))
       {
         my_free(list);
         my_free(sub_id_list);
@@ -6867,7 +6997,7 @@ Gtid_list_log_event::Gtid_list_log_event(slave_connection_state *gtid_set,
       for (i= 0; i < count; ++i)
       {
         if (!(sub_id_list[i]=
-              rpl_global_gtid_slave_state.next_sub_id(list[i].domain_id)))
+              rpl_global_gtid_slave_state->next_sub_id(list[i].domain_id)))
         {
           my_free(list);
           my_free(sub_id_list);
@@ -6939,11 +7069,11 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     uint32 i;
     for (i= 0; i < count; ++i)
     {
-      if ((ret= rpl_global_gtid_slave_state.record_gtid(thd, &list[i],
+      if ((ret= rpl_global_gtid_slave_state->record_gtid(thd, &list[i],
                                                         sub_id_list[i],
                                                         false, false)))
         return ret;
-      rpl_global_gtid_slave_state.update_state_hash(sub_id_list[i], &list[i],
+      rpl_global_gtid_slave_state->update_state_hash(sub_id_list[i], &list[i],
                                                     NULL);
     }
   }
@@ -6974,7 +7104,7 @@ Gtid_list_log_event::do_shall_skip(rpl_group_info *rgi)
 
 
 void
-Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
+Gtid_list_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
@@ -7084,7 +7214,7 @@ Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Intvar_log_event::pack_info(THD *thd, Protocol *protocol)
+void Intvar_log_event::pack_info(Protocol *protocol)
 {
   char buf[256], *pos;
   pos= strmake(buf, get_var_type_name(), sizeof(buf)-23);
@@ -7235,7 +7365,7 @@ Intvar_log_event::do_shall_skip(rpl_group_info *rgi)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rand_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rand_log_event::pack_info(Protocol *protocol)
 {
   char buf1[256], *pos;
   pos= strmov(buf1,"rand_seed1=");
@@ -7342,6 +7472,7 @@ bool slave_execute_deferred_events(THD *thd)
     return res;
 
   res= rgi->deferred_events->execute(rgi);
+  rgi->deferred_events->rewind();
 
   return res;
 }
@@ -7354,7 +7485,7 @@ bool slave_execute_deferred_events(THD *thd)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Xid_log_event::pack_info(THD *thd, Protocol *protocol)
+void Xid_log_event::pack_info(Protocol *protocol)
 {
   char buf[128], *pos;
   pos= strmov(buf, "COMMIT /* xid=");
@@ -7442,7 +7573,8 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     rgi->gtid_pending= false;
 
     gtid= rgi->current_gtid;
-    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
+    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, true,
+                                                  false);
     if (err)
     {
       int ec= thd->get_stmt_da()->sql_errno();
@@ -7475,7 +7607,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->mdl_context.release_transactional_locks();
 
   if (!res && sub_id)
-    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid, rgi);
+    rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, rgi);
 
   /*
     Increment the global status commit count variable
@@ -7529,14 +7661,14 @@ user_var_append_name_part(THD *thd, String *buf,
     buf->append("=");
 }
 
-void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
+void User_var_log_event::pack_info(Protocol* protocol)
 {
   if (is_null)
   {
     char buf_mem[FN_REFLEN+7];
     String buf(buf_mem, sizeof(buf_mem), system_charset_info);
     buf.length(0);
-    if (user_var_append_name_part(thd, &buf, name, name_len) ||
+    if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
         buf.append("NULL"))
       return;
     protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -7552,7 +7684,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       float8get(real_val, val);
       buf.length(0);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2, my_gcvt(real_val, MY_GCVT_ARG_DOUBLE,
                                    MY_GCVT_MAX_FIELD_WIDTH, buf2, NULL)))
         return;
@@ -7565,7 +7697,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       char buf_mem[FN_REFLEN + 22];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       buf.length(0);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2,
                  longlong10_to_str(uint8korr(val), buf2,
                    ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10))-buf2))
@@ -7584,7 +7716,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) (val+2), &dec, val[0],
                         val[1]);
       my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, 0, &str);
-      if (user_var_append_name_part(thd, &buf, name, name_len) ||
+      if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2))
         return;
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);
@@ -7606,7 +7738,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
       {
         size_t old_len;
         char *beg, *end;
-        if (user_var_append_name_part(thd, &buf, name, name_len) ||
+        if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
             buf.append("_") ||
             buf.append(cs->csname) ||
             buf.append(" "))
@@ -7997,7 +8129,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     a single record and with a single column. Thus, like
     a column value, it could always have IMPLICIT derivation.
    */
-  e->update_hash(val, val_len, type, charset, DERIVATION_IMPLICIT,
+  e->update_hash(val, val_len, type, charset,
                  (flags & User_var_log_event::UNSIGNED_F));
   if (!is_deferred())
     free_root(thd->mem_root, 0);
@@ -8092,7 +8224,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     rgi->inc_event_relay_log_pos();
   else if (!rgi->is_parallel_exec)
   {
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi);
+    rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
     flush_relay_log_info(rli);
   }
@@ -8282,7 +8414,7 @@ void Create_file_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Create_file_log_event::pack_info(THD *thd, Protocol *protocol)
+void Create_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[SAFE_NAME_LEN*2 + 30 + 21*2], *pos;
   pos= strmov(buf, "db=");
@@ -8470,7 +8602,7 @@ void Append_block_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Append_block_log_event::pack_info(THD *thd, Protocol *protocol)
+void Append_block_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   uint length;
@@ -8627,7 +8759,7 @@ void Delete_file_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Delete_file_log_event::pack_info(THD *thd, Protocol *protocol)
+void Delete_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
@@ -8728,7 +8860,7 @@ void Execute_load_log_event::print(FILE* file,
 */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Execute_load_log_event::pack_info(THD *thd, Protocol *protocol)
+void Execute_load_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
@@ -8991,7 +9123,7 @@ void Execute_load_query_log_event::print(FILE* file,
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
+void Execute_load_query_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
@@ -8999,7 +9131,7 @@ void Execute_load_query_log_event::pack_info(THD *thd, Protocol *protocol)
   if (db && db_len)
   {
     if (buf.append(STRING_WITH_LEN("use ")) ||
-        append_identifier(thd, &buf, db, db_len) ||
+        append_identifier(protocol->thd, &buf, db, db_len) ||
         buf.append(STRING_WITH_LEN("; ")))
       return;
   }
@@ -9773,7 +9905,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 
 #ifdef HAVE_QUERY_CACHE
+#ifdef WITH_WSREP
+    /*
+       Moved invalidation right before the call to rows_event_stmt_cleanup(),
+       to avoid query cache being polluted with stale entries.
+    */
+    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    {
+#endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
 #endif
   }
 
@@ -9824,6 +9967,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       bitmap_intersect(table->read_set,&m_cols);
 
     bitmap_set_all(table->write_set);
+    table->rpl_write_set= table->write_set;
 
     /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
     MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
@@ -9964,6 +10108,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   /* remove trigger's tables */
   if (slave_run_triggers_for_rbr)
     restore_empty_query_table_list(thd->lex);
+
+#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
+    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    {
+      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+    }
+#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+
   if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,
@@ -10176,7 +10328,7 @@ bool Rows_log_event::write_data_body()
 #endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Rows_log_event::pack_info(THD *thd, Protocol *protocol)
+void Rows_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   char const *const flagstr=
@@ -10280,7 +10432,7 @@ bool Annotate_rows_log_event::write_data_body()
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-void Annotate_rows_log_event::pack_info(THD *thd, Protocol* protocol)
+void Annotate_rows_log_event::pack_info(Protocol* protocol)
 {
   if (m_query_txt && m_query_len)
     protocol->store(m_query_txt, m_query_len, &my_charset_bin);
@@ -11005,8 +11157,8 @@ bool Table_map_log_event::write_data_body()
   DBUG_ASSERT(m_dbnam != NULL);
   DBUG_ASSERT(m_tblnam != NULL);
   /* We use only one byte per length for storage in event: */
-  DBUG_ASSERT(m_dblen < 128);
-  DBUG_ASSERT(m_tbllen < 128);
+  DBUG_ASSERT(m_dblen <= MY_MIN(NAME_LEN, 255));
+  DBUG_ASSERT(m_tbllen <= MY_MIN(NAME_LEN, 255));
 
   uchar const dbuf[]= { (uchar) m_dblen };
   uchar const tbuf[]= { (uchar) m_tbllen };
@@ -11041,7 +11193,7 @@ bool Table_map_log_event::write_data_body()
  */
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Table_map_log_event::pack_info(THD *thd, Protocol *protocol)
+void Table_map_log_event::pack_info(Protocol *protocol)
 {
     char buf[256];
     size_t bytes= my_snprintf(buf, sizeof(buf),
@@ -11056,7 +11208,7 @@ void Table_map_log_event::pack_info(THD *thd, Protocol *protocol)
 
 
 #ifdef MYSQL_CLIENT
-void Table_map_log_event::print(FILE *, PRINT_EVENT_INFO *print_event_info)
+void Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
   if (!print_event_info->short_form)
   {
@@ -11067,6 +11219,7 @@ void Table_map_log_event::print(FILE *, PRINT_EVENT_INFO *print_event_info)
                 ((m_flags & TM_BIT_HAS_TRIGGERS_F) ?
                  " (has triggers)" : ""));
     print_base64(&print_event_info->body_cache, print_event_info, TRUE);
+    copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, file);
   }
 }
 #endif
@@ -11082,8 +11235,8 @@ void Table_map_log_event::print(FILE *, PRINT_EVENT_INFO *print_event_info)
 Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                            ulong tid_arg,
                                            bool is_transactional)
-  : Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->write_set,
-                   is_transactional, WRITE_ROWS_EVENT_V1)
+  :Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->rpl_write_set,
+                  is_transactional, WRITE_ROWS_EVENT_V1)
 {
 }
 #endif
@@ -11191,8 +11344,10 @@ Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *
    */
   if (is_auto_inc_in_extra_columns())
   {
-    bitmap_clear_bit(m_table->write_set, m_table->next_number_field->field_index);
-    bitmap_clear_bit( m_table->read_set, m_table->next_number_field->field_index);
+    bitmap_clear_bit(m_table->rpl_write_set,
+                     m_table->next_number_field->field_index);
+    bitmap_clear_bit(m_table->read_set,
+                     m_table->next_number_field->field_index);
 
     if (get_flags(STMT_END_F))
       m_table->file->ha_release_auto_increment();
@@ -11226,6 +11381,7 @@ bool Rows_log_event::process_triggers(trg_event_type event,
 {
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
+  m_table->triggers->mark_fields_used(event);
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
   {
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
@@ -11329,7 +11485,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   /* unpack row into table->record[0] */
   if ((error= unpack_current_row(rgi)))
+  {
+    table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
+  }
 
   if (m_curr_row == m_rows_buf && !invoke_triggers)
   {
@@ -11361,8 +11520,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     m_table->next_number_field->set_null();
   
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
-  DBUG_PRINT_BITSET("debug", "write_set = %s", table->write_set);
-  DBUG_PRINT_BITSET("debug", "read_set = %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
+  DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
 
   if (invoke_triggers &&
       process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE))
@@ -12190,7 +12349,11 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     if (!error)
+    {
+      m_table->mark_columns_per_binlog_row_image();
       error= m_table->file->ha_delete_row(m_table->record[0]);
+      m_table->default_column_bitmaps();
+    }
     if (invoke_triggers && !error &&
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE))
       error= HA_ERR_GENERIC; // in case if error is not set yet
@@ -12232,7 +12395,7 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
                  UPDATE_ROWS_EVENT_V1)
 {
-  init(tbl_arg->write_set);
+  init(tbl_arg->rpl_write_set);
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
@@ -12333,8 +12496,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       We need to read the second image in the event of error to be
       able to skip to the next pair of updates
     */
-    m_curr_row= m_curr_row_end;
-    unpack_current_row(rgi, &m_cols_ai);
+    if ((m_curr_row= m_curr_row_end))
+      unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
     return error;
   }
@@ -12504,7 +12667,7 @@ Incident_log_event::description() const
 
 
 #ifndef MYSQL_CLIENT
-void Incident_log_event::pack_info(THD *thd, Protocol *protocol)
+void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   size_t bytes;
@@ -12618,6 +12781,52 @@ Incident_log_event::write_data_body()
 }
 #endif
 
+Ignorable_log_event::Ignorable_log_event(const char *buf,
+                                         const Format_description_log_event
+                                         *descr_event,
+                                         const char *event_name)
+  :Log_event(buf, descr_event), number((int) (uchar) buf[EVENT_TYPE_OFFSET]),
+   description(event_name)
+{
+  DBUG_ENTER("Ignorable_log_event::Ignorable_log_event");
+  DBUG_VOID_RETURN;
+}
+
+Ignorable_log_event::~Ignorable_log_event()
+{
+}
+
+#ifndef MYSQL_CLIENT
+/* Pack info for its unrecognized ignorable event */
+void Ignorable_log_event::pack_info(Protocol *protocol)
+{
+  char buf[256];
+  size_t bytes;
+  bytes= my_snprintf(buf, sizeof(buf), "# Ignorable event type %d (%s)",
+                     number, description);
+  protocol->store(buf, bytes, &my_charset_bin);
+}
+#endif
+
+#ifdef MYSQL_CLIENT
+/* Print for its unrecognized ignorable event */
+void
+Ignorable_log_event::print(FILE *file,
+                           PRINT_EVENT_INFO *print_event_info)
+{
+  if (print_event_info->short_form)
+    return;
+
+  print_header(&print_event_info->head_cache, print_event_info, FALSE);
+  my_b_printf(&print_event_info->head_cache, "\tIgnorable\n");
+  my_b_printf(&print_event_info->head_cache,
+              "# Ignorable event type %d (%s)\n", number, description);
+  copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
+                                      file);
+}
+#endif
+
+
 #ifdef MYSQL_CLIENT
 /**
   The default values for these variables should be values that are
@@ -12698,5 +12907,29 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
   }
   return TRUE;
 #endif
+}
+
+/**
+   Check if we should write event to the relay log
+
+   This is used to skip events that is only supported by MySQL
+
+   Return:
+   0 ok
+   1 Don't write event
+*/
+
+bool event_that_should_be_ignored(const char *buf)
+{
+  uint event_type= (uchar)buf[EVENT_TYPE_OFFSET];
+  if (event_type == GTID_LOG_EVENT ||
+      event_type == ANONYMOUS_GTID_LOG_EVENT ||
+      event_type == PREVIOUS_GTIDS_LOG_EVENT ||
+      event_type == TRANSACTION_CONTEXT_EVENT ||
+      event_type == VIEW_CHANGE_EVENT ||
+      event_type == XA_PREPARE_LOG_EVENT ||
+      (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F))
+    return 1;
+  return 0;
 }
 #endif

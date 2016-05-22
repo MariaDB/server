@@ -1,0 +1,15 @@
+include/master-slave.inc
+[connection master]
+select @@mysql56_temporal_format;
+@@mysql56_temporal_format
+0
+create table t1 (ts timestamp(3), t time(3), dt datetime(3));
+insert into t1 values ('2016-02-15 12:50:06.123', '12:50:06.123', '2016-02-15 12:50:06.123');
+select @@mysql56_temporal_format;
+@@mysql56_temporal_format
+0
+select * from t1;
+ts	t	dt
+2016-02-15 12:50:06.123	12:50:06.123	2016-02-15 12:50:06.123
+drop table t1;
+include/rpl_end.inc

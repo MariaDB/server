@@ -1,0 +1,126 @@
+#
+# /etc/systemd/system/mariadb.service
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or
+# (at your option) any later version.
+#
+# Thanks to:
+# Daniel Black
+# Erkan Yanar
+# David Strauss
+# and probably others
+
+[Unit]
+Description=MariaDB database server
+After=network.target
+After=syslog.target
+
+[Install]
+WantedBy=multi-user.target
+Alias=mysql.service
+Alias=mysqld.service
+
+
+[Service]
+
+##############################################################################
+## Core requirements
+##
+
+Type=notify
+
+# Setting this to true can break replication and the Type=notify settings
+# See also bind-address mysqld option.
+PrivateNetwork=false
+
+##############################################################################
+## Package maintainers
+##
+
+User=mysql
+Group=mysql
+
+# To allow memlock to be used as non-root user if set in configuration
+CapabilityBoundingSet=CAP_IPC_LOCK
+
+# Execute pre and post scripts as root, otherwise it does it as User=
+PermissionsStartOnly=true
+
+# Needed to create system tables etc.
+# ExecStartPre=/usr/bin/mysql_install_db -u mysql
+
+# Start main service
+# MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+# Use the [service] section and Environment="MYSQLD_OPTS=...".
+# This isn't a replacement for my.cnf.
+# _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
+@SYSTEMD_EXECSTARTPRE@
+ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER
+@SYSTEMD_EXECSTARTPOST@
+
+KillMode=process
+KillSignal=SIGTERM
+
+# Don't want to see an automated SIGKILL ever
+SendSIGKILL=no
+
+# Restart crashed server only, on-failure would also restart, for example, when
+# my.cnf contains unknown option
+Restart=on-abort
+RestartSec=5s
+
+UMask=007
+
+##############################################################################
+## USERs can override
+##
+##
+## by creating a file in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+## and adding/setting the following will override this file's settings.
+
+# Useful options not previously available in [mysqld_safe]
+
+# Kernels like killing mysqld when out of memory because its big.
+# Lets temper that preference a little.
+# OOMScoreAdjust=-600
+
+# Explicitly start with high IO priority
+# BlockIOWeight=1000
+
+# If you don't use the /tmp directory for SELECT ... OUTFILE and
+# LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
+PrivateTmp=false
+
+##
+## Options previously available to be set via [mysqld_safe]
+## that now needs to be set by systemd config files as mysqld_safe
+## isn't executed.
+##
+
+# Number of files limit. previously [mysqld_safe] open-file-limit
+LimitNOFILE=16364
+
+# Maximium core size. previously [mysqld_safe] core-file-size
+# LimitCore=
+
+# Nice priority. previously [mysqld_safe] nice
+# Nice=-5
+
+# Timezone. previously [mysqld_safe] timezone
+# Environment="TZ=UTC"
+
+# Library substitutions. previously [mysqld_safe] malloc-lib with explict paths
+# (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+
+# Flush caches. previously [mysqld_safe] flush-caches=1
+# ExecStartPre=sync
+# ExecStartPre=sysctl -q -w vm.drop_caches=3
+
+# numa-interleave=1 equalivant
+# Change ExecStart=numactl --interleave=all /usr/sbin/mysqld......
+
+# crash-script equalivent
+# FailureAction=

@@ -1,0 +1,15 @@
+#
+# MDEV-9538 Server crashes in check_show_access on SHOW STATISTICS
+# MDEV-9539 Server crashes in make_columns_old_format on SHOW GEOMETRY_COLUMNS
+# MDEV-9540 SHOW SPATIAL_REF_SYS and SHOW SYSTEM_VARIABLES return empty results with numerous warnings
+#
+--error ER_PARSE_ERROR
+show statistics;
+--error ER_PARSE_ERROR
+show spatial_ref_sys
+--error ER_PARSE_ERROR
+show system_variables;
+--error ER_PARSE_ERROR
+show geometry_columns;
+--error ER_PARSE_ERROR
+show nonexistent;

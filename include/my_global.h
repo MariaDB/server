@@ -200,20 +200,6 @@
 #define likely(x)	__builtin_expect(((x) != 0),1)
 #define unlikely(x)	__builtin_expect(((x) != 0),0)
 
-/*
-  now let's figure out if inline functions are supported
-  autoconf defines 'inline' to be empty, if not
-*/
-#define inline_test_1(X)        X ## 1
-#define inline_test_2(X)        inline_test_1(X)
-#if inline_test_2(inline) != 1
-#define HAVE_INLINE
-#else
-#error Compiler does not support inline!
-#endif
-#undef inline_test_2
-#undef inline_test_1
-
 /* Fix problem with S_ISLNK() on Linux */
 #if defined(TARGET_OS_LINUX) || defined(__GLIBC__)
 #undef  _GNU_SOURCE
@@ -454,7 +440,7 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #endif
 
 #ifndef STDERR_FILENO
-#define STDERR_FILENO 2
+#define STDERR_FILENO fileno(stderr)
 #endif
 
 #ifndef SO_EXT
@@ -547,7 +533,11 @@ typedef int	my_socket;	/* File descriptor for sockets */
 /* Type for fuctions that handles signals */
 #define sig_handler RETSIGTYPE
 C_MODE_START
-typedef void	(*sig_return)();/* Returns type from signal */
+#ifdef HAVE_SIGHANDLER_T
+#define sig_return sighandler_t
+#else
+typedef void (*sig_return)(void); /* Returns type from signal */
+#endif
 C_MODE_END
 #if defined(__GNUC__) && !defined(_lint)
 typedef char	pchar;		/* Mixed prototypes can take char */
@@ -821,6 +811,9 @@ inline unsigned long long my_double2ulonglong(double d)
 #else
 #define finite(x) (1.0 / fabs(x) > 0.0)
 #endif /* HAVE_FINITE */
+#elif (__cplusplus >= 201103L)
+#include <cmath>
+static inline bool isfinite(double x) { return std::isfinite(x); }
 #endif /* isfinite */
 
 #ifndef HAVE_ISNAN

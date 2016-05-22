@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,6 +48,7 @@ class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
   Item_result m_compare_type;
+  CHARSET_INFO *m_compare_collation;
   arg_cmp_func func;
   Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
@@ -59,22 +60,23 @@ class Arg_comparator: public Sql_alloc
                                    //   when one of arguments is NULL.
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
   int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
-  bool agg_arg_charsets_for_comparison();
 
   int compare_temporal(enum_field_types type);
   int compare_e_temporal(enum_field_types type);
 
 public:
-  DTCollation cmp_collation;
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
   Arg_comparator(): m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
-    m_compare_type(STRING_RESULT), set_null(TRUE),
-    comparators(0), thd(0), a_cache(0), b_cache(0) {};
+    m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
+    set_null(TRUE), comparators(0), thd(0),
+    a_cache(0), b_cache(0) {};
 
 public:
   inline int set_cmp_func(Item_func_or_sum *owner_arg,
@@ -86,7 +88,6 @@ public:
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]
-  int compare_binary_string();	 // compare args[0] & args[1]
   int compare_real();            // compare args[0] & args[1]
   int compare_decimal();         // compare args[0] & args[1]
   int compare_int_signed();      // compare args[0] & args[1]
@@ -95,7 +96,6 @@ public:
   int compare_int_unsigned();
   int compare_row();             // compare args[0] & args[1]
   int compare_e_string();	 // compare args[0] & args[1]
-  int compare_e_binary_string(); // compare args[0] & args[1]
   int compare_e_real();          // compare args[0] & args[1]
   int compare_e_decimal();       // compare args[0] & args[1]
   int compare_e_int();           // compare args[0] & args[1]
@@ -117,6 +117,7 @@ public:
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
   Item_result compare_type() const { return m_compare_type; }
+  CHARSET_INFO *compare_collation() const { return m_compare_collation; }
   Arg_comparator *subcomparators() const { return comparators; }
   void cleanup()
   {
@@ -138,25 +139,51 @@ protected:
     @param  param       PARAM from SQL_SELECT::test_quick_select
     @param  field       field in the predicate
     @param  value       constant in the predicate
-    @param  cmp_type    compare type for the field
     @return Pointer to the tree built tree
   */
   virtual SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                                     Field *field, Item *value,
-                                     Item_result cmp_type)
+                                     Field *field, Item *value)
   {
-    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
+    DBUG_ENTER("Item_bool_func::get_func_mm_tree");
     DBUG_ASSERT(0);
     DBUG_RETURN(0);
   }
+  /*
+    Return the full select tree for "field_item" and "value":
+    - a single SEL_TREE if the field is not in a multiple equality, or
+    - a conjuction of all SEL_TREEs for all fields from
+      the same multiple equality with "field_item".
+  */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
                                   Item_field *field_item, Item *value);
+  /**
+    Test if "item" and "value" are suitable for the range optimization
+    and get their full select tree.
+
+    "Suitable" means:
+    - "item" is a field or a field reference
+    - "value" is NULL                (e.g. WHERE field IS NULL), or
+      "value" is an unexpensive item (e.g. WHERE field OP value)
+
+    @param item  - the argument that is checked to be a field
+    @param value - the other argument
+    @returns - NULL if the arguments are not suitable for the range optimizer.
+    @returns - the full select tree if the arguments are suitable.
+  */
+  SEL_TREE *get_full_func_mm_tree_for_args(RANGE_OPT_PARAM *param,
+                                           Item *item, Item *value)
+  {
+    DBUG_ENTER("Item_bool_func::get_full_func_mm_tree_for_args");
+    Item *field= item->real_item();
+    if (field->type() == Item::FIELD_ITEM && !field->const_item() &&
+        (!value || !value->is_expensive()))
+      DBUG_RETURN(get_full_func_mm_tree(param, (Item_field *) field, value));
+    DBUG_RETURN(NULL);
+  }
   SEL_TREE *get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
-                         Item_func::Functype type,
-                         Item *value, Item_result cmp_type);
+                         Item_func::Functype type, Item *value);
   SEL_TREE *get_ne_mm_tree(RANGE_OPT_PARAM *param,
-                           Field *field, Item *lt_value, Item *gt_value,
-                           Item_result cmp_type);
+                           Field *field, Item *lt_value, Item *gt_value);
   virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                                KEY_PART *key_part,
                                Item_func::Functype type, Item *value);
@@ -327,33 +354,15 @@ public:
 */
 class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
-  bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
 protected:
   void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                                   uint *and_level, table_map usable_tables,
                                   SARGABLE_PARAM **sargables, bool equal_func);
-  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type)
-  {
-    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
-    /*
-       Here the function for the following predicates are processed:
-       <, <=, =, <=>, >=, >, LIKE, spatial relations
-       If the predicate is of the form (value op field) it is handled
-       as the equivalent predicate (field rev_op value), e.g.
-       2 <= a is handled as a >= 2.
-    */
-    Item_func::Functype func_type=
-      (value != arguments()[0]) ? functype() : rev_functype();
-    DBUG_RETURN(get_mm_parts(param, field, func_type, value, cmp_type));
-  }
 public:
   Item_bool_func2(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b) { }
-  virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   bool count_sargable_conds(uchar *arg);
@@ -371,15 +380,87 @@ public:
     */
     return STRING_RESULT;
   }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_bool_func2::get_mm_tree");
+    DBUG_ASSERT(arg_count == 2);
+    SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], args[1]);
+    if (!ftree)
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
 };
 
-class Item_bool_rowready_func2 :public Item_bool_func2
+
+/**
+  A class for functions and operators that can use the range optimizer and
+  have a reverse function/operator that can also use the range optimizer,
+  so this condition:
+    WHERE value OP field
+  can be optimized as equivalent to:
+    WHERE field REV_OP value
+
+  This class covers:
+  - scalar comparison predicates:  <, <=, =, <=>, >=, >
+  - MBR and precise spatial relation predicates (e.g. SP_TOUCHES(x,y))
+
+  For example:
+    WHERE 10 > field
+  can be optimized as:
+    WHERE field < 10
+*/
+class Item_bool_func2_with_rev :public Item_bool_func2
+{
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value)
+  {
+    DBUG_ENTER("Item_bool_func2_with_rev::get_func_mm_tree");
+    Item_func::Functype func_type=
+      (value != arguments()[0]) ? functype() : rev_functype();
+    DBUG_RETURN(get_mm_parts(param, field, func_type, value));
+  }
+public:
+  Item_bool_func2_with_rev(THD *thd, Item *a, Item *b):
+    Item_bool_func2(thd, a, b) { }
+  virtual enum Functype rev_functype() const= 0;
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_bool_func2_with_rev::get_mm_tree");
+    DBUG_ASSERT(arg_count == 2);
+    SEL_TREE *ftree;
+    /*
+      Even if get_full_func_mm_tree_for_args(param, args[0], args[1]) will not
+      return a range predicate it may still be possible to create one
+      by reversing the order of the operands. Note that this only
+      applies to predicates where both operands are fields. Example: A
+      query of the form
+
+         WHERE t1.a OP t2.b
+
+      In this case, args[0] == t1.a and args[1] == t2.b.
+      When creating range predicates for t2,
+      get_full_func_mm_tree_for_args(param, args[0], args[1])
+      will return NULL because 'field' belongs to t1 and only
+      predicates that applies to t2 are of interest. In this case a
+      call to get_full_func_mm_tree_for_args() with reversed operands
+      may succeed.
+    */
+    if (!(ftree= get_full_func_mm_tree_for_args(param, args[0], args[1])) &&
+        !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])))
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
+};
+
+
+class Item_bool_rowready_func2 :public Item_bool_func2_with_rev
 {
 protected:
   Arg_comparator cmp;
 public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
-    Item_bool_func2(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
+    Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
@@ -403,8 +484,7 @@ public:
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
-  CHARSET_INFO *compare_collation() const
-  { return cmp.cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
   Item_result compare_type() const { return cmp.compare_type(); }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
@@ -664,10 +744,10 @@ class Item_func_ne :public Item_bool_rowready_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value,  Item_result cmp_type)
+                             Field *field, Item *value)
   {
     DBUG_ENTER("Item_func_ne::get_func_mm_tree");
-    DBUG_RETURN(get_ne_mm_tree(param, field, value, value, cmp_type));
+    DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
   }
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
@@ -716,6 +796,7 @@ public:
 public:
   inline void negate() { negated= !negated; }
   inline void top_level_item() { pred_level= 1; }
+  bool is_top_level_item() const { return pred_level; }
   Item *neg_transformer(THD *thd)
   {
     negated= !negated;
@@ -731,7 +812,7 @@ class Item_func_between :public Item_func_opt_neg
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type);
+                             Field *field, Item *value);
 public:
   String value0,value1,value2;
   /* TRUE <=> arguments will be compared as dates. */
@@ -822,7 +903,11 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    set_handler_by_field_type(agg_field_type(args, arg_count, true));
+    fix_attributes(args, arg_count);
+  }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
 };
@@ -835,13 +920,18 @@ public:
 */
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
+protected:
+  void fix_length_and_dec2(Item **items)
+  {
+    set_handler_by_field_type(agg_field_type(items, 2, true));
+    fix_attributes(items, 2);
+  }
+  uint decimal_precision2(Item **args) const;
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b) { }
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b, Item *c):
     Item_func_hybrid_field_type(thd, a, b, c) { }
-  void fix_length_and_dec2(Item **args);
-  uint decimal_precision2(Item **args) const;
 };
 
 
@@ -915,32 +1005,54 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     - Item_field::propagate_equal_fields(ANY_SUBST) for the left "a"
     - Item_field::propagate_equal_fields(IDENTITY_SUBST) for the right "a"
   */
+  Item_cache *m_cache;
+  int compare();
 public:
-  // Put "a" to args[0] for comparison and to args[2] for the returned value.
+  /*
+    Here we pass three arguments to the parent constructor, as NULLIF
+    is a three-argument function, it needs two copies of the first argument
+    (see above). But fix_fields() will be confused if we try to prepare the
+    same Item twice (if args[0]==args[2]), so we hide the third argument
+    (decrementing arg_count) and copy args[2]=args[0] again after fix_fields().
+    See also Item_func_nullif::fix_length_and_dec().
+  */
   Item_func_nullif(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b, a)
-  {}
+    Item_func_hybrid_field_type(thd, a, b, a),
+    m_cache(NULL)
+  { arg_count--; }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
+  void update_used_tables();
   table_map not_null_tables() const { return 0; }
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.cmp_collation.collation);
+    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.compare_collation());
+    const Item *old0= args[0];
     args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[0]);
     args[1]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[1]);
-    args[2]->propagate_equal_fields_and_change_item_tree(thd,
-                                                         Context_identity(),
-                                                         cond, &args[2]);
+    /*
+      MDEV-9712 Performance degradation of nested NULLIF
+      ANY_SUBST is more relaxed than IDENTITY_SUBST.
+      If ANY_SUBST did not change args[0],
+      then we can skip propagation for args[2].
+    */
+    if (old0 != args[0])
+      args[2]->propagate_equal_fields_and_change_item_tree(thd,
+                                                           Context_identity(),
+                                                           cond, &args[2]);
     return this;
   }
 };
@@ -973,7 +1085,7 @@ public:
   {
     my_qsort2(base,used_count,size,compare,(void*)collation);
   }
-  int find(Item *item);
+  bool find(Item *item);
   
   /* 
     Create an instance of Item_{type} (e.g. Item_decimal) constant object
@@ -1141,6 +1253,10 @@ public:
   cmp_item() { cmp_charset= &my_charset_bin; }
   virtual ~cmp_item() {}
   virtual void store_value(Item *item)= 0;
+  /**
+     @returns result (TRUE, FALSE or UNKNOWN) of
+     "stored argument's value <> item's value"
+  */
   virtual int cmp(Item *item)= 0;
   // for optimized IN with row
   virtual int compare(cmp_item *item)= 0;
@@ -1153,7 +1269,14 @@ public:
   }
 };
 
-class cmp_item_string :public cmp_item 
+/// cmp_item which stores a scalar (i.e. non-ROW).
+class cmp_item_scalar : public cmp_item
+{
+protected:
+  bool m_null_value;                            ///< If stored value is NULL
+};
+
+class cmp_item_string : public cmp_item_scalar
 {
 protected:
   String *value_res;
@@ -1179,14 +1302,20 @@ public:
   void store_value(Item *item)
   {
     value_res= item->val_str(&value);
+    m_null_value= item->null_value;
   }
   int cmp(Item *arg)
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
-    String tmp(buff, sizeof(buff), cmp_charset), *res;
-    res= arg->val_str(&tmp);
-    return (value_res ? (res ? sortcmp(value_res, res, cmp_charset) : 1) :
-            (res ? -1 : 0));
+    String tmp(buff, sizeof(buff), cmp_charset), *res= arg->val_str(&tmp);
+    if (m_null_value || arg->null_value)
+      return UNKNOWN;
+    if (value_res && res)
+      return sortcmp(value_res, res, cmp_charset) != 0;
+    else if (!value_res && !res)
+      return FALSE;
+    else
+      return TRUE;
   }
   int compare(cmp_item *ci)
   {
@@ -1201,7 +1330,7 @@ public:
   }
 };
 
-class cmp_item_int :public cmp_item
+class cmp_item_int : public cmp_item_scalar
 {
   longlong value;
 public:
@@ -1209,10 +1338,12 @@ public:
   void store_value(Item *item)
   {
     value= item->val_int();
+    m_null_value= item->null_value;
   }
   int cmp(Item *arg)
   {
-    return value != arg->val_int();
+    const bool rc= value != arg->val_int();
+    return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
   int compare(cmp_item *ci)
   {
@@ -1228,7 +1359,7 @@ public:
   If the left item is a constant one then its value is cached in the
   lval_cache variable.
 */
-class cmp_item_datetime :public cmp_item
+class cmp_item_datetime : public cmp_item_scalar
 {
   longlong value;
 public:
@@ -1246,7 +1377,7 @@ public:
   cmp_item *make_same();
 };
 
-class cmp_item_real :public cmp_item
+class cmp_item_real : public cmp_item_scalar
 {
   double value;
 public:
@@ -1254,10 +1385,12 @@ public:
   void store_value(Item *item)
   {
     value= item->val_real();
+    m_null_value= item->null_value;
   }
   int cmp(Item *arg)
   {
-    return value != arg->val_real();
+    const bool rc= value != arg->val_real();
+    return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
   int compare(cmp_item *ci)
   {
@@ -1268,7 +1401,7 @@ public:
 };
 
 
-class cmp_item_decimal :public cmp_item
+class cmp_item_decimal : public cmp_item_scalar
 {
   my_decimal value;
 public:
@@ -1295,12 +1428,13 @@ public:
   void store_value(Item *item)
   {
     value_res= item->val_str(&value);
+    m_null_value= item->null_value;
   }
   int cmp(Item *item)
   {
     // Should never be called
-    DBUG_ASSERT(0);
-    return 1;
+    DBUG_ASSERT(false);
+    return TRUE;
   }
   int compare(cmp_item *ci)
   {
@@ -1361,39 +1495,47 @@ public:
   Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
-  void agg_str_lengths(Item *arg);
-  void agg_num_lengths(Item *arg);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
 };
 
 /*
-  The Item_func_in class implements the in_expr IN(values_list) function.
+  The Item_func_in class implements
+  in_expr IN (<in value list>)
+  and
+  in_expr NOT IN (<in value list>)
 
   The current implementation distinguishes 2 cases:
-  1) all items in the value_list are constants and have the same
+  1) all items in <in value list> are constants and have the same
     result type. This case is handled by in_vector class.
-  2) items in the value_list have different result types or there is some
-    non-constant items.
-    In this case Item_func_in employs several cmp_item objects to performs
-    comparisons of in_expr and an item from the values_list. One cmp_item
+  2) otherwise Item_func_in employs several cmp_item objects to perform
+    comparisons of in_expr and an item from <in value list>. One cmp_item
     object for each result type. Different result types are collected in the
     fix_length_and_dec() member function by means of collect_cmp_types()
     function.
 */
 class Item_func_in :public Item_func_opt_neg
 {
+  /**
+     Usable if <in value list> is made only of constants. Returns true if one
+     of these constants contains a NULL. Example:
+     IN ( (-5, (12,NULL)), ... ).
+  */
+  bool list_contains_null();
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type);
+                             Field *field, Item *value);
 public:
-  /* 
-    an array of values when the right hand arguments of IN
-    are all SQL constant and there are no nulls 
-  */
+  /// An array of values, created when the bisection lookup method is used
   in_vector *array;
+  /**
+    If there is some NULL among <in value list>, during a val_int() call; for
+    example
+    IN ( (1,(3,'col')), ... ), where 'col' is a column which evaluates to
+    NULL.
+  */
   bool have_null;
-  /* 
-    true when all arguments of the IN clause are of compatible types
+  /**
+    true when all arguments of the IN list are of compatible types
     and can be used safely as comparisons for key conditions
   */
   bool arg_types_compatible;
@@ -1447,7 +1589,6 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
-  bool nulls_in_row();
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1487,10 +1628,10 @@ class Item_func_null_predicate :public Item_bool_func
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value, Item_result cmp_type)
+                             Field *field, Item *value)
   {
     DBUG_ENTER("Item_func_null_predicate::get_func_mm_tree");
-    DBUG_RETURN(get_mm_parts(param, field, functype(), value, cmp_type));
+    DBUG_RETURN(get_mm_parts(param, field, functype(), value));
   }
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
@@ -1499,7 +1640,14 @@ public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
+    SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], NULL);
+    if (!ftree)
+      ftree= Item_func::get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
@@ -1612,6 +1760,12 @@ class Item_func_like :public Item_bool_func2
   String cmp_value1, cmp_value2;
   bool with_sargable_pattern() const;
 protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value)
+  {
+    DBUG_ENTER("Item_func_like::get_func_mm_tree");
+    DBUG_RETURN(get_mm_parts(param, field, LIKE_FUNC, value));
+  }
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
                        Item_func::Functype type, Item *value);
@@ -2298,10 +2452,6 @@ Item *and_expressions(Item *a, Item *b, Item **org_item);
 
 longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
                             enum_field_types f_type, bool *is_null);
-
-
-bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
-                             const char *warn_name, MYSQL_TIME *l_time);
 
 
 class Comp_creator

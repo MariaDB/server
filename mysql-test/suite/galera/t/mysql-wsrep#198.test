@@ -1,0 +1,36 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+LOCK TABLE t2 WRITE;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--send OPTIMIZE TABLE t1,t2;
+
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+--send REPAIR TABLE t1,t2;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table metadata lock'
+--source include/wait_condition.inc
+
+--connection node_1
+INSERT INTO t2 VALUES (1);
+
+--connection node_2
+UNLOCK TABLES;
+
+--connection node_2a
+--reap
+
+--connection node_2b
+--reap
+
+DROP TABLE t1;
+DROP TABLE t2;

@@ -1064,8 +1064,8 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
     rpl_gtid master_replication_gtid;
     rpl_gtid start_gtid;
     bool start_at_own_slave_pos=
-      rpl_global_gtid_slave_state.domain_to_gtid(slave_gtid->domain_id,
-                                                 &master_replication_gtid) &&
+      rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
+                                                  &master_replication_gtid) &&
       slave_gtid->server_id == master_replication_gtid.server_id &&
       slave_gtid->seq_no == master_replication_gtid.seq_no;
 
@@ -3075,7 +3075,19 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
     if (init_master_info(mi,master_info_file_tmp,relay_log_info_file_tmp, 0,
 			 thread_mask))
       slave_errno=ER_MASTER_INFO;
-    else if (server_id_supplied && *mi->host)
+    else if (!server_id_supplied)
+    {
+      slave_errno= ER_BAD_SLAVE; net_report= 0;
+      my_message(slave_errno, "Misconfigured slave: server_id was not set; Fix in config file",
+                   MYF(0));
+    }
+    else if (!*mi->host)
+    {
+      slave_errno= ER_BAD_SLAVE; net_report= 0;
+      my_message(slave_errno, "Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO",
+                 MYF(0));
+    }
+    else
     {
       /*
         If we will start SQL thread we will care about UNTIL options If
@@ -3169,8 +3181,6 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                                           relay_log_info_file_tmp,
                                           thread_mask);
     }
-    else
-      slave_errno = ER_BAD_SLAVE;
   }
   else
   {
@@ -3275,7 +3285,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occured while reseting slave";
+  const char* errmsg= "Unknown error occurred while reseting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3519,7 +3529,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     *master_info_added= true;
   }
   if (global_system_variables.log_warnings > 1)
-    sql_print_information("Master: '%.*s'  Master_info_file: '%s'  "
+    sql_print_information("Master connection name: '%.*s'  "
+                          "Master_info_file: '%s'  "
                           "Relay_info_file: '%s'",
                           (int) mi->connection_name.length,
                           mi->connection_name.str,
@@ -3879,7 +3890,7 @@ bool mysql_show_binlog_events(THD* thd)
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS ||
               thd->lex->sql_command == SQLCOM_SHOW_RELAYLOG_EVENTS);
 
-  /* select wich binary log to use: binlog or relay */
+  /* select which binary log to use: binlog or relay */
   if ( thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS )
   {
     binary_log= &mysql_bin_log;
@@ -4001,7 +4012,7 @@ bool mysql_show_binlog_events(THD* thd)
                                          opt_master_verify_checksum)); )
     {
       if (event_count >= limit_start &&
-	  ev->net_send(thd, protocol, linfo.log_file_name, pos))
+	  ev->net_send(protocol, linfo.log_file_name, pos))
       {
 	errmsg = "Net error";
 	delete ev;
@@ -4077,6 +4088,25 @@ err:
 }
 
 
+void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "File", FN_REFLEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Position", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Do_DB", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Binlog_Ignore_DB", 255),
+                        mem_root);
+}
+
+
 /**
   Execute a SHOW MASTER STATUS statement.
 
@@ -4089,23 +4119,10 @@ err:
 bool show_binlog_info(THD* thd)
 {
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlog_info");
 
   List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "File", FN_REFLEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "Position", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Do_DB", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Binlog_Ignore_DB", 255),
-                       mem_root);
+  show_binlog_info_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -4129,6 +4146,19 @@ bool show_binlog_info(THD* thd)
 }
 
 
+void show_binlogs_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Log_name", 255),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "File_size", 20,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+}
+
+
 /**
   Execute a SHOW BINARY LOGS statement.
 
@@ -4148,7 +4178,6 @@ bool show_binlogs(THD* thd)
   uint length;
   int cur_dir_len;
   Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4157,13 +4186,8 @@ bool show_binlogs(THD* thd)
     DBUG_RETURN(TRUE);
   }
 
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Log_name", 255),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_return_int(thd, "File_size", 20,
-                                       MYSQL_TYPE_LONGLONG),
-                       mem_root);
+  show_binlogs_get_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
@@ -4298,14 +4322,14 @@ ret:
 void
 rpl_init_gtid_slave_state()
 {
-  rpl_global_gtid_slave_state.init();
+  rpl_global_gtid_slave_state= new rpl_slave_state;
 }
 
 
 void
 rpl_deinit_gtid_slave_state()
 {
-  rpl_global_gtid_slave_state.deinit();
+  delete rpl_global_gtid_slave_state;
 }
 
 
@@ -4341,7 +4365,7 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
       (err= mysql_bin_log.get_most_recent_gtid_list(&gtid_list, &num_gtids)))
     return err;
 
-  err= rpl_global_gtid_slave_state.tostring(dest, gtid_list, num_gtids);
+  err= rpl_global_gtid_slave_state->tostring(dest, gtid_list, num_gtids);
   my_free(gtid_list);
 
   return err;
@@ -4366,7 +4390,7 @@ rpl_load_gtid_state(slave_connection_state *state, bool use_binlog)
       (err= mysql_bin_log.get_most_recent_gtid_list(&gtid_list, &num_gtids)))
     return err;
 
-  err= state->load(&rpl_global_gtid_slave_state, gtid_list, num_gtids);
+  err= state->load(rpl_global_gtid_slave_state, gtid_list, num_gtids);
   my_free(gtid_list);
 
   return err;
@@ -4463,7 +4487,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
 bool
 rpl_gtid_pos_update(THD *thd, char *str, size_t len)
 {
-  if (rpl_global_gtid_slave_state.load(thd, str, len, true, true))
+  if (rpl_global_gtid_slave_state->load(thd, str, len, true, true))
   {
     my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
     return true;

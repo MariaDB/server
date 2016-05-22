@@ -1,0 +1,38 @@
+#
+# Test that GRA_* files are generated on applier failure and are readable.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
+
+# Create applier failure
+
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER);
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+
+# Compose a valid binlog from a header file and the GRA file
+
+--let $gra_binlog_file = $MYSQLTEST_VARDIR/tmp/gra.log
+--exec rm -rf $gra_binlog_file 
+
+--exec cp std_data/binlog-header.log $gra_binlog_file
+--exec cat $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log >> $gra_binlog_file
+
+# Make sure the binlog thus produced is readable and contains the failure
+--replace_regex /SET TIMESTAMP=[0-9]+/SET TIMESTAMP=<TIMESTAMP>/ /#[0-9]+ +[0-9]+:[0-9]+:[0-9]+/<ISO TIMESTAMP>/ /pseudo_thread_id=[0-9]+/pseudo_thread_id=<PSEUDO_THREAD_ID>/ /thread_id=[0-9]+/thread_id=<QUERY_THREAD_ID>/
+--exec $MYSQL_BINLOG $gra_binlog_file
+
+SET SESSION wsrep_on=ON;
+
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
+
+DROP TABLE t1;

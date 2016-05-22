@@ -290,7 +290,7 @@ static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
 
-static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, 0,
+static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, PLUGIN_VAR_OPCMDARG,
        "Encrypt tables (only for tables with ROW_FORMAT=PAGE (default) "
        "and not FIXED/DYNAMIC)",
        0, 0, 0);
@@ -2655,7 +2655,7 @@ void ha_maria::drop_table(const char *name)
 {
   DBUG_ASSERT(file->s->temporary);
   (void) ha_close();
-  (void) maria_delete_table_files(name, 0);
+  (void) maria_delete_table_files(name, 1, 0);
 }
 
 

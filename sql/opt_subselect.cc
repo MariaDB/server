@@ -617,6 +617,18 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         thd->stmt_arena->state != Query_arena::PREPARED)
       */
     {
+      SELECT_LEX *current= thd->lex->current_select;
+      thd->lex->current_select= current->return_after_parsing();
+      char const *save_where= thd->where;
+      thd->where= "IN/ALL/ANY subquery";
+
+      bool failure= !in_subs->left_expr->fixed &&
+                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
+      thd->lex->current_select= current;
+      thd->where= save_where;
+      if (failure)
+        DBUG_RETURN(-1); /* purecov: deadcode */
+
       /*
         Check if the left and right expressions have the same # of
         columns, i.e. we don't have a case like 
@@ -630,18 +642,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         my_error(ER_OPERAND_COLUMNS, MYF(0), in_subs->left_expr->cols());
         DBUG_RETURN(-1);
       }
-
-      SELECT_LEX *current= thd->lex->current_select;
-      thd->lex->current_select= current->return_after_parsing();
-      char const *save_where= thd->where;
-      thd->where= "IN/ALL/ANY subquery";
-        
-      bool failure= !in_subs->left_expr->fixed &&
-                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
-      thd->lex->current_select= current;
-      thd->where= save_where;
-      if (failure)
-        DBUG_RETURN(-1); /* purecov: deadcode */
     }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
@@ -705,6 +705,12 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       if (!optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) &&
           !optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
         my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+      /*
+        Transform each subquery predicate according to its overloaded
+        transformer.
+      */
+      if (subselect->select_transformer(join))
+        DBUG_RETURN(-1);
 
       /*
         If the subquery predicate is IN/=ANY, analyse and set all possible
@@ -757,12 +763,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         allany_subs->add_strategy(strategy);
       }
 
-      /*
-        Transform each subquery predicate according to its overloaded
-        transformer.
-      */
-      if (subselect->select_transformer(join))
-        DBUG_RETURN(-1);
     }
   }
   DBUG_RETURN(0);
@@ -833,12 +833,14 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
   in_subs->sjm_scan_allowed= FALSE;
   
   bool all_are_fields= TRUE;
+  uint32 total_key_length = 0;
   for (uint i= 0; i < elements; i++)
   {
     Item *outer= in_subs->left_expr->element_index(i);
     Item *inner= it++;
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
+    total_key_length += inner->max_length;
     if (outer->cmp_type() != inner->cmp_type())
       DBUG_RETURN(FALSE);
     switch (outer->cmp_type()) {
@@ -868,6 +870,15 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
       break;
     }
   }
+
+  /*
+     Make sure that create_tmp_table will not fail due to too long keys.
+     See MDEV-7122. This check is performed inside create_tmp_table also and
+     we must do it so that we know the table has keys created.
+  */
+  if (total_key_length > tmp_table_max_key_length() ||
+      elements > tmp_table_max_key_parts())
+    DBUG_RETURN(FALSE);
 
   in_subs->types_allow_materialization= TRUE;
   in_subs->sjm_scan_allowed= all_are_fields;
@@ -1570,8 +1581,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     DBUG_RETURN(TRUE);
   thd->lex->current_select=save_lex;
 
-  sj_nest->nested_join->sj_corr_tables= subq_pred->used_tables();
-  sj_nest->nested_join->sj_depends_on=  subq_pred->used_tables() |
+  table_map subq_pred_used_tables= subq_pred->used_tables();
+  sj_nest->nested_join->sj_corr_tables= subq_pred_used_tables;
+  sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         subq_pred->left_expr->used_tables();
   sj_nest->sj_on_expr= subq_lex->join->conds;
 
@@ -1597,9 +1609,20 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   {
     nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr,
                                               thd->mem_root);
+    /*
+      Create Item_func_eq. Note that
+      1. this is done on the statement, not execution, arena
+      2. if it's a PS then this happens only once - on the first execution.
+         On following re-executions, the item will be fix_field-ed normally.
+      3. Thus it should be created as if it was fix_field'ed, in particular
+         all pointers to items in the execution arena should be protected
+         with thd->change_item_tree
+    */
     Item_func_eq *item_eq=
-      new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr,
+      new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr_orig,
                                        subq_lex->ref_pointer_array[0]);
+    if (subq_pred->left_expr_orig != subq_pred->left_expr)
+      thd->change_item_tree(item_eq->arguments(), subq_pred->left_expr);
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
@@ -2228,7 +2251,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
-        memcpy(sjm->positions, join->best_positions + join->const_tables, 
+        memcpy((uchar*) sjm->positions,
+               (uchar*) (join->best_positions + join->const_tables),
                sizeof(POSITION) * n_tables);
 
         /*
@@ -3331,7 +3355,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       SJ_MATERIALIZATION_INFO *sjm= s->emb_sj_nest->sj_mat_info;
       sjm->is_used= TRUE;
       sjm->is_sj_scan= FALSE;
-      memcpy(pos - sjm->tables + 1, sjm->positions, 
+      memcpy((uchar*) (pos - sjm->tables + 1), (uchar*) sjm->positions,
              sizeof(POSITION) * sjm->tables);
       recalculate_prefix_record_count(join, tablenr - sjm->tables + 1,
                                       tablenr);
@@ -3347,8 +3371,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       sjm->is_used= TRUE;
       sjm->is_sj_scan= TRUE;
       first= pos->sjmat_picker.sjm_scan_last_inner - sjm->tables + 1;
-      memcpy(join->best_positions + first, 
-             sjm->positions, sizeof(POSITION) * sjm->tables);
+      memcpy((uchar*) (join->best_positions + first),
+             (uchar*) sjm->positions, sizeof(POSITION) * sjm->tables);
       recalculate_prefix_record_count(join, first, first + sjm->tables);
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE_SCAN;
       join->best_positions[first].n_sj_tables= sjm->tables;
@@ -5521,7 +5545,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
           outer join has not been optimized yet).
     */
     if (outer_join && outer_join->table_count > 0 && // (1)
-        outer_join->join_tab)                        // (2)
+        outer_join->join_tab &&                      // (2)
+        !in_subs->const_item())
     {
       /*
         TODO:

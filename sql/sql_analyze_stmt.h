@@ -47,6 +47,14 @@ protected:
   ulonglong count;
   ulonglong cycles;
   ulonglong last_start;
+
+  void cycles_stop_tracking()
+  {
+    ulonglong end= my_timer_cycles();
+    cycles += end - last_start;
+    if (unlikely(end < last_start))
+      cycles += ULONGLONG_MAX;
+  }
 public:
   Exec_time_tracker() : count(0), cycles(0) {}
   
@@ -59,7 +67,7 @@ public:
   void stop_tracking()
   {
     count++;
-    cycles += my_timer_cycles()- last_start;
+    cycles_stop_tracking();
   }
 
   // interface for getting the time
@@ -93,7 +101,7 @@ public:
   */
   void stop_tracking()
   {
-    cycles += my_timer_cycles()- last_start;
+    cycles_stop_tracking();
   }
 };
 

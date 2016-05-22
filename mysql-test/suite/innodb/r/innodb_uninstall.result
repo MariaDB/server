@@ -1,6 +1,4 @@
 install plugin innodb soname 'ha_innodb';
-Warnings:
-Warning	1105	Cannot enable tc-log at run-time. XA features of InnoDB are disabled
 create table t1(a int not null primary key) engine=innodb;
 begin;
 insert into t1 values(1);
@@ -12,8 +10,6 @@ sleep(1)
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
 install plugin innodb soname 'ha_innodb';
-Warnings:
-Warning	1105	Cannot enable tc-log at run-time. XA features of InnoDB are disabled
 drop table t1;
 create table t2(a int not null primary key) engine=innodb;
 insert into t2 values(1);

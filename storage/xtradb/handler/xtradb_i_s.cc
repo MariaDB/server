@@ -176,7 +176,7 @@ UNIV_INTERN struct st_mysql_plugin i_s_xtradb_read_view =
 	STRUCT_FLD(status_vars, NULL),
 	STRUCT_FLD(system_vars, NULL),
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
 };
 
 static ST_FIELD_INFO xtradb_internal_hash_tables_fields_info[] =
@@ -381,7 +381,7 @@ UNIV_INTERN struct st_mysql_plugin i_s_xtradb_internal_hash_tables =
 	STRUCT_FLD(status_vars, NULL),
 	STRUCT_FLD(system_vars, NULL),
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
 };
 
 
@@ -514,5 +514,5 @@ UNIV_INTERN struct st_mysql_plugin	i_s_xtradb_rseg =
 	STRUCT_FLD(status_vars, NULL),
 	STRUCT_FLD(system_vars, NULL),
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
 };

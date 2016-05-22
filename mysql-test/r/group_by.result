@@ -2640,3 +2640,55 @@ field1	field2
 DROP TABLE t1;
 DROP TABLE where_subselect;
 # End of Bug #58782
+#
+# MDEV-8988: Apparently valid SQL query gives wrong result (nested WHERE)
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int);
+insert into t1 select A.a + 10*B.a, A.a, A.a + 10*B.a from t0 A, t0 B;
+insert into t1 values (NULL, NULL, NULL);
+create table t2 (c int, col1 int, key(c));
+insert into t2 select t1.a, 100000 from t1;
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Table is already up to date
+explain 
+select 
+max(a)+ (select col1 from t2 where t2.c=t1.c)
+from t1 
+group by t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	101	Using temporary; Using filesort
+2	DEPENDENT SUBQUERY	t2	ref	c	c	5	func	1	
+select 
+max(a) + (select col1 from t2 where t2.c=t1.c)
+from t1 
+group by t1.b;
+max(a) + (select col1 from t2 where t2.c=t1.c)
+NULL
+100090
+100091
+100092
+100093
+100094
+100095
+100096
+100097
+100098
+100099
+drop table t0,t1,t2;
+#
+# MDEV-9602 crash in st_key::actual_rec_per_key when group by constant
+#
+create table t1 (a date not null,unique (a)) engine=innodb;
+Warnings:
+Warning	1286	Unknown storage engine 'innodb'
+Warning	1266	Using storage engine MyISAM for table 't1'
+select distinct a from t1 group by 'a';
+a
+insert into t1 values("2001-02-02"),("2001-02-03");
+select distinct a from t1 group by 'a';
+a
+2001-02-02
+drop table t1;

@@ -354,6 +354,7 @@ my $opt_max_save_datadir= env_or_val(MTR_MAX_SAVE_DATADIR => 20);
 my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
+my $opt_port_group_size = $ENV{MTR_PORT_GROUP_SIZE} || 20;
 
 # lock file to stop tests
 my $opt_stop_file= $ENV{MTR_STOP_FILE};
@@ -1060,7 +1061,6 @@ sub print_global_resfile {
   resfile_global("shutdown-timeout", $opt_shutdown_timeout ? 1 : 0);
   resfile_global("warnings", $opt_warnings ? 1 : 0);
   resfile_global("max-connections", $opt_max_connections);
-#  resfile_global("default-myisam", $opt_default_myisam ? 1 : 0);
   resfile_global("product", "MySQL");
   # Somewhat hacky code to convert numeric version back to dot notation
   my $v1= int($mysql_version_id / 10000);
@@ -1117,6 +1117,7 @@ sub command_line_setup {
              # Specify ports
 	     'build-thread|mtr-build-thread=i' => \$opt_build_thread,
 	     'port-base|mtr-port-base=i'       => \$opt_port_base,
+	     'port-group-size=s'        => \$opt_port_group_size,
 
              # Test case authoring
              'record'                   => \$opt_record,
@@ -1218,7 +1219,6 @@ sub command_line_setup {
              'stop-file=s'              => \$opt_stop_file,
              'stop-keep-alive=i'        => \$opt_stop_keep_alive,
 	     'max-connections=i'        => \$opt_max_connections,
-	     'default-myisam!'          => \&collect_option,
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
@@ -1808,16 +1808,16 @@ sub set_build_thread_ports($) {
   $ENV{MTR_BUILD_THREAD}= $build_thread;
 
   # Calculate baseport
-  $baseport= $build_thread * 20 + 10000;
-  if ( $baseport < 5001 or $baseport + 19 >= 32767 )
+  $baseport= $build_thread * $opt_port_group_size + 10000;
+  if ( $baseport < 5001 or $baseport + $opt_port_group_size >= 32767 )
   {
     mtr_error("MTR_BUILD_THREAD number results in a port",
               "outside 5001 - 32767",
-              "($baseport - $baseport + 19)");
+              "($baseport - $baseport + $opt_port_group_size)");
   }
 
   mtr_report("Using MTR_BUILD_THREAD $build_thread,",
-	     "with reserved ports $baseport..".($baseport+19));
+	     "with reserved ports $baseport..".($baseport+($opt_port_group_size-1)));
 
 }
 
@@ -2971,8 +2971,8 @@ sub kill_leftovers ($) {
 sub check_ports_free ($)
 {
   my $bthread= shift;
-  my $portbase = $bthread * 10 + 10000;
-  for ($portbase..$portbase+9){
+  my $portbase = $bthread * $opt_port_group_size + 10000;
+  for ($portbase..$portbase+($opt_port_group_size-1)){
     if (mtr_ping_port($_)){
       mtr_report(" - 'localhost:$_' was not free");
       return 0; # One port was not free
@@ -3222,7 +3222,7 @@ sub mysql_install_db {
 
   # Create mtr database
   mtr_tofile($bootstrap_sql_file,
-	     "CREATE DATABASE mtr;\n");
+	     "CREATE DATABASE mtr CHARSET=latin1;\n");
 
   # Add help tables and data for warning detection and supression
   mtr_tofile($bootstrap_sql_file,
@@ -5993,10 +5993,10 @@ Options to control what engine/variation to run:
   non-blocking-api      Use the non-blocking client API
   compress              Use the compressed protocol between client and server
   ssl                   Use ssl protocol between client and server
-  skip-ssl              Dont start server with support for ssl connections
+  skip-ssl              Don't start server with support for ssl connections
   vs-config             Visual Studio configuration used to create executables
                         (default: MTR_VS_CONFIG environment variable)
-  parallel=#            How many parallell test should be run
+  parallel=#            How many parallel test should be run
   defaults-file=<config template> Use fixed config template for all
                         tests
   defaults-extra-file=<config template> Extra config template to add to
@@ -6068,6 +6068,8 @@ Options that specify ports
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
                         Set  MTR_BUILD_THREAD="auto" to automatically aquire
                         a build thread id that is unique to current host
+  port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
+
 
 Options for test case authoring
 
@@ -6124,7 +6126,7 @@ Options for debugging the product
                         up disks for heavily crashing server). Defaults to
                         $opt_max_save_datadir, set to 0 for no limit. Set
                         it's default with MTR_MAX_SAVE_DATADIR
-  max-test-fail         Limit the number of test failurs before aborting
+  max-test-fail         Limit the number of test failures before aborting
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
                         it's default with MTR_MAX_TEST_FAIL
@@ -6171,7 +6173,7 @@ Misc options
                         --mysqld (if any)
   wait-all              If --start or --start-dirty option is used, wait for all
                         servers to exit before finishing the process
-  fast                  Run as fast as possible, dont't wait for servers
+  fast                  Run as fast as possible, don't wait for servers
                         to shutdown etc.
   parallel=N            Run tests in N parallel threads (default 1)
                         Use parallel=auto for auto-setting of N
@@ -6181,7 +6183,7 @@ Misc options
                         failures before stopping, set with the --retry-failure
                         option
   retry-failure=N       When using the --retry option to retry failed tests,
-                        stop when N failures have occured (default $opt_retry_failure)
+                        stop when N failures have occurred (default $opt_retry_failure)
   reorder               Reorder tests to get fewer server restarts
   help                  Get this help text
 
@@ -6205,7 +6207,7 @@ Misc options
                         actions. Disable facility with NUM=0.
   gcov                  Collect coverage information after the test.
                         The result is a gcov file per source and header file.
-  gcov-src-dir=subdir   Colllect coverage only within the given subdirectory.
+  gcov-src-dir=subdir   Collect coverage only within the given subdirectory.
                         For example, if you're only developing the SQL layer, 
                         it makes sense to use --gcov-src-dir=sql
   gprof                 Collect profiling information using gprof.
@@ -6216,9 +6218,6 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
-  default-myisam        Set default storage engine to MyISAM for non-innodb
-                        tests. This is needed after switching default storage
-                        engine to InnoDB.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to

@@ -111,7 +111,7 @@ public:
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual void pack_info(THD *thd, Protocol *protocol);
+  virtual void pack_info(Protocol *protocol);
 #endif
 
 #ifdef MYSQL_CLIENT

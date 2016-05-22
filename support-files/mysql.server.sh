@@ -24,7 +24,7 @@
 # Short-Description: start and stop MySQL
 # Description: MySQL is a very fast and reliable SQL database engine.
 ### END INIT INFO
- 
+
 # If you install MySQL on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
 #
@@ -97,6 +97,11 @@ lsb_functions="/lib/lsb/init-functions"
 if test -f $lsb_functions ; then
   . $lsb_functions
 else
+  # Include non-LSB RedHat init functions to make systemctl redirect work
+  init_functions="/etc/init.d/functions"
+  if test -f $init_functions; then
+    . $init_functions
+  fi
   log_success_msg()
   {
     echo " SUCCESS! $@"
@@ -113,12 +118,6 @@ export PATH
 mode=$1    # start or stop
 
 [ $# -ge 1 ] && shift
-
-
-other_args="$*"   # uncommon, but needed when called from an RPM upgrade action
-           # Expected: "--skip-networking --skip-grant-tables"
-           # They are not checked here, intentionally, as it is the resposibility
-           # of the "spec" file author to give correct arguments only.
 
 case `echo "testing\c"`,`echo -n testing` in
     *c*,-n*) echo_n=   echo_c=     ;;
@@ -210,7 +209,8 @@ else
   fi
 fi
 
-parse_server_arguments `$print_defaults $extra_args mysqld server mysql_server mysql.server`
+parse_server_arguments `$print_defaults $extra_args --mysqld mysql.server`
+parse_server_arguments "$@"
 
 # wait for the pid file to disappear
 wait_for_gone () {
@@ -308,7 +308,7 @@ case "$mode" in
     then
       # Give extra arguments to mysqld with the my.cnf file. This script
       # may be overwritten at next upgrade.
-      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" $other_args >/dev/null 2>&1 &
+      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" "$@" >/dev/null 2>&1 &
       wait_for_ready; return_value=$?
 
       # Make lock for RedHat / SuSE
@@ -356,8 +356,8 @@ case "$mode" in
   'restart')
     # Stop the service and regardless of whether it was
     # running or not, start it again.
-    if $0 stop  $other_args; then
-      if ! $0 start $other_args; then
+    if $0 stop  "$@"; then
+      if ! $0 start "$@"; then
         log_failure_msg "Failed to restart server."
         exit 1
       fi
@@ -438,6 +438,10 @@ case "$mode" in
     exit $r
     ;;
   'bootstrap')
+      if test "$_use_systemctl" == 1 ; then
+        log_failure_msg "Please use galera_new_cluster to start the mariadb service with --wsrep-new-cluster"
+        exit 1
+      fi
       # Bootstrap the cluster, start the first node
       # that initiate the cluster
       echo $echo_n "Bootstrapping the cluster.. "

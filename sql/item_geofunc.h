@@ -1,8 +1,8 @@
 #ifndef ITEM_GEOFUNC_INCLUDED
 #define ITEM_GEOFUNC_INCLUDED
 
-/* Copyright (c) 2000, 2010 Oracle and/or its affiliates.
-   Copyright (C) 2011, 2015 MariaDB
+/* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
+   Copyright (C) 2011, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +41,6 @@ public:
   void fix_length_and_dec();
   enum_field_types field_type() const  { return MYSQL_TYPE_GEOMETRY; }
   Field *tmp_table_field(TABLE *t_arg);
-  bool is_null() { (void) val_int(); return null_value; }
 };
 
 class Item_func_geometry_from_text: public Item_geometry_func
@@ -260,7 +259,7 @@ public:
       if (args[i]->fixed && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
       {
         String str;
-        args[i]->print(&str, QT_ORDINARY);
+        args[i]->print(&str, QT_NO_DATA_EXPANSION);
         str.append('\0');
         my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "non geometric",
                  str.ptr());
@@ -276,7 +275,7 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_bool_func2_with_rev
 {
 protected:
   enum Functype spatial_rel;
@@ -286,7 +285,7 @@ protected:
                        Item_func::Functype type, Item *value);
 public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
-    Item_bool_func2(thd, a, b), spatial_rel(sp_rel)
+    Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
     maybe_null= true;
   }

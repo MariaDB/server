@@ -55,7 +55,7 @@
 
   Supported formats are 's' (null pointer is accepted, printed as
   "(null)"), 'b' (extension, see below), 'c', 'd', 'i', 'u', 'x', 'o',
-  'X', 'p' (works as 0x%x), 'f', 'g'.
+  'X', 'p' (works as 0x%x), 'f', 'g', 'M' (extension, see below).
 
   Standard syntax for positional arguments $n is supported.
 
@@ -65,6 +65,10 @@
 
   Format 'b': binary buffer, prints exactly <precision> bytes from the
   argument, without stopping at '\0'.
+
+  Format 'M': takes one integer, prints this integer, space, double quote
+  error message, double quote. In other words
+    printf("%M", n) === printf("%d \"%s\"", n, strerror(n))
 */
 
 #ifdef __cplusplus

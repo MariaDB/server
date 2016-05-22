@@ -1669,8 +1669,8 @@ bool ha_myisam::check_and_repair(THD *thd)
     {
       char buff[MY_BACKUP_NAME_EXTRA_LENGTH+1];
       my_create_backup_name(buff, "", check_opt.start_time);
-      sql_print_information("Making backup of index file with extension '%s'",
-                            buff);
+      sql_print_information("Making backup of index file %s with extension '%s'",
+                            file->s->index_file_name, buff);
       mi_make_backup_of_index(file, check_opt.start_time,
                               MYF(MY_WME | ME_JUST_WARNING));
     }
@@ -2409,7 +2409,7 @@ maria_declare_plugin_end;
 
   @return The error code. The engine_data and engine_callback will be set to 0.
     @retval TRUE Success
-    @retval FALSE An error occured
+    @retval FALSE An error occurred
 */
 
 my_bool ha_myisam::register_query_cache_table(THD *thd, char *table_name,

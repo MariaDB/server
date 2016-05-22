@@ -567,7 +567,7 @@ public:
     : ErrConv(), str(str_arg), len(len_arg), cs(cs_arg) {}
   ErrConvString(const char *str_arg, CHARSET_INFO *cs_arg)
     : ErrConv(), str(str_arg), len(strlen(str_arg)), cs(cs_arg) {}
-  ErrConvString(String *s)
+  ErrConvString(const String *s)
     : ErrConv(), str(s->ptr()), len(s->length()), cs(s->charset()) {}
   const char *ptr() const
   { return err_conv(err_buffer, sizeof(err_buffer), str, len, cs); }

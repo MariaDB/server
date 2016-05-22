@@ -1,0 +1,19 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+create table t1(a blob) engine=innodb key_block_size=8;
+create function generate_blob()
+returns varchar(20000)
+begin
+declare x varchar(20000) default '';
+declare i int default 500;
+while i > 0 do
+set x = concat(sha1(i), x);
+set i = i - 1;
+end while;
+return x;
+end //
+insert into t1 select generate_blob();
+truncate t1;
+insert into t1 select generate_blob();
+drop table t1;
+drop function generate_blob;

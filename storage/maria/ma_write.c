@@ -1319,7 +1319,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       pos= right_page->buff + share->keypage_header + length;
       memcpy(father_key_pos, pos, (size_t) k_length);
       bmove(right_page->buff + share->keypage_header,
-            pos + k_length, new_right_length);
+            pos + k_length, new_right_length - share->keypage_header);
 
       if (share->now_transactional)
       {

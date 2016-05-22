@@ -5,7 +5,7 @@
 --echo #
 
 # expected as no wsrep provider is currently loaded
-call mtr.add_suppression("WSREP: SET desync failed 9 for SET @@global.wsrep_desync=ON");
+call mtr.add_suppression("WSREP: SET desync failed 9 for schema: test, query: SET @@global.wsrep_desync=ON");
 
 --echo # save the initial value
 SET @wsrep_desync_global_saved = @@global.wsrep_desync;

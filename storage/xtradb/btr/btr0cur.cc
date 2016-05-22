@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2015, MariaDB Corporation.
@@ -285,8 +285,13 @@ btr_cur_latch_leaves(
 #ifdef UNIV_BTR_DEBUG
 			ut_a(page_is_comp(get_block->frame)
 			     == page_is_comp(page));
-			ut_a(btr_page_get_next(get_block->frame, mtr)
-			     == page_get_page_no(page));
+
+			/* For fake_change mode we avoid a detailed validation
+			as it operate in tweaked format where-in validation
+			may fail. */
+			ut_a(sibling_mode == RW_NO_LATCH
+			     || btr_page_get_next(get_block->frame, mtr)
+				== page_get_page_no(page));
 #endif /* UNIV_BTR_DEBUG */
 			if (sibling_mode == RW_NO_LATCH) {
 				/* btr_block_get() called with RW_NO_LATCH will
@@ -1435,9 +1440,6 @@ btr_cur_optimistic_insert(
 	}
 #endif /* UNIV_DEBUG */
 
-	ut_ad((thr && thr_get_trx(thr)->fake_changes)
-	      || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-
 	leaf = page_is_leaf(page);
 
 	/* Calculate the record size when entry is converted to a record */
@@ -1781,6 +1783,10 @@ btr_cur_pessimistic_insert(
 	} else {
 		*rec = btr_page_split_and_insert(
 			flags, cursor, offsets, heap, entry, n_ext, mtr);
+	}
+
+	if (*rec == NULL && os_has_said_disk_full) {
+		return(DB_OUT_OF_FILE_SPACE);
 	}
 
 	ut_ad(page_rec_get_next(btr_cur_get_rec(cursor)) == *rec);
@@ -2326,6 +2332,7 @@ btr_cur_optimistic_update(
 	ulint		max_size;
 	ulint		new_rec_size;
 	ulint		old_rec_size;
+	ulint		max_ins_size = 0;
 	dtuple_t*	new_entry;
 	roll_ptr_t	roll_ptr;
 	ulint		i;
@@ -2417,6 +2424,12 @@ any_extern:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_zip) {
+		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
+					   dict_index_get_n_fields(index),
+					   page_zip_get_size(page_zip))) {
+			goto any_extern;
+		}
+
 		if (!btr_cur_update_alloc_zip(
 			    page_zip, page_cursor, index, *offsets,
 			    new_rec_size, true, mtr, thr_get_trx(thr))) {
@@ -2454,6 +2467,10 @@ any_extern:
 		? page_get_max_insert_size(page, 1)
 		: (old_rec_size
 		   + page_get_max_insert_size_after_reorganize(page, 1));
+
+	if (!page_zip) {
+		max_ins_size = page_get_max_insert_size_after_reorganize(page, 1);
+	}
 
 	if (!(((max_size >= BTR_CUR_PAGE_REORGANIZE_LIMIT)
 	       && (max_size >= new_rec_size))
@@ -2520,12 +2537,15 @@ any_extern:
 	ut_ad(err == DB_SUCCESS);
 
 func_exit:
-	if (page_zip
-	    && !(flags & BTR_KEEP_IBUF_BITMAP)
+	if (!(flags & BTR_KEEP_IBUF_BITMAP)
 	    && !dict_index_is_clust(index)
 	    && page_is_leaf(page)) {
-		/* Update the free bits in the insert buffer. */
-		ibuf_update_free_bits_zip(block, mtr);
+
+		if (page_zip) {
+			ibuf_update_free_bits_zip(block, mtr);
+		} else {
+			ibuf_update_free_bits_low(block, max_ins_size, mtr);
+		}
 	}
 
 	return(err);
@@ -2661,6 +2681,7 @@ btr_cur_pessimistic_update(
 	ulint		n_reserved	= 0;
 	ulint		n_ext;
 	trx_t*		trx;
+	ulint		max_ins_size	= 0;
 
 	*offsets = NULL;
 	*big_rec = NULL;
@@ -2861,6 +2882,10 @@ make_external:
 		}
 	}
 
+	if (!page_zip) {
+		max_ins_size = page_get_max_insert_size_after_reorganize(page, 1);
+	}
+
 	/* Store state of explicit locks on rec on the page infimum record,
 	before deleting rec. The page infimum acts as a dummy carrier of the
 	locks, taking care also of lock releases, before we can move the locks
@@ -2906,13 +2931,18 @@ make_external:
 				rec_offs_make_valid(
 					page_cursor->rec, index, *offsets);
 			}
-		} else if (page_zip &&
-			   !dict_index_is_clust(index)
+		} else if (!dict_index_is_clust(index)
 			   && page_is_leaf(page)) {
+
 			/* Update the free bits in the insert buffer.
 			This is the same block which was skipped by
 			BTR_KEEP_IBUF_BITMAP. */
-			ibuf_update_free_bits_zip(block, mtr);
+			if (page_zip) {
+				ibuf_update_free_bits_zip(block, mtr);
+			} else {
+				ibuf_update_free_bits_low(block, max_ins_size,
+							  mtr);
+			}
 		}
 
 		err = DB_SUCCESS;
@@ -4253,6 +4283,14 @@ btr_estimate_number_of_different_key_vals(
 		page = btr_cur_get_page(&cursor);
 
 		SRV_CORRUPT_TABLE_CHECK(page, goto exit_loop;);
+		DBUG_EXECUTE_IF("ib_corrupt_page_while_stats_calc",
+				page = NULL;);
+
+		SRV_CORRUPT_TABLE_CHECK(page,
+		{
+			mtr_commit(&mtr);
+			goto exit_loop;
+		});
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
 
@@ -5330,6 +5368,21 @@ btr_free_externally_stored_field(
 		/* In the rollback, we may encounter a clustered index
 		record with some unwritten off-page columns. There is
 		nothing to free then. */
+		if (rb_ctx == RB_NONE) {
+			char		buf[3 * 512];
+			char		*bufend;
+			ulint ispace = dict_index_get_space(index);
+			bufend = innobase_convert_name(buf, sizeof buf,
+				index->name, strlen(index->name),
+				NULL,
+				FALSE);
+			buf[bufend - buf]='\0';
+			ib_logf(IB_LOG_LEVEL_ERROR, "Unwritten off-page columns in "
+				"rollback context %d. Table %s index %s space_id %lu "
+				"index space %lu.",
+				rb_ctx, index->table->name, buf, space_id, ispace);
+		}
+
 		ut_a(rb_ctx != RB_NONE);
 		return;
 	}

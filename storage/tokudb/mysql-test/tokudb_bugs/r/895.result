@@ -8,5 +8,5 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 CREATE INDEX it on t(t);
 EXPLAIN SELECT * FROM t WHERE r > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	PRIMARY	it	9	NULL	NULL;	Using where; Using index
+1	SIMPLE	t	range	PRIMARY	PRIMARY	4	NULL	NULL;	Using where
 DROP TABLE t;

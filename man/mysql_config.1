@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql_config\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQL_CONFIG\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQL_CONFIG\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,7 +20,7 @@ mysql_config \- get compile options for compiling clients
 .SH "DESCRIPTION"
 .PP
 \fBmysql_config\fR
-provides you with useful information for compiling your MySQL client and connecting it to MySQL\&.
+provides you with useful information for compiling your MariaDB client and connecting it to MariaDB\&.
 .PP
 \fBmysql_config\fR
 supports the following options\&.
@@ -63,7 +56,7 @@ for more portable options that contain only include paths\&.
 .\" include option: mysql_config
 \fB\-\-include\fR
 .sp
-Compiler options to find MySQL include files\&.
+Compiler options to find MariaDB include files\&.
 .RE
 .sp
 .RS 4
@@ -81,7 +74,7 @@ Compiler options to find MySQL include files\&.
 \fB\-\-libmysqld\-libs\fR,
 \fB\-\-embedded\fR
 .sp
-Libraries and options required to link with the MySQL embedded server\&.
+Libraries and options required to link with the MariaDB embedded server\&.
 .RE
 .sp
 .RS 4
@@ -96,7 +89,7 @@ Libraries and options required to link with the MySQL embedded server\&.
 .\" libs option: mysql_config
 \fB\-\-libs\fR
 .sp
-Libraries and options required to link with the MySQL client library\&.
+Libraries and options required to link with the MariaDB client library\&.
 .RE
 .sp
 .RS 4
@@ -111,7 +104,7 @@ Libraries and options required to link with the MySQL client library\&.
 .\" libs_r option: mysql_config
 \fB\-\-libs_r\fR
 .sp
-Libraries and options required to link with the thread\-safe MySQL client library\&.
+Libraries and options required to link with the thread\-safe MariaDB client library\&.
 .RE
 .sp
 .RS 4
@@ -126,7 +119,7 @@ Libraries and options required to link with the thread\-safe MySQL client librar
 .\" plugindir option: mysql_config
 \fB\-\-plugindir\fR
 .sp
-The default plugin directory path name, defined when configuring MySQL\&. This option was added in MySQL 5\&.1\&.24\&.
+The default plugin directory path name, defined when configuring MariaDB\&.
 .RE
 .sp
 .RS 4
@@ -141,7 +134,7 @@ The default plugin directory path name, defined when configuring MySQL\&. This o
 .\" port option: mysql_config
 \fB\-\-port\fR
 .sp
-The default TCP/IP port number, defined when configuring MySQL\&.
+The default TCP/IP port number, defined when configuring MariaDB\&.
 .RE
 .sp
 .RS 4
@@ -156,7 +149,7 @@ The default TCP/IP port number, defined when configuring MySQL\&.
 .\" socket option: mysql_config
 \fB\-\-socket\fR
 .sp
-The default Unix socket file, defined when configuring MySQL\&.
+The default Unix socket file, defined when configuring MariaDB\&.
 .RE
 .sp
 .RS 4
@@ -171,7 +164,7 @@ The default Unix socket file, defined when configuring MySQL\&.
 .\" variable option: mysql_config
 \fB\-\-variable=VAR\fR
 .sp
-Path to MySQL include, library and plugin directories\&. \fBVAR\fR is one of
+Path to MariaDB include, library and plugin directories\&. \fBVAR\fR is one of
 `pkgincludedir`, `pkglibdir` and `plugindir`, respectively\&.
 .RE
 .sp
@@ -187,7 +180,7 @@ Path to MySQL include, library and plugin directories\&. \fBVAR\fR is one of
 .\" version option: mysql_config
 \fB\-\-version\fR
 .sp
-Version number for the MySQL distribution\&.
+Version number for the MariaDB distribution\&.
 .RE
 .PP
 If you invoke
@@ -219,7 +212,7 @@ Options:
 .PP
 You can use
 \fBmysql_config\fR
-within a command line to include the value that it displays for a particular option\&. For example, to compile a MySQL client program, use
+within a command line to include the value that it displays for a particular option\&. For example, to compile a MariaDB client program, use
 \fBmysql_config\fR
 as follows:
 .sp
@@ -240,7 +233,7 @@ this way, be sure to invoke it within backtick (\(lq`\(rq) characters\&. That te
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -249,8 +242,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

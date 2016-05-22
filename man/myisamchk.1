@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmyisamchk\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYISAMCHK\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYISAMCHK\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -125,7 +118,7 @@ shell> \fBmyisamchk \fR\fB\fI/path/to/database_dir/\fR\fR\fB*\&.MYI\fR
 .RE
 .\}
 .PP
-You can even check all tables in all databases by specifying a wildcard with the path to the MySQL data directory:
+You can even check all tables in all databases by specifying a wildcard with the path to the MariaDB data directory:
 .sp
 .if n \{\
 .RS 4
@@ -184,7 +177,7 @@ the section called \(lqMYISAMCHK MEMORY USAGE\(rq\&.
 .ps -1
 .br
 .PP
-\fIYou must ensure that no other program is using the tables while you are running \fR\fI\fBmyisamchk\fR\fR\&. The most effective means of doing so is to shut down the MySQL server while running
+\fIYou must ensure that no other program is using the tables while you are running \fR\fI\fBmyisamchk\fR\fR\&. The most effective means of doing so is to shut down the MariaDB server while running
 \fBmyisamchk\fR, or to lock all tables that
 \fBmyisamchk\fR
 is being used on\&.
@@ -218,8 +211,7 @@ However, the easiest way to avoid this problem is to use
 CHECK TABLE
 instead of
 \fBmyisamchk\fR
-to check tables\&. See
-Section\ \&12.4.2.3, \(lqCHECK TABLE Syntax\(rq\&.
+to check tables\&.
 .sp .5v
 .RE
 .PP
@@ -227,9 +219,6 @@ Section\ \&12.4.2.3, \(lqCHECK TABLE Syntax\(rq\&.
 supports the following options, which can be specified on the command line or in the
 [myisamchk]
 option file group\&.
-\fBmyisamchk\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
 .SH "MYISAMCHK GENERAL OPTIONS"
 .\" options: myisamchk
 .\" myisamchk: options
@@ -366,6 +355,66 @@ with external locking disabled, the table can be locked only by another
 \fBmyisamchk\fR
 command\&.
 .RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: print argument list option
+.\" print argument list option: myisamchk
+\fB\-\-print\-defaults\fR
+.sp
+Print the program argument list and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: no defaults option
+.\" no defaults option: myisamchk
+\fB\-\-no\-defaults\fR
+.sp
+Don't read default options from any option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: defaults file option
+.\" defaults file option: myisamchk
+\fB\-\-defaults\-file=#\fR
+.sp
+Only read default options from the given file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: defaults extrafile option
+.\" defaults extra file option: myisamchk
+\fB\-\-defaults\-extra\-file=#\fR
+.sp
+Read this file after the global files are read\&.
+.RE
 .PP
 You can also set the following variables by using
 \fB\-\-\fR\fB\fIvar_name\fR\fR\fB=\fR\fB\fIvalue\fR\fR
@@ -375,6 +424,7 @@ syntax:
 .\" ft_min_word_len myisamchk variable
 .\" ft_stopword_file myisamchk variable
 .\" key_buffer_size myisamchk variable
+.\" key_cache_block_size myisamchk variable
 .\" myisam_block_size myisamchk variable
 .\" read_buffer_size myisamchk variable
 .\" sort_buffer_size myisamchk variable
@@ -424,6 +474,11 @@ T{
 key_buffer_size
 T}:T{
 523264
+T}
+T{
+key_cache_block_size
+T}:T{
+1024
 T}
 T{
 myisam_block_size
@@ -696,7 +751,8 @@ finds any errors in the table\&. The repair type is the same as that specified w
 \fB\-\-recover\fR
 or
 \fB\-r\fR
-option\&.
+option\&. States will be updated as with 
+\fB\-\-update\-state\fR\&.
 .RE
 .sp
 .RS 4
@@ -816,8 +872,7 @@ file as
 .\" character-sets-dir option: myisamchk
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
-The directory where character sets are installed\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+The directory where character sets are installed\&.
 .RE
 .sp
 .RS 4
@@ -833,6 +888,24 @@ Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
 \fB\-\-correct\-checksum\fR
 .sp
 Correct the checksum information for the table\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: create-missing-keys option
+.\" create-missing-keys option: myisamchk
+\fB\-\-create\-missing\-keys\fR
+.sp
+Create missing keys. This assumes that the data file is correct and that the 
+number of rows stored in the index file is correct\&. Enables 
+\fB\-\-quick\fR\&.
+
 .RE
 .sp
 .RS 4
@@ -885,7 +958,12 @@ the section called \(lqMYISAMCHK TABLE INFORMATION\(rq\&.
 \fB\-f\fR
 .sp
 Overwrite old intermediate files (files with names like
-\fItbl_name\fR\&.TMD) instead of aborting\&.
+\fItbl_name\fR\&.TMD) instead of aborting\&. Add another
+\fB\-\-force\fR
+to avoid 'myisam_sort_buffer_size is too small' errors\&. In this case 
+we will attempt to do the repair with the given 
+\fBmyisam_sort_buffer_size\fR
+and dynamically allocate as many management buffers as needed\&.
 .RE
 .sp
 .RS 4
@@ -904,24 +982,6 @@ Overwrite old intermediate files (files with names like
 For
 \fBmyisamchk\fR, the option value is a bit\-value that indicates which indexes to update\&. Each binary bit of the option value corresponds to a table index, where the first index is bit 0\&. An option value of 0 disables updates to all indexes, which can be used to get faster inserts\&. Deactivated indexes can be reactivated by using
 \fBmyisamchk \-r\fR\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" myisamchk: no-symlinks option
-.\" no-symlinks option: myisamchk
-\fB\-\-no\-symlinks\fR,
-\fB\-l\fR
-.sp
-Do not follow symbolic links\&. Normally
-\fBmyisamchk\fR
-repairs the table that a symlink points to\&. This option does not exist as of MySQL 4\&.0 because versions from 4\&.0 on do not remove symlinks during repair operations\&.
 .RE
 .sp
 .RS 4
@@ -976,7 +1036,7 @@ and
 .sp
 Achieve a faster repair by modifying only the index file, not the data file\&. You can specify this option twice to force
 \fBmyisamchk\fR
-to modify the original data file in case of duplicate keys\&.
+to modify the original data file in case of duplicate keys\&. NOTE: Tables where the data file is corrupted can't be fixed with this option\&.
 .RE
 .sp
 .RS 4
@@ -1042,19 +1102,6 @@ key_buffer_size\&.
 .el \{\
 .sp -1
 .IP \(bu 2.3
-.\}
-.\" myisamchk: set-character-set option
-.\" set-character-set option: myisamchk
-\fB\-\-set\-character\-set=\fR\fB\fIname\fR\fR
-.sp
-Change the character set used by the table indexes\&. This option was replaced by
-\fB\-\-set\-collation\fR
-in MySQL 5\&.0\&.3\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
 .\}
 .el \{\
 .sp -1
@@ -1251,6 +1298,22 @@ sorts and moves records, it just overwrites record offsets in the index\&. If ke
 \fBmyisamchk\fR
 must unpack key blocks first, then re\-create indexes and pack the key blocks again\&. (In this case, re\-creating indexes is faster than updating offsets for each index\&.)
 .RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" myisamchk: stats_method option
+.\" stats_method option: myisamchk
+\fB\-\-stats\-method=name\fR
+.sp
+Specifies how index statistics collection code should treat NULLs\&. Possible values 
+of name are "nulls_unequal" (default), "nulls_equal" (emulate MySQL 4 behavior), and "nulls_ignored"\&.
+.RE
 .SH "MYISAMCHK TABLE INFORMATION"
 .\" table description: myisamchk
 .\" tables: information
@@ -1275,7 +1338,7 @@ Runs
 \fBmyisamchk\fR
 in
 \(lqdescribe mode\(rq
-to produce a description of your table\&. If you start the MySQL server with external locking disabled,
+to produce a description of your table\&. If you start the MariaDB server with external locking disabled,
 \fBmyisamchk\fR
 may report an error for a table that is updated while it runs\&. However, because
 \fBmyisamchk\fR
@@ -1623,7 +1686,7 @@ Section\ \&6.6.4, \(lqMyISAM Table Optimization\(rq\&.
 .\}
 Datafile pointer
 .sp
-The size of the data file pointer, in bytes\&. It is usually 2, 3, 4, or 5 bytes\&. Most tables manage with 2 bytes, but this cannot be controlled from MySQL yet\&. For fixed tables, this is a row address\&. For dynamic tables, this is a byte address\&.
+The size of the data file pointer, in bytes\&. It is usually 2, 3, 4, or 5 bytes\&. Most tables manage with 2 bytes, but this cannot be controlled from MariaDB yet\&. For fixed tables, this is a row address\&. For dynamic tables, this is a byte address\&.
 .RE
 .sp
 .RS 4
@@ -1636,7 +1699,7 @@ The size of the data file pointer, in bytes\&. It is usually 2, 3, 4, or 5 bytes
 .\}
 Keyfile pointer
 .sp
-The size of the index file pointer, in bytes\&. It is usually 1, 2, or 3 bytes\&. Most tables manage with 2 bytes, but this is calculated automatically by MySQL\&. It is always a block address\&.
+The size of the index file pointer, in bytes\&. It is usually 1, 2, or 3 bytes\&. Most tables manage with 2 bytes, but this is calculated automatically by MariaDB\&. It is always a block address\&.
 .RE
 .sp
 .RS 4
@@ -1785,7 +1848,7 @@ Address of the root index block\&.
 .\}
 Blocksize
 .sp
-The size of each index block\&. By default this is 1024, but the value may be changed at compile time when MySQL is built from source\&.
+The size of each index block\&. By default this is 1024, but the value may be changed at compile time when MariaDB is built from source\&.
 .RE
 .sp
 .RS 4
@@ -2137,7 +2200,7 @@ What percentage of the keyblocks are used\&. When a table has just been reorgani
 .\}
 Packed
 .sp
-MySQL tries to pack key values that have a common suffix\&. This can only be used for indexes on
+MariaDB tries to pack key values that have a common suffix\&. This can only be used for indexes on
 CHAR
 and
 VARCHAR
@@ -2193,7 +2256,7 @@ The average row length\&. This is the exact row length for tables with fixed\-le
 .\}
 Packed
 .sp
-MySQL strips spaces from the end of strings\&. The
+MariaDB strips spaces from the end of strings\&. The
 Packed
 value indicates the percentage of savings achieved by doing this\&.
 .RE
@@ -2444,7 +2507,7 @@ instead of
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -2453,8 +2516,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

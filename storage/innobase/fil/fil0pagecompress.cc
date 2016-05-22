@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -111,9 +111,21 @@ fil_compress_page(
 	/* Cache to avoid change during function execution */
 	ulint comp_method = innodb_compression_algorithm;
 	ulint orig_page_type;
+	bool allocated=false;
 
 	if (encrypted) {
 		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
+	}
+
+	if (!out_buf) {
+		allocated = true;
+		out_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+#ifdef HAVE_LZO
+		if (comp_method == PAGE_LZO_ALGORITHM) {
+			lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
+			memset(lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
+		}
+#endif
 	}
 
 	ut_ad(buf);
@@ -124,6 +136,10 @@ fil_compress_page(
 	/* read original page type */
 	orig_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
 
+	fil_system_enter();
+	fil_space_t* space = fil_space_get_by_id(space_id);
+	fil_system_exit();
+
 	/* Let's not compress file space header or
 	extent descriptor */
 	if (orig_page_type == 0 ||
@@ -131,12 +147,9 @@ fil_compress_page(
 	    orig_page_type == FIL_PAGE_TYPE_XDES ||
 		orig_page_type == FIL_PAGE_PAGE_COMPRESSED) {
 		*out_len = len;
-		return (buf);
-	}
 
-	fil_system_enter();
-	fil_space_t* space = fil_space_get_by_id(space_id);
-	fil_system_exit();
+		goto err_exit;
+	}
 
 	/* If no compression level was provided to this table, use system
 	default level */
@@ -174,7 +187,7 @@ fil_compress_page(
 #endif
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 		break;
 #endif /* HAVE_LZ4 */
@@ -190,9 +203,10 @@ fil_compress_page(
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
+
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 
 		break;
@@ -218,9 +232,10 @@ fil_compress_page(
 					space_id, fil_space_name(space), len, err, out_pos);
 				space->printed_compression_failure = true;
 			}
+
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 
 		write_size = out_pos;
@@ -248,9 +263,10 @@ fil_compress_page(
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
+
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 		break;
 	}
@@ -261,7 +277,11 @@ fil_compress_page(
 	{
 		snappy_status cstatus;
 
-		cstatus = snappy_compress((const char *)buf, len, (char *)(out_buf+header_len), &write_size);
+		cstatus = snappy_compress(
+			(const char *)buf,
+			(size_t)len,
+			(char *)(out_buf+header_len),
+			(size_t*)&write_size);
 
 		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
@@ -270,9 +290,10 @@ fil_compress_page(
 					space_id, fil_space_name(space), len, (int)cstatus, write_size);
 				space->printed_compression_failure = true;
 			}
+
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 		break;
 	}
@@ -293,7 +314,7 @@ fil_compress_page(
 
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
-			return (buf);
+			goto err_exit;
 		}
 		break;
 
@@ -339,15 +360,17 @@ fil_compress_page(
 		byte *comp_page;
 		byte *uncomp_page;
 
-		comp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
-		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
+		comp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
 		memcpy(comp_page, out_buf, UNIV_PAGE_SIZE);
 
 		fil_decompress_page(uncomp_page, comp_page, len, NULL);
+
 		if(buf_page_is_corrupted(false, uncomp_page, 0)) {
 			buf_page_print(uncomp_page, 0, BUF_PAGE_PRINT_NO_CRASH);
 			ut_error;
 		}
+
 		ut_free(comp_page);
 		ut_free(uncomp_page);
 	}
@@ -366,6 +389,8 @@ fil_compress_page(
 		size_t tmp = write_size;
 
 		write_size =  (size_t)ut_uint64_align_up((ib_uint64_t)write_size, block_size);
+		/* Clean up the end of buffer */
+		memset(out_buf+tmp, 0, write_size - tmp);
 #ifdef UNIV_DEBUG
 		ut_a(write_size > 0 && ((write_size % block_size) == 0));
 		ut_a(write_size >= tmp);
@@ -384,12 +409,30 @@ fil_compress_page(
 	/* If we do not persistently trim rest of page, we need to write it
 	all */
 	if (!srv_use_trim) {
+		memset(out_buf+write_size,0,len-write_size);
 		write_size = len;
 	}
 
 	*out_len = write_size;
 
-	return(out_buf);
+	if (allocated) {
+		/* TODO: reduce number of memcpy's */
+		memcpy(buf, out_buf, len);
+	} else {
+		return(out_buf);
+	}
+
+err_exit:
+	if (allocated) {
+		ut_free(out_buf);
+#ifdef HAVE_LZO
+		if (comp_method == PAGE_LZO_ALGORITHM) {
+			ut_free(lzo_mem);
+		}
+#endif
+	}
+
+	return (buf);
 
 }
 
@@ -404,8 +447,11 @@ fil_decompress_page(
 	byte*	buf,		/*!< out: buffer from which to read; in aio
 				this must be appropriately aligned */
 	ulong	len,		/*!< in: length of output buffer.*/
-	ulint*	write_size)	/*!< in/out: Actual payload size of
+	ulint*	write_size,	/*!< in/out: Actual payload size of
 				the compressed data. */
+	bool	return_error)	/*!< in: true if only an error should
+				be produced when decompression fails.
+				By default this parameter is false. */
 {
 	int err = 0;
 	ulint actual_size = 0;
@@ -432,7 +478,8 @@ fil_decompress_page(
 
 	// If no buffer was given, we need to allocate temporal buffer
 	if (page_buf == NULL) {
-		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
+		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+		memset(in_buf, 0, UNIV_PAGE_SIZE);
 	} else {
 		in_buf = page_buf;
 	}
@@ -449,6 +496,9 @@ fil_decompress_page(
 			mach_read_from_2(buf+FIL_PAGE_TYPE), len);
 
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 	}
 
@@ -468,6 +518,9 @@ fil_decompress_page(
 			" actual size %lu compression %s.",
 			actual_size, fil_get_compression_alg_name(compression_alg));
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 	}
 
@@ -499,6 +552,9 @@ fil_decompress_page(
 
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -515,6 +571,9 @@ fil_decompress_page(
 				err, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -533,6 +592,9 @@ fil_decompress_page(
 				olen, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -566,6 +628,9 @@ fil_decompress_page(
 				dst_pos, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 
@@ -592,6 +657,9 @@ fil_decompress_page(
 				dst_pos, actual_size, len, err);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -605,9 +673,9 @@ fil_decompress_page(
 
 		cstatus = snappy_uncompress(
 			(const char *)(buf+header_len),
-			actual_size,
+			(size_t)actual_size,
 			(char *)in_buf,
-			&olen);
+			(size_t*)&olen);
 
 		if (cstatus != SNAPPY_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -617,6 +685,9 @@ fil_decompress_page(
 				olen, actual_size, len, (int)cstatus);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -630,6 +701,9 @@ fil_decompress_page(
 			,fil_get_compression_alg_name(compression_alg));
 
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 		break;
 	}
@@ -640,6 +714,7 @@ fil_decompress_page(
 	really any other options. */
 	memcpy(buf, in_buf, len);
 
+error_return:
 	// Need to free temporal buffer if no buffer was given
 	if (page_buf == NULL) {
 		ut_free(in_buf);

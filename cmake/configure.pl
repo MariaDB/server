@@ -125,7 +125,7 @@ foreach my $option (@ARGV)
     foreach my $p (@plugins)
     {
       $p =~ s/-/_/g;
-      $cmakeargs = $cmakeargs." -DWITH_".uc($p)."=1";
+      $cmakeargs = $cmakeargs." -DWITH_".uc($p)."=AUTO";
     }
     next;
   }
@@ -135,9 +135,14 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_EXTRA_CHARSETS=".$charsets;
     next;
   }
-  if($option =~ /without-plugin=/)
+  if($option =~ /without-plugin=/ || $option =~ /without-plugin-/)
   {
-    $cmakeargs = $cmakeargs." -DWITHOUT_".uc(substr($option,15))."=1";
+    $cmakeargs = $cmakeargs." -DPLUGIN_".uc(substr($option,15))."=NO";
+    next;
+  }
+  if($option =~ /with-plugin-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs." -DPLUGIN_".uc($1)."=".uc($2);
     next;
   }
   if($option =~ /with-zlib-dir=bundled/)
@@ -231,6 +236,11 @@ foreach my $option (@ARGV)
   {
       $cmakeargs = $cmakeargs." -DENABLE_GCOV=ON"; 
       next;
+  }
+  if ($option =~ /with-max-indexes=/)
+  {
+    $cmakeargs = $cmakeargs." -DMAX_INDEXES=".substr($option, 17); 
+    next;
   }
   if ($option =~ /verbose/)
   {

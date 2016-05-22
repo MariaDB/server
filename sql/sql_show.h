@@ -1,4 +1,5 @@
-/* Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2005, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -85,7 +86,10 @@ bool append_identifier(THD *thd, String *packet, const char *name,
 		       uint length);
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
+bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
+                                   List<Item> *field_list, String *buffer);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
+void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
 bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
                            LEX_STRING *orig_db_name,
                            const DDL_options_st &options);
@@ -98,7 +102,7 @@ bool mysqld_show_authors(THD *thd);
 bool mysqld_show_contributors(THD *thd);
 bool mysqld_show_privileges(THD *thd);
 char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
-void calc_sum_of_all_status(STATUS_VAR *to);
+uint calc_sum_of_all_status(STATUS_VAR *to);
 void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
                     const LEX_STRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
@@ -114,7 +118,10 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
 COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
-ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
+ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name, bool *in_plugin);
+static inline ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
+{ bool unused; return find_schema_table(thd, table_name, &unused); }
+
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
                        ST_SCHEMA_TABLE *schema_table);

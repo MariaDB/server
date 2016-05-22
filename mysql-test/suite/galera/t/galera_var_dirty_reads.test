@@ -5,6 +5,14 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--disable_query_log
+# Save original auto_increment_offset values.
+--connection node_1
+let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`;
+--connection node_2
+let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`;
+--enable_query_log
+
 --connection node_2
 --let $wsrep_cluster_address_saved = `SELECT @@global.wsrep_cluster_address`
 
@@ -40,6 +48,14 @@ SELECT * FROM t1;
 SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
+
+--disable_query_log
+# Restore original auto_increment_offset values.
+--connection node_1
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_1;
+--connection node_2
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_2;
+--enable_query_log
 
 --source include/galera_end.inc
 --echo # End of test

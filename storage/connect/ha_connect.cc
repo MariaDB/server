@@ -1141,7 +1141,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == (ulonglong)NO_IVAL) {
+  if ((ulonglong) opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -4083,7 +4083,7 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 {
   const char *db= (dbn && *dbn) ? dbn : NULL;
   TABTYPE     type=GetRealType(options);
@@ -4110,6 +4110,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_VEC:
     case TAB_JSON:
       if (options->filename && *options->filename) {
+        if (!quick) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(__WIN__)
         s= "\\";
@@ -4128,7 +4129,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
           my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
           return true;
           } // endif path
-
+        }
       } else
         return false;
 
@@ -4151,10 +4152,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
         Otherwise it's a DML, the table was normally opened, locked,
         privilege were already checked, and table->grant.privilege is set.
         With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+
+        Unless we're in prelocking mode, in this case table->grant.privilege
+        is only checked in start_stmt(), not in external_lock().
       */
       if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
         return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-      if (table->grant.privilege & FILE_ACL)
+      if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
         return false;
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(access_denied_error_code(thd->password), MYF(0),
@@ -4337,6 +4341,9 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   MODE    newmode;
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
+
+  if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
   switch (lock_type) {
@@ -4799,7 +4806,11 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
       DBUG_RETURN(rc);
 
     // Get the share info from the .frm file
-    if (!open_table_def(thd, share)) {
+    Dummy_error_handler error_handler;
+    thd->push_internal_handler(&error_handler);
+    bool got_error= open_table_def(thd, share);
+    thd->pop_internal_handler();
+    if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {
         if (check_privileges(thd, pos, db))
@@ -4811,12 +4822,6 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-
-//  This below was done to avoid DBUG_ASSERT in some case that
-//  we don't know anymore what they were. It was suppressed because
-//  it did cause assertion in other cases (see MDEV-7935)
-//  } else       // Avoid infamous DBUG_ASSERT
-//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
@@ -6910,6 +6915,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.04.0006",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+  MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

@@ -83,12 +83,10 @@ explain select * from t1;
 select * from t1;
 
 --replace_column 7 NULL 9 NULL;
---replace_result index index_or_range range index_or_range
 explain select * from t1 where b > 0;
 select * from t1 where b > 0;
 
 --replace_column 7 NULL 9 NULL;
---replace_result index index_or_range range index_or_range
 explain select * from t1 where d > "0";
 select * from t1 where d > "0";
 

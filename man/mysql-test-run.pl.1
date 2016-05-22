@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql-test-run.pl\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/31/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL
-.\"  Language: English
 .\"
-.TH "\FBMYSQL\-TEST\-RUN\" "1" "03/31/2010" "MySQL" "MySQL Database System"
+.TH "\FBMYSQL\-TEST\-RUN\" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -20,7 +13,7 @@
 .\" -----------------------------------------------------------------
 .\" mysql-test-run.pl
 .SH "NAME"
-mysql-test-run.pl \- run MySQL test suite
+mysql-test-run.pl \- run MariaDB test suite
 .SH "SYNOPSIS"
 .HP \w'\fBmysql\-test\-run\&.pl\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
 \fBmysql\-test\-run\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
@@ -28,7 +21,7 @@ mysql-test-run.pl \- run MySQL test suite
 .PP
 The
 \fBmysql\-test\-run\&.pl\fR
-Perl script is the main application used to run the MySQL test suite\&. It invokes
+Perl script is the main application used to run the MariaDB test suite\&. It invokes
 \fBmysqltest\fR
 to run individual test cases\&.
 .PP
@@ -381,9 +374,54 @@ Display a help message and exit\&.
 Allow tests marked as "big" to run\&. Tests can be thus marked by including the line
 \fB\-\-source include/big_test\&.inc\fR, and they will only be run if this option is given, or if the environment variable
 BIG_TEST
-is set to 1\&.
+is set to 1\&. Repeat this option twice to run only "big" tests\&.
 .sp
-This is typically done for tests that take very long to run, or that use very much resources, so that they are not suitable for running as part of a normal test suite run\&.
+This is typically used for tests that take a very long to run, or that use many resources, so that they are not suitable for running as part of a normal test suite run\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: boot-dbx option
+.\" boot-dbx option: mysql-test-run.pl
+\fB\-\-boot\-dbx\fR
+.sp
+Run the mysqld server used for bootstrapping the database through the dbx debugger\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: boot-ddd option
+.\" boot-ddd option: mysql-test-run.pl
+\fB\-\-boot\-ddd\fR
+.sp
+Run the mysqld server used for bootstrapping the database through the ddd debugger\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: boot-gdb option
+.\" boot-gdb option: mysql-test-run.pl
+\fB\-\-boot\-gdb\fR
+.sp
+Run the mysqld server used for bootstrapping the database through the gdb debugger\&.
 .RE
 .sp
 .RS 4
@@ -396,7 +434,7 @@ This is typically done for tests that take very long to run, or that use very mu
 .\}
 .\" mysql-test-run.pl: build-thread option
 .\" build-thread option: mysql-test-run.pl
-\fB\-\-build\-thread=\fR\fB\fInumber\fR\fR
+\fB\-\-[mtr\-]build\-thread=\fR\fB\fInumber\fR\fR
 .sp
 Specify a number to calculate port numbers from\&. The formula is 10 *
 \fIbuild_thread\fR
@@ -410,7 +448,7 @@ auto) can also be set with the
 MTR_BUILD_THREAD
 environment variable\&.
 .sp
-From MySQL 5\&.1\&.45, the more logical
+The more logical
 \fB\-\-port\-base\fR
 is supported as an alternative\&.
 .RE
@@ -461,6 +499,25 @@ Check test cases for side effects\&. This is done by checking system state befor
 \fB\-\-client\-bindir=\fR\fB\fIpath\fR\fR
 .sp
 The path to the directory where client binaries are located\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: client-dbx option
+.\" client-dbx option: mysql-test-run.pl
+\fB\-\-client\-dbx\fR
+.sp
+Start
+\fBmysqltest\fR
+in the
+\fBdbx\fR
+debugger\&.
 .RE
 .sp
 .RS 4
@@ -560,8 +617,7 @@ is given only once, it has no effect\&. For test runs specific to a given test s
 \fB\-\-combination\fR
 is to create a
 combinations
-file in the suite directory\&. The file should contain a section of options for each test run\&. See
-Section\ \&4.9, \(lqPassing Options from mysql-test-run.pl to mysqld or mysqltest\(rq\&.
+file in the suite directory\&. The file should contain a section of options for each test run\&.
 .RE
 .sp
 .RS 4
@@ -609,12 +665,28 @@ Compress all information sent between the client and the server if both support 
 .\" cursor-protocol option: mysql-test-run.pl
 \fB\-\-cursor\-protocol\fR
 .sp
-Pass the
-\fB\-\-cursor\-protocol\fR
-option to
-\fBmysqltest\fR
+Use the cursor protocol between client and server
 (implies
 \fB\-\-ps\-protocol\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: dbx option
+.\" dbx option: mysql-test-run.pl
+\fB\-\-dbx\fR
+.sp
+Start the
+\fBmysqld(s)\fR
+in the
+\fBdbx\fR
+debugger\&.
 .RE
 .sp
 .RS 4
@@ -629,8 +701,8 @@ option to
 .\" ddd option: mysql-test-run.pl
 \fB\-\-ddd\fR
 .sp
-Start
-\fBmysqld\fR
+Start the
+\fBmysqld(s)\fR
 in the
 \fBddd\fR
 debugger\&.
@@ -649,6 +721,36 @@ debugger\&.
 \fB\-\-debug\fR
 .sp
 Dump trace output for all clients and servers\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: debug-common option
+.\" debug-common option: mysql-test-run.pl
+\fB\-\-debug\-common\fR
+.sp
+Same as \fB--debug\fR, but sets the 'd' debug flags to "query,info,error,enter,exit"\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: debug-server option
+.\" debug-server option: mysql-test-run.pl
+\fB\-\-debug\-server\fR
+.sp
+Use debug version of server, but without turning on tracing\&.
 .RE
 .sp
 .RS 4
@@ -691,11 +793,6 @@ to
 prefix is used so that
 \fBmysqld\fR
 does not fail if Debug Sync is not compiled in\&.
-.sp
-For information about using the Debug Sync facility for testing, see
-Section\ \&4.14, \(lqThread Synchronization in Test Cases\(rq\&.
-.sp
-This option was added in MySQL 5\&.1\&.41/5\&.5\&.0/6\&.0\&.6\&.
 .RE
 .sp
 .RS 4
@@ -707,7 +804,7 @@ This option was added in MySQL 5\&.1\&.41/5\&.5\&.0/6\&.0\&.6\&.
 .IP \(bu 2.3
 .\}
 .\" mysql-test-run.pl: defaults-file option
-.\" default-file option: mysql-test-run.pl
+.\" defaults-file option: mysql-test-run.pl
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
 .sp
 Use the named file as fixed config file template for all tests\&.
@@ -738,11 +835,12 @@ Add setting from the named file to all generated configs\&.
 .\}
 .\" mysql-test-run.pl: do-test option
 .\" do-test option: mysql-test-run.pl
-\fB\-\-do\-test=\fR\fB\fIprefix\fR\fR
+\fB\-\-do\-test=\fR\fB\fIprefix\fR\fR|\fB\fIregex\fR\fR
 .sp
 Run all test cases having a name that begins with the given
 \fIprefix\fR
-value\&. This option provides a convenient way to run a family of similarly named tests\&.
+value, or fulfils the 
+\fIregex\fR\&. This option provides a convenient way to run a family of similarly named tests\&.
 .sp
 The argument for the
 \fB\-\-do\-test\fR
@@ -762,6 +860,21 @@ followed by
 testa
 with anything in between\&. In the latter case, the pattern match is not anchored to the beginning of the test name, so it also matches names such as
 xmainytestz\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: dry-run option
+.\" dry-run option: mysql-test-run.pl
+\fB\-\-dry\-run\fR
+.sp
+Don't run any tests, print the list of tests that were selected for execution\&.
 .RE
 .sp
 .RS 4
@@ -795,7 +908,7 @@ built with the embedded server\&.
 .sp
 Ignore any
 disabled\&.def
-file, and run also tests marked as disbaled\&. Success or failure of those tests will be reported the same way as other tests\&.
+file, and also run tests marked as disabled\&. Success or failure of those tests will be reported the same way as other tests\&.
 .RE
 .sp
 .RS 4
@@ -814,7 +927,7 @@ Specify a file that contains a list of test cases that should be displayed with 
 [ exp\-fail ]
 code rather than
 [ fail ]
-if they fail\&. This option was added in MySQL 5\&.1\&.33\&.
+if they fail\&.
 .sp
 For an example of a file that might be specified via this option, see
 mysql\-test/collections/default\&.experimental\&.
@@ -836,10 +949,10 @@ mysql\-test/collections/default\&.experimental\&.
 Use an already running server\&. The option/value pair is what is needed by the
 \fBmysql\fR
 client to connect to the server\&. Each
+\fB\-\-extern\fR option
+can only take one option/value pair as an argument, so you need to repeat
 \fB\-\-extern\fR
-can only take one option/value pair as argument, so it you need more you need to repeat
-\fB\-\-extern\fR
-for each of them\&. Example:
+for each pair needed\&. Example:
 .sp
 .if n \{\
 .RS 4
@@ -880,6 +993,21 @@ Do not perform controlled shutdown when servers need to be restarted or at the e
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql-test-run.pl: force-restart option
+.\" force-restart option: mysql-test-run.pl
+\fB\-\-force\-restart\fR
+.sp
+Always restart servers between tests\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql-test-run.pl: force option
 .\" force option: mysql-test-run.pl
 \fB\-\-force\fR
@@ -903,9 +1031,25 @@ causes execution to continue regardless of test case failure\&.
 .\" gcov option: mysql-test-run.pl
 \fB\-\-gcov\fR
 .sp
-Run tests with the
+Collect coverage information after the test\&. The result is a
 \fBgcov\fR
-test coverage tool\&.
+file per source and header file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: gcov-src-dir option
+.\" gcov-src-dir option: mysql-test-run.pl
+\fB\-\-gcov\-src\-dir\fR
+.sp
+Colllect coverage only within the given subdirectory\&. For example, if you're only developing the SQL layer, 
+it makes sense to use \fB--gcov-src-dir=sql\fR\&.
 .RE
 .sp
 .RS 4
@@ -920,8 +1064,8 @@ test coverage tool\&.
 .\" gdb option: mysql-test-run.pl
 \fB\-\-gdb\fR
 .sp
-Start
-\fBmysqld\fR
+Start the
+\fBmysqld(s)\fR
 in the
 \fBgdb\fR
 debugger\&.
@@ -939,11 +1083,26 @@ debugger\&.
 .\" gprof option: mysql-test-run.pl
 \fB\-\-gprof\fR
 .sp
-Run tests with the
+Collect profiling information using the
 \fBgprof\fR
 profiling tool\&.
-\fB\-\-gprof\fR
-was added in 5\&.1\&.45\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: manual-dbx option
+.\" manual-dbx option: mysql-test-run.pl
+\fB\-\-manual\-dbx\fR
+.sp
+Use a server that has already been started by the user in the
+\fBdbx\fR
+debugger\&.
 .RE
 .sp
 .RS 4
@@ -1003,6 +1162,23 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql-test-run.pl: manual-lldb option
+.\" manual-lldb option: mysql-test-run.pl
+\fB\-\-manual\-lldb\fR
+.sp
+Use a server that has already been started by the user in the
+\fBlldb\fR
+debugger\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql-test-run.pl: mark-progress option
 .\" mark-progress option: mysql-test-run.pl
 \fB\-\-mark\-progress\fR
@@ -1025,8 +1201,6 @@ var/log/\fItestname\fR\&.progress\&.
 .sp
 The maximum number of simultaneous server connections that may be used per test\&. If not set, the maximum is 128\&. Minimum allowed limit is 8, maximum is 5120\&. Corresponds to the same option for
 \fBmysqltest\fR\&.
-.sp
-This option is available from MySQL 5\&.1\&.45\&.
 .RE
 .sp
 .RS 4
@@ -1073,7 +1247,7 @@ MTR_MAX_SAVE_DATADIR
 .\" max-test-fail option: mysql-test-run.pl
 \fB\-\-max\-test\-fail=\fR\fB\fIN\fR\fR
 .sp
-Stop execution after the specified number of tests have failed, to avoid using up resources (and time) in case of massive failures\&. retries are noe counted, nor are failures of tests marked experimental\&. Defaults to 10, set to 0 for no limit\&. May also be set with the environment variable
+Stop execution after the specified number of tests have failed, to avoid using up resources (and time) in case of massive failures\&. retries are not counted, nor are failures of tests marked experimental\&. Defaults to 10, set to 0 for no limit\&. May also be set with the environment variable
 MTR_MAX_TEST_FAIL
 .RE
 .sp
@@ -1129,8 +1303,22 @@ option next time\&.
 Extra options to pass to
 \fBmysqld\fR\&. The value should consist of one or more comma\-separated
 \fBmysqld\fR
-options\&. See
-Section\ \&4.9, \(lqPassing Options from mysql-test-run.pl to mysqld or mysqltest\(rq\&.
+options\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: mysqld-env option
+.\" mysqld-env option: mysql-test-run.pl
+\fB\-\-mysqld\-env=\fR\fB\fIVAR=VAL\fR\fR
+.sp
+Specify additional environment settings for "mysqld"\&. Use additional \fB--mysqld-env\fR options to set more than one variable\&.
 .RE
 .sp
 .RS 4
@@ -1214,7 +1402,7 @@ Run tests using
 parallel threads\&. By default, 1 thread is used\&. Use
 \fB\-\-parallel=auto\fR
 for auto\-setting of
-\fIN\fR\&. The auto value was added in MySQL 5\&.1\&.36\&.
+\fIN\fR\&.
 .RE
 .sp
 .RS 4
@@ -1227,7 +1415,7 @@ for auto\-setting of
 .\}
 .\" mysql-test-run.pl: port-base option
 .\" port-base option: mysql-test-run.pl
-\fB\-\-port\-base=\fR\fB\fIP\fR\fR
+\fB\-\-[mtr\-]port\-base=\fR\fB\fIP\fR\fR
 .sp
 Specify base of port numbers to be used; a block of 10 will be allocated\&.
 \fIP\fR
@@ -1235,14 +1423,12 @@ should be divisible by 10; if it is not, it will be rounded down\&. If running w
 .sp
 If the port number is given as
 auto, which is also the default,
-\fBmysql\-test\-run\&.pl\fRwill allocate a number unique to this host\&. The value may also be given with the environment variable
+\fBmysql\-test\-run\&.pl\fR will allocate a number unique to this host\&. The value may also be given with the environment variable
 MTR_PORT_BASE\&.
 .sp
+If both \fB\-\-build\-thread\fR and \fB\-\-port\-base\fR are used,
 \fB\-\-port\-base\fR
-was added in MySQL 5\&.1\&.45 as a more logical alternative to
-\fB\-\-build\-thread\fR\&. If both are used,
-\fB\-\-port\-base\fR
-takes presedence\&.
+takes precedence\&.
 .RE
 .sp
 .RS 4
@@ -1272,10 +1458,7 @@ Do not run any tests, but print details about all tests, in the order they would
 .\" ps-protocol option: mysql-test-run.pl
 \fB\-\-ps\-protocol\fR
 .sp
-Pass the
-\fB\-\-ps\-protocol\fR
-option to
-\fBmysqltest\fR\&.
+Use the binary protocol between client and server\&.
 .RE
 .sp
 .RS 4
@@ -1340,10 +1523,23 @@ number of times\&.
 .\" report-features option: mysql-test-run.pl
 \fB\-\-report\-features\fR
 .sp
-Display the output of
-SHOW ENGINES
-and
-SHOW VARIABLES\&. This can be used to verify that binaries are built with all required features\&.
+First run a "test" that reports MariaDB features, displaying the output of SHOW ENGINES and SHOW VARIABLES\&. This can be 
+used to verify that binaries are built with all required features\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: report-times option
+.\" report-times option: mysql-test-run.pl
+\fB\-\-report\-times\fR
+.sp
+Report how much time has been spent on different phases of test execution\&.
 .RE
 .sp
 .RS 4
@@ -1360,7 +1556,8 @@ SHOW VARIABLES\&. This can be used to verify that binaries are built with all re
 .sp
 If a test fails, it is retried up to a maximum of
 \fIN\fR
-runs, but will terminate after 2 failures\&. Default is 3, set to 1 or 0 for no retries\&. This option has no effect unless
+runs (default 1)\&. Retries are also limited by the maximum number of failures before stopping, 
+set with the \fB-\-retry\-failure\fR option\&. This option has no effect unless
 \fB\-\-force\fR
 is also used; without it, test execution will terminate after the first failure\&.
 .sp
@@ -1385,7 +1582,8 @@ may fail in total, as each repetition is considered a new test case, which may i
 .\" retry-failure option: mysql-test-run.pl
 \fB\-\-retry\-failure=\fR\fB\fIN\fR\fR
 .sp
-Allow a failed and retried test to fail more than the default 2 times before giving it up\&. Setting it to 0 or 1 effectively turns off retries
+When using the \fB-\-retry\fR option to retry failed tests, 
+stop when N failures have occurred (default 2)\&. Setting it to 0 or 1 effectively turns off retries\&.
 .RE
 .sp
 .RS 4
@@ -1460,7 +1658,7 @@ with support for SSL connections\&.
 .\}
 .\" mysql-test-run.pl: skip-test option
 .\" skip-test option: mysql-test-run.pl
-\fB\-\-skip\-test=\fR\fB\fIregex\fR\fR
+\fB\-\-skip\-test=\fR\fB\fIregex\fR\fR|\fR\fB\fIregex\fR\fR
 .sp
 Specify a regular expression to be applied to test case names\&. Cases with names that match the expression are skipped\&. tests to skip\&.
 .sp
@@ -1469,6 +1667,21 @@ The argument for the
 option allows more flexible specification of which tests to skip\&. If the argument contains a pattern metacharacter other than a lone period, it is interpreted as a Perl regular expression and applies to test names that match the pattern\&. See the description of the
 \fB\-\-do\-test\fR
 option for details\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: skip-test-list option
+.\" skip-test-list option: mysql-test-run.pl
+\fB\-\-skip\-test\-list=\fB\fIFILE\fR
+.sp
+Skip the tests listed in FILE\&. Each line in the file is an entry and should be formatted as: <TESTNAME> : <COMMENT>
 .RE
 .sp
 .RS 4
@@ -1517,10 +1730,7 @@ to
 .\" sp-protocol option: mysql-test-run.pl
 \fB\-\-sp\-protocol\fR
 .sp
-Pass the
-\fB\-\-sp\-protocol\fR
-option to
-\fBmysqltest\fR\&.
+Create a stored procedure to execute all queries\&.
 .RE
 .sp
 .RS 4
@@ -1539,12 +1749,27 @@ If
 \fBmysql\-test\-run\&.pl\fR
 is started with the
 \fB\-\-ssl\fR
-option, it sets up a secure conection for all test cases\&. In this case, if
+option, it sets up a secure connection for all test cases\&. In this case, if
 \fBmysqld\fR
 does not support SSL,
 \fBmysql\-test\-run\&.pl\fR
 exits with an error message:
 Couldn\'t find support for SSL
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: staging-run option
+.\" staging-run option: mysql-test-run.pl
+\fB\-\-staging\-run\fR
+.sp
+Run a limited number of tests (no slow tests)\&. Used for running staging trees with valgrind\&.
 .RE
 .sp
 .RS 4
@@ -1591,6 +1816,22 @@ will stop once the server has been started, but will terminate if the server die
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql-test-run.pl: start-and-exit option
+.\" start-and-exit option: mysql-test-run.pl
+\fB\-\-start\-and\-exit\fR
+.sp
+Same 
+\fB\-\-start\fR, but mysql-test-run terminates and leaves just the server running\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql-test-run.pl: start-dirty option
 .\" start-dirty option: mysql-test-run.pl
 \fB\-\-start\-dirty\fR
@@ -1624,6 +1865,21 @@ sorts the list of names of the test cases to be run, and then begins with
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql-test-run.pl: strace option
+.\" strace option: mysql-test-run.pl
+\fB\-\-strace\fR
+.sp
+Run the "mysqld" executables using strace. Default options are \fB-f -o var/log/'mysqld-name'.strace\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql-test-run.pl: strace-client option
 .\" strace-client option: mysql-test-run.pl
 \fB\-\-strace\-client\fR
@@ -1631,7 +1887,42 @@ sorts the list of names of the test cases to be run, and then begins with
 Create
 \fBstrace\fR
 output for
-\fBmysqltest\fR\&.
+\fBmysqltest\fR, optionally specifying name and path 
+to the trace program to use\&.
+.sp
+Example: \&./mysql\-test\-run\&.pl \-\-strace\-client=ktrace
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: strace-option option
+.\" strace-option option: mysql-test-run.pl
+\fB\-\-strace\-option\fR=\fR\fB\fIARGS\fR\fR
+.sp
+Option to give 
+\fBstrace\fR, 
+replaces default option(s)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: stress option
+.\" stress option: mysql-test-run.pl
+\fB\-\-stress=\fR\fB\fIARGS\fR\fR
+.sp
+Run stress test, providing options to mysql\-stress\-test\&.pl\&. Options are separated by comma\&.
 .RE
 .sp
 .RS 4
@@ -1644,13 +1935,41 @@ output for
 .\}
 .\" mysql-test-run.pl: suite option
 .\" suite option: mysql-test-run.pl
-\fB\-\-suite=\fR\fB\fIsuite_name\fR\fR
+\fB\-\-suite[s]=\fR\fB\fIsuite_name...\fR\fR
 .sp
-Run the named test suite\&. The default name is
-main
-(the regular test suite located in the
-mysql\-test
-directory)\&.
+Comma separated list of suite names to run. The default is: "main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,innodb-,innodb_fts-,
+innodb_zip-,maria-,multi_source-,optimizer_unfixed_bugs-,parts-,percona-,perfschema-,
+plugins-,roles-,rpl-,sys_vars-,unit-,vcol-"\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: stop-file option
+.\" stop-file option: mysql-test-run.pl
+\fB\-\-stop\-file=\fR\fB\fIfile\fR\fR
+.sp
+If this file is detected, mysqltest will not start new tests until the file is removed (also MTR_STOP_FILE environment variable)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: stop-keep-alive option
+.\" stop-keep-alive option: mysql-test-run.pl
+\fB\-\-stop\-keep\-alive=\fR\fB\fIsec\fR\fR
+.sp
+Works with \fB--stop-file\fR, print messages every \fIsec\fR seconds when mysqltest is waiting to remove the file (for buildbot) (also MTR_STOP_KEEP_ALIVE environment variable)\&.
 .RE
 .sp
 .RS 4
@@ -1665,7 +1984,7 @@ directory)\&.
 .\" suite-timeout option: mysql-test-run.pl
 \fB\-\-suite\-timeout=\fR\fB\fIminutes\fR\fR
 .sp
-Specify the maximum test suite runtime\&.
+Specify the maximum test suite runtime in minutes\&. The default is 360\&.
 .RE
 .sp
 .RS 4
@@ -1680,7 +1999,7 @@ Specify the maximum test suite runtime\&.
 .\" testcase-timeout option: mysql-test-run.pl
 \fB\-\-testcase\-timeout\fR
 .sp
-Specify the maximum test case runtime\&.
+Specify the maximum test case runtime in minutes\&. The default is 15\&.
 .RE
 .sp
 .RS 4
@@ -1695,8 +2014,7 @@ Specify the maximum test case runtime\&.
 .\" timediff option: mysql-test-run.pl
 \fB\-\-timediff\fR
 .sp
-Adds to each test report for a test case, the total time in sconds and milliseconds passed since the preceding test ended\&. This option can only be used together with
-\fB\-\-timestamp\fR, and has no effect without it\&.
+Used with \fB\-\-timestamp\fR, also print time passed since the previous test started\&.
 .RE
 .sp
 .RS 4
@@ -1762,7 +2080,22 @@ will be set to the path for this directory, whether it has the default value or 
 .\" user option: mysql-test-run.pl
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server (default root)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql-test-run.pl: user-args option
+.\" user-args option: mysql-test-run.pl
+\fB\-\-user\-args\fR
+.sp
+In combination with \fBstart*\fR and no test name, drops arguments to mysqld except those specified with \fB\-\-mysqld\fR (if any)\&.
 .RE
 .sp
 .RS 4
@@ -1775,16 +2108,16 @@ The MySQL user name to use when connecting to the server\&.
 .\}
 .\" mysql-test-run.pl: valgrind option
 .\" valgrind option: mysql-test-run.pl
-\fB\-\-valgrind\fR
+\fB\-\-valgrind[\-all]\fR
 .sp
 Run
 \fBmysqltest\fR
 and
 \fBmysqld\fR
 with
-\fBvalgrind\fR\&. Thiks and the following
+\fBvalgrind\fR\&. This and the following
 \fB\-\-valgrind\fR
-options require that the executables have been build with
+options require that the executables have been built with
 \fBvalgrind\fR
 support\&.
 .RE
@@ -1819,9 +2152,11 @@ server with
 .\" valgrind-mysqltest option: mysql-test-run.pl
 \fB\-\-valgrind\-mysqltest\fR
 .sp
-Run
+Run the 
 \fBmysqltest\fR
-with
+and 
+\fBmysql_client_test\fR
+executables with
 \fBvalgrind\fR\&.
 .RE
 .sp
@@ -1837,8 +2172,7 @@ with
 .\" valgrind-options option: mysql-test-run.pl
 \fB\-\-valgrind\-option=\fR\fB\fIstr\fR\fR
 .sp
-Extra options to pass to
-\fBvalgrind\fR\&.
+Option to give \fBvalgrind\fR. Replaces default option(s)\&. Can be specified more then once&.
 .RE
 .sp
 .RS 4
@@ -1853,7 +2187,7 @@ Extra options to pass to
 .\" valgrind-path option: mysql-test-run.pl
 \fB\-\-valgrind\-path=\fR\fB\fIpath\fR\fR
 .sp
-Specify the path name to the
+Path to the
 \fBvalgrind\fR
 executable\&.
 .RE
@@ -1918,10 +2252,7 @@ Write when and why servers are restarted between test cases\&.
 .\" view-protocol option: mysql-test-run.pl
 \fB\-\-view\-protocol\fR
 .sp
-Pass the
-\fB\-\-view\-protocol\fR
-option to
-\fBmysqltest\fR\&.
+Create a view to execute all non updating queries\&.
 .RE
 .sp
 .RS 4
@@ -1936,9 +2267,9 @@ option to
 .\" vs-config option: mysql-test-run.pl
 \fB\-\-vs\-config=\fR\fB\fIconfig_val\fR\fR
 .sp
-Specify the configuration used to build MySQL (for example,
-\fB\-\-vs\-config=debug\fR
-\fB\-\-vs\-config=release\fR)\&. This option is for Windows only\&.
+Visual Studio configuration used to create executables
+(default: MTR_VS_CONFIG environment variable)
+This option is for Windows only\&.
 .RE
 .sp
 .RS 4
@@ -1957,9 +2288,7 @@ If
 \fB\-\-start\fR
 or
 \fB\-\-start\-dirty\fR
-is used, wait for all servers to exit before termination\&. Otherise, it will terminate if one (of several) servers is restarted\&.
-.sp
-This option was added in MySQL 5\&.1\&.36\&.
+is used, wait for all servers to exit before termination\&. Otherwise, it will terminate if one (of several) servers is restarted\&.
 .RE
 .sp
 .RS 4
@@ -1983,7 +2312,7 @@ Search the server log for errors or warning after each test and report any suspi
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -1992,8 +2321,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

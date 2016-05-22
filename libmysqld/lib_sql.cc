@@ -516,6 +516,9 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (my_thread_init())
     return 1;
 
+  if (init_early_variables())
+    return 1;
+
   if (argc)
   {
     argcp= &argc;
@@ -701,6 +704,7 @@ void *create_embedded_thd(int client_flag)
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;
+  thd->reset_globals();
   return thd;
 err:
   delete(thd);

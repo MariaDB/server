@@ -1,0 +1,461 @@
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8865 Wrong field type or metadata for COALESCE(signed_int_column, unsigned_int_column)
+--echo #
+
+--echo #
+CREATE TABLE t1 (a INT, b INT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-1,1);
+INSERT INTO t1 VALUES (-2147483648,4294967295);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-2147483648,2147483647);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,0xFFFFFFFFFFFFFFFF);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,9223372036854775807);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+# Testing BIT(N) types.
+# Using safe BIT(N) type and value to make sure
+# that "file func_hybrid_type.test" tells "ASCII text".
+
+--echo #
+CREATE TABLE t1 (a INT, b BIT(8));
+INSERT INTO t1 VALUES (-2147483648,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT UNSIGNED, b BIT(8));
+INSERT INTO t1 VALUES (4294967295,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIT(7), b BIT(8));
+INSERT INTO t1 VALUES (0x32,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a FLOAT, b SMALLINT);
+INSERT INTO t1 VALUES (1,-32678);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a VARCHAR(10), b ENUM('b'));
+INSERT INTO t1 VALUES ('a','b');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT, b YEAR);
+INSERT INTO t1 VALUES (-2147483648,2015);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT UNSIGNED, b YEAR);
+INSERT INTO t1 VALUES (4294967295,2015);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATE, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a TIMESTAMP, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b DATE);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30','2001-01-02');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # MDEV-8873 Wrong field type or metadata for LEAST(int_column,string_column)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (-2147483648,'100x');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4848 Wrong metadata or column type for LEAST(1.0,'10')
+--echo #
+--disable_ps_protocol
+--enable_metadata
+SELECT LEAST(1.0,'10');
+--disable_metadata
+--enable_ps_protocol
+CREATE TABLE t1 AS SELECT LEAST(1.0,'10');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-657 LP:873142 - GREATEST() does not always return same signness of argument types
+--echo #
+CREATE TABLE t1 (a BIGINT(20) UNSIGNED NOT NULL PRIMARY KEY);
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5694 GREATEST(date, time) returns a wrong data type
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
+--disable_ps_protocol
+--enable_metadata
+# Expect DATETIME type (12) in metadata
+SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
+# Expect TIMESTAMP type (7) in metadata 
+SELECT GREATEST(a,a) FROM t1;
+DROP TABLE t1;
+--disable_metadata
+--enable_ps_protocol
+CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
+CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-8910 Wrong metadata or field type for MAX(COALESCE(string_field))
+--echo #
+CREATE TABLE t1 (c1 TINYBLOB, c2 MEDIUMBLOB, c3 BLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-8912 Wrong metadata or type for @c:=string_or_blob_field
+--echo #
+CREATE TABLE t1 (c1 TINYBLOB, c2 BLOB, c3 MEDIUMBLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2,
+  @c3:=c3 AS c3,
+  @c4:=c4 AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2,
+  @c3:=c3 AS c3,
+  @c4:=c4 AS c4
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+--echo #
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
+SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
+
+--disable_ps_protocol
+--enable_metadata
+SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
+--disable_metadata
+--enable_ps_protocol
+
+
+--echo #
+--echo # MDEV-9752 Wrong data type for COALEASCE(?,1) in prepared statements
+--echo #
+PREPARE stmt FROM "CREATE TABLE t1 AS SELECT CONCAT(COALESCE(?,1)) AS a, CONCAT(CASE WHEN TRUE THEN ? ELSE 1 END) AS b";
+SET @a=1;
+EXECUTE stmt USING @a,@a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

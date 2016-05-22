@@ -1676,5 +1676,14 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010.0 AND a>=2010.0;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8635 Redundant warnings on WHERE decimal_column='ax'
+--echo #
+CREATE TABLE t1 (a DECIMAL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+# Make sure this does not produce any warnings
+EXPLAIN SELECT * FROM t1 WHERE a='ax' ORDER BY a;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

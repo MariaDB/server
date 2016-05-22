@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2280,7 +2280,9 @@ int spider_get_link_statuses(
       if (
         (error_num == HA_ERR_KEY_NOT_FOUND || error_num == HA_ERR_END_OF_FILE)
       ) {
+/*
         table->file->print_error(error_num, MYF(0));
+*/
         DBUG_RETURN(error_num);
       }
     } else if ((error_num =
@@ -2390,8 +2392,13 @@ TABLE *spider_mk_sys_tmp_table(
     goto error_alloc_field;
   field->init(table);
 
+#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field = new (thd->mem_root) Item_field(thd, (Field *) field)))
     goto error_alloc_item_field;
+#else
+  if (!(i_field = new Item_field((Field *) field)))
+    goto error_alloc_item_field;
+#endif
 
   if (i_list.push_back(i_field))
     goto error_push_item;
@@ -2443,8 +2450,13 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field1;
   field1->init(table);
 
+#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field1 = new (thd->mem_root) Item_field(thd, (Field *) field1)))
     goto error_alloc_item_field1;
+#else
+  if (!(i_field1 = new Item_field((Field *) field1)))
+    goto error_alloc_item_field1;
+#endif
 
   if (i_list.push_back(i_field1))
     goto error_push_item1;
@@ -2454,8 +2466,13 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field2;
   field2->init(table);
 
+#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field2 = new (thd->mem_root) Item_field(thd, (Field *) field2)))
     goto error_alloc_item_field2;
+#else
+  if (!(i_field2 = new Item_field((Field *) field2)))
+    goto error_alloc_item_field2;
+#endif
 
   if (i_list.push_back(i_field2))
     goto error_push_item2;
@@ -2465,8 +2482,13 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field3;
   field3->init(table);
 
+#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field3 = new (thd->mem_root) Item_field(thd, (Field *) field3)))
     goto error_alloc_item_field3;
+#else
+  if (!(i_field3 = new Item_field((Field *) field3)))
+    goto error_alloc_item_field3;
+#endif
 
   if (i_list.push_back(i_field3))
     goto error_push_item3;

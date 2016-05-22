@@ -71,7 +71,7 @@ const char field_separator=',';
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
-#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
+#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || (table->vcol_set && bitmap_is_set(table->vcol_set, field_index))))
 
 #define FLAGSTR(S,F) ((S) & (F) ? #F " " : "")
 
@@ -1309,6 +1309,19 @@ bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+/*
+  This covers all numeric types, ENUM, SET, BIT
+*/
+bool Field::can_optimize_range(const Item_bool_func *cond,
+                               const Item *item,
+                               bool is_eq_func) const
+{
+  DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_longstr
+  return item->cmp_type() != TIME_RESULT;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -1989,6 +2002,16 @@ my_decimal* Field_num::val_decimal(my_decimal *decimal_value)
   longlong nr= val_int();
   int2my_decimal(E_DEC_FATAL_ERROR, nr, unsigned_flag, decimal_value);
   return decimal_value;
+}
+
+
+bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  longlong nr= val_int();
+  bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
+  return int_to_datetime_with_warn(neg, neg ? -nr : nr, ltime, fuzzydate,
+                                   field_name);
 }
 
 
@@ -3214,6 +3237,14 @@ String *Field_new_decimal::val_str(String *val_buffer,
                     fixed_precision, dec, '0', val_buffer);
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
+}
+
+
+bool Field_new_decimal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  my_decimal value;
+  return decimal_to_datetime_with_warn(val_decimal(&value),
+                                       ltime, fuzzydate, field_name);
 }
 
 
@@ -5593,6 +5624,18 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
     }
     break;
   case ANY_SUBST:
+    if (!is_temporal_type_with_date(const_item->field_type()))
+    {
+      MYSQL_TIME ltime;
+      if (const_item->get_date_with_conversion(&ltime,
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
+        return NULL;
+      return new (thd->mem_root)
+        Item_datetime_literal_for_invalid_dates(thd, &ltime,
+                                                ltime.second_part ?
+                                                TIME_SECOND_PART_DIGITS : 0);
+    }
     break;
   }
   return const_item;
@@ -5901,7 +5944,10 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     {
       MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
+      if (const_item->get_time_with_conversion(thd, &ltime,
+                                               TIME_TIME_ONLY |
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
@@ -6856,9 +6902,6 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  if (field_flags_are_binary() != new_field->field_flags_are_binary())
-    return 0;
-
   return ((new_field->sql_type == real_type()) &&
 	  new_field->charset == field_charset &&
 	  new_field->length == max_display_length());
@@ -6934,6 +6977,16 @@ bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
   */
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
   return cmp_to_string_with_same_collation(cond, const_item);
+}
+
+
+bool Field_longstr::can_optimize_range(const Item_bool_func *cond,
+                                       const Item *item,
+                                       bool is_eq_func) const
+{
+  return is_eq_func ?
+         cmp_to_string_with_stricter_collation(cond, item) :
+         cmp_to_string_with_same_collation(cond, item);
 }
 
 
@@ -7773,18 +7826,70 @@ uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg)
 }
 
 
+/**
+  Copy a value from another BLOB field of the same character set.
+  This method is used by Copy_field, e.g. during ALTER TABLE.
+*/
+int Field_blob::copy_value(Field_blob *from)
+{
+  DBUG_ASSERT(field_charset == from->charset());
+  int rc= 0;
+  uint32 length= from->get_length();
+  uchar *data;
+  from->get_ptr(&data);
+  if (packlength < from->packlength)
+  {
+    int well_formed_errors;
+    set_if_smaller(length, Field_blob::max_data_length());
+    length= field_charset->cset->well_formed_len(field_charset,
+                                                 (const char *) data,
+                                                 (const char *) data + length,
+                                                 length, &well_formed_errors);
+    rc= report_if_important_data((const char *) data + length,
+                                 (const char *) data + from->get_length(),
+                                 true);
+  }
+  store_length(length);
+  bmove(ptr + packlength, (uchar*) &data, sizeof(char*));
+  return rc;
+}
+
+
 int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length, new_length;
   String_copier copier;
-  const char *tmp;
+  char *tmp;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   if (!length)
   {
     bzero(ptr,Field_blob::pack_length());
+    return 0;
+  }
+
+  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  {
+    DBUG_ASSERT(!f_is_hex_escape(flags));
+    DBUG_ASSERT(field_charset == cs);
+    DBUG_ASSERT(length <= max_data_length());
+    
+    new_length= length;
+    copy_length= table->in_use->variables.group_concat_max_len;
+    if (new_length > copy_length)
+    {
+      int well_formed_error;
+      new_length= cs->cset->well_formed_len(cs, from, from + copy_length,
+                                            new_length, &well_formed_error);
+      table->blob_storage->set_truncated_value(true);
+    }
+    if (!(tmp= table->blob_storage->store(from, new_length)))
+      goto oom_error;
+
+    Field_blob::store_length(new_length);
+    bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
 
@@ -7814,15 +7919,14 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   new_length= MY_MIN(max_data_length(), field_charset->mbmaxlen * length);
   if (value.alloc(new_length))
     goto oom_error;
-
+  tmp= const_cast<char*>(value.ptr());
 
   if (f_is_hex_escape(flags))
   {
     copy_length= my_copy_with_hex_escaping(field_charset,
-                                           (char*) value.ptr(), new_length,
-                                            from, length);
+                                           tmp, new_length,
+                                           from, length);
     Field_blob::store_length(copy_length);
-    tmp= value.ptr();
     bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
@@ -7830,7 +7934,6 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
                                        (char*) value.ptr(), new_length,
                                        cs, from, length);
   Field_blob::store_length(copy_length);
-  tmp= value.ptr();
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
   return check_conversion_status(&copier, from + length, cs, true);
@@ -8222,9 +8325,6 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  if (field_flags_are_binary() != new_field->field_flags_are_binary())
-    return 0;
-
   return ((new_field->sql_type == get_blob_type_from_length(max_data_length()))
           && new_field->charset == field_charset &&
           new_field->pack_length == pack_length());
@@ -8290,6 +8390,9 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
 
   *precision= *scale= *srid= 0;
   *st_type= Field_geom::GEOM_STORAGE_WKB;
+
+  if (!buf)  /* can only happen with the old FRM file */
+    goto end_of_record;
 
   while (cbuf < buf_end)
   {
@@ -8441,6 +8544,27 @@ Field::geometry_type Field_geom::geometry_type_merge(geometry_type a,
   if (a == b)
     return a;
   return Field::GEOM_GEOMETRY;
+}
+
+
+uint Field_geom::is_equal(Create_field *new_field)
+{
+  return new_field->sql_type == MYSQL_TYPE_GEOMETRY &&
+         /*
+           - Allow ALTER..INPLACE to supertype (GEOMETRY),
+             e.g. POINT to GEOMETRY or POLYGON to GEOMETRY.
+           - Allow ALTER..INPLACE to the same geometry type: POINT -> POINT
+         */
+         (new_field->geom_type == geom_type ||
+          new_field->geom_type == GEOM_GEOMETRY);
+}
+
+
+bool Field_geom::can_optimize_range(const Item_bool_func *cond,
+                                    const Item *item,
+                                    bool is_eq_func) const
+{
+  return item->cmp_type() == STRING_RESULT;
 }
 
 #endif /*HAVE_SPATIAL*/
@@ -8847,8 +8971,7 @@ uint Field_enum::is_equal(Create_field *new_field)
     The fields are compatible if they have the same flags,
     type, charset and have the same underlying length.
   */
-  if (new_field->field_flags_are_binary() != field_flags_are_binary() ||
-      new_field->sql_type != real_type() ||
+  if (new_field->sql_type != real_type() ||
       new_field->charset != field_charset ||
       new_field->pack_length != pack_length())
     return IS_EQUAL_NO;
@@ -10017,13 +10140,22 @@ bool Create_field::check(THD *thd)
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
+    it is NOT NULL, not an AUTO_INCREMENT field.
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!def && unireg_check == Field::NONE &&
-      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
-    flags|= NO_DEFAULT_VALUE_FLAG;
+  if (!def && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  {
+    /*
+      TIMESTAMP columns get implicit DEFAULT value when
+      explicit_defaults_for_timestamp is not set.
+    */
+    if (opt_explicit_defaults_for_timestamp ||
+        !is_timestamp_type(sql_type))
+    {
+      flags|= NO_DEFAULT_VALUE_FLAG;
+    }
+  }
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&

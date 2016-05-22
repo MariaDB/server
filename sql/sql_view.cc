@@ -244,7 +244,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   @param mode VIEW_CREATE_NEW, VIEW_ALTER, VIEW_CREATE_OR_REPLACE
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
@@ -387,7 +387,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   @note This function handles both create and alter view commands.
 
   @retval FALSE Operation was a success.
-  @retval TRUE An error occured.
+  @retval TRUE An error occurred.
 */
 
 bool mysql_create_view(THD *thd, TABLE_LIST *views,
@@ -901,9 +901,11 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     ulong sql_mode= thd->variables.sql_mode & MODE_ANSI_QUOTES;
     thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
 
-    lex->unit.print(&view_query, QT_VIEW_INTERNAL);
-    lex->unit.print(&is_query,
-                    enum_query_type(QT_TO_SYSTEM_CHARSET | QT_WITHOUT_INTRODUCERS));
+    lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
+                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                               QT_WITHOUT_INTRODUCERS |
+                                               QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
     thd->variables.sql_mode|= sql_mode;
   }
@@ -1170,6 +1172,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     */
     mysql_derived_reinit(thd, NULL, table);
 
+    thd->select_number+= table->view->number_of_selects;
+
+    DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);
   }
 
@@ -1283,6 +1288,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   */
   table->open_type= OT_BASE_ONLY;
 
+  /*
+    Clear old variables in the TABLE_LIST that could be left from an old view
+  */
+  table->merged_for_insert= FALSE;
+
   /*TODO: md5 test here and warning if it is differ */
 
 
@@ -1351,6 +1361,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
+
+    lex->number_of_selects=
+      (thd->select_number - view_select->select_number) + 1;
 
     /* Restore environment. */
 
@@ -1521,6 +1534,10 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       lex->sql_command= old_lex->sql_command;
       lex->duplicates= old_lex->duplicates;
+
+      /* Fields in this view can be used in upper select in case of merge.  */
+      if (table->select_lex)
+        table->select_lex->add_where_field(&lex->select_lex);
     }
     /*
       This method has a dependency on the proper lock type being set,

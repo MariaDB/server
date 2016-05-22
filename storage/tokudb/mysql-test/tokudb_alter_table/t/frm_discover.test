@@ -1,4 +1,5 @@
 # test that tokudb discover on simple tables works when there is an frm mismatch
+--source include/have_tokudb.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS foo, bar;

@@ -669,6 +669,13 @@ struct rpl_group_info
   char gtid_info_buf[5+10+1+10+1+20+1];
 
   /*
+    The timestamp, from the master, of the commit event.
+    Used to do delayed update of rli->last_master_timestamp, for getting
+    reasonable values out of Seconds_Behind_Master in SHOW SLAVE STATUS.
+  */
+  time_t last_master_timestamp;
+
+  /*
     Information to be able to re-try an event group in case of a deadlock or
     other temporary error.
   */
@@ -738,7 +745,7 @@ struct rpl_group_info
   /**
     Save pointer to Annotate_rows event and switch on the
     binlog_annotate_row_events for this sql thread.
-    To be called when sql thread recieves an Annotate_rows event.
+    To be called when sql thread receives an Annotate_rows event.
   */
   inline void set_annotate_event(Annotate_rows_log_event *event)
   {
@@ -866,7 +873,7 @@ public:
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 
-extern struct rpl_slave_state rpl_global_gtid_slave_state;
+extern struct rpl_slave_state *rpl_global_gtid_slave_state;
 extern gtid_waiting rpl_global_gtid_waiting;
 
 int rpl_load_gtid_slave_state(THD *thd);

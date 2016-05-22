@@ -17,11 +17,13 @@
   @file
   File containing constants that can be used throughout the server.
 
-  @note This file shall not contain any includes of any kinds.
+  @note This file shall not contain or include any declarations of any kinds.
 */
 
 #ifndef SQL_CONST_INCLUDED
 #define SQL_CONST_INCLUDED
+
+#include <mysql_version.h>
 
 #define LIBLEN FN_REFLEN-FN_LEN			/* Max l{ngd p} dev */
 /* extra 4+4 bytes for slave tmp tables */
@@ -142,7 +144,7 @@
 */
 #define STACK_MIN_SIZE          16000   // Abort if less stack during eval.
 
-#define STACK_MIN_SIZE_FOR_OPEN 1024*80
+#define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks
 #ifndef MYSQLD_NET_RETRY_COUNT
 #define MYSQLD_NET_RETRY_COUNT  10	///< Abort read after this many int.
@@ -238,7 +240,7 @@
 #define DEFAULT_CONCURRENCY	10
 #define DELAYED_LIMIT		100		/**< pause after xxx inserts */
 #define DELAYED_QUEUE_SIZE	1000
-#define DELAYED_WAIT_TIMEOUT	5*60		/**< Wait for delayed insert */
+#define DELAYED_WAIT_TIMEOUT	(5*60)		/**< Wait for delayed insert */
 #define MAX_CONNECT_ERRORS	100		///< errors before disabling host
 
 #define LONG_TIMEOUT ((ulong) 3600L*24L*365L)

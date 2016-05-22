@@ -1549,7 +1549,12 @@ format(rpad('111111111.1',
              '999999999999999999999999999999999999999999'),0,'be_BY')
 ;
 
-DO
+#
+# Originally it was DO instead of SELECT here.
+# But in mysqltest --disable_prepare_warnings affects SELECT queries only
+# and can't suppress prepare time warnings for DO.
+#
+SELECT
 round(
   concat( (
     coalesce( (
@@ -1564,7 +1569,7 @@ round(
           )
     )
   )
-);
+) AS r;
 
 --connection conn1
 SET @@global.max_allowed_packet:= @tmp_max;
@@ -1766,6 +1771,16 @@ SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,70
 # This should not propagate the equality into FORMAT()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#58081 Duplicate entry error when doing GROUP BY
+--echo # MDEV-9332 Bug after upgrade to 10.1.10
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(0),(1),(0),(0);
+SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binlog_size);
 DROP TABLE t1;
 
 --echo #

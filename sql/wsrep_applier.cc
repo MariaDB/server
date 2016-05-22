@@ -19,6 +19,7 @@
 
 #include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "wsrep_applier.h"
+#include "debug_sync.h"
 
 /*
   read the first event from (*buf). The size of the (*buf) is (*buf_len).
@@ -220,6 +221,16 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 {
   THD* const thd((THD*)ctx);
 
+  // Allow tests to block the applier thread using the DBUG facilities.
+  DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
+                 {
+                   const char act[]=
+                     "now "
+                     "wait_for signal.wsrep_apply_cb";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
+
   thd->wsrep_trx_meta = *meta;
 
 #ifdef WSREP_PROC_INFO
@@ -279,8 +290,7 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
   return rcode;
 }
 
-static wsrep_cb_status_t wsrep_commit(THD* const thd,
-                                      wsrep_seqno_t const global_seqno)
+static wsrep_cb_status_t wsrep_commit(THD* const thd)
 {
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
@@ -299,7 +309,11 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
 #ifdef GTID_SUPPORT
     thd->variables.gtid_next.set_automatic();
 #endif /* GTID_SUPPORT */
-    // TODO: mark snapshot with global_seqno.
+    if (thd->wsrep_apply_toi)
+    {
+      wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
+                              thd->wsrep_trx_meta.gtid.seqno);
+    }
   }
 
 #ifdef WSREP_PROC_INFO
@@ -313,8 +327,7 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
   return rcode;
 }
 
-static wsrep_cb_status_t wsrep_rollback(THD* const thd,
-                                        wsrep_seqno_t const global_seqno)
+static wsrep_cb_status_t wsrep_rollback(THD* const thd)
 {
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
@@ -351,9 +364,9 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   wsrep_cb_status_t rcode;
 
   if (commit)
-    rcode = wsrep_commit(thd, meta->gtid.seqno);
+    rcode = wsrep_commit(thd);
   else
-    rcode = wsrep_rollback(thd, meta->gtid.seqno);
+    rcode = wsrep_rollback(thd);
 
   wsrep_set_apply_format(thd, NULL);
   thd->mdl_context.release_transactional_locks();

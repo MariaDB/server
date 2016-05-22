@@ -1,5 +1,5 @@
-/* Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+/* Copyright (c) 2001, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,6 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "sql_handler.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_base.h"                           // close_thread_tables
 #include "lock.h"                               // mysql_unlock_tables
 #include "key.h"                                // key_copy
@@ -375,7 +374,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
-  table->vcol_set= &table->s->all_set;
+  if (table->vcol_set)
+    table->vcol_set= &table->s->all_set;
 
   /* Restore the state. */
   thd->set_open_tables(backup_open_tables);
@@ -1190,3 +1190,36 @@ void mysql_ha_set_explicit_lock_duration(THD *thd)
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Remove temporary tables from the HANDLER's hash table. The reason
+  for having a separate function, rather than calling
+  mysql_ha_rm_tables() is that it is not always feasible (e.g. in
+  close_temporary_tables) to obtain a TABLE_LIST containing the
+  temporary tables.
+
+  @See close_temporary_tables
+  @param thd Thread identifier.
+*/
+void mysql_ha_rm_temporary_tables(THD *thd)
+{
+  DBUG_ENTER("mysql_ha_rm_temporary_tables");
+
+  TABLE_LIST *tmp_handler_tables= NULL;
+  for (uint i= 0; i < thd->handler_tables_hash.records; i++)
+  {
+    TABLE_LIST *handler_table= reinterpret_cast<TABLE_LIST*>
+      (my_hash_element(&thd->handler_tables_hash, i));
+
+    if (handler_table->table && handler_table->table->s->tmp_table)
+    {
+      handler_table->next_local= tmp_handler_tables;
+      tmp_handler_tables= handler_table;
+    }
+  }
+
+  if (tmp_handler_tables)
+    mysql_ha_rm_tables(thd, tmp_handler_tables);
+
+  DBUG_VOID_RETURN;
+}

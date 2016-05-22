@@ -1,0 +1,1 @@
+--query_cache_type=1 --query_cache_size=1000000 --userstat=1 --wsrep_replicate_myisam=true

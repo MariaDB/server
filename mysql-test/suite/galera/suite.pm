@@ -25,7 +25,8 @@ return "No my_print_defaults" unless $epath;
 push @::global_suppressions,
   (
      qr(WSREP: wsrep_sst_receive_address is set to '127.0.0.1),
-     qr(WSREP: Could not open saved state file for reading: ),
+     qr(WSREP: Could not open saved state file for reading: .*),
+     qr(WSREP: Could not open state file for reading: .*),
      qr(WSREP: Gap in state sequence. Need state transfer.),
      qr(WSREP: Failed to prepare for incremental state transfer:),
      qr(WSREP:.*down context.*),
@@ -59,13 +60,14 @@ push @::global_suppressions,
      qr(WSREP: .*Failed to open backend connection: -110 .*),
      qr(WSREP: .*Failed to open channel 'my_wsrep_cluster' at .*),
      qr(WSREP: gcs connect failed: Connection timed out),
-     qr|WSREP: wsrep::connect\(\) failed: 7|,
-     qr(WSREP: SYNC message from member [0-9]* in non-primary configuration. Ignored.),
+     qr|WSREP: wsrep::connect\(.*\) failed: 7|,
+     qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
      qr(WSREP: Could not find peer:),
      qr(WSREP: TO isolation failed for: .*),
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: cannot get fake InnoDB transaction ID),
    );
 
 

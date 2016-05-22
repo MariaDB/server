@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,6 +25,17 @@ Created 04/01/2015 Jan Lindström
 
 #ifndef fil0crypt_h
 #define fil0crypt_h
+
+/**
+* Magic pattern in start of crypt data on page 0
+*/
+#define MAGIC_SZ 6
+
+static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
+	's', 0xE, 0xC, 'R', 'E', 't' };
+
+static const unsigned char EMPTY_PATTERN[MAGIC_SZ] = {
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
 
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
@@ -201,6 +212,7 @@ bool
 fil_space_check_encryption_read(
 /*============================*/
 	ulint space);          /*!< in: tablespace id */
+
 /******************************************************************
 Decrypt a page
 @return true if page is decrypted, false if not. */
@@ -214,7 +226,6 @@ fil_space_decrypt(
 	byte*			src_frame,	/*!< in:out: page buffer */
 	dberr_t*		err);		/*!< in: out: DB_SUCCESS or
 						error code */
-
 
 /*********************************************************************
 Encrypt buffer page
@@ -242,7 +253,8 @@ fil_space_decrypt(
 	ulint	space,		/*!< in: tablespace id */
 	byte*	src_frame,	/*!< in: page frame */
 	ulint	page_size,	/*!< in: size of data to encrypt */
-	byte*	dst_frame);	/*!< in: where to decrypt to */
+	byte*	dst_frame)	/*!< in: where to decrypt to */
+	__attribute__((warn_unused_result));
 
 /*********************************************************************
 fil_space_verify_crypt_checksum
@@ -321,6 +333,7 @@ struct fil_space_crypt_status_t {
 	uint  min_key_version;   /*!< min key version */
 	uint  current_key_version;/*!< current key version */
 	uint  keyserver_requests;/*!< no of key requests to key server */
+	ulint key_id;            /*!< current key_id */
 	bool rotating;           /*!< is key rotation ongoing */
 	bool flushing;           /*!< is flush at end of rotation ongoing */
 	ulint rotate_next_page_number; /*!< next page if key rotating */

@@ -1166,7 +1166,7 @@ create table t2 as select concat(a) from t1;
 show create table t2;
 drop table t1, t2;
 
-create table t1 (a timestamp);
+create table t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 values (0);
 insert into t1 values (20010203040506);
 insert into t1 values (19800203040506);
@@ -1478,7 +1478,7 @@ select hex(a) from v1;
 drop table t1;
 drop view v1;
 
-create table t1 (a timestamp);
+create table t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 values (0);
 insert into t1 values (20010203040506);
 insert into t1 values (19800203040506);
@@ -1817,6 +1817,12 @@ INSERT INTO t1 VALUES (0);
 SELECT f1() FROM t1 LEFT JOIN (SELECT 1 AS a FROM t1 LIMIT 0) AS d ON 1 GROUP BY a;
 DROP FUNCTION f1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9662 Assertion `precision || !scale' failed in my_decimal_precision_to_length_no_truncation(uint, uint8, bool)
+--echo #
+SELECT @@collation_connection;
+SELECT CASE 1 WHEN 2 THEN ( - '3' ) END;
 
 --echo #
 --echo # MDEV-5702 Incorrect results are returned with NULLIF()

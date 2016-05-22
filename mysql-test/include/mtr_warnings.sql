@@ -133,7 +133,7 @@ INSERT INTO global_suppressions VALUES
  ("Slave: Query caused different errors on master and slave"),
  ("Slave: Table .* doesn't exist"),
  ("Slave: Table width mismatch"),
- ("Slave: The incident LOST_EVENTS occured on the master"),
+ ("Slave: The incident LOST_EVENTS occurred on the master"),
  ("Slave: Unknown error.* 1105"),
  ("Slave: Can't drop database.* database doesn't exist"),
  ("Warning:\s+One can only use the --user.*root"),
@@ -164,6 +164,9 @@ INSERT INTO global_suppressions VALUES
  ("setrlimit could not change the size of core files to 'infinity'"),
 
  ("The slave I.O thread stops because a fatal error is encountered when it try to get the value of SERVER_ID variable from master."),
+
+ /*It will print a warning if server is run without --explicit_defaults_for_timestamp.*/
+ ("TIMESTAMP with implicit DEFAULT value is deprecated. Please use --explicit_defaults_for_timestamp server option (see documentation for more details)*"),
 
  /* Added 2009-08-XX after fixing Bug #42408 */
 

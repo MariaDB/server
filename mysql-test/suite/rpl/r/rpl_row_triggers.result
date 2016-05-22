@@ -237,4 +237,50 @@ a	b
 3	30
 set global slave_run_triggers_for_rbr = @slave_run_triggers_for_rbr.saved;
 drop table t1, tlog;
+#
+# MDEV-8411 Assertion `is_stat_field || !table || (!table->write_set ||
+#                      bitmap_is_set(table->write_set, field_index) ||
+#                      bitmap_is_set(table->vcol_set, field_index))'
+#           failed in Field_timestamp::store_TIME_with_warning
+#
+#
+# Create table on master, replicate it on slave.
+#
+connection master;
+set @binlog_row_image.saved = @@binlog_row_image;
+set binlog_row_image = MINIMAL;
+create table t1 (pk int primary key, f int);
+connection slave;
+#
+# Create a trigger on the slave.
+#
+create trigger tr before update on t1 for each row set new.f = 1000;
+set @old_slave_run_triggers_for_rbr = @@global.slave_run_triggers_for_rbr;
+set global slave_run_triggers_for_rbr = YES;
+connection master;
+#
+# Update the table to have the trigger fire on the slave.,
+#
+insert into t1 values (1,1),(2,2);
+update t1 set pk=pk+10;
+select * from t1;
+pk	f
+11	1
+12	2
+connection slave;
+#
+# Check to see if slave has the table updated.
+#
+select * from t1;
+pk	f
+11	1000
+12	1000
+#
+# Cleanup
+#
+set global slave_run_triggers_for_rbr = @old_slave_run_triggers_for_rbr;
+connection master;
+set binlog_row_image = @binlog_row_image.saved;
+drop table t1;
+connection slave;
 include/rpl_end.inc

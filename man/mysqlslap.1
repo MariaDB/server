@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqlslap\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLSLAP\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLSLAP\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -28,9 +21,7 @@ mysqlslap \- load emulation client
 .SH "DESCRIPTION"
 .PP
 \fBmysqlslap\fR
-is a diagnostic program designed to emulate client load for a MySQL server and to report the timing of each stage\&. It works as if multiple clients are accessing the server\&.
-\fBmysqlslap\fR
-is available as of MySQL 5\&.1\&.4\&.
+is a diagnostic program designed to emulate client load for a MariaDB server and to report the timing of each stage\&. It works as if multiple clients are accessing the server\&.
 .PP
 Invoke
 \fBmysqlslap\fR
@@ -157,8 +148,7 @@ and
 [client]
 option file groups\&.
 \fBmysqlslap\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
+also supports the options for processing option files\&.
 .sp
 .RS 4
 .ie n \{\
@@ -206,7 +196,7 @@ Generate SQL statements automatically when they are not supplied in files or via
 .sp
 Add an
 AUTO_INCREMENT
-column to automatically generated tables\&. This option was added in MySQL 5\&.1\&.18\&.
+column to automatically generated tables\&.
 .RE
 .sp
 .RS 4
@@ -221,7 +211,7 @@ column to automatically generated tables\&. This option was added in MySQL 5\&.1
 .\" auto-generate-sql-execute-number option: mysqlslap
 \fB\-\-auto\-generate\-sql\-execute\-number=\fR\fB\fIN\fR\fR
 .sp
-Specify how many queries to generate automatically\&. This option was added in MySQL 5\&.1\&.18\&.
+Specify how many queries to generate automatically\&.
 .RE
 .sp
 .RS 4
@@ -236,7 +226,7 @@ Specify how many queries to generate automatically\&. This option was added in M
 .\" auto-generate-sql-guid-primary option: mysqlslap
 \fB\-\-auto\-generate\-sql\-guid\-primary\fR
 .sp
-Add a GUID\-based primary key to automatically generated tables\&. This option was added in MySQL 5\&.1\&.18\&.
+Add a GUID\-based primary key to automatically generated tables\&.
 .RE
 .sp
 .RS 4
@@ -262,7 +252,7 @@ update
 (update primary keys), or
 mixed
 (half inserts, half scanning selects)\&. The default is
-mixed\&. This option was added in MySQL 5\&.1\&.16\&.
+mixed\&.
 .RE
 .sp
 .RS 4
@@ -277,7 +267,7 @@ mixed\&. This option was added in MySQL 5\&.1\&.16\&.
 .\" auto-generate-sql-secondary-indexes option: mysqlslap
 \fB\-\-auto\-generate\-sql\-secondary\-indexes=\fR\fB\fIN\fR\fR
 .sp
-Specify how many secondary indexes to add to automatically generated tables\&. By default, none are added\&. This option was added in MySQL 5\&.1\&.18\&.
+Specify how many secondary indexes to add to automatically generated tables\&. By default, none are added\&.
 .RE
 .sp
 .RS 4
@@ -294,7 +284,7 @@ Specify how many secondary indexes to add to automatically generated tables\&. B
 .sp
 How many different queries to generate for automatic tests\&. For example, if you run a
 key
-test that performs 1000 selects, you can use this option with a value of 1000 to run 1000 unique queries, or with a value of 50 to perform 50 different selects\&. The default is 10\&. This option was added in MySQL 5\&.1\&.18\&.
+test that performs 1000 selects, you can use this option with a value of 1000 to run 1000 unique queries, or with a value of 50 to perform 50 different selects\&. The default is 10\&.
 .RE
 .sp
 .RS 4
@@ -310,7 +300,7 @@ test that performs 1000 selects, you can use this option with a value of 1000 to
 \fB\-\-auto\-generate\-sql\-unique\-write\-number=\fR\fB\fIN\fR\fR
 .sp
 How many different queries to generate for
-\fB\-\-auto\-generate\-sql\-write\-number\fR\&. The default is 10\&. This option was added in MySQL 5\&.1\&.18\&.
+\fB\-\-auto\-generate\-sql\-write\-number\fR\&. The default is 10\&.
 .RE
 .sp
 .RS 4
@@ -325,7 +315,7 @@ How many different queries to generate for
 .\" auto-generate-sql-write-number option: mysqlslap
 \fB\-\-auto\-generate\-sql\-write\-number=\fR\fB\fIN\fR\fR
 .sp
-How many row inserts to perform on each thread\&. The default is 100\&. This option was added in MySQL 5\&.1\&.16\&.
+How many row inserts to perform on each thread\&. The default is 100\&.
 .RE
 .sp
 .RS 4
@@ -340,7 +330,7 @@ How many row inserts to perform on each thread\&. The default is 100\&. This opt
 .\" commit option: mysqlslap
 \fB\-\-commit=\fR\fB\fIN\fR\fR
 .sp
-How many statements to execute before committing\&. The default is 0 (no commits are done)\&. This option was added in MySQL 5\&.1\&.21\&.
+How many statements to execute before committing\&. The default is 0 (no commits are done)\&.
 .RE
 .sp
 .RS 4
@@ -404,7 +394,7 @@ The file or string containing the statement to use for creating the table\&.
 .\" create-schema option: mysqlslap
 \fB\-\-create\-schema=\fR\fB\fIvalue\fR\fR
 .sp
-The schema in which to run the tests\&. This option was added in MySQL 5\&.1\&.5\&.
+The schema in which to run the tests\&.
 .RE
 .sp
 .RS 4
@@ -419,7 +409,7 @@ The schema in which to run the tests\&. This option was added in MySQL 5\&.1\&.5
 .\" csv option: mysqlslap
 \fB\-\-csv[=\fR\fB\fIfile_name\fR\fR\fB]\fR
 .sp
-Generate output in comma\-separated values format\&. The output goes to the named file, or to the standard output if no file is given\&. This option was added in MySQL 5\&.1\&.5\&.
+Generate output in comma\-separated values format\&. The output goes to the named file, or to the standard output if no file is given\&.
 .RE
 .sp
 .RS 4
@@ -454,7 +444,7 @@ string is
 .\" debug-check option: mysqlslap
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print some debugging information when the program exits\&.
 .RE
 .sp
 .RS 4
@@ -470,7 +460,22 @@ Print some debugging information when the program exits\&. This option was added
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
-Print debugging information and memory and CPU usage statistics when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlslap: default-auth option
+.\" default-auth option: mysqlslap
+\fB\-\-default\-auth=\fR\fB\fIname\fR
+.sp
+Default authentication client-side plugin to use\&.
 .RE
 .sp
 .RS 4
@@ -535,7 +540,7 @@ The delimiter to use in SQL statements supplied in files or via command options\
 .sp
 Detach (close and reopen) each connection after each
 \fIN\fR
-statements\&. The default is 0 (connections are not detached)\&. This option was added in MySQL 5\&.1\&.21\&.
+statements\&. The default is 0 (connections are not detached)\&.
 .RE
 .sp
 .RS 4
@@ -551,7 +556,9 @@ statements\&. The default is 0 (connections are not detached)\&. This option was
 \fB\-\-engine=\fR\fB\fIengine_name\fR\fR,
 \fB\-e \fR\fB\fIengine_name\fR\fR
 .sp
-The storage engine to use for creating tables\&.
+Comma separated list of storage engines to use for creating the table\&. The test is run for 
+each engine\&. You can also specify an option for an engine after a colon, for example
+\fBmemory:max_row=2300\fR\&.
 .RE
 .sp
 .RS 4
@@ -567,7 +574,7 @@ The storage engine to use for creating tables\&.
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -582,7 +589,7 @@ Connect to the MySQL server on the given host\&.
 .\" init-command option: mysqlslap
 \fB\-\-init\-command=str\fR
 .sp
-SQL Command to execute when connecting to MySQL server\&. Will automatically be re\-executed when reconnecting\&.
+SQL Command to execute when connecting to MariaDB server\&. Will automatically be re\-executed when reconnecting\&.
 .RE
 .sp
 .RS 4
@@ -599,21 +606,6 @@ SQL Command to execute when connecting to MySQL server\&. Will automatically be 
 \fB\-i \fR\fB\fIN\fR\fR
 .sp
 The number of times to run the tests\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlslap: lock-directory option
-.\" lock-directory option: mysqlslap
-\fB\-\-lock\-directory=\fR\fB\fIpath\fR\fR
-.sp
-The directory to use for storing locks\&. This option was added in MySQL 5\&.1\&.5 and removed in 5\&.1\&.18\&.
 .RE
 .sp
 .RS 4
@@ -644,7 +636,7 @@ first argument\&.
 .\" no-drop option: mysqlslap
 \fB\-\-no\-drop\fR
 .sp
-Do not drop the schema after the test\&.
+Do not drop any schema created during the test after the test is complete\&.
 .RE
 .sp
 .RS 4
@@ -715,8 +707,6 @@ shell> \fBmysqlslap \-\-delimiter=";" \-\-number\-of\-queries=10\fR
 .if n \{\
 .RE
 .\}
-.sp
-This option was added in MySQL 5\&.1\&.5\&.
 .RE
 .sp
 .RS 4
@@ -733,7 +723,7 @@ This option was added in MySQL 5\&.1\&.5\&.
 .sp
 Do not connect to databases\&.
 \fBmysqlslap\fR
-only prints what it would have done\&. This option was added in MySQL 5\&.1\&.5\&.
+only prints what it would have done\&.
 .RE
 .sp
 .RS 4
@@ -761,8 +751,7 @@ option on the command line,
 \fBmysqlslap\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
 .RE
 .sp
 .RS 4
@@ -779,6 +768,21 @@ Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can
 \fB\-W\fR
 .sp
 On Windows, connect to the server via a named pipe\&. This option applies only if the server supports named\-pipe connections\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlslap: plugin-dir option
+.\" plugin-dir option: mysqlslap
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
 .RE
 .sp
 .RS 4
@@ -809,7 +813,7 @@ The TCP/IP port number to use for the connection\&.
 .\" post-query option: mysqlslap
 \fB\-\-post\-query=\fR\fB\fIvalue\fR\fR
 .sp
-The file or string containing the statement to execute after the tests have completed\&. This execution is not counted for timing purposes\&. This option was added in MySQL 5\&.1\&.18\&.
+The file or string containing the statement to execute after the tests have completed\&. This execution is not counted for timing purposes\&.
 .RE
 .sp
 .RS 4
@@ -820,11 +824,45 @@ The file or string containing the statement to execute after the tests have comp
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: shared-memory-base-name option
-.\" shared-memory-base-name option: mysqlslap
-\fB\-\-shared\-memory\-base\-name=\fR\fB\fIname\fR\fR
+.\" mysqlslap: post-system option
+.\" post-system option: mysqlslap
+\fB\-\-post\-system=\fR\fB\fIstr\fR\fR
 .sp
-On Windows, the shared\-memory name to use, for connections made via shared memory to a local server\&. This option applies only if the server supports shared\-memory connections\&.
+The string to execute via
+system()
+after the tests have completed\&. This execution is not counted for timing purposes\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlslap: pre-query option
+.\" pre-query option: mysqlslap
+\fB\-\-pre\-query=\fR\fB\fIvalue\fR\fR
+.sp
+The file or string containing the statement to execute before running the tests\&. This execution is not counted for timing purposes\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlslap: pre-system option
+.\" pre-system option: mysqlslap
+\fB\-\-pre\-system=\fR\fB\fIstr\fR\fR
+.sp
+The string to execute via
+system()
+before running the tests\&. This execution is not counted for timing purposes\&.
 .RE
 .sp
 .RS 4
@@ -851,82 +889,11 @@ This must be given as the first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: post-system option
-.\" post-system option: mysqlslap
-\fB\-\-post\-system=\fR\fB\fIstr\fR\fR
-.sp
-The string to execute via
-system()
-after the tests have completed\&. This execution is not counted for timing purposes\&. This option was added in MySQL 5\&.1\&.21\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlslap: pre-query option
-.\" pre-query option: mysqlslap
-\fB\-\-pre\-query=\fR\fB\fIvalue\fR\fR
-.sp
-The file or string containing the statement to execute before running the tests\&. This execution is not counted for timing purposes\&. This option was added in MySQL 5\&.1\&.18\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlslap: pre-system option
-.\" pre-system option: mysqlslap
-\fB\-\-pre\-system=\fR\fB\fIstr\fR\fR
-.sp
-The string to execute via
-system()
-before running the tests\&. This execution is not counted for timing purposes\&. This option was added in MySQL 5\&.1\&.21\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqlslap: preserve-schema option
-.\" preserve-schema option: mysqlslap
-\fB\-\-preserve\-schema\fR
-.sp
-Preserve the schema from the
-\fBmysqlslap\fR
-run\&. The
-\fB\-\-auto\-generate\-sql\fR
-and
-\fB\-\-create\fR
-options disable this option\&. This option was added in MySQL 5\&.1\&.5 and removed in MySQL 5\&.1\&.23\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mysqlslap: protocol option
 .\" protocol option: mysqlslap
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
-The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&. For details on the allowable values, see
-Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -955,12 +922,11 @@ statement to use for retrieving data\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: silent option
-.\" silent option: mysqlslap
-\fB\-\-silent\fR,
-\fB\-s\fR
+.\" mysqlslap: shared-memory-base-name option
+.\" shared-memory-base-name option: mysqlslap
+\fB\-\-shared\-memory\-base\-name=\fR\fB\fIname\fR\fR
 .sp
-Silent mode\&. No output\&.
+On Windows, the shared\-memory name to use, for connections made via shared memory to a local server\&. This option applies only if the server supports shared\-memory connections\&.
 .RE
 .sp
 .RS 4
@@ -971,15 +937,12 @@ Silent mode\&. No output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: slave option
-.\" slave option: mysqlslap
-\fB\-\-slave\fR
+.\" mysqlslap: silent option
+.\" silent option: mysqlslap
+\fB\-\-silent\fR,
+\fB\-s\fR
 .sp
-Follow master locks for other
-\fBmysqlslap\fR
-clients\&. Use this option if you are trying to synchronize around one master server with
-\fB\-\-lock\-directory\fR
-plus NFS\&. This option was added in MySQL 5\&.1\&.5 and removed in 5\&.1\&.18\&.
+Silent mode\&. No output\&.
 .RE
 .sp
 .RS 4
@@ -1007,14 +970,12 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: SSL options
-.\" SSL options: mysqlslap
-\fB\-\-ssl*\fR
-.sp
-Options that begin with
+.\" mysqlshow: SSL options
+.\" SSL options: mysqlshow
 \fB\-\-ssl\fR
-specify whether to connect to the server via SSL and indicate where to find SSL keys and certificates\&. See
-Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
 .RE
 .sp
 .RS 4
@@ -1025,17 +986,123 @@ Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: use-threads option
-.\" use-threads option: mysqlslap
-\fB\-\-use\-threads\fR
+.\" mysqlshow: SSL CA option
+.\" SSL CA option: mysqlshow
+\fB\-\-ssl\-ca=\fIname\fR
 .sp
-On Unix, the default is to use
-fork()
-calls and this option causes
-\fBpthread\fR
-calls to be used instead\&. (On Windows, the default is to use
-pthread
-calls and the option has no effect\&.) This option was added in MySQL 5\&.1\&.6 and removed in 5\&.1\&.18\&.
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL CA Path option
+.\" SSL CA Path option: mysqlshow
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Cert option
+.\" SSL Cert option: mysqlshow
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Cipher option
+.\" SSL Cipher option: mysqlshow
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Key option
+.\" SSL Key option: mysqlshow
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Crl option
+.\" SSL CRL option: mysqlshow
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Crlpath option
+.\" SSL Crlpath option: mysqlshow
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlshow: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysqlshow
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -1051,7 +1118,7 @@ calls and the option has no effect\&.) This option was added in MySQL 5\&.1\&.6 
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -1088,7 +1155,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -1097,8 +1164,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

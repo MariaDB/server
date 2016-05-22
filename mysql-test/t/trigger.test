@@ -241,7 +241,6 @@ begin
 end|
 delimiter ;|
 insert into t3 values (1);
---error ER_BAD_NULL_ERROR
 insert into t1 values (4, "four", 1), (5, "five", 2);
 select * from t1;
 select * from t2;
@@ -2612,4 +2611,26 @@ DROP TRIGGER tr;
 DROP TABLE t1, t2;
 
 --echo End of 5.3 tests.
+
+#
+# MDEV-4829 BEFORE INSERT triggers dont issue 1406 error
+#
+
+SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+CREATE TABLE t1 (c CHAR(1) NOT NULL);
+DELIMITER |;
+CREATE TRIGGER t1_bi
+  BEFORE INSERT
+  ON t1
+  FOR EACH ROW
+ BEGIN
+  SET NEW.c = 'www';
+ END;
+|
+DELIMITER ;|
+SET @@session.sql_mode = default;
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES ('a');
+DROP TRIGGER t1_bi;
+DROP TABLE t1;
 

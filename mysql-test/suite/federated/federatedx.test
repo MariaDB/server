@@ -2001,4 +2001,13 @@ SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
 
 connection default;
 
+--echo #
+--echo # MDEV-9346 - The federatedx and spider engine make mysqld crash when
+--echo #             they are configured withtout username
+--echo #
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--error ER_CANT_CREATE_FEDERATED_TABLE
+eval CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
 source include/federated_cleanup.inc;

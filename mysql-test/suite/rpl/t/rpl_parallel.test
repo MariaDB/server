@@ -1422,6 +1422,7 @@ SELECT * FROM t6 ORDER BY a;
 
 --connection server_1
 INSERT INTO t2 VALUES (31);
+--let $gtid1= `SELECT @@LAST_GTID`
 --source include/save_master_gtid.inc
 
 --connection server_2
@@ -1437,6 +1438,7 @@ SET sql_log_bin= 1;
 
 --connection server_1
 INSERT INTO t2 VALUES (32);
+--let $gtid2= `SELECT @@LAST_GTID`
 # Rotate the binlog; the bug is triggered when the master binlog file changes
 # after the event group that causes the duplicate key error.
 FLUSH LOGS;
@@ -1469,7 +1471,12 @@ START SLAVE SQL_THREAD;
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
 
 # Skip the duplicate error, so we can proceed.
+--error ER_SLAVE_SKIP_NOT_IN_GTID
 SET sql_slave_skip_counter= 1;
+--source include/stop_slave_io.inc
+--disable_query_log
+eval SET GLOBAL gtid_slave_pos = REPLACE(@@gtid_slave_pos, "$gtid1", "$gtid2");
+--enable_query_log
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 

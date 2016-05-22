@@ -311,10 +311,10 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_aio(type, mode, name, file, buf, offset,			\
-	n, message1, message2, write_size)				\
-	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
-			n, message1, message2, write_size,              \
+# define os_aio(type, is_log, mode, name, file, buf, offset,		\
+	n, page_size, message1, message2, write_size)			\
+	pfs_os_aio_func(type, is_log, mode, name, file, buf, offset,	\
+		        n, page_size, message1, message2, write_size,	\
 		        __FILE__, __LINE__)
 
 
@@ -357,10 +357,10 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_aio(type, mode, name, file, buf, offset, n, message1,	\
+# define os_aio(type, is_log, mode, name, file, buf, offset, n, page_size, message1, \
 	message2, write_size)						\
-	os_aio_func(type, mode, name, file, buf, offset, n,		\
-		message1, message2, write_size)
+	os_aio_func(type, is_log, mode, name, file, buf, offset, n,	\
+		page_size, message1, message2, write_size)
 
 # define os_file_read(file, buf, offset, n)				\
 	os_file_read_func(file, buf, offset, n)
@@ -435,14 +435,19 @@ UNIV_INTERN
 void
 os_io_init_simple(void);
 /*===================*/
-/***********************************************************************//**
-Creates a temporary file.  This function is like tmpfile(3), but
-the temporary file is created in the MySQL temporary directory.
-@return	temporary file handle, or NULL on error */
 
+
+/** Create a temporary file. This function is like tmpfile(3), but
+the temporary file is created in the given parameter path. If the path
+is null then it will create the file in the mysql server configuration
+parameter (--tmpdir).
+@param[in]	path	location for creating temporary file
+@return temporary file handle, or NULL on error */
+UNIV_INTERN
 FILE*
-os_file_create_tmpfile(void);
-/*========================*/
+os_file_create_tmpfile(
+	const char*	path);
+
 #endif /* !UNIV_HOTBACKUP */
 /***********************************************************************//**
 The os_file_opendir() function opens a directory stream corresponding to the
@@ -537,7 +542,7 @@ UNIV_INTERN
 void
 os_file_set_nocache(
 /*================*/
-	int		fd,		/*!< in: file descriptor to alter */
+	os_file_t	fd,		/*!< in: file descriptor to alter */
 	const char*	file_name,	/*!< in: file name, used in the
 					diagnostic message */
 	const char*	operation_name);/*!< in: "open" or "create"; used in the
@@ -749,6 +754,7 @@ ibool
 pfs_os_aio_func(
 /*============*/
 	ulint		type,	/*!< in: OS_FILE_READ or OS_FILE_WRITE */
+	ulint		is_log,	/*!< in: 1 is OS_FILE_LOG or 0 */
 	ulint		mode,	/*!< in: OS_AIO_NORMAL etc. I/O mode */
 	const char*	name,	/*!< in: name of the file or path as a
 				null-terminated string */
@@ -757,6 +763,7 @@ pfs_os_aio_func(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
 	ulint		n,	/*!< in: number of bytes to read or write */
+	ulint           page_size, /*!< in: page size in bytes */
 	fil_node_t*	message1,/*!< in: message for the aio handler
 				(can be used to identify a completed
 				aio operation); ignored if mode is
@@ -1107,6 +1114,7 @@ ibool
 os_aio_func(
 /*========*/
 	ulint		type,	/*!< in: OS_FILE_READ or OS_FILE_WRITE */
+	ulint		is_log,	/*!< in: 1 is OS_FILE_LOG or 0 */
 	ulint		mode,	/*!< in: OS_AIO_NORMAL, ..., possibly ORed
 				to OS_AIO_SIMULATED_WAKE_LATER: the
 				last flag advises this function not to wake
@@ -1127,6 +1135,7 @@ os_aio_func(
 				to write */
 	os_offset_t	offset,	/*!< in: file offset where to read or write */
 	ulint		n,	/*!< in: number of bytes to read or write */
+	ulint           page_size, /*!< in: page size in bytes */
 	fil_node_t*	message1,/*!< in: message for the aio handler
 				(can be used to identify a completed
 				aio operation); ignored if mode is
@@ -1267,14 +1276,14 @@ os_file_get_status(
 					file can be opened in RW mode */
 
 #if !defined(UNIV_HOTBACKUP)
-/*********************************************************************//**
-Creates a temporary file that will be deleted on close.
-This function is defined in ha_innodb.cc.
-@return	temporary file descriptor, or < 0 on error */
+/** Create a temporary file in the location specified by the parameter
+path. If the path is null, then it will be created in tmpdir.
+@param[in]	path	location for creating temporary file
+@return temporary file descriptor, or < 0 on error */
 UNIV_INTERN
 int
-innobase_mysql_tmpfile(void);
-/*========================*/
+innobase_mysql_tmpfile(
+	const char*	path);
 #endif /* !UNIV_HOTBACKUP */
 
 

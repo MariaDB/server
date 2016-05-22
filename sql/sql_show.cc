@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -344,14 +344,21 @@ static int fill_spatial_ref_sys(THD *thd, TABLE_LIST *tables, COND *cond)
   table->field[0]->store(-1, FALSE); /*SRID*/
   table->field[1]->store(STRING_WITH_LEN("Not defined"), cs); /*AUTH_NAME*/
   table->field[2]->store(-1, FALSE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  table->field[3]->store(STRING_WITH_LEN(
+        "LOCAL_CS[\"Spatial reference wasn't specified\","
+        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0]," "AXIS[\"x\",EAST],"
+        "AXIS[\"y\",NORTH]]"), cs);/*SRTEXT*/
   if (schema_table_store_record(thd, table))
     goto exit;
 
   table->field[0]->store(0, TRUE); /*SRID*/
-  table->field[1]->store(STRING_WITH_LEN("Cartesian plane"), cs); /*AUTH_NAME*/
-  table->field[2]->store(0, TRUE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  table->field[1]->store(STRING_WITH_LEN("EPSG"), cs); /*AUTH_NAME*/
+  table->field[2]->store(404000, TRUE); /*AUTH_SRID*/
+  table->field[3]->store(STRING_WITH_LEN(
+        "LOCAL_CS[\"Wildcard 2D cartesian plane in metric unit\","
+        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0],"
+        "AXIS[\"x\",EAST]," "AXIS[\"y\",NORTH],"
+        "AUTHORITY[\"EPSG\",\"404000\"]]"), cs);/*SRTEXT*/
   if (schema_table_store_record(thd, table))
     goto exit;
 
@@ -1085,38 +1092,28 @@ public:
 
 
 /*
-  Return CREATE command for table or view
+  Return metadata for CREATE command for table or view
 
   @param thd	     Thread handler
   @param table_list  Table / view
+  @param field_list  resulting list of fields
+  @param buffer      resulting CREATE statement
 
   @return
   @retval 0      OK
   @retval 1      Error
 
-  @notes
-  table_list->db and table_list->table_name are kept unchanged to
-  not cause problems with SP.
 */
 
 bool
-mysqld_show_create(THD *thd, TABLE_LIST *table_list)
+mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
+                              List<Item> *field_list, String *buffer)
 {
-  Protocol *protocol= thd->protocol;
-  char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
-  List<Item> field_list;
   bool error= TRUE;
   MEM_ROOT *mem_root= thd->mem_root;
-  DBUG_ENTER("mysqld_show_create");
+  DBUG_ENTER("mysqld_show_create_get_fields");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
-
-  /*
-    Metadata locks taken during SHOW CREATE should be released when
-    the statmement completes as it is an information statement.
-  */
-  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* We want to preserve the tree for views. */
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
@@ -1148,45 +1145,88 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     goto exit;
   }
 
-  buffer.length(0);
+  buffer->length(0);
 
   if (table_list->view)
-    buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
+    buffer->set_charset(table_list->view_creation_ctx->get_client_cs());
 
   if ((table_list->view ?
-       show_create_view(thd, table_list, &buffer) :
-       show_create_table(thd, table_list, &buffer, NULL, WITHOUT_DB_NAME)))
+       show_create_view(thd, table_list, buffer) :
+       show_create_table(thd, table_list, buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
 
   if (table_list->view)
   {
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "View", NAME_CHAR_LEN),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Create View",
-                                           MY_MAX(buffer.length(),1024)),
+                                           MY_MAX(buffer->length(),1024)),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "character_set_client",
                                            MY_CS_NAME_SIZE),
                          mem_root);
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "collation_connection",
                                            MY_CS_NAME_SIZE),
                          mem_root);
   }
   else
   {
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Table", NAME_CHAR_LEN),
                          mem_root);
     // 1024 is for not to confuse old clients
-    field_list.push_back(new (mem_root)
+    field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "Create Table",
-                                           MY_MAX(buffer.length(),1024)),
+                                           MY_MAX(buffer->length(),1024)),
                          mem_root);
   }
+  error= FALSE;
+
+exit:
+  DBUG_RETURN(error);
+}
+
+
+/*
+  Return CREATE command for table or view
+
+  @param thd	     Thread handler
+  @param table_list  Table / view
+
+  @return
+  @retval 0      OK
+  @retval 1      Error
+
+  @notes
+  table_list->db and table_list->table_name are kept unchanged to
+  not cause problems with SP.
+*/
+
+bool
+mysqld_show_create(THD *thd, TABLE_LIST *table_list)
+{
+  Protocol *protocol= thd->protocol;
+  char buff[2048];
+  String buffer(buff, sizeof(buff), system_charset_info);
+  List<Item> field_list;
+  bool error= TRUE;
+  DBUG_ENTER("mysqld_show_create");
+  DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
+                      table_list->table_name));
+
+  /*
+    Metadata locks taken during SHOW CREATE should be released when
+    the statmement completes as it is an information statement.
+  */
+  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+
+  if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
+    goto exit;
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
@@ -1232,6 +1272,19 @@ exit:
   DBUG_RETURN(error);
 }
 
+
+void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Database", NAME_CHAR_LEN),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Create Database", 1024),
+                        mem_root);
+}
+
+
 bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
                            LEX_STRING *orig_dbname,
                            const DDL_options_st &options)
@@ -1244,7 +1297,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
+  List<Item> field_list;
   DBUG_ENTER("mysql_show_create_db");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1278,13 +1331,8 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 
     load_db_opt_by_name(thd, dbname->str, &create);
   }
-  List<Item> field_list;
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Database", NAME_CHAR_LEN),
-                       mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "Create Database", 1024),
-                       mem_root);
+
+  mysqld_show_create_db_get_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
@@ -1402,20 +1450,17 @@ static const char *require_quotes(const char *name, uint name_length)
 }
 
 
-/*
-  Quote the given identifier if needed and append it to the target string.
-  If the given identifier is empty, it will be quoted.
+/**
+  Convert and quote the given identifier if needed and append it to the
+  target string. If the given identifier is empty, it will be quoted.
+  @thd                         thread handler
+  @packet                      target string
+  @name                        the identifier to be appended
+  @length                      length of the appending identifier
 
-  SYNOPSIS
-  append_identifier()
-  thd                   thread handler
-  packet                target string
-  name                  the identifier to be appended
-  name_length           length of the appending identifier
-
-  RETURN VALUES
-    true                Error
-    false               Ok
+  @return
+    0             success
+    1             error
 */
 
 bool
@@ -1830,7 +1875,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 	For string types dump collation name only if
 	collation is not primary for the given charset
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY))
+      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -2307,7 +2352,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     We can't just use table->query, because our SQL_MODE may trigger
     a different syntax, like when ANSI_QUOTES is defined.
   */
-  table->view->unit.print(buff, QT_ORDINARY);
+  table->view->unit.print(buff, enum_query_type(QT_ORDINARY |
+                                                QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
   if (table->with_check != VIEW_CHECK_NONE)
   {
@@ -2334,7 +2380,7 @@ public:
   { TRASH(ptr, size); }
 
   ulong thread_id;
-  ulong os_thread_id;
+  uint32 os_thread_id;
   ulonglong start_time;
   uint   command;
   const char *user,*host,*db,*proc_info,*state_info;
@@ -2888,6 +2934,15 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[7]->set_notnull();
       }
 
+      /* INFO_BINARY */
+      if (tmp->query())
+      {
+        table->field[15]->store(tmp->query(),
+                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                tmp->query_length()), &my_charset_bin);
+        table->field[15]->set_notnull();
+      }
+
       /*
         Progress report. We need to do this under a lock to ensure that all
         is from the same stage.
@@ -2906,8 +2961,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         thread in this thread. However it's better that we notice it eventually
         than hide it.
       */
-      table->field[12]->store((longlong) (tmp->status_var.local_memory_used +
-                                          sizeof(THD)),
+      table->field[12]->store((longlong) tmp->status_var.local_memory_used,
                               FALSE);
       table->field[12]->set_notnull();
       table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
@@ -2915,15 +2969,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 
       /* QUERY_ID */
       table->field[14]->store(tmp->query_id, TRUE);
-
-      /* INFO_BINARY */
-      if (tmp->query())
-      {
-        table->field[15]->store(tmp->query(),
-                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                tmp->query_length()), &my_charset_bin);
-        table->field[15]->set_notnull();
-      }
 
       table->field[16]->store(tmp->os_thread_id);
 
@@ -3212,7 +3257,8 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff, scope);
+      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+                                          status_var, scope);
     
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
@@ -3344,10 +3390,14 @@ end:
   DBUG_RETURN(res);
 }
 
-/* collect status for all running threads */
+/*
+  collect status for all running threads
+  Return number of threads used
+*/
 
-void calc_sum_of_all_status(STATUS_VAR *to)
+uint calc_sum_of_all_status(STATUS_VAR *to)
 {
+  uint count= 0;
   DBUG_ENTER("calc_sum_of_all_status");
 
   /* Ensure that thread id not killed during loop */
@@ -3358,16 +3408,21 @@ void calc_sum_of_all_status(STATUS_VAR *to)
 
   /* Get global values as base */
   *to= global_status_var;
+  to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
   while ((tmp= it++))
   {
+    count++;
     if (!tmp->status_in_global)
+    {
       add_to_status(to, &tmp->status_var);
+      to->local_memory_used+= tmp->status_var.local_memory_used;
+    }
   }
   
   mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(count);
 }
 
 
@@ -4298,7 +4353,7 @@ uint get_table_open_method(TABLE_LIST *tables,
 
    @retval FALSE  No error, if lock was obtained TABLE_LIST::mdl_request::ticket
                   is set to non-NULL value.
-   @retval TRUE   Some error occured (probably thread was killed).
+   @retval TRUE   Some error occurred (probably thread was killed).
 */
 
 static bool
@@ -4406,7 +4461,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   if (try_acquire_high_prio_shared_mdl_lock(thd, &table_list, can_deadlock))
   {
     /*
-      Some error occured (most probably we have been killed while
+      Some error occurred (most probably we have been killed while
       waiting for conflicting locks to go away), let the caller to
       handle the situation.
     */
@@ -4988,6 +5043,15 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 
+    if (file)
+    {
+      HA_CREATE_INFO create_info;
+      memset(&create_info, 0, sizeof(create_info));
+      file->update_create_info(&create_info);
+      append_directory(thd, &str, "DATA", create_info.data_file_name);
+      append_directory(thd, &str, "INDEX", create_info.index_file_name);
+    }
+
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
 
@@ -5008,7 +5072,10 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
                                   HA_STATUS_TIME |
                                   HA_STATUS_VARIABLE_EXTRA |
                                   HA_STATUS_AUTO)) != 0)
+      {
+        file->print_error(info_error, MYF(0));
         goto err;
+      }
 
       enum row_type row_type = file->get_row_type();
       switch (row_type) {
@@ -7317,12 +7384,14 @@ static my_bool find_schema_table_in_plugin(THD *thd, plugin_ref plugin,
     #   pointer to 'schema_tables' element
 */
 
-ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
+ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name,
+                                   bool *in_plugin)
 {
   schema_table_ref schema_table_a;
   ST_SCHEMA_TABLE *schema_table= schema_tables;
   DBUG_ENTER("find_schema_table");
 
+  *in_plugin= false;
   for (; schema_table->table_name; schema_table++)
   {
     if (!my_strcasecmp(system_charset_info,
@@ -7331,6 +7400,7 @@ ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
       DBUG_RETURN(schema_table);
   }
 
+  *in_plugin= true;
   schema_table_a.table_name= table_name;
   if (plugin_foreach(thd, find_schema_table_in_plugin,
                      MYSQL_INFORMATION_SCHEMA_PLUGIN, &schema_table_a))
@@ -7485,11 +7555,12 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->field_count= field_count;
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= thd->lex->current_select;
+  bool keep_row_order= sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND;
   if (!(table= create_tmp_table(thd, tmp_table_param,
                                 field_list, (ORDER*) 0, 0, 0, 
                                 (select_lex->options | thd->variables.option_bits |
-                                 TMP_TABLE_ALL_COLUMNS),
-                                HA_POS_ERROR, table_list->alias)))
+                                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
+                                table_list->alias, false, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
@@ -7988,20 +8059,13 @@ bool get_schema_tables_result(JOIN *join,
     if (table_list->schema_table && thd->fill_information_schema_tables())
     {
       /*
-        Note, currently I_S tables are filled once per query.
-        This needs to be changed if if make_cond_for_info_schema()
-        will preserve outer fields (and thus I_S content will depend on
-        the outer subquery) - in this new case I_S tables will need to
-        be re-populated here.
-
-        And in that case, get_all_tables() might be called O(N^2) times
-        (in self-join of TABLES, for example) and it will allocate
-        table names on THD::mem_root O(N^2) times. To fix it, get_all_tables
-        needs to be fixed to use a local memroot, that is reset or destroyed
-        between get_all_tables invocations. Or fixed not to allocate
-        table names on THD::memroot if these names don't satisfy lookup_field
+        I_S tables only need to be re-populated if make_cond_for_info_schema()
+        preserves outer fields
       */
-      const bool is_subselect= false;
+      bool is_subselect= &lex->unit != lex->current_select->master_unit() &&
+                         lex->current_select->master_unit()->item &&
+                         tab->select_cond &&
+                         tab->select_cond->used_tables() & OUTER_REF_TABLE_BIT;
 
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)
@@ -8258,8 +8322,8 @@ ST_FIELD_INFO tables_fields_info[]=
    OPEN_FRM_ONLY},
   {"CHECKSUM", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
    (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Checksum", OPEN_FULL_TABLE},
-  {"CREATE_OPTIONS", 255, MYSQL_TYPE_STRING, 0, 1, "Create_options",
-   OPEN_FRM_ONLY},
+  {"CREATE_OPTIONS", 2048, MYSQL_TYPE_STRING, 0, 1, "Create_options",
+   OPEN_FULL_TABLE},
   {"TABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
@@ -8984,7 +9048,7 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 {
   {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
   {"AUTH_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"AUTH_SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"AUTH_SRID", 5, MYSQL_TYPE_LONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {"SRTEXT", 2048, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };

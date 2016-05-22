@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Embedded;Documentation;IniFiles;Readme;Debuginfo;Common;connect-engine")
+    "Server;Client;Development;SharedLibraries;Embedded;Documentation;IniFiles;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
@@ -54,20 +54,15 @@ SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
  SET(CPACK_COMPONENT_DEBUGBINARIES_DESCRIPTION 
    "Debug/trace versions of executables and libraries" )
  #SET(CPACK_COMPONENT_DEBUGBINARIES_WIX_LEVEL 2)
-  
-   
- #Subfeature "Data Files" 
- SET(CPACK_COMPONENT_DATAFILES_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_DATAFILES_DISPLAY_NAME "Server data files")
- SET(CPACK_COMPONENT_DATAFILES_DESCRIPTION "Server data files" )
- SET(CPACK_COMPONENT_DATAFILES_HIDDEN 1)
  
- #Subfeature "Connect Engine" 
- SET(CPACK_COMPONENT_CONNECT-ENGINE_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_CONNECT-ENGINE_DISPLAY_NAME "Server data files")
- SET(CPACK_COMPONENT_CONNECT-ENGINE_DESCRIPTION "Server data files" )
- SET(CPACK_COMPONENT_CONNECT-ENGINE_HIDDEN 1)
  
+ #Miscellaneous (hidden) components, part of server / or client programs
+ FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management)
+   STRING(TOUPPER "${comp}" comp)
+   SET(CPACK_COMPONENT_${comp}_GROUP "MySQLServer")
+   SET(CPACK_COMPONENT_${comp}_HIDDEN 1)
+ ENDFOREACH()
+
 #Feature "Devel"
 SET(CPACK_COMPONENT_GROUP_DEVEL_DISPLAY_NAME "Development Components")
 SET(CPACK_COMPONENT_GROUP_DEVEL_DESCRIPTION "Installs C/C++ header files and libraries")

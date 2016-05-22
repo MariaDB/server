@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqld_multi\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLD_MULTI\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLD_MULTI\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -23,7 +16,7 @@
 .\" scripts
 .\" multi mysqld
 .SH "NAME"
-mysqld_multi \- manage multiple MySQL servers
+mysqld_multi \- manage multiple MariaDB servers
 .SH "SYNOPSIS"
 .HP \w'\fBmysqld_multi\ [\fR\fB\fIoptions\fR\fR\fB]\ {start|stop|report}\ [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB]\ \&.\&.\&.]\fR\ 'u
 \fBmysqld_multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
@@ -32,8 +25,7 @@ mysqld_multi \- manage multiple MySQL servers
 \fBmysqld_multi\fR
 is designed to manage several
 \fBmysqld\fR
-processes that listen for connections on different Unix socket files and TCP/IP ports\&. It can start or stop servers, or report their current status\&. The MySQL Instance Manager is an alternative means of managing multiple servers (see
-\fBmysqlmanager\fR(8))\&.
+processes that listen for connections on different Unix socket files and TCP/IP ports\&. It can start or stop servers, or report their current status\&.
 .PP
 \fBmysqld_multi\fR
 searches for groups named
@@ -50,9 +42,7 @@ can be any positive integer\&. This number is referred to in the following discu
 to specify which servers you want to start, stop, or obtain a status report for\&. Options listed in these groups are the same that you would use in the
 [mysqld]
 group used for starting
-\fBmysqld\fR\&. (See, for example,
-Section\ \&2.13.1.2, \(lqStarting and Stopping MySQL Automatically\(rq\&.) However, when using multiple servers, it is necessary that each one use its own value for options such as the Unix socket file and TCP/IP port number\&. For more information on which options must be unique per server in a multiple\-server environment, see
-Section\ \&5.6, \(lqRunning Multiple MySQL Servers on the Same Machine\(rq\&.
+\fBmysqld\fR\&. However, when using multiple servers, it is necessary that each one use its own value for options such as the Unix socket file and TCP/IP port number\&.
 .PP
 To invoke
 \fBmysqld_multi\fR, use the following syntax:
@@ -136,7 +126,6 @@ shell> \fBmysqld_multi \-\-example\fR
 .RE
 .\}
 .PP
-As of MySQL 5\&.1\&.18,
 \fBmysqld_multi\fR
 searches for option files as follows:
 .sp
@@ -183,16 +172,6 @@ Otherwise, option files in the standard list of locations are read, including an
 option, if one is given\&. (If the option is given multiple times, the last value is used\&.)
 .RE
 .PP
-Before MySQL 5\&.1\&.18, the preceding options are not recognized\&. Files in the standard locations are read, and any file named by the
-\fB\-\-config\-file=\fR\fB\fIfile_name\fR\fR
-option, if one is given\&. A file named by
-\fB\-\-config\-file\fR
-is read only for
-[mysqld\fIN\fR]
-option groups, not the
-[mysqld_multi]
-group\&.
-.PP
 Option files read are searched for
 [mysqld_multi]
 and
@@ -207,7 +186,7 @@ groups can be used for options passed to specific
 \fBmysqld\fR
 instances\&.
 .PP
-As of MySQL 5\&.1\&.35, the
+The
 [mysqld]
 or
 [mysqld_safe]
@@ -220,11 +199,7 @@ option to use a different configuration file for that instance, in which case th
 [mysqld]
 or
 [mysqld_safe]
-groups from that file will be used for that instance\&. Before MySQL 5\&.1\&.35, some versions of
-\fBmysqld_multi\fR
-pass the
-\fB\-\-no\-defaults\fR
-options to instances, so these techniques are inapplicable\&.
+groups from that file will be used for that instance\&.
 .PP
 \fBmysqld_multi\fR
 supports the following options\&.
@@ -242,38 +217,6 @@ supports the following options\&.
 \fB\-\-help\fR
 .sp
 Display a help message and exit\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqld_multi: config-file option
-.\" config-file option: mysqld_multi
-\fB\-\-config\-file=\fR\fB\fIfile_name\fR\fR
-.sp
-As of MySQL 5\&.1\&.18, this option is deprecated\&. If given, it is treated the same way as
-\fB\-\-defaults\-extra\-file\fR, described earlier\&.
-\fB\-\-config\-file\fR
-is removed in MySQL 5\&.5\&.
-.sp
-Before MySQL 5\&.1\&.18, this option specifies the name of an extra option file\&. It affects where
-\fBmysqld_multi\fR
-looks for
-[mysqld\fIN\fR]
-option groups\&. Without this option, all options are read from the usual
-my\&.cnf
-file\&. The option does not affect where
-\fBmysqld_multi\fR
-reads its own options, which are always taken from the
-[mysqld_multi]
-group in the usual
-my\&.cnf
-file\&.
 .RE
 .sp
 .RS 4
@@ -394,8 +337,8 @@ rather than to the log file\&. By default, output goes to the log file\&.
 .\" password option: mysqld_multi
 \fB\-\-password=\fR\fB\fIpassword\fR\fR
 .sp
-The password of the MySQL account to use when invoking
-\fBmysqladmin\fR\&. Note that the password value is not optional for this option, unlike for other MySQL programs\&.
+The password of the MariaDB account to use when invoking
+\fBmysqladmin\fR\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
 .RE
 .sp
 .RS 4
@@ -425,11 +368,10 @@ Silent mode; disable warnings\&.
 .\" tcp-ip option: mysqld_multi
 \fB\-\-tcp\-ip\fR
 .sp
-Connect to each MySQL server via the TCP/IP port instead of the Unix socket file\&. (If a socket file is missing, the server might still be running, but accessible only via the TCP/IP port\&.) By default, connections are made using the Unix socket file\&. This option affects
-stop
-and
-report
-operations\&.
+Connect to the MariaDB server(s) via the TCP/IP port instead of the UNIX socket\&. This affects stopping 
+and reporting. If a socket file is missing, the server may still be running, but can be accessed only 
+via the TCP/IP port\&. By default connecting is done via the UNIX socket\&. This option affects
+stop and report operations\&.
 .RE
 .sp
 .RS 4
@@ -444,7 +386,7 @@ operations\&.
 .\" user option: mysqld_multi
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
-The user name of the MySQL account to use when invoking
+The user name of the MariaDB account to use when invoking
 \fBmysqladmin\fR\&.
 .RE
 .sp
@@ -503,40 +445,7 @@ servers with the same data directory\&. Use separate data directories, unless yo
 \fIknow\fR
 what you are doing\&. Starting multiple servers with the same data directory does
 \fInot\fR
-give you extra performance in a threaded system\&. See
-Section\ \&5.6, \(lqRunning Multiple MySQL Servers on the Same Machine\(rq\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBImportant\fR
-.ps -1
-.br
-Make sure that the data directory for each server is fully accessible to the Unix account that the specific
-\fBmysqld\fR
-process is started as\&.
-\fIDo not\fR
-use the Unix
-\fIroot\fR
-account for this, unless you
-\fIknow\fR
-what you are doing\&. See
-Section\ \&5.3.6, \(lqHow to Run MySQL as a Normal User\(rq\&.
+give you extra performance in a threaded system\&.
 .sp .5v
 .RE
 .RE
@@ -549,7 +458,28 @@ Section\ \&5.3.6, \(lqHow to Run MySQL as a Normal User\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-Make sure that the MySQL account used for stopping the
+\fBImportant\fR: Make sure that the data directory for each server is fully accessible to the Unix account that the specific
+\fBmysqld\fR
+process is started as\&.
+\fIDo not\fR
+use the Unix
+\fIroot\fR
+account for this, unless you
+\fIknow\fR
+what you are doing\&.
+.sp .5v
+.RE
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Make sure that the MariaDB account used for stopping the
 \fBmysqld\fR
 servers (with the
 \fBmysqladmin\fR
@@ -572,10 +502,7 @@ mysql> \fBGRANT SHUTDOWN ON *\&.*\fR
 .RE
 .\}
 .sp
-See
-Section\ \&5.4, \(lqThe MySQL Access Privilege System\(rq\&. You have to do this for each
-\fBmysqld\fR
-server\&. Change the connection parameters appropriately when connecting to each one\&. Note that the host name part of the account name must allow you to connect as
+Change the connection parameters appropriately when connecting to each one\&. Note that the host name part of the account name must allow you to connect as
 multi_admin
 from the host where you want to run
 \fBmysqld_multi\fR\&.
@@ -723,12 +650,10 @@ user       = jani
 .RE
 .\}
 .PP
-See
-Section\ \&4.2.3.3, \(lqUsing Option Files\(rq\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -737,8 +662,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

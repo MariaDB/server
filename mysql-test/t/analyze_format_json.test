@@ -150,3 +150,65 @@ analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tb
 drop table t0, t1;
 
 
+--echo #
+--echo # MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+--echo # normal HAVING
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+--echo # HAVING is always TRUE (not printed)
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+--echo # HAVING is always FALSE (intercepted by message)
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
+--echo # HAVING is absent
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a;
+drop table t0, t1, t2;
+
+--echo #
+--echo # MDEV-7267: Server crashes in Item_field::print on ANALYZE FORMAT=JSON	
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-8864: Server crash #2 in Item_field::print on ANALYZE FORMAT=JSON
+--echo #
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(3);
+
+CREATE TABLE t3 (f3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (3),(4);
+
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+ANALYZE FORMAT=JSON 
+SELECT GROUP_CONCAT(f3) AS gc, ( SELECT MAX(f1) FROM t1, t2 WHERE f2 = f3 ) sq
+FROM t2, t3
+WHERE f3 IN ( 1, 2 ) 
+GROUP BY sq ORDER BY gc;
+
+drop table t1,t2,t3;
+

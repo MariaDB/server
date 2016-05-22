@@ -75,7 +75,7 @@ FLUSH LOGS;
 -- source include/show_binary_logs.inc
 
 ### ACTION: clean up and move to next test
-SET GLOBAL debug_dbug="";
+SET GLOBAL debug_dbug=@old_debug;
 RESET MASTER;
 
 -- echo ###################### TEST #3
@@ -100,7 +100,7 @@ RESET MASTER;
 -- source include/show_binary_logs.inc
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -121,7 +121,7 @@ SET GLOBAL debug_dbug="+d,error_unique_log_filename";
 SELECT count(*) FROM t2;
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -139,7 +139,7 @@ SET GLOBAL debug_dbug="+d,error_unique_log_filename";
 SELECT count(*) FROM t2;
 
 # clean up the table and the binlog to be used in next part of test
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -165,7 +165,7 @@ SELECT count(*) FROM t2;
 
 ### ACTION: clean up and move to the next test 
 SET AUTOCOMMIT= 1;
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 DELETE FROM t2;
 RESET MASTER;
 
@@ -185,7 +185,7 @@ SELECT count(*) FROM t4;
 SELECT count(*) FROM t4;
 
 -- echo ### check that the incident event is written to the current log
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 -- let $binlog_limit= 4,1
 -- source include/show_binlog_events.inc
 
@@ -229,7 +229,7 @@ SELECT count(*) FROM t4;
 SELECT count(*) FROM t2;
 
 # remove fault injection
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- echo ###################### TEST #9
 
@@ -248,7 +248,7 @@ DELETE FROM t4;
 SELECT count(*) FROM t2;
 SELECT count(*) FROM t4;
 SET SQL_LOG_BIN=1;
-SET GLOBAL debug_dbug="-d,error_unique_log_filename";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- echo ###################### TEST #10
 
@@ -340,7 +340,6 @@ DROP TABLE t5;
 --source include/rpl_restart_server.inc
 
 ## clean up
-SET GLOBAL debug_dbug= @old_debug;
 DROP TABLE t1, t2, t4;
 RESET MASTER;
 
@@ -398,7 +397,6 @@ call mtr.add_suppression("Can't generate a unique log-filename .*");
 
 ### clean up
 -- source include/stop_slave_sql.inc
-SET GLOBAL debug_dbug=@old_debug;
 RESET SLAVE;
 RESET MASTER;
 --let $rpl_only_running_threads= 1

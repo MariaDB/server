@@ -806,7 +806,7 @@ int TDBMYSQL::GetMaxSize(PGLOBAL g)
     else if (!Cardinality(NULL))
       MaxSize = 10;   // To make MySQL happy
     else if ((MaxSize = Cardinality(g)) < 0)
-      MaxSize = 12;   // So we can see an error occured
+      MaxSize = 12;   // So we can see an error occurred
 
     } // endif MaxSize
 

@@ -43,6 +43,8 @@ Created 1/20/1994 Heikki Tuuri
 
 #include <stdarg.h> /* for va_list */
 
+#include <string>
+
 /** Index name prefix in fast index creation */
 #define	TEMP_INDEX_PREFIX	'\377'
 /** Index name prefix in fast index creation, as a string constant */
@@ -78,18 +80,35 @@ private:
 
 # elif defined(HAVE_FAKE_PAUSE_INSTRUCTION)
 #  define UT_RELAX_CPU() __asm__ __volatile__ ("rep; nop")
-# elif defined(HAVE_ATOMIC_BUILTINS)
-#  define UT_RELAX_CPU() do { \
-     volatile lint	volatile_var; \
-     os_compare_and_swap_lint(&volatile_var, 0, 1); \
-   } while (0)
 # elif defined(HAVE_WINDOWS_ATOMICS)
    /* In the Win32 API, the x86 PAUSE instruction is executed by calling
    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
    independent way by using YieldProcessor. */
 #  define UT_RELAX_CPU() YieldProcessor()
+# elif defined(__powerpc__)
+#include <sys/platform/ppc.h>
+#  define UT_RELAX_CPU() do { \
+     volatile lint      volatile_var = __ppc_get_timebase(); \
+   } while (0)
 # else
 #  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
+# endif
+
+#if defined (__GNUC__)
+#  define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
+#elif defined (_MSC_VER)
+#  define UT_COMPILER_BARRIER() _ReadWriteBarrier()
+#else
+#  define UT_COMPILER_BARRIER()
+#endif
+
+# if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
+#include <sys/platform/ppc.h>
+#  define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
+#  define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
+# else
+#  define UT_LOW_PRIORITY_CPU() ((void)0)
+#  define UT_RESUME_PRIORITY_CPU() ((void)0)
 # endif
 
 /*********************************************************************//**
@@ -332,7 +351,7 @@ Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return	dummy value */
 UNIV_INTERN
-ulint
+void
 ut_delay(
 /*=====*/
 	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
@@ -390,7 +409,19 @@ ut_print_namel(
 				FALSE=print other identifier */
 	const char*	name,	/*!< in: name to print */
 	ulint		namelen);/*!< in: length of name */
-
+/**********************************************************************//**
+Outputs a fixed-length string, quoted as an SQL identifier.
+If the string contains a slash '/', the string will be
+output as two identifiers separated by a period (.),
+as in SQL database_name.identifier. */
+UNIV_INTERN
+std::string
+ut_get_name(
+/*=========*/
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
+	ibool		table_id,/*!< in: TRUE=print a table name,
+				FALSE=print other identifier */
+	const char*	name);	/*!< in: name to print */
 /**********************************************************************//**
 Formats a table or index name, quoted as an SQL identifier. If the name
 contains a slash '/', the result will contain two identifiers separated by

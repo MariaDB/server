@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqlcheck\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLCHECK\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLCHECK\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -36,12 +29,7 @@ client performs table maintenance: It checks, repairs, optimizes, or analyzes ta
 .PP
 Each table is locked and therefore unavailable to other sessions while it is being processed, although for check operations, the table is locked with a
 READ
-lock only (see
-Section\ \&12.3.5, \(lqLOCK TABLES and UNLOCK TABLES Syntax\(rq, for more information about
-READ
-and
-WRITE
-locks)\&. Table maintenance operations can be time\-consuming, particularly for large tables\&. If you use the
+lock only\&. Table maintenance operations can be time\-consuming, particularly for large tables\&. If you use the
 \fB\-\-databases\fR
 or
 \fB\-\-all\-databases\fR
@@ -71,8 +59,7 @@ CHECK TABLE,
 REPAIR TABLE,
 ANALYZE TABLE, and
 OPTIMIZE TABLE
-in a convenient way for the user\&. It determines which statements to use for the operation you want to perform, and then sends the statements to the server to be executed\&. For details about which storage engines each statement works with, see the descriptions for those statements in
-Section\ \&12.4.2, \(lqTable Maintenance Statements\(rq\&.
+in a convenient way for the user\&. It determines which statements to use for the operation you want to perform, and then sends the statements to the server to be executed\&.
 .PP
 The
 MyISAM
@@ -100,8 +87,7 @@ note     : The storage engine for the table doesn\'t support check
 .PP
 If
 \fBmysqlcheck\fR
-is unable to repair a table, see
-Section\ \&2.4.4, \(lqRebuilding or Repairing Tables or Indexes\(rq
+is unable to repair a table, see the MariaDB Knowledge Base
 for manual table repair strategies\&. This will be the case, for example, for
 InnoDB
 tables, which can be checked with
@@ -110,7 +96,7 @@ REPAIR TABLE\&.
 .PP
 The use of
 \fBmysqlcheck\fR
-with partitioned tables is not supported before MySQL 5\&.1\&.27\&.
+with partitioned tables is not supported\&.
 .if n \{\
 .sp
 .\}
@@ -193,9 +179,6 @@ supports the following options, which can be specified on the command line or in
 and
 [client]
 option file groups\&.
-\fBmysqlcheck\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
 .sp
 .RS 4
 .ie n \{\
@@ -290,8 +273,7 @@ If a checked table is corrupted, automatically fix it\&. Any necessary repairs a
 .\" character-sets-dir option: mysqlcheck
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
-The directory where character sets are installed\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+The directory where character sets are installed\&.
 .RE
 .sp
 .RS 4
@@ -348,8 +330,6 @@ option to check tables for incompatibilities with the current version of the ser
 and
 \fB\-\-fix\-table\-names\fR
 options\&.
-\fB\-\-check\-upgrade\fR
-was added in MySQL 5\&.1\&.7\&.
 .RE
 .sp
 .RS 4
@@ -417,7 +397,7 @@ string is
 .\" debug-check option: mysqlcheck
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print some debugging information when the program exits\&.
 .RE
 .sp
 .RS 4
@@ -432,7 +412,22 @@ Print some debugging information when the program exits\&. This option was added
 .\" debug-info option: mysqlcheck
 \fB\-\-debug\-info\fR
 .sp
-Print debugging information and memory and CPU usage statistics when the program exits\&. This option was added in MySQL 5\&.1\&.14\&.
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: default-auth option
+.\" default-auth option: mysqlcheck
+\fB\-\-default\-auth=\fR\fB\fIname\fR\fR
+.sp
+Default authentication client-side plugin to use\&.
 .RE
 .sp
 .RS 4
@@ -449,8 +444,7 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp
 Use
 \fIcharset_name\fR
-as the default character set\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+as the default character set\&.
 .RE
 .sp
 .RS 4
@@ -500,7 +494,8 @@ Must be given as first option\&.
 .sp
 If you are using this option to check tables, it ensures that they are 100% consistent but takes a long time\&.
 .sp
-If you are using this option to repair tables, it runs an extended repair that may not only take a long time to execute, but may produce a lot of garbage rows also!
+If you are using this option to repair tables, it will force using the old, slow, repair with keycache method, 
+instead of the much faster repair by sorting.
 .RE
 .sp
 .RS 4
@@ -531,7 +526,7 @@ Check only tables that have not been closed properly\&.
 .\" fix-db-names option: mysqlcheck
 \fB\-\-fix\-db\-names\fR
 .sp
-Convert database names to 5\&.1 format\&. Only database names that contain special characters are affected\&. This option was added in MySQL 5\&.1\&.7\&.
+Convert database names to the format used since MySQL 5\&.1\&. Only database names that contain special characters are affected\&.
 .RE
 .sp
 .RS 4
@@ -546,7 +541,23 @@ Convert database names to 5\&.1 format\&. Only database names that contain speci
 .\" fix-table-names option: mysqlcheck
 \fB\-\-fix\-table\-names\fR
 .sp
-Convert table names to 5\&.1 format\&. Only table names that contain special characters are affected\&. This option was added in MySQL 5\&.1\&.7\&. As of MySQL 5\&.1\&.23, this option also applies to views\&.
+Convert table names (including views) to the format used since MySQL 5\&.1\&. Only table names that contain special characters are affected\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: flush option
+.\" flush option: mysqlcheck
+\fB\-\-flush\fR,
+.sp
+Flush each table after check. This is useful if you don't
+want to have the checked tables take up space in the caches after the check\&.
 .RE
 .sp
 .RS 4
@@ -578,7 +589,7 @@ Continue even if an SQL error occurs\&.
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -655,8 +666,23 @@ option on the command line,
 \fBmysqlcheck\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: persisent option
+.\" persistent option: mysql
+\fB\-\-persistent\fR,
+\fB\-Z\fR
+.sp
+Used with ANALYZE TABLE to append the option PERSISENT FOR ALL.
 .RE
 .sp
 .RS 4
@@ -683,6 +709,21 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlcheck: plugin-dir option
+.\" plugin-dir option: mysqlcheck
+\fB\-\-plugin\-dir=\fR\fB\fIname\fR\fR
+.sp
+ Directory for client-side plugins\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqlcheck: port option
 .\" port option: mysqlcheck
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
@@ -699,12 +740,12 @@ The TCP/IP port number to use for the connection\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlcheck: protocol option
-.\" protocol option: mysqlcheck
-\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.\" mysqlcheck: print-defaults option
+.\" print-defaults option: mysqlcheck
+\fB\-\-print\-defaults\fR
 .sp
-The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&. For details on the allowable values, see
-Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
+Print the program argument list and exit\&.
+This must be given as the first argument\&.
 .RE
 .sp
 .RS 4
@@ -715,12 +756,41 @@ Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlcheck: print-defaults option
-.\" print-defaults option: mysqlcheck
-\fB\-\-print\-defaults\fR
+.\" mysqlcheck: process-tables option
+.\" process-tables option: mysqlcheck
+\fB\-\-process\-tables\fR
 .sp
-Print the program argument list and exit\&.
-This must be given as the first argument\&.
+Perform the requested operation on tables. Defaults to on; use \fB--skip-process-tables\fR to disable\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: process-views option
+.\" process-views option: mysqlcheck
+\fB\-\-process\-views=\fB\fIval\fR
+.sp
+Perform the requested operation (only CHECK VIEW or REPAIR VIEW). Possible values are NO, YES (correct the checksum, if necessary, add the mariadb-version field), UPGRADE_FROM_MYSQL (same as YES and toggle the algorithm MERGE<->TEMPTABLE\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: protocol option
+.\" protocol option: mysqlcheck
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -781,6 +851,22 @@ Silent mode\&. Print only error messages\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlcheck: skip-database option
+.\" skip-database option: mysqlcheck
+\fB\-\-skip\-database=\fB\fIdb_name\fR
+\fB\-s\fR
+.sp
+Don't process the database (case-sensitive) specified as argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqlcheck: socket option
 .\" socket option: mysqlcheck
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
@@ -798,14 +884,139 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlcheck: SSL options
-.\" SSL options: mysqlcheck
-\fB\-\-ssl*\fR
-.sp
-Options that begin with
+.\" mysqladmin: SSL options
+.\" SSL options: mysqladmin
 \fB\-\-ssl\fR
-specify whether to connect to the server via SSL and indicate where to find SSL keys and certificates\&. See
-Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL CA option
+.\" SSL CA option: mysqladmin
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL CA Path option
+.\" SSL CA Path option: mysqladmin
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Cert option
+.\" SSL Cert option: mysqladmin
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Cipher option
+.\" SSL Cipher option: mysqladmin
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Key option
+.\" SSL Key option: mysqladmin
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Crl option
+.\" SSL CRL option: mysqladmin
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Crlpath option
+.\" SSL Crlpath option: mysqladmin
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysqladmin
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -861,7 +1072,7 @@ header is corrupted\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -878,6 +1089,13 @@ The MySQL user name to use when connecting to the server\&.
 \fB\-v\fR
 .sp
 Verbose mode\&. Print information about the various stages of program operation\&.
+Using one \fB--verbose\fR option will give you more information about what mysqlcheck is 
+doing\&.
+.sp
+Using two \fB--verbose\fR options will also give you connection information\&.
+.sp
+Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during
+the check phase\&.
 .RE
 .sp
 .RS 4
@@ -920,12 +1138,12 @@ to cause
 NO_WRITE_TO_BINLOG
 to be added to the statements so that they are not logged\&. Use the
 \fB\-\-skip\-write\-binlog\fR
-when these statements should not be sent to replication slaves or run when using the binary logs for recovery from backup\&. This option was added in MySQL 5\&.1\&.18\&.
+when these statements should not be sent to replication slaves or run when using the binary logs for recovery from backup\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -934,8 +1152,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

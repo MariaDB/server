@@ -28,7 +28,7 @@
 if ($_param_value != $slave_param_value) {
   --source include/show_rpl_debug_info.inc
   --echo Wrong value for $slave_param. Expected '$slave_param_value', got '$_param_value'
-  --die Wrong value for slave parameter
+  --die Wrong value for slave parameter $slave_param
 }
 
 

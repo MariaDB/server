@@ -1,3 +1,17 @@
+if [ -f /usr/lib/systemd/system/mariadb.service -a -x /usr/bin/systemctl ]; then
+  systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+  if [ -x %{_bindir}/mariadb-service-convert -a ! -f "${systemd_conf}" ]; then
+    # Either fresh install or upgrade non-systemd -> systemd
+    mkdir -p /etc/systemd/system/mariadb.service.d
+    %{_bindir}/mariadb-service-convert > "${systemd_conf}"
+    # Make sure old possibly non-systemd instance is down
+    if [ $1 = 2 ]; then
+      SYSTEMCTL_SKIP_REDIRECT=1 %{_sysconfdir}/init.d/mysql stop >/dev/null 2>&1 || :
+      systemctl start mariadb >/dev/null 2>&1 || :
+    fi
+    systemctl enable mariadb.service >/dev/null 2>&1 || :
+  fi
+fi
 
 # Make MySQL start/shutdown automatically when the machine does it.
 if [ $1 = 1 ] ; then

@@ -2,7 +2,7 @@
 #define ITEM_ROW_INCLUDED
 
 /*
-   Copyright (c) 2002, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2002, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,11 +28,20 @@
   @endverbatim
 */
 
+
+/**
+   Item which stores (x,y,...) and ROW(x,y,...).
+   Note that this can be recursive: ((x,y),(z,t)) is a ROW of ROWs.
+*/
 class Item_row: public Item,
                 private Item_args,
                 private Used_tables_and_const_cache
 {
   table_map not_null_tables_cache;
+  /**
+    If elements are made only of constants, of which one or more are
+    NULL. For example, this item is (1,2,NULL), or ( (1,NULL), (2,3) ).
+  */
   bool with_null;
 public:
   Item_row(THD *thd, List<Item> &list):

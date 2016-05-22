@@ -44,7 +44,7 @@ extern "C" {
 #define MARIA_NAME_IEXT	".MAI"
 #define MARIA_NAME_DEXT	".MAD"
 /* Max extra space to use when sorting keys */
-#define MARIA_MAX_TEMP_LENGTH	2*1024L*1024L*1024L
+#define MARIA_MAX_TEMP_LENGTH	(2*1024L*1024L*1024L)
 /* Possible values for maria_block_size (must be power of 2) */
 #define MARIA_KEY_BLOCK_LENGTH	8192		/* default key block length */
 #define MARIA_MIN_KEY_BLOCK_LENGTH	1024	/* Min key block length */

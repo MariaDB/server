@@ -34,6 +34,10 @@
 
 #include <my_user.h>
 
+/* Used in error handling only */
+#define SP_TYPE_STRING(type) \
+    (type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE")
+     
 static int
 db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
                 sp_head **sphp,
@@ -1007,15 +1011,16 @@ sp_drop_routine_internal(THD *thd, stored_procedure_type type,
   followed by an implicit grant (sp_grant_privileges())
   and this subsequent call opens and closes mysql.procs_priv.
 
-  @return Error code. SP_OK is returned on success. Other
-  SP_ constants are used to indicate about errors.
+  @return Error status.
+    @retval FALSE on success
+    @retval TRUE on error
 */
 
-int
+bool
 sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 {
   LEX *lex= thd->lex;
-  int ret;
+  bool ret= TRUE;
   TABLE *table;
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_STRING definer;
@@ -1040,7 +1045,22 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
   /* Grab an exclusive MDL lock. */
   if (lock_object_name(thd, mdl_type, sp->m_db.str, sp->m_name.str))
-    DBUG_RETURN(SP_OPEN_TABLE_FAILED);
+  {
+    my_error(ER_BAD_DB_ERROR, MYF(0), sp->m_db.str);
+    DBUG_RETURN(TRUE);
+  }
+
+  /*
+    Check that a database directory with this name
+    exists. Design note: This won't work on virtual databases
+    like information_schema.
+  */
+  if (check_db_dir_existence(sp->m_db.str))
+  {
+    my_error(ER_BAD_DB_ERROR, MYF(0), sp->m_db.str);
+    DBUG_RETURN(TRUE);
+  }
+
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
@@ -1049,7 +1069,10 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   thd->count_cuted_fields= CHECK_FIELD_WARN;
 
   if (!(table= open_proc_table_for_update(thd)))
-    ret= SP_OPEN_TABLE_FAILED;
+  {
+    my_error(ER_SP_STORE_FAILED, MYF(0), SP_TYPE_STRING(type),sp->m_name.str);
+    goto done;
+  }
   else
   {
     /* Checking if the routine already exists */
@@ -1065,11 +1088,10 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SP_ALREADY_EXISTS,
                             ER_THD(thd, ER_SP_ALREADY_EXISTS),
-                            type == TYPE_ENUM_FUNCTION ?
-                            "FUNCTION" : "PROCEDURE",
+                            SP_TYPE_STRING(type),
                             lex->spname->m_name.str);
 
-        ret= SP_OK;
+        ret= FALSE;
 
         // Setting retstr as it is used for logging.
         if (sp->m_type == TYPE_ENUM_FUNCTION)
@@ -1078,7 +1100,8 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       }
       else
       {
-        ret= SP_WRITE_ROW_FAILED;
+        my_error(ER_SP_ALREADY_EXISTS, MYF(0),
+                 SP_TYPE_STRING(type), sp->m_name.str);
         goto done;
       }
     }
@@ -1090,7 +1113,8 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
     if (table->s->fields < MYSQL_PROC_FIELD_COUNT)
     {
-      ret= SP_GET_FIELD_FAILED;
+      my_error(ER_SP_STORE_FAILED, MYF(0),
+               SP_TYPE_STRING(type), sp->m_name.str);
       goto done;
     }
 
@@ -1099,12 +1123,12 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
                                             sp->m_name.str+sp->m_name.length) >
         table->field[MYSQL_PROC_FIELD_NAME]->char_length())
     {
-      ret= SP_BAD_IDENTIFIER;
+      my_error(ER_TOO_LONG_IDENT, MYF(0), sp->m_name.str);
       goto done;
     }
     if (sp->m_body.length > table->field[MYSQL_PROC_FIELD_BODY]->field_length)
     {
-      ret= SP_BODY_TOO_LONG;
+      my_error(ER_TOO_LONG_BODY, MYF(0), sp->m_name.str);
       goto done;
     }
 
@@ -1193,17 +1217,13 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 	if (access == SP_CONTAINS_SQL ||
 	    access == SP_MODIFIES_SQL_DATA)
 	{
-	  my_message(ER_BINLOG_UNSAFE_ROUTINE,
-		     ER_THD(thd, ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
-	  ret= SP_INTERNAL_ERROR;
+          my_error(ER_BINLOG_UNSAFE_ROUTINE, MYF(0));
 	  goto done;
 	}
       }
       if (!(thd->security_ctx->master_access & SUPER_ACL))
       {
-	my_message(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER,
-		   ER_THD(thd, ER_BINLOG_CREATE_ROUTINE_NEED_SUPER), MYF(0));
-	ret= SP_INTERNAL_ERROR;
+        my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER,MYF(0));
 	goto done;
       }
     }
@@ -1234,22 +1254,24 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
     if (store_failed)
     {
-      ret= SP_FLD_STORE_FAILED;
+      my_error(ER_CANT_CREATE_SROUTINE, MYF(0), sp->m_name.str);
       goto done;
     }
 
-    ret= SP_OK;
     if (table->file->ha_write_row(table->record[0]))
-      ret= SP_WRITE_ROW_FAILED;
+    {
+      my_error(ER_SP_ALREADY_EXISTS, MYF(0),
+               SP_TYPE_STRING(type), sp->m_name.str);
+      goto done;
+    }
     /* Make change permanent and avoid 'table is marked as crashed' errors */
     table->file->extra(HA_EXTRA_FLUSH);
 
-    if (ret == SP_OK)
-      sp_cache_invalidate();
+    sp_cache_invalidate();
   }
 
 log:
-  if (ret == SP_OK && mysql_bin_log.is_open())
+  if (mysql_bin_log.is_open())
   {
     thd->clear_error();
 
@@ -1268,7 +1290,7 @@ log:
                        &(thd->lex->definer->host),
                        saved_mode))
     {
-      ret= SP_INTERNAL_ERROR;
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
     }
     /* restore sql_mode when binloging */
@@ -1277,9 +1299,13 @@ log:
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           log_query.ptr(), log_query.length(),
                           FALSE, FALSE, FALSE, 0))
-      ret= SP_INTERNAL_ERROR;
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(MY_WME), "binary log", -1);
+      goto done;
+    }
     thd->variables.sql_mode= 0;
   }
+  ret= FALSE;
 
 done:
   thd->count_cuted_fields= saved_count_cuted_fields;

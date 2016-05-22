@@ -37,7 +37,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 #
 # Definitions that are shared for all OSes
 #
-add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS )
+add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 
 
@@ -45,6 +45,7 @@ add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 # OS specific C flags, definitions and source files.
 #
 IF(UNIX)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
@@ -71,6 +72,7 @@ IF(UNIX)
 
     #message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
+  endif()
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 
@@ -126,37 +128,10 @@ IF(WIN32)
 
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
-    find_library(MSXML_LIBRARY
-    NAMES msxml6 msxml4 msxml3 msxml2
-    PATHS
-    "C:/Program Files/Microsoft SDKs/Windows/v7.0A/Lib"
-    "C:/Program Files/Microsoft SDKs/Windows/v6.0A/Lib"
-    "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"
-    DOC "Specify the MSXML? library here."
-    )
-    IF(MSXML_LIBRARY MATCHES .*msxml6[.].*)
-      add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
-      message(STATUS "MSXML library version: msxml6")
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml4[.].*)
-      add_definitions(-DMSX4 -DDOMDOC_SUPPORT)
-      message("MSXML library version: msxml4")
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml3[.].*)
-      message("MSXML library version: msxml3")
-      add_definitions(-DMSX3 -DDOMDOC_SUPPORT)
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSEIF(MSXML_LIBRARY MATCHES .*msxml2[.].*)
-      message("MSXML library version: msxml2")
-      add_definitions(-DMXS2 -DDOMDOC_SUPPORT)
-      SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
-    ELSE()
-      message(STATUS "msxml? library not found")
-    ENDIF()
+    add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
+    message(STATUS "MSXML library version: msxml6")
+    SET(MSXML_FOUND 1)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
 ENDIF(WIN32)
 

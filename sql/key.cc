@@ -18,7 +18,6 @@
 
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                     // REQUIRED: by includes later
 #include "key.h"                                // key_rec_cmp
 #include "field.h"                              // Field
 

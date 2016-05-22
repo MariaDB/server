@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -237,6 +237,9 @@ row_fts_psort_info_init(
 		crypt_data = NULL;
 	}
 
+	ut_ad(trx->mysql_thd != NULL);
+	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
+
 	/* There will be FTS_NUM_AUX_INDEX number of "sort buckets" for
 	each parallel sort thread. Each "sort bucket" holds records for
 	a particular "FTS index partition" */
@@ -258,8 +261,8 @@ row_fts_psort_info_init(
 			psort_info[j].merge_buf[i] = row_merge_buf_create(
 				dup->index);
 
-			if (row_merge_file_create(psort_info[j].merge_file[i])
-			    < 0) {
+			if (row_merge_file_create(psort_info[j].merge_file[i],
+						  path) < 0) {
 				goto func_exit;
 			}
 
@@ -557,9 +560,11 @@ row_merge_fts_doc_tokenize(
 		fts_max_token_size, add one extra size and one extra byte */
 		cur_len += 2;
 
-		/* Reserve one byte for the end marker of row_merge_block_t. */
+		/* Reserve one byte for the end marker of row_merge_block_t
+		and we have reserved ROW_MERGE_RESERVE_SIZE (= 4) for
+		encryption key_version in the beginning of the buffer. */
 		if (buf->total_size + data_size[idx] + cur_len
-		    >= srv_sort_buf_size - 1) {
+			>= (srv_sort_buf_size - 1 - ROW_MERGE_RESERVE_SIZE)) {
 
 			buf_full = TRUE;
 			break;
@@ -656,6 +661,11 @@ fts_parallel_tokenization(
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
 	fil_space_crypt_t*	crypt_data = NULL;
+
+	ut_ad(psort_info->psort_common->trx->mysql_thd != NULL);
+
+	const char*		path = thd_innodb_tmpdir(
+		psort_info->psort_common->trx->mysql_thd);
 
 	ut_ad(psort_info);
 
@@ -900,7 +910,7 @@ exit:
 			continue;
 		}
 
-		tmpfd[i] = row_merge_file_create_low();
+		tmpfd[i] = row_merge_file_create_low(path);
 		if (tmpfd[i] < 0) {
 			error = DB_OUT_OF_MEMORY;
 			goto func_exit;
@@ -1479,7 +1489,7 @@ row_fts_merge_insert(
 		fd[i] = psort_info[i].merge_file[id]->fd;
 		foffs[i] = 0;
 
-		buf[i] = static_cast<unsigned char (*)[65536]>(
+		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
 
 		count_diag += (int) psort_info[i].merge_file[id]->n_rec;

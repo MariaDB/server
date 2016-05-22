@@ -19,6 +19,9 @@ SHOW TABLES;
 --replace_result $MYSQLD_DATADIR ./
 --error ER_FAILED_READ_FROM_PAR_FILE
 SHOW CREATE TABLE t1;
+
+# The replace is needed for Solaris
+--replace_result "Not owner" "Operation not permitted"
 --error ER_GET_ERRNO
 DROP TABLE t1;
 --list_files $MYSQLD_DATADIR/test t1*

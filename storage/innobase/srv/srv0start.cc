@@ -171,6 +171,9 @@ static const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
 #define SRV_N_PENDING_IOS_PER_THREAD	OS_AIO_N_PENDING_IOS_PER_THREAD
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
+/** The round off to MB is similar as done in srv_parse_megabytes() */
+#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
+				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 UNIV_INTERN mysql_pfs_key_t	io_handler_thread_key;
@@ -983,10 +986,16 @@ open_or_create_data_files(
 size_check:
 			size = os_file_get_size(files[i]);
 			ut_a(size != (os_offset_t) -1);
-			/* Round size downward to megabytes */
 
-			rounded_size_pages = (ulint)
-				(size >> UNIV_PAGE_SIZE_SHIFT);
+			/* Under some error conditions like disk full
+			narios or file size reaching filesystem
+			limit the data file could contain an incomplete
+			extent at the end. When we extend a data file
+			and if some failure happens, then also the data
+			file could contain an incomplete extent.  So we
+			need to round the size downward to a megabyte.*/
+
+			rounded_size_pages = (ulint) CALC_NUMBER_OF_PAGES(size);
 
 			if (i == srv_n_data_files - 1
 			    && srv_auto_extend_last_data_file) {
@@ -1580,9 +1589,8 @@ innobase_start_or_create_for_mysql(void)
 	/* This should be initialized early */
 	ut_init_timer();
 
-	if (srv_force_recovery > SRV_FORCE_NO_TRX_UNDO) {
-		srv_read_only_mode = true;
-	}
+	high_level_read_only = srv_read_only_mode
+		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
 	if (srv_read_only_mode) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Started in read only mode");
@@ -1870,9 +1878,13 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"%s CPU crc32 instructions",
-		ut_crc32_sse2_enabled ? "Using" : "Not using");
+	if (ut_crc32_sse2_enabled) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using SSE crc32 instructions");
+	} else if (ut_crc32_power8_enabled) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using POWER8 crc32 instructions");
+	} else {
+		ib_logf(IB_LOG_LEVEL_INFO, "Using generic crc32 instructions");
+	}
 
 	if (!srv_read_only_mode) {
 
@@ -1903,7 +1915,7 @@ innobase_start_or_create_for_mysql(void)
 			}
 		} else {
 			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile();
+			srv_monitor_file = os_file_create_tmpfile(NULL);
 
 			if (!srv_monitor_file) {
 				return(DB_ERROR);
@@ -1913,7 +1925,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_dict_tmpfile_mutex_key,
 			     &srv_dict_tmpfile_mutex, SYNC_DICT_OPERATION);
 
-		srv_dict_tmpfile = os_file_create_tmpfile();
+		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_dict_tmpfile) {
 			return(DB_ERROR);
@@ -1922,7 +1934,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_misc_tmpfile_mutex_key,
 			     &srv_misc_tmpfile_mutex, SYNC_ANY_LATCH);
 
-		srv_misc_tmpfile = os_file_create_tmpfile();
+		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_misc_tmpfile) {
 			return(DB_ERROR);
@@ -2971,16 +2983,18 @@ files_checked:
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
-		/* Init data for datafile scrub threads */
-		btr_scrub_init();
-
 		/* Create thread(s) that handles key rotation */
+		fil_system_enter();
 		fil_crypt_threads_init();
+		fil_system_exit();
 
 		/* Create the log scrub thread */
 		if (srv_scrub_log)
 			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
+
+	/* Init data for datafile scrub threads */
+	btr_scrub_init();
 
 	/* Initialize online defragmentation. */
 	btr_defragment_init();
@@ -3165,10 +3179,10 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		fil_crypt_threads_cleanup();
-
-		/* Cleanup data for datafile scrubbing */
-		btr_scrub_cleanup();
 	}
+
+	/* Cleanup data for datafile scrubbing */
+	btr_scrub_cleanup();
 
 #ifdef __WIN__
 	/* MDEV-361: ha_innodb.dll leaks handles on Windows

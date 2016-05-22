@@ -3466,3 +3466,21 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	p_1000	ref	PRIMARY	PRIMARY	8	const	2	Using index
 1	PRIMARY	t1	p_1000	ALL	PRIMARY	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
+#
+# MDEV-9505: Valgrind failure in SEL_ARG::store_min,find_used_partitions,...
+#
+create table t1 (a int, b char(10), c varchar(5), d int)
+partition by range columns(a,b,c)
+subpartition by key (c,d)
+subpartitions 3
+( partition p0 values less than (1,'abc','abc'),
+partition p1 values less than (2,'abc','abc'),
+partition p2 values less than (3,'abc','abc'),
+partition p3 values less than (4,'abc','abc')
+);
+insert into t1 values (1,'a','b',1),(2,'a','b',2),(3,'a','b',3);
+select * from t1 where (a = 1 AND b < 'd' AND (c = 'b' OR (c = 'c' AND d = 1)) OR
+(a = 1 AND b >= 'a' AND (c = 'c' OR (c = 'd' AND d = 2))));
+a	b	c	d
+1	a	b	1
+drop table t1;

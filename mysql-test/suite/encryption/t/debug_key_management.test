@@ -5,6 +5,7 @@ if (`select count(*) = 0 from information_schema.plugins
   --skip Needs debug_key_management
 }
 
+set global innodb_encrypt_tables=ON;
 show variables like 'innodb_encrypt%';
 
 let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespaces_encryption where current_key_version=1;
@@ -17,5 +18,7 @@ let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespa
 --source include/wait_condition.inc
 
 select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
+# Note that we expect that key_version is increasing so disable encryption before reset
+set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;
 

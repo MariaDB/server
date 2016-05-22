@@ -6,16 +6,16 @@ hex(COLUMN_CREATE(1, NULL AS char character set utf8))
 000000
 select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8));
 hex(COLUMN_CREATE(1, "afaf" AS char character set utf8))
-0001000100030861666166
+0001000100032161666166
 select hex(COLUMN_CREATE(1, 1212 AS char character set utf8));
 hex(COLUMN_CREATE(1, 1212 AS char character set utf8))
-0001000100030831323132
+0001000100032131323132
 select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8));
 hex(COLUMN_CREATE(1, 12.12 AS char character set utf8))
-0001000100030831322E3132
+0001000100032131322E3132
 select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8));
 hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8))
-000100010003083939393939393939393939393939393939393939393939393939393939
+000100010003213939393939393939393939393939393939393939393939393939393939
 select hex(COLUMN_CREATE(1, NULL AS unsigned int));
 hex(COLUMN_CREATE(1, NULL AS unsigned int))
 000000
@@ -144,7 +144,7 @@ hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 6, "2011-04-05" AS date,
 7, "- 0:45:49.000001" AS time,
 8, "2011-04-05 0:45:49.000001" AS datetime))
-01080001000300020029000300380004004A0005008C000600AE000700C7000800F5000861666166BC0478093D0AD7A3703D284002028C0C85B60F010010B7000485B60F010010B70000
+01080001000300020029000300380004004A0005008C000600AE000700C7000800F5002161666166BC0478093D0AD7A3703D284002028C0C85B60F010010B7000485B60F010010B70000
 explain extended
 select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 2, 1212 AS unsigned int,
@@ -1693,10 +1693,10 @@ ERROR 22007: Illegal value used as argument of dynamic column function
 #
 select column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" AS datetime, "date", "2011-04-05" AS date));
 column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" 
-{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":"1.2e50","string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
+{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":1.23444e50,"string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
 select column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date));
 column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date))
-{"1":-1212,"2":12334,"3":23.344,"4":"1.2e50","5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
+{"1":-1212,"2":12334,"3":23.344,"4":1.23444e50,"5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
 #
 # CHECK test
 #
@@ -1804,6 +1804,74 @@ set     impressions = column_add(impressions,
 '2014-11-04 09:00:00', "a6"
         );
 drop table t1;
+#
+# MDEV-8565: COLUMN_CHECK fails on valid data
+#
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',0,'b','1'));
+COLUMN_CHECK(COLUMN_CREATE('a',0,'b','1'))
+1
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',1,'b','1'));
+COLUMN_CHECK(COLUMN_CREATE('a',1,'b','1'))
+1
+SELECT COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'));
+COLUMN_JSON(COLUMN_CREATE('a',0,'b','1'))
+{"a":0,"b":"1"}
+SELECT COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'));
+COLUMN_JSON(COLUMN_CREATE('a',1,'b','1'))
+{"a":1,"b":"1"}
+#
+# MDEV-8401: COLUMN_CREATE(name, value as DOUBLE) results in string
+#
+SELECT COLUMN_JSON(
+COLUMN_CREATE(
+'one', 123.456,
+'two', 123.456 as DOUBLE
+)
+);
+COLUMN_JSON(
+COLUMN_CREATE(
+'one', 123.456,
+'two', 123.456 as DOUBLE
+)
+)
+{"one":123.456,"two":123.456}
+#
+# MDEV-8521: Drastic loss of precision in COLUMN_JSON() on DOUBLEs
+#
+select column_get(column_create('float', 1.23456789012345E+100 as double), 'float' as double);
+column_get(column_create('float', 1.23456789012345E+100 as double), 'float' as double)
+1.23456789012345e100
+select column_json(column_create('float', 1.23456789012345E+100 as double));
+column_json(column_create('float', 1.23456789012345E+100 as double))
+{"float":1.23456789012345e100}
+select column_json(column_create('float', 1.23456789012345E+10 as double));
+column_json(column_create('float', 1.23456789012345E+10 as double))
+{"float":12345678901.2345}
+#
+# MDEV-9147: Character set is ignored in Dynamic Column for saved string
+#
+SET NAMES utf8;
+SELECT COLUMN_GET(COLUMN_CREATE(1, 0xC2A2 AS CHAR CHARACTER SET latin1), 1 AS CHAR CHARACTER SET utf8) AS a;
+a
+Â¢
+SELECT COLUMN_GET(COLUMN_CREATE(1, 0xC2A2 AS CHAR CHARACTER SET utf8), 1 AS CHAR CHARACTER SET utf8) AS a;
+a
+¢
+#
+# MDEV-9167: COLUMN_CHECK fails on valid decimal data
+#
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',0 AS DECIMAL,'b',1 AS DECIMAL));
+COLUMN_CHECK(COLUMN_CREATE('a',0 AS DECIMAL,'b',1 AS DECIMAL))
+1
+SELECT COLUMN_CHECK(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
+COLUMN_CHECK(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
+1
+SELECT COLUMN_JSON(COLUMN_CREATE('a',0 AS DECIMAL,'b',1 AS DECIMAL));
+COLUMN_JSON(COLUMN_CREATE('a',0 AS DECIMAL,'b',1 AS DECIMAL))
+{"a":0,"b":1}
+SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
+COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
+{"a":1,"b":1}
 #
 # end of 10.0 tests
 #

@@ -1,0 +1,4 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+wsrep-mysql-replication-bundle=2

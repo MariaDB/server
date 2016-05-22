@@ -208,3 +208,45 @@ INSERT INTO t1 VALUES (1),(2);
 EXPLAIN UPDATE v1, mysql.user SET v1.a = v1.a + 1;
 DROP TABLE t1;
 DROP VIEW v1;
+ 
+--echo #
+--echo # MDEV-8299: MyISAM or Aria table gets corrupted after EXPLAIN INSERT and INSERT
+--echo #
+CREATE TABLE t1 (pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY, i INT, KEY(i)) ENGINE=MyISAM;
+INSERT INTO t1 (i) VALUES (100),(200);
+
+CREATE TABLE t2 (j INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (10),(20);
+
+EXPLAIN INSERT INTO t1 (i) SELECT j FROM t2;
+INSERT INTO t1 (i) VALUES (300);
+CHECK TABLE t1;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-8321: Assertion `! is_set()' failed in Diagnostics_area::set_eof_status on EXPLAIN INSERT ... UNION
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+
+# Data is not necessary, tables can be empty as well
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t3 VALUES (5),(6);
+
+EXPLAIN INSERT INTO t1 SELECT * FROM t2 UNION SELECT * FROM t3;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-6223: Assertion `! is_set()' fails in Diagnostics_area::set_eof_status on EXPLAIN INSERT executed as a PS
+--echo #
+CREATE TABLE t1 (a INT) ENGINE = MyISAM;
+CREATE TABLE t2 (b INT) ENGINE = MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+PREPARE stmt FROM 'EXPLAIN INSERT INTO t1 SELECT * FROM t2';
+EXECUTE stmt;
+drop table t1,t2;
+

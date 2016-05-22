@@ -49,8 +49,8 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
 #ifndef DBUG_OFF
   info->opt_flag= READ_CHECK_USED;		/* Check when changing */
 #endif
-  DBUG_PRINT("exit",("heap: 0x%lx  reclength: %d  records_in_block: %lu",
-		     (long) info, share->reclength,
+  DBUG_PRINT("exit",("heap: %p  reclength: %d  records_in_block: %lu",
+		     info, share->reclength,
                      share->block.records_in_block));
   DBUG_RETURN(info);
 }
@@ -142,7 +142,7 @@ HP_SHARE *hp_find_named_heap(const char *name)
     info= (HP_SHARE*) pos->data;
     if (!strcmp(name, info->name))
     {
-      DBUG_PRINT("exit", ("Old heap_database: 0x%lx", (long) info));
+      DBUG_PRINT("exit", ("Old heap_database: %p", info));
       DBUG_RETURN(info);
     }
   }

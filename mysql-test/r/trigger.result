@@ -214,12 +214,14 @@ end if;
 end|
 insert into t3 values (1);
 insert into t1 values (4, "four", 1), (5, "five", 2);
-ERROR 23000: Column 'id' cannot be null
+Warnings:
+Warning	1048	Column 'id' cannot be null
 select * from t1;
 id	data	fk
 1	one	NULL
 2	two	NULL
 4	four	1
+0	five	2
 select * from t2;
 event
 INSERT INTO t1 id=1 data='one'
@@ -2273,3 +2275,18 @@ SET optimizer_switch=@save_optimizer_switch;
 DROP TRIGGER tr;
 DROP TABLE t1, t2;
 End of 5.3 tests.
+SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+CREATE TABLE t1 (c CHAR(1) NOT NULL);
+CREATE TRIGGER t1_bi
+BEFORE INSERT
+ON t1
+FOR EACH ROW
+BEGIN
+SET NEW.c = 'www';
+END;
+|
+SET @@session.sql_mode = default;
+INSERT INTO t1 VALUES ('a');
+ERROR 22001: Data too long for column 'c' at row 1
+DROP TRIGGER t1_bi;
+DROP TABLE t1;

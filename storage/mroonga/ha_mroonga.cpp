@@ -8742,7 +8742,7 @@ void ha_mroonga::remove_related_files(const char *base_path)
       if (stat(entry->d_name, &file_status) != 0) {
         continue;
       }
-      if (!((file_status.st_mode & S_IFMT) && S_IFREG)) {
+      if (!((file_status.st_mode & S_IFMT) & S_IFREG)) {
         continue;
       }
       if (strncmp(entry->d_name, base_path, base_path_length) == 0) {
@@ -9701,13 +9701,13 @@ void ha_mroonga::check_count_skip(key_part_map start_key_part_map,
 
         if (where->type() == Item::FUNC_ITEM) {
           Item_func *func_item = static_cast<Item_func *>(where);
-          if (func_item->arg_count == 0) {
+          if (func_item->argument_count() == 0) {
             break;
           }
           target = func_item->key_item();
           where = where->next;
           if (func_item->arguments()[0] == where) {
-            uint n_args = func_item->arg_count;
+            uint n_args = func_item->argument_count();
             for (; n_args > 0; --n_args) {
               where = where->next;
             }

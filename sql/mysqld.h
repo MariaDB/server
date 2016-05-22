@@ -1,4 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,6 +40,8 @@ typedef struct st_mysql_show_var SHOW_VAR;
 
 #if MAX_INDEXES <= 64
 typedef Bitmap<64>  key_map;          /* Used for finding keys */
+#elif MAX_INDEXES > 128
+#error "MAX_INDEXES values greater than 128 is not supported."
 #else
 typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #endif
@@ -332,7 +335,7 @@ extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
@@ -484,6 +487,9 @@ extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
 extern PSI_stage_info stage_waiting_for_workers_idle;
+extern PSI_stage_info stage_waiting_for_ftwrl;
+extern PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause;
+extern PSI_stage_info stage_waiting_for_rpl_thread_pool;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
 extern PSI_stage_info stage_gtid_wait_other_connection;
@@ -558,6 +564,7 @@ extern mysql_mutex_t
        LOCK_slave_init;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
+extern char* des_key_file;
 extern mysql_mutex_t LOCK_des_key_file;
 #endif
 extern mysql_mutex_t LOCK_server_started;
@@ -616,6 +623,7 @@ enum options_mysqld
   OPT_REPLICATE_WILD_IGNORE_TABLE,
   OPT_SAFE,
   OPT_SERVER_ID,
+  OPT_SILENT,
   OPT_SKIP_HOST_CACHE,
   OPT_SKIP_RESOLVE,
   OPT_SLAVE_PARALLEL_MODE,
@@ -657,15 +665,16 @@ enum enum_query_type
   /// If NULLIF(a,b) should print itself as
   /// CASE WHEN a_for_comparison=b THEN NULL ELSE a_for_return_value END
   /// when "a" was replaced to two different items
-  /// (e.g. by equal fields propagation in optimize_cond()).
-  /// The default behaviour is to print as NULLIF(a_for_return, b)
-  /// which should be Ok for SHOW CREATE {VIEW|PROCEDURE|FUNCTION}
-  /// as they are not affected by WHERE optimization.
-  QT_ITEM_FUNC_NULLIF_TO_CASE= (1 <<6),
+  /// (e.g. by equal fields propagation in optimize_cond())
+  /// or always as NULLIF(a, b).
+  /// The default behaviour is to use CASE syntax when
+  /// a_for_return_value is not the same as a_for_comparison.
+  /// SHOW CREATE {VIEW|PROCEDURE|FUNCTION} and other cases where the
+  /// original representation is required, should set this flag.
+  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 <<6),
 
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
-                        QT_ITEM_FUNC_NULLIF_TO_CASE |
                         QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
@@ -674,7 +683,12 @@ enum enum_query_type
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
   /// here, as it would give better readable results
-  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET | QT_ITEM_FUNC_NULLIF_TO_CASE
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET,
+
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
 };
 
 
@@ -783,10 +797,11 @@ extern ulong thread_created;
 extern scheduler_functions *thread_scheduler, *extra_thread_scheduler;
 extern char *opt_log_basename;
 extern my_bool opt_master_verify_checksum;
-extern my_bool opt_stack_trace;
+extern my_bool opt_stack_trace, disable_log_notes;
 extern my_bool opt_expect_abort;
 extern my_bool opt_slave_sql_verify_checksum;
 extern my_bool opt_mysql56_temporal_format, strict_password_validation;
+extern my_bool opt_explicit_defaults_for_timestamp;
 extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;

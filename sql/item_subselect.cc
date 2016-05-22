@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab
+/* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -561,22 +561,34 @@ bool Item_subselect::is_expensive()
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
     JOIN *cur_join= sl->join;
+
+    /* not optimized subquery */
     if (!cur_join)
-      continue;
+      return true;
+
+    /* very simple subquery */
+    if (!cur_join->tables_list && !sl->first_inner_unit())
+      return false;
+
+    /*
+      If the subquery is not optimised or in the process of optimization
+      it supposed to be expensive
+    */
+    if (!cur_join->optimized)
+      return true;
 
     /*
       Subqueries whose result is known after optimization are not expensive.
       Such subqueries have all tables optimized away, thus have no join plan.
     */
-    if (cur_join->optimized &&
-        (cur_join->zero_result_cause || !cur_join->tables_list))
+    if ((cur_join->zero_result_cause || !cur_join->tables_list))
       return false;
 
     /*
       If a subquery is not optimized we cannot estimate its cost. A subquery is
       considered optimized if it has a join plan.
     */
-    if (!(cur_join->optimized && cur_join->join_tab))
+    if (!cur_join->join_tab)
       return true;
 
     if (sl->first_inner_unit())
@@ -878,7 +890,7 @@ bool Item_subselect::const_item() const
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
   if (!with_sum_func && !const_item())
-    return new (thd->mem_root) Item_field(thd_arg, result_field);
+    return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
   return copy_or_same(thd_arg);
 }
 
@@ -1394,7 +1406,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= UINT_MAX;
@@ -1417,7 +1429,7 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
   Item_in_subselect(thd), func_creator(fc), all(all_arg)
 {
   DBUG_ENTER("Item_allany_subselect::Item_allany_subselect");
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= 1;
@@ -2638,7 +2650,7 @@ static bool check_equality_for_exist2in(Item_func *func,
   Item **args;
   if (func->functype() != Item_func::EQ_FUNC)
     return FALSE;
-  DBUG_ASSERT(func->arg_count == 2);
+  DBUG_ASSERT(func->argument_count() == 2);
   args= func->arguments();
   if (args[0]->real_type() == Item::FIELD_ITEM &&
       args[0]->all_used_tables() != OUTER_REF_TABLE_BIT &&
@@ -3083,15 +3095,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   arena= thd->activate_stmt_arena_if_needed(&backup);
   if (!optimizer)
   {
-    result= (!(optimizer= new (thd->mem_root) Item_in_optimizer(thd, left_expr, this)));
-    if (result)
+    optimizer= new (thd->mem_root) Item_in_optimizer(thd, left_expr_orig, this);
+    if ((result= !optimizer))
       goto out;
   }
 
   thd->lex->current_select= current->return_after_parsing();
   result= optimizer->fix_left(thd);
-  /* fix_fields can change reference to left_expr, we need reassign it */
-  left_expr= optimizer->arguments()[0];
   thd->lex->current_select= current;
 
   if (changed)
@@ -3158,11 +3168,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
+  char const *save_where= thd->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new (thd->mem_root) Item_int(thd, 1)) );
 
+  thd->where= "IN/ALL/ANY subquery";
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -3193,7 +3205,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     if (outer_cols_num != inner_cols->elements)
     {
       my_error(ER_OPERAND_COLUMNS, MYF(0), outer_cols_num);
-      DBUG_RETURN(TRUE);
+      goto err;
     }
     if (outer_cols_num > 1)
     {
@@ -3203,20 +3215,24 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
       {
         inner_col= inner_col_it++;
         if (inner_col->check_cols(left_expr->element_index(i)->cols()))
-          DBUG_RETURN(TRUE);
+          goto err;
       }
     }
   }
 
-  if (thd_arg->lex->is_view_context_analysis() &&
-      left_expr && !left_expr->fixed &&
+  if (left_expr && !left_expr->fixed &&
       left_expr->fix_fields(thd_arg, &left_expr))
-    DBUG_RETURN(TRUE);
+    goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
-    DBUG_RETURN(TRUE);
+    goto err;
   fixed= TRUE;
+  thd->where= save_where;
   DBUG_RETURN(FALSE);
+
+err:
+  thd->where= save_where;
+  DBUG_RETURN(TRUE);
 }
 
 
@@ -4942,7 +4958,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     Item_field *right_col_item;
 
     if (!(right_col_item= new (thd->mem_root)
-          Item_field(thd, context, tmp_table->field[i])) ||
+          Item_temptable_field(thd, context, tmp_table->field[i])) ||
         !(eq_cond= new (thd->mem_root)
           Item_func_eq(thd, item_in->left_expr->element_index(i),
                        right_col_item)) ||
@@ -5224,12 +5240,13 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
   for (ORDER *order= join->group_list; order; order= order->next)
   {
     Item *item= order->item[0];
-    if (item->used_tables() & RAND_TABLE_BIT)
+    table_map item_used_tables= item->used_tables();
+    if (item_used_tables & RAND_TABLE_BIT)
     {
       /* Each join output record will be in its own group */
       return join_op_rows;
     }
-    tables_in_group_list|= item->used_tables();
+    tables_in_group_list|= item_used_tables;
   }
   tables_in_group_list &= ~PSEUDO_TABLE_BITS;
 
@@ -5323,6 +5340,7 @@ int subselect_hash_sj_engine::exec()
     item_in->reset();
     item_in->make_const();
     item_in->set_first_execution();
+    thd->lex->current_select= save_select;
     DBUG_RETURN(FALSE);
   }
 
@@ -5366,6 +5384,7 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
+      thd->lex->current_select= save_select;
       DBUG_RETURN(FALSE);
     }
 
@@ -5908,7 +5927,7 @@ int subselect_partial_match_engine::exec()
       /* Search for a complete match. */
       if ((lookup_res= lookup_engine->index_lookup()))
       {
-        /* An error occured during lookup(). */
+        /* An error occurred during lookup(). */
         item_in->value= 0;
         item_in->null_value= 0;
         return lookup_res;

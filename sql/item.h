@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,9 +25,9 @@
 #include "sql_priv.h"                /* STRING_BUFFER_USUAL_SIZE */
 #include "unireg.h"
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "field.h"                              /* Derivation */
+#include "sql_type.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -429,7 +429,7 @@ public:
 
     RETURN
       FALSE if parameter value has been set,
-      TRUE if error has occured.
+      TRUE if error has occurred.
   */
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it)= 0;
 
@@ -602,7 +602,9 @@ public:
 };
 
 
-class Item: public Value_source, public Type_std_attributes
+class Item: public Value_source,
+            public Type_std_attributes,
+            public Type_handler
 {
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
@@ -652,6 +654,8 @@ protected:
     save_in_field
   */
   String str_value;
+
+  SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
 public:
   /*
@@ -752,12 +756,15 @@ public:
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
   /* result_type() of an item specifies how the value should be returned */
-  virtual Item_result result_type() const { return REAL_RESULT; }
+  Item_result result_type() const { return REAL_RESULT; }
   /* ... while cmp_type() specifies how it should be compared */
-  virtual Item_result cmp_type() const;
+  Item_result cmp_type() const;
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
-  virtual enum_field_types string_field_type() const;
-  virtual enum_field_types field_type() const;
+  enum_field_types string_field_type() const
+  {
+    return Type_handler::string_type_handler(max_length)->field_type();
+  }
+  enum_field_types field_type() const;
   virtual enum Type type() const =0;
   /*
     real_type() is the type of base item.  This is same as type() for
@@ -1000,6 +1007,7 @@ public:
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
   longlong val_int_from_date();
+  longlong val_int_from_real();
   double val_real_from_decimal();
   double val_real_from_date();
 
@@ -1015,6 +1023,8 @@ public:
   virtual Field *get_tmp_table_field() { return 0; }
   /* This is also used to create fields in CREATE ... SELECT: */
   virtual Field *tmp_table_field(TABLE *t_arg) { return 0; }
+  virtual Field *create_field_for_create_select(THD *thd, TABLE *table);
+  virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name ? name : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name : NULL; }
@@ -1278,7 +1288,38 @@ public:
   /*
    Make sure the null_value member has a correct value.
   */
-  virtual void update_null_value () { (void) val_int(); }
+  virtual void update_null_value ()
+  {
+    switch (cmp_type()) {
+    case INT_RESULT:
+      (void) val_int();
+      break;
+    case REAL_RESULT:
+      (void) val_real();
+      break;
+    case DECIMAL_RESULT:
+      {
+        my_decimal tmp;
+        (void) val_decimal(&tmp);
+      }
+      break;
+    case TIME_RESULT:
+      {
+        MYSQL_TIME ltime;
+        (void) get_temporal_with_sql_mode(&ltime);
+      }
+      break;
+    case STRING_RESULT:
+      {
+        StringBuffer<MAX_FIELD_WIDTH> tmp;
+        (void) val_str(&tmp);
+      }
+      break;
+    case ROW_RESULT:
+      DBUG_ASSERT(0);
+      null_value= true;
+    }
+  }
 
   /*
     Inform the item that there will be no distinction between its result
@@ -1520,7 +1561,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(full_name());
   }
 
-  virtual bool set_no_const_sub(uchar *arg) { return FALSE; }
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
   /*
@@ -1565,6 +1605,8 @@ public:
 
   virtual bool check_inner_refs_processor(uchar *arg) { return FALSE; }
 
+  virtual bool switch_to_nullable_fields_processor(uchar *arg) { return FALSE; }
+
   /*
     For SP local variable returns pointer to Item representing its
     current value and pointer to current Item otherwise.
@@ -1588,7 +1630,9 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
-  Field *tmp_table_field_from_field_type(TABLE *table, bool fixed_length);
+  Field *tmp_table_field_from_field_type(TABLE *table,
+                                         bool fixed_length,
+                                         bool set_blob_packlength);
   virtual Item_field *field_for_view_update() { return 0; }
 
   virtual Item *neg_transformer(THD *thd) { return NULL; }
@@ -2154,48 +2198,6 @@ public:
   }
 };
 
-bool agg_item_collations(DTCollation &c, const char *name,
-                         Item **items, uint nitems, uint flags, int item_sep);
-bool agg_item_collations_for_comparison(DTCollation &c, const char *name,
-                                        Item **items, uint nitems, uint flags);
-bool agg_item_set_converter(DTCollation &coll, const char *fname,
-                            Item **args, uint nargs, uint flags, int item_sep);
-bool agg_item_charsets(DTCollation &c, const char *name,
-                       Item **items, uint nitems, uint flags, int item_sep);
-inline bool
-agg_item_charsets_for_string_result(DTCollation &c, const char *name,
-                                    Item **items, uint nitems,
-                                    int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_ALLOW_NUMERIC_CONV;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-inline bool
-agg_item_charsets_for_comparison(DTCollation &c, const char *name,
-                                 Item **items, uint nitems,
-                                 int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_DISALLOW_NONE;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-inline bool
-agg_item_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                    const char *name,
-                                                    Item **items, uint nitems,
-                                                    int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_ALLOW_NUMERIC_CONV |
-              MY_COLL_DISALLOW_NONE;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-
-
 class Item_num: public Item_basic_constant
 {
 public:
@@ -2223,7 +2225,12 @@ public:
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
   Field *tmp_table_field(TABLE *t_arg) { return result_field; }
-  table_map used_tables() const { return true; }
+  /*
+    This implementation of used_tables() used by Item_avg_field and
+    Item_variance_field which work when only temporary table left, so theu
+    return table map of the temporary table.
+  */
+  table_map used_tables() const { return 1; }
   void set_result_field(Field *field) { result_field= field; }
   bool is_result_field() { return true; }
   void save_in_result_field(bool no_conversions)
@@ -2333,7 +2340,6 @@ protected:
 public:
   Field *field;
   Item_equal *item_equal;
-  bool no_const_subst;
   /*
     if any_privileges set to TRUE then here real effective privileges will
     be stored
@@ -2460,12 +2466,12 @@ public:
   bool vcol_in_partition_func_processor(uchar *bool_arg);
   bool enumerate_field_refs_processor(uchar *arg);
   bool update_table_bitmaps_processor(uchar *arg);
+  bool switch_to_nullable_fields_processor(uchar *arg);
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
-  bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
@@ -2489,6 +2495,47 @@ public:
   friend class st_select_lex_unit;
 };
 
+
+/*
+  @brief 
+    Item_temptable_field is the same as Item_field, except that print() 
+    continues to work even if the table has been dropped.
+
+  @detail
+
+    We need this item for "ANALYZE statement" feature. Query execution has 
+    these steps:
+
+      1. Run the query.
+      2. Cleanup starts. Temporary tables are destroyed
+      3. print "ANALYZE statement" output, if needed
+      4. Call close_thread_table() for regular tables.
+
+    Step #4 is done after step #3, so "ANALYZE stmt" has no problem printing
+    Item_field objects that refer to regular tables.
+
+    However, Step #3 is done after Step #2. Attempt to print Item_field objects
+    that refer to temporary tables will cause access to freed memory. 
+    
+    To resolve this, we use Item_temptable_field to refer to items in temporary
+    (work) tables.
+*/
+
+class Item_temptable_field :public Item_field
+{
+public:
+  Item_temptable_field(THD *thd, Name_resolution_context *context_arg, Field *field)
+   : Item_field(thd, context_arg, field) {}
+
+  Item_temptable_field(THD *thd, Field *field)
+   : Item_field(thd, field) {}
+
+  Item_temptable_field(THD *thd, Item_field *item) : Item_field(thd, item) {};
+
+  virtual void print(String *str, enum_query_type query_type);
+};
+
+
 class Item_null :public Item_basic_constant
 {
 public:
@@ -2499,7 +2546,7 @@ public:
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(cs, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
@@ -2645,7 +2692,7 @@ public:
 
   /*
     If value for parameter was not set we treat it as non-const
-    so noone will use parameters value in fix_fields still
+    so no one will use parameters value in fix_fields still
     parameter is constant during execution.
   */
   virtual table_map used_tables() const
@@ -3155,6 +3202,8 @@ public:
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  Field *create_field_for_schema(THD *thd, TABLE *table)
+  { return tmp_table_field_from_field_type(table, false, true); }
 };
 
 
@@ -3276,18 +3325,12 @@ public:
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return longlong_from_string_with_check(str_value.charset(),
-                                           str_value.ptr(),
-                                           str_value.ptr()+
-                                           str_value.length());
+    return longlong_from_string_with_check(&str_value);
   }
   double val_real()
   { 
     DBUG_ASSERT(fixed == 1);
-    return double_from_string_with_check(str_value.charset(),
-                                         str_value.ptr(), 
-                                         str_value.ptr() +
-                                         str_value.length());
+    return double_from_string_with_check(&str_value);
   }
   my_decimal *val_decimal(my_decimal *decimal_value)
   {
@@ -3355,7 +3398,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   Field *tmp_table_field(TABLE *table)
-  { return tmp_table_field_from_field_type(table, 0); }
+  { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
 };
@@ -3492,6 +3535,7 @@ class Item_args
 {
 protected:
   Item **args, *tmp_arg[2];
+  uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
   bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
   {
@@ -3505,7 +3549,6 @@ protected:
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
 public:
-  uint arg_count;
   Item_args(void)
     :args(NULL), arg_count(0)
   { }
@@ -3581,14 +3624,15 @@ public:
     used_tables_cache= 0;
     const_item_cache= true;
   }
-  void used_tables_and_const_cache_copy(const Used_tables_and_const_cache *c)
-  {
-    *this= *c;
-  }
   void used_tables_and_const_cache_join(const Item *item)
   {
     used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
+  }
+  void used_tables_and_const_cache_update_and_join(Item *item)
+  {
+    item->update_used_tables();
+    used_tables_and_const_cache_join(item);
   }
   /*
     Call update_used_tables() for all "argc" items in the array "argv"
@@ -3599,10 +3643,7 @@ public:
   void used_tables_and_const_cache_update_and_join(uint argc, Item **argv)
   {
     for (uint i=0 ; i < argc ; i++)
-    {
-      argv[i]->update_used_tables();
-      used_tables_and_const_cache_join(argv[i]);
-    }
+      used_tables_and_const_cache_update_and_join(argv[i]);
   }
   /*
     Call update_used_tables() for all items in the list
@@ -3615,10 +3656,7 @@ public:
     List_iterator_fast<Item> li(list);
     Item *item;
     while ((item=li++))
-    {
-      item->update_used_tables();
-      used_tables_and_const_cache_join(item);
-    }
+      used_tables_and_const_cache_update_and_join(item);
   }
 };
 
@@ -3627,8 +3665,127 @@ public:
   An abstract class representing common features of
   regular functions and aggregate functions.
 */
-class Item_func_or_sum: public Item_result_field, public Item_args
+class Item_func_or_sum: public Item_result_field,
+                        public Item_args,
+                        public Used_tables_and_const_cache
 {
+  bool agg_item_collations(DTCollation &c, const char *name,
+                           Item **items, uint nitems,
+                           uint flags, int item_sep);
+  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
+                              Item **args, uint nargs,
+                              uint flags, int item_sep);
+protected:
+  /*
+    Collect arguments' character sets together.
+    We allow to apply automatic character set conversion in some cases.
+    The conditions when conversion is possible are:
+    - arguments A and B have different charsets
+    - A wins according to coercibility rules
+      (i.e. a column is stronger than a string constant,
+       an explicit COLLATE clause is stronger than a column)
+    - character set of A is either superset for character set of B,
+      or B is a string constant which can be converted into the
+      character set of A without data loss.
+
+    If all of the above is true, then it's possible to convert
+    B into the character set of A, and then compare according
+    to the collation of A.
+
+    For functions with more than two arguments:
+
+      collect(A,B,C) ::= collect(collect(A,B),C)
+
+    Since this function calls THD::change_item_tree() on the passed Item **
+    pointers, it is necessary to pass the original Item **'s, not copies.
+    Otherwise their values will not be properly restored (see BUG#20769).
+    If the items are not consecutive (eg. args[2] and args[5]), use the
+    item_sep argument, ie.
+
+      agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
+  */
+  bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
+                        uint flags, int item_sep)
+  {
+    if (agg_item_collations(c, func_name(), items, nitems, flags, item_sep))
+      return true;
+
+    return agg_item_set_converter(c, func_name(), items, nitems,
+                                  flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, e.g: CONCAT(a,b)
+    - convert to @@character_set_connection if all arguments are numbers
+    - allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result(DTCollation &c,
+                                          Item **items, uint nitems,
+                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, when some comparison
+    is involved internally, e.g: REPLACE(a,b,c)
+    - convert to @@character_set_connection if all arguments are numbers
+    - disallow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
+                                                          Item **items,
+                                                          uint nitems,
+                                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+
+  /*
+    Aggregate arguments for comparison, e.g: a=b, a LIKE b, a RLIKE b
+    - don't convert to @@character_set_connection if all arguments are numbers
+    - don't allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_comparison(DTCollation &c,
+                                       Item **items, uint nitems,
+                                       int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+
+
+public:
+  // This method is used by Arg_comparator
+  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b)
+  {
+    DTCollation tmp;
+    if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
+        tmp.derivation == DERIVATION_NONE)
+    {
+      my_error(ER_CANT_AGGREGATE_2COLLATIONS,MYF(0),
+               (*a)->collation.collation->name,
+               (*a)->collation.derivation_name(),
+               (*b)->collation.collation->name,
+               (*b)->collation.derivation_name(),
+               func_name());
+      return true;
+    }
+    if (agg_item_set_converter(tmp, func_name(),
+                               a, 1, MY_COLL_CMP_CONV, 1) ||
+        agg_item_set_converter(tmp, func_name(),
+                               b, 1, MY_COLL_CMP_CONV, 1))
+      return true;
+    *cs= tmp.collation;
+    return false;
+  }
+
 public:
   Item_func_or_sum(THD *thd): Item_result_field(thd), Item_args() {}
   Item_func_or_sum(THD *thd, Item *a): Item_result_field(thd), Item_args(a) { }
@@ -3641,7 +3798,8 @@ public:
   Item_func_or_sum(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e):
     Item_result_field(thd), Item_args(a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
-    Item_result_field(thd, item), Item_args(thd, item) { }
+    Item_result_field(thd, item), Item_args(thd, item),
+    Used_tables_and_const_cache(item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
@@ -3668,6 +3826,8 @@ public:
   */
   virtual const char *func_name() const= 0;
   virtual void fix_length_and_dec()= 0;
+  bool const_item() const { return const_item_cache; }
+  table_map used_tables() const { return used_tables_cache; }
 };
 
 
@@ -4105,6 +4265,8 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   Item *get_tmp_table_item(THD *thd)
   {
+    if (const_item())
+      return copy_or_same(thd);
     Item *item= Item_ref::get_tmp_table_item(thd);
     item->name= name;
     return item;
@@ -4910,6 +5072,12 @@ public:
     return (this->*processor)(arg);
   }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
+  void split_sum_func2_example(THD *thd, Item **ref_pointer_array,
+                               List<Item> &fields, uint flags)
+  {
+    example->split_sum_func2(thd, ref_pointer_array, fields, &example, flags);
+  }
+  Item *get_example() const { return example; }
 };
 
 
@@ -5013,6 +5181,30 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
 };
+
+
+class Item_cache_str_for_nullif: public Item_cache_str
+{
+public:
+  Item_cache_str_for_nullif(THD *thd, const Item *item)
+   :Item_cache_str(thd, item)
+  { }
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+  {
+    /**
+      Item_cache_str::safe_charset_converter() returns a new Item_cache
+      with Item_func_conv_charset installed on "example". The original
+      Item_cache is not referenced (neither directly nor recursively)
+      from the result of Item_cache_str::safe_charset_converter().
+
+      For NULLIF() purposes we need a different behavior:
+      we need a new instance of Item_func_conv_charset,
+      with the original Item_cache referenced in args[0]. See MDEV-9181.
+    */
+    return Item::safe_charset_converter(thd, tocs);
+  }
+};
+
 
 class Item_cache_row: public Item_cache
 {

@@ -43,7 +43,8 @@ UNIV_INTERN
 ibool
 log_block_checksum_is_ok_or_old_format(
 /*===================================*/
-	const byte*	block);	/*!< in: pointer to a log block */
+	const byte*	block,	/*!< in: pointer to a log block */
+	bool		print_err); /*!< in print error ? */
 
 /*******************************************************//**
 Calculates the new value for lsn when more data is added to the log. */
@@ -312,7 +313,7 @@ recv_sys_var_init(void);
 Empties the hash table of stored log records, applying them to appropriate
 pages. */
 UNIV_INTERN
-void
+dberr_t
 recv_apply_hashed_log_recs(
 /*=======================*/
 	ibool	allow_ibuf);	/*!< in: if TRUE, also ibuf operations are

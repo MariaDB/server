@@ -4,15 +4,15 @@
 -- source include/not_embedded.inc
 -- source include/not_windows.inc
 
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded.");
+
 --let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
 --let $MYSQLD_DATADIR = `SELECT @@datadir`
 --let SEARCH_RANGE = 10000000
+--let $id = `SELECT RAND()`
 --let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
 --let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
---let t1_IBD_1 = $MYSQLD_TMPDIR/t1.ibd
---let t2_IBD_1 = $MYSQLD_TMPDIR/t2.ibd
---let t3_IBD_1 = $MYSQLD_TMPDIR/t3.ibd
 
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
@@ -70,12 +70,26 @@ FLUSH TABLE t1, t2, t3 FOR EXPORT;
 
 --echo # List before copying files
 --list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1.cfg
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1.ibd
---copy_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_TMPDIR/t2.cfg
---copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_TMPDIR/t2.ibd
---copy_file $MYSQLD_DATADIR/test/t3.cfg $MYSQLD_TMPDIR/t3.cfg
---copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_TMPDIR/t3.ibd
+--disable_result_log
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t1.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t1.ibd
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t2.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t2.ibd
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t3.cfg
+--error 0,1,2
+--remove_file $MYSQLD_TMPDIR/t3.ibd
+--enable_result_log
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1$id.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1$id.ibd
+--copy_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_TMPDIR/t2$id.cfg
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_TMPDIR/t2$id.ibd
+--copy_file $MYSQLD_DATADIR/test/t3.cfg $MYSQLD_TMPDIR/t3$id.cfg
+--copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_TMPDIR/t3$id.ibd
 UNLOCK TABLES;
 
 --echo # Restarting server
@@ -91,29 +105,34 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t3 DISCARD TABLESPACE;
 
---sleep 5
---echo # Discarded tablespaces should be encrypted
---let SEARCH_PATTERN=foobar
---echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$t1_IBD_1
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=temp
---echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t2_IBD_1
--- source include/search_pattern_in_file.inc
---echo # t3 ... on expecting NOT FOUND
---let SEARCH_PATTERN=barfoo
--- let SEARCH_FILE=$t3_IBD_1
--- source include/search_pattern_in_file.inc
-
 --echo # List after t1 DISCARD
 --list_files $MYSQLD_DATADIR/test
---copy_file $MYSQLD_TMPDIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
---copy_file $MYSQLD_TMPDIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
---copy_file $MYSQLD_TMPDIR/t2.cfg $MYSQLD_DATADIR/test/t2.cfg
---copy_file $MYSQLD_TMPDIR/t2.ibd $MYSQLD_DATADIR/test/t2.ibd
---copy_file $MYSQLD_TMPDIR/t3.cfg $MYSQLD_DATADIR/test/t3.cfg
---copy_file $MYSQLD_TMPDIR/t3.ibd $MYSQLD_DATADIR/test/t3.ibd
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t1.cfg
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t2.cfg
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t3.cfg
+--error 0,1,2
+--remove_file $MYSQLD_DATADIR/test/t3.ibd
+--enable_result_log
+--echo # Restarting server
+-- source include/restart_mysqld.inc
+--echo # Done restarting server
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
+--copy_file $MYSQLD_TMPDIR/t1$id.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_TMPDIR/t1$id.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQLD_TMPDIR/t2$id.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_TMPDIR/t2$id.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_TMPDIR/t3$id.cfg $MYSQLD_DATADIR/test/t3.cfg
+--copy_file $MYSQLD_TMPDIR/t3$id.ibd $MYSQLD_DATADIR/test/t3.ibd
 
 --sleep 5
 --echo # Tablespaces should be still encrypted
@@ -131,8 +150,11 @@ ALTER TABLE t3 DISCARD TABLESPACE;
 -- source include/search_pattern_in_file.inc
 
 ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT COUNT(1) FROM t1;
 ALTER TABLE t2 IMPORT TABLESPACE;
+SELECT COUNT(1) FROM t2;
 ALTER TABLE t3 IMPORT TABLESPACE;
+SELECT COUNT(1) FROM t3;
 
 --sleep 5
 --echo # tablespaces should remain encrypted after import

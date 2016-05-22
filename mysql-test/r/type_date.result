@@ -439,6 +439,50 @@ select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 1
 drop table t1;
 #
+# MDEV-9521 Least function returns 0000-00-00 for null date columns instead of null
+#
+CREATE TABLE t1 (
+id BIGINT NOT NULL,
+date_debut DATE NOT NULL,
+date_fin DATE DEFAULT NULL);
+CREATE TABLE t2(
+id BIGINT NOT NULL,
+date_debut DATE NOT NULL,
+date_fin DATE DEFAULT NULL);
+INSERT INTO t1 VALUES (1,'2016-01-01','2016-01-31');
+INSERT INTO t1 VALUES (2,'2016-02-01',null);
+INSERT INTO t1 VALUES (3,'2016-03-01','2016-03-31');
+INSERT INTO t1 VALUES (4,'2016-04-01',null);
+INSERT INTO t2 VALUES (1,'2016-01-01','2016-01-31');
+INSERT INTO t2 VALUES (2,'2016-02-01','2016-01-28');
+INSERT INTO t2 VALUES (3,'2016-03-01',null);
+INSERT INTO t2 VALUES (4,'2016-04-01',null);
+SELECT t1.id,
+GREATEST(t2.date_debut, t1.date_debut) AS date_debut,
+LEAST(IFNULL(t2.date_fin, IFNULL(t1.date_fin, NULL)),
+IFNULL(t1.date_fin, IFNULL(t2.date_fin, NULL))) AS date_fin
+FROM t1 LEFT JOIN t2 ON (t1.id=t2.id);
+id	date_debut	date_fin
+1	2016-01-01	2016-01-31
+2	2016-02-01	2016-01-28
+3	2016-03-01	2016-03-31
+4	2016-04-01	NULL
+DROP TABLE t1,t2;
+SELECT
+LEAST(COALESCE(DATE(NULL), DATE(NULL)), COALESCE(DATE(NULL), DATE(NULL))) AS d0,
+LEAST(IFNULL(DATE(NULL), DATE(NULL)), IFNULL(DATE(NULL), DATE(NULL))) AS d1;
+d0	d1
+NULL	NULL
+#
+# MDEV-9511 Valgrind warnings 'Invalid read' in Field_newdate::cmp and Field_newdate::val_str
+#
+CREATE TABLE t1 (f1 DATE, f2 VARCHAR(1));
+INSERT INTO t1 VALUES ('2003-04-27','a'),('1900-01-01','a');
+SELECT GROUP_CONCAT(f2, IF(f1, f2, f1), f1 ORDER BY 2,1,3) FROM t1;
+GROUP_CONCAT(f2, IF(f1, f2, f1), f1 ORDER BY 2,1,3)
+aa1900-01-01,aa2003-04-27
+DROP TABLE t1;
+#
 # Start of 10.1 tests
 #
 #
@@ -510,12 +554,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = DATE'2001-01-01')
 DROP TABLE t1;
-#
-# End of 10.1 tests
-#
-#
-# Start of 10.1 tests
-#
 #
 #     MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
 #
@@ -757,6 +795,49 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = DATE'2001-01-01')
+DROP TABLE t1;
+#
+# MDEV-8658 DATE(zerofill_column) and DATE(COALESCE(zerofill_column)) return different results
+#
+CREATE TABLE t1 (a INT(6) ZEROFILL, b DECIMAL(6) ZEROFILL, c DOUBLE(6,0) ZEROFILL);
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+DATE(a)	DATE(b)	DATE(c)
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT(6), b DECIMAL(6), c DOUBLE(6,0));
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+DATE(a)	DATE(b)	DATE(c)
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t1;
 #
 # End of 10.1 tests

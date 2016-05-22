@@ -169,6 +169,13 @@ sub fix_log {
   return "$dir/mysqld.log";
 }
 
+sub fix_bind_address {
+  if (IS_WINDOWS) {
+    return "*";
+  } else {
+    return "127.0.0.1";
+  }
+}
 sub fix_log_slow_queries {
   my ($self, $config, $group_name, $group)= @_;
   my $dir= dirname($group->value('datadir'));
@@ -251,6 +258,7 @@ my @mysqld_rules=
  { 'ssl-ca' => \&fix_ssl_ca },
  { 'ssl-cert' => \&fix_ssl_server_cert },
  { 'ssl-key' => \&fix_ssl_server_key },
+ { 'bind-address' => \&fix_bind_address },
   );
 
 if (IS_WINDOWS)
@@ -266,6 +274,7 @@ if (IS_WINDOWS)
 #
 my @client_rules=
 (
+ { 'character-sets-dir' => \&fix_charset_dir },
 );
 
 
@@ -288,7 +297,6 @@ my @mysqltest_rules=
 #
 my @mysqlbinlog_rules=
 (
- { 'character-sets-dir' => \&fix_charset_dir },
 );
 
 

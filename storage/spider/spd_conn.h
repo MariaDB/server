@@ -100,6 +100,12 @@ void spider_conn_queue_ping(
   int link_idx
 );
 
+void spider_conn_queue_ping_rewrite(
+  ha_spider *spider,
+  SPIDER_CONN *conn,
+  int link_idx
+);
+
 void spider_conn_queue_trx_isolation(
   SPIDER_CONN *conn,
   int trx_isolation

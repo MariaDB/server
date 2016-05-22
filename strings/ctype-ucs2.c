@@ -818,6 +818,21 @@ cnv:
 
 
 #ifdef HAVE_CHARSET_mb2
+/**
+  Convert a Unicode code point to a digit.
+  @param      wc  - the input Unicode code point
+  @param[OUT] c   - the output character representing the digit value 0..9
+
+  @return   0     - if wc is a good digit
+  @return   1     - if wc is not a digit
+*/
+static inline my_bool
+wc2digit_uchar(uchar *c, my_wc_t wc)
+{
+  return wc > '9' || (c[0]= (uchar) (wc - '0')) > 9;
+}
+
+
 static longlong
 my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
                  const char *nptr, char **endptr, int *error)
@@ -921,7 +936,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
   {
     if ((res= mb_wc(cs, &wc, s, n_end)) <= 0)
       break;
-    if ((c= (wc - '0')) > 9)
+    if (wc2digit_uchar(&c, wc))
       goto end_i;
     i= i*10+c;
   }
@@ -938,7 +953,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
   {
     if ((res= mb_wc(cs, &wc, s, end)) <= 0)
       goto no_conv;
-    if ((c= (wc - '0')) > 9)
+    if (wc2digit_uchar(&c, wc))
       goto end_i_and_j;
     s+= res;
     j= j * 10 + c;
@@ -961,7 +976,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
     goto end4;
   if ((res= mb_wc(cs, &wc, s, end)) <= 0)
     goto no_conv;
-  if ((c= (wc - '0')) > 9)
+  if (wc2digit_uchar(&c, wc))
     goto end4;
   s+= res;
   k= k*10+c;
@@ -1896,7 +1911,8 @@ struct charset_info_st my_charset_utf16le_bin=
 
 #define IS_MB4_CHAR(b0,b1,b2,b3)   (IS_UTF32_MBHEAD4(b0,b1))
 
-#define MY_UTF32_WC4(b0,b1,b2,b3)  ((b0 << 24) + (b1 << 16) + (b2 << 8) + (b3))
+#define MY_UTF32_WC4(b0,b1,b2,b3)  ((((my_wc_t)b0) << 24) + (b1 << 16) + \
+                                                (b2 << 8) + (b3))
 
 static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
                                              uchar b2, uchar b3)

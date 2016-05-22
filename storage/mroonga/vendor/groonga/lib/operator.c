@@ -352,7 +352,7 @@ grn_operator_exec_equal(grn_ctx *ctx, grn_obj *x, grn_obj *y)
 grn_bool
 grn_operator_exec_not_equal(grn_ctx *ctx, grn_obj *x, grn_obj *y)
 {
-  grn_bool r;
+  grn_bool r= 0;
   GRN_API_ENTER;
   DO_EQ(x, y, r);
   GRN_API_RETURN(!r);

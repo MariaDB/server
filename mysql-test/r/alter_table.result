@@ -2021,6 +2021,15 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `idx` (`i`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+CREATE TABLE t1 (
+`event_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+`market_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (`event_id`,`market_id`)
+);
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS event_id (event_id,market_id);
+Warnings:
+Note	1061	Multiple primary key defined
+DROP TABLE t1;
 #
 # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
 #
@@ -2045,6 +2054,3 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`) COMMENT 'comment2'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
-#
-# Start of 10.1 tests
-#

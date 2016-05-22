@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqladmin\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLADMIN\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLADMIN\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +15,7 @@
 .\" administration: server
 .\" server administration
 .SH "NAME"
-mysqladmin \- client for administering a MySQL server
+mysqladmin \- client for administering a MariaB server
 .SH "SYNOPSIS"
 .HP \w'\fBmysqladmin\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]\ [\fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]]\ \&.\&.\&.\fR\ 'u
 \fBmysqladmin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB] [\fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB]] \&.\&.\&.\fR
@@ -74,8 +67,7 @@ debug
 .sp
 Tell the server to write debug information to the error log\&.
 .sp
-Beginning with MySQL 5\&.1\&.12, this includes information about the Event Scheduler\&. See
-Section\ \&19.4.5, \(lqEvent Scheduler Status\(rq\&.
+This also includes information about the Event Scheduler\&.
 .RE
 .sp
 .RS 4
@@ -210,8 +202,7 @@ old\-password \fInew\-password\fR
 .sp
 This is like the
 password
-command but stores the password using the old (pre\-4\&.1) password\-hashing format\&. (See
-Section\ \&5.3.2.3, \(lqPassword Hashing in MySQL\(rq\&.)
+command but stores the password using the old (pre MySQL 4\&.1) password\-hashing format\&.
 .RE
 .sp
 .RS 4
@@ -303,8 +294,7 @@ SHOW PROCESSLIST
 statement\&. If the
 \fB\-\-verbose\fR
 option is given, the output is like that of
-SHOW FULL PROCESSLIST\&. (See
-Section\ \&12.4.5.31, \(lqSHOW PROCESSLIST Syntax\(rq\&.)
+SHOW FULL PROCESSLIST\&.
 .RE
 .sp
 .RS 4
@@ -448,7 +438,7 @@ command result displays the following values:
 .\" uptime
 Uptime
 .sp
-The number of seconds the MySQL server has been running\&.
+The number of seconds the MariaDB server has been running\&.
 .RE
 .sp
 .RS 4
@@ -492,8 +482,7 @@ Slow queries
 .sp
 The number of queries that have taken more than
 long_query_time
-seconds\&. See
-Section\ \&5.2.5, \(lqThe Slow Query Log\(rq\&.
+seconds\&.
 .RE
 .sp
 .RS 4
@@ -555,7 +544,7 @@ The number of tables that currently are open\&.
 Memory in use
 .sp
 The amount of memory allocated directly by
-\fBmysqld\fR\&. This value is displayed only when MySQL has been compiled with
+\fBmysqld\fR\&. This value is displayed only when MariaDB has been compiled with
 \fB\-\-with\-debug=full\fR\&.
 .RE
 .sp
@@ -571,7 +560,7 @@ The amount of memory allocated directly by
 Maximum memory used
 .sp
 The maximum amount of memory allocated directly by
-\fBmysqld\fR\&. This value is displayed only when MySQL has been compiled with
+\fBmysqld\fR\&. This value is displayed only when MariaDB has been compiled with
 \fB\-\-with\-debug=full\fR\&.
 .RE
 .PP
@@ -591,9 +580,6 @@ supports the following options, which can be specified on the command line or in
 and
 [client]
 option file groups\&.
-\fBmysqladmin\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
 .sp
 .RS 4
 .ie n \{\
@@ -608,7 +594,7 @@ Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
-Display a help message and exit\&.
+Display help and exit\&.
 .RE
 .sp
 .RS 4
@@ -623,8 +609,7 @@ Display a help message and exit\&.
 .\" character-sets-dir option: mysqladmin
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
-The directory where character sets are installed\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+The directory where character sets are installed\&.
 .RE
 .sp
 .RS 4
@@ -708,7 +693,7 @@ string is
 .\" debug-check option: mysqladmin
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Check memory and open file usage at exit.\&.
 .RE
 .sp
 .RS 4
@@ -723,7 +708,22 @@ Print some debugging information when the program exits\&. This option was added
 .\" debug-info option: mysqladmin
 \fB\-\-debug\-info\fR
 .sp
-Print debugging information and memory and CPU usage statistics when the program exits\&. This option was added in MySQL 5\&.1\&.14\&.
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: default-auth option
+.\" default-auth option: mysqladmin
+\fB\-\-default\-auth\fR
+.sp
+Default authentication client-side plugin to use\&.
 .RE
 .sp
 .RS 4
@@ -740,8 +740,7 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp
 Use
 \fIcharset_name\fR
-as the default character set\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+as the default character set\&.
 .RE
 .sp
 .RS 4
@@ -806,7 +805,7 @@ command\&. With multiple commands, continue even if an error occurs\&.
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -822,7 +821,7 @@ Connect to the MySQL server on the given host\&.
 \fB\-\-no\-beep\fR,
 \fB\-b\fR
 .sp
-Suppress the warning beep that is emitted by default for errors such as a failure to connect to the server\&. This option was added in MySQL 5\&.1\&.17\&.
+Suppress the warning beep that is emitted by default for errors such as a failure to connect to the server\&.
 .RE
 .sp
 .RS 4
@@ -865,8 +864,7 @@ option on the command line,
 \fBmysqladmin\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&.
 .RE
 .sp
 .RS 4
@@ -898,7 +896,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection\&.
+The TCP/IP port number to use for the connection or 0 for default to, 
+in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 .RE
 .sp
 .RS 4
@@ -928,8 +927,7 @@ Print the program argument list and exit\&. This must be given as the first argu
 .\" protocol option: mysqladmin
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
-The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&. For details on the allowable values, see
-Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -1034,12 +1032,137 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .\}
 .\" mysqladmin: SSL options
 .\" SSL options: mysqladmin
-\fB\-\-ssl*\fR
-.sp
-Options that begin with
 \fB\-\-ssl\fR
-specify whether to connect to the server via SSL and indicate where to find SSL keys and certificates\&. See
-Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL CA option
+.\" SSL CA option: mysqladmin
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL CA Path option
+.\" SSL CA Path option: mysqladmin
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Cert option
+.\" SSL Cert option: mysqladmin
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Cipher option
+.\" SSL Cipher option: mysqladmin
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Key option
+.\" SSL Key option: mysqladmin
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Crl option
+.\" SSL CRL option: mysqladmin
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Crlpath option
+.\" SSL Crlpath option: mysqladmin
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqladmin: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysqladmin
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -1055,7 +1178,7 @@ Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -1127,9 +1250,6 @@ value is given, it indicates the number of times to retry\&. The default is one 
 .PP
 You can also set the following variables by using
 \fB\-\-\fR\fB\fIvar_name\fR\fR\fB=\fR\fB\fIvalue\fR\fR
-The
-\fB\-\-set\-variable\fR
-format is deprecated and is removed in MySQL 5\&.5\&. syntax:
 .sp
 .RS 4
 .ie n \{\
@@ -1163,7 +1283,7 @@ The maximum number of seconds to wait for server shutdown\&. The default value i
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -1172,8 +1292,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

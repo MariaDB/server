@@ -73,7 +73,6 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "debug_sync.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "lock.h"
 #include "sql_base.h"                       // close_tables_for_reopen
 #include "sql_parse.h"                     // is_log_table_write_query
@@ -90,7 +89,6 @@ extern HASH open_cache;
 
 static int lock_external(THD *thd, TABLE **table,uint count);
 static int unlock_external(THD *thd, TABLE **table,uint count);
-static void print_lock_error(int error, TABLE *);
 
 /* Map the return value of thr_lock to an error from errmsg.txt */
 static int thr_lock_errno_to_mysql[]=
@@ -365,7 +363,7 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 
     if ((error=(*tables)->file->ha_external_lock(thd,lock_type)))
     {
-      print_lock_error(error, *tables);
+      (*tables)->file->print_error(error, MYF(0));
       while (--i)
       {
         tables--;
@@ -687,8 +685,8 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
       (*table)->current_lock = F_UNLCK;
       if ((error=(*table)->file->ha_external_lock(thd, F_UNLCK)))
       {
-	error_code=error;
-	print_lock_error(error_code, *table);
+        error_code= error;
+        (*table)->file->print_error(error, MYF(0));
       }
     }
     table++;
@@ -907,36 +905,6 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
 
   DEBUG_SYNC(thd, "after_wait_locked_pname");
   return FALSE;
-}
-
-
-static void print_lock_error(int error, TABLE *table)
-{
-  int textno;
-  DBUG_ENTER("print_lock_error");
-
-  switch (error) {
-  case HA_ERR_LOCK_WAIT_TIMEOUT:
-    textno=ER_LOCK_WAIT_TIMEOUT;
-    break;
-  case HA_ERR_READ_ONLY_TRANSACTION:
-    textno=ER_READ_ONLY_TRANSACTION;
-    break;
-  case HA_ERR_LOCK_DEADLOCK:
-    textno=ER_LOCK_DEADLOCK;
-    break;
-  case HA_ERR_WRONG_COMMAND:
-    my_error(ER_ILLEGAL_HA, MYF(0), table->file->table_type(),
-             table->s->db.str, table->s->table_name.str);
-    DBUG_VOID_RETURN;
-  default:
-    textno=ER_CANT_LOCK;
-    break;
-  }
-
-  my_error(textno, MYF(0), error);
-
-  DBUG_VOID_RETURN;
 }
 
 

@@ -1,0 +1,19 @@
+START SLAVE USER='root';
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 INTEGER) ENGINE=InnoDB;
+SELECT COUNT(DISTINCT f1) = 2 * 100 * 10 * 10 FROM t1;
+COUNT(DISTINCT f1) = 2 * 100 * 10 * 10
+1
+SELECT COUNT(*) = 2 * 100 * 10 * 10 FROM t1;
+COUNT(*) = 2 * 100 * 10 * 10
+1
+SELECT COUNT(DISTINCT f1) = 2 * 100 * 10 * 10 FROM t1;
+COUNT(DISTINCT f1) = 2 * 100 * 10 * 10
+1
+DROP TABLE t1;
+DROP TABLE ten;
+STOP SLAVE;
+RESET SLAVE ALL;

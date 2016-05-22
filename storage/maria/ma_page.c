@@ -219,13 +219,8 @@ my_bool _ma_write_keypage(MARIA_PAGE *page, enum pagecache_page_lock lock,
   /* Verify that keynr is correct */
   DBUG_ASSERT(_ma_get_keynr(share, buff) == page->keyinfo->key_nr);
 
-#if defined(EXTRA_DEBUG) && defined(HAVE_valgrind) && defined(NOT_ANYMORE)
-  {
-    /* This is here to catch uninitialized bytes */
-    uint length= page->size;
-    ulong crc= my_checksum(0, buff, length);
-    int4store(buff + block_size - KEYPAGE_CHECKSUM_SIZE, crc);
-  }
+#if defined(EXTRA_DEBUG) && defined(HAVE_valgrind) && defined(WHEN_DEBUGGING)
+  MEM_CHECK_DEFINED(buff, block_size);
 #endif
 
   page_cleanup(share, page);

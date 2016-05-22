@@ -86,10 +86,12 @@ typedef volatile LONG my_pthread_once_t;
 #define MY_PTHREAD_ONCE_INPROGRESS 1
 #define MY_PTHREAD_ONCE_DONE 2
 
+#if !STRUCT_TIMESPEC_HAS_TV_SEC  || !STRUCT_TIMESPEC_HAS_TV_NSEC
 struct timespec {
   time_t tv_sec;
   long tv_nsec;
 };
+#endif
 
 int win_pthread_mutex_trylock(pthread_mutex_t *mutex);
 int pthread_create(pthread_t *, const pthread_attr_t *, pthread_handler, void *);
@@ -701,8 +703,8 @@ extern void my_thread_end(void);
 extern const char *my_thread_name(void);
 extern my_thread_id my_thread_dbug_id(void);
 extern int pthread_dummy(int);
-extern void my_mutex_init();
-extern void my_mutex_end();
+extern void my_mutex_init(void);
+extern void my_mutex_end(void);
 
 /* All thread specific variables are in the following struct */
 
@@ -712,7 +714,7 @@ extern void my_mutex_end();
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(288*1024L)
+#define DEFAULT_THREAD_STACK	(289*1024L)
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0
@@ -745,8 +747,8 @@ struct st_my_thread_var
 };
 
 extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
-extern void **my_thread_var_dbug();
-extern safe_mutex_t **my_thread_var_mutex_in_use();
+extern void **my_thread_var_dbug(void);
+extern safe_mutex_t **my_thread_var_mutex_in_use(void);
 extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())

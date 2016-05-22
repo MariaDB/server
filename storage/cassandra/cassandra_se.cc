@@ -231,8 +231,8 @@ bool Cassandra_se_impl::reconnect()
 void Cassandra_se_impl::set_consistency_levels(unsigned long read_cons_level,
                                                unsigned long write_cons_level)
 {
-  write_cons_level= (ConsistencyLevel::type)(write_cons_level + 1);
-  read_cons_level=  (ConsistencyLevel::type)(read_cons_level + 1);
+  write_consistency= (ConsistencyLevel::type)(write_cons_level + 1);
+  read_consistency=  (ConsistencyLevel::type)(read_cons_level + 1);
 }
 
 

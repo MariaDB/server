@@ -23,9 +23,13 @@
 #include <my_config.h>
 #include <ctype.h>
 #include <mysql_version.h>
+#include <item.h>
+#include <item_sum.h>
 #include <handler.h>
 #include <table.h>
 #include <field.h>
+
+handlerton *sequence_hton;
 
 class Sequence_share : public Handler_share {
 public:
@@ -52,11 +56,11 @@ class ha_seq: public handler
 {
 private:
   THR_LOCK_DATA lock;
-  Sequence_share *seqs;
   Sequence_share *get_share();
   ulonglong cur;
 
 public:
+  Sequence_share *seqs;
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
   ulonglong table_flags() const
@@ -346,17 +350,148 @@ static int discover_table_existence(handlerton *hton, const char *db,
 
 static int dummy_ret_int() { return 0; }
 
+/*****************************************************************************
+  Example of a simple group by handler for queries like:
+  SELECT SUM(seq) from sequence_table;
+
+  This implementation supports SUM() and COUNT() on primary key.
+*****************************************************************************/
+
+class ha_seq_group_by_handler: public group_by_handler
+{
+  List<Item> *fields;
+  TABLE_LIST *table_list;
+  bool first_row;
+
+public:
+  ha_seq_group_by_handler(THD *thd_arg, List<Item> *fields_arg,
+                          TABLE_LIST *table_list_arg)
+    : group_by_handler(thd_arg, sequence_hton), fields(fields_arg),
+      table_list(table_list_arg) {}
+  ~ha_seq_group_by_handler() {}
+  int init_scan() { first_row= 1 ; return 0; }
+  int next_row();
+  int end_scan()  { return 0; }
+};
+
+static group_by_handler *
+create_group_by_handler(THD *thd, Query *query)
+{
+  ha_seq_group_by_handler *handler;
+  Item *item;
+  List_iterator_fast<Item> it(*query->select);
+
+  /* check that only one table is used in FROM clause and no sub queries */
+  if (query->from->next_local != 0)
+    return 0;
+  /* check that there is no where clause and no group_by */
+  if (query->where != 0 || query->group_by != 0)
+    return 0;
+
+  /*
+    Check that all fields are sum(primary_key) or count(primary_key)
+    For more ways to work with the field list and sum functions, see
+    opt_sum.cc::opt_sum_query().
+  */
+  while ((item= it++))
+  {
+    Item *arg0;
+    Field *field;
+    if (item->type() != Item::SUM_FUNC_ITEM ||
+        (((Item_sum*) item)->sum_func() != Item_sum::SUM_FUNC &&
+         ((Item_sum*) item)->sum_func() != Item_sum::COUNT_FUNC))
+
+      return 0;                                  // Not a SUM() function
+    arg0= ((Item_sum*) item)->get_arg(0);
+    if (arg0->type() != Item::FIELD_ITEM)
+    {
+      if ((((Item_sum*) item)->sum_func() == Item_sum::COUNT_FUNC) &&
+          arg0->basic_const_item())
+        continue;                               // Allow count(1)
+      return 0;
+    }
+    field= ((Item_field*) arg0)->field;
+    /*
+      Check that we are using the sequence table (the only table in the FROM
+      clause) and not an outer table.
+    */
+    if (field->table != query->from->table)
+      return 0;
+    /* Check that we are using a SUM() on the primary key */
+    if (strcmp(field->field_name, "seq"))
+      return 0;
+  }
+
+  /* Create handler and return it */
+  handler= new ha_seq_group_by_handler(thd, query->select, query->from);
+  return handler;
+}
+
+int ha_seq_group_by_handler::next_row()
+{
+  List_iterator_fast<Item> it(*fields);
+  Item_sum *item_sum;
+  Sequence_share *seqs= ((ha_seq*) table_list->table->file)->seqs;
+  DBUG_ENTER("ha_seq_group_by_handler::next_row");
+
+  /*
+    Check if this is the first call to the function. If not, we have already
+    returned all data.
+  */
+  if (!first_row)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  first_row= 0;
+
+  /* Pointer to first field in temporary table where we should store summary*/
+  Field **field_ptr= table->field;
+  ulonglong elements= (seqs->to - seqs->from + seqs->step - 1) / seqs->step;
+
+  while ((item_sum= (Item_sum*) it++))
+  {
+    Field *field= *(field_ptr++);
+    switch (item_sum->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+    {
+      Item *arg0= ((Item_sum*) item_sum)->get_arg(0);
+      if (arg0->basic_const_item() && arg0->is_null())
+        field->store(0LL, 1);
+      else
+        field->store((longlong) elements, 1);
+      break;
+    }
+    case Item_sum::SUM_FUNC:
+    {
+      /* Calculate SUM(f, f+step, f+step*2 ... to) */
+      ulonglong sum;
+      sum= seqs->from * elements + seqs->step * (elements*elements-elements)/2;
+      field->store((longlong) sum, 1);
+      break;
+    }
+    default:
+      DBUG_ASSERT(0);
+    }
+    field->set_notnull();
+  }
+  DBUG_RETURN(0);
+}
+
+
+/*****************************************************************************
+  Initialize the interface between the sequence engine and MariaDB
+*****************************************************************************/
+
 static int init(void *p)
 {
   handlerton *hton= (handlerton *)p;
+  sequence_hton= hton;
   hton->create= create_handler;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback= hton->prepare=
+  hton->commit= hton->rollback=
    (int (*)(handlerton *, THD *, bool)) &dummy_ret_int;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
    (int  (*)(handlerton *, THD *, void *)) &dummy_ret_int;
-    
+  hton->create_group_by= create_group_by_handler;
   return 0;
 }
 

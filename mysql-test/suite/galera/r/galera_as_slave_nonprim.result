@@ -1,0 +1,18 @@
+START SLAVE;
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+expected_error
+1
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+START SLAVE;
+DROP TABLE t1;
+STOP SLAVE;
+RESET SLAVE ALL;
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
+CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
+CALL mtr.add_suppression("Send action {\\(nil\\), 328, TORDERED} returned -107 \\(Transport endpoint is not connected\\)");
+CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
+CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
+RESET MASTER;

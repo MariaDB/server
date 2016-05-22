@@ -276,5 +276,54 @@ drop table t1, tlog;
 sync_slave_with_master;
 
 
+--echo #
+--echo # MDEV-8411 Assertion `is_stat_field || !table || (!table->write_set ||
+--echo #                      bitmap_is_set(table->write_set, field_index) ||
+--echo #                      bitmap_is_set(table->vcol_set, field_index))'
+--echo #           failed in Field_timestamp::store_TIME_with_warning
+--echo #
+--enable_connect_log
+--echo #
+--echo # Create table on master, replicate it on slave.
+--echo #
+--connection master
+set @binlog_row_image.saved = @@binlog_row_image;
+set binlog_row_image = MINIMAL;
+create table t1 (pk int primary key, f int);
+
+--sync_slave_with_master
+--echo #
+--echo # Create a trigger on the slave.
+--echo #
+create trigger tr before update on t1 for each row set new.f = 1000;
+set @old_slave_run_triggers_for_rbr = @@global.slave_run_triggers_for_rbr;
+set global slave_run_triggers_for_rbr = YES;
+
+--connection master
+--echo #
+--echo # Update the table to have the trigger fire on the slave.,
+--echo #
+insert into t1 values (1,1),(2,2);
+update t1 set pk=pk+10;
+select * from t1;
+
+--sync_slave_with_master
+--echo #
+--echo # Check to see if slave has the table updated.
+--echo #
+select * from t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+set global slave_run_triggers_for_rbr = @old_slave_run_triggers_for_rbr;
+
+--connection master
+set binlog_row_image = @binlog_row_image.saved;
+drop table t1;
+
+--sync_slave_with_master
+--disable_connect_log
 
 --source include/rpl_end.inc

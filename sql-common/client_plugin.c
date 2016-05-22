@@ -235,7 +235,7 @@ static void load_env_plugins(MYSQL *mysql)
   This function must be called before any other client plugin function.
 
   @retval 0    successful
-  @retval != 0 error occured
+  @retval != 0 error occurred
 */
 int mysql_client_plugin_init()
 {

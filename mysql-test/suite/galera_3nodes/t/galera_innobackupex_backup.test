@@ -1,0 +1,58 @@
+#
+# This test uses innobackupex to take a backup on node #2 and then restores that node from backup
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+--connection node_2
+SELECT COUNT(*) = 10 FROM t1;
+
+--exec rm -rf $MYSQL_TMP_DIR/innobackupex_backup
+--exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-backup.log
+--exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --apply-log --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-apply.log
+
+--source include/kill_galera.inc
+--sleep 1
+
+--connection node_1
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+
+--exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/*
+--exec innobackupex --copy-back $MYSQL_TMP_DIR/innobackupex_backup --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 > $MYSQL_TMP_DIR/innobackupex-restore.log
+
+#
+# Convert the xtrabackup_galera_info into a grastate.dat file
+#
+
+--perl
+        use strict;
+        my $xtrabackup_galera_info_file = $ENV{'MYSQL_TMP_DIR'}.'/innobackupex_backup/xtrabackup_galera_info';
+        open(XTRABACKUP_GALERA_INFO, $xtrabackup_galera_info_file) or die "Can not open $xtrabackup_galera_info_file: $!";
+        my $xtrabackup_galera_info = <XTRABACKUP_GALERA_INFO>;
+        my ($uuid, $seqno) = split(':', $xtrabackup_galera_info);
+
+        my $grastate_dat_file = $ENV{'MYSQLTEST_VARDIR'}.'/mysqld.2/data/grastate.dat';
+        die "grastate.dat already exists" if -e $grastate_dat_file;
+
+        open(GRASTATE_DAT, ">$grastate_dat_file") or die "Can not write to $grastate_dat_file: $!";
+        print GRASTATE_DAT "version: 2.1\n";
+        print GRASTATE_DAT "uuid:    $uuid\n";
+        print GRASTATE_DAT "seqno:   $seqno\n";
+        print GRASTATE_DAT "cert_index:\n";
+        exit(0);
+EOF
+
+--source include/start_mysqld.inc
+--sleep 5
+
+--source include/wait_until_connected_again.inc
+SELECT COUNT(*) = 20 FROM t1;
+
+DROP TABLE t1;
+
+--sleep 10

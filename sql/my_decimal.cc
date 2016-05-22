@@ -320,7 +320,7 @@ my_decimal *seconds2my_decimal(bool sign,
 }
 
 
-my_decimal *date2my_decimal(MYSQL_TIME *ltime, my_decimal *dec)
+my_decimal *date2my_decimal(const MYSQL_TIME *ltime, my_decimal *dec)
 {
   longlong date= (ltime->year*100L + ltime->month)*100L + ltime->day;
   if (ltime->time_type > MYSQL_TIMESTAMP_DATE)

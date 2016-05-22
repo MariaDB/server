@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -55,6 +55,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "srv0mon.h"
 #include "buf0checksum.h"
+#ifdef HAVE_LIBNUMA
+#include <numa.h>
+#include <numaif.h>
+#endif // HAVE_LIBNUMA
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h"
 #include "ut0byte.h"
@@ -905,7 +909,7 @@ buf_page_print(
 			mach_read_from_4(read_buf
 					 + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID));
 
-		ulint page_type = mach_read_from_4(read_buf + FIL_PAGE_TYPE);
+		ulint page_type = fil_page_get_type(read_buf);
 
 		fprintf(stderr, "InnoDB: page type %ld meaning %s\n", page_type,
 			fil_get_page_type_name(page_type));
@@ -1150,6 +1154,22 @@ buf_chunk_init(
 
 		return(NULL);
 	}
+
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		int	st = mbind(chunk->mem, chunk->mem_size,
+				   MPOL_INTERLEAVE,
+				   numa_all_nodes_ptr->maskp,
+				   numa_all_nodes_ptr->size,
+				   MPOL_MF_MOVE);
+		if (st != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy of buffer"
+				" pool page frames to MPOL_INTERLEAVE"
+				" (error: %s).", strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
 
 	/* Allocate the block descriptors from
 	the start of the memory block. */
@@ -1432,6 +1452,9 @@ buf_pool_init_instance(
 
 	buf_pool_mutex_exit(buf_pool);
 
+	DBUG_EXECUTE_IF("buf_pool_init_instance_force_oom",
+		return(DB_ERROR); );
+
 	return(DB_SUCCESS);
 }
 
@@ -1526,6 +1549,21 @@ buf_pool_init(
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
 	ut_ad(n_instances == srv_buf_pool_instances);
 
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Setting NUMA memory policy to MPOL_INTERLEAVE");
+		if (set_mempolicy(MPOL_INTERLEAVE,
+				  numa_all_nodes_ptr->maskp,
+				  numa_all_nodes_ptr->size) != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy to"
+				" MPOL_INTERLEAVE (error: %s).",
+				strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
+
 	buf_pool_ptr = (buf_pool_t*) mem_zalloc(
 		n_instances * sizeof *buf_pool_ptr);
 
@@ -1545,6 +1583,18 @@ buf_pool_init(
 	buf_LRU_old_ratio_update(100 * 3/ 8, FALSE);
 
 	btr_search_sys_create(buf_pool_get_curr_size() / sizeof(void*) / 64);
+
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Setting NUMA memory policy to MPOL_DEFAULT");
+		if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy to"
+				" MPOL_DEFAULT (error: %s).", strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
 
 	buf_flush_event = os_event_create();
 
@@ -2868,18 +2918,24 @@ loop:
 			/* Do not try again for encrypted pages */
 			if (!corrupted) {
 				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
+
+				buf_pool = buf_pool_from_bpage(bpage);
 				buf_pool_mutex_enter(buf_pool);
 				mutex_enter(pmutex);
-				buf_block_t* block = buf_page_get_block(bpage);
+
+				ut_ad(buf_pool->n_pend_reads > 0);
+				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
-				buf_block_set_state(block, BUF_BLOCK_NOT_USED);
-				buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
-				buf_pool_mutex_exit(buf_pool);
 				mutex_exit(pmutex);
+				buf_LRU_free_page(bpage, true);
+				buf_pool_mutex_exit(buf_pool);
+				rw_lock_x_unlock_gen(&((buf_block_t*) bpage)->lock,
+					     BUF_IO_READ);
 
 				if (err) {
 					*err = DB_DECRYPTION_FAILED;
 				}
+
 				return (NULL);
 			}
 
@@ -2914,18 +2970,24 @@ loop:
 				ut_error;
 			} else {
 				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
+
+				buf_pool = buf_pool_from_bpage(bpage);
 				buf_pool_mutex_enter(buf_pool);
 				mutex_enter(pmutex);
-				buf_block_t* block = buf_page_get_block(bpage);
-				buf_page_set_io_fix(bpage, BUF_IO_NONE);
-				buf_block_set_state(block, BUF_BLOCK_NOT_USED);
-				buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
-				buf_pool_mutex_exit(buf_pool);
+
+				ut_ad(buf_pool->n_pend_reads > 0);
+				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+ 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
 				mutex_exit(pmutex);
+				buf_LRU_free_page(bpage, true);
+				buf_pool_mutex_exit(buf_pool);
+				rw_lock_x_unlock_gen(&((buf_block_t*) bpage)->lock,
+					     BUF_IO_READ);
 
 				if (err) {
 					*err = DB_DECRYPTION_FAILED;
 				}
+
 				return (NULL);
 			}
 		}
@@ -4612,10 +4674,10 @@ corrupt:
 
 					ib_push_warning((void *)NULL, DB_DECRYPTION_FAILED,
 						"Table in tablespace %lu encrypted."
-						"However key management plugin or used key_id %lu is not found or"
+						"However key management plugin or used key_id %u is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
-						bpage->key_version);
+						(ulint)bpage->space, bpage->key_version);
 
 					if (bpage->space > TRX_SYS_SPACE) {
 						if (corrupted) {
@@ -4639,10 +4701,19 @@ corrupt:
 		}
 
 		if (uncompressed && !recv_no_ibuf_operations) {
-			ibuf_merge_or_delete_for_page(
-				(buf_block_t*) bpage, bpage->space,
-				bpage->offset, buf_page_get_zip_size(bpage),
-				TRUE);
+			if (bpage && bpage->encrypted) {
+				fprintf(stderr,
+					"InnoDB: Warning: Table in tablespace %lu encrypted."
+					"However key management plugin or used key_id %u is not found or"
+					" used encryption algorithm or method does not match."
+					" Can't continue opening the table.\n",
+					(ulint)bpage->space, bpage->key_version);
+			} else {
+				ibuf_merge_or_delete_for_page(
+					(buf_block_t*) bpage, bpage->space,
+					bpage->offset, buf_page_get_zip_size(bpage),
+					TRUE);
+			}
 		}
 	} else {
 		/* io_type == BUF_IO_WRITE */
@@ -5658,11 +5729,19 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
+		double hit_rate = ((1000 * pool_info->page_read_delta)
+				/ pool_info->n_page_get_delta);
+
+		if (hit_rate > 1000) {
+			hit_rate = 1000;
+		}
+
+		hit_rate = 1000 - hit_rate;
+
 		fprintf(file,
 			"Buffer pool hit rate %lu / 1000,"
 			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulong) (1000 - (1000 * pool_info->page_read_delta
-					 / pool_info->n_page_get_delta)),
+			(ulong) hit_rate,
 			(ulong) (1000 * pool_info->young_making_delta
 				 / pool_info->n_page_get_delta),
 			(ulong) (1000 * pool_info->not_young_making_delta
@@ -5892,6 +5971,7 @@ buf_page_init_for_backup_restore(
 Reserve unused slot from temporary memory array and allocate necessary
 temporary memory if not yet allocated.
 @return reserved slot */
+UNIV_INTERN
 buf_tmp_buffer_t*
 buf_pool_reserve_tmp_slot(
 /*======================*/
@@ -6013,8 +6093,7 @@ buf_page_encrypt_before_write(
 					      zip_size,
 					      dst_frame);
 
-		unsigned key_version =
-			mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		ulint key_version = mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
 		bpage->real_size = page_size;
@@ -6086,6 +6165,7 @@ buf_page_decrypt_after_read(
 	bool page_compressed = fil_page_is_compressed(dst_frame);
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
+	bool success = true;
 
 	/* If page is encrypted read post-encryption checksum */
 	if (!page_compressed_encrypted && key_version != 0) {
@@ -6144,16 +6224,21 @@ buf_page_decrypt_after_read(
 			}
 
 			/* decrypt using crypt_buf to dst_frame */
-			fil_space_decrypt(bpage->space,
-					  slot->crypt_buf,
-					  size,
-					  dst_frame);
+			byte* res = fil_space_decrypt(bpage->space,
+						slot->crypt_buf,
+						size,
+						dst_frame);
+
+			if (!res) {
+				bpage->encrypted = true;
+				success = false;
+			}
 #ifdef UNIV_DEBUG
 			fil_page_type_validate(dst_frame);
 #endif
 		}
 
-		if (page_compressed_encrypted) {
+		if (page_compressed_encrypted && success) {
 			if (!slot) {
 				slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
 			}
@@ -6166,11 +6251,11 @@ buf_page_decrypt_after_read(
 					dst_frame,
 					size,
 					&bpage->write_size);
-		}
 
 #ifdef UNIV_DEBUG
-		fil_page_type_validate(dst_frame);
+			fil_page_type_validate(dst_frame);
 #endif
+		}
 
 		/* Mark this slot as free */
 		if (slot) {
@@ -6180,5 +6265,5 @@ buf_page_decrypt_after_read(
 
 	bpage->key_version = key_version;
 
-	return (TRUE);
+	return (success);
 }

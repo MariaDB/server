@@ -265,6 +265,7 @@ def	information_schema	PROCESSLIST	PROGRESS	12	0.000	NO	decimal	NULL	NULL	7	3	NU
 def	information_schema	PROCESSLIST	QUERY_ID	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)				
 def	information_schema	PROCESSLIST	STAGE	10	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)				
 def	information_schema	PROCESSLIST	STATE	7	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	PROCESSLIST	TID	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)				
 def	information_schema	PROCESSLIST	TIME	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)				
 def	information_schema	PROCESSLIST	TIME_MS	9	0.000	NO	decimal	NULL	NULL	22	3	NULL	NULL	NULL	decimal(22,3)				
 def	information_schema	PROCESSLIST	USER	2		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)				
@@ -325,7 +326,7 @@ def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2		NO	varchar	2048	6144	NUL
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
 def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2		NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)				
 def	information_schema	SPATIAL_REF_SYS	AUTH_NAME	2		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)				
-def	information_schema	SPATIAL_REF_SYS	AUTH_SRID	3	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)				
+def	information_schema	SPATIAL_REF_SYS	AUTH_SRID	3	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(5)				
 def	information_schema	SPATIAL_REF_SYS	SRID	1	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)				
 def	information_schema	SPATIAL_REF_SYS	SRTEXT	4		NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)				
 def	information_schema	STATISTICS	CARDINALITY	10	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)				
@@ -362,7 +363,7 @@ def	information_schema	TABLES	AUTO_INCREMENT	14	NULL	YES	bigint	NULL	NULL	20	0	N
 def	information_schema	TABLES	AVG_ROW_LENGTH	9	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
 def	information_schema	TABLES	CHECKSUM	19	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
 def	information_schema	TABLES	CHECK_TIME	17	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime				
-def	information_schema	TABLES	CREATE_OPTIONS	20	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(255)				
+def	information_schema	TABLES	CREATE_OPTIONS	20	NULL	YES	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)				
 def	information_schema	TABLES	CREATE_TIME	15	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime				
 def	information_schema	TABLES	DATA_FREE	13	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
 def	information_schema	TABLES	DATA_LENGTH	10	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
@@ -795,6 +796,7 @@ NULL	information_schema	PROCESSLIST	MEMORY_USED	int	NULL	NULL	NULL	NULL	int(7)
 NULL	information_schema	PROCESSLIST	EXAMINED_ROWS	int	NULL	NULL	NULL	NULL	int(7)
 NULL	information_schema	PROCESSLIST	QUERY_ID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 1.0000	information_schema	PROCESSLIST	INFO_BINARY	blob	65535	65535	NULL	NULL	blob
+NULL	information_schema	PROCESSLIST	TID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
@@ -853,7 +855,7 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
-NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
+NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)
 3.0000	information_schema	SPATIAL_REF_SYS	SRTEXT	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	STATISTICS	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	STATISTICS	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
@@ -904,7 +906,7 @@ NULL	information_schema	TABLES	UPDATE_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	TABLES	CHECK_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 3.0000	information_schema	TABLES	TABLE_COLLATION	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 NULL	information_schema	TABLES	CHECKSUM	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-3.0000	information_schema	TABLES	CREATE_OPTIONS	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+3.0000	information_schema	TABLES	CREATE_OPTIONS	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLES	TABLE_COMMENT	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLESPACES	TABLESPACE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLESPACES	ENGINE	varchar	64	192	utf8	utf8_general_ci	varchar(64)

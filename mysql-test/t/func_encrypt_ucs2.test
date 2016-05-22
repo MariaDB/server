@@ -1,4 +1,4 @@
--- source include/have_ssl_crypto_functs.inc
+-- source include/have_des.inc
 -- source include/have_ucs2.inc
 
 --echo #

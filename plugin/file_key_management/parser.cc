@@ -220,7 +220,7 @@ bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
   keys->sort(sort_keys);
   my_free(buffer);
 
-  if (keys->at(0).id != 1)
+  if (keys->elements() == 0 || keys->at(0).id != 1)
   {
     report_error("System key id 1 is missing", 0);
     return 1;
@@ -298,8 +298,16 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 
 char* Parser::read_and_decrypt_file(const char *secret)
 {
-  int f= my_open(filename, O_RDONLY, MYF(MY_WME));
-  if (f < 0)
+  if (!filename || !filename[0])
+  {
+    my_printf_error(EE_CANT_OPEN_STREAM,
+                    "file-key-management-filename is not set",
+                    MYF(ME_NOREFRESH));
+    goto err0;
+  }
+
+  int f;
+  if ((f= my_open(filename, O_RDONLY, MYF(MY_WME))) < 0)
     goto err0;
 
   my_off_t file_size;

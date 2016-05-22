@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql_client_test\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/31/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL
-.\"  Language: English
 .\"
-.TH "\FBMYSQL_CLIENT_TEST" "1" "03/31/2010" "MySQL" "MySQL Database System"
+.TH "\FBMYSQL_CLIENT_TEST" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -33,7 +26,7 @@ mysql_client_test_embedded \- test client API for embedded server
 .PP
 The
 \fBmysql_client_test\fR
-program is used for testing aspects of the MySQL client API that cannot be tested using
+program is used for testing aspects of the MariaDB client API that cannot be tested using
 \fBmysqltest\fR
 and its test language\&.
 \fBmysql_client_test_embedded\fR
@@ -128,7 +121,7 @@ The database to use\&.
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-#[\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
-Write a debugging log if MySQL is built with debugging support\&. The default
+Write a debugging log if MariaDB is built with debugging support\&. The default
 \fIdebug_options\fR
 value is
 \'d:t:o,/tmp/mysql_client_test\&.trace\'\&.
@@ -165,7 +158,7 @@ library\&.
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -304,7 +297,7 @@ may optionally behave in a different way than if called manually, for example by
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -326,7 +319,7 @@ mysql\-test/var\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -335,8 +328,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

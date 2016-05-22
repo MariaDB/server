@@ -28,7 +28,6 @@
 #include "sql_audit.h"
 #include "sql_connect.h"
 #include "probes_mysql.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                          // sql_command_flags,
                                                 // execute_init_command,
                                                 // do_command
@@ -1166,7 +1165,8 @@ void end_connection(THD *thd)
   }
 
   if (!thd->killed && (net->error && net->vio != 0))
-    thd->print_aborted_warning(1, ER_THD(thd, ER_UNKNOWN_ERROR));
+    thd->print_aborted_warning(1, thd->get_stmt_da()->is_error()
+             ? thd->get_stmt_da()->message() : ER_THD(thd, ER_UNKNOWN_ERROR));
 }
 
 

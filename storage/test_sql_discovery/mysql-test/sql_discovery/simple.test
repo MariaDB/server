@@ -99,7 +99,7 @@ drop table t1;
 set @@test_sql_discovery_statement='t1:
 create table t1 (
   a int not null default 5 primary key,
-  b timestamp,
+  b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   c tinyblob,
   d decimal(5,2),
   e varchar(30) character set ascii,

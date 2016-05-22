@@ -81,7 +81,7 @@ int spider_udf_set_copy_tables_param_default(
 #define SPIDER_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!copy_tables->param_name) \
     { \
       if ((copy_tables->param_name = spider_get_string_between_quote( \
@@ -94,14 +94,14 @@ int spider_udf_set_copy_tables_param_default(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%s", copy_tables->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%s", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_HINT_WITH_MAX(title_name, param_name, check_length, max_size, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length) - 1; \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -131,7 +131,7 @@ int spider_udf_set_copy_tables_param_default(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%d", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
         copy_tables->param_name[hint_num])); \
     } else { \
       error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
@@ -144,7 +144,7 @@ int spider_udf_set_copy_tables_param_default(
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -161,14 +161,14 @@ int spider_udf_set_copy_tables_param_default(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", copy_tables->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -183,14 +183,14 @@ int spider_udf_set_copy_tables_param_default(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", copy_tables->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -206,7 +206,7 @@ int spider_udf_set_copy_tables_param_default(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%lld", \
+      DBUG_PRINT("info",("spider " title_name "=%lld", \
         copy_tables->param_name)); \
     } \
     break; \
@@ -1032,36 +1032,47 @@ long long spider_copy_tables_body(
   else
     copy_tables->access_charset = system_charset_info;
 
-  src_tbl_conn = copy_tables->table_conn[0];
-  select_ct = src_tbl_conn->copy_table;
-  src_tbl_conn->share->access_charset = copy_tables->access_charset;
-  select_ct->set_sql_charset(copy_tables->access_charset);
-  if (
-    select_ct->append_select_str() ||
-    select_ct->append_table_columns(table_share)
-  ) {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-    goto error;
-  }
-
-  if (
-    select_ct->append_from_str() ||
-    select_ct->append_table_name(0)
-  ) {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-    goto error;
-  }
-
-  select_ct->set_sql_pos();
-
   bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
     copy_tables->bulk_insert_rows);
-  if (
-    select_ct->append_key_order_str(key_info, 0, FALSE) ||
-    select_ct->append_limit(0, bulk_insert_rows)
-  ) {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-    goto error;
+  for (src_tbl_conn = copy_tables->table_conn[0]; src_tbl_conn;
+    src_tbl_conn = src_tbl_conn->next)
+  {
+    select_ct = src_tbl_conn->copy_table;
+    src_tbl_conn->share->access_charset = copy_tables->access_charset;
+    select_ct->set_sql_charset(copy_tables->access_charset);
+    if (
+      select_ct->append_select_str() ||
+      select_ct->append_table_columns(table_share)
+    ) {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+      goto error;
+    }
+
+    if (
+      select_ct->append_from_str() ||
+      select_ct->append_table_name(0)
+    ) {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+      goto error;
+    }
+
+    select_ct->set_sql_pos();
+
+    if (
+      select_ct->append_key_order_str(key_info, 0, FALSE) ||
+      select_ct->append_limit(0, bulk_insert_rows)
+    ) {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+      goto error;
+    }
+
+    if (
+      copy_tables->use_transaction &&
+      select_ct->append_select_lock_str(SPIDER_LOCK_MODE_SHARED)
+    ) {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+      goto error;
+    }
   }
 
   for (dst_tbl_conn = copy_tables->table_conn[1]; dst_tbl_conn;
@@ -1186,14 +1197,6 @@ long long spider_copy_tables_body(
       goto error_init_dbton_handler;
     }
     table_conn->spider = tmp_spider;
-  }
-
-  if (
-    copy_tables->use_transaction &&
-    select_ct->append_select_lock_str(SPIDER_LOCK_MODE_SHARED)
-  ) {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-    goto error;
   }
 
   if ((error_num = spider_db_udf_copy_tables(copy_tables, spider, table,

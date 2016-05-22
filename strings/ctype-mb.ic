@@ -269,7 +269,7 @@ my_native_to_mb_fixed2(my_wc_t wc, uchar *s, uchar *e)
 {
   /* The caller must insure there is a space for at least one byte */
   DBUG_ASSERT(s < e);
-  s[0]= wc >> 8;
+  s[0]= (uchar) (wc >> 8);
   if (s + 2 > e)
     return MY_CS_TOOSMALL2;
   s[1]= wc & 0xFF;
@@ -286,7 +286,7 @@ my_native_to_mb_fixed3(my_wc_t wc, uchar *s, uchar *e)
 {
   /* The caller must insure there is a space for at least one byte */
   DBUG_ASSERT(s < e);
-  s[0]= wc >> 16;
+  s[0]= (uchar) (wc >> 16);
   if (s + 2 > e)
     return MY_CS_TOOSMALL2;
   s[1]= (wc >> 8) & 0xFF;

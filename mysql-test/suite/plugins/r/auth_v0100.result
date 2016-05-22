@@ -1,9 +1,8 @@
 install soname 'auth_0x0100';
-select plugin_name, plugin_type_version from information_schema.plugins where plugin_type='authentication' order by plugin_name;
+select plugin_name, plugin_type_version from information_schema.plugins where
+plugin_type='authentication' and plugin_library is not null order by plugin_name;
 plugin_name	plugin_type_version
 auth_0x0100	1.0
-mysql_native_password	2.0
-mysql_old_password	2.0
 create user tt identified via auth_0x0100;
 create user zzzzzzzzzzzzzzzz;
 grant select on test.* to zzzzzzzzzzzzzzzz;

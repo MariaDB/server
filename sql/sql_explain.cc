@@ -862,7 +862,20 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
-     
+    /* we do not print HAVING which always evaluates to TRUE */
+    if (having || (having_value == Item::COND_FALSE))
+    {
+      writer->add_member("having_condition");
+      if (likely(having))
+        write_item(writer, having);
+      else
+      {
+        /* Normally we should not go this branch, left just for safety */
+        DBUG_ASSERT(having_value == Item::COND_FALSE);
+        writer->add_str("0");
+      }
+    }
+
     Filesort_tracker *first_table_sort= NULL;
     bool first_table_sort_used= false;
     int started_objects= 0;
@@ -937,7 +950,6 @@ void Explain_select::print_explain_json(Explain_query *query,
       }
       else
       {
-        fprintf(stderr, "Weird!\n");
         if (using_filesort)
           first_table_sort_used= true;
       }
@@ -1110,7 +1122,7 @@ void Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
   }
   else
     key_name= NULL;
-  key_len= -1;
+  key_len= ~(uint) 0;
 }
 
 
@@ -1368,6 +1380,10 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       writer->add_member("index_condition");
       write_item(writer, pushed_index_cond);
       break;
+    case ET_USING_INDEX_CONDITION_BKA:
+      writer->add_member("index_condition_bka");
+      write_item(writer, pushed_index_cond);
+      break;
     case ET_USING_WHERE:
       {
         /*
@@ -1416,6 +1432,40 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       else
         writer->add_bool(true);
       break;
+
+    /*new:*/
+    case ET_CONST_ROW_NOT_FOUND:
+      writer->add_member("const_row_not_found").add_bool(true);
+      break;
+    case ET_UNIQUE_ROW_NOT_FOUND:
+      /* 
+        Currently, we never get here.  All SELECTs that have 
+        ET_UNIQUE_ROW_NOT_FOUND for a table are converted into degenerate
+        SELECTs with message="Impossible WHERE ...". 
+        MySQL 5.6 has the same property.
+        I'm leaving the handling in just for the sake of covering all enum
+        members and safety.
+      */
+      writer->add_member("unique_row_not_found").add_bool(true);
+      break;
+    case ET_IMPOSSIBLE_ON_CONDITION:
+      writer->add_member("impossible_on_condition").add_bool(true);
+      break;
+    case ET_USING_WHERE_WITH_PUSHED_CONDITION:
+      /*
+        It would be nice to print the pushed condition, but current Storage
+        Engine API doesn't provide any way to do that
+      */
+      writer->add_member("pushed_condition").add_bool(true);
+      break;
+
+    case ET_NOT_EXISTS:
+      writer->add_member("not_exists").add_bool(true);
+      break;
+    case ET_DISTINCT:
+      writer->add_member("distinct").add_bool(true);
+      break;
+
     default:
       DBUG_ASSERT(0);
   }
@@ -1758,7 +1808,10 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       str->append(STRING_WITH_LEN(" join"));
       str->append(STRING_WITH_LEN(")"));
       if (bka_type.mrr_type.length())
+      {
+        str->append(STRING_WITH_LEN("; "));
         str->append(bka_type.mrr_type);
+      }
 
       break;
     }
@@ -2199,7 +2252,7 @@ void Explain_update::print_explain_json(Explain_query *query,
       if (is_using_filesort())
       {
         if (filesort_tracker->get_r_loops())
-          r_rows= filesort_tracker->get_avg_examined_rows();
+          r_rows= (ha_rows) filesort_tracker->get_avg_examined_rows();
         else
           r_rows= 0;
         r_filtered= filesort_tracker->get_r_filtered() * 100.0;

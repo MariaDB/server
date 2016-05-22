@@ -22,6 +22,7 @@
 #include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
+#include "debug_sync.h"
 
 extern ulonglong thd_to_trx_id(THD *thd);
 
@@ -67,6 +68,17 @@ void wsrep_register_hton(THD* thd, bool all)
   if (WSREP(thd) && thd->wsrep_exec_mode != TOTAL_ORDER &&
       !thd->wsrep_apply_toi)
   {
+    if (thd->wsrep_exec_mode == LOCAL_STATE      &&
+        (thd_sql_command(thd) == SQLCOM_OPTIMIZE ||
+        thd_sql_command(thd) == SQLCOM_ANALYZE   ||
+        thd_sql_command(thd) == SQLCOM_REPAIR)   &&
+            thd->lex->no_write_to_binlog == 1)
+    {
+        WSREP_DEBUG("Skipping wsrep_register_hton for LOCAL sql admin command : %s",
+                thd->query());
+        return;
+    }
+
     THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
     for (Ha_trx_info *i= trans->ha_list; i; i = i->next())
     {
@@ -245,8 +257,9 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
-      WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
-                  (long long)thd->real_id, thd->query());
+      WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+                  (long long)thd->real_id, (thd->db ? thd->db : "(null)"),
+                  thd->query());
     }
     wsrep_cleanup_transaction(thd);
   }
@@ -286,8 +299,9 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
         {
           DBUG_PRINT("wsrep", ("setting rollback fail"));
-          WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
-                      (long long)thd->real_id, thd->query());
+          WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+                      (long long)thd->real_id, (thd->db ? thd->db : "(null)"),
+                      thd->query());
         }
       }
       wsrep_cleanup_transaction(thd);
@@ -314,6 +328,8 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     WSREP_ERROR("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
+
+  DEBUG_SYNC(thd, "wsrep_before_replication");
 
   if (thd->slave_thread && !opt_log_slave_updates) DBUG_RETURN(WSREP_TRX_OK);
 
@@ -448,9 +464,11 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
   {
     WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %zu\n"
+               "schema: %s \n"
 	       "QUERY: %s\n"
 	       " => Skipping replication",
-	       thd->thread_id, data_len, thd->query());
+	       thd->thread_id, data_len,
+               (thd->db ? thd->db : "(null)"), thd->query());
     rcode = WSREP_TRX_FAIL;
   }
   else if (!rcode)
@@ -465,8 +483,8 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
                                 &thd->wsrep_trx_meta);
 
     if (rcode == WSREP_TRX_MISSING) {
-      WSREP_WARN("Transaction missing in provider, thd: %ld, SQL: %s",
-                 thd->thread_id, thd->query());
+      WSREP_WARN("Transaction missing in provider, thd: %ld, schema: %s, SQL: %s",
+                 thd->thread_id, (thd->db ? thd->db : "(null)"), thd->query());
       rcode = WSREP_TRX_FAIL;
     } else if (rcode == WSREP_BF_ABORT) {
       WSREP_DEBUG("thd %lu seqno %lld BF aborted by provider, will replay",

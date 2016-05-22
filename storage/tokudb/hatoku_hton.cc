@@ -1,94 +1,29 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
-#ident "$Id$"
-/*
-COPYING CONDITIONS NOTICE:
-
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of version 2 of the GNU General Public License as
-  published by the Free Software Foundation, and provided that the
-  following conditions are met:
-
-      * Redistributions of source code must retain this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below).
-
-      * Redistributions in binary form must reproduce this COPYING
-        CONDITIONS NOTICE, the COPYRIGHT NOTICE (below), the
-        DISCLAIMER (below), the UNIVERSITY PATENT NOTICE (below), the
-        PATENT MARKING NOTICE (below), and the PATENT RIGHTS
-        GRANT (below) in the documentation and/or other materials
-        provided with the distribution.
-
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-  02110-1301, USA.
-
-COPYRIGHT NOTICE:
-
-  TokuDB, Tokutek Fractal Tree Indexing Library.
-  Copyright (C) 2007-2013 Tokutek, Inc.
-
-DISCLAIMER:
-
-  This program is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-UNIVERSITY PATENT NOTICE:
-
-  The technology is licensed by the Massachusetts Institute of
-  Technology, Rutgers State University of New Jersey, and the Research
-  Foundation of State University of New York at Stony Brook under
-  United States of America Serial No. 11/760379 and to the patents
-  and/or patent applications resulting from it.
-
-PATENT MARKING NOTICE:
-
-  This software is covered by US Patent No. 8,185,551.
-  This software is covered by US Patent No. 8,489,638.
-
-PATENT RIGHTS GRANT:
-
-  "THIS IMPLEMENTATION" means the copyrightable works distributed by
-  Tokutek as part of the Fractal Tree project.
-
-  "PATENT CLAIMS" means the claims of patents that are owned or
-  licensable by Tokutek, both currently or in the future; and that in
-  the absence of this license would be infringed by THIS
-  IMPLEMENTATION or by using or running THIS IMPLEMENTATION.
-
-  "PATENT CHALLENGE" shall mean a challenge to the validity,
-  patentability, enforceability and/or non-infringement of any of the
-  PATENT CLAIMS or otherwise opposing any of the PATENT CLAIMS.
-
-  Tokutek hereby grants to you, for the term and geographical scope of
-  the PATENT CLAIMS, a non-exclusive, no-charge, royalty-free,
-  irrevocable (except as stated in this section) patent license to
-  make, have made, use, offer to sell, sell, import, transfer, and
-  otherwise run, modify, and propagate the contents of THIS
-  IMPLEMENTATION, where such license applies only to the PATENT
-  CLAIMS.  This grant does not include claims that would be infringed
-  only as a consequence of further modifications of THIS
-  IMPLEMENTATION.  If you or your agent or licensee institute or order
-  or agree to the institution of patent litigation against any entity
-  (including a cross-claim or counterclaim in a lawsuit) alleging that
-  THIS IMPLEMENTATION constitutes direct or contributory patent
-  infringement, or inducement of patent infringement, then any rights
-  granted to you under this License shall terminate as of the date
-  such litigation is filed.  If you or your agent or exclusive
-  licensee institute or order or agree to the institution of a PATENT
-  CHALLENGE, then Tokutek may terminate any rights granted to you
-  under this License.
-*/
-
-#ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
-#ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 /* -*- mode: C; c-basic-offset: 4 -*- */
+#ident "$Id$"
+/*======
+This file is part of TokuDB
+
+
+Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
+
+    TokuDBis is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License, version 2,
+    as published by the Free Software Foundation.
+
+    TokuDB is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with TokuDB.  If not, see <http://www.gnu.org/licenses/>.
+
+======= */
+
+#ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
+
 #define MYSQL_SERVER 1
 #include "hatoku_defines.h"
 #include <db.h>
@@ -250,9 +185,14 @@ static uint32_t tokudb_env_flags = 0;
 // static ulong tokudb_log_buffer_size = 0;
 // static ulong tokudb_log_file_size = 0;
 static my_bool tokudb_directio = FALSE;
+static my_bool tokudb_compress_buffers_before_eviction = TRUE;
 static my_bool tokudb_checkpoint_on_flush_logs = FALSE;
 static ulonglong tokudb_cache_size = 0;
+static uint32_t tokudb_client_pool_threads = 0;
+static uint32_t tokudb_cachetable_pool_threads = 0;
+static uint32_t tokudb_checkpoint_pool_threads = 0;
 static ulonglong tokudb_max_lock_memory = 0;
+static my_bool tokudb_enable_partial_eviction = TRUE;
 static char *tokudb_home;
 static char *tokudb_tmp_dir;
 static char *tokudb_log_dir;
@@ -356,9 +296,23 @@ static int tokudb_init_func(void *p) {
     tokudb_hton = (handlerton *) p;
 
 #if TOKUDB_CHECK_JEMALLOC
-    if (tokudb_check_jemalloc && dlsym(RTLD_DEFAULT, "mallctl") == NULL) {
-        sql_print_error("%s is not initialized because jemalloc is not loaded", tokudb_hton_name);
-        goto error;
+    if (tokudb_check_jemalloc) {
+        typedef int (*mallctl_type)(const char *, void *, size_t *, void *, size_t);
+        mallctl_type mallctl_func;
+        mallctl_func= (mallctl_type)dlsym(RTLD_DEFAULT, "mallctl");
+        if (!mallctl_func) {
+            sql_print_error("%s is not initialized because jemalloc is not loaded", tokudb_hton_name);
+            goto error;
+        }
+        char *ver;
+        size_t len= sizeof(ver);
+        mallctl_func("version", &ver, &len, NULL, 0);
+        /* jemalloc 2.2.5 crashes mysql-test */
+        if (strcmp(ver, "2.3.") < 0) {
+            sql_print_error("%s is not initialized because jemalloc is older than 2.3.0", tokudb_hton_name);
+            goto error;
+        }
+
     }
 #endif
 
@@ -420,9 +374,6 @@ static int tokudb_init_func(void *p) {
     tokudb_hton->commit_by_xid = tokudb_commit_by_xid;
     tokudb_hton->rollback_by_xid = tokudb_rollback_by_xid;
 #endif
-
-    tokudb_hton->table_options= tokudb_table_options;
-    tokudb_hton->index_options= tokudb_index_options;
 
     tokudb_hton->panic = tokudb_end;
     tokudb_hton->flush_logs = tokudb_flush_logs;
@@ -523,6 +474,24 @@ static int tokudb_init_func(void *p) {
     if (tokudb_debug & TOKUDB_DEBUG_INIT) 
         TOKUDB_TRACE("tokudb_cache_size=%lld r=%d", ((unsigned long long) gbytes << 30) + bytes, r);
 
+    r = db_env->set_client_pool_threads(db_env, tokudb_client_pool_threads);
+    if (r) {
+        DBUG_PRINT("info", ("set_client_pool_threads %d\n", r));
+        goto error;
+    }
+
+    r = db_env->set_cachetable_pool_threads(db_env, tokudb_cachetable_pool_threads);
+    if (r) {
+        DBUG_PRINT("info", ("set_cachetable_pool_threads %d\n", r));
+        goto error;
+    }
+
+    r = db_env->set_checkpoint_pool_threads(db_env, tokudb_checkpoint_pool_threads);
+    if (r) {
+        DBUG_PRINT("info", ("set_checkpoint_pool_threads %d\n", r));
+        goto error;
+    }
+
     if (db_env->set_redzone) {
         r = db_env->set_redzone(db_env, tokudb_fs_reserve_percent);
         if (tokudb_debug & TOKUDB_DEBUG_INIT)
@@ -538,6 +507,7 @@ static int tokudb_init_func(void *p) {
     assert(r == 0);
     db_env->set_update(db_env, tokudb_update_fun);
     db_env_set_direct_io(tokudb_directio == TRUE);
+    db_env_set_compress_buffers_before_eviction(tokudb_compress_buffers_before_eviction == TRUE);
     db_env->change_fsync_log_period(db_env, tokudb_fsync_log_period);
     db_env->set_lock_timeout_callback(db_env, tokudb_lock_timeout_callback);
     db_env->set_loader_memory_size(db_env, tokudb_get_loader_memory_size_callback);
@@ -561,6 +531,10 @@ static int tokudb_init_func(void *p) {
     assert(r == 0);
 
     r = db_env->set_lock_timeout(db_env, DEFAULT_TOKUDB_LOCK_TIMEOUT, tokudb_get_lock_wait_time_callback);
+    assert(r == 0);
+
+    r = db_env->evictor_set_enable_partial_eviction(db_env,
+                                                    tokudb_enable_partial_eviction);
     assert(r == 0);
 
     db_env->set_killed_callback(db_env, DEFAULT_TOKUDB_KILLED_TIME, tokudb_get_killed_time_callback, tokudb_killed_callback);
@@ -1350,7 +1324,9 @@ static void tokudb_cleanup_log_files(void) {
 
 
 // system variables
-static void tokudb_cleaner_period_update(THD * thd, struct st_mysql_sys_var * sys_var, void * var, const void * save) {
+static void tokudb_cleaner_period_update(THD* thd,
+                                         struct st_mysql_sys_var* sys_var,
+                                         void* var, const void * save) {
     ulong * cleaner_period = (ulong *) var;
     *cleaner_period = *(const ulonglong *) save;
     int r = db_env->cleaner_set_period(db_env, *cleaner_period);
@@ -1364,7 +1340,9 @@ static MYSQL_SYSVAR_ULONG(cleaner_period, tokudb_cleaner_period,
     NULL, tokudb_cleaner_period_update, DEFAULT_CLEANER_PERIOD,
     0, ~0UL, 0);
 
-static void tokudb_cleaner_iterations_update(THD * thd, struct st_mysql_sys_var * sys_var, void * var, const void * save) {
+static void tokudb_cleaner_iterations_update(THD* thd,
+                                             struct st_mysql_sys_var* sys_var,
+                                             void* var, const void* save) {
     ulong * cleaner_iterations = (ulong *) var;
     *cleaner_iterations = *(const ulonglong *) save;
     int r = db_env->cleaner_set_iterations(db_env, *cleaner_iterations);
@@ -1378,7 +1356,9 @@ static MYSQL_SYSVAR_ULONG(cleaner_iterations, tokudb_cleaner_iterations,
     NULL, tokudb_cleaner_iterations_update, DEFAULT_CLEANER_ITERATIONS,
     0, ~0UL, 0);
 
-static void tokudb_checkpointing_period_update(THD * thd, struct st_mysql_sys_var * sys_var, void * var, const void * save) {
+static void tokudb_checkpointing_period_update(THD* thd,
+                                               struct st_mysql_sys_var* sys_var,
+                                               void* var, const void* save) {
     uint * checkpointing_period = (uint *) var;
     *checkpointing_period = *(const ulonglong *) save;
     int r = db_env->checkpointing_set_period(db_env, *checkpointing_period);
@@ -1391,48 +1371,120 @@ static MYSQL_SYSVAR_UINT(checkpointing_period, tokudb_checkpointing_period,
     0, ~0U, 0);
 
 static MYSQL_SYSVAR_BOOL(directio, tokudb_directio,
-    PLUGIN_VAR_READONLY,
-    "TokuDB Enable Direct I/O ",
+    PLUGIN_VAR_READONLY, "TokuDB Enable Direct I/O ",
     NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(compress_buffers_before_eviction,
+    tokudb_compress_buffers_before_eviction,
+    PLUGIN_VAR_READONLY,
+    "TokuDB Enable buffer compression before partial eviction",
+    NULL, NULL, TRUE);
+
 static MYSQL_SYSVAR_BOOL(checkpoint_on_flush_logs, tokudb_checkpoint_on_flush_logs,
-    0,
-    "TokuDB Checkpoint on Flush Logs ",
+    0, "TokuDB Checkpoint on Flush Logs ",
     NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONGLONG(cache_size, tokudb_cache_size,
-    PLUGIN_VAR_READONLY, "TokuDB cache table size", NULL, NULL, 0,
+    PLUGIN_VAR_READONLY, "TokuDB cache table size",
+    NULL, NULL, 0,
     0, ~0ULL, 0);
 
-static MYSQL_SYSVAR_ULONGLONG(max_lock_memory, tokudb_max_lock_memory, PLUGIN_VAR_READONLY, "TokuDB max memory for locks", NULL, NULL, 0, 0, ~0ULL, 0);
-static MYSQL_SYSVAR_ULONG(debug, tokudb_debug, 0, "TokuDB Debug", NULL, NULL, 0, 0, ~0UL, 0);
+static MYSQL_SYSVAR_ULONGLONG(max_lock_memory, tokudb_max_lock_memory,
+    PLUGIN_VAR_READONLY, "TokuDB max memory for locks",
+    NULL, NULL, 0,
+    0, ~0ULL, 0);
 
-static MYSQL_SYSVAR_STR(log_dir, tokudb_log_dir, PLUGIN_VAR_READONLY, "TokuDB Log Directory", NULL, NULL, NULL);
+static MYSQL_SYSVAR_UINT(client_pool_threads, tokudb_client_pool_threads,
+    PLUGIN_VAR_READONLY, "TokuDB client ops thread pool size", NULL, NULL, 0,
+    0, 1024, 0);
 
-static MYSQL_SYSVAR_STR(data_dir, tokudb_data_dir, PLUGIN_VAR_READONLY, "TokuDB Data Directory", NULL, NULL, NULL);
+static MYSQL_SYSVAR_UINT(cachetable_pool_threads, tokudb_cachetable_pool_threads,
+    PLUGIN_VAR_READONLY, "TokuDB cachetable ops thread pool size", NULL, NULL, 0,
+    0, 1024, 0);
 
-static MYSQL_SYSVAR_STR(version, tokudb_version, PLUGIN_VAR_READONLY, "TokuDB Version", NULL, NULL, NULL);
+static MYSQL_SYSVAR_UINT(checkpoint_pool_threads, tokudb_checkpoint_pool_threads,
+    PLUGIN_VAR_READONLY, "TokuDB checkpoint ops thread pool size", NULL, NULL, 0,
+    0, 1024, 0);
 
-static MYSQL_SYSVAR_UINT(write_status_frequency, tokudb_write_status_frequency, 0, "TokuDB frequency that show processlist updates status of writes", NULL, NULL, 1000, 0, ~0U, 0);
-static MYSQL_SYSVAR_UINT(read_status_frequency, tokudb_read_status_frequency, 0, "TokuDB frequency that show processlist updates status of reads", NULL, NULL, 10000, 0, ~0U, 0);
-static MYSQL_SYSVAR_INT(fs_reserve_percent, tokudb_fs_reserve_percent, PLUGIN_VAR_READONLY, "TokuDB file system space reserve (percent free required)", NULL, NULL, 5, 0, 100, 0);
-static MYSQL_SYSVAR_STR(tmp_dir, tokudb_tmp_dir, PLUGIN_VAR_READONLY, "Tokudb Tmp Dir", NULL, NULL, NULL);
+static void tokudb_enable_partial_eviction_update(THD* thd,
+                                             struct st_mysql_sys_var* sys_var,
+                                             void* var, const void* save) {
+    my_bool * enable_partial_eviction = (my_bool *) var;
+    *enable_partial_eviction = *(const my_bool *) save;
+    int r = db_env->evictor_set_enable_partial_eviction(db_env, *enable_partial_eviction);
+    assert(r == 0);
+}
+
+static MYSQL_SYSVAR_BOOL(enable_partial_eviction, tokudb_enable_partial_eviction,
+    0, "TokuDB enable partial node eviction", 
+    NULL, tokudb_enable_partial_eviction_update, TRUE);
+
+static MYSQL_SYSVAR_ULONG(debug, tokudb_debug,
+    0, "TokuDB Debug",
+    NULL, NULL, 0,
+    0, ~0UL, 0);
+
+static MYSQL_SYSVAR_STR(log_dir, tokudb_log_dir,
+    PLUGIN_VAR_READONLY, "TokuDB Log Directory",
+    NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(data_dir, tokudb_data_dir,
+    PLUGIN_VAR_READONLY, "TokuDB Data Directory",
+    NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(version, tokudb_version,
+    PLUGIN_VAR_READONLY, "TokuDB Version",
+    NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_UINT(write_status_frequency, tokudb_write_status_frequency,
+    0, "TokuDB frequency that show processlist updates status of writes",
+    NULL, NULL, 1000,
+    0, ~0U, 0);
+
+static MYSQL_SYSVAR_UINT(read_status_frequency, tokudb_read_status_frequency,
+    0, "TokuDB frequency that show processlist updates status of reads",
+    NULL, NULL, 10000,
+    0, ~0U, 0);
+
+static MYSQL_SYSVAR_INT(fs_reserve_percent, tokudb_fs_reserve_percent,
+    PLUGIN_VAR_READONLY, "TokuDB file system space reserve (percent free required)",
+    NULL, NULL, 5,
+    0, 100, 0);
+
+static MYSQL_SYSVAR_STR(tmp_dir, tokudb_tmp_dir,
+    PLUGIN_VAR_READONLY, "Tokudb Tmp Dir",
+    NULL, NULL, NULL);
 
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
-static MYSQL_SYSVAR_STR(gdb_path, tokudb_gdb_path, PLUGIN_VAR_READONLY|PLUGIN_VAR_RQCMDARG, "TokuDB path to gdb for extra debug info on fatal signal", NULL, NULL, "/usr/bin/gdb");
-static MYSQL_SYSVAR_BOOL(gdb_on_fatal, tokudb_gdb_on_fatal, 0, "TokuDB enable gdb debug info on fatal signal", NULL, NULL, true);
+static MYSQL_SYSVAR_STR(gdb_path, tokudb_gdb_path,
+    PLUGIN_VAR_READONLY|PLUGIN_VAR_RQCMDARG, "TokuDB path to gdb for extra debug info on fatal signal",
+    NULL, NULL, "/usr/bin/gdb");
+
+static MYSQL_SYSVAR_BOOL(gdb_on_fatal, tokudb_gdb_on_fatal,
+    0, "TokuDB enable gdb debug info on fatal signal",
+    NULL, NULL, true);
 #endif
 
-static void tokudb_fsync_log_period_update(THD *thd, struct st_mysql_sys_var *sys_var, void *var, const void *save) {
+static void tokudb_fsync_log_period_update(THD* thd,
+                                           struct st_mysql_sys_var* sys_var,
+                                           void* var, const void* save) {
     uint32 *period = (uint32 *) var;
     *period = *(const ulonglong *) save;
     db_env->change_fsync_log_period(db_env, *period);
 }
 
-static MYSQL_SYSVAR_UINT(fsync_log_period, tokudb_fsync_log_period, 0, "TokuDB fsync log period", NULL, tokudb_fsync_log_period_update, 0, 0, ~0U, 0);
+static MYSQL_SYSVAR_UINT(fsync_log_period, tokudb_fsync_log_period,
+    0, "TokuDB fsync log period",
+    NULL, tokudb_fsync_log_period_update, 0,
+    0, ~0U, 0);
 
 static struct st_mysql_sys_var *tokudb_system_variables[] = {
     MYSQL_SYSVAR(cache_size),
+    MYSQL_SYSVAR(client_pool_threads),
+    MYSQL_SYSVAR(cachetable_pool_threads),
+    MYSQL_SYSVAR(checkpoint_pool_threads),
     MYSQL_SYSVAR(max_lock_memory),
+    MYSQL_SYSVAR(enable_partial_eviction),
     MYSQL_SYSVAR(data_dir),
     MYSQL_SYSVAR(log_dir),
     MYSQL_SYSVAR(debug),
@@ -1458,8 +1510,10 @@ static struct st_mysql_sys_var *tokudb_system_variables[] = {
     MYSQL_SYSVAR(block_size),
     MYSQL_SYSVAR(read_block_size),
     MYSQL_SYSVAR(read_buf_size),
+    MYSQL_SYSVAR(fanout),
     MYSQL_SYSVAR(row_format),
     MYSQL_SYSVAR(directio),
+    MYSQL_SYSVAR(compress_buffers_before_eviction),
     MYSQL_SYSVAR(checkpoint_on_flush_logs),
 #if TOKU_INCLUDE_UPSERT
     MYSQL_SYSVAR(disable_slow_update),
@@ -2482,8 +2536,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_STORAGE_ENGINE_PLUGIN, 
     &tokudb_storage_engine, 
     tokudb_hton_name, 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_init_func,          /* plugin init */
     tokudb_done_func,          /* plugin deinit */
@@ -2502,8 +2556,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_trx_information_schema,
     "TokuDB_trx", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_trx_init,     /* plugin init */
     tokudb_trx_done,     /* plugin deinit */
@@ -2522,8 +2576,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_lock_waits_information_schema,
     "TokuDB_lock_waits", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_lock_waits_init,     /* plugin init */
     tokudb_lock_waits_done,     /* plugin deinit */
@@ -2542,8 +2596,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_locks_information_schema,
     "TokuDB_locks", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_locks_init,     /* plugin init */
     tokudb_locks_done,     /* plugin deinit */
@@ -2562,8 +2616,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_file_map_information_schema, 
     "TokuDB_file_map", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_file_map_init,     /* plugin init */
     tokudb_file_map_done,     /* plugin deinit */
@@ -2582,8 +2636,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_fractal_tree_info_information_schema, 
     "TokuDB_fractal_tree_info", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_fractal_tree_info_init,     /* plugin init */
     tokudb_fractal_tree_info_done,     /* plugin deinit */
@@ -2602,8 +2656,8 @@ mysql_declare_plugin(tokudb)
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
     &tokudb_fractal_tree_block_map_information_schema, 
     "TokuDB_fractal_tree_block_map", 
-    "Tokutek Inc", 
-    "Tokutek TokuDB Storage Engine with Fractal Tree(tm) Technology",
+    "Percona", 
+    "Percona TokuDB Storage Engine with Fractal Tree(tm) Technology",
     PLUGIN_LICENSE_GPL,
     tokudb_fractal_tree_block_map_init,     /* plugin init */
     tokudb_fractal_tree_block_map_done,     /* plugin deinit */

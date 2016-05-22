@@ -31,6 +31,7 @@ Usage: $0 [-h|-n] [configure-options]
   -h, --help              Show this help message.
   -n, --just-print        Don't actually run any commands; just print them.
   -c, --just-configure    Stop after running configure.
+                          Combined with --just-print shows configure options.
   --extra-configs=xxx     Add this to configure options
   --extra-flags=xxx       Add this C and CXX flags
   --extra-cflags=xxx      Add this to C flags
@@ -205,7 +206,7 @@ fi
 
 max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
 max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent"
+max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management"
 all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
@@ -256,6 +257,10 @@ fi
 # (http://samba.org/ccache) is installed, use it.
 # We use 'grep' and hope 'grep' will work as expected
 # (returns 0 if finds lines)
+
+# As cmake doesn't like CC and CXX with a space, use symlinks from
+# /usr/lib64/ccache if they exits.
+
 if test "$USING_GCOV" != "1"
 then
   # Not using gcov; Safe to use ccache
@@ -264,8 +269,14 @@ fi
 
 if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1"
 then
-  echo "$CC" | grep "ccache" > /dev/null || CC="ccache $CC"
-  echo "$CXX" | grep "ccache" > /dev/null || CXX="ccache $CXX"
+    if test -x /usr/lib64/ccache/gcc
+    then
+        CC=/usr/lib64/ccache/gcc
+    fi
+    if test -x /usr/lib64/ccache/g++
+    then
+        CXX=/usr/lib64/ccache/g++
+    fi
 fi
 
 # gcov

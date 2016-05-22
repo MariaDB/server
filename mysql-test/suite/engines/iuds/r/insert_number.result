@@ -1374,6 +1374,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -2389,6 +2391,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value
@@ -6977,6 +6980,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -7981,6 +7986,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value
@@ -12674,6 +12680,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -13678,6 +13686,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value
@@ -18476,6 +18485,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -19480,6 +19491,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value
@@ -24383,6 +24395,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -25387,6 +25401,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value
@@ -30290,6 +30305,8 @@ INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
 INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
@@ -31294,6 +31311,7 @@ DROP TABLE t6,t7,t8;
 INSERT INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
+Warning	1364	Field 'c6' doesn't have a default value
 SET SQL_MODE=STRICT_ALL_TABLES;
 INSERT INTO t2 SET c3=5,c4=6;
 ERROR HY000: Field 'c1' doesn't have a default value

@@ -1700,6 +1700,18 @@ alter table t1 add unique index if not exists idx(i);
 show create table t1;
 DROP TABLE t1;
 
+#
+# MDEV-8358 ADD PRIMARY KEY IF NOT EXISTS -> ERROR 1068 (42000): Multiple primary key
+#
+
+CREATE TABLE t1 (
+   `event_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+   `market_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+ PRIMARY KEY (`event_id`,`market_id`)
+ );
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS event_id (event_id,market_id);
+DROP TABLE t1;
+
 --echo #
 --echo # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
 --echo #
@@ -1722,6 +1734,3 @@ ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2';
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---echo #
---echo # Start of 10.1 tests
---echo #

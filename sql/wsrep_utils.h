@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2015 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -236,6 +236,25 @@ private:
 extern wsp::Config_state wsrep_config_state;
 
 namespace wsp {
+/* a class to manage env vars array */
+class env
+{
+private:
+    size_t len_;
+    char** env_;
+    int    errno_;
+    bool ctor_common(char** e);
+    void dtor();
+    env& operator =(env);
+public:
+    explicit env(char** env);
+    explicit env(const env&);
+    ~env();
+    int append(const char* var); /* add a new env. var */
+    int error() const { return errno_; }
+    char** operator()() { return env_; }
+};
+
 /* A small class to run external programs. */
 class process
 {
@@ -248,8 +267,9 @@ private:
 public:
 /*! @arg type is a pointer to a null-terminated string which  must  contain
          either  the  letter  'r'  for  reading  or the letter 'w' for writing.
+    @arg env optional null-terminated vector of environment variables
  */
-    process  (const char* cmd, const char* type);
+    process  (const char* cmd, const char* type, char** env);
     ~process ();
 
     FILE* pipe () { return io_;  }
@@ -282,6 +302,8 @@ class string
 {
 public:
     string() : string_(0) {}
+    explicit string(size_t s) : string_(static_cast<char*>(malloc(s))) {}
+    char* operator()() { return string_; }
     void set(char* str) { if (string_) free (string_); string_ = str; }
     ~string() { set (0); }
 private:

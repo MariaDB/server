@@ -129,6 +129,31 @@ ulonglong my_timer_cycles_il_x86_64();
   clock_gettime(CLOCK_SGI_CYCLE) for Irix platforms,
   or on read_real_time for aix platforms. There is
   nothing for Alpha platforms, they would be tricky.
+
+  On the platforms that do not have a CYCLE timer,
+  "wait" events are initialized to use NANOSECOND instead of CYCLE
+  during performance_schema initialization (at the server startup).
+
+  Linux performance monitor (see "man perf_event_open") can
+  provide cycle counter on the platforms that do not have
+  other kinds of cycle counters. But we don't use it so far.
+
+  ARM notes
+  ---------
+  During tests on ARMv7 Debian, perf_even_open() based cycle counter provided
+  too low frequency with too high overhead:
+  MariaDB [performance_schema]> SELECT * FROM performance_timers;
+  +-------------+-----------------+------------------+----------------+
+  | TIMER_NAME  | TIMER_FREQUENCY | TIMER_RESOLUTION | TIMER_OVERHEAD |
+  +-------------+-----------------+------------------+----------------+
+  | CYCLE       | 689368159       | 1                | 970            |
+  | NANOSECOND  | 1000000000      | 1                | 308            |
+  | MICROSECOND | 1000000         | 1                | 417            |
+  | MILLISECOND | 1000            | 1000             | 407            |
+  | TICK        | 127             | 1                | 612            |
+  +-------------+-----------------+------------------+----------------+
+  Therefore, it was decided not to use perf_even_open() on ARM
+  (i.e. go without CYCLE and have "wait" events use NANOSECOND by default).
 */
 
 ulonglong my_timer_cycles(void)
@@ -223,6 +248,13 @@ ulonglong my_timer_cycles(void)
     struct timespec tp;
     clock_gettime(CLOCK_SGI_CYCLE, &tp);
     return (ulonglong) tp.tv_sec * 1000000000 + (ulonglong) tp.tv_nsec;
+  }
+#elif defined(__GNUC__) && defined(__s390__)
+  /* covers both s390 and s390x */
+  {
+    ulonglong result;
+    __asm__ __volatile__ ("stck %0" : "=Q" (result) : : "cc");
+    return result;
   }
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   /* gethrtime may appear as either cycle or nanosecond counter */
@@ -533,6 +565,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC32;
 #elif defined(__sgi) && defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_SGI_CYCLE)
   mti->cycles.routine= MY_TIMER_ROUTINE_SGI_CYCLE;
+#elif defined(__GNUC__) && defined(__s390__)
+  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_S390;
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   mti->cycles.routine= MY_TIMER_ROUTINE_GETHRTIME;
 #else

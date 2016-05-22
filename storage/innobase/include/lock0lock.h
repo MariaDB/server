@@ -664,6 +664,16 @@ lock_get_type(
 	const lock_t*	lock);	/*!< in: lock */
 
 /*******************************************************************//**
+Gets the trx of the lock. Non-inline version for using outside of the
+lock module.
+@return	trx_t* */
+UNIV_INTERN
+trx_t*
+lock_get_trx(
+/*=========*/
+	const lock_t*	lock);	/*!< in: lock */
+
+/*******************************************************************//**
 Gets the id of the transaction owning a lock.
 @return	transaction id */
 UNIV_INTERN
@@ -991,6 +1001,14 @@ void
 lock_cancel_waiting_and_release(
 /*============================*/
 	lock_t*	lock);	/*!< in/out: waiting lock request */
+
+/*******************************************************************//**
+Get lock mode and table/index name
+@return	string containing lock info */
+std::string
+lock_get_info(
+	const lock_t*);
+
 #endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"

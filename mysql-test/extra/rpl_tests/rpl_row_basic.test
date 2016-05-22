@@ -440,7 +440,7 @@ INSERT INTO t5 VALUES (2, repeat(_utf8'a', 255), 2);
 
 connection slave;
 # 1677 = ER_SLAVE_CONVERSION_FAILED 
---let $slave_sql_errno= 1677 
+--let $slave_sql_errno= 1677
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc
 
@@ -453,7 +453,7 @@ INSERT INTO t6 VALUES (2, repeat(_utf8'a', 255), 2);
 
 connection slave;
 # 1677 = ER_SLAVE_CONVERSION_FAILED 
---let $slave_sql_errno= 1677 
+--let $slave_sql_errno= 1677
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc
 

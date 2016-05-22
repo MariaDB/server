@@ -108,6 +108,7 @@ SET (SQL_SOURCE
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
                debug_sync.cc debug_sync.h
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
+               group_by_handler.cc
                sql_statistics.cc sql_string.cc 
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
@@ -135,6 +136,7 @@ SET (SQL_SOURCE
                my_apc.cc my_apc.h mf_iocache_encr.cc
                my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
+               sql_type.cc sql_type.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
@@ -166,7 +168,8 @@ TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS}
   mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${WSREP_LIB}
-  ${SSL_LIBRARIES})
+  ${SSL_LIBRARIES}
+  ${LIBSYSTEMD})
 
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc nt_servc.cc nt_servc.h message.rc)

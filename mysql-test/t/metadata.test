@@ -15,7 +15,7 @@ drop table if exists t1,t2;
 
 select 1, 1.0, -1, "hello", NULL;
 
-create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp, l datetime, m enum('a','b'), n set('a','b'), o char(10));
+create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, l datetime, m enum('a','b'), n set('a','b'), o char(10));
 select * from t1;
 select a b, b c from t1 as t2;
 drop table t1;
@@ -176,7 +176,7 @@ dcol_uns double unsigned,
 # date/time types
 date_col date,
 time_col time,
-timestamp_col timestamp,
+timestamp_col timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 year_col year,
 datetime_col datetime,
 # string types

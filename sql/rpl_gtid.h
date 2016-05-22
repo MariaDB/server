@@ -163,14 +163,11 @@ struct rpl_slave_state
   DYNAMIC_ARRAY gtid_sort_array;
 
   uint64 last_sub_id;
-  bool inited;
   bool loaded;
 
   rpl_slave_state();
   ~rpl_slave_state();
 
-  void init();
-  void deinit();
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,

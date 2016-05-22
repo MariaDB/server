@@ -533,6 +533,7 @@ struct my_charset_handler_st
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
 extern MY_CHARSET_HANDLER my_charset_ucs2_handler;
+extern MY_CHARSET_HANDLER my_charset_utf8_handler;
 
 
 /*
@@ -889,6 +890,18 @@ uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
                   const char *from, uint32 from_length,
                   CHARSET_INFO *from_cs, uint *errors);
 
+/**
+  An extended version of my_convert(), to pass non-default mb_wc() and wc_mb().
+  For example, String::copy_printable() which is used in
+  Protocol::store_warning() uses this to escape control
+  and non-convertable characters.
+*/
+uint32 my_convert_using_func(char *to, uint32 to_length, CHARSET_INFO *to_cs,
+                             my_charset_conv_wc_mb mb_wc,
+                             const char *from, uint32 from_length,
+                             CHARSET_INFO *from_cs,
+                             my_charset_conv_mb_wc wc_mb,
+                             uint *errors);
 /*
   Convert a string between two character sets.
   Bad byte sequences as well as characters that cannot be

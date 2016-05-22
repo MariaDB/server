@@ -4,6 +4,9 @@
 #
 CREATE DATABASE XY;
 USE XY;
+set @old_table_open_cache=@@table_open_cache;
+set global table_open_cache = 512;
+set global table_open_cache = @old_table_open_cache;
 DROP DATABASE XY;
 USE TEST;
 #

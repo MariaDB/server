@@ -2237,7 +2237,9 @@ buf_LRU_block_free_non_file_page(
 	case BUF_BLOCK_READY_FOR_USE:
 		break;
 	default:
-		ut_error;
+		fprintf(stderr, "InnoDB: Error: Block %p incorrect state %s in buf_LRU_block_free_non_file_page()\n",
+			block, buf_get_state_name(block));
+		return; /* Continue */
 	}
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG

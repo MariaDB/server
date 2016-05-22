@@ -930,6 +930,8 @@ a
 31
 32
 SET sql_slave_skip_counter= 1;
+ERROR HY000: When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
+include/stop_slave_io.inc
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;

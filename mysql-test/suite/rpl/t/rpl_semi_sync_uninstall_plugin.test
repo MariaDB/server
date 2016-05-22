@@ -57,6 +57,8 @@ DROP TABLE t1;
 #  possible at this state
 --connection slave
 --echo [connection slave]
+show global status like "Slave%_running";
+
 UNINSTALL PLUGIN rpl_semi_sync_slave;
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 
@@ -64,6 +66,10 @@ select plugin_name,plugin_status from information_schema.plugins where plugin_na
 #  possible at this state
 --connection master
 --echo [connection master]
+
+# The following is to catch errors if the next uninstall plugin would succeed
+show global status like "Slave%_connect%";
+
 UNINSTALL PLUGIN rpl_semi_sync_master;
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 

@@ -542,6 +542,17 @@ static Sys_var_mybool Sys_binlog_direct(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
+
+static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
+       "explicit_defaults_for_timestamp",
+       "This option causes CREATE TABLE to create all TIMESTAMP columns "
+       "as NULL with DEFAULT NULL attribute, Without this option, "
+       "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses. "
+       "The old behavior is deprecated.",
+       READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "
        "insert optimisation. Note that this is a limit per thread!",
@@ -828,30 +839,26 @@ static Sys_var_ulong Sys_delayed_queue_size(
        VALID_RANGE(1, UINT_MAX), DEFAULT(DELAYED_QUEUE_SIZE), BLOCK_SIZE(1));
 
 #ifdef HAVE_EVENT_SCHEDULER
-static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED", NullS };
+static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED",
+                                              "ORIGINAL", NullS };
 static bool event_scheduler_check(sys_var *self, THD *thd, set_var *var)
 {
-  /* DISABLED is only accepted on the command line */
-  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
-    return true;
-  /*
-    If the scheduler was disabled because there are no/bad
-    system tables, produce a more meaningful error message
-    than ER_OPTION_PREVENTS_STATEMENT
-  */
-  if (Events::check_if_system_tables_error())
-    return true;
   if (Events::opt_event_scheduler == Events::EVENTS_DISABLED)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              "--event-scheduler=DISABLED or --skip-grant-tables");
     return true;
   }
+  /* DISABLED is only accepted on the command line */
+  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
+    return true;
   return false;
 }
+
 static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
 {
   int err_no= 0;
+  bool ret;
   uint opt_event_scheduler_value= Events::opt_event_scheduler;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   /*
@@ -870,9 +877,25 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     rare and it's difficult to avoid it without opening up possibilities
     for deadlocks. See bug#51160.
   */
-  bool ret= opt_event_scheduler_value == Events::EVENTS_ON
-            ? Events::start(&err_no)
-            : Events::stop();
+
+  /* EVENTS_ORIGINAL means we should revert back to the startup state */
+  if (opt_event_scheduler_value == Events::EVENTS_ORIGINAL)
+  {
+    opt_event_scheduler_value= Events::opt_event_scheduler=
+      Events::startup_state;
+  }
+ 
+  /*
+    If the scheduler was not properly inited (because of wrong system tables),
+    try to init it again. This is needed for mysql_upgrade to work properly if
+    the event tables where upgraded.
+  */
+  if (!Events::inited && (Events::init(thd, 0) || !Events::inited))
+    ret= 1;
+  else
+    ret= opt_event_scheduler_value == Events::EVENTS_ON ?
+      Events::start(&err_no) :
+      Events::stop();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
   {
@@ -1158,6 +1181,19 @@ static Sys_var_mybool Sys_log_queries_not_using_indexes(
        "Log queries that are executed without benefit of any index to the "
        "slow log if it is open",
        GLOBAL_VAR(opt_log_queries_not_using_indexes),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_log_slow_admin_statements(
+       "log_slow_admin_statements",
+       "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to "
+       "the slow log if it is open.",
+       GLOBAL_VAR(opt_log_slow_admin_statements),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_log_slow_slave_statements(
+       "log_slow_slave_statements",
+       "Log slow statements executed by slave thread to the slow log if it is open.",
+       GLOBAL_VAR(opt_log_slow_slave_statements),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_log_warnings(
@@ -1627,7 +1663,7 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
     But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
     then the slave state must be empty anyway.
   */
-  if ((rpl_global_gtid_slave_state.loaded &&
+  if ((rpl_global_gtid_slave_state->loaded &&
        rpl_append_gtid_state(&str, false)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
@@ -3377,7 +3413,7 @@ static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
        READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr),
-       CMD_LINE_HELP_ONLY, IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
+       CMD_LINE_HELP_ONLY, IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
@@ -4466,6 +4502,28 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
              mi->connection_name.str);
     return true;
   }
+  if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel())
+  {
+    ulong domain_count;
+    mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    domain_count= rpl_global_gtid_slave_state->count();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    if (domain_count > 1)
+    {
+      /*
+        With domain-based parallel replication, the slave position is
+        multi-dimensional, so the relay log position is not very meaningful.
+        It might not even correspond to the next GTID to execute in _any_
+        domain (the case after error stop). So slave_skip_counter will most
+        likely not do what the user intends. Instead give an error, with a
+        suggestion to instead set @@gtid_slave_pos past the point of error;
+        this works reliably also in the case of multiple domains.
+      */
+      my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
+      return true;
+    }
+  }
+
   /* The value was stored temporarily in thd */
   mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
   return false;
@@ -5024,7 +5082,7 @@ static Sys_var_set Sys_log_slow_filter(
        "Log only certain types of queries",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
-       DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
+       DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1)));
 
 static const char *default_regex_flags_names[]= 
 {

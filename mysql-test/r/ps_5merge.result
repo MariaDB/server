@@ -12,7 +12,8 @@ create table t9
 c1  tinyint, c2  smallint, c3  mediumint, c4  int,
 c5  integer, c6  bigint, c7  float, c8  double,
 c9  double precision, c10 real, c11 decimal(7, 4), c12 numeric(8, 4),
-c13 date, c14 datetime, c15 timestamp, c16 time,
+c13 date, c14 datetime, c15 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP, c16 time,
 c17 year, c18 tinyint, c19 bool, c20 char,
 c21 char(10), c22 varchar(30), c23 tinyblob, c24 tinytext,
 c25 blob, c26 text, c27 mediumblob, c28 mediumtext,
@@ -32,7 +33,8 @@ create table t9
 c1  tinyint, c2  smallint, c3  mediumint, c4  int,
 c5  integer, c6  bigint, c7  float, c8  double,
 c9  double precision, c10 real, c11 decimal(7, 4), c12 numeric(8, 4),
-c13 date, c14 datetime, c15 timestamp, c16 time,
+c13 date, c14 datetime, c15 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP 
+ON UPDATE CURRENT_TIMESTAMP, c16 time,
 c17 year, c18 tinyint, c19 bool, c20 char,
 c21 char(10), c22 varchar(30), c23 tinyblob, c24 tinytext,
 c25 blob, c26 text, c27 mediumblob, c28 mediumtext,
@@ -52,7 +54,7 @@ create table t9
 c1  tinyint, c2  smallint, c3  mediumint, c4  int,
 c5  integer, c6  bigint, c7  float, c8  double,
 c9  double precision, c10 real, c11 decimal(7, 4), c12 numeric(8, 4),
-c13 date, c14 datetime, c15 timestamp, c16 time,
+c13 date, c14 datetime, c15 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c16 time,
 c17 year, c18 tinyint, c19 bool, c20 char,
 c21 char(10), c22 varchar(30), c23 tinyblob, c24 tinytext,
 c25 blob, c26 text, c27 mediumblob, c28 mediumtext,
@@ -1199,9 +1201,9 @@ def					id	8	3	1	Y	32928	0	63
 def					select_type	253	19	6	N	1	31	8
 def					table	253	64	2	Y	0	31	8
 def					type	253	10	3	Y	0	31	8
-def					possible_keys	253	4096	0	Y	0	31	8
+def					possible_keys	253	4_OR_8_K	0	Y	0	31	8
 def					key	253	64	0	Y	0	31	8
-def					key_len	253	4096	0	Y	0	31	8
+def					key_len	253	4_OR_8_K	0	Y	0	31	8
 def					ref	253	2048	0	Y	0	31	8
 def					rows	8	10	1	Y	32928	0	63
 def					Extra	253	255	0	N	1	31	8
@@ -3406,7 +3408,7 @@ create table t9
 c1  tinyint, c2  smallint, c3  mediumint, c4  int,
 c5  integer, c6  bigint, c7  float, c8  double,
 c9  double precision, c10 real, c11 decimal(7, 4), c12 numeric(8, 4),
-c13 date, c14 datetime, c15 timestamp, c16 time,
+c13 date, c14 datetime, c15 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c16 time,
 c17 year, c18 tinyint, c19 bool, c20 char,
 c21 char(10), c22 varchar(30), c23 tinyblob, c24 tinytext,
 c25 blob, c26 text, c27 mediumblob, c28 mediumtext,
@@ -4553,9 +4555,9 @@ def					id	8	3	1	Y	32928	0	63
 def					select_type	253	19	6	N	1	31	8
 def					table	253	64	2	Y	0	31	8
 def					type	253	10	3	Y	0	31	8
-def					possible_keys	253	4096	0	Y	0	31	8
+def					possible_keys	253	4_OR_8_K	0	Y	0	31	8
 def					key	253	64	0	Y	0	31	8
-def					key_len	253	4096	0	Y	0	31	8
+def					key_len	253	4_OR_8_K	0	Y	0	31	8
 def					ref	253	2048	0	Y	0	31	8
 def					rows	8	10	1	Y	32928	0	63
 def					Extra	253	255	0	N	1	31	8

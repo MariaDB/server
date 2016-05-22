@@ -1,4 +1,3 @@
---innodb-encrypt-tables=ON
 --innodb-encrypt-log=ON
 --innodb-encryption-rotate-key-age=2
 --innodb-encryption-threads=4

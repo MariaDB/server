@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQL\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQL\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -25,7 +18,7 @@
 .\" SQL scripts
 .\" batch SQL files
 .SH "NAME"
-mysql \- the MySQL command\-line tool
+mysql \- the MariaDB command\-line tool
 .SH "SYNOPSIS"
 .HP \w'\fBmysql\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
 \fBmysql [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
@@ -34,7 +27,7 @@ mysql \- the MySQL command\-line tool
 \fBmysql\fR
 is a simple SQL shell (with GNU
 readline
-capabilities)\&. It supports interactive and noninteractive use\&. When used interactively, query results are presented in an ASCII\-table format\&. When used noninteractively (for example, as a filter), the result is presented in tab\-separated format\&. The output format can be changed using command options\&.
+capabilities)\&. It supports interactive and non\-interactive use\&. When used interactively, query results are presented in an ASCII\-table format\&. When used non\-interactively (for example, as a filter), the result is presented in tab\-separated format\&. The output format can be changed using command options\&.
 .PP
 If you have problems due to insufficient memory for large result sets, use the
 \fB\-\-quick\fR
@@ -77,13 +70,11 @@ Then type an SQL statement, end it with
 \eG
 and press Enter\&.
 .PP
-As of MySQL 5\&.1\&.10, typing Control\-C causes
+Typing Control\-C causes
 \fBmysql\fR
 to attempt to kill the current statement\&. If this cannot be done, or Control\-C is typed again before the statement is killed,
 \fBmysql\fR
-exits\&. Previously, Control\-C caused
-\fBmysql\fR
-to exit in all cases\&.
+exits\&.
 .PP
 You can execute SQL statements in a script file (batch file) like this:
 .sp
@@ -104,13 +95,10 @@ shell> \fBmysql \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR
 .PP
 \fBmysql\fR
 supports the following options, which can be specified on the command line or in the
-[mysql]
-and
-[client]
+[mysql], [client], [client-server] or [client-mariadb]
 option file groups\&.
 \fBmysql\fR
-also supports the options for processing option files described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
+also supports the options for processing option files\&.
 .sp
 .RS 4
 .ie n \{\
@@ -137,12 +125,27 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql: abort-source-on-error option
+.\" abort-source-on-error: mysql
+\fB\-\-abort\-source\-on\-error\fR
+.sp
+Abort 'source filename' operations in case of errors\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql: auto-rehash option
 .\" auto-rehash option: mysql
 \fB\-\-auto\-rehash\fR
 .sp
 Enable automatic rehashing\&. This option is on by default, which enables database, table, and column name completion\&. Use
-\fB\-\-disable\-auto\-rehash\fR
+\fB\-\-disable\-auto\-rehash\fR, \fB\-\-no\-auto\-rehash\fR,  or \fB\-\-skip\-auto\-rehash\fR
 to disable rehashing\&. That causes
 \fBmysql\fR
 to start faster, but you must issue the
@@ -152,6 +155,21 @@ command if you want to use name completion\&.
 To complete a name, enter the first part and press Tab\&. If the name is unambiguous,
 \fBmysql\fR
 completes it\&. Otherwise, you can press Tab again to see the possible names that begin with what you have typed so far\&. Completion does not occur if there is no default database\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: auto-vertical-output option
+.\" auto-vertical-output option: mysql
+\fB\-\-auto\-vertical\-output\fR
+.sp
+Automatically switch to vertical output mode if the result is wider than the terminal width\&.
 .RE
 .sp
 .RS 4
@@ -184,12 +202,26 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql: binary-mode option
+.\" binary-mode option: mysql
+\fB\-\-binary\-mode\fR
+.sp
+By default, ASCII '\e0' is disallowed and '\er\en' is translated to '\en'\&. This switch turns off both features, and also turns off parsing of all client commands except \eC and DELIMITER, in non-interactive mode (for input piped to mysql or loaded using the 'source' command)\&. This is necessary when processing output from mysqlbinlog that may contain blobs\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql: character-sets-dir option
 .\" character-sets-dir option: mysql
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
-The directory where character sets are installed\&. See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq\&.
+The directory where character sets are installed\&.
 .RE
 .sp
 .RS 4
@@ -220,10 +252,7 @@ Write column names in results\&.
 \fB\-\-column\-type\-info\fR,
 \fB\-m\fR
 .sp
-Display result set metadata\&. This option was added in MySQL 5\&.1\&.14\&. (Before that, use
-\fB\-\-debug\-info\fR\&.) The
-\fB\-m\fR
-short option was added in MySQL 5\&.1\&.21\&.
+Display result set metadata\&.
 .RE
 .sp
 .RS 4
@@ -239,7 +268,7 @@ short option was added in MySQL 5\&.1\&.21\&.
 \fB\-\-comments\fR,
 \fB\-c\fR
 .sp
-Whether to preserve comments in statements sent to the server\&. The default is \-\-skip\-comments (discard comments), enable with \-\-comments (preserve comments)\&. This option was added in MySQL 5\&.1\&.23\&.
+Whether to preserve comments in statements sent to the server\&. The default is \-\-skip\-comments (discard comments), enable with \-\-comments (preserve comments)\&.
 .RE
 .sp
 .RS 4
@@ -286,7 +315,7 @@ Set the number of seconds before connection timeout\&. (Default value is 0\&.)
 \fB\-\-database=\fR\fB\fIdb_name\fR\fR,
 \fB\-D \fR\fB\fIdb_name\fR\fR
 .sp
-The database to use\&. This is useful primarily in an option file\&.
+The database to use\&.
 .RE
 .sp
 .RS 4
@@ -321,7 +350,7 @@ string is
 .\" debug-check option: mysql
 \fB\-\-debug\-check\fR
 .sp
-Print some debugging information when the program exits\&. This option was added in MySQL 5\&.1\&.21\&.
+Print some debugging information when the program exits\&.
 .RE
 .sp
 .RS 4
@@ -337,9 +366,22 @@ Print some debugging information when the program exits\&. This option was added
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
-Before MySQL 5\&.1\&.14, this option prints debugging information and memory and CPU usage statistics when the program exits, and also causes display of result set metadata during execution\&. As of MySQL 5\&.1\&.14, use
-\fB\-\-column\-type\-info\fR
-to display result set metadata\&.
+Prints debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: default-auth option
+.\" default-auth option: mysql
+\fB\-\-default\-auth=\fR\fB\fIname\fR
+.sp
+Default authentication client-side plugin to use\&.
 .RE
 .sp
 .RS 4
@@ -362,12 +404,25 @@ A common issue that can occur when the operating system uses
 utf8
 or another multi\-byte character set is that output from the
 \fBmysql\fR
-client is formatted incorrectly, due to the fact that the MySQL client uses the
+client is formatted incorrectly, due to the fact that the MariaDB client uses the
 latin1
 character set by default\&. You can usually fix such issues by using this option to force the client to use the system character set instead\&.
+.RE
 .sp
-See
-Section\ \&9.5, \(lqCharacter Set Configuration\(rq, for more information\&.
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: defaults-extra-file option
+.\" defaults-extra-file option: mysql
+\fB\-\-defaults-extra-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
+Must be given as first option\&.
 .RE
 .sp
 .RS 4
@@ -393,12 +448,11 @@ Set \fB\fIfilename\fR\fR as the file to read default options from, override glob
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: defaults-extra-file option
-.\" defaults-extra-file option: mysql
-\fB\-\-defaults-extra-file=\fR\fB\fIfilename\fR\fR
+.\" mysql: defaults-group-suffix option
+.\" defaults-group-suffix option: mysql
+\fB\-\-defaults\-group\-suffix=\fR\fB\fIsuffix\fR\fR
 .sp
-Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
-Must be given as first option\&.
+In addition to the groups named on the command line, read groups that have the given suffix\&.
 .RE
 .sp
 .RS 4
@@ -451,9 +505,8 @@ the section called \(lqMYSQL COMMANDS\(rq\&.
 \fB\-\-execute=\fR\fB\fIstatement\fR\fR,
 \fB\-e \fR\fB\fIstatement\fR\fR
 .sp
-Execute the statement and quit\&. The default output format is like that produced with
-\fB\-\-batch\fR\&. See
-Section\ \&4.2.3.1, \(lqUsing Options on the Command Line\(rq, for some examples\&.
+Execute the statement and quit\&. Disables \fB\-\-force\fR and history file\&. The default output format is like that produced with
+\fB\-\-batch\fR\&.
 .RE
 .sp
 .RS 4
@@ -469,7 +522,7 @@ Section\ \&4.2.3.1, \(lqUsing Options on the Command Line\(rq, for some examples
 \fB\-\-force\fR,
 \fB\-f\fR
 .sp
-Continue even if an SQL error occurs\&.
+Continue even if an SQL error occurs\&. Sets \fB\-\-abort\-source\-on-error\fR to 0\&.
 .RE
 .sp
 .RS 4
@@ -485,7 +538,7 @@ Continue even if an SQL error occurs\&.
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -517,10 +570,22 @@ Produce HTML output\&.
 \fB\-\-ignore\-spaces\fR,
 \fB\-i\fR
 .sp
-Ignore spaces after function names\&. The effect of this is described in the discussion for the
-IGNORE_SPACE
-SQL mode (see
-Section\ \&5.1.8, \(lqServer SQL Modes\(rq)\&.
+Ignore spaces after function names\&. Allows one to have spaces (including tab characters and new line characters) between function name and '('\&. The drawback is that this causes built in functions to become reserved words\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: init-command option
+.\" init-command option: mysql
+\fB\-\-init\-command=\fR\fB\fIstr\fR\fR\fR
+.sp
+SQL Command to execute when connecting to the MariaDB server\&. Will automatically be re-executed when reconnecting\&.
 .RE
 .sp
 .RS 4
@@ -577,7 +642,7 @@ has no effect if the server does not also support it\&.
 .\" max-allowed-packet option: mysql
 \fB\-\-max\-allowed\-packet=\fR\fB\fInum\fR\fR
 .sp
-Set the maximum packet length to send to or receive from the server\&. (Default value is 16MB\&.)
+Set the maximum packet length to send to or receive from the server\&. (Default value is 16MB, largest 1GB\&.)
 .RE
 .sp
 .RS 4
@@ -618,7 +683,7 @@ and
 both are recognized\&. Use
 \fB\-\-skip\-named\-commands\fR
 to disable named commands\&. See
-the section called \(lqMYSQL COMMANDS\(rq\&.
+the section called \(lqMYSQL COMMANDS\(rq\&. Disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -695,72 +760,12 @@ Do not read default options from any option file\&. This must be given as the fi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: no-named-commands option
-.\" no-named-commands option: mysql
-\fB\-\-no\-named\-commands\fR,
-\fB\-g\fR
-.sp
-Deprecated, use
-\fB\-\-disable\-named\-commands\fR
-instead\&.
-\fB\-\-no\-named\-commands\fR
-is removed in MySQL 5\&.5\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysql: no-pager option
-.\" no-pager option: mysql
-\fB\-\-no\-pager\fR
-.sp
-Deprecated form of
-\fB\-\-skip\-pager\fR\&. See the
-\fB\-\-pager\fR
-option\&.
-\fB\-\-no\-pager\fR
-is removed in MySQL 5\&.5\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysql: no-tee option
-.\" no-tee option: mysql
-\fB\-\-no\-tee\fR
-.sp
-Deprecated form of
-\fB\-\-skip\-tee\fR\&. See the
-\fB\-\-tee\fR
-option\&.
-\fB\-\-no\-tee\fR
-is removed in MySQL 5\&.5\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mysql: one-database option
 .\" one-database option: mysql
 \fB\-\-one\-database\fR,
 \fB\-o\fR
 .sp
-Ignore statements except those for the default database named on the command line\&. This is useful for skipping updates to other databases in the binary log\&.
+Ignore statements except those those that occur while the default database is the one named on the command line\&. This filtering is limited, and based only on USE statements\&. This is useful for skipping updates to other databases in the binary log\&.
 .RE
 .sp
 .RS 4
@@ -810,8 +815,7 @@ option on the command line,
 \fBmysql\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
 .RE
 .sp
 .RS 4
@@ -838,12 +842,27 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql: plugin-dir option
+.\" plugin-dir option: mysql
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql: port option
 .\" port option: mysql
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection\&.
+The TCP/IP port number to use for the connection or 0 for default to, in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 .RE
 .sp
 .RS 4
@@ -869,12 +888,26 @@ Print the program argument list and exit\&. This must be given as the first argu
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql: progress-reports option
+.\" progress-reports option: mysql
+\fB\-\-progress\-reports\fR
+.sp
+Get progress reports for long running commands (such as ALTER TABLE)\&. (Defaults to on; use \fB\-\-skip\-progress\-reports\fR to disable\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql: prompt option
 .\" prompt option: mysql
 \fB\-\-prompt=\fR\fB\fIformat_str\fR\fR
 .sp
-Set the prompt to the specified format\&. The default is
-mysql>\&. The special sequences that the prompt can contain are described in
+Set the prompt to the specified format\&. The special sequences that the prompt can contain are described in
 the section called \(lqMYSQL COMMANDS\(rq\&.
 .RE
 .sp
@@ -890,8 +923,7 @@ the section called \(lqMYSQL COMMANDS\(rq\&.
 .\" protocol option: mysql
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
-The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&. For details on the allowable values, see
-Section\ \&4.2.2, \(lqConnecting to the MySQL Server\(rq\&.
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -979,8 +1011,8 @@ CHAR(92)
 .\" reconnect option: mysql
 \fB\-\-reconnect\fR
 .sp
-If the connection to the server is lost, automatically try to reconnect\&. A single reconnect attempt is made each time the connection is lost\&. To suppress reconnection behavior, use
-\fB\-\-skip\-reconnect\fR\&.
+If the connection to the server is lost, automatically try to reconnect\&. A single reconnect attempt is made each time the connection is lost\&. Enabled by default, to disable use
+\fB\-\-skip\-reconnect\fR or \fB\-\-disable\-reconnect\fR\&.
 .RE
 .sp
 .RS 4
@@ -1180,12 +1212,137 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .\}
 .\" mysql: SSL options
 .\" SSL options: mysql
-\fB\-\-ssl*\fR
-.sp
-Options that begin with
 \fB\-\-ssl\fR
-specify whether to connect to the server via SSL and indicate where to find SSL keys and certificates\&. See
-Section\ \&5.5.6.3, \(lqSSL Command Options\(rq\&.
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL CA option
+.\" SSL CA option: mysql
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL CA Path option
+.\" SSL CA Path option: mysql
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Cert option
+.\" SSL Cert option: mysql
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Cipher option
+.\" SSL Cipher option: mysql
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Key option
+.\" SSL Key option: mysql
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Crl option
+.\" SSL CRL option: mysql
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Crlpath option
+.\" SSL Crlpath option: mysql
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysql
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -1249,7 +1406,7 @@ Flush the buffer after each query\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -1333,36 +1490,7 @@ If the connection cannot be established, wait and retry instead of aborting\&.
 \fB\-X\fR
 .sp
 Produce XML output\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-Prior to MySQL 5\&.1\&.12, there was no differentiation in the output when using this option between columns containing the
-NULL
-value and columns containing the string literal
-\'NULL\'; both were represented as
-.sp .5v
-.RE
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-<field name="\fIcolumn_name\fR">NULL</field>
-.fi
-.if n \{\
-.RE
-.\}
-.sp
-Beginning with MySQL 5\&.1\&.12, the output when
+The output when
 \fB\-\-xml\fR
 is used with
 \fBmysql\fR
@@ -1371,7 +1499,7 @@ matches that of
 \fBmysqldump\fR(1)
 for details\&.
 .sp
-Beginning with MySQL 5\&.1\&.18, the XML output also uses an XML namespace, as shown here:
+The XML output also uses an XML namespace, as shown here:
 .sp
 .if n \{\
 .RS 4
@@ -1398,18 +1526,10 @@ shell> \fBmysql \-\-xml \-uroot \-e "SHOW VARIABLES LIKE \'version%\'"\fR
 </row>
 </resultset>
 .fi
-.if n \{\
-.RE
-.\}
-.sp
-(See
-\m[blue]\fBBug#25946\fR\m[]\&\s-2\u[1]\d\s+2\&.)
 .RE
 .PP
 You can also set the following variables by using
-\fB\-\-\fR\fB\fIvar_name\fR\fR\fB=\fR\fB\fIvalue\fR\fR\&. The
-\fB\-\-set\-variable\fR
-format is deprecated and is removed in MySQL 5\&.5\&.
+\fB\-\-\fR\fB\fIvar_name\fR\fR\fB=\fR\fB\fIvalue\fR\fR\&.
 .sp
 .RS 4
 .ie n \{\
@@ -1504,8 +1624,7 @@ environment variable\&.
 .PP
 The
 \&.mysql_history
-should be protected with a restrictive access mode because sensitive information might be written to it, such as the text of SQL statements that contain passwords\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
+should be protected with a restrictive access mode because sensitive information might be written to it, such as the text of SQL statements that contain passwords\&.
 .PP
 If you do not want to maintain a history file, first remove
 \&.mysql_history
@@ -1632,7 +1751,7 @@ If you provide an argument to the
 help
 command,
 \fBmysql\fR
-uses it as a search string to access server\-side help from the contents of the MySQL Reference Manual\&. For more information, see
+uses it as a search string to access server\-side help\&. For more information, see
 the section called \(lqMYSQL SERVER-SIDE HELP\(rq\&.
 .RE
 .sp
@@ -1653,7 +1772,7 @@ Change the default character set and issue a
 SET NAMES
 statement\&. This enables the character set to remain synchronized on the client and server if
 \fBmysql\fR
-is run with auto\-reconnect enabled (which is not recommended), because the specified character set is used for reconnects\&. This command was added in MySQL 5\&.1\&.7\&.
+is run with auto\-reconnect enabled (which is not recommended), because the specified character set is used for reconnects\&.
 .RE
 .sp
 .RS 4
@@ -1705,16 +1824,14 @@ Change the string that
 \fBmysql\fR
 interprets as the separator between SQL statements\&. The default is the semicolon character (\(lq;\(rq)\&.
 .sp
-The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (\') or douple quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MySQL\&. For an unquoted argument, the delmiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
+The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (\') or douple quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MariaDB\&. For an unquoted argument, the delmiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
 .sp
 When the delimiter recognized by
 \fBmysql\fR
 is set to something other than the default of
 \(lq;\(rq, instances of that character are sent to the server without interpretation\&. However, the server itself still interprets
 \(lq;\(rq
-as a statement delimiter and processes statements accordingly\&. This behavior on the server side comes into play for multiple\-statement execution (see
-Section\ \&21.9.12, \(lqC API Support for Multiple Statement Execution\(rq), and for parsing the body of stored procedures and functions, triggers, and events (see
-Section\ \&19.1, \(lqDefining Stored Programs\(rq)\&.
+as a statement delimiter and processes statements accordingly\&. This behavior on the server side comes into play for multiple\-statement execution, and for parsing the body of stored procedures and functions, triggers, and events\&.
 .RE
 .sp
 .RS 4
@@ -2505,7 +2622,7 @@ You can set the
 prompt
 option in the
 [mysql]
-group of any MySQL option file, such as
+group of any MariaDB option file, such as
 /etc/my\&.cnf
 or the
 \&.my\&.cnf
@@ -2524,8 +2641,7 @@ prompt=(\e\eu@\e\eh) [\e\ed]>\e\e_
 .sp
 In this example, note that the backslashes are doubled\&. If you set the prompt using the
 prompt
-option in an option file, it is advisable to double the backslashes when using the special prompt options\&. There is some overlap in the set of allowable prompt options and the set of special escape sequences that are recognized in option files\&. (The rules for escape sequences in option files are listed in
-Section\ \&4.2.3.3, \(lqUsing Option Files\(rq\&.) The overlap may cause you problems if you use single backslashes\&. For example,
+option in an option file, it is advisable to double the backslashes when using the special prompt options\&. There is some overlap in the set of allowable prompt options and the set of special escape sequences that are recognized in option files\&. The overlap may cause you problems if you use single backslashes\&. For example,
 \es
 is interpreted as a space rather than as the current seconds value\&. The following example shows how to define a prompt within an option file to include the current time in
 HH:MM:SS>
@@ -2588,10 +2704,9 @@ If you provide an argument to the
 help
 command,
 \fBmysql\fR
-uses it as a search string to access server\-side help from the contents of the MySQL Reference Manual\&. The proper operation of this command requires that the help tables in the
+uses it as a search string to access server\-side help\&. The proper operation of this command requires that the help tables in the
 mysql
-database be initialized with help topic information (see
-Section\ \&5.1.9, \(lqServer-Side Help\(rq)\&.
+database be initialized with help topic information.
 .PP
 If there is no match for the search string, the search fails:
 .sp
@@ -2782,17 +2897,14 @@ with the
 \fB\-\-verbose\fR
 option, which causes each statement to be displayed before the result that it produces\&.
 .PP
-As of MySQL 5\&.1\&.23,
 \fBmysql\fR
-ignores Unicode byte order mark (BOM) characters at the beginning of input files\&. Previously, it read them and sent them to the server, resulting in a syntax error\&. Presence of a BOM does not cause
+ignores Unicode byte order mark (BOM) characters at the beginning of input files\&. Presence of a BOM does not cause
 \fBmysql\fR
 to change its default character set\&. To do that, invoke
 \fBmysql\fR
 with an option such as
 \fB\-\-default\-character\-set=utf8\fR\&.
 .PP
-For more information about batch mode, see
-Section\ \&3.5, \(lqUsing mysql in Batch Mode\(rq\&.
 .SH "MYSQL TIPS"
 .PP
 This section describes some techniques that can help you use
@@ -2846,7 +2958,7 @@ When you use the
 \fB\-\-safe\-updates\fR
 option,
 \fBmysql\fR
-issues the following statement when it connects to the MySQL server:
+issues the following statement when it connects to the MariaDB server:
 .sp
 .if n \{\
 .RS 4
@@ -2857,9 +2969,6 @@ SET sql_safe_updates=1, sql_select_limit=1000, sql_max_join_size=1000000;
 .if n \{\
 .RE
 .\}
-.PP
-See
-Section\ \&5.1.5, \(lqSession System Variables\(rq\&.
 .PP
 The
 SET
@@ -2980,12 +3089,10 @@ client with the
 \fB\-\-skip\-reconnect\fR
 option\&.
 .PP
-For more information about auto\-reconnect and its effect on state information when a reconnection occurs, see
-Section\ \&21.9.11, \(lqControlling Automatic Reconnection Behavior\(rq\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -3000,8 +3107,6 @@ Bug#25946
 \%http://bugs.mysql.com/bug.php?id=25946
 .RE
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

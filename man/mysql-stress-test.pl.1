@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql-stress-test.pl\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/31/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL
-.\"  Language: English
 .\"
-.TH "\FBMYSQL\-STRESS\-TE" "1" "03/31/2010" "MySQL" "MySQL Database System"
+.TH "\FBMYSQL\-STRESS\-TE" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -28,7 +21,7 @@ mysql-stress-test.pl \- server stress test program
 .PP
 The
 \fBmysql\-stress\-test\&.pl\fR
-Perl script performs stress\-testing of the MySQL server\&. (MySQL 5\&.0 and up only)
+Perl script performs stress\-testing of the MariaDB server\&.
 .PP
 \fBmysql\-stress\-test\&.pl\fR
 requires a version of Perl that has been built with threads support\&.
@@ -250,7 +243,7 @@ The TCP/IP port number to use for connecting to the server\&. The default is 330
 \fB\-\-server\-socket=\fR\fB\fIfile_name\fR\fR
 .sp
 For connections to
-localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&. The default if
+localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&. The default is
 /tmp/mysql\&.sock\&.
 .RE
 .sp
@@ -266,7 +259,7 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .\" server-user option: mysql-stress-test.pl
 \fB\-\-server\-user=\fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&. The default is
+The MariaDB user name to use when connecting to the server\&. The default is
 root\&.
 .RE
 .sp
@@ -489,7 +482,7 @@ Verbose mode\&. Print more information about what the program does\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -498,8 +491,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

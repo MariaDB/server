@@ -117,6 +117,6 @@ maria_declare_plugin(locales)
   NULL,                                 	/* Status variables */
   NULL,                                 	/* System variables */
   "1.0",                                	/* String version representation */
-  MariaDB_PLUGIN_MATURITY_GAMMA         	/* Maturity (see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE        	/* Maturity (see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;

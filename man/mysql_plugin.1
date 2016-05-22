@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql_plugin\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
-.\"      Date: 01/16/2013
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.5
-.\"  Language: English
 .\"
-.TH "\FBMYSQL_PLUGIN\FR" "1" "01/16/2013" "MySQL 5\&.5" "MySQL Database System"
+.TH "\FBMYSQL_PLUGIN\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -29,7 +22,7 @@
 .\" -----------------------------------------------------------------
 .\" mysql_plugin
 .SH "NAME"
-mysql_plugin \- configure MySQL server plugins
+mysql_plugin \- configure MariaDB server plugins
 .SH "SYNOPSIS"
 .HP \w'\fBmysql_plugin\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIplugin\fR\fR\fB\ {ENABLE|DISABLE}\fR\ 'u
 \fBmysql_plugin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIplugin\fR\fR\fB {ENABLE|DISABLE}\fR
@@ -37,15 +30,13 @@ mysql_plugin \- configure MySQL server plugins
 .PP
 The
 \fBmysql_plugin\fR
-utility enables MySQL administrators to manage which plugins a MySQL server loads\&. It provides an alternative to manually specifying the
+utility enables MariaDB administrators to manage which plugins a MariaDB server loads\&. It provides an alternative to manually specifying the
 \fB\-\-plugin\-load\fR
 option at server startup or using the
 INSTALL PLUGIN
 and
 UNINSTALL PLUGIN
 statements at runtime\&.
-\fBmysql_plugin\fR
-is available as of MySQL 5\&.5\&.16\&.
 .PP
 Depending on whether
 \fBmysql_plugin\fR
@@ -53,12 +44,11 @@ is invoked to enable or disable plugins, it inserts or deletes rows in the
 mysql\&.plugin
 table that serves as a plugin registry\&. (To perform this operation,
 \fBmysql_plugin\fR
-invokes the MySQL server in bootstrap mode\&. This means that the server must not already be running\&.) For normal server startups, the server loads and enables plugins listed in
+invokes the MariaDB server in bootstrap mode\&. This means that the server must not already be running\&.) For normal server startups, the server loads and enables plugins listed in
 mysql\&.plugin
 automatically\&. For additional control over plugin activation, use
 \fB\-\-\fR\fB\fIplugin_name\fR\fR
-options named for specific plugins, as described in
-Section\ \&5.1.8.1, \(lqInstalling and Uninstalling Plugins\(rq\&.
+options named for specific plugins\&.
 .PP
 Each invocation of
 \fBmysql_plugin\fR
@@ -150,7 +140,7 @@ An error occurs if
 \fBmysql_plugin\fR
 cannot find the configuration file or plugin library file, or if
 \fBmysql_plugin\fR
-cannot start the MySQL server\&.
+cannot start the MariaDB server\&.
 .PP
 \fBmysql_plugin\fR
 supports the following options, which can be specified on the command line or in the
@@ -163,8 +153,7 @@ recognizes the
 \fB\-\-basedir\fR,
 \fB\-\-datadir\fR, and
 \fB\-\-plugin\-dir\fR
-options and ignores others\&. For information about option files, see
-Section\ \&4.2.3.3, \(lqUsing Option Files\(rq\&.
+options and ignores others\&.
 .PP
 mysql_plugin Options
 .sp
@@ -268,7 +257,7 @@ server\&.
 Do not read values from the configuration file\&. This option enables an administrator to skip reading defaults from the configuration file\&.
 .sp
 With
-\fBmysql_plugin\fR, this option need not be given first on the command line, unlike most other MySQL programs that support
+\fBmysql_plugin\fR, this option need not be given first on the command line, unlike most other MariaDB programs that support
 \fB\-\-no\-defaults\fR\&.
 .RE
 .sp
@@ -334,7 +323,7 @@ to print the defaults for
 if they are found in the configuration file\&. If no value for a variable is found, nothing is shown\&.
 .sp
 With
-\fBmysql_plugin\fR, this option need not be given first on the command line, unlike most other MySQL programs that support
+\fBmysql_plugin\fR, this option need not be given first on the command line, unlike most other MariaDB programs that support
 \fB\-\-print\-defaults\fR\&.
 .RE
 .sp
@@ -372,7 +361,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 1997, 2013, Oracle and/or its affiliates. All rights reserved.
+Copyright \(co 1997, 2013, Oracle and/or its affiliates. All rights reserved., 2013-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -381,8 +370,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Oracle Corporation (http://dev.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

@@ -1,5 +1,5 @@
-#!/bin/bash -e
-# Copyright (C) 2009 Codership Oy
+#!/bin/bash -ue
+# Copyright (C) 2009-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,7 +41,6 @@ local_ip()
     return 1
 }
 
-if test -z "$WSREP_SST_OPT_USER";  then wsrep_log_error "USER cannot be nil";  exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_HOST";  then wsrep_log_error "HOST cannot be nil";  exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_PORT";  then wsrep_log_error "PORT cannot be nil";  exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_LPORT"; then wsrep_log_error "LPORT cannot be nil"; exit $EINVAL; fi
@@ -64,13 +63,18 @@ then
     exit $EINVAL
 fi
 
-# For Bug:1293798
-if [ -z "$WSREP_SST_OPT_PSWD" -a -n "$WSREP_SST_OPT_AUTH" ]; then
-    WSREP_SST_OPT_USER=$(echo $WSREP_SST_OPT_AUTH | cut -d: -f1)
-    WSREP_SST_OPT_PSWD=$(echo $WSREP_SST_OPT_AUTH | cut -d: -f2)
-fi
-AUTH="-u$WSREP_SST_OPT_USER"
-if test -n "$WSREP_SST_OPT_PSWD"; then AUTH="$AUTH -p$WSREP_SST_OPT_PSWD"; fi
+[ -n "$WSREP_SST_OPT_USER" ] && AUTH="-u$WSREP_SST_OPT_USER" || AUTH=
+
+# Refs https://github.com/codership/mysql-wsrep/issues/141
+# Passing password in MYSQL_PWD environment variable is considered
+# "extremely insecure" by MySQL Guidelines for Password Security
+# (https://dev.mysql.com/doc/refman/5.6/en/password-security-user.html)
+# that is even less secure than passing it on a command line! It is doubtful:
+# the whole command line is easily observable by any unprivileged user via ps,
+# whereas (at least on Linux) unprivileged user can't see process environment
+# that he does not own. So while it may be not secure in the NSA sense of the
+# word, it is arguably more secure than passing password on the command line.
+[ -n "$WSREP_SST_OPT_PSWD" ] && export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
 
 STOP_WSREP="SET wsrep_on=OFF;"
 
@@ -147,15 +151,15 @@ fi
 MYSQLDUMP="$MYSQLDUMP $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases"
+--skip-comments --flush-privileges --all-databases --events"
 
 # need to disable logging when loading the dump
 # reason is that dump contains ALTER TABLE for log tables, and
 # this causes an error if logging is enabled
-GENERAL_LOG_OPT=`$MYSQL --skip-column-names -e"$STOP_WSREP SELECT @@GENERAL_LOG"`
-SLOW_LOG_OPT=`$MYSQL --skip-column-names -e"$STOP_WSREP SELECT @@SLOW_QUERY_LOG"`
-$MYSQL -e"$STOP_WSREP SET GLOBAL GENERAL_LOG=OFF"
-$MYSQL -e"$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
+GENERAL_LOG_OPT=`$MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@GENERAL_LOG"`
+SLOW_LOG_OPT=`$MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@SLOW_QUERY_LOG"`
+$MYSQL -e "$STOP_WSREP SET GLOBAL GENERAL_LOG=OFF"
+$MYSQL -e "$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
 
 # commands to restore log settings
 RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"

@@ -30,6 +30,7 @@
 #include "strfunc.h"
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "rpl_mi.h" // For Multi-Source Replication
+#include "debug_sync.h"
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -1094,9 +1095,6 @@ public:
   }
 };
 
-// overflow-safe (1 << X)-1
-#define MAX_SET(X) ((((1UL << ((X)-1))-1) << 1) | 1)
-
 /**
   The class for flagset variables - a variant of SET that allows in-place
   editing (turning on/off individual bits). String representations looks like
@@ -1131,7 +1129,7 @@ public:
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 1);
     SYSVAR_ASSERT(typelib.count <= 65);
-    SYSVAR_ASSERT(def_val < MAX_SET(typelib.count));
+    SYSVAR_ASSERT(def_val < my_set_bits(typelib.count));
     SYSVAR_ASSERT(strcmp(values[typelib.count-1], "default") == 0);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
@@ -1179,7 +1177,7 @@ public:
     {
       longlong tmp=var->value->val_int();
       if ((tmp < 0 && ! var->value->unsigned_flag)
-          || (ulonglong)tmp > MAX_SET(typelib.count))
+          || (ulonglong)tmp > my_set_bits(typelib.count))
         return true;
       else
         var->save_result.ulonglong_value= tmp;
@@ -1240,7 +1238,7 @@ public:
     global_var(ulonglong)= def_val;
     SYSVAR_ASSERT(typelib.count > 0);
     SYSVAR_ASSERT(typelib.count <= 64);
-    SYSVAR_ASSERT(def_val <= MAX_SET(typelib.count));
+    SYSVAR_ASSERT(def_val <= my_set_bits(typelib.count));
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
   bool do_check(THD *thd, set_var *var)
@@ -1278,7 +1276,7 @@ public:
     {
       longlong tmp=var->value->val_int();
       if ((tmp < 0 && ! var->value->unsigned_flag)
-          || (ulonglong)tmp > MAX_SET(typelib.count))
+          || (ulonglong)tmp > my_set_bits(typelib.count))
         return true;
       else
         var->save_result.ulonglong_value= tmp;
@@ -1472,7 +1470,6 @@ public:
   }
   bool session_update(THD *thd, set_var *var)
   {
-    extern bool debug_sync_update(THD *thd, char *val_str);
     return debug_sync_update(thd, var->save_result.string_value.str);
   }
   bool global_update(THD *thd, set_var *var)

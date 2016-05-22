@@ -1,8 +1,8 @@
 #ifndef HANDLER_INCLUDED
 #define HANDLER_INCLUDED
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -40,10 +40,6 @@
 #include <ft_global.h>
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
-
-#if MAX_KEY > 128
-#error MAX_KEY is too large.  Values up to 128 are supported.
-#endif
 
 class Alter_info;
 
@@ -133,7 +129,7 @@ enum enum_alter_inplace_result {
 */ 
 #define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1ULL << 16) 
 #define HA_CAN_RTREEKEYS       (1ULL << 17)
-#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18)
+#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18) /* unused */
 /*
   The following is we need to a primary key to delete (and update) a row.
   If there is no primary key, all columns needs to be read on update and delete
@@ -147,7 +143,7 @@ enum enum_alter_inplace_result {
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
-#define HA_NO_VARCHAR	       (1ULL << 27)
+#define HA_NO_VARCHAR	       (1ULL << 27) /* unused */
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
 #define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
 #define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
@@ -252,6 +248,15 @@ enum enum_alter_inplace_result {
  */
 #define HA_CAN_EXPORT                 (1LL << 45)
 
+/*
+  Storage engine does not require an exclusive metadata lock
+  on the table during optimize. (TODO and repair?).
+  It can allow other connections to open the table.
+  (it does not necessarily mean that other connections can
+  read or modify the table - this is defined by THR locks and the
+  ::store_lock() method).
+*/
+#define HA_CONCURRENT_OPTIMIZE          (1LL << 46)
 
 /*
   Set of all binlog flags. Currently only contain the capabilities
@@ -410,7 +415,9 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 /* Flags for method is_fatal_error */
 #define HA_CHECK_DUP_KEY 1
 #define HA_CHECK_DUP_UNIQUE 2
+#define HA_CHECK_FK_ERROR 4
 #define HA_CHECK_DUP (HA_CHECK_DUP_KEY + HA_CHECK_DUP_UNIQUE)
+#define HA_CHECK_ALL (~0U)
 
 enum legacy_db_type
 {
@@ -949,6 +956,11 @@ struct handler_iterator {
 };
 
 class handler;
+class group_by_handler;
+struct Query;
+typedef class st_select_lex SELECT_LEX;
+typedef struct st_order ORDER;
+
 /*
   handlerton is a singleton structure - one instance per storage engine -
   to provide access to storage engine functionality that works on the
@@ -1251,6 +1263,20 @@ struct handlerton
    */
    const char **tablefile_extensions; // by default - empty list
 
+  /**********************************************************************
+   Functions to intercept queries
+  **********************************************************************/
+
+  /*
+    Create and return a group_by_handler, if the storage engine can execute
+    the summary / group by query.
+    If the storage engine can't do that, return NULL.
+
+    The server guaranteeds that all tables in the list belong to this
+    storage engine.
+  */
+  group_by_handler *(*create_group_by)(THD *thd, Query *query);
+
    /*********************************************************************
      Table discovery API.
      It allows the server to "discover" tables that exist in the storage
@@ -1287,7 +1313,7 @@ struct handlerton
    };
 
    /*
-     By default (if not implemented by the engine, but the discovery_table() is
+     By default (if not implemented by the engine, but the discover_table() is
      implemented) it will perform a file-based discovery:
 
      - if tablefile_extensions[0] is not null, this will discovers all tables
@@ -1914,7 +1940,10 @@ public:
   // Virtual columns changed
   static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 30;
 
-  // ALTER TABLE for a partitioned table
+  /**
+    ALTER TABLE for a partitioned table. The engine needs to commit
+    online alter of all partitions atomically (using group_commit_ctx)
+  */
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
 
   /**
@@ -2919,7 +2948,10 @@ public:
         ((flags & HA_CHECK_DUP_KEY) &&
          (error == HA_ERR_FOUND_DUPP_KEY ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
-        error == HA_ERR_AUTOINC_ERANGE)
+        error == HA_ERR_AUTOINC_ERANGE ||
+        ((flags & HA_CHECK_FK_ERROR) &&
+         (error == HA_ERR_ROW_IS_REFERENCED ||
+          error == HA_ERR_NO_REFERENCED_ROW)))
       return FALSE;
     return TRUE;
   }
@@ -3602,7 +3634,7 @@ public:
    *) a) If the previous step succeeds, handler::ha_commit_inplace_alter_table() is
          called to allow the storage engine to do any final updates to its structures,
          to make all earlier changes durable and visible to other connections.
-      b) If we have failed to upgrade lock or any errors have occured during the
+      b) If we have failed to upgrade lock or any errors have occurred during the
          handler functions calls (including commit), we call
          handler::ha_commit_inplace_alter_table()
          to rollback all changes which were done during previous steps.
@@ -4080,6 +4112,7 @@ protected:
 };
 
 #include "multi_range_read.h"
+#include "group_by_handler.h"
 
 bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 
@@ -4253,4 +4286,4 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
-#endif
+#endif /* HANDLER_INCLUDED */

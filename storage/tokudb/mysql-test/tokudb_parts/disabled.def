@@ -1,0 +1,12 @@
+partition_basic_symlink_tokudb : tokudb_file_per_table is not supported
+partition_reorganize_tokudb : tokudb_file_per_table is not supported
+
+partition_max_parts_hash_tokudb: 5.6 test not merged yet
+partition_max_parts_inv_tokudb: 5.6 test not merged yet
+partition_max_parts_key_tokudb: 5.6 test not merged yet
+partition_max_parts_list_tokudb: 5.6 test not merged yet
+partition_max_parts_range_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_key_list_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_key_range_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_list_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_range_tokudb: 5.6 test not merged yet

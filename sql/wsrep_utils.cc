@@ -63,7 +63,7 @@ wsrep_prepend_PATH (const char* path)
         size_t const new_path_len(strlen(old_path) + strlen(":") +
                                   strlen(path) + 1);
 
-        char* const new_path (reinterpret_cast<char*>(malloc(new_path_len)));
+        char* const new_path (static_cast<char*>(malloc(new_path_len)));
 
         if (new_path)
         {
@@ -89,6 +89,90 @@ wsrep_prepend_PATH (const char* path)
 namespace wsp
 {
 
+bool
+env::ctor_common(char** e)
+{
+    env_ = static_cast<char**>(malloc((len_ + 1) * sizeof(char*)));
+
+    if (env_)
+    {
+        for (size_t i(0); i < len_; ++i)
+        {
+            assert(e[i]); // caller should make sure about len_
+            env_[i] = strdup(e[i]);
+            if (!env_[i])
+            {
+                errno_ = errno;
+                WSREP_ERROR("Failed to allocate env. var: %s", e[i]);
+                return true;
+            }
+        }
+
+        env_[len_] = NULL;
+        return false;
+    }
+    else
+    {
+        errno_ = errno;
+        WSREP_ERROR("Failed to allocate env. var vector of length: %zu", len_);
+        return true;
+    }
+}
+
+void
+env::dtor()
+{
+    if (env_)
+    {
+        /* don't need to go beyond the first NULL */
+        for (size_t i(0); env_[i] != NULL; ++i) { free(env_[i]); }
+        free(env_);
+        env_ = NULL;
+    }
+    len_ = 0;
+}
+
+env::env(char** e)
+    : len_(0), env_(NULL), errno_(0)
+{
+    if (!e) { e = environ; }
+    /* count the size of the vector */
+    while (e[len_]) { ++len_; }
+
+    if (ctor_common(e)) dtor();
+}
+
+env::env(const env& e)
+    : len_(e.len_), env_(0), errno_(0)
+{
+    if (ctor_common(e.env_)) dtor();
+}
+
+env::~env() { dtor(); }
+
+int
+env::append(const char* val)
+{
+    char** tmp = static_cast<char**>(realloc(env_, (len_ + 2)*sizeof(char*)));
+
+    if (tmp)
+    {
+        env_ = tmp;
+        env_[len_] = strdup(val);
+
+        if (env_[len_])
+        {
+            ++len_;
+            env_[len_] = NULL;
+        }
+        else errno_ = errno;
+    }
+    else errno_ = errno;
+
+    return errno_;
+}
+
+
 #define PIPE_READ  0
 #define PIPE_WRITE 1
 #define STDIN_FD   0
@@ -98,7 +182,7 @@ namespace wsp
 # define POSIX_SPAWN_USEVFORK 0
 #endif
 
-process::process (const char* cmd, const char* type)
+process::process (const char* cmd, const char* type, char** env)
     : str_(cmd ? strdup(cmd) : strdup("")), io_(NULL), err_(EINVAL), pid_(0)
 {
     if (0 == str_)
@@ -119,6 +203,8 @@ process::process (const char* cmd, const char* type)
         WSREP_ERROR ("type argument should be either \"r\" or \"w\".");
         return;
     }
+
+    if (NULL == env) { env = environ; } // default to global environment
 
     int pipe_fds[2] = { -1, };
     if (::pipe(pipe_fds))
@@ -215,7 +301,7 @@ process::process (const char* cmd, const char* type)
         goto cleanup_fact;
     }
 
-    err_ = posix_spawnp (&pid_, pargv[0], &fact, &attr, pargv, environ);
+    err_ = posix_spawnp (&pid_, pargv[0], &fact, &attr, pargv, env);
     if (err_)
     {
         WSREP_ERROR ("posix_spawnp(%s) failed: %d (%s)",
@@ -309,6 +395,7 @@ process::wait ()
               {
               case 126: err_ = EACCES; break; /* Permission denied */
               case 127: err_ = ENOENT; break; /* No such file or directory */
+              case 143: err_ = EINTR;  break; /* Subprocess killed */
               }
               WSREP_ERROR("Process completed with error: %s: %d (%s)",
                           str_, err_, strerror(err_));
@@ -410,11 +497,12 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
       WSREP_ERROR("Networking not configured, cannot receive state "
                   "transfer.");
       ret= 0;
+      goto done;
     } else if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
       ret= strlen(buf);
+      goto done;
     }
-    goto done;
   }
 
   // Attempt 2: mysqld binds to all interfaces, try IP from wsrep_node_address.

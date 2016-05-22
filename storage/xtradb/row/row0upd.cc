@@ -2628,6 +2628,7 @@ row_upd_clust_step(
 	ut_a(pcur->rel_pos == BTR_PCUR_ON);
 
 	ulint	mode;
+	ulint	search_mode;
 
 #ifdef UNIV_DEBUG
 	/* Work around Bug#14626800 ASSERTION FAILURE IN DEBUG_SYNC().
@@ -2639,17 +2640,29 @@ row_upd_clust_step(
 	}
 #endif /* UNIV_DEBUG */
 
+	/* If running with fake_changes mode on then switch from modify to
+	search so that code takes only s-latch and not x-latch.
+	For dry-run (fake-changes) s-latch is acceptable. Taking x-latch will
+	make it more restrictive and will block real changes/workflow. */
 	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
-		mode = BTR_SEARCH_LEAF;
-	} else if (dict_index_is_online_ddl(index)) {
-		ut_ad(node->table->id != DICT_INDEXES_ID);
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mode = BTR_MODIFY_LEAF;
+		search_mode = BTR_SEARCH_LEAF;
 	} else {
 		mode = BTR_MODIFY_LEAF;
+		search_mode = BTR_MODIFY_LEAF;
 	}
 
-	success = btr_pcur_restore_position(mode, pcur, &mtr);
+	if (dict_index_is_online_ddl(index)) {
+
+		ut_ad(node->table->id != DICT_INDEXES_ID);
+
+		mode |= BTR_ALREADY_S_LATCHED;
+		search_mode |= BTR_ALREADY_S_LATCHED;
+
+		mtr_s_lock(dict_index_get_lock(index), &mtr);
+	}
+
+	success = btr_pcur_restore_position(search_mode, pcur, &mtr);
 
 	if (!success) {
 		err = DB_RECORD_NOT_FOUND;
@@ -2666,6 +2679,10 @@ row_upd_clust_step(
 	if (node->is_delete && node->table->id == DICT_INDEXES_ID) {
 
 		ut_ad(!dict_index_is_online_ddl(index));
+
+		/* Action in fake change mode shouldn't cause changes
+		in system tables. */
+		ut_ad(UNIV_LIKELY(!thr_get_trx(thr)->fake_changes));
 
 		dict_drop_index_tree(btr_pcur_get_rec(pcur), &mtr);
 
@@ -2698,6 +2715,8 @@ row_upd_clust_step(
 		}
 	}
 
+	/* This check passes as the function manipulates x-lock to s-lock
+	if operating in fake-change mode. */
 	ut_ad(lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
 				      btr_pcur_get_block(pcur),
 				      page_rec_get_heap_no(rec)));

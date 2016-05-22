@@ -1399,6 +1399,7 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   if (options_only || state == PLUGIN_IS_DISABLED)
   {
     ret= 0;
+    state= PLUGIN_IS_DISABLED;
     goto err;
   }
 
@@ -1830,7 +1831,6 @@ static void plugin_load(MEM_ROOT *tmp_root)
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);
 end:
-  /* Remember that we don't have a THD */
   delete new_thd;
   DBUG_VOID_RETURN;
 }

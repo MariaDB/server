@@ -427,7 +427,7 @@ MY_LOCALE my_locale_da_DK
 
 /***** LOCALE BEGIN de_AT: German - Austria *****/
 static const char *my_locale_month_names_de_AT[13] = 
- {"Jänner","Feber","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember", NullS };
+ {"Jänner","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember", NullS };
 static const char *my_locale_ab_month_names_de_AT[13] = 
  {"Jän","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez", NullS };
 static const char *my_locale_day_names_de_AT[8] = 
@@ -1433,7 +1433,7 @@ MY_LOCALE my_locale_pl_PL
 );
 /***** LOCALE END pl_PL *****/
 
-/***** LOCALE BEGIN pt_BR: Portugese - Brazil *****/
+/***** LOCALE BEGIN pt_BR: Portuguese - Brazil *****/
 static const char *my_locale_month_names_pt_BR[13] = 
  {"janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro", NullS };
 static const char *my_locale_ab_month_names_pt_BR[13] = 
@@ -1454,7 +1454,7 @@ MY_LOCALE my_locale_pt_BR
 (
   40,
   "pt_BR",
-  "Portugese - Brazil",
+  "Portuguese - Brazil",
   FALSE,
   &my_locale_typelib_month_names_pt_BR,
   &my_locale_typelib_ab_month_names_pt_BR,
@@ -1469,7 +1469,7 @@ MY_LOCALE my_locale_pt_BR
 );
 /***** LOCALE END pt_BR *****/
 
-/***** LOCALE BEGIN pt_PT: Portugese - Portugal *****/
+/***** LOCALE BEGIN pt_PT: Portuguese - Portugal *****/
 static const char *my_locale_month_names_pt_PT[13] = 
  {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro", NullS };
 static const char *my_locale_ab_month_names_pt_PT[13] = 
@@ -1490,7 +1490,7 @@ MY_LOCALE my_locale_pt_PT
 (
   41,
   "pt_PT",
-  "Portugese - Portugal",
+  "Portuguese - Portugal",
   FALSE,
   &my_locale_typelib_month_names_pt_PT,
   &my_locale_typelib_ab_month_names_pt_PT,

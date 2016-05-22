@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2016, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1104,7 +1104,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
   Run query and dump the result to stderr in vertical format
 
   NOTE! This function should be safe to call when an error
-  has occured and thus any further errors will be ignored(although logged)
+  has occurred and thus any further errors will be ignored (although logged)
 
   SYNOPSIS
   show_query
@@ -1170,7 +1170,7 @@ static void show_query(MYSQL* mysql, const char* query)
   is added to the warning stack, only print @@warning_count-1 warnings.
 
   NOTE! This function should be safe to call when an error
-  has occured and this any further errors will be ignored(although logged)
+  has occurred and this any further errors will be ignored(although logged)
 
   SYNOPSIS
   show_warnings_before_error
@@ -4699,7 +4699,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
         master_pos_wait returned NULL. This indicates that
         slave SQL thread is not started, the slave's master
         information is not initialized, the arguments are
-        incorrect, or an error has occured
+        incorrect, or an error has occurred
       */
       die("%.*s failed: '%s' returned NULL "          \
           "indicating slave SQL thread failure",
@@ -4977,12 +4977,13 @@ static int my_kill(int pid, int sig)
 {
 #ifdef __WIN__
   HANDLE proc;
-  if ((proc= OpenProcess(PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
+    DWORD wait_result= WaitForSingleObject(proc, 0);
     CloseHandle(proc);
-    return 0;
+    return wait_result == WAIT_OBJECT_0?-1:0;
   }
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
@@ -5101,7 +5102,7 @@ static st_error global_error_names[] =
 #include <my_base.h>
 static st_error handler_error_names[] =
 {
-  { "<No error>", -1U, "" },
+  { "<No error>", UINT_MAX, "" },
 #include <handler_ername.h>
   { 0, 0, 0 }
 };

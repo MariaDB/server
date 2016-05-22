@@ -1,0 +1,11 @@
+#
+# MDEV-8453 Alter table not returning engine errors
+#
+--source include/have_debug.inc
+
+create table t1 (a int, b int);
+set debug_dbug='+d,external_lock_failure';
+--error ER_GET_ERRMSG
+alter table t1 add column c int;
+set debug_dbug='';
+drop table t1;

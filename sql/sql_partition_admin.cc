@@ -783,20 +783,17 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
     DBUG_RETURN(TRUE);
 
 #ifdef WITH_WSREP
-  if (WSREP_ON)
-  {
-    /* Forward declaration */
-    TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+  /* Forward declaration */
+  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
-    if ((!thd->is_current_stmt_binlog_format_row() ||
-         !find_temporary_table(thd, first_table))  &&
-        wsrep_to_isolation_begin(
-          thd, first_table->db, first_table->table_name, NULL)
-       )
-    {
-      WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");
-      DBUG_RETURN(TRUE);
-    }
+  if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table))  &&
+      wsrep_to_isolation_begin(
+        thd, first_table->db, first_table->table_name, NULL)
+      )
+  {
+    WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");
+    DBUG_RETURN(TRUE);
   }
 #endif /* WITH_WSREP */
 

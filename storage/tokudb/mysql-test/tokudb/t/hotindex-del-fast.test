@@ -1,5 +1,3 @@
-# This test takes rather long time so let us run it only in --big-test mode
---source include/big_test.inc
 source include/have_tokudb.inc;
 # test that deletes work when hot indexing is on
 
@@ -17,13 +15,11 @@ drop table if exists s;
 create table s (a int, b int);
 
 # populate table s
-begin;
 let $a = 10000;
 while ($a) {
     eval insert into s values ($a,0),($a,1),($a,2),($a,3),($a,4),($a,5),($a,6),($a,7),($a,8),($a,9);
     dec $a;
 }
-commit;
 
 # set tokudb_create_index_online=1;
 send create index i_a on s(a);

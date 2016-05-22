@@ -54,6 +54,9 @@ Created 5/7/1996 Heikki Tuuri
 
 #include <mysql/service_wsrep.h>
 
+#include <string>
+#include <sstream>
+
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
 #define LOCK_MAX_N_STEPS_IN_DEADLOCK_CHECK 1000000
@@ -635,7 +638,7 @@ lock_sys_create(
 	lock_sys->rec_hash = hash_create(n_cells);
 
 	if (!srv_read_only_mode) {
-		lock_latest_err_file = os_file_create_tmpfile();
+		lock_latest_err_file = os_file_create_tmpfile(NULL);
 		ut_a(lock_latest_err_file);
 	}
 }
@@ -1726,8 +1729,10 @@ wsrep_kill_victim(
 				}
 			}
 
+			lock->trx->abort_type = TRX_WSREP_ABORT;
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
 				(const trx_t*) trx, lock->trx, TRUE);
+			lock->trx->abort_type = TRX_SERVER_ABORT;
 		}
 	}
 }
@@ -2989,8 +2994,8 @@ lock_rec_inherit_to_gap(
 	/* If srv_locks_unsafe_for_binlog is TRUE or session is using
 	READ COMMITTED isolation level, we do not want locks set
 	by an UPDATE or a DELETE to be inherited as gap type locks. But we
-	DO want S-locks set by a consistency constraint to be inherited also
-	then. */
+	DO want S-locks/X-locks(taken for replace) set by a consistency
+	constraint to be inherited also then */
 
 	for (lock = lock_rec_get_first(block, heap_no);
 	     lock != NULL;
@@ -3000,7 +3005,8 @@ lock_rec_inherit_to_gap(
 		    && !((srv_locks_unsafe_for_binlog
 			  || lock->trx->isolation_level
 			  <= TRX_ISO_READ_COMMITTED)
-			 && lock_get_mode(lock) == LOCK_X)) {
+			 && lock_get_mode(lock) ==
+			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
@@ -4440,9 +4446,9 @@ lock_report_waiters_to_mysql(
 				innobase_kill_query. We mark this by setting
 				current_lock_mutex_owner, so we can avoid trying
 				to recursively take lock_sys->mutex. */
-				w_trx->current_lock_mutex_owner = mysql_thd;
+				w_trx->abort_type = TRX_REPLICATION_ABORT;
 				thd_report_wait_for(mysql_thd, w_trx->mysql_thd);
-				w_trx->current_lock_mutex_owner = NULL;
+				w_trx->abort_type = TRX_SERVER_ABORT;
 			}
 			++i;
 		}
@@ -6811,8 +6817,9 @@ lock_clust_rec_modify_check_and_lock(
 	lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 
 	lock_mutex_enter();
+	trx_t*		trx = thr_get_trx(thr);
 
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
@@ -6870,9 +6877,10 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
+	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
 
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
@@ -6969,12 +6977,13 @@ lock_sec_rec_read_check_and_lock(
 		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 	}
 
+	trx_t* trx = thr_get_trx(thr);
 	lock_mutex_enter();
 
 	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	      || lock_table_has(trx, index->table, LOCK_IX));
 	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
+	      || lock_table_has(trx, index->table, LOCK_IS));
 
 	err = lock_rec_lock(FALSE, mode | gap_mode,
 			    block, heap_no, index, thr);
@@ -7042,11 +7051,12 @@ lock_clust_rec_read_check_and_lock(
 	}
 
 	lock_mutex_enter();
+	trx_t* trx = thr_get_trx(thr);
 
 	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	      || lock_table_has(trx, index->table, LOCK_IX));
 	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
+	      || lock_table_has(trx, index->table, LOCK_IS));
 
 	err = lock_rec_lock(FALSE, mode | gap_mode,
 			    block, heap_no, index, thr);
@@ -7196,6 +7206,19 @@ lock_get_type(
 	const lock_t*	lock)	/*!< in: lock */
 {
 	return(lock_get_type_low(lock));
+}
+
+/*******************************************************************//**
+Gets the trx of the lock. Non-inline version for using outside of the
+lock module.
+@return	trx_t* */
+UNIV_INTERN
+trx_t*
+lock_get_trx(
+/*=========*/
+	const lock_t*	lock)	/*!< in: lock */
+{
+	return (lock->trx);
 }
 
 /*******************************************************************//**
@@ -7767,3 +7790,32 @@ lock_trx_has_rec_x_lock(
 	return(true);
 }
 #endif /* UNIV_DEBUG */
+
+/*******************************************************************//**
+Get lock mode and table/index name
+@return	string containing lock info */
+std::string
+lock_get_info(
+	const lock_t* lock)
+{
+	std::string info;
+	std::string mode("mode ");
+	std::string index("index ");
+	std::string table("table ");
+	std::string n_uniq(" n_uniq");
+	std::string n_user(" n_user");
+	std::string lock_mode((lock_get_mode_str(lock)));
+	std::string iname(lock->index->name);
+	std::string tname(lock->index->table_name);
+
+#define SSTR( x ) reinterpret_cast< std::ostringstream & >(	\
+        ( std::ostringstream() << std::dec << x ) ).str()
+
+	info = mode + lock_mode
+		+ index + iname
+		+ table + tname
+		+ n_uniq + SSTR(lock->index->n_uniq)
+		+ n_user + SSTR(lock->index->n_user_defined_cols);
+
+	return info;
+}

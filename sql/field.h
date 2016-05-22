@@ -1,6 +1,6 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -278,6 +278,23 @@ protected:
                                        E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                        cs, cptr, end - cptr, decimal_value);
     return decimal_value;
+  }
+
+  longlong longlong_from_string_with_check(const String *str) const
+  {
+    return longlong_from_string_with_check(str->charset(),
+                                           str->ptr(), str->end());
+  }
+  double double_from_string_with_check(const String *str) const
+  {
+    return double_from_string_with_check(str->charset(),
+                                         str->ptr(), str->end());
+  }
+  my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
+                                             const String *str)
+  {
+    return decimal_from_string_with_check(decimal_value, str->charset(),
+                                          str->ptr(), str->end());
   }
   // End of String-to-number conversion methods
 
@@ -583,6 +600,13 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
+  bool is_equal(Virtual_column_info* vcol)
+  {
+    return field_type == vcol->get_real_type()
+        && stored_in_db == vcol->is_stored()
+        && expr_str.length == vcol->expr_str.length
+        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
+  }
 };
 
 class Field: public Value_source
@@ -721,6 +745,7 @@ public:
   { return store(ls->str, ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
   inline String *val_str(String *str) { return val_str(str, str); }
   /*
@@ -826,7 +851,7 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
 					  table->record[0]);
     memcpy(ptr, ptr + l_offset, pack_length());
-    if (null_ptr)
+    if (maybe_null_in_table())
       *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
 		  (null_ptr[l_offset] & null_bit));
   }
@@ -1006,9 +1031,9 @@ public:
     { return null_ptr && (null_ptr[row_offset] & null_bit); }
   inline bool is_null_in_record(const uchar *record) const
   {
-    if (!null_ptr)
-      return 0;
-    return record[(uint) (null_ptr - table->record[0])] & null_bit;
+    if (maybe_null_in_table())
+      return record[(uint) (null_ptr - table->record[0])] & null_bit;
+    return 0;
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
@@ -1017,10 +1042,19 @@ public:
   inline bool maybe_null(void) const
   { return null_ptr != 0 || table->maybe_null; }
 
-  /* @return true if this field is NULL-able, false otherwise. */
+  /* @return true if this field is NULL-able (even if temporarily) */
   inline bool real_maybe_null(void) const { return null_ptr != 0; }
   uint null_offset(const uchar *record) const
   { return (uint) (null_ptr - record); }
+  /*
+    For a NULL-able field (that can actually store a NULL value in a table)
+    null_ptr points to the "null bitmap" in the table->record[0] header. For
+    NOT NULL fields it is either 0 or points outside table->record[0] into the
+    table->triggers->extra_null_bitmap (so that the field can store a NULL
+    value temporarily, only in memory)
+  */
+  bool maybe_null_in_table() const
+  { return null_ptr >= table->record[0] && null_ptr <= ptr; }
 
   uint null_offset() const
   { return null_offset(table->record[0]); }
@@ -1181,16 +1215,6 @@ public:
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
-  /*
-    match_collation_to_optimize_range() is to distinguish in
-    range optimizer (see opt_range.cc) between real string types:
-      CHAR, VARCHAR, TEXT
-    and the other string-alike types with result_type() == STRING_RESULT:
-      DATE, TIME, DATETIME, TIMESTAMP
-    We need it to decide whether to test if collation of the operation
-    matches collation of the field (needed only for real string types).
-  */
-  virtual bool match_collation_to_optimize_range() const { return false; }
   virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
@@ -1300,6 +1324,16 @@ public:
   /* Hash value */
   virtual void hash(ulong *nr, ulong *nr2);
 
+/**
+  Checks whether a string field is part of write_set.
+
+  @return
+    FALSE  - If field is not char/varchar/....
+           - If field is char/varchar/.. and is not part of write set.
+    TRUE   - If field is char/varchar/.. and is part of write set.
+*/
+  virtual bool is_updatable() const { return FALSE; }
+
   /* Check whether the field can be used as a join attribute in hash join */
   virtual bool hash_join_is_possible() { return TRUE; }
   virtual bool eq_cmp_as_binary() { return TRUE; }
@@ -1341,6 +1375,15 @@ public:
   }
   virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
                                           const Item *const_item) const;
+  /**
+    Test if Field can use range optimizer for a standard comparison operation:
+      <=, <, =, <=>, >, >=
+    Note, this method does not cover spatial operations.
+  */
+  virtual bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
+
   bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
                                                  const Item *item) const
   {
@@ -1421,10 +1464,6 @@ protected:
   const uchar *unpack_int64(uchar* to, const uchar *from,  const uchar *from_end)
   { return unpack_int(to, from, from_end, 8); }
 
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
   double pos_in_interval_val_real(Field *min, Field *max);
   double pos_in_interval_val_str(Field *min, Field *max, uint data_offset);
 };
@@ -1474,6 +1513,7 @@ public:
   bool eq_def(Field *field);
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_int() != 0; }
   uint is_equal(Create_field *new_field);
   uint row_pack_length() const { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) {
@@ -1487,6 +1527,7 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
@@ -1519,6 +1560,7 @@ public:
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
   uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
@@ -1562,13 +1604,23 @@ public:
 
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
+
+  bool is_updatable() const
+  {
+    DBUG_ASSERT(table && table->write_set);
+    return bitmap_is_set(table->write_set, field_index);
+  }
   bool match_collation_to_optimize_range() const { return true; }
+
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                 const Item *item) const;
   bool can_optimize_hash_join(const Item_bool_func *cond,
                               const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const;
 };
 
 /* base class for float and double and decimal (old one) */
@@ -1591,6 +1643,7 @@ public:
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_real() != 0e0; }
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
@@ -1665,6 +1718,13 @@ public:
   longlong val_int(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool val_bool()
+  {
+    my_decimal decimal_value;
+    my_decimal *val= val_decimal(&decimal_value);
+    return val ? !my_decimal_is_zero(val) : 0;
+  }
   int cmp(const uchar *, const uchar *);
   void sort_string(uchar *buff, uint length);
   bool zero_pack() const { return 0; }
@@ -1990,6 +2050,7 @@ public:
   int reset(void)	  { return 0; }
   double val_real(void)		{ return 0.0;}
   longlong val_int(void)	{ return 0;}
+  bool val_bool(void) { return false; }
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
@@ -2035,6 +2096,7 @@ public:
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   enum Item_result cmp_type () const { return TIME_RESULT; }
+  bool val_bool() { return val_real() != 0e0; }
   uint is_equal(Create_field *new_field);
   bool eq_def(Field *field)
   {
@@ -2051,6 +2113,12 @@ public:
                                 const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
 };
 
 
@@ -3008,6 +3076,7 @@ public:
   {
     set_ptr_offset(0, length, data);
   }
+  int copy_value(Field_blob *from);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
@@ -3041,8 +3110,6 @@ public:
   uint32 max_display_length();
   uint32 char_length();
   uint is_equal(Create_field *new_field);
-  inline bool in_read_set() { return bitmap_is_set(table->read_set, field_index); }
-  inline bool in_write_set() { return bitmap_is_set(table->write_set, field_index); }
 private:
   int do_save_field_metadata(uchar *first_byte);
 };
@@ -3070,8 +3137,11 @@ public:
   { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
-  bool match_collation_to_optimize_range() const { return false; }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3248,6 +3318,7 @@ public:
   String *val_str(String*, String *);
   virtual bool str_needs_quotes() { return TRUE; }
   my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_int() != 0; }
   int cmp(const uchar *a, const uchar *b)
   {
     DBUG_ASSERT(ptr == a || ptr == b);
@@ -3444,11 +3515,6 @@ public:
 
   bool check(THD *thd);
 
-  bool field_flags_are_binary()
-  {
-    return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
-  }
-
   ha_storage_media field_storage_type() const
   {
     return (ha_storage_media)
@@ -3551,6 +3617,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
+int convert_null_to_field_value_or_error(Field *field);
 
 /*
   The following are for the interface with the .frm file

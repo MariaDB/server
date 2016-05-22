@@ -739,7 +739,7 @@ int set_var::check(THD *thd)
   if ((!value->fixed &&
        value->fix_fields(thd, &value)) || value->check_cols(1))
     return -1;
-  if (var->check_update_type(value->result_type()))
+  if (var->check_update_type(value))
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), var->name.str);
     return -1;

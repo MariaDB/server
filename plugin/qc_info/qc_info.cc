@@ -28,9 +28,6 @@
  */
 
 
-/*
- * TODO: report query cache flags
- */
 #ifndef MYSQL_SERVER
 #define MYSQL_SERVER
 #endif
@@ -40,6 +37,8 @@
 #include <sql_acl.h>            // PROCESS_ACL
 #include <sql_class.h>          // THD
 #include <table.h>              // ST_SCHEMA_TABLE
+#include <set_var.h>            // sql_mode_string_representation
+#include <tztime.h>
 #include <mysql/plugin.h>
 
 class Accessible_Query_Cache : public Query_cache {
@@ -58,6 +57,25 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 #define COLUMN_RESULT_BLOCKS_COUNT 2
 #define COLUMN_RESULT_BLOCKS_SIZE 3
 #define COLUMN_RESULT_BLOCKS_SIZE_USED 4
+#define COLUMN_LIMIT 5
+#define COLUMN_MAX_SORT_LENGTH 6
+#define COLUMN_GROUP_CONCAT_MAX_LENGTH 7
+#define COLUMN_CHARACTER_SET_CLIENT 8
+#define COLUMN_CHARACTER_SET_RESULT 9
+#define COLUMN_COLLATION 10
+#define COLUMN_TIMEZONE 11
+#define COLUMN_DEFAULT_WEEK_FORMAT 12
+#define COLUMN_DIV_PRECISION_INCREMENT 13
+#define COLUMN_SQL_MODE 14
+#define COLUMN_LC_TIME_NAMES 15
+
+#define COLUMN_CLIENT_LONG_FLAG 16
+#define COLUMN_CLIENT_PROTOCOL_41 17
+#define COLUMN_PROTOCOL_TYPE 18
+#define COLUMN_MORE_RESULTS_EXISTS 19
+#define COLUMN_IN_TRANS 20
+#define COLUMN_AUTOCOMMIT 21
+#define COLUMN_PKT_NR 22
 
 /* ST_FIELD_INFO is defined in table.h */
 static ST_FIELD_INFO qc_info_fields[]=
@@ -67,6 +85,24 @@ static ST_FIELD_INFO qc_info_fields[]=
   {"RESULT_BLOCKS_COUNT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
   {"RESULT_BLOCKS_SIZE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
   {"RESULT_BLOCKS_SIZE_USED", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"LIMIT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"MAX_SORT_LENGTH", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"GROUP_CONCAT_MAX_LENGTH", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"CHARACTER_SET_RESULT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"TIMEZONE", 50, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"DEFAULT_WEEK_FORMAT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
+  {"DIV_PRECISION_INCREMENT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
+  {"SQL_MODE", 250, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"LC_TIME_NAMES", 100, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"CLIENT_LONG_FLAG", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"CLIENT_PROTOCOL_41", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"PROTOCOL_TYPE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"MORE_RESULTS_EXISTS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"IN_TRANS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"AUTOCOMMIT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
+  {"PACKET_NUMBER", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
@@ -91,6 +127,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     const uchar *query_cache_block_raw;
     Query_cache_block* query_cache_block;
     Query_cache_query* query_cache_query;
+    Query_cache_query_flags flags;
     uint result_blocks_count;
     ulonglong result_blocks_size;
     ulonglong result_blocks_size_used;
@@ -98,8 +135,14 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     Query_cache_block *result_block;
     const char *statement_text;
     size_t statement_text_length;
+    size_t flags_length;
     const char *key, *db;
     size_t key_length, db_length;
+    LEX_STRING sql_mode_str;
+    const String *tz;
+    CHARSET_INFO *cs_client;
+    CHARSET_INFO *cs_result;
+    CHARSET_INFO *collation;
 
     query_cache_block_raw = my_hash_element(queries, i);
     query_cache_block = (Query_cache_block*)query_cache_block_raw;
@@ -118,6 +161,38 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     /* get the entire key that identifies this query cache query */
     key = (const char*)query_cache_query_get_key(query_cache_block_raw,
                                                  &key_length, 0);
+    /* get and store the flags */
+    flags_length= key_length - QUERY_CACHE_FLAGS_SIZE;
+    memcpy(&flags, key+flags_length, QUERY_CACHE_FLAGS_SIZE);
+    table->field[COLUMN_LIMIT]->store(flags.limit, 0);
+    table->field[COLUMN_MAX_SORT_LENGTH]->store(flags.max_sort_length, 0);
+    table->field[COLUMN_GROUP_CONCAT_MAX_LENGTH]->store(flags.group_concat_max_len, 0);
+
+    cs_client= get_charset(flags.character_set_client_num, MYF(MY_WME));
+    table->field[COLUMN_CHARACTER_SET_CLIENT]->store(cs_client->csname, strlen(cs_client->csname), scs);
+    cs_result= get_charset(flags.character_set_results_num, MYF(MY_WME));
+    table->field[COLUMN_CHARACTER_SET_RESULT]->store(cs_result->csname, strlen(cs_result->csname), scs);
+    collation= get_charset(flags.collation_connection_num, MYF(MY_WME));
+    table->field[COLUMN_COLLATION]->store(collation->name, strlen(collation->name), scs);
+
+    tz= flags.time_zone->get_name();
+    table->field[COLUMN_TIMEZONE]->store(tz->ptr(), tz->length(), scs);
+    table->field[COLUMN_DEFAULT_WEEK_FORMAT]->store(flags.default_week_format, 0);
+    table->field[COLUMN_DIV_PRECISION_INCREMENT]->store(flags.div_precision_increment, 0);
+
+    sql_mode_string_representation(thd, flags.sql_mode, &sql_mode_str);
+    table->field[COLUMN_SQL_MODE]->store(sql_mode_str.str, sql_mode_str.length, scs);
+
+    table->field[COLUMN_LC_TIME_NAMES]->store(flags.lc_time_names->name,strlen(flags.lc_time_names->name), scs);
+
+    table->field[COLUMN_CLIENT_LONG_FLAG]->store(flags.client_long_flag, 0);
+    table->field[COLUMN_CLIENT_PROTOCOL_41]->store(flags.client_protocol_41, 0);
+    table->field[COLUMN_PROTOCOL_TYPE]->store(flags.protocol_type, 0);
+    table->field[COLUMN_MORE_RESULTS_EXISTS]->store(flags.more_results_exists, 0);
+    table->field[COLUMN_IN_TRANS]->store(flags.in_trans, 0);
+    table->field[COLUMN_AUTOCOMMIT]->store(flags.autocommit, 0);
+    table->field[COLUMN_PKT_NR]->store(flags.pkt_nr, 0);
+
     /* The database against which the statement is executed is part of the
        query cache query key
      */
@@ -198,16 +273,16 @@ maria_declare_plugin(query_cache_info)
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &qc_info_plugin,
   "QUERY_CACHE_INFO",
-  "Roland Bouman",
+  "Roland Bouman, Daniel Black",
   "Lists all queries in the query cache.",
   PLUGIN_LICENSE_BSD,
   qc_info_plugin_init, /* Plugin Init */
   0,                          /* Plugin Deinit        */
-  0x0100,                     /* version, hex         */
+  0x0101,                     /* version, hex         */
   NULL,                       /* status variables     */
   NULL,                       /* system variables     */
-  "1.0",                      /* version as a string  */
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  "1.1",                      /* version as a string  */
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

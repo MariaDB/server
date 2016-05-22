@@ -185,7 +185,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 
    @retval HA_ERR_GENERIC
    A generic, internal, error caused the unpacking to fail.
-   @retval ER_SLAVE_CORRUPT_EVENT
+   @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -200,7 +200,6 @@ unpack_row(rpl_group_info *rgi,
   DBUG_ASSERT(row_data);
   DBUG_ASSERT(table);
   size_t const master_null_byte_count= (bitmap_bits_set(cols) + 7) / 8;
-  int error= 0;
 
   uchar const *null_ptr= row_data;
   uchar const *pack_ptr= row_data + master_null_byte_count;
@@ -217,7 +216,7 @@ unpack_row(rpl_group_info *rgi,
      */
     *current_row_end= pack_ptr;
     *master_reclength= 0;
-    DBUG_RETURN(error);
+    DBUG_RETURN(0);
   }
   DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
 
@@ -350,7 +349,7 @@ unpack_row(rpl_group_info *rgi,
                       "Could not read field '%s' of table '%s.%s'",
                       f->field_name, table->s->db.str,
                       table->s->table_name.str);
-          DBUG_RETURN(ER_SLAVE_CORRUPT_EVENT);
+          DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
         }
       }
 
@@ -434,7 +433,7 @@ unpack_row(rpl_group_info *rgi,
       *master_reclength = table->s->reclength;
   }
   
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 /**

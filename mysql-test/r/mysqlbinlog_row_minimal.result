@@ -1,0 +1,300 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
+INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
+INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
+INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A");
+INSERT INTO t2 SELECT * FROM t1;
+UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL;
+DELETE FROM t1;
+DELETE FROM t2;
+FLUSH BINARY LOGS;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#<date> server id 1  end_log_pos 249 	Start: xxx
+ROLLBACK/*!*/;
+# at 249
+#<date> server id 1  end_log_pos 274 	Gtid list []
+# at 274
+#<date> server id 1  end_log_pos 314 	Binlog checkpoint master-bin.000001
+# at 314
+#<date> server id 1  end_log_pos 352 	GTID 0-1-1 ddl
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+# at 352
+#<date> server id 1  end_log_pos 532 	Query	thread_id=4	exec_time=x	error_code=0
+use `test`/*!*/;
+SET TIMESTAMP=X/*!*/;
+SET @@session.pseudo_thread_id=4/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1))
+/*!*/;
+# at 532
+#<date> server id 1  end_log_pos 570 	GTID 0-1-2 ddl
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+# at 570
+#<date> server id 1  end_log_pos 743 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1))
+/*!*/;
+# at 743
+#<date> server id 1  end_log_pos 781 	GTID 0-1-3
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+BEGIN
+/*!*/;
+# at 781
+#<date> server id 1  end_log_pos 833 	Table_map: `test`.`t1` mapped to number 30
+# at 833
+#<date> server id 1  end_log_pos 898 	Write_rows: table id 30 flags: STMT_END_F
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* TINYINT meta=0 nullable=1 is_null=0 */
+###   @5=4 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* LONGINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# at 898
+#<date> server id 1  end_log_pos 967 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 967
+#<date> server id 1  end_log_pos 1005 	GTID 0-1-4
+/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+BEGIN
+/*!*/;
+# at 1005
+#<date> server id 1  end_log_pos 1057 	Table_map: `test`.`t1` mapped to number 30
+# at 1057
+#<date> server id 1  end_log_pos 1121 	Write_rows: table id 30 flags: STMT_END_F
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* TINYINT meta=0 nullable=1 is_null=0 */
+###   @5=4 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* LONGINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
+# at 1121
+#<date> server id 1  end_log_pos 1190 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 1190
+#<date> server id 1  end_log_pos 1228 	GTID 0-1-5
+/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+BEGIN
+/*!*/;
+# at 1228
+#<date> server id 1  end_log_pos 1280 	Table_map: `test`.`t1` mapped to number 30
+# at 1280
+#<date> server id 1  end_log_pos 1343 	Write_rows: table id 30 flags: STMT_END_F
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* TINYINT meta=0 nullable=1 is_null=0 */
+###   @5=NULL /* MEDIUMINT meta=0 nullable=1 is_null=1 */
+###   @6=5 /* LONGINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# at 1343
+#<date> server id 1  end_log_pos 1412 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 1412
+#<date> server id 1  end_log_pos 1450 	GTID 0-1-6
+/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+BEGIN
+/*!*/;
+# at 1450
+#<date> server id 1  end_log_pos 1502 	Table_map: `test`.`t1` mapped to number 30
+# at 1502
+#<date> server id 1  end_log_pos 1568 	Write_rows: table id 30 flags: STMT_END_F
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* TINYINT meta=0 nullable=1 is_null=0 */
+###   @5=0 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* LONGINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# at 1568
+#<date> server id 1  end_log_pos 1637 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 1637
+#<date> server id 1  end_log_pos 1675 	GTID 0-1-7
+/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+BEGIN
+/*!*/;
+# at 1675
+#<date> server id 1  end_log_pos 1727 	Table_map: `test`.`t2` mapped to number 31
+# at 1727
+#<date> server id 1  end_log_pos 1890 	Write_rows: table id 31 flags: STMT_END_F
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @5=NULL /* INT meta=0 nullable=1 is_null=1 */
+###   @6=5 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @5=0 /* INT meta=0 nullable=1 is_null=0 */
+###   @6=5 /* MEDIUMINT meta=0 nullable=1 is_null=0 */
+###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
+###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
+###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# at 1890
+#<date> server id 1  end_log_pos 1959 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 1959
+#<date> server id 1  end_log_pos 1997 	GTID 0-1-8
+/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+BEGIN
+/*!*/;
+# at 1997
+#<date> server id 1  end_log_pos 2049 	Table_map: `test`.`t2` mapped to number 31
+# at 2049
+#<date> server id 1  end_log_pos 2119 	Update_rows: table id 31 flags: STMT_END_F
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
+###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
+###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
+###   @5=NULL /* INT meta=0 nullable=1 is_null=1 */
+### SET
+###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
+# at 2119
+#<date> server id 1  end_log_pos 2188 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 2188
+#<date> server id 1  end_log_pos 2226 	GTID 0-1-9
+/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+BEGIN
+/*!*/;
+# at 2226
+#<date> server id 1  end_log_pos 2278 	Table_map: `test`.`t1` mapped to number 30
+# at 2278
+#<date> server id 1  end_log_pos 2328 	Delete_rows: table id 30 flags: STMT_END_F
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+# at 2328
+#<date> server id 1  end_log_pos 2397 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 2397
+#<date> server id 1  end_log_pos 2435 	GTID 0-1-10
+/*!100001 SET @@session.gtid_seq_no=10*//*!*/;
+BEGIN
+/*!*/;
+# at 2435
+#<date> server id 1  end_log_pos 2487 	Table_map: `test`.`t2` mapped to number 31
+# at 2487
+#<date> server id 1  end_log_pos 2537 	Delete_rows: table id 31 flags: STMT_END_F
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+# at 2537
+#<date> server id 1  end_log_pos 2606 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+COMMIT
+/*!*/;
+# at 2606
+#<date> server id 1  end_log_pos 2650 	Rotate to master-bin.000002  pos: 4
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+DROP TABLE t1,t2;

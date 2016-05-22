@@ -1,0 +1,38 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source filekeys_plugin.inc
+
+call mtr.add_suppression("InnoDB: New log files created, LSN=.*");
+call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables.");
+call mtr.add_suppression("InnoDB: Error: Table .*");
+
+#
+# MDEV-9422: Checksum errors on restart when killing busy instance that uses encrypted XtraDB tables
+#
+
+CREATE TABLE t1 (
+  pk bigint auto_increment,
+  col_int int,
+  col_int_key int,
+  col_char char(12),
+  col_char_key char(12),
+  primary key (pk),
+  key (`col_int_key` ),
+  key (`col_char_key` )
+) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+
+INSERT INTO t1 VALUES (NULL,1,1,'foo','foo'),(NULL,2,2,'bar','bar'),(NULL,3,3,'baz','baz'),(NULL,4,4,'qux','qux');
+INSERT INTO t2 
+  SELECT NULL, a1.col_int, a1.col_int_key, a1.col_char, a1.col_char_key 
+    FROM t1 a1, t1 a2, t1 a3, t1 a4, t1 a5, t1 a6, t1 a7, t1 a8, t1 a9, t1 a10;
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server 0
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+DROP TABLE t1, t2;

@@ -1,0 +1,58 @@
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION wsrep_sync_wait = 7;
+SELECT MAX(id) FROM t1;
+MAX(id)
+1
+INSERT INTO t1 VALUES (2);
+SELECT MAX(id) FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET GLOBAL DEBUG = "";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+FLUSH QUERY CACHE;
+SET SESSION wsrep_sync_wait = 7;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC = "RESET";
+INSERT INTO t1 VALUES (3);
+SELECT MAX(id) FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET GLOBAL DEBUG = "";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+INSERT INTO t1 VALUES (4);
+SET SESSION wsrep_sync_wait = 7;
+SELECT MAX(id) FROM t1;
+MAX(id)
+4
+SET SESSION wsrep_sync_wait = 7;
+FLUSH STATUS;
+SELECT MAX(id) FROM t1;
+MAX(id)
+4
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+VARIABLE_VALUE = 1
+1
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+INSERT INTO t1 VALUES (5);
+SET SESSION wsrep_sync_wait = 7;
+SELECT MAX(id) FROM t1 ;
+SET GLOBAL DEBUG = "";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+MAX(id)
+5
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+VARIABLE_VALUE = 1
+1

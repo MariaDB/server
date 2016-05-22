@@ -643,8 +643,8 @@ public:
     Used to store 'current key tuples', in both range analysis and
     partitioning (list) analysis
   */
-  uchar min_key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH],
-    max_key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *min_key;
+  uchar *max_key;
 
   /* Number of SEL_ARG objects allocated by SEL_ARG::clone_tree operations */
   uint alloced_sel_args;

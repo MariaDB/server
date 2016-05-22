@@ -55,6 +55,7 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
   SET(SSL_INTERNAL_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/extra/yassl/taocrypt/mySTL)
   SET(SSL_DEFINES "-DHAVE_YASSL -DYASSL_PREFIX -DHAVE_OPENSSL -DMULTI_THREADED")
+  SET(HAVE_ERR_remove_thread_state OFF CACHE INTERNAL "yassl doesn't have ERR_remove_thread_state")
   SET(HAVE_EncryptAes128Ctr OFF CACHE INTERNAL "yassl doesn't support AES-CTR")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "yassl doesn't support AES-GCM")
   CHANGE_SSL_SETTINGS("bundled")
@@ -197,6 +198,8 @@ MACRO (MYSQL_CHECK_SSL)
       SET(SSL_DEFINES "-DHAVE_OPENSSL")
 
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
+      CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
+                          HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"

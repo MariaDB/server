@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysql_setpermission\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQL_SETPERMISSI" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQL_SETPERMISSI" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,14 +20,13 @@ mysql_setpermission \- interactively set permissions in grant tables
 .SH "DESCRIPTION"
 .PP
 \fBmysql_setpermission\fR
-is a Perl script that was originally written and contributed by Luuk de Boer\&. It interactively sets permissions in the MySQL grant tables\&.
+is a Perl script that was originally written and contributed by Luuk de Boer\&. It interactively sets permissions in the MariaDB grant tables\&.
 \fBmysql_setpermission\fR
 is written in Perl and requires that the
 DBI
 and
 DBD::mysql
-Perl modules be installed (see
-Section\ \&2.15, \(lqPerl Installation Notes\(rq)\&.
+Perl modules be installed\&.
 .PP
 Invoke
 \fBmysql_setpermission\fR
@@ -53,9 +45,9 @@ shell> \fBmysql_setpermission [\fR\fB\fIoptions\fR\fR\fB]\fR
 \fIoptions\fR
 should be either
 \fB\-\-help\fR
-to display the help message, or options that indicate how to connect to the MySQL server\&. The account used when you connect determines which permissions you have when attempting to modify existing permissions in the grant tables\&.
+to display the help message, or options that indicate how to connect to the MariaDB server\&. The account used when you connect determines which permissions you have when attempting to modify existing permissions in the grant tables\&.
 .PP
-\fBmysql_setpermissions\fR
+\fBmysql_setpermission\fR
 also reads options from the
 [client]
 and
@@ -94,7 +86,7 @@ Display a help message and exit\&.
 .\" host option: mysql_setpermission
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -109,10 +101,9 @@ Connect to the MySQL server on the given host\&.
 .\" password option: mysql_setpermission
 \fB\-\-password=\fR\fB\fIpassword\fR\fR
 .sp
-The password to use when connecting to the server\&. Note that the password value is not optional for this option, unlike for other MySQL programs\&.
+The password to use when connecting to the server\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. See
-Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
 .RE
 .sp
 .RS 4
@@ -158,12 +149,12 @@ localhost, the Unix socket file to use\&.
 .\" user option: mysql_setpermission
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -172,8 +163,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

@@ -3,7 +3,7 @@
 set time_zone='+03:00';
 set timestamp=unix_timestamp('2011-01-01 01:01:01') + 0.123456;
 
-create table t1 (a timestamp(4), b varchar(100), c datetime(2));
+create table t1 (a timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b varchar(100), c datetime(2));
 
 insert t1 (b,c) values (now(6), now(6));
 

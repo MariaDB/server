@@ -17,6 +17,10 @@
 #include "vio_priv.h"
 
 #ifdef HAVE_OPENSSL
+#ifndef HAVE_YASSL
+#include <openssl/dh.h>
+#include <openssl/bn.h>
+#endif
 
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
@@ -259,14 +263,17 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   }
 
   /* DH stuff */
-  dh=get_dh2048();
-  if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+  if (!is_client_method)
   {
-    *error= SSL_INITERR_DH;
-    goto err3;
-  }
+    dh=get_dh2048();
+    if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+    {
+      *error= SSL_INITERR_DH;
+      goto err3;
+    }
 
-  DH_free(dh);
+    DH_free(dh);
+  }
 
   DBUG_PRINT("exit", ("OK 1"));
 

@@ -309,7 +309,7 @@ static int run_test(const char *filename)
     }
 
     /* Read through all rows and update them */
-    assert(maria_scan_init(file) == 0);
+    maria_scan_init(file);
 
     found=0;
     while ((error= maria_scan(file,read_record)) == 0)

@@ -248,7 +248,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   }
 
   if (error)
-  {                     /* error has occured during the transaction */
+  {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
@@ -1522,6 +1522,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     bitmap_set_all(table->write_set);
     if (!get_flags(COMPLETE_ROWS_F))
       bitmap_intersect(table->write_set,&m_cols);
+    table->rpl_write_set= table->write_set;
 
     // Do event specific preparations 
     
@@ -1592,7 +1593,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
   } // if (table)
 
   if (error)
-  {                     /* error has occured during the transaction */
+  {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
@@ -1804,7 +1805,7 @@ bool Old_rows_log_event::write_data_body()
 
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Old_rows_log_event::pack_info(THD *thd, Protocol *protocol)
+void Old_rows_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   char const *const flagstr=
@@ -1896,8 +1897,9 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     DBUG_RETURN(error);
   
   /* unpack row into table->record[0] */
-  error= unpack_current_row(rgi); // TODO: how to handle errors?
-
+  if ((error= unpack_current_row(rgi)))
+    DBUG_RETURN(error);
+  
 #ifndef DBUG_OFF
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "write_set = %s", table->write_set);

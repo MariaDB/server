@@ -204,7 +204,7 @@ CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('
 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 insert('txs',2,1,'hi')	insert('is ',4,0,'a')	insert('txxxxt',2,4,'es')
-this	is a	test
+this	is 	test
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 replace('aaaa','a','b')	replace('aaaa','aa','b')	replace('aaaa','a','bb')	replace('aaaa','','b')	replace('bbbb','a','c')
 bbbb	bb	bbbbbbbb	aaaa	bbbb
@@ -1160,6 +1160,8 @@ Warning	1292	Truncated incorrect DOUBLE value: 'notnumber'
 SELECT * FROM t1, t2 WHERE num=substring(str from 1 for 6);
 str	num
 notnumber	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'notnum'
 DROP TABLE t1,t2;
 CREATE TABLE t1(
 id int(11) NOT NULL auto_increment,
@@ -1352,6 +1354,8 @@ cast(rtrim('  20.06 ') as decimal(19,2))
 select cast(ltrim('  20.06 ') as decimal(19,2));
 cast(ltrim('  20.06 ') as decimal(19,2))
 20.06
+Warnings:
+Note	1292	Truncated incorrect DECIMAL value: '20.06 '
 select cast(rtrim(ltrim('  20.06 ')) as decimal(19,2));
 cast(rtrim(ltrim('  20.06 ')) as decimal(19,2))
 20.06
@@ -2339,7 +2343,7 @@ INSERT('abc', 3, 3, '1234')
 ab1234
 SELECT INSERT('abc', 4, 3, '1234');
 INSERT('abc', 4, 3, '1234')
-abc1234
+abc
 SELECT INSERT('abc', 5, 3, '1234');
 INSERT('abc', 5, 3, '1234')
 abc
@@ -2629,7 +2633,7 @@ CREATE TABLE t1 ( a TEXT );
 SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/bug58165.txt';;
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' )
-x
+
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'b'
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;;
@@ -2915,7 +2919,7 @@ format(rpad('111111111.1',
 1111111,
 '999999999999999999999999999999999999999999'),0,'be_BY')
 ;
-DO
+SELECT
 round(
 concat( (
 coalesce( (
@@ -2930,9 +2934,14 @@ sha1('P'),
 )
 )
 )
-);
+) AS r;
+r
+0
 Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
 Warning	1292	Truncated incorrect DECIMAL value: '[.DC2.]'
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
+Warning	1292	Truncated incorrect DOUBLE value: '0.000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111'
 SET @@global.max_allowed_packet:= @tmp_max;
 SELECT @tmp_max:= @@global.max_allowed_packet;
 @tmp_max:= @@global.max_allowed_packet
@@ -4560,6 +4569,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
+DROP TABLE t1;
+#
+# Bug#58081 Duplicate entry error when doing GROUP BY
+# MDEV-9332 Bug after upgrade to 10.1.10
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(0),(1),(0),(0);
+SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binlog_size);
+COUNT(*)
+25
 DROP TABLE t1;
 #
 # End of 10.1 tests

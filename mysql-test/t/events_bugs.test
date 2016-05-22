@@ -306,7 +306,7 @@ create table events_smode_test(ev_name char(10), a date);
 delimiter |;
 create event ee_16407_2 on schedule every 60 second do
 begin
-  select get_lock('ee_16407_2', 60) /*ee_16407_2*/;
+  select get_lock('ee_16407_2', 60); /*ee_16407_2*/
   select release_lock('ee_16407_2');
   insert into events_test.events_smode_test values('ee_16407_2','1980-19-02');
 end|
@@ -315,7 +315,7 @@ insert into events_test.events_smode_test values ('test','1980-19-02')|
 --echo "This is ok"
 create event ee_16407_3 on schedule every 60 second do
 begin
-  select get_lock('ee_16407_2', 60) /*ee_16407_3*/;
+  select get_lock('ee_16407_2', 60); /*ee_16407_3*/
   select release_lock('ee_16407_2');
   insert into events_test.events_smode_test values ('ee_16407_3','1980-02-19');
   insert into events_test.events_smode_test values ('ee_16407_3','1980-02-29');
@@ -324,7 +324,7 @@ set sql_mode=""|
 --echo "This will insert rows but they will be truncated"
 create event ee_16407_4 on schedule every 60 second do
 begin
-  select get_lock('ee_16407_2', 60) /*ee_16407_4*/;
+  select get_lock('ee_16407_2', 60); /*ee_16407_4*/
   select release_lock('ee_16407_2');
   insert into events_test.events_smode_test values ('ee_16407_4','10-11-1956');
 end|
@@ -412,13 +412,13 @@ create procedure ee_16407_5_pendant() begin insert into events_test.events_smode
 create procedure ee_16407_6_pendant() begin insert into events_test.events_smode_test values('ee_16407_6','2004-02-29'); end|
 create event ee_16407_5 on schedule every 60 second do
 begin
-  select get_lock('ee_16407_5', 60) /*ee_16407_5*/;
+  select get_lock('ee_16407_5', 60); /*ee_16407_5*/
   select release_lock('ee_16407_5');
   call events_test.ee_16407_5_pendant();
 end|
 create event ee_16407_6 on schedule every 60 second do
 begin
-  select get_lock('ee_16407_5', 60) /*ee_16407_6*/;
+  select get_lock('ee_16407_5', 60); /*ee_16407_6*/
   select release_lock('ee_16407_5');
   call events_test.ee_16407_6_pendant();
 end|
@@ -944,7 +944,7 @@ DELIMITER ;|
 #    reasonable time like 4 seconds. Till ~ 2 seconds could pass on a heavy
 #    loaded testing box before something gets executed).
 #    Detection of execution is via the records inserted by the event.
---echo Sleep till the first INSERT into events_test.event_log occured
+--echo Sleep till the first INSERT into events_test.event_log occurred
 let $wait_timeout= 4;
 let $wait_condition=
 SELECT COUNT(*) > 0 FROM events_test.event_log;

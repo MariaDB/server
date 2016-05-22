@@ -182,10 +182,10 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
   return buff + 2 + iv_length;
 }
 
-static int ma_encrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
-                      uint, LSN, uint *);
-static int ma_decrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
-                      uint, LSN, uint);
+static int ma_encrypt(MARIA_SHARE *, MARIA_CRYPT_DATA *, const uchar *,
+                      uchar *, uint, uint, LSN, uint *);
+static int ma_decrypt(MARIA_SHARE *, MARIA_CRYPT_DATA *, const uchar *,
+                      uchar *, uint, uint, LSN, uint);
 
 static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
 {
@@ -227,7 +227,7 @@ static my_bool ma_crypt_data_post_read_hook(int res,
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - decrypt page */
-    res= ma_decrypt(share->crypt_data,
+    res= ma_decrypt(share, share->crypt_data,
                     src + head, dst + head, size - (head + tail), pageno, lsn,
                     key_version);
     /* 3 - copy tail */
@@ -294,9 +294,9 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - encrypt page */
-    if (ma_encrypt(share->crypt_data,
+    if (ma_encrypt(share, share->crypt_data,
                    src + head, dst + head, size - (head + tail), pageno, lsn,
-                  &key_version))
+                   &key_version))
       return 1;
     /* 3 - copy tail */
     memcpy(dst + size - tail, src + size - tail, tail);
@@ -361,7 +361,7 @@ static my_bool ma_crypt_index_post_read_hook(int res,
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - decrypt page */
-    res= ma_decrypt(share->crypt_data,
+    res= ma_decrypt(share, share->crypt_data,
                     src + head, dst + head, size, pageno, lsn, key_version);
     /* 3 - copy tail */
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
@@ -414,9 +414,12 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - encrypt page */
-    if (ma_encrypt(share->crypt_data,
+    if (ma_encrypt(share, share->crypt_data,
                    src + head, dst + head, size, pageno, lsn, &key_version))
+    {
+      my_free(crypt_buf);
       return 1;
+    }
     /* 3 - copy tail */
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
     /* 4 - store key version */
@@ -444,19 +447,26 @@ void ma_crypt_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
   file->post_write_hook= ma_crypt_post_write_hook;
 }
 
-static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
-                       const uchar *src, uchar *dst, uint size,
-                       uint pageno, LSN lsn,
-                       uint *key_version)
+static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
+                      const uchar *src, uchar *dst, uint size,
+                      uint pageno, LSN lsn,
+                      uint *key_version)
 {
   int rc;
-  uint32 dstlen;
+  uint32 dstlen= 0;              /* Must be set because of error message */
 
   *key_version = encryption_key_get_latest_version(crypt_data->scheme.key_id);
   if (*key_version == ENCRYPTION_KEY_VERSION_INVALID)
   {
-    my_printf_error(HA_ERR_GENERIC, "Unknown key id %u. Can't continue!",
-                    MYF(ME_FATALERROR|ME_NOREFRESH), crypt_data->scheme.key_id);
+    /*
+      We use this error for both encryption and decryption, as in normal
+      cases it should be impossible to get an error here.
+    */
+    my_errno= HA_ERR_DECRYPTION_FAILED;
+    my_printf_error(HA_ERR_DECRYPTION_FAILED,
+                    "Unknown key id %u. Can't continue!",
+                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    crypt_data->scheme.key_id);
     return 1;
   }
 
@@ -464,40 +474,43 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                                 &crypt_data->scheme, *key_version,
                                 crypt_data->space, pageno, lsn);
 
-  DBUG_ASSERT(rc == MY_AES_OK);
-  DBUG_ASSERT(dstlen == size);
+  /* The following can only fail if the encryption key is wrong */
+  DBUG_ASSERT(!my_assert_on_error || rc == MY_AES_OK);
+  DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
-    my_printf_error(HA_ERR_GENERIC,
-                    "failed to encrypt! rc: %d, dstlen: %u size: %u\n",
+    my_errno= HA_ERR_DECRYPTION_FAILED;
+    my_printf_error(HA_ERR_DECRYPTION_FAILED,
+                    "failed to encrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
                     MYF(ME_FATALERROR|ME_NOREFRESH),
-                    rc, dstlen, size);
+                    share->open_file_name.str, rc, dstlen, size);
     return 1;
   }
 
   return 0;
 }
 
-static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
+static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
                       const uchar *src, uchar *dst, uint size,
                       uint pageno, LSN lsn,
                       uint key_version)
 {
   int rc;
-  uint32 dstlen;
+  uint32 dstlen= 0;              /* Must be set because of error message */
 
   rc= encryption_scheme_decrypt(src, size, dst, &dstlen,
                                 &crypt_data->scheme, key_version,
                                 crypt_data->space, pageno, lsn);
 
-  DBUG_ASSERT(rc == MY_AES_OK);
-  DBUG_ASSERT(dstlen == size);
+  DBUG_ASSERT(!my_assert_on_error || rc == MY_AES_OK);
+  DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
-    my_printf_error(HA_ERR_GENERIC,
-                    "failed to encrypt! rc: %d, dstlen: %u size: %u\n",
+    my_errno= HA_ERR_DECRYPTION_FAILED;
+    my_printf_error(HA_ERR_DECRYPTION_FAILED,
+                    "failed to decrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
                     MYF(ME_FATALERROR|ME_NOREFRESH),
-                    rc, dstlen, size);
+                    share->open_file_name.str, rc, dstlen, size);
     return 1;
   }
   return 0;

@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Kentoku Shiba
+/* Copyright (C) 2009-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -557,6 +557,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   if ((*error_num = spider_db_udf_direct_sql_connect(direct_sql, conn)))
     goto error;
   conn->ping_time = (time_t) time((time_t*) 0);
+  conn->connect_error_time = conn->ping_time;
 
   DBUG_RETURN(conn);
 
@@ -761,6 +762,16 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
 #endif
   }
 
+  if (conn->queued_connect)
+  {
+    if ((*error_num = spider_db_udf_direct_sql_connect(direct_sql, conn)))
+      goto error;
+    conn->queued_connect = FALSE;
+  }
+
+  if (conn->queued_ping)
+    conn->queued_ping = FALSE;
+
   DBUG_PRINT("info",("spider conn=%p", conn));
   DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
   DBUG_RETURN(conn);
@@ -885,7 +896,7 @@ error:
 #define SPIDER_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!direct_sql->param_name) \
     { \
       if ((direct_sql->param_name = spider_get_string_between_quote( \
@@ -898,14 +909,14 @@ error:
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%s", direct_sql->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%s", direct_sql->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_HINT_WITH_MAX(title_name, param_name, check_length, max_size, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length) - 1; \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -935,7 +946,7 @@ error:
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%d", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
         direct_sql->param_name[hint_num])); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
@@ -948,7 +959,7 @@ error:
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -965,7 +976,7 @@ error:
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", \
+      DBUG_PRINT("info",("spider " title_name "=%d", \
         (int) direct_sql->param_name)); \
     } \
     break; \
@@ -973,7 +984,7 @@ error:
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -988,14 +999,14 @@ error:
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", direct_sql->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", direct_sql->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (direct_sql->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1011,7 +1022,7 @@ error:
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%lld", \
+      DBUG_PRINT("info",("spider " title_name "=%lld", \
         direct_sql->param_name)); \
     } \
     break; \

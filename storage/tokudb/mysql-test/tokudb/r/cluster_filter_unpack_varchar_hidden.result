@@ -182,14 +182,14 @@ a	b	c	d	e	f
 3	30	200	2000	20000	200000
 explain select * from t1 where b > "0";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	b	b	NULL	NULL	NULL;	Using where; Using index
+1	SIMPLE	t1	<type>	b	b	NULL	NULL	NULL;	Using where; Using index
 select * from t1 where b > "0";
 a	b	c	d	e	f
 2	20	100	1000	10000	100000
 3	30	200	2000	20000	200000
 explain select * from t1 where d > "0";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	d	d	NULL	NULL	NULL;	Using where; Using index
+1	SIMPLE	t1	<type>	d	d	NULL	NULL	NULL;	Using where; Using index
 select * from t1 where d > "0";
 a	b	c	d	e	f
 2	20	100	1000	10000	100000

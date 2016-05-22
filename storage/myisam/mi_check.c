@@ -51,6 +51,7 @@
 #include <sys/mman.h>
 #endif
 #include "rt_index.h"
+#include <mysqld_error.h>
 
 	/* Functions defined in this file */
 
@@ -1922,7 +1923,7 @@ int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
                                    fn_format(param->temp_filename,
                                              param->temp_filename,
                                              "", INDEX_TMP_EXT, 2+4),
-                                   0, param->tmpfile_createflag, MYF(0))) <= 0)
+                                   0, param->tmpfile_createflag, MYF(0))) < 0)
   {
     mi_check_print_error(param,"Can't create new tempfile: '%s'",
 			 param->temp_filename);
@@ -4767,9 +4768,10 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info,
   {
     char buff[MY_BACKUP_NAME_EXTRA_LENGTH+1];
     my_create_backup_name(buff, "", param->backup_time);
-    my_printf_error(0,                          /* No error, just info */
-                    "Making backup of data file with extension '%s'",
-                    MYF(ME_JUST_INFO | ME_NOREFRESH), buff);
+    my_printf_error(ER_GET_ERRMSG,
+                    "Making backup of data file %s with extension '%s'",
+                    MYF(ME_JUST_INFO | ME_NOREFRESH), share->data_file_name,
+                    buff);
   }
 
   /*

@@ -388,7 +388,7 @@ int start_io(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
     return 0;
   }
 
-  /* Some error occured */
+  /* Some error occurred */
   CancelThreadpoolIo(io);
   return -1;
 }
@@ -575,7 +575,7 @@ static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
   return;
 
 error:
-  /* Some error has occured. */
+  /* Some error has occurred. */
 
   destroy_connection(connection, instance);
   free(connection);
@@ -667,7 +667,7 @@ void tp_add_connection(THD *thd)
   if(!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    threadpool_remove_connection(thd);
+    threadpool_cleanup_connection(thd);
     return;
   }
 
@@ -685,7 +685,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Likely memory pressure */
-    login_callback(NULL, con, NULL); /* deletes connection if something goes wrong */
+    threadpool_cleanup_connection(thd);
   }
 }
 

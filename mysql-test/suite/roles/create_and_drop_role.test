@@ -53,6 +53,14 @@ connection default;
 create role '';
 
 #
+# MDEV-8609 Server crashes in is_invalid_role_name on reloading ACL with a blank role name
+#
+--error ER_INVALID_ROLE
+create role ' ';
+create role 'foo  ';
+drop role foo;
+
+#
 # MDEV-5523 Server crashes on DROP USER <rolename>
 #
 create role r1;

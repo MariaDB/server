@@ -8,11 +8,13 @@ partition pa3 max_rows=30 min_rows=4,
 partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 insert into t1 values ('A'),('D'),('L'),('G');
+--sorted_result
 select * from t1;
 select * from t1 where a='A';
 update t1 set a='E' where a='L';
 select * from t1;
 delete from t1 where a='E';
+--sorted_result
 select * from t1;
 drop table t1;
 
@@ -37,6 +39,7 @@ commit;
 --enable_query_log
 insert into t2 values ('1'),('2'),('3'),('4'),('5'),('6'),('7'),('8'),('9'),('0');
 select count(*) from t2;
+--sorted_result
 select * from t2;
 drop table t2;
 

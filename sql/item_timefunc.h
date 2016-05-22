@@ -421,7 +421,7 @@ public:
     set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
-    cached_result_type= decimals ? DECIMAL_RESULT : INT_RESULT;
+    set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
@@ -501,7 +501,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   Field *tmp_table_field(TABLE *table)
-  { return tmp_table_field_from_field_type(table, 0); }
+  { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
   void fix_length_and_dec();

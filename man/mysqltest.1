@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqltest\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 03/31/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL
-.\"  Language: English
 .\"
-.TH "\FBMYSQLTEST\FR" "1" "03/31/2010" "MySQL" "MySQL Database System"
+.TH "\FBMYSQLTEST\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -33,7 +26,7 @@ mysqltest_embedded \- program to run embedded test cases
 .PP
 The
 \fBmysqltest\fR
-program runs a test case against a MySQL server and optionally compares the output with a result file\&. This program reads input written in a special test language\&. Typically, you invoke
+program runs a test case against a MariaDB server and optionally compares the output with a result file\&. This program reads input written in a special test language\&. Typically, you invoke
 \fBmysqltest\fR
 via
 \fBmysql\-test\-run\&.pl\fR
@@ -55,7 +48,7 @@ Features of
 .sp -1
 .IP \(bu 2.3
 .\}
-Can send SQL statements to MySQL servers for execution
+Can send SQL statements to MariaDB servers for execution
 .RE
 .sp
 .RS 4
@@ -101,7 +94,7 @@ servers and switch between connections
 .sp -1
 .IP \(bu 2.3
 .\}
-Can connect to an embedded server (libmysqld), if MySQL is compiled with support for
+Can connect to an embedded server (libmysqld), if MariaDB is compiled with support for
 libmysqld\&. (In this case, the executable is named
 \fBmysqltest_embedded\fR
 rather than
@@ -206,7 +199,40 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: currsor-protocol option
+.\" mysqltest: connect-timeout option
+.\" connect-timeout option: mysqltest
+\fB\-\-connect\-timeout=\fInum\fR
+.sp
+This can be used to set the MYSQL_OPT_CONNECT_TIMEOUT parameter of mysql_options to change the number of seconds before an unsuccessful connection attempt times out\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: continue-on-error option
+.\" continue-on-error option: mysqltest
+\fB\-\-continue\-on\-error\fR
+.sp
+Continue test even if we got an error\&. This is mostly 
+useful when testing a storage engine to see what from a 
+test file it can execute, or to find all syntax errors in 
+a newly created big test file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: cursor-protocol option
 .\" cursor-protocol option: mysqltest
 \fB\-\-cursor\-protocol\fR
 .sp
@@ -242,7 +268,7 @@ The default database to use\&.
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-#[\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
-Write a debugging log if MySQL is built with debugging support\&. The default
+Write a debugging log if MariaDB is built with debugging support\&. The default
 \fIdebug_options\fR
 value is
 \'d:t:S:i:O,/tmp/mysqltest\&.trace\'\&.
@@ -291,27 +317,7 @@ Print debugging information and memory and CPU usage statistics when the program
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqltest: include option
-.\" include option: mysqltest
-\fB\-\-include=\fR\fB\fIfile_name\fR\fR,
-\fB\-i \fR\fB\fIfile_name\fR\fR
-.sp
-Include the contents of the given file before processing the contents of the test file\&. The included file should have the same format as other
-\fBmysqltest\fR
-test files\&. This option has the same effect as putting a
-\-\-source \fIfile_name\fR
-command as the first line of the test file\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -373,8 +379,6 @@ The maximum number of connection attempts when connecting to server\&.
 \fB\-\-max\-connections=\fR\fB\fInum\fR\fR
 .sp
 The maximum number of simultaneous server connections per client (that is, per test)\&. If not set, the maximum is 128\&. Minimum allowed limit is 8, maximum is 5120\&.
-.sp
-This option is available from MySQL 5\&.1\&.45\&.
 .RE
 .sp
 .RS 4
@@ -390,6 +394,36 @@ This option is available from MySQL 5\&.1\&.45\&.
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option files\&. If used, this must be the first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: non-blocking-api option
+.\" non-blocking-api option: mysqltest
+\fB\-\-non\-blocking\-api\fR
+.sp
+Use the non-blocking client API for communication\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: overlay-dir option
+.\" overlay-dir option: mysqltest
+\fB\-\-overlay\-dir=\fIdir_name\fR
+.sp
+Overlay directory\&.
 .RE
 .sp
 .RS 4
@@ -424,12 +458,62 @@ option on the command line, you are prompted for one\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqltest: plugin-dir option
+.\" plugin-dir option: mysqltest
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqltest: port option
 .\" port option: mysqltest
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection\&.
+The TCP/IP port number to use for the connection or 0 for default to, in order of preference, 
+my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: prologue option
+.\" prologue option: mysqltest
+\fB\-\-prologue=\fR\fB\fIname\fR\fR
+.sp
+Include the contents of the given file before processing the contents of the test file\&. The included file should have the same format as other
+\fBmysqltest\fR
+test files\&. This option has the same effect as putting a
+\-\-source \fIfile_name\fR
+command as the first line of the test file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: protocol option
+.\" protocol option: mysqltest
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
 .RE
 .sp
 .RS 4
@@ -578,6 +662,21 @@ updates the given file by writing the actual test results to it\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqltest: result-format-version option
+.\" result-format-version option: mysqltest
+\fB\-\-result\-format\-version=\fI#\fR
+.sp
+Version of the result file format to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqltest: server-arg option
 .\" server-arg option: mysqltest
 \fB\-\-server\-arg=\fR\fB\fIvalue\fR\fR,
@@ -629,21 +728,6 @@ Suppress all normal output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: skip-safemalloc option
-.\" skip-safemalloc option: mysqltest
-\fB\-\-skip\-safemalloc\fR
-.sp
-Do not use memory allocation checking\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mysqltest: sleep option
 .\" sleep option: mysqltest
 \fB\-\-sleep=\fR\fB\fInum\fR\fR,
@@ -657,8 +741,7 @@ seconds\&. This option does not affect
 real_sleep
 commands\&.
 .sp
-As of MySQL 5\&.0\&.23, an option value of 0 can be used, which effectively disables
-sleep
+An option value of 0 can be used, which effectively disables sleep
 commands in the test case\&.
 .RE
 .sp
@@ -705,6 +788,164 @@ creates and invokes a stored procedure that executes the statement rather than e
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqltest: SSL options
+.\" SSL options: mysqltest
+\fB\-\-ssl\fR
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL CA option
+.\" SSL CA option: mysqltest
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL CA Path option
+.\" SSL CA Path option: mysqltest
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Cert option
+.\" SSL Cert option: mysqltest
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Cipher option
+.\" SSL Cipher option: mysqltest
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Key option
+.\" SSL Key option: mysqltest
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Crl option
+.\" SSL CRL option: mysqltest
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Crlpath option
+.\" SSL Crlpath option: mysqltest
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mysqltest
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqltest: suite-dir option
+.\" suite-dir option: mysqltest
+\fB\-\-suite\-dir=\fIdir_name\fR
+.sp
+Suite directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqltest: tail-lines option
 .\" tail-lines option: mysqltest
 \fB\-\-tail\-lines=\fR\fB\fInn\fR\fR
@@ -741,7 +982,7 @@ Read test input from this file\&. The default is to read from the standard input
 \fB\-\-timer\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-m \fR\fB\fIfile_name\fR\fR
 .sp
-If given, the number of millisecond spent running the test will be written to this file\&. This is used by
+If given, the number of microseconds spent running the test will be written to this file\&. This is used by
 \fBmysql\-test\-run\&.pl\fR
 for its reporting\&.
 .RE
@@ -775,7 +1016,7 @@ The temporary directory where socket files are created\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
-The MySQL user name to use when connecting to the server\&.
+The MariaDB user name to use when connecting to the server\&.
 .RE
 .sp
 .RS 4
@@ -824,12 +1065,12 @@ Display version information and exit\&.
 .sp
 Every
 SELECT
-statement is wrapped inside a view\&. This option was added in MySQL 5\&.0\&.19\&.
+statement is wrapped inside a view\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -838,8 +1079,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

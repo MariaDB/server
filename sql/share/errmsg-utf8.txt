@@ -6034,7 +6034,7 @@ ER_EVENT_CANNOT_ALTER_IN_THE_PAST
   eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was not changed. Specify a time in the future."
   ger "Execution Zeitpunkt des Ereignisses in der Vergangenheit liegt, und es war NACH ABSCHLUSS Set nicht erhalten. Die Veranstaltung wurde nicht verändert. Geben Sie einen Zeitpunkt in der Zukunft."
 ER_SLAVE_INCIDENT
-  eng "The incident %s occured on the master. Message: %-.64s"
+  eng "The incident %s occurred on the master. Message: %-.64s"
   ger "Der Vorfall %s passierte auf dem Master. Meldung: %-.64s"
 ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT
   eng "Table has no partition for some existing values"
@@ -6136,7 +6136,7 @@ ER_SLAVE_HEARTBEAT_FAILURE
   eng "Unexpected master's heartbeat data: %s"
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
+  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)."
 ER_UNUSED_14
   eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
@@ -6506,8 +6506,8 @@ ER_PARTITION_EXCHANGE_FOREIGN_KEY
   swe "Tabellen att byta ut mot partition har foreign key referenser: '%-.64s'"
 ER_NO_SUCH_KEY_VALUE
   eng "Key value '%-.192s' was not found in table '%-.192s.%-.192s'"
-ER_RPL_INFO_DATA_TOO_LONG
-  eng "Data for column '%s' too long"
+ER_VALUE_TOO_LONG
+  eng "Too long value for '%s'"
 ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
   eng "Replication event checksum verification failed while reading from network."
 ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
@@ -7106,7 +7106,7 @@ ER_PRIOR_COMMIT_FAILED
 ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
-	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+	eng "When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
 ER_PLUGIN_INSTALLED
@@ -7136,3 +7136,6 @@ ER_KILL_QUERY_DENIED_ERROR
         eng "You are not owner of query %lu"
         ger "Sie sind nicht Eigentümer von Abfrage %lu"
         rus "Вы не являетесь владельцем запроса %lu"
+ER_NO_EIS_FOR_FIELD
+        eng "Engine-independent statistics are not collected for column '%s'"
+        ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"

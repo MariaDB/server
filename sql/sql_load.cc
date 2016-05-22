@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -240,6 +240,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   {
     DBUG_RETURN(TRUE);
   }
+  thd_proc_info(thd, "executing");
   /*
     Let us emit an error if we are loading data to table which is used
     in subselect in SET clause like we do it for INSERT.
@@ -295,6 +296,9 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
   }
+  switch_to_nullable_trigger_fields(fields_vars, table);
+  switch_to_nullable_trigger_fields(set_fields, table);
+  switch_to_nullable_trigger_fields(set_values, table);
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
@@ -767,7 +771,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item_field *sql_field;
   TABLE *table= table_list->table;
-  bool err, progress_reports;
+  bool err, progress_reports, auto_increment_field_not_null=false;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_fixed_length");
 
@@ -776,6 +780,12 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  while ((sql_field= (Item_field*) it++))
+  {
+    if (table->field[sql_field->field->field_index] == table->next_number_field)
+      auto_increment_field_not_null= true;
+  }
 
   while (!read_info.read_fixed_length())
   {
@@ -819,8 +829,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     while ((sql_field= (Item_field*) it++))
     {
       Field *field= sql_field->field;                  
-      if (field == table->next_number_field)
-        table->auto_increment_field_not_null= TRUE;
+      table->auto_increment_field_not_null= auto_increment_field_not_null;
       /*
         No fields specified in fields_vars list can be null in this format.
         Mark field as not null, we should do this for each row because of
@@ -874,8 +883,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         (table->default_field && table->update_default_fields()))
       DBUG_RETURN(1);
 
-    switch (table_list->view_check_option(thd,
-                                          ignore_check_option_errors)) {
+    switch (table_list->view_check_option(thd, ignore_check_option_errors)) {
     case VIEW_CHECK_SKIP:
       read_info.next_line();
       goto continue_loop;
@@ -1999,8 +2007,15 @@ int READ_INFO::read_xml(THD *thd)
       break;
       
     case '/': /* close tag */
-      level--;
       chr= my_tospace(GET);
+      /* Decrease the 'level' only when (i) It's not an */
+      /* (without space) empty tag i.e. <tag/> or, (ii) */
+      /* It is of format <row col="val" .../>           */
+      if(chr != '>' || in_tag)
+      {
+        level--;
+        in_tag= false;
+      }
       if(chr != '>')   /* if this is an empty tag <tag   /> */
         tag.length(0); /* we should keep tag value          */
       while(chr != '>' && chr != my_b_EOF)

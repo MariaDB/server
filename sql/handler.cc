@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -325,7 +325,7 @@ int ha_init_errors(void)
   /* Set the dedicated error messages. */
   SETMSG(HA_ERR_KEY_NOT_FOUND,          ER_DEFAULT(ER_KEY_NOT_FOUND));
   SETMSG(HA_ERR_FOUND_DUPP_KEY,         ER_DEFAULT(ER_DUP_KEY));
-  SETMSG(HA_ERR_RECORD_CHANGED,         "Update wich is recoverable");
+  SETMSG(HA_ERR_RECORD_CHANGED,         "Update which is recoverable");
   SETMSG(HA_ERR_WRONG_INDEX,            "Wrong index given to function");
   SETMSG(HA_ERR_CRASHED,                ER_DEFAULT(ER_NOT_KEYFILE));
   SETMSG(HA_ERR_WRONG_IN_RECORD,        ER_DEFAULT(ER_CRASHED_ON_USAGE));
@@ -532,10 +532,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
       hton->discover_table_existence= full_discover_for_existence;
   }
 
-  /*
-    the switch below and hton->state should be removed when
-    command-line options for plugins will be implemented
-  */
   switch (hton->state) {
   case SHOW_OPTION_NO:
     break;
@@ -3631,6 +3627,8 @@ void handler::print_error(int error, myf errflag)
 */
 bool handler::get_error_message(int error, String* buf)
 {
+  DBUG_EXECUTE_IF("external_lock_failure",
+                  buf->set_ascii(STRING_WITH_LEN("KABOOM!")););
   return FALSE;
 }
 
@@ -4202,6 +4200,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_DEFAULT |
     Alter_inplace_info::ALTER_COLUMN_OPTION |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
+    Alter_inplace_info::ALTER_PARTITIONED |
     Alter_inplace_info::ALTER_RENAME;
 
   /* Is there at least one operation that requires copy algorithm? */
@@ -4229,7 +4228,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
-    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
 
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
@@ -5111,7 +5110,7 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
     custom discover_table_names() method, that calls add_table() directly).
     Note: avoid comparing the same name twice (here and in add_file).
   */
-  if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
+  if (wild && my_wildcmp(table_alias_charset, tname, tname + tlen, wild, wend,
                          wild_prefix, wild_one, wild_many))
       return 0;
 
@@ -5725,10 +5724,16 @@ static int binlog_log_row(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
-  /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      table->file->partition_ht()->db_type != DB_TYPE_INNODB)
+#ifdef WITH_WSREP
+  /*
+    Only InnoDB tables will be replicated through binlog emulation. Also
+    updates in mysql.gtid_slave_state table should not be binlogged.
+  */
+  if ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
+      (thd->wsrep_ignore_table == true))
     return 0;
+#endif /* WITH_WSREP */
 
   if (check_table_binlog_row_based(thd, table))
   {
@@ -5801,6 +5806,8 @@ int handler::ha_external_lock(THD *thd, int lock_type)
   */
   MYSQL_TABLE_LOCK_WAIT(m_psi, PSI_TABLE_EXTERNAL_LOCK, lock_type,
     { error= external_lock(thd, lock_type); })
+
+  DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
   if (error == 0)
   {
@@ -6115,7 +6122,6 @@ void ha_fake_trx_id(THD *thd)
     else
       hton->fake_trx_id(hton, thd);
     ha_info_next= ha_info->next();
-    ha_info->reset(); /* keep it conveniently zero-filled */
   }
   DBUG_VOID_RETURN;
 }

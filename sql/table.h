@@ -977,6 +977,57 @@ struct TABLE_SHARE
 };
 
 
+/**
+   Class is used as a BLOB field value storage for
+   intermediate GROUP_CONCAT results. Used only for
+   GROUP_CONCAT with  DISTINCT or ORDER BY options.
+ */
+
+class Blob_mem_storage: public Sql_alloc
+{
+private:
+  MEM_ROOT storage;
+  /**
+    Sign that some values were cut
+    during saving into the storage.
+  */
+  bool truncated_value;
+public:
+  Blob_mem_storage() :truncated_value(false)
+  {
+    init_alloc_root(&storage, MAX_FIELD_VARCHARLENGTH, 0, MYF(0));
+  }
+  ~ Blob_mem_storage()
+  {
+    free_root(&storage, MYF(0));
+  }
+  void reset()
+  {
+    free_root(&storage, MYF(MY_MARK_BLOCKS_FREE));
+    truncated_value= false;
+  }
+  /**
+     Fuction creates duplicate of 'from'
+     string in 'storage' MEM_ROOT.
+
+     @param from           string to copy
+     @param length         string length
+
+     @retval Pointer to the copied string.
+     @retval 0 if an error occured.
+  */
+  char *store(const char *from, uint length)
+  {
+    return (char*) memdup_root(&storage, from, length);
+  }
+  void set_truncated_value(bool is_truncated_value)
+  {
+    truncated_value= is_truncated_value;
+  }
+  bool is_truncated_value() { return truncated_value; }
+};
+
+
 /* Information for one open table */
 enum index_hint_type
 {
@@ -1065,10 +1116,15 @@ public:
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
-  MY_BITMAP     def_read_set, def_write_set, def_vcol_set, tmp_set; 
+  MY_BITMAP     def_read_set, def_write_set, tmp_set;
+  MY_BITMAP     def_rpl_write_set;
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
-  MY_BITMAP     *read_set, *write_set, *vcol_set; /* Active column sets */
+  /* Active column sets */
+  MY_BITMAP     *read_set, *write_set, *rpl_write_set;
+  /* Set if using virtual fields */
+  MY_BITMAP     *vcol_set, *def_vcol_set;
+
   /*
    The ID of the query that opened and is using this table. Has different
    meanings depending on the table type.
@@ -1242,6 +1298,12 @@ public:
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
+  /**
+     Initialized in Item_func_group_concat::setup for appropriate
+     temporary table if GROUP_CONCAT is used with ORDER BY | DISTINCT
+     and BLOB field count > 0.
+   */
+  Blob_mem_storage *blob_storage;
   GRANT_INFO grant;
   Filesort_info sort;
   /*
@@ -1320,7 +1382,8 @@ public:
   {
     read_set= &def_read_set;
     write_set= &def_write_set;
-    vcol_set= &def_vcol_set;
+    vcol_set= def_vcol_set;                     /* Note that this may be 0 */
+    rpl_write_set= 0;
   }
   /** Should this instance of the table be reopened? */
   inline bool needs_reopen()
@@ -1380,6 +1443,7 @@ public:
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
 
+  inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 };
 
@@ -1941,6 +2005,7 @@ struct TABLE_LIST
   bool          updating;               /* for replicate-do/ignore table */
   bool		force_index;		/* prefer index over table scan */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
+  bool          crashed;                 /* Table was found crashed */
   table_map     dep_tables;             /* tables the table depends on      */
   table_map     on_expr_dep_tables;     /* tables on expression depends on  */
   struct st_nested_join *nested_join;   /* if the element is a nested join  */

@@ -702,7 +702,7 @@ drop table t1;
 
 
 --echo #
---echo # Bug#15328 Segmentation fault occured if my.cnf is invalid for escape sequence
+--echo # Bug#15328 Segmentation fault occurred if my.cnf is invalid for escape sequence
 --echo #
 
 --exec $MYSQL_MY_PRINT_DEFAULTS --config-file=$MYSQL_TEST_DIR/std_data/bug15328.cnf mysqldump
@@ -905,13 +905,8 @@ select * from t1;
 create  view v1 as
 select * from v3 where b in (1, 2, 3, 4, 5, 6, 7);
 
-# Disable warnings since LIMIT warning for unsafe statement if
-# binlog_format = STATEMENT. Note: after BUG#45832, the warning should
-# not be issued.
---disable_warnings
 create  view v2 as
 select v3.a from v3, v1 where v1.a=v3.a and v3.b=3 limit 1;
---enable_warnings
 
 --exec $MYSQL_DUMP --skip-comments test
 
@@ -1080,7 +1075,7 @@ drop table t1;
 drop table if exists t1;
 --enable_warnings
 
-create table t1 (`d` timestamp, unique (`d`));
+create table t1 (`d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, unique (`d`));
 set time_zone='+00:00';
 insert into t1 values ('2003-10-25 22:00:00'),('2003-10-25 23:00:00');
 # results should show two different time values
@@ -1781,7 +1776,7 @@ drop table words;
 --replace_regex /.*mysqlimport(\.exe)*/mysqlimport/
 --replace_result mysqldump.exe mysqldump
 --error 1
---exec $MYSQL_IMPORT --silent --use-threads=2 test $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt $MYSQLTEST_VARDIR/std_data/words.dat $MYSQLTEST_VARDIR/std_data/words2.dat 2>&1
+--exec $MYSQL_IMPORT --silent --use-threads=2 test $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt $MYSQLTEST_VARDIR/std_data/words.dat $MYSQLTEST_VARDIR/std_data/words2.dat
 
 drop table t1;
 drop table t2;
@@ -2460,6 +2455,36 @@ drop table t1, t2;
 --echo # End of 5.1 tests
 --echo #
 
+--echo #
+--echo # Bug #20772273 : MYSQLIMPORT --USE-THREADS DOESN'T USE MULTIPLE THREADS
+--echo #
+
+CREATE DATABASE db_20772273;
+USE db_20772273;
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2(a INT);
+INSERT INTO t2 VALUES (3), (4);
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ db_20772273
+--exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t1.sql
+--exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t2.sql
+
+# Test mysqlimport with multiple threads
+--exec $MYSQL_IMPORT --silent --use-threads=2 db_20772273 $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+#Cleanup
+DROP TABLE t1;
+DROP TABLE t2;
+DROP DATABASE db_20772273;
+USE test;
+
 #
 # MDEV-6091 mysqldump goes in a loop and segfaults if --dump-slave is specified and it cannot connect to the server
 #
@@ -2473,6 +2498,23 @@ drop table t1, t2;
 --error 1
 --exec $MYSQL_DUMP --user=foo 2>&1 > $MYSQLTEST_VARDIR/tmp/bug6056.out
 --exec $MYSQL_DUMP --help > $MYSQLTEST_VARDIR/tmp/bug6056.out
+
+--echo #
+--echo # MDEV-9001 - [PATCH] Fix DB name quoting in mysqldump --routine
+--echo #
+CREATE DATABASE `a\"'``b`;
+USE `a\"'``b`;
+CREATE PROCEDURE p1() BEGIN END;
+ALTER DATABASE `a\"'``b` COLLATE utf8_general_ci;
+--let shell_ready_db_name="a\\\\\\"'`b"
+if (`select convert(@@version_compile_os using latin1) IN ("Win32","Win64","Windows") = 0`)
+{
+  --let shell_ready_db_name=a\\\\\\"\\'\\`b
+}
+--exec $MYSQL_DUMP --routines --compact $shell_ready_db_name
+DROP DATABASE `a\"'``b`;
+#"
+use test;
 
 --echo #
 --echo # Test mysqldump with --disable-query-logs
@@ -2491,3 +2533,38 @@ drop table t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqldump-test.out
 #select * from mysql.user;
 #checksum table mysql.user;
+
+--echo #
+--echo # MDEV-9124 mysqldump does not dump data if table name is same as view earlier on
+--echo #
+
+CREATE DATABASE db1 CHARSET=utf8;
+CREATE DATABASE db2 CHARSET=utf8;
+USE db2;
+CREATE TABLE nonunique_table_name (i1 serial) ENGINE=MEMORY;
+INSERT INTO nonunique_table_name VALUES (1),(2);
+CREATE TABLE nonunique_table_view_name (i2 int) ENGINE=InnoDB;
+INSERT INTO nonunique_table_view_name VALUES (3),(4);
+use db1;
+CREATE TABLE basetable (id smallint) ENGINE=MyISAM;
+CREATE TABLE nonunique_table_name (i3 smallint) ENGINE=MERGE UNION (basetable) INSERT_METHOD=LAST;
+INSERT INTO nonunique_table_name VALUES (5),(6);
+CREATE VIEW nonunique_table_view_name AS SELECT 1;
+
+--echo 
+--echo ##################################################
+--echo # --compact --databases db1 db2
+--exec $MYSQL_DUMP --compact --databases db1 db2
+--echo 
+--echo ##################################################
+--echo # --compact db2
+--echo
+--exec $MYSQL_DUMP --compact db2
+--echo 
+--echo ##################################################
+--echo # --compact --delayed-insert --no-data-med=0 --databases db2 db1
+--exec $MYSQL_DUMP --compact --delayed-insert --no-data-med=0 --databases db2 db1
+--echo 
+
+DROP DATABASE db1;
+DROP DATABASE db2;

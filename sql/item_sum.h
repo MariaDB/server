@@ -302,7 +302,13 @@ class st_select_lex;
   We assume that the nesting level of subquries does not exceed 127.
   TODO: to catch queries where the limit is exceeded to make the
   code clean here.  
-    
+
+  @note
+  The implementation takes into account the used strategy:
+  - Items resolved at optimization phase return 0 from Item_sum::used_tables().
+  - Items that depend on the number of join output records, but not columns of
+  any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
+  but still return false from Item_sum::const_item().
 */
 
 class Item_sum :public Item_func_or_sum
@@ -368,32 +374,25 @@ protected:
     the current argument list can be altered by usage of temporary tables.
   */
   Item **orig_args, *tmp_orig_args[2];
-  table_map used_tables_cache;
   
-  /*
-    TRUE <=> We've managed to calculate the value of this Item in
-    opt_sum_query(), hence it can be considered constant at all subsequent
-    steps.
-  */
-  bool forced_const;
   static ulonglong ram_limitation(THD *thd);
 
 public:  
 
   void mark_as_sum_func();
-  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1), forced_const(FALSE)
+  Item_sum(THD *thd): Item_func_or_sum(thd), quick_group(1)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a): Item_func_or_sum(thd, a), quick_group(1),
-    orig_args(tmp_orig_args), forced_const(FALSE)
+    orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();
   }
   Item_sum(THD *thd, Item *a, Item *b): Item_func_or_sum(thd, a, b),
-    quick_group(1), orig_args(tmp_orig_args), forced_const(FALSE)
+    quick_group(1), orig_args(tmp_orig_args)
   {
     mark_as_sum_func();
     init_aggregator();
@@ -433,16 +432,6 @@ public:
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
   virtual Item *result_item(THD *thd, Field *field);
 
-  /*
-    Return bitmap of tables that are needed to evaluate the item.
-
-    The implementation takes into account the used strategy: items resolved
-    at optimization phase will report 0.
-    Items that depend on the number of join output records, but not columns
-    of any particular table (like COUNT(*)) will report 0 from used_tables(),
-    but will still return false from const_item().
-  */
-  table_map used_tables() const { return used_tables_cache; }
   void update_used_tables ();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -458,12 +447,17 @@ public:
                                    cond_equal_ref);
   }
   bool is_null() { return null_value; }
+  /**
+    make_const()
+    Called if we've managed to calculate the value of this Item in
+    opt_sum_query(), hence it can be considered constant at all subsequent
+    steps.
+  */
   void make_const () 
   { 
     used_tables_cache= 0; 
-    forced_const= TRUE; 
+    const_item_cache= true;
   }
-  virtual bool const_item() const { return forced_const; }
   virtual bool const_during_execution() const { return false; }
   virtual void print(String *str, enum_query_type query_type);
   void fix_num_length_and_dec();
@@ -487,8 +481,7 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table,
-                                  uint convert_blob_length);
+  virtual Field *create_tmp_field(bool group, TABLE *table);
   virtual bool collect_outer_ref_processor(uchar *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
@@ -704,11 +697,7 @@ public:
   Item_sum_num(THD *thd, Item_sum_num *item):
     Item_sum(thd, item),is_evaluated(item->is_evaluated) {}
   bool fix_fields(THD *, Item **);
-  longlong val_int()
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(val_real());             /* Real as default */
-  }
+  longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
@@ -820,37 +809,6 @@ class Item_sum_count :public Item_sum_int
 };
 
 
-/* Item to get the value of a stored sum function */
-
-class Item_sum_avg;
-
-class Item_avg_field :public Item_result_field
-{
-public:
-  Field *field;
-  Item_result hybrid_type;
-  uint f_precision, f_scale, dec_bin_size;
-  uint prec_increment;
-  Item_avg_field(THD *thd, Item_result res_type, Item_sum_avg *item);
-  enum Type type() const { return FIELD_AVG_ITEM; }
-  double val_real();
-  longlong val_int();
-  my_decimal *val_decimal(my_decimal *);
-  bool is_null() { update_null_value(); return null_value; }
-  String *val_str(String*);
-  enum_field_types field_type() const
-  {
-    return hybrid_type == DECIMAL_RESULT ?
-      MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
-  }
-  enum Item_result result_type () const { return hybrid_type; }
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor("avg_field");
-  }
-};
-
-
 class Item_sum_avg :public Item_sum_sum
 {
 public:
@@ -874,7 +832,7 @@ public:
   bool add();
   double val_real();
   // In SPs we might force the "wrong" type with select into a declare variable
-  longlong val_int() { return (longlong) rint(val_real()); }
+  longlong val_int() { return val_int_from_real(); }
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String *str);
   void reset_field();
@@ -886,45 +844,11 @@ public:
     return has_with_distinct() ? "avg(distinct " : "avg("; 
   }
   Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(bool group, TABLE *table, uint convert_blob_length);
+  Field *create_tmp_field(bool group, TABLE *table);
   void cleanup()
   {
     count= 0;
     Item_sum_sum::cleanup();
-  }
-};
-
-class Item_sum_variance;
-
-class Item_variance_field :public Item_result_field
-{
-public:
-  Field *field;
-  Item_result hybrid_type;
-  uint f_precision0, f_scale0;
-  uint f_precision1, f_scale1;
-  uint dec_bin_size0, dec_bin_size1;
-  uint sample;
-  uint prec_increment;
-  Item_variance_field(THD *thd, Item_sum_variance *item);
-  enum Type type() const {return FIELD_VARIANCE_ITEM; }
-  double val_real();
-  longlong val_int()
-  { /* can't be fix_fields()ed */ return (longlong) rint(val_real()); }
-  String *val_str(String *str)
-  { return val_string_from_real(str); }
-  my_decimal *val_decimal(my_decimal *dec_buf)
-  { return val_decimal_from_real(dec_buf); }
-  bool is_null() { update_null_value(); return null_value; }
-  enum_field_types field_type() const
-  {
-    return hybrid_type == DECIMAL_RESULT ?
-      MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
-  }
-  enum Item_result result_type () const { return hybrid_type; }
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor("var_field");
   }
 };
 
@@ -954,18 +878,13 @@ class Item_sum_variance : public Item_sum_num
   void fix_length_and_dec();
 
 public:
-  Item_result hybrid_type;
-  int cur_dec;
   double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
   ulonglong count;
-  uint f_precision0, f_scale0;
-  uint f_precision1, f_scale1;
-  uint dec_bin_size0, dec_bin_size1;
   uint sample;
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par), hybrid_type(REAL_RESULT), count(0),
+    Item_sum_num(thd, item_par), count(0),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -981,26 +900,14 @@ public:
   const char *func_name() const
     { return sample ? "var_samp(" : "variance("; }
   Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(bool group, TABLE *table, uint convert_blob_length);
+  Field *create_tmp_field(bool group, TABLE *table);
   enum Item_result result_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
   void cleanup()
   {
     count= 0;
     Item_sum_num::cleanup();
   }
-};
-
-class Item_sum_std;
-
-class Item_std_field :public Item_variance_field
-{
-public:
-  Item_std_field(THD *thd, Item_sum_std *item);
-  enum Type type() const { return FIELD_STD_ITEM; }
-  double val_real();
-  my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
 };
 
 /*
@@ -1020,33 +927,31 @@ class Item_sum_std :public Item_sum_variance
   Item *result_item(THD *thd, Field *field);
   const char *func_name() const { return "std("; }
   Item *copy_or_same(THD* thd);
-  enum Item_result result_type () const { return REAL_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
 };
 
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum
+class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
 {
 protected:
   Item_cache *value, *arg_cache;
   Arg_comparator *cmp;
-  Item_result hybrid_type;
-  enum_field_types hybrid_field_type;
   int cmp_sign;
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
   public:
   Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par), value(0), arg_cache(0), cmp(0),
-    hybrid_type(INT_RESULT), hybrid_field_type(MYSQL_TYPE_LONGLONG),
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+    value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item), value(item->value), arg_cache(0),
-    hybrid_type(item->hybrid_type), hybrid_field_type(item->hybrid_field_type),
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item),
+    value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
@@ -1058,8 +963,12 @@ protected:
   void reset_field();
   String *val_str(String *);
   bool keep_field_type(void) const { return 1; }
-  enum Item_result result_type () const { return hybrid_type; }
-  enum enum_field_types field_type() const { return hybrid_field_type; }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
+  enum enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();
@@ -1069,8 +978,7 @@ protected:
   bool any_value() { return was_values; }
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
-  Field *create_tmp_field(bool group, TABLE *table,
-			  uint convert_blob_length);
+  Field *create_tmp_field(bool group, TABLE *table);
 };
 
 
@@ -1158,6 +1066,116 @@ class Item_sum_xor :public Item_sum_bit
 };
 
 
+/* Items to get the value of a stored sum function */
+
+class Item_sum_field :public Item
+{
+protected:
+  Field *field;
+public:
+  Item_sum_field(THD *thd, Item_sum *item)
+    :Item(thd), field(item->result_field)
+  {
+    name= item->name;
+    maybe_null= true;
+    decimals= item->decimals;
+    max_length= item->max_length;
+    unsigned_flag= item->unsigned_flag;
+    fixed= true;
+  }
+  table_map used_tables() const { return (table_map) 1L; }
+  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
+  void set_result_field(Field *) { DBUG_ASSERT(0); }
+  void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
+};
+
+
+class Item_avg_field :public Item_sum_field
+{
+protected:
+  uint prec_increment;
+public:
+  Item_avg_field(THD *thd, Item_sum_avg *item)
+   :Item_sum_field(thd, item), prec_increment(item->prec_increment)
+  { }
+  enum Type type() const { return FIELD_AVG_ITEM; }
+  bool is_null() { update_null_value(); return null_value; }
+  bool check_vcol_func_processor(uchar *int_arg)
+  {
+    return trace_unsupported_by_check_vcol_func_processor("avg_field");
+  }
+};
+
+
+class Item_avg_field_double :public Item_avg_field
+{
+public:
+  Item_avg_field_double(THD *thd, Item_sum_avg *item)
+   :Item_avg_field(thd, item)
+  { }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum Item_result result_type () const { return REAL_RESULT; }
+  longlong val_int() { return val_int_from_real(); }
+  my_decimal *val_decimal(my_decimal *dec) { return val_decimal_from_real(dec); }
+  String *val_str(String *str) { return val_string_from_real(str); }
+  double val_real();
+};
+
+
+class Item_avg_field_decimal :public Item_avg_field
+{
+  uint f_precision, f_scale, dec_bin_size;
+public:
+  Item_avg_field_decimal(THD *thd, Item_sum_avg *item)
+   :Item_avg_field(thd, item),
+    f_precision(item->f_precision),
+    f_scale(item->f_scale),
+    dec_bin_size(item->dec_bin_size)
+  { }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  enum Item_result result_type () const { return DECIMAL_RESULT; }
+  double val_real() { return val_real_from_decimal(); }
+  longlong val_int() { return val_int_from_decimal(); }
+  String *val_str(String *str) { return val_string_from_decimal(str); }
+  my_decimal *val_decimal(my_decimal *);
+};
+
+
+class Item_variance_field :public Item_sum_field
+{
+  uint sample;
+public:
+  Item_variance_field(THD *thd, Item_sum_variance *item)
+   :Item_sum_field(thd, item), sample(item->sample)
+  { }
+  enum Type type() const {return FIELD_VARIANCE_ITEM; }
+  double val_real();
+  longlong val_int() { return val_int_from_real(); }
+  String *val_str(String *str)
+  { return val_string_from_real(str); }
+  my_decimal *val_decimal(my_decimal *dec_buf)
+  { return val_decimal_from_real(dec_buf); }
+  bool is_null() { update_null_value(); return null_value; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum Item_result result_type () const { return REAL_RESULT; }
+  bool check_vcol_func_processor(uchar *int_arg)
+  {
+    return trace_unsupported_by_check_vcol_func_processor("var_field");
+  }
+};
+
+
+class Item_std_field :public Item_variance_field
+{
+public:
+  Item_std_field(THD *thd, Item_sum_std *item)
+   :Item_variance_field(thd, item)
+  { }
+  enum Type type() const { return FIELD_STD_ITEM; }
+  double val_real();
+};
+
+
 /*
   User defined aggregates
 */
@@ -1188,9 +1206,27 @@ public:
       return TRUE;
 
     fixed= 1;
+    /*
+      We set const_item_cache to false in constructors.
+      It can be later changed to "true", in a Item_sum::make_const() call.
+      No make_const() calls should have happened so far.
+    */
+    DBUG_ASSERT(!const_item_cache);
     if (udf.fix_fields(thd, this, this->arg_count, this->args))
       return TRUE;
-
+    /**
+      The above call for udf.fix_fields() updates
+      the Used_tables_and_const_cache part of "this" as if it was a regular
+      non-aggregate UDF function and can change both const_item_cache and
+      used_tables_cache members.
+      - The used_tables_cache will be re-calculated in update_used_tables()
+        which is called from check_sum_func() below. So we don't care about
+        its current value.
+      - The const_item_cache must stay "false" until a Item_sum::make_const()
+        call happens, if ever. So we need to reset const_item_cache back to
+        "false" here.
+    */
+    const_item_cache= false;
     memcpy (orig_args, args, sizeof (Item *) * arg_count);
     return check_sum_func(thd, ref);
   }
@@ -1215,11 +1251,7 @@ class Item_sum_udf_float :public Item_udf_sum
     Item_udf_sum(thd, udf_arg, list) {}
   Item_sum_udf_float(THD *thd, Item_sum_udf_float *item)
     :Item_udf_sum(thd, item) {}
-  longlong val_int()
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_sum_udf_float::val_real());
-  }
+  longlong val_int() { return val_int_from_real(); }
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);

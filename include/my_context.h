@@ -31,7 +31,7 @@
 #define MY_CONTEXT_USE_X86_64_GCC_ASM
 #elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__i386__)
 #define MY_CONTEXT_USE_I386_GCC_ASM
-#elif defined(HAVE_UCONTEXT)
+#elif defined(HAVE_UCONTEXT_H)
 #define MY_CONTEXT_USE_UCONTEXT
 #else
 #define MY_CONTEXT_DISABLE
@@ -178,7 +178,7 @@ struct mysql_async_context {
     resumed, eg. whether we woke up due to connection completed or timeout
     in mysql_real_connect_cont().
   */
-  unsigned int events_occured;
+  unsigned int events_occurred;
   /*
     This is set to the result of the whole asynchronous operation when it
     completes. It uses a union, as different calls have different return

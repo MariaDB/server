@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqlaccess\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLACCESS\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLACCESS\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,7 +20,7 @@ mysqlaccess \- client for checking access privileges
 .SH "DESCRIPTION"
 .PP
 \fBmysqlaccess\fR
-is a diagnostic tool that Yves Carlier has provided for the MySQL distribution\&. It checks the access privileges for a host name, user name, and database combination\&. Note that
+is a diagnostic tool written by Yves Carlier\&. It checks the access privileges for a host name, user name, and database combination\&. Note that
 \fBmysqlaccess\fR
 checks access using only the
 user,
@@ -197,9 +190,8 @@ Display some examples that show how to use
 .\" old_server option: mysqlaccess
 \fB\-\-old_server\fR
 .sp
-Assume that the server is an old MySQL server (before MySQL 3\&.21) that does not yet know how to handle full
-WHERE
-clauses\&.
+Connect to a very old MySQL server (before MySQL 3\&.21) that does not know how to handle full
+WHERE clauses\&.
 .RE
 .sp
 .RS 4
@@ -287,7 +279,7 @@ Display the release notes\&.
 \fB\-\-rhost=\fR\fB\fIhost_name\fR\fR,
 \fB\-H \fR\fB\fIhost_name\fR\fR
 .sp
-Connect to the MySQL server on the given host\&.
+Connect to the MariaDB server on the given host\&.
 .RE
 .sp
 .RS 4
@@ -396,7 +388,7 @@ The user name to use in the access privileges\&.
 Display version information and exit\&.
 .RE
 .PP
-If your MySQL distribution is installed in some nonstandard location, you must change the location where
+If your MariaDB distribution is installed in some non\-standard location, you must change the location where
 \fBmysqlaccess\fR
 expects to find the
 \fBmysql\fR
@@ -423,7 +415,7 @@ error will occur when you run
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -432,8 +424,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).

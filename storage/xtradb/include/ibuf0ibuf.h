@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,9 +92,10 @@ separately committed mini-transaction, because in crash recovery, the
 free bits could momentarily be set too high. */
 
 /******************************************************************//**
-Creates the insert buffer data structure at a database startup. */
+Creates the insert buffer data structure at a database startup.
+@return DB_SUCCESS or failure */
 UNIV_INTERN
-void
+dberr_t
 ibuf_init_at_db_start(void);
 /*=======================*/
 /*********************************************************************//**

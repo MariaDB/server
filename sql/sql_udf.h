@@ -52,7 +52,7 @@ typedef struct st_udf_func
 
 class Item_result_field;
 
-class udf_handler :public Sql_alloc, public Used_tables_and_const_cache
+class udf_handler :public Sql_alloc
 {
  protected:
   udf_func *u_d;
@@ -141,5 +141,8 @@ udf_func *find_udf(const char *name, uint len=0,bool mark_used=0);
 void free_udf(udf_func *udf);
 int mysql_create_function(THD *thd,udf_func *udf);
 int mysql_drop_function(THD *thd,const LEX_STRING *name);
+#else
+static inline void udf_init(void) { }
+static inline void udf_free(void) { }
 #endif
 #endif /* SQL_UDF_INCLUDED */
