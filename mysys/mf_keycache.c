@@ -274,7 +274,7 @@ struct st_hash_link
 };
 
 /* simple states of a block */
-#define BLOCK_ERROR           1 /* an error occured when performing file i/o */
+#define BLOCK_ERROR           1 /* an error occurred when performing file i/o */
 #define BLOCK_READ            2 /* file block is in the block buffer         */
 #define BLOCK_IN_SWITCH       4 /* block is preparing to read new page       */
 #define BLOCK_REASSIGNED      8 /* blk does not accept requests for old page */
@@ -552,17 +552,21 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 	  Allocate memory for blocks, hash_links and hash entries;
 	  For each block 2 hash links are allocated
         */
-        if (my_multi_malloc(MYF(MY_ZEROFILL),
-                            &keycache->block_root, blocks * sizeof(BLOCK_LINK),
-                            &keycache->hash_root,
-                            sizeof(HASH_LINK*) * keycache->hash_entries,
-                            &keycache->hash_link_root,
-                            hash_links * sizeof(HASH_LINK),
-                            &keycache->changed_blocks,
-                            sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
-                            &keycache->file_blocks,
-                            sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
-                            NullS))
+        if (my_multi_malloc_large(MYF(MY_ZEROFILL),
+                                  &keycache->block_root,
+                                  (ulonglong) (blocks * sizeof(BLOCK_LINK)),
+                                  &keycache->hash_root,
+                                  (ulonglong) (sizeof(HASH_LINK*) *
+                                               keycache->hash_entries),
+                                  &keycache->hash_link_root,
+                                  (ulonglong) (hash_links * sizeof(HASH_LINK)),
+                                  &keycache->changed_blocks,
+                                  (ulonglong) (sizeof(BLOCK_LINK*) *
+                                               changed_blocks_hash_size),
+                                  &keycache->file_blocks,
+                                  (ulonglong) (sizeof(BLOCK_LINK*) *
+                                               changed_blocks_hash_size),
+                                  NullS))
           break;
         my_large_free(keycache->block_mem);
         keycache->block_mem= 0;
@@ -1123,6 +1127,7 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
   struct st_my_thread_var *thread= my_thread_var;
   DBUG_ASSERT(!thread->next);
   DBUG_ASSERT(!thread->prev); /* Not required, but must be true anyway. */
+  mysql_mutex_assert_owner(mutex);
 
   /* Add to queue. */
   if (! (last= wqueue->last_thread))
@@ -1177,14 +1182,15 @@ static void release_whole_queue(KEYCACHE_WQUEUE *wqueue)
   do
   {
     thread=next;
-    DBUG_ASSERT(thread);
+    DBUG_ASSERT(thread && thread->init == 1);
     KEYCACHE_DBUG_PRINT("release_whole_queue: signal",
                         ("thread %ld", thread->id));
+    /* Take thread from queue. */
+    next= thread->next;
+    thread->next= NULL;
+
     /* Signal the thread. */
     keycache_pthread_cond_signal(&thread->suspend);
-    /* Take thread from queue. */
-    next=thread->next;
-    thread->next= NULL;
   }
   while (thread != last);
 

@@ -989,7 +989,7 @@ uchar TYPVAL<uchar>::MinMaxVal(bool b)
   {return (b) ? UINT_MAX8 : 0;}
 
 /***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/*  SafeAdd: adds a value and test whether overflow/underflow occurred. */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
@@ -1017,7 +1017,7 @@ inline double TYPVAL<double>::SafeAdd(double n1, double n2)
   } // end of SafeAdd
 
 /***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
+/*  SafeMult: multiply values and test whether overflow occurred.       */
 /***********************************************************************/
 template <class TYPE>
 TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
@@ -2665,7 +2665,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 /***********************************************************************/
 bool DTVAL::SetValue_char(char *p, int n)
   {
-  bool rc;
+  bool rc= 0;
 
   if (Pdtp) {
     char *p2;

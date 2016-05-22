@@ -1722,6 +1722,43 @@ select 1 from t1 where 1 < some (select cast(a as datetime) from t1);
 1
 1
 drop table t1;
+#
+# Bug #21564557: INCONSISTENT OUTPUT FROM 5.5 AND 5.6
+#                UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%M"
+#
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"));
+UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"))
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '201506' for function str_to_date
+SELECT UNIX_TIMESTAMP('2015-06-00');
+UNIX_TIMESTAMP('2015-06-00')
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2015-06-00'
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
+UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'))
+NULL
+set sql_mode= 'TRADITIONAL';
+SELECT @@sql_mode;
+@@sql_mode
+STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"));
+UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"))
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '201506' for function str_to_date
+SELECT UNIX_TIMESTAMP('2015-06-00');
+UNIX_TIMESTAMP('2015-06-00')
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2015-06-00'
+SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
+UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'))
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '0000-00-00 10:30:30' for function str_to_date
+set sql_mode= default;
 select time('10:10:10') > 10;
 time('10:10:10') > 10
 1
@@ -2701,3 +2738,45 @@ id	date1	date2	DATE_ADD(a.date1,INTERVAL -10 DAY)	TO_DAYS(a.date1)-10
 17	NULL	NULL	NULL	NULL
 18	2010-10-13	2010-10-03	2010-10-03	734413
 DROP TABLE t1;
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-8205 timediff returns null when comparing decimal time to time string value
+#
+SELECT
+TIMEDIFF('2014-01-01 00:00:00' , '2014-01-01 01:00:00' ) AS str_str,
+TIMEDIFF('2014-01-01 00:00:00' , 20140101010000.000    ) AS str_dec,
+TIMEDIFF(20140101000000.000    , 20140101010000.000    ) AS dec_dec,
+TIMEDIFF(20140101000000.000    , '2014-01-01 01:00:00' ) AS dec_str;
+str_str	str_dec	dec_dec	dec_str
+-01:00:00	-01:00:00.000	-01:00:00.000	-01:00:00.000
+SELECT
+TIMEDIFF('2014-01-01 00:00:00' , '2014-01-02 01:00:00' ) AS str_str,
+TIMEDIFF('2014-01-01 00:00:00' , 20140102010000.000    ) AS str_dec,
+TIMEDIFF(20140101000000.000    , 20140102010000.000    ) AS dec_dec,
+TIMEDIFF(20140101000000.000    , '2014-01-02 01:00:00' ) AS dec_str;
+str_str	str_dec	dec_dec	dec_str
+-25:00:00	-25:00:00.000	-25:00:00.000	-25:00:00.000
+SELECT
+TIMEDIFF('2014-01-01 00:00:00' , '2014-02-02 01:00:00' ) AS str_str,
+TIMEDIFF('2014-01-01 00:00:00' , 20140202010000.000    ) AS str_dec,
+TIMEDIFF(20140101000000.000    , 20140202010000.000    ) AS dec_dec,
+TIMEDIFF(20140101000000.000    , '2014-02-02 01:00:00' ) AS dec_str;
+str_str	str_dec	dec_dec	dec_str
+-769:00:00	-769:00:00.000	-769:00:00.000	-769:00:00.000
+SELECT
+TIMEDIFF('2014-01-01 00:00:00' , '2014-03-02 01:00:00' ) AS str_str,
+TIMEDIFF('2014-01-01 00:00:00' , 20140302010000.000    ) AS str_dec,
+TIMEDIFF(20140101000000.000    , 20140302010000.000    ) AS dec_dec,
+TIMEDIFF(20140101000000.000    , '2014-03-02 01:00:00' ) AS dec_str;
+str_str	str_dec	dec_dec	dec_str
+-838:59:59	-838:59:59.999	-838:59:59.999	-838:59:59.999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-1441:00:00'
+Warning	1292	Truncated incorrect time value: '-1441:00:00'
+Warning	1292	Truncated incorrect time value: '-1441:00:00'
+Warning	1292	Truncated incorrect time value: '-1441:00:00'
+#
+# End of 10.0 tests
+#

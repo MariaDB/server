@@ -44,10 +44,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	23
+#define INNODB_VERSION_BUGFIX	29
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 72.1
+#define PERCONA_INNODB_VERSION 76.2
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -611,6 +611,7 @@ Windows, so define a typedef for it and a macro to use at the end of such
 functions. */
 
 #ifdef __WIN__
+#define usleep(a) Sleep((a)/1000)
 typedef ulint os_thread_ret_t;
 #define OS_THREAD_DUMMY_RETURN return(0)
 #else

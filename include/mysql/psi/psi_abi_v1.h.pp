@@ -1,4 +1,3 @@
-#include "mysql/psi/psi.h"
 C_MODE_START
 struct TABLE_SHARE;
 struct sql_digest_storage;
@@ -269,6 +268,7 @@ struct PSI_statement_locker_state_v1
   const struct sql_digest_storage *m_digest;
   char m_schema_name[(64 * 3)];
   uint m_schema_name_length;
+  uint m_cs_number;
 };
 struct PSI_socket_locker_state_v1
 {

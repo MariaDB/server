@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -194,8 +194,25 @@ struct row_log_t {
 				or by index->lock X-latch only */
 	row_log_buf_t	head;	/*!< reader context; protected by MDL only;
 				modifiable by row_log_apply_ops() */
+	const char*	path;	/*!< where to create temporary file during
+				log operation */
 };
 
+/** Create the file or online log if it does not exist.
+@param[in,out]	log	online rebuild log
+@return file descriptor. */
+static __attribute__((warn_unused_result))
+int
+row_log_tmpfile(
+	row_log_t*	log)
+{
+	DBUG_ENTER("row_log_tmpfile");
+	if (log->fd < 0) {
+		log->fd = row_merge_file_create_low(log->path);
+	}
+
+	DBUG_RETURN(log->fd);
+}
 
 /** Allocate the memory for the log buffer.
 @param[in,out]	log_buf	Buffer used for log operation
@@ -208,8 +225,7 @@ row_log_block_allocate(
 	DBUG_ENTER("row_log_block_allocate");
 	if (log_buf.block == NULL) {
 		log_buf.size = srv_sort_buf_size;
-		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size,
-							   FALSE);
+		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size);
 		DBUG_EXECUTE_IF("simulate_row_log_allocation_failure",
 			if (log_buf.block)
 				os_mem_free_large(log_buf.block, log_buf.size);
@@ -341,6 +357,12 @@ row_log_online_op(
 			       log->tail.buf, avail_size);
 		}
 		UNIV_MEM_ASSERT_RW(log->tail.block, srv_sort_buf_size);
+
+		if (row_log_tmpfile(log) < 0) {
+			log->error = DB_OUT_OF_MEMORY;
+			goto err_exit;
+		}
+
 		ret = os_file_write(
 			"(modification log)",
 			OS_FILE_FROM_FD(log->fd),
@@ -451,6 +473,12 @@ row_log_table_close_func(
 			       log->tail.buf, avail);
 		}
 		UNIV_MEM_ASSERT_RW(log->tail.block, srv_sort_buf_size);
+
+		if (row_log_tmpfile(log) < 0) {
+			log->error = DB_OUT_OF_MEMORY;
+			goto err_exit;
+		}
+
 		ret = os_file_write(
 			"(modification log)",
 			OS_FILE_FROM_FD(log->fd),
@@ -470,6 +498,7 @@ write_failed:
 
 	log->tail.total += size;
 	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+err_exit:
 	mutex_exit(&log->mutex);
 }
 
@@ -1382,6 +1411,27 @@ blob_done:
 			dfield_set_data(dfield, data, len);
 		}
 
+		if (len != UNIV_SQL_NULL && col->mtype == DATA_MYSQL
+		    && col->len != len && !dict_table_is_comp(log->table)) {
+
+			ut_ad(col->len >= len);
+			if (dict_table_is_comp(index->table)) {
+				byte*	buf = (byte*) mem_heap_alloc(heap,
+								     col->len);
+				memcpy(buf, dfield->data, len);
+				memset(buf + len, 0x20, col->len - len);
+
+				dfield_set_data(dfield, buf, col->len);
+			} else {
+				/* field length mismatch should not happen
+				when rebuilding the redundant row format
+				table. */
+				ut_ad(0);
+				*error = DB_CORRUPTION;
+				return(NULL);
+			}
+		}
+
 		/* See if any columns were changed to NULL or NOT NULL. */
 		const dict_col_t*	new_col
 			= dict_table_get_nth_col(log->table, col_no);
@@ -1434,6 +1484,7 @@ row_log_table_apply_insert_low(
 	dtuple_t*	entry;
 	const row_log_t*log	= dup->index->online_log;
 	dict_index_t*	index	= dict_table_get_first_index(log->table);
+	ulint		n_index = 0;
 
 	ut_ad(dtuple_validate(row));
 	ut_ad(trx_id);
@@ -1469,6 +1520,8 @@ row_log_table_apply_insert_low(
 	}
 
 	do {
+		n_index++;
+
 		if (!(index = dict_table_get_next_index(index))) {
 			break;
 		}
@@ -1481,6 +1534,12 @@ row_log_table_apply_insert_low(
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx_id, thr);
+
+		/* Report correct index name for duplicate key error. */
+		if (error == DB_DUPLICATE_KEY) {
+			thr_get_trx(thr)->error_key_num = n_index;
+		}
+
 	} while (error == DB_SUCCESS);
 
 	return(error);
@@ -1788,6 +1847,7 @@ row_log_table_apply_update(
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
 	dberr_t		error;
+	ulint		n_index = 0;
 
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
@@ -2063,6 +2123,8 @@ func_exit_committed:
 			break;
 		}
 
+		n_index++;
+
 		if (index->type & DICT_FTS) {
 			continue;
 		}
@@ -2105,6 +2167,11 @@ func_exit_committed:
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
 			entry, trx_id, thr);
+
+		/* Report correct index name for duplicate key error. */
+		if (error == DB_DUPLICATE_KEY) {
+			thr_get_trx(thr)->error_key_num = n_index;
+		}
 
 		mtr_start(&mtr);
 	}
@@ -2499,7 +2566,8 @@ corruption:
 		if (index->online_log->head.blocks) {
 #ifdef HAVE_FTRUNCATE
 			/* Truncate the file in order to save space. */
-			if (ftruncate(index->online_log->fd, 0) == -1) {
+			if (index->online_log->fd != -1
+			    && ftruncate(index->online_log->fd, 0) == -1) {
 				perror("ftruncate");
 			}
 #endif /* HAVE_FTRUNCATE */
@@ -2563,7 +2631,7 @@ all_done:
 		and be ignored when the operation is unsupported. */
 		fallocate(index->online_log->fd,
 			  FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-			  ofs, srv_buf_size);
+			  ofs, srv_sort_buf_size);
 #endif /* FALLOC_FL_PUNCH_HOLE */
 
 		next_mrec = index->online_log->head.block;
@@ -2815,8 +2883,9 @@ row_log_allocate(
 	const dtuple_t*	add_cols,
 				/*!< in: default values of
 				added columns, or NULL */
-	const ulint*	col_map)/*!< in: mapping of old column
+	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
+	const char*	path)	/*!< in: where to create temporary file */
 {
 	row_log_t*	log;
 	DBUG_ENTER("row_log_allocate");
@@ -2835,11 +2904,7 @@ row_log_allocate(
 		DBUG_RETURN(false);
 	}
 
-	log->fd = row_merge_file_create_low();
-	if (log->fd < 0) {
-		ut_free(log);
-		DBUG_RETURN(false);
-	}
+	log->fd = -1;
 	mutex_create(index_online_log_key, &log->mutex,
 		     SYNC_INDEX_ONLINE_LOG);
 	log->blobs = NULL;
@@ -2854,6 +2919,7 @@ row_log_allocate(
 	log->tail.block = log->head.block = NULL;
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
+	log->path = path;
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;
 
@@ -3331,7 +3397,8 @@ corruption:
 		if (index->online_log->head.blocks) {
 #ifdef HAVE_FTRUNCATE
 			/* Truncate the file in order to save space. */
-			if (ftruncate(index->online_log->fd, 0) == -1) {
+			if (index->online_log->fd != -1
+			    && ftruncate(index->online_log->fd, 0) == -1) {
 				perror("ftruncate");
 			}
 #endif /* HAVE_FTRUNCATE */
@@ -3391,7 +3458,7 @@ all_done:
 		and be ignored when the operation is unsupported. */
 		fallocate(index->online_log->fd,
 			  FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-			  ofs, srv_buf_size);
+			  ofs, srv_sort_buf_size);
 #endif /* FALLOC_FL_PUNCH_HOLE */
 
 		next_mrec = index->online_log->head.block;

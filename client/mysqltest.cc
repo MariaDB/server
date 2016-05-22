@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2016, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -839,6 +839,7 @@ static void handle_no_active_connection(struct st_command* command,
 #define EMB_END_CONNECTION 3
 #define EMB_PREPARE_STMT 4
 #define EMB_EXECUTE_STMT 5
+#define EMB_CLOSE_STMT 6
 
 /* workaround for MySQL BUG#57491 */
 #undef MY_WME
@@ -886,6 +887,9 @@ pthread_handler_t connection_thread(void *arg)
         break;
       case EMB_EXECUTE_STMT:
         cn->result= mysql_stmt_execute(cn->stmt);
+        break;
+      case EMB_CLOSE_STMT:
+        cn->result= mysql_stmt_close(cn->stmt);
         break;
       default:
         DBUG_ASSERT(0);
@@ -984,6 +988,17 @@ static int do_stmt_execute(struct st_connection *cn)
 }
 
 
+static int do_stmt_close(struct st_connection *cn)
+{
+  /* The cn->stmt is already set. */
+  if (!cn->has_thread)
+    return mysql_stmt_close(cn->stmt);
+  signal_connection_thd(cn, EMB_CLOSE_STMT);
+  wait_query_thread_done(cn);
+  return cn->result;
+}
+
+
 static void emb_close_connection(struct st_connection *cn)
 {
   if (!cn->has_thread)
@@ -1019,6 +1034,7 @@ static void init_connection_thd(struct st_connection *cn)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
 #define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
+#define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
 
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -1088,7 +1104,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
   Run query and dump the result to stderr in vertical format
 
   NOTE! This function should be safe to call when an error
-  has occured and thus any further errors will be ignored(although logged)
+  has occurred and thus any further errors will be ignored (although logged)
 
   SYNOPSIS
   show_query
@@ -1154,7 +1170,7 @@ static void show_query(MYSQL* mysql, const char* query)
   is added to the warning stack, only print @@warning_count-1 warnings.
 
   NOTE! This function should be safe to call when an error
-  has occured and this any further errors will be ignored(although logged)
+  has occurred and this any further errors will be ignored(although logged)
 
   SYNOPSIS
   show_warnings_before_error
@@ -1378,11 +1394,11 @@ void close_connections()
   DBUG_ENTER("close_connections");
   for (--next_con; next_con >= connections; --next_con)
   {
+    if (next_con->stmt)
+      do_stmt_close(next_con);
 #ifdef EMBEDDED_LIBRARY
     emb_close_connection(next_con);
 #endif
-    if (next_con->stmt)
-      mysql_stmt_close(next_con->stmt);
     next_con->stmt= 0;
     mysql_close(next_con->mysql);
     next_con->mysql= 0;
@@ -4685,7 +4701,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
         master_pos_wait returned NULL. This indicates that
         slave SQL thread is not started, the slave's master
         information is not initialized, the arguments are
-        incorrect, or an error has occured
+        incorrect, or an error has occurred
       */
       die("%.*s failed: '%s' returned NULL "          \
           "indicating slave SQL thread failure",
@@ -5105,12 +5121,13 @@ static int my_kill(int pid, int sig)
 {
 #ifdef __WIN__
   HANDLE proc;
-  if ((proc= OpenProcess(PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
+    DWORD wait_result= WaitForSingleObject(proc, 0);
     CloseHandle(proc);
-    return 0;
+    return wait_result == WAIT_OBJECT_0?-1:0;
   }
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
@@ -5230,7 +5247,7 @@ static st_error global_error_names[] =
 #include <my_base.h>
 static st_error handler_error_names[] =
 {
-  { "<No error>", -1U, "" },
+  { "<No error>", UINT_MAX, "" },
 #include <handler_ername.h>
   { 0, 0, 0 }
 };
@@ -5635,7 +5652,11 @@ void do_close_connection(struct st_command *command)
       con->mysql->net.vio = 0;
     }
   }
-#else
+#endif /*!EMBEDDED_LIBRARY*/
+  if (con->stmt)
+    do_stmt_close(con);
+  con->stmt= 0;
+#ifdef EMBEDDED_LIBRARY
   /*
     As query could be still executed in a separate theread
     we need to check if the query's thread was finished and probably wait
@@ -5643,9 +5664,6 @@ void do_close_connection(struct st_command *command)
   */
   emb_close_connection(con);
 #endif /*EMBEDDED_LIBRARY*/
-  if (con->stmt)
-    mysql_stmt_close(con->stmt);
-  con->stmt= 0;
 
   mysql_close(con->mysql);
   con->mysql= 0;

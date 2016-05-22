@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -132,6 +132,10 @@ enum os_file_create_t {
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
 #define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
+#define OS_FILE_READ_WRITE_CACHED	666	/* OS_FILE_READ_WRITE but never
+						O_DIRECT. Only for
+						os_file_create_simple_no_error_handling
+						currently. */
 
 /* Options for file_create */
 #define	OS_FILE_AIO			61
@@ -404,10 +408,10 @@ to original un-instrumented file I/O APIs */
 
 enum os_file_type_t {
 	OS_FILE_TYPE_UNKNOWN = 0,
-	OS_FILE_TYPE_FILE,			/* regular file */
+	OS_FILE_TYPE_FILE,			/* regular file
+						(or a character/block device) */
 	OS_FILE_TYPE_DIR,			/* directory */
-	OS_FILE_TYPE_LINK,			/* symbolic link */
-	OS_FILE_TYPE_BLOCK			/* block device */
+	OS_FILE_TYPE_LINK			/* symbolic link */
 };
 
 /* Maximum path string length in bytes when referring to tables with in the
@@ -452,14 +456,19 @@ UNIV_INTERN
 void
 os_io_init_simple(void);
 /*===================*/
-/***********************************************************************//**
-Creates a temporary file.  This function is like tmpfile(3), but
-the temporary file is created in the MySQL temporary directory.
-@return	temporary file handle, or NULL on error */
 
+
+/** Create a temporary file. This function is like tmpfile(3), but
+the temporary file is created in the given parameter path. If the path
+is null then it will create the file in the mysql server configuration
+parameter (--tmpdir).
+@param[in]	path	location for creating temporary file
+@return temporary file handle, or NULL on error */
+UNIV_INTERN
 FILE*
-os_file_create_tmpfile(void);
-/*========================*/
+os_file_create_tmpfile(
+	const char*	path);
+
 #endif /* !UNIV_HOTBACKUP */
 /***********************************************************************//**
 The os_file_opendir() function opens a directory stream corresponding to the
@@ -541,9 +550,11 @@ os_file_create_simple_no_error_handling_func(
 				null-terminated string */
 	ulint		create_mode,/*!< in: create mode */
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY,
-				OS_FILE_READ_WRITE, or
-				OS_FILE_READ_ALLOW_DELETE; the last option is
-				used by a backup program reading the file */
+				OS_FILE_READ_WRITE,
+				OS_FILE_READ_ALLOW_DELETE (used by a backup
+				program reading the file), or
+				OS_FILE_READ_WRITE_CACHED (disable O_DIRECT
+				if it would be enabled otherwise) */
 	ibool*		success)/*!< out: TRUE if succeed, FALSE if error */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
@@ -552,7 +563,7 @@ UNIV_INTERN
 void
 os_file_set_nocache(
 /*================*/
-	int		fd,		/*!< in: file descriptor to alter */
+	os_file_t	fd,		/*!< in: file descriptor to alter */
 	const char*	file_name,	/*!< in: file name, used in the
 					diagnostic message */
 	const char*	operation_name);/*!< in: "open" or "create"; used in the
@@ -1279,14 +1290,14 @@ os_file_get_status(
 					file can be opened in RW mode */
 
 #if !defined(UNIV_HOTBACKUP)
-/*********************************************************************//**
-Creates a temporary file that will be deleted on close.
-This function is defined in ha_innodb.cc.
-@return	temporary file descriptor, or < 0 on error */
+/** Create a temporary file in the location specified by the parameter
+path. If the path is null, then it will be created in tmpdir.
+@param[in]	path	location for creating temporary file
+@return temporary file descriptor, or < 0 on error */
 UNIV_INTERN
 int
-innobase_mysql_tmpfile(void);
-/*========================*/
+innobase_mysql_tmpfile(
+	const char*	path);
 #endif /* !UNIV_HOTBACKUP */
 
 

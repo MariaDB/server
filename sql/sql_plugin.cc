@@ -264,13 +264,14 @@ public:
   { TRASH(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-                    struct st_mysql_sys_var *plugin_var_arg)
+                    struct st_mysql_sys_var *plugin_var_arg,
+                    struct st_plugin_int *plugin_arg)
     :sys_var(chain, name_arg, plugin_var_arg->comment,
              (plugin_var_arg->flags & PLUGIN_VAR_THDLOCAL ? SESSION : GLOBAL) |
              (plugin_var_arg->flags & PLUGIN_VAR_READONLY ? READONLY : 0),
              0, -1, NO_ARG, pluginvar_show_type(plugin_var_arg), 0, 0,
              VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
-    plugin_var(plugin_var_arg)
+    plugin(plugin_arg), plugin_var(plugin_var_arg)
   { plugin_var->name= name_arg; }
   sys_var_pluginvar *cast_pluginvar() { return this; }
   bool check_update_type(Item_result type);
@@ -1048,7 +1049,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
-    report_error(report, ER_UDF_EXISTS, name->str);
+    report_error(report, ER_PLUGIN_INSTALLED, name->str);
     DBUG_RETURN(TRUE);
   }
   /* Clear the whole struct to catch future extensions. */
@@ -1413,22 +1414,6 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
       goto err;
   }
 
-  /*
-    set the plugin attribute of plugin's sys vars so they are pointing
-    to the active plugin
-  */
-  if (plugin->system_vars)
-  {
-    sys_var_pluginvar *var= plugin->system_vars->cast_pluginvar();
-    for (;;)
-    {
-      var->plugin= plugin;
-      if (!var->next)
-        break;
-      var= var->next->cast_pluginvar();
-    }
-  }
-
   ret= 0;
 
 err:
@@ -1561,6 +1546,9 @@ int plugin_init(int *argc, char **argv, int flags)
   /*
     First we register builtin plugins
   */
+  if (global_system_variables.log_warnings >= 9)
+    sql_print_information("Initializing built-in plugins");
+
   for (builtins= mysql_mandatory_plugins; *builtins || mandatory; builtins++)
   {
     if (!*builtins)
@@ -1642,11 +1630,17 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     I_List_iterator<i_string> iter(opt_plugin_load_list);
     i_string *item;
+    if (global_system_variables.log_warnings >= 9)
+      sql_print_information("Initializing plugins specified on the command line");
     while (NULL != (item= iter++))
       plugin_load_list(&tmp_root, item->ptr);
 
     if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
+    {
+      if (global_system_variables.log_warnings >= 9)
+        sql_print_information("Initializing installed plugins");
       plugin_load(&tmp_root);
+    }
   }
 
   /*
@@ -1787,9 +1781,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
       the mutex here to satisfy the assert
     */
     mysql_mutex_lock(&LOCK_plugin);
-    if (plugin_add(tmp_root, &name, &dl, REPORT_TO_LOG))
-      sql_print_warning("Couldn't load plugin named '%s' with soname '%s'.",
-                        str_name.c_ptr(), str_dl.c_ptr());
+    plugin_add(tmp_root, &name, &dl, REPORT_TO_LOG);
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }
@@ -1799,9 +1791,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);
 end:
-  /* Remember that we don't have a THD */
   delete new_thd;
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 
@@ -3961,7 +3951,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         continue;
       tmp_backup[tmp->nbackups++].save(&o->name);
       if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
-        v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
+        v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o, tmp);
       else
       {
         len= plugin_name.length + strlen(o->name) + 2;
@@ -3969,7 +3959,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         strxmov(varname, plugin_name.str, "-", o->name, NullS);
         my_casedn_str(&my_charset_latin1, varname);
         convert_dash_to_underscore(varname, len-1);
-        v= new (mem_root) sys_var_pluginvar(&chain, varname, o);
+        v= new (mem_root) sys_var_pluginvar(&chain, varname, o, tmp);
       }
       DBUG_ASSERT(v); /* check that an object was actually constructed */
     } /* end for */

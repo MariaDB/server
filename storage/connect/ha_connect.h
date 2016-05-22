@@ -536,7 +536,7 @@ private:
   DsMrr_impl ds_mrr;
 
 protected:
-  bool check_privileges(THD *thd, PTOS options, char *dbn);
+  bool check_privileges(THD *thd, PTOS options, char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
   char *GetDBfromName(const char *name);
 

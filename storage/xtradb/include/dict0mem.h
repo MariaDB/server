@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -264,10 +265,7 @@ dict_mem_table_create(
 					of the table is placed */
 	ulint		n_cols,		/*!< in: number of columns */
 	ulint		flags,		/*!< in: table flags */
-	ulint		flags2,		/*!< in: table flags2 */
-	bool		nonshared);/*!< in: whether the table object is a dummy
-				   one that does not need the initialization of
-				   locking-related fields. */
+	ulint		flags2);	/*!< in: table flags2 */
 /**********************************************************************//**
 Determines if a table belongs to a system database
 @return true if table belong to a system database */
@@ -559,11 +557,12 @@ extern ulong	zip_failure_threshold_pct;
 compression failures */
 extern ulong	zip_pad_max;
 
-/** Data structure to hold information about about how much space in
+/** Data structure to hold information about how much space in
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	os_fast_mutex_t	mutex;	/*!< mutex protecting the info */
+	os_fast_mutex_t*
+			mutex;	/*!< mutex protecting the info */
 	ulint		pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -571,6 +570,9 @@ struct zip_pad_info_t {
 				current round */
 	ulint		n_rounds;/*!< number of currently successful
 				rounds */
+	volatile os_once::state_t
+			mutex_created;
+				/*!< Creation state of mutex member */
 };
 
 /** Data structure for an index.  Most fields will be
@@ -913,6 +915,18 @@ if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
 the table, DML from memcached will be blocked. */
 #define DICT_TABLE_IN_DDL -1
 
+/** These are used when MySQL FRM and InnoDB data dictionary are
+in inconsistent state. */
+typedef enum {
+	DICT_FRM_CONSISTENT = 0,	/*!< Consistent state */
+	DICT_FRM_NO_PK = 1,		/*!< MySQL has no primary key
+					but InnoDB dictionary has
+					non-generated one. */
+	DICT_NO_PK_FRM_HAS = 2,		/*!< MySQL has primary key but
+					InnoDB dictionary has not. */
+	DICT_FRM_INCONSISTENT_KEYS = 3	/*!< Key count mismatch */
+} dict_frm_t;
+
 /** Data structure for a database table.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_table_create(). */
 struct dict_table_t{
@@ -971,6 +985,10 @@ struct dict_table_t{
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
 				performance_schema) */
+	dict_frm_t	dict_frm_mismatch;
+				/*!< !DICT_FRM_CONSISTENT==0 if data
+				dictionary information and
+				MySQL FRM information mismatch. */
 #ifndef UNIV_HOTBACKUP
 	hash_node_t	name_hash; /*!< hash chain node */
 	hash_node_t	id_hash; /*!< hash chain node */
@@ -1049,8 +1067,7 @@ struct dict_table_t{
 				dict_table_t::indexes*::stat_index_size
 				dict_table_t::indexes*::stat_n_leaf_pages
 				(*) those are not always protected for
-				performance reasons. NULL for dumy table
-				objects. */
+				performance reasons. */
 	unsigned	stat_initialized:1; /*!< TRUE if statistics have
 				been calculated the first time
 				after database startup or table creation */
@@ -1175,12 +1192,15 @@ struct dict_table_t{
 				and release it without a need to allocate
 				space from the lock heap of the trx:
 				otherwise the lock heap would grow rapidly
-				if we do a large insert from a select. NULL
-				for dummy table objects. */
-	ib_mutex_t		autoinc_mutex;
+				if we do a large insert from a select */
+	ib_mutex_t*	autoinc_mutex;
 				/*!< mutex protecting the autoincrement
-				counter. Not initialized for dummy table
-				objects */
+				counter */
+
+	/** Creation state of autoinc_mutex member */
+	volatile os_once::state_t
+			autoinc_mutex_created;
+
 	ib_uint64_t	autoinc;/*!< autoinc counter value to give to the
 				next inserted row */
 	ulong		n_waiting_or_granted_auto_inc_locks;
@@ -1243,6 +1263,111 @@ struct dict_foreign_add_to_referenced_table {
 		}
 	}
 };
+
+/** Destroy the autoinc latch of the given table.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+inline
+void
+dict_table_autoinc_destroy(
+	dict_table_t*	table)
+{
+	if (table->autoinc_mutex_created == os_once::DONE
+	    && table->autoinc_mutex != NULL) {
+		mutex_free(table->autoinc_mutex);
+		delete table->autoinc_mutex;
+	}
+}
+
+/** Allocate and init the autoinc latch of a given table.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table_void	table whose autoinc latch to create */
+void
+dict_table_autoinc_alloc(
+	void*	table_void);
+
+/** Allocate and init the zip_pad_mutex of a given index.
+This function must not be called concurrently on the same index object.
+@param[in,out]	index_void	index whose zip_pad_mutex to create */
+void
+dict_index_zip_pad_alloc(
+	void*	index_void);
+
+/** Request for lazy creation of the autoinc latch of a given table.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose autoinc latch is to be created. */
+inline
+void
+dict_table_autoinc_create_lazy(
+	dict_table_t*	table)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	table->autoinc_mutex = NULL;
+	table->autoinc_mutex_created = os_once::NEVER_DONE;
+#else /* HAVE_ATOMIC_BUILTINS */
+	dict_table_autoinc_alloc(table);
+	table->autoinc_mutex_created = os_once::DONE;
+#endif /* HAVE_ATOMIC_BUILTINS */
+}
+
+/** Request a lazy creation of dict_index_t::zip_pad::mutex.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	index	index whose zip_pad mutex is to be created */
+inline
+void
+dict_index_zip_pad_mutex_create_lazy(
+	dict_index_t*	index)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	index->zip_pad.mutex = NULL;
+	index->zip_pad.mutex_created = os_once::NEVER_DONE;
+#else /* HAVE_ATOMIC_BUILTINS */
+	dict_index_zip_pad_alloc(index);
+	index->zip_pad.mutex_created = os_once::DONE;
+#endif /* HAVE_ATOMIC_BUILTINS */
+}
+
+/** Destroy the zip_pad_mutex of the given index.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+inline
+void
+dict_index_zip_pad_mutex_destroy(
+	dict_index_t*	index)
+{
+	if (index->zip_pad.mutex_created == os_once::DONE
+	    && index->zip_pad.mutex != NULL) {
+		os_fast_mutex_free(index->zip_pad.mutex);
+		delete index->zip_pad.mutex;
+	}
+}
+
+/** Release the zip_pad_mutex of a given index.
+@param[in,out]	index	index whose zip_pad_mutex is to be released */
+inline
+void
+dict_index_zip_pad_unlock(
+	dict_index_t*	index)
+{
+	os_fast_mutex_unlock(index->zip_pad.mutex);
+}
+
+#ifdef UNIV_DEBUG
+/** Check if the current thread owns the autoinc_mutex of a given table.
+@param[in]	table	the autoinc_mutex belongs to this table
+@return true, if the current thread owns the autoinc_mutex, false otherwise.*/
+inline
+bool
+dict_table_autoinc_own(
+	const dict_table_t*	table)
+{
+	return(mutex_own(table->autoinc_mutex));
+}
+#endif /* UNIV_DEBUG */
 
 #ifndef UNIV_NONINL
 #include "dict0mem.ic"

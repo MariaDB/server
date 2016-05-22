@@ -17,7 +17,6 @@
 #include <my_global.h> // For HAVE_REPLICATION
 #include "sql_priv.h"
 #include <my_dir.h>
-#include "unireg.h"                             // REQUIRED by other includes
 #include "rpl_mi.h"
 #include "slave.h"                              // SLAVE_MAX_HEARTBEAT_PERIOD
 #include "strfunc.h"
@@ -36,7 +35,8 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
-   slave_running(0), slave_run_id(0), clock_diff_with_master(0),
+   slave_running(MYSQL_SLAVE_NOT_RUN), slave_run_id(0),
+   clock_diff_with_master(0),
    sync_counter(0), heartbeat_period(0), received_heartbeats(0),
    master_id(0), prev_master_id(0),
    using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
@@ -966,7 +966,7 @@ bool Master_info_index::init_all_master_info()
       {
         /* Master_info is not in HASH; Add it */
         if (master_info_index->add_master_info(mi, FALSE))
-          return 1;
+          DBUG_RETURN(1);
         succ_num++;
         unlock_slave_threads(mi);
       }
@@ -999,7 +999,7 @@ bool Master_info_index::init_all_master_info()
 
       /* Master_info was not registered; add it */
       if (master_info_index->add_master_info(mi, FALSE))
-        return 1;
+        DBUG_RETURN(1);
       succ_num++;
       unlock_slave_threads(mi);
 
@@ -1096,7 +1096,7 @@ Master_info_index::get_master_info(LEX_STRING *connection_name,
 
   mysql_mutex_assert_owner(&LOCK_active_mi);
   if (!this) // master_info_index is set to NULL on server shutdown
-    return NULL;
+    DBUG_RETURN(NULL);
 
   /* Make name lower case for comparison */
   res= strmake(buff, connection_name->str, connection_name->length);
@@ -1251,7 +1251,7 @@ bool Master_info_index::give_error_if_slave_running()
   DBUG_ENTER("give_error_if_slave_running");
   mysql_mutex_assert_owner(&LOCK_active_mi);
   if (!this) // master_info_index is set to NULL on server shutdown
-    return TRUE;
+    DBUG_RETURN(TRUE);
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {
@@ -1274,23 +1274,24 @@ bool Master_info_index::give_error_if_slave_running()
    The LOCK_active_mi must be held while calling this function.
 
    @return
-   TRUE  	If some slave SQL thread is running.
-   FALSE	No slave SQL thread is running
+   0            No Slave SQL thread is running
+   #		Number of slave SQL thread running
 */
 
-bool Master_info_index::any_slave_sql_running()
+uint Master_info_index::any_slave_sql_running()
 {
+  uint count= 0;
   DBUG_ENTER("any_slave_sql_running");
   if (!this) // master_info_index is set to NULL on server shutdown
-    return TRUE;
+    DBUG_RETURN(count);
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {
     Master_info *mi= (Master_info *)my_hash_element(&master_info_hash, i);
     if (mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
-      DBUG_RETURN(TRUE);
+      count++;
   }
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(count);
 }
 
 
@@ -1320,7 +1321,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
       Try to start all slaves that are configured (host is defined)
       and are not already running
     */
-    if ((mi->slave_running != MYSQL_SLAVE_RUN_CONNECT ||
+    if ((mi->slave_running == MYSQL_SLAVE_NOT_RUN ||
          !mi->rli.slave_running) && *mi->host)
     {
       if ((error= start_slave(thd, mi, 1)))

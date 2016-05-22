@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,9 +41,6 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 
 /** The FTS optimize thread's work queue. */
 static ib_wqueue_t* fts_optimize_wq;
-
-/** The number of document ids to delete in one statement. */
-static const ulint FTS_MAX_DELETE_DOC_IDS = 1000;
 
 /** Time to wait for a message. */
 static const ulint FTS_QUEUE_WAIT_IN_USECS = 5000000;
@@ -583,7 +580,7 @@ fts_zip_read_word(
 #ifdef UNIV_DEBUG
 	ulint		i;
 #endif
-	byte		len = 0;
+	short		len = 0;
 	void*		null = NULL;
 	byte*		ptr = word->f_str;
 	int		flush = Z_NO_FLUSH;
@@ -593,7 +590,7 @@ fts_zip_read_word(
 		return(NULL);
 	}
 
-	zip->zp->next_out = &len;
+	zip->zp->next_out = reinterpret_cast<byte*>(&len);
 	zip->zp->avail_out = sizeof(len);
 
 	while (zip->status == Z_OK && zip->zp->avail_out > 0) {
@@ -601,7 +598,7 @@ fts_zip_read_word(
 		/* Finished decompressing block. */
 		if (zip->zp->avail_in == 0) {
 
-			/* Free the block thats been decompressed. */
+			/* Free the block that's been decompressed. */
 			if (zip->pos > 0) {
 				ulint	prev = zip->pos - 1;
 
@@ -691,11 +688,12 @@ fts_fetch_index_words(
 	fts_zip_t*	zip = static_cast<fts_zip_t*>(user_arg);
 	que_node_t*	exp = sel_node->select_list;
 	dfield_t*	dfield = que_node_get_val(exp);
-	byte		len = (byte) dfield_get_len(dfield);
+	short		len =  static_cast<short>(dfield_get_len(dfield));
 	void*		data = dfield_get_data(dfield);
 
 	/* Skip the duplicate words. */
-	if (zip->word.f_len == len && !memcmp(zip->word.f_str, data, len)) {
+	if (zip->word.f_len == static_cast<ulint>(len)
+	    && !memcmp(zip->word.f_str, data, len)) {
 
 		return(TRUE);
 	}
@@ -709,7 +707,7 @@ fts_fetch_index_words(
 	ut_a(zip->zp->next_in == NULL);
 
 	/* The string is prefixed by len. */
-	zip->zp->next_in = &len;
+	zip->zp->next_in = reinterpret_cast<byte*>(&len);
 	zip->zp->avail_in = sizeof(len);
 
 	/* Compress the word, create output blocks as necessary. */
@@ -1154,6 +1152,7 @@ fts_optimize_encode_node(
 	}
 
 	/* Calculate the space required to store the ilist. */
+	ut_ad(doc_id > node->last_doc_id);
 	doc_id_delta = doc_id - node->last_doc_id;
 	enc_len = fts_get_encoded_len(static_cast<ulint>(doc_id_delta));
 
@@ -1396,7 +1395,8 @@ fts_optimize_word(
 
 		src_node = (fts_node_t*) ib_vector_get(word->nodes, i);
 
-		if (!dst_node) {
+		if (dst_node == NULL
+		    || dst_node->last_doc_id > src_node->first_doc_id) {
 
 			dst_node = static_cast<fts_node_t*>(
 				ib_vector_push(nodes, NULL));

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ static my_bool opt_alldbs = 0, opt_check_only_changed = 0, opt_extended = 0,
                opt_silent = 0, opt_auto_repair = 0, ignore_errors = 0,
                tty_password= 0, opt_frm= 0, debug_info_flag= 0, debug_check_flag= 0,
                opt_fix_table_names= 0, opt_fix_db_names= 0, opt_upgrade= 0,
-               opt_do_tables= 1;
+               opt_persistent_all= 0, opt_do_tables= 1;
 static my_bool opt_write_binlog= 1, opt_flush_tables= 0;
 static uint verbose = 0, opt_mysql_port=0;
 static int my_end_arg;
@@ -54,6 +54,7 @@ static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
 static char *opt_skip_database;
 DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
+DYNAMIC_ARRAY views4repair;
 static char *shared_memory_base_name=0;
 static uint opt_protocol=0;
 
@@ -159,6 +160,10 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given, it's solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"persistent", 'Z',
+   "When using ANALYZE TABLE use the PERSISTENT FOR ALL option.",
+   &opt_persistent_all, &opt_persistent_all, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
 #ifdef __WIN__
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -272,8 +277,8 @@ static void usage(void)
   printf("Usage: %s [OPTIONS] database [tables]\n", my_progname);
   printf("OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
 	 my_progname);
-  puts("Please consult the MariaDB/MySQL knowledgebase at");
-  puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
+  puts("Please consult the MariaDB Knowledge Base at");
+  puts("https://mariadb.com/kb/en/mysqlcheck for latest information about");
   puts("this program.");
   print_defaults("my", load_default_groups);
   puts("");
@@ -518,7 +523,6 @@ static int is_view(const char *table)
   {
     fprintf(stderr, "Failed to %s\n", query);
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
-    my_free(query);
     DBUG_RETURN(-1);
   }
   res= mysql_store_result(sock);
@@ -877,11 +881,19 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
   switch (what_to_do) {
   case DO_CHECK:
     op = "CHECK";
-    if (opt_quick)              end = strmov(end, " QUICK");
-    if (opt_fast)               end = strmov(end, " FAST");
-    if (opt_medium_check)       end = strmov(end, " MEDIUM"); /* Default */
-    if (opt_extended)           end = strmov(end, " EXTENDED");
-    if (opt_check_only_changed) end = strmov(end, " CHANGED");
+    if (view)
+    {
+      if (opt_fast || opt_check_only_changed)
+        DBUG_RETURN(0);
+    }
+    else
+    {
+      if (opt_quick)              end = strmov(end, " QUICK");
+      if (opt_fast)               end = strmov(end, " FAST");
+      if (opt_extended)           end = strmov(end, " EXTENDED");
+      if (opt_medium_check)       end = strmov(end, " MEDIUM"); /* Default */
+      if (opt_check_only_changed) end = strmov(end, " CHANGED");
+    }
     if (opt_upgrade)            end = strmov(end, " FOR UPGRADE");
     break;
   case DO_REPAIR:
@@ -900,6 +912,7 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
   case DO_ANALYZE:
     DBUG_ASSERT(!view);
     op= (opt_write_binlog) ? "ANALYZE" : "ANALYZE NO_WRITE_TO_BINLOG";
+    if (opt_persistent_all) end = strmov(end, " PERSISTENT FOR ALL");
     break;
   case DO_OPTIMIZE:
     DBUG_ASSERT(!view);
@@ -966,6 +979,7 @@ static void print_result()
   uint length_of_db;
   uint i;
   my_bool found_error=0, table_rebuild=0;
+  DYNAMIC_ARRAY *array4repair= &tables4repair;
   DBUG_ENTER("print_result");
 
   res = mysql_use_result(sock);
@@ -1002,9 +1016,10 @@ static void print_result()
         else
         {
           char *table_name= prev + (length_of_db+1);
-          insert_dynamic(&tables4repair, table_name);
+          insert_dynamic(array4repair, table_name);
         }
       }
+      array4repair= &tables4repair;
       found_error=0;
       table_rebuild=0;
       prev_alter[0]= 0;
@@ -1020,8 +1035,11 @@ static void print_result()
         we have to run upgrade on it. In this case we write a nicer message
         than "Please do "REPAIR TABLE""...
       */
-      if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR TABLE"))
+      if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
+      {
         printf("%-50s %s", row[0], "Needs upgrade");
+        array4repair= strstr(row[3], "VIEW") ? &views4repair : &tables4repair;
+      }
       else
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
       if (opt_auto_repair && strcmp(row[2],"note"))
@@ -1052,7 +1070,7 @@ static void print_result()
     else
     {
       char *table_name= prev + (length_of_db+1);
-      insert_dynamic(&tables4repair, table_name);
+      insert_dynamic(array4repair, table_name);
     }
   }
   mysql_free_result(res);
@@ -1172,6 +1190,8 @@ int main(int argc, char **argv)
   if (opt_auto_repair &&
       (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
                              64, MYF(0)) ||
+       my_init_dynamic_array(&views4repair, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0)) ||
        my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
                              64, MYF(0)) ||
        my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0, 1,
@@ -1202,6 +1222,13 @@ int main(int argc, char **argv)
       rebuild_table((char*) dynamic_array_ptr(&tables4rebuild, i));
     for (i = 0; i < alter_table_cmds.elements ; i++)
       run_query((char*) dynamic_array_ptr(&alter_table_cmds, i), 1);
+    if (!opt_silent && views4repair.elements)
+      puts("\nRepairing views");
+    for (i = 0; i < views4repair.elements ; i++)
+    {
+      char *name= (char*) dynamic_array_ptr(&views4repair, i);
+      handle_request_for_tables(name, fixed_name_length(name), TRUE);
+    }
   }
   ret= MY_TEST(first_error);
 
@@ -1209,8 +1236,10 @@ int main(int argc, char **argv)
   dbDisconnect(current_host);
   if (opt_auto_repair)
   {
+    delete_dynamic(&views4repair);
     delete_dynamic(&tables4repair);
     delete_dynamic(&tables4rebuild);
+    delete_dynamic(&alter_table_cmds);
   }
  end1:
   my_free(opt_password);

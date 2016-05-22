@@ -26,7 +26,7 @@ max(a)
 -1
 explain select a,b from z1 where a < 9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	z1	range	a	a	5	NULL	13	Using where; Using index
+1	SIMPLE	z1	index	a	a	10	NULL	14	Using where; Using index
 select max(a) from z1 where a < 9;
 max(a)
 7

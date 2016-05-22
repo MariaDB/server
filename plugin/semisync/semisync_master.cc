@@ -1,6 +1,6 @@
 /* Copyright (C) 2007 Google Inc.
-   Copyright (c) 2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
-   Use is subject to license terms.
+   Copyright (c) 2008, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -477,6 +477,7 @@ void ReplSemiSyncMaster::add_slave()
 void ReplSemiSyncMaster::remove_slave()
 {
   lock();
+  assert(rpl_semi_sync_master_clients > 0);
   rpl_semi_sync_master_clients--;
 
   /* Only switch off if semi-sync is enabled and is on */
@@ -744,8 +745,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     /*
       At this point, the binlog file and position of this transaction
       must have been removed from ActiveTranx.
+      active_tranxs_ may be NULL if someone disabled semi sync during
+      cond_timewait()
     */
-    assert(thd_killed(NULL) ||
+    assert(thd_killed(NULL) || !active_tranxs_ ||
            !active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
     

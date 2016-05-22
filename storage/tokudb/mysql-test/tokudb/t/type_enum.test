@@ -1,4 +1,5 @@
-SET DEFAULT_STORAGE_ENGINE='tokudb';
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
 #
 # Problem with many enums
 #
@@ -20,9 +21,11 @@ drop table t1;
 #
 
 create table t1 (a enum (' ','a','b') not null);
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 create table t1 (a enum (' ','a','b ') not null default 'b ');
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
@@ -44,6 +47,7 @@ drop table t1;
 set names latin1;
 create table t1 (a enum(0xE4, '1', '2') not null default 0xE4);
 show columns from t1;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
@@ -57,6 +61,7 @@ CREATE TABLE t1 (
   a INT  default 1,
   b ENUM('value','öäü_value','ÊÃÕ') character set latin1 NOT NULL
 );
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 show columns from t1;
 drop table t1;
@@ -82,6 +87,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
   a ENUM('ä','ö','ü') character set utf8 default 'ü'
 );
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 insert into t1 values ('ä'), ('ö'), ('ü');
 select a from t1 order by a;
@@ -98,6 +104,7 @@ CREATE TABLE t1 (
 insert into t1 values ('Ã¤'),('Ã¶'),('Ã¼');
 # Now check what has been loaded
 set names latin1;
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 select a from t1 order by a;
 drop table t1;
@@ -134,6 +141,7 @@ drop table t1;
 #
 create table t1 (f1 int);
 alter table t1 add f2 enum(0xFFFF);
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
@@ -141,17 +149,24 @@ drop table t1;
 # Bug#24660 "enum" field type definition problem
 #
 create table t1(russian enum('E','F','EÿF','FÿE') NOT NULL DEFAULT'E');
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
 create table t1(denormal enum('E','F','E,F','F,E') NOT NULL DEFAULT'E');
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
 create table t1(russian_deviant enum('E','F','EÿF','F,E') NOT NULL DEFAULT'E');
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 drop table t1;
 
+# ER_WRONG_FIELD_TERMINATORS
+--error 1083
+create table t1(exhausting_charset enum('ABCDEFGHIJKLMNOPQRSTUVWXYZ','	
+ !"','#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~','xx\','yy\€','zz‚ƒ„…†‡ˆ‰Š‹Œ‘’“”•–—˜™š›œŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖ×ØÙÚÛÜİŞßàáâãäåæçèéêëìíîïğñòóôõö÷øùúûüışÿ'));
 
 #
 # Bug #29251: MySQL coerces special 0 enum values to normal '' value

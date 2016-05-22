@@ -34,7 +34,7 @@ eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';
 
 --connection server_1
 INSERT INTO t1 VALUES (4);
---save_master_pos
+--source include/save_master_gtid.inc
 
 --connection server_2
 SET sql_log_bin= 0;
@@ -48,7 +48,7 @@ STOP SLAVE SQL_THREAD;
 eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';
 
 --source include/start_slave.inc
---sync_with_master
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
 --source include/stop_slave.inc

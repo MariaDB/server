@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2005, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2005, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -167,6 +168,7 @@ static ulonglong auto_generate_sql_number;
 const char *concurrency_str= NULL;
 static char *create_string;
 uint *concurrency;
+static char mysql_charsets_dir[FN_REFLEN+1];
 
 const char *default_dbug_option="d:t:o,/tmp/mysqlslap.trace";
 const char *opt_csv_str;
@@ -242,7 +244,7 @@ void print_conclusions_csv(conclusions *con);
 void generate_stats(conclusions *con, option_string *eng, stats *sptr);
 uint parse_comma(const char *string, uint **range);
 uint parse_delimiter(const char *script, statement **stmt, char delm);
-uint parse_option(const char *origin, option_string **stmt, char delm);
+int parse_option(const char *origin, option_string **stmt, char delm);
 static int drop_schema(MYSQL *mysql, const char *db);
 uint get_random_string(char *buf);
 static statement *build_table_string(void);
@@ -371,6 +373,7 @@ int main(int argc, char **argv)
     {
       fprintf(stderr,"%s: Error when connecting to server: %s\n",
               my_progname,mysql_error(&mysql));
+      mysql_close(&mysql);
       free_defaults(defaults_argv);
       my_end(0);
       exit(1);
@@ -416,8 +419,7 @@ int main(int argc, char **argv)
   pthread_mutex_destroy(&sleeper_mutex);
   pthread_cond_destroy(&sleep_threshhold);
 
-  if (!opt_only_print) 
-    mysql_close(&mysql); /* Close & free connection */
+  mysql_close(&mysql); /* Close & free connection */
 
   /* now free all the strings we created */
   my_free(opt_password);
@@ -584,6 +586,9 @@ static struct my_option my_long_options[] =
     "Number of row inserts to perform for each thread (default is 100).",
     &auto_generate_sql_number, &auto_generate_sql_number,
     0, GET_ULL, REQUIRED_ARG, 100, 0, 0, 0, 0, 0},
+  {"character-sets-dir", OPT_CHARSETS_DIR,
+   "Directory for character set files.", &charsets_dir,
+   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"commit", OPT_SLAP_COMMIT, "Commit records every X number of statements.",
     &commit_rate, &commit_rate, 0, GET_UINT, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
@@ -780,6 +785,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case '#':
     DBUG_PUSH(argument ? argument : default_dbug_option);
     debug_check_flag= 1;
+    break;
+  case OPT_CHARSETS_DIR:
+    strmake_buf(mysql_charsets_dir, argument);
+    charsets_dir = mysql_charsets_dir;
     break;
   case OPT_SLAP_CSV:
     if (!argument)
@@ -1264,7 +1273,13 @@ get_options(int *argc,char ***argv)
   if (num_int_cols_opt)
   {
     option_string *str;
-    parse_option(num_int_cols_opt, &str, ',');
+    if(parse_option(num_int_cols_opt, &str, ',') == -1)
+    {
+      fprintf(stderr, "Invalid value specified for the option "
+              "'number-int-cols'\n");
+      option_cleanup(str);
+      return 1;
+    }
     num_int_cols= atoi(str->string);
     if (str->option)
       num_int_cols_index= atoi(str->option);
@@ -1275,7 +1290,13 @@ get_options(int *argc,char ***argv)
   if (num_char_cols_opt)
   {
     option_string *str;
-    parse_option(num_char_cols_opt, &str, ',');
+    if(parse_option(num_char_cols_opt, &str, ',') == -1)
+    {
+      fprintf(stderr, "Invalid value specified for the option "
+              "'number-char-cols'\n");
+      option_cleanup(str);
+      return 1;
+    }
     num_char_cols= atoi(str->string);
     if (str->option)
       num_char_cols_index= atoi(str->option);
@@ -1512,7 +1533,13 @@ get_options(int *argc,char ***argv)
     printf("Parsing engines to use.\n");
 
   if (default_engine)
-    parse_option(default_engine, &engine_options, ',');
+  {
+    if(parse_option(default_engine, &engine_options, ',') == -1)
+    {
+      fprintf(stderr, "Invalid value specified for the option 'engine'\n");
+      return 1;
+    }
+  }
 
   if (tty_password)
     opt_password= get_tty_password(NullS);
@@ -1844,20 +1871,20 @@ pthread_handler_t run_task(void *p)
   }
   pthread_mutex_unlock(&sleeper_mutex);
 
-  if (!(mysql= mysql_init(NULL)))
-  {
-    fprintf(stderr,"%s: mysql_init() failed ERROR : %s\n",
-            my_progname, mysql_error(mysql));
-    exit(0);
-  }
-  set_mysql_connect_options(mysql);
-
   if (mysql_thread_init())
   {
-    fprintf(stderr,"%s: mysql_thread_init() failed ERROR : %s\n",
-            my_progname, mysql_error(mysql));
+    fprintf(stderr,"%s: mysql_thread_init() failed\n", my_progname);
     exit(0);
   }
+
+  if (!(mysql= mysql_init(NULL)))
+  {
+    fprintf(stderr,"%s: mysql_init() failed\n", my_progname);
+    mysql_thread_end();
+    exit(0);
+  }
+
+  set_mysql_connect_options(mysql);
 
   DBUG_PRINT("info", ("trying to connect to host %s as user %s", host, user));
 
@@ -1976,8 +2003,7 @@ end:
   if (commit_rate)
     run_query(mysql, "COMMIT", strlen("COMMIT"));
 
-  if (!opt_only_print) 
-    mysql_close(mysql);
+  mysql_close(mysql);
 
   mysql_thread_end();
 
@@ -1989,7 +2015,7 @@ end:
   DBUG_RETURN(0);
 }
 
-uint
+int
 parse_option(const char *origin, option_string **stmt, char delm)
 {
   char *retstr;
@@ -2013,6 +2039,13 @@ parse_option(const char *origin, option_string **stmt, char delm)
      */
     char buffer[HUGE_STRING_LENGTH]= "";
     char *buffer_ptr;
+
+    /*
+      Return an error if the length of the any of the comma seprated value
+      exceeds HUGE_STRING_LENGTH.
+    */
+    if ((size_t)(retstr - ptr) > HUGE_STRING_LENGTH)
+      return -1;
 
     count++;
     strncpy(buffer, ptr, (size_t)(retstr - ptr));
@@ -2053,6 +2086,13 @@ parse_option(const char *origin, option_string **stmt, char delm)
   {
     char *origin_ptr;
 
+    /*
+      Return an error if the length of the any of the comma seprated value
+      exceeds HUGE_STRING_LENGTH.
+    */
+    if (strlen(ptr) > HUGE_STRING_LENGTH)
+      return -1;
+
     if ((origin_ptr= strchr(ptr, ':')))
     {
       char *option_ptr;
@@ -2063,13 +2103,13 @@ parse_option(const char *origin, option_string **stmt, char delm)
       option_ptr= (char *)ptr + 1 + tmp->length;
 
       /* Move past the : and the first string */
-      tmp->option_length= (size_t)((ptr + length) - option_ptr);
+      tmp->option_length= strlen(option_ptr);
       tmp->option= my_strndup(option_ptr, tmp->option_length,
                               MYF(MY_FAE));
     }
     else
     {
-      tmp->length= (size_t)((ptr + length) - ptr);
+      tmp->length= strlen(ptr);
       tmp->string= my_strndup(ptr, tmp->length, MYF(MY_FAE));
     }
 

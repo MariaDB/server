@@ -611,8 +611,7 @@ ibuf_init_at_db_start(void)
 	heap = mem_heap_create(450);
 
 	/* Use old-style record format for the insert buffer. */
-	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0,
-				      false);
+	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "DUMMY_COLUMN", DATA_BINARY, 0, 0);
 
@@ -1573,7 +1572,7 @@ ibuf_dummy_index_create(
 
 	table = dict_mem_table_create("IBUF_DUMMY",
 				      DICT_HDR_SPACE, n,
-				      comp ? DICT_TF_COMPACT : 0, 0, true);
+				      comp ? DICT_TF_COMPACT : 0, 0);
 
 	index = dict_mem_index_create("IBUF_DUMMY", "IBUF_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
@@ -2735,7 +2734,9 @@ ibuf_merge_space(
 			&pages[0], &spaces[0], &versions[0], n_pages,
 			&mtr);
 
-		++sum_sizes;
+		if (*n_pages > 0) {
+			++sum_sizes;
+		}
 	}
 
 	ibuf_mtr_commit(&mtr);

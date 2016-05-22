@@ -87,6 +87,11 @@ MACRO(CREATE_EXPORT_FILE VAR TARGET API_FUNCTIONS)
     ENDFOREACH()
     SET(CONTENT "${CONTENT} (void *)0\n}\;")
     CONFIGURE_FILE_CONTENT(${CONTENT} ${EXPORTS})
+    # Avoid "function redeclared as variable" error
+    # when using gcc/clang option -flto(link time optimization)
+    IF(" ${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS} " MATCHES " -flto")
+      SET_SOURCE_FILES_PROPERTIES(${EXPORTS} PROPERTIES COMPILE_FLAGS "-fno-lto")
+    ENDIF()
     SET(${VAR} ${EXPORTS})
   ENDIF()
 ENDMACRO()
@@ -308,15 +313,13 @@ INCLUDE(CheckCCompilerFlag)
 
 SET(VISIBILITY_HIDDEN_FLAG)
 
-IF(CMAKE_COMPILER_IS_GNUCXX AND UNIX)
+IF(CMAKE_C_COMPILER_ID MATCHES "SunPro")
+  SET(VISIBILITY_HIDDEN_FLAG "-xldscope=hidden")
+ELSEIF(UNIX)
   CHECK_C_COMPILER_FLAG("-fvisibility=hidden" HAVE_VISIBILITY_HIDDEN)
   IF(HAVE_VISIBILITY_HIDDEN)
     SET(VISIBILITY_HIDDEN_FLAG "-fvisibility=hidden")
   ENDIF()
-ENDIF()
-
-IF(CMAKE_C_COMPILER_ID MATCHES "SunPro")
-  SET(VISIBILITY_HIDDEN_FLAG "-xldscope=hidden")
 ENDIF()
 
 # We try to hide the symbols in yassl/zlib to avoid name clashes with

@@ -13,23 +13,31 @@ if (!$MTR_FEEDBACK_PLUGIN) {
 # Let's wait, and hope that mtr is started with --parallel and
 # is doing some work in other workers.
 #
-sleep 310;
+
+sleep 100;
+set global sql_mode=ONLY_FULL_GROUP_BY;
+sleep 210;
+
+
+# The test expects that the plugin will send a report at least 2 times,
+# now (5 min after loading) and on server shutdown which happens below. 
+# Since we have already waited for 5 min, let's be generous
+# and make sure the server has enough time to shut down properly.
+# We won't lose anything if the shutdown is fast, but if it's slow, the plugin 
+# will still be able to finish the job and write about it in the error log.
+
+--let $shutdown_timeout= 60
 source include/restart_mysqld.inc;
 
-replace_result https http;
+replace_result https http 2 6;
 perl;
   $log_error= $ENV{'MYSQLTEST_VARDIR'} . '/log/mysqld.1.err';
   open(LOG, '<', $log_error) or die "open(< $log_error): $!";
 
-  # Get the first few rows (as there may be different number rows in the log)
-  $i= 0;
-  while ($_=<LOG>)
-  {
-    if (/feedback plugin:.*/)
-    {
-      print "$&\n";
-      break if ($i++ >= 3);
-    }
+  %logg=();
+  while ($_=<LOG>) {
+    $logg{$&}++ if /feedback plugin:.*/;
   }
+  print "$logg{$_}: $_\n" for sort keys %logg;
   close LOG;
 EOF

@@ -57,3 +57,4 @@ Phase 6/6: Running 'FLUSH PRIVILEGES'
 OK
 update mysql.user set password='' where user='root';
 flush privileges;
+set global event_scheduler=OFF;

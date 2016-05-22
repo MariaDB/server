@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include "sql_repl.h"    // reset_master, reset_slave
 #include "rpl_mi.h"      // Master_info::data_lock
 #include "debug_sync.h"
-#include "rpl_mi.h"
+#include "des_key_file.h"
 
 static void disable_checkpoints(THD *thd);
 
@@ -93,12 +93,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         my_error(ER_UNKNOWN_ERROR, MYF(0));
       }
     }
+    opt_noacl= 0;
 
     if (tmp_thd)
     {
       delete tmp_thd;
-      /* Remember that we don't have a THD */
-      set_current_thd(0);
       thd= 0;
     }
     reset_mqh((LEX_USER *)NULL, TRUE);
@@ -333,7 +332,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
   }
 #endif
-#ifdef OPENSSL
+#ifdef HAVE_OPENSSL
    if (options & REFRESH_DES_KEY_FILE)
    {
      if (des_key_file && load_des_key_file(des_key_file))

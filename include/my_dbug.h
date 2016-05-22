@@ -58,7 +58,7 @@ extern  void _db_end_(void);
 extern  void _db_lock_file_(void);
 extern  void _db_unlock_file_(void);
 extern  FILE *_db_fp_(void);
-extern  void _db_flush_();
+extern void _db_flush_(void);
 extern void dbug_swap_code_state(void **code_state_store);
 extern void dbug_free_code_state(void **code_state_store);
 extern  const char* _db_get_func_(void);
@@ -123,7 +123,7 @@ extern  const char* _db_get_func_(void);
 #ifdef __WIN__
 #define DBUG_SUICIDE() DBUG_ABORT()
 #else
-extern void _db_suicide_();
+extern void _db_suicide_(void);
 #define DBUG_SUICIDE() (_db_flush_(), _db_suicide_())
 #endif
 

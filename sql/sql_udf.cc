@@ -143,7 +143,7 @@ void udf_init()
   DBUG_ENTER("ufd_init");
   char db[]= "mysql"; /* A subject to casednstr, can't be constant */
 
-  if (initialized)
+  if (initialized || opt_noacl)
     DBUG_VOID_RETURN;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -258,8 +258,6 @@ void udf_init()
 end:
   close_mysql_tables(new_thd);
   delete new_thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 
@@ -268,6 +266,8 @@ void udf_free()
 {
   /* close all shared libraries */
   DBUG_ENTER("udf_free");
+  if (opt_noacl)
+    DBUG_VOID_RETURN;
   for (uint idx=0 ; idx < udf_hash.records ; idx++)
   {
     udf_func *udf=(udf_func*) my_hash_element(&udf_hash,idx);

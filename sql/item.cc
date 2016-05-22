@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 #endif
 #include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include <mysql.h>
 #include <m_ctype.h>
 #include "my_dir.h"
@@ -1179,6 +1178,42 @@ Item *Item::safe_charset_converter(CHARSET_INFO *tocs)
 
 
 /**
+  Some pieces of the code do not support changing of
+  Item_cache to other Item types.
+
+  Example:
+  Item_singlerow_subselect has "Item_cache **row".
+  Creating of Item_func_conv_charset followed by THD::change_item_tree()
+  should not change row[i] from Item_cache directly to Item_func_conv_charset, because Item_singlerow_subselect
+  because Item_singlerow_subselect later calls Item_cache-specific methods,
+  e.g. row[i]->store() and row[i]->cache_value().
+
+  Let's wrap Item_func_conv_charset in a new Item_cache,
+  so the Item_cache-specific methods can still be used for
+  Item_singlerow_subselect::row[i] safely.
+
+  As a bonus we cache the converted value, instead of converting every time
+
+  TODO: we should eventually check all other use cases of change_item_tree().
+  Perhaps some more potentially dangerous substitution examples exist.
+*/
+Item *Item_cache::safe_charset_converter(CHARSET_INFO *tocs)
+{
+  if (!example)
+    return Item::safe_charset_converter(tocs);
+  Item *conv= example->safe_charset_converter(tocs);
+  if (conv == example)
+    return this;
+  Item_cache *cache;
+  if (!conv || !(cache= new Item_cache_str(conv)))
+    return NULL; // Safe conversion is not possible, or OEM
+  cache->setup(conv);
+  cache->fixed= false; // Make Item::fix_fields() happy
+  return cache;
+}
+
+
+/**
   @details
   Created mostly for mysql_prepare_table(). Important
   when a string ENUM/SET column is described with a numeric default value:
@@ -1271,8 +1306,8 @@ Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
     to it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
-    SET @@arg= 1;
-    EXECUTE stms USING @arg;
+    SET @arg= 1;
+    EXECUTE stmt USING @arg;
 
     In the above example result_type is STRING_RESULT at prepare time,
     and INT_RESULT at execution time.
@@ -1849,6 +1884,8 @@ void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
     */
     Item_aggregate_ref *item_ref;
     uint el= fields.elements;
+    DBUG_ASSERT(fields.elements <=
+                thd->lex->current_select->ref_pointer_array_size);
     /*
       If this is an item_ref, get the original item
       This is a safety measure if this is called for things that is
@@ -3798,7 +3835,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE)
+  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
   {
     str->append('?');
   }
@@ -4327,18 +4364,23 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                               Item_ident *resolved_item,
                               Item_ident *mark_item)
 {
-  const char *db_name= (resolved_item->db_name ?
-                        resolved_item->db_name : "");
-  const char *table_name= (resolved_item->table_name ?
-                           resolved_item->table_name : "");
+  DBUG_ENTER("mark_as_dependent");
+
   /* store pointer on SELECT_LEX from which item is dependent */
   if (mark_item && mark_item->can_be_depended)
+  {
+    DBUG_PRINT("info", ("mark_item: %p  lex: %p", mark_item, last));
     mark_item->depended_from= last;
-  if (current->mark_as_dependent(thd, last, /** resolved_item psergey-thu
-    **/mark_item))
-    return TRUE;
+  }
+  if (current->mark_as_dependent(thd, last,
+                                 /** resolved_item psergey-thu **/ mark_item))
+    DBUG_RETURN(TRUE);
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
+    const char *db_name= (resolved_item->db_name ?
+                          resolved_item->db_name : "");
+    const char *table_name= (resolved_item->table_name ?
+                             resolved_item->table_name : "");
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 		 ER_WARN_FIELD_RESOLVED, ER(ER_WARN_FIELD_RESOLVED),
                  db_name, (db_name[0] ? "." : ""),
@@ -4346,7 +4388,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                  resolved_item->field_name,
                  current->select_number, last->select_number);
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -4710,7 +4752,7 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   @retval
     0   column fully fixed and fix_fields() should return FALSE
   @retval
-    -1  error occured
+    -1  error occurred
 */
 
 int
@@ -4794,8 +4836,24 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             As this is an outer field it should be added to the list of
             non aggregated fields of the outer select.
           */
-          marker= select->cur_pos_in_select_list;
-          select->non_agg_fields.push_back(this);
+          if (select->join)
+          {
+            marker= select->cur_pos_in_select_list;
+            select->join->non_agg_fields.push_back(this);
+          }
+          else
+          {
+            /*
+              join is absent if it is upper SELECT_LEX of non-select
+              command
+            */
+            DBUG_ASSERT(select->master_unit()->outer_select() == NULL &&
+                        (thd->lex->sql_command != SQLCOM_SELECT &&
+                         thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+                         thd->lex->sql_command != SQLCOM_DELETE_MULTI &&
+                         thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
+                         thd->lex->sql_command != SQLCOM_REPLACE_SELECT));
+          }
         }
         if (*from_field != view_ref_found)
         {
@@ -5211,9 +5269,10 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   fixed= 1;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
-      thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS)
+      thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
+      thd->lex->current_select->join)
   {
-    thd->lex->current_select->non_agg_fields.push_back(this);
+    thd->lex->current_select->join->non_agg_fields.push_back(this);
     marker= thd->lex->current_select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
@@ -6644,7 +6703,7 @@ void Item_field::update_null_value()
     UPDATE statement.
 
   RETURN
-    0             if error occured
+    0             if error occurred
     ref           if all conditions are met
     this field    otherwise
 */
@@ -6659,6 +6718,7 @@ Item *Item_field::update_value_transformer(uchar *select_arg)
   {
     List<Item> *all_fields= &select->join->all_fields;
     Item **ref_pointer_array= select->ref_pointer_array;
+    DBUG_ASSERT(all_fields->elements <= select->ref_pointer_array_size);
     int el= all_fields->elements;
     Item_ref *ref;
 
@@ -6674,7 +6734,8 @@ Item *Item_field::update_value_transformer(uchar *select_arg)
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table)
+  if (field && field->table->const_table &&
+      !(query_type & QT_NO_DATA_EXPANSION))
   {
     print_value(str);
     return;
@@ -6694,7 +6755,7 @@ Item_ref::Item_ref(Name_resolution_context *context_arg,
   /*
     This constructor used to create some internals references over fixed items
   */
-  if (ref && *ref && (*ref)->fixed)
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed)))
     set_properties();
 }
 
@@ -6738,7 +6799,7 @@ Item_ref::Item_ref(TABLE_LIST *view_arg, Item **item,
   /*
     This constructor is used to create some internal references over fixed items
   */
-  if (ref && *ref && (*ref)->fixed)
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed)))
     set_properties();
 }
 
@@ -6813,7 +6874,11 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   SELECT_LEX *current_sel= thd->lex->current_select;
 
-  if (!ref || ref == not_found_item)
+  if (set_properties_only)
+  {
+    /* do nothing */
+  }
+  else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
     if (!(ref= resolve_ref_in_select_and_group(thd, this,
@@ -6831,7 +6896,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       {
         /* The current reference cannot be resolved in this query. */
         my_error(ER_BAD_FIELD_ERROR,MYF(0),
-                 this->full_name(), current_thd->where);
+                 this->full_name(), thd->where);
         goto error;
       }
 
@@ -6966,7 +7031,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
-                          thd->lex->current_select, fld, fld);
+                          current_sel, fld, fld);
         /*
           A reference is resolved to a nest level that's outer or the same as
           the nest level of the enclosing set function : adjust the value of
@@ -6983,7 +7048,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       {
         /* The item was not a table field and not a reference */
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 this->full_name(), current_thd->where);
+                 this->full_name(), thd->where);
         goto error;
       }
       /* Should be checked in resolve_ref_in_select_and_group(). */
@@ -9471,6 +9536,11 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
       item_decimals= 0;
     decimals= MY_MAX(decimals, item_decimals);
   }
+
+  if (fld_type == FIELD_TYPE_GEOMETRY)
+    geometry_type=
+      Field_geom::geometry_type_merge(geometry_type, item->get_geometry_type());
+
   if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);

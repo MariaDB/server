@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -58,7 +58,6 @@
 
 #include <my_global.h>                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record
 #include "sql_base.h"                           // close_thread_tables
@@ -1589,9 +1588,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       else
         table->file->insert_id_for_cur_row= insert_id_for_cur_row;
       bool is_duplicate_key_error;
-      if (table->file->is_fatal_error(error, HA_CHECK_DUP))
+      if (table->file->is_fatal_error(error, HA_CHECK_ALL))
 	goto err;
-      is_duplicate_key_error= table->file->is_fatal_error(error, 0);
+      is_duplicate_key_error=
+        table->file->is_fatal_error(error, HA_CHECK_ALL & ~HA_CHECK_DUP);
       if (!is_duplicate_key_error)
       {
         /*
@@ -1719,7 +1719,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               error != HA_ERR_RECORD_IS_THE_SAME)
           {
             if (info->ignore &&
-                !table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+                !table->file->is_fatal_error(error, HA_CHECK_ALL))
             {
               if (!(thd->variables.old_behavior &
                     OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
@@ -1849,7 +1849,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   {
     DEBUG_SYNC(thd, "write_row_noreplace");
     if (!info->ignore ||
-        table->file->is_fatal_error(error, HA_CHECK_DUP))
+        table->file->is_fatal_error(error, HA_CHECK_ALL))
       goto err;
     if (!(thd->variables.old_behavior &
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
@@ -1979,7 +1979,7 @@ public:
   TABLE *table;
   mysql_mutex_t mutex;
   mysql_cond_t cond, cond_client;
-  volatile uint tables_in_use,stacked_inserts;
+  uint tables_in_use, stacked_inserts;
   volatile bool status;
   /**
     When the handler thread starts, it clones a metadata lock ticket
@@ -2003,7 +2003,7 @@ public:
   */
   MDL_request grl_protection;
 
-  Delayed_insert()
+  Delayed_insert(SELECT_LEX *current_select)
     :locks_in_memory(0), table(0),tables_in_use(0),stacked_inserts(0),
      status(0), handler_thread_initialized(FALSE), group_count(0)
   {
@@ -2013,7 +2013,7 @@ public:
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     thd.set_command(COM_DELAYED_INSERT);
-    thd.lex->current_select= 0; 		// for my_message_sql
+    thd.lex->current_select= current_select;
     thd.lex->sql_command= SQLCOM_INSERT;        // For innodb::store_lock()
     /*
       Prevent changes to global.lock_wait_timeout from affecting
@@ -2190,7 +2190,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     */
     if (! (di= find_handler(thd, table_list)))
     {
-      if (!(di= new Delayed_insert()))
+      if (!(di= new Delayed_insert(thd->lex->current_select)))
         goto end_create;
 
       thread_safe_increment32(&thread_count, &thread_count_lock);
@@ -2621,14 +2621,16 @@ static void end_delayed_insert(THD *thd)
 
 void kill_delayed_threads(void)
 {
+  DBUG_ENTER("kill_delayed_threads");
   mysql_mutex_lock(&LOCK_delayed_insert); // For unlink from list
 
   I_List_iterator<Delayed_insert> it(delayed_threads);
   Delayed_insert *di;
   while ((di= it++))
   {
-    di->thd.killed= KILL_CONNECTION;
     mysql_mutex_lock(&di->thd.LOCK_thd_data);
+    if (di->thd.killed < KILL_CONNECTION)
+      di->thd.killed= KILL_CONNECTION;
     if (di->thd.mysys_var)
     {
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
@@ -2649,6 +2651,7 @@ void kill_delayed_threads(void)
     mysql_mutex_unlock(&di->thd.LOCK_thd_data);
   }
   mysql_mutex_unlock(&LOCK_delayed_insert); // For unlink from list
+  DBUG_VOID_RETURN;
 }
 
 
@@ -2833,8 +2836,24 @@ pthread_handler_t handle_delayed_insert(void *arg)
     if (di->open_and_lock_table())
       goto err;
 
+    /*
+      INSERT DELAYED generally expects thd->lex->current_select to be NULL,
+      since this is not an attribute of the current thread. This can lead to
+      problems if the thread that spawned the current one disconnects.
+      current_select will then point to freed memory. But current_select is
+      required to resolve the partition function. So, after fulfilling that
+      requirement, we set the current_select to 0.
+    */
+    thd->lex->current_select= NULL;
+
     /* Tell client that the thread is initialized */
     mysql_cond_signal(&di->cond_client);
+
+    /*
+      Inform mdl that it needs to call mysql_lock_abort to abort locks
+      for delayed insert.
+    */
+    thd->mdl_context.set_needs_thr_lock_abort(TRUE);
 
     /* Now wait until we get an insert or lock to handle */
     /* We will not abort as long as a client thread uses this thread */
@@ -2844,6 +2863,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       if (thd->killed)
       {
         uint lock_count;
+        DBUG_PRINT("delayed", ("Insert delayed killed"));
         /*
           Remove this from delay insert list so that no one can request a
           table from this
@@ -2854,11 +2874,15 @@ pthread_handler_t handle_delayed_insert(void *arg)
         lock_count=di->lock_count();
         mysql_mutex_unlock(&LOCK_delayed_insert);
         mysql_mutex_lock(&di->mutex);
-        if (!lock_count && !di->tables_in_use && !di->stacked_inserts)
+        if (!lock_count && !di->tables_in_use && !di->stacked_inserts &&
+            !thd->lock)
           break;					// Time to die
       }
 
       /* Shouldn't wait if killed or an insert is waiting. */
+      DBUG_PRINT("delayed",
+                 ("thd->killed: %d  di->status: %d  di->stacked_inserts: %d",
+                  thd->killed, di->status, di->stacked_inserts));
       if (!thd->killed && !di->status && !di->stacked_inserts)
       {
         struct timespec abstime;
@@ -2898,6 +2922,9 @@ pthread_handler_t handle_delayed_insert(void *arg)
         mysql_mutex_unlock(&di->thd.mysys_var->mutex);
         mysql_mutex_lock(&di->mutex);
       }
+      DBUG_PRINT("delayed",
+                 ("thd->killed: %d  di->tables_in_use: %d  thd->lock: %d",
+                  thd->killed, di->tables_in_use, thd->lock != 0));
 
       if (di->tables_in_use && ! thd->lock && !thd->killed)
       {
@@ -2958,8 +2985,18 @@ pthread_handler_t handle_delayed_insert(void *arg)
   {
     DBUG_ENTER("handle_delayed_insert-cleanup");
     di->table=0;
-    thd->killed= KILL_CONNECTION;	        // If error
     mysql_mutex_unlock(&di->mutex);
+
+    /*
+      Protect against mdl_locks trying to access open tables
+      We use KILL_CONNECTION_HARD here to ensure that
+      THD::notify_shared_lock() dosn't try to access open tables after
+      this.
+    */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    thd->killed= KILL_CONNECTION_HARD;	        // If error
+    thd->mdl_context.set_needs_thr_lock_abort(0);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     close_thread_tables(thd);			// Free the table
     thd->mdl_context.release_transactional_locks();
@@ -3852,7 +3889,6 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
-  Field *tmp_field;
   DBUG_ENTER("create_table_from_items");
 
   tmp_table.alias= 0;
@@ -3867,24 +3903,49 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
 
   while ((item=it++))
   {
-    Create_field *cr_field;
-    Field *field, *def_field;
+    Field *tmp_table_field;
     if (item->type() == Item::FUNC_ITEM)
     {
       if (item->result_type() != STRING_RESULT)
-        field= item->tmp_table_field(&tmp_table);
+        tmp_table_field= item->tmp_table_field(&tmp_table);
       else
-        field= item->tmp_table_field_from_field_type(&tmp_table, 0);
+        tmp_table_field= item->tmp_table_field_from_field_type(&tmp_table,
+                                                               false);
     }
     else
-      field= create_tmp_field(thd, &tmp_table, item, item->type(),
-                              (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
-                              0);
-    if (!field ||
-	!(cr_field=new Create_field(field,(item->type() == Item::FIELD_ITEM ?
-					   ((Item_field *)item)->field :
-					   (Field*) 0))))
-      DBUG_RETURN(0);
+    {
+      Field *from_field, * default_field;
+      tmp_table_field= create_tmp_field(thd, &tmp_table, item, item->type(),
+                              (Item ***) NULL, &from_field, &default_field,
+                              0, 0, 0, 0, 0);
+    }
+
+    if (!tmp_table_field)
+      DBUG_RETURN(NULL);
+
+    Field *table_field;
+
+    switch (item->type())
+    {
+    /*
+      We have to take into account both the real table's fields and
+      pseudo-fields used in trigger's body. These fields are used
+      to copy defaults values later inside constructor of
+      the class Create_field.
+    */
+    case Item::FIELD_ITEM:
+    case Item::TRIGGER_FIELD_ITEM:
+      table_field= ((Item_field *) item)->field;
+      break;
+    default:
+      table_field= NULL;
+    }
+
+    Create_field *cr_field= new Create_field(tmp_table_field, table_field);
+
+    if (!cr_field)
+      DBUG_RETURN(NULL);
+
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field);
@@ -3974,7 +4035,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   {
     if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
-    DBUG_RETURN(0);
+    DBUG_RETURN(NULL);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_lock");
@@ -4141,6 +4202,8 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     DBUG_RETURN(1);
   table->mark_columns_needed_for_insert();
   table->file->extra(HA_EXTRA_WRITE_CACHE);
+  // Mark table as used
+  table->query_id= thd->query_id;
   DBUG_RETURN(0);
 }
 

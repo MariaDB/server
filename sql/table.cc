@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,6 @@
 
 #include <my_global.h>                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "table.h"
 #include "key.h"                                // find_ref_key
 #include "sql_table.h"                          // build_table_filename,
@@ -2621,21 +2620,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     else
       outparam->record[1]= outparam->record[0];   // Safety
   }
-
-#ifdef HAVE_valgrind
-  /*
-    We need this because when we read var-length rows, we are not updating
-    bytes after end of varchar
-  */
-  if (records > 1)
-  {
-    memcpy(outparam->record[0], share->default_values, share->rec_buff_length);
-    memcpy(outparam->record[1], share->default_values, share->null_bytes);
-    if (records > 2)
-      memcpy(outparam->record[1], share->default_values,
-             share->rec_buff_length);
-  }
-#endif
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -5271,7 +5255,7 @@ Item *Field_iterator_table::create_item(THD *thd)
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
   {
-    select->non_agg_fields.push_back(item);
+    select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;
     select->set_non_agg_field_used(true);
   }
@@ -5335,6 +5319,12 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
     item->maybe_null= TRUE;
   /* Save item in case we will need to fall back to materialization. */
   view->used_items.push_front(item);
+  /*
+    If we create this reference on persistent memory then it should be
+    present in persistent list
+  */
+  if (thd->mem_root == thd->stmt_arena->mem_root)
+    view->persistent_used_items.push_front(item);
   DBUG_RETURN(item);
 }
 
@@ -6912,6 +6902,7 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("handle_derived");
+  DBUG_PRINT("enter", ("phases: 0x%x", phases));
   if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())

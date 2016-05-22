@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -235,22 +235,88 @@ row_merge_buf_free(
 	mem_heap_free(buf->heap);
 }
 
-/******************************************************//**
-Insert a data tuple into a sort buffer.
-@return	number of rows added, 0 if out of space */
+/** Convert the field data from compact to redundant format.
+@param[in]	row_field	field to copy from
+@param[out]	field		field to copy to
+@param[in]	len		length of the field data
+@param[in]	zip_size	compressed BLOB page size,
+				zero for uncompressed BLOBs
+@param[in,out]	heap		memory heap where to allocate data when
+				converting to ROW_FORMAT=REDUNDANT, or NULL
+				when not to invoke
+				row_merge_buf_redundant_convert(). */
+static
+void
+row_merge_buf_redundant_convert(
+	const dfield_t*		row_field,
+	dfield_t*		field,
+	ulint			len,
+	ulint			zip_size,
+	mem_heap_t*		heap,
+        trx_t*			trx)
+{
+	ut_ad(DATA_MBMINLEN(field->type.mbminmaxlen) == 1);
+	ut_ad(DATA_MBMAXLEN(field->type.mbminmaxlen) > 1);
+
+	byte*		buf = (byte*) mem_heap_alloc(heap, len);
+	ulint		field_len = row_field->len;
+	ut_ad(field_len <= len);
+
+	if (row_field->ext) {
+		const byte*	field_data = static_cast<byte*>(
+			dfield_get_data(row_field));
+		ulint		ext_len;
+
+		ut_a(field_len >= BTR_EXTERN_FIELD_REF_SIZE);
+		ut_a(memcmp(field_data + field_len - BTR_EXTERN_FIELD_REF_SIZE,
+			    field_ref_zero, BTR_EXTERN_FIELD_REF_SIZE));
+
+		byte*	data = btr_copy_externally_stored_field(
+			&ext_len, field_data, zip_size, field_len, heap, trx);
+
+		ut_ad(ext_len < len);
+
+		memcpy(buf, data, ext_len);
+		field_len = ext_len;
+	} else {
+		memcpy(buf, row_field->data, field_len);
+	}
+
+	memset(buf + field_len, 0x20, len - field_len);
+
+	dfield_set_data(field, buf, len);
+}
+
+/** Insert a data tuple into a sort buffer.
+@param[in,out]	buf		sort buffer
+@param[in]	fts_index	fts index to be created
+@param[in]	old_table	original table
+@param[in,out]	psort_info	parallel sort info
+@param[in]	row		table row
+@param[in]	ext		cache of externally stored
+				column prefixes, or NULL
+@param[in,out]	doc_id		Doc ID if we are creating
+				FTS index
+@param[in,out]	conv_heap	memory heap where to allocate data when
+				converting to ROW_FORMAT=REDUNDANT, or NULL
+				when not to invoke
+				row_merge_buf_redundant_convert()
+@param[in,out]	exceed_page	set if the record size exceeds the page size
+				when converting to ROW_FORMAT=REDUNDANT
+@return number of rows added, 0 if out of space */
 static
 ulint
 row_merge_buf_add(
-/*==============*/
-	row_merge_buf_t*	buf,	/*!< in/out: sort buffer */
-	dict_index_t*		fts_index,/*!< in: fts index to be created */
-	const dict_table_t*	old_table,/*!< in: original table */
-	fts_psort_t*		psort_info, /*!< in: parallel sort info */
-	const dtuple_t*		row,	/*!< in: table row */
-	const row_ext_t*	ext,	/*!< in: cache of externally stored
-					column prefixes, or NULL */
-	doc_id_t*		doc_id)	/*!< in/out: Doc ID if we are
-					creating FTS index */
+	row_merge_buf_t*	buf,
+	dict_index_t*		fts_index,
+	const dict_table_t*	old_table,
+	fts_psort_t*		psort_info,
+	const dtuple_t*		row,
+	const row_ext_t*	ext,
+	doc_id_t*		doc_id,
+	mem_heap_t*		conv_heap,
+	bool*			exceed_page,
+	trx_t*			trx)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -400,6 +466,23 @@ row_merge_buf_add(
 				n_row_added = 1;
 				continue;
 			}
+
+			if (field->len != UNIV_SQL_NULL
+			    && col->mtype == DATA_MYSQL
+			    && col->len != field->len) {
+
+				if (conv_heap != NULL) {
+					row_merge_buf_redundant_convert(
+						row_field, field, col->len,
+						dict_table_zip_size(old_table),
+						conv_heap, trx);
+				} else {
+					/* Field length mismatch should not
+					happen when rebuilding redundant row
+					format table. */
+					ut_ad(dict_table_is_comp(index->table));
+				}
+			}
 		}
 
 		len = dfield_get_len(field);
@@ -508,6 +591,14 @@ row_merge_buf_add(
 	of extra_size. */
 	data_size += (extra_size + 1) + ((extra_size + 1) >= 0x80);
 
+	/* Record size can exceed page size while converting to
+	redundant row format. But there is assert
+	ut_ad(size < UNIV_PAGE_SIZE) in rec_offs_data_size().
+	It may hit the assert before attempting to insert the row. */
+	if (conv_heap != NULL && data_size > UNIV_PAGE_SIZE) {
+		*exceed_page = true;
+	}
+
 	ut_ad(data_size < srv_sort_buf_size);
 
 	/* Reserve one byte for the end marker of row_merge_block_t. */
@@ -526,6 +617,10 @@ row_merge_buf_add(
 	do {
 		dfield_dup(field++, buf->heap);
 	} while (--n_fields);
+
+	if (conv_heap != NULL) {
+		mem_heap_empty(conv_heap);
+	}
 
 	DBUG_RETURN(n_row_added);
 }
@@ -1148,47 +1243,95 @@ row_merge_write_eof(
 	return(&block[0]);
 }
 
-/********************************************************************//**
-Reads clustered index of the table and create temporary files
+/** Create a temporary file if it has not been created already.
+@param[in,out]	tmpfd	temporary file handle
+@param[in]	path	path to create temporary file
+@return file descriptor, or -1 on failure */
+static __attribute__((warn_unused_result))
+int
+row_merge_tmpfile_if_needed(
+	int*		tmpfd,
+	const char*	path)
+{
+	if (*tmpfd < 0) {
+		*tmpfd = row_merge_file_create_low(path);
+	}
+
+	return(*tmpfd);
+}
+
+/** Create a temporary file for merge sort if it was not created already.
+@param[in,out]	file	merge file structure
+@param[in,out]	tmpfd	temporary file structure
+@param[in]	nrec	number of records in the file
+@param[in]	path	path to create temporary files
+@return file descriptor, or -1 on failure */
+static __attribute__((warn_unused_result))
+int
+row_merge_file_create_if_needed(
+	merge_file_t*	file,
+	int*		tmpfd,
+	ulint		nrec,
+	const char*	path)
+{
+	ut_ad(file->fd < 0 || *tmpfd >=0);
+	if (file->fd < 0 && row_merge_file_create(file, path) >= 0) {
+		if (row_merge_tmpfile_if_needed(tmpfd, path) < 0) {
+			return(-1);
+		}
+
+		file->n_rec = nrec;
+	}
+
+	ut_ad(file->fd < 0 || *tmpfd >=0);
+	return(file->fd);
+}
+
+/** Reads clustered index of the table and create temporary files
 containing the index entries for the indexes to be built.
-@return	DB_SUCCESS or error */
+@param[in]	trx		transaction
+@param[in,out]	table		MySQL table object, for reporting erroneous
+				records
+@param[in]	old_table	table where rows are read from
+@param[in]	new_table	table where indexes are created; identical to
+				old_table unless creating a PRIMARY KEY
+@param[in]	online		true if creating indexes online
+@param[in]	index		indexes to be created
+@param[in]	fts_sort_idx	full-text index to be created, or NULL
+@param[in]	psort_info	parallel sort info for fts_sort_idx creation,
+				or NULL
+@param[in]	files		temporary files
+@param[in]	key_numbers	MySQL key numbers to create
+@param[in]	n_index		number of indexes to create
+@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	col_map		mapping of old column numbers to new ones, or
+				NULL if old_table == new_table
+@param[in]	add_autoinc	number of added AUTO_INCREMENT columns, or
+				ULINT_UNDEFINED if none is added
+@param[in,out] sequence		autoinc sequence
+@param[in,out] block		file buffer
+@param[in,out] tmpfd		temporary file handle
+return	DB_SUCCESS or error */
 static __attribute__((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
 dberr_t
 row_merge_read_clustered_index(
-/*===========================*/
-	trx_t*			trx,	/*!< in: transaction */
-	struct TABLE*		table,	/*!< in/out: MySQL table object,
-					for reporting erroneous records */
-	const dict_table_t*	old_table,/*!< in: table where rows are
-					read from */
-	const dict_table_t*	new_table,/*!< in: table where indexes are
-					created; identical to old_table
-					unless creating a PRIMARY KEY */
-	bool			online,	/*!< in: true if creating indexes
-					online */
-	dict_index_t**		index,	/*!< in: indexes to be created */
+	trx_t*			trx,
+	struct TABLE*		table,
+	const dict_table_t*	old_table,
+	const dict_table_t*	new_table,
+	bool			online,
+	dict_index_t**		index,
 	dict_index_t*		fts_sort_idx,
-					/*!< in: full-text index to be created,
-					or NULL */
 	fts_psort_t*		psort_info,
-					/*!< in: parallel sort info for
-					fts_sort_idx creation, or NULL */
-	merge_file_t*		files,	/*!< in: temporary files */
+	merge_file_t*		files,
 	const ulint*		key_numbers,
-					/*!< in: MySQL key numbers to create */
-	ulint			n_index,/*!< in: number of indexes to create */
+	ulint			n_index,
 	const dtuple_t*		add_cols,
-					/*!< in: default values of
-					added columns, or NULL */
-	const ulint*		col_map,/*!< in: mapping of old column
-					numbers to new ones, or NULL
-					if old_table == new_table */
+	const ulint*		col_map,
 	ulint			add_autoinc,
-					/*!< in: number of added
-					AUTO_INCREMENT column, or
-					ULINT_UNDEFINED if none is added */
-	ib_sequence_t&		sequence,/*!< in/out: autoinc sequence */
-	row_merge_block_t*	block)	/*!< in/out: file buffer */
+	ib_sequence_t&		sequence,
+	row_merge_block_t*	block,
+	int*			tmpfd)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1208,6 +1351,7 @@ row_merge_read_clustered_index(
 	os_event_t		fts_parallel_sort_event = NULL;
 	ibool			fts_pll_sort = FALSE;
 	ib_int64_t		sig_count = 0;
+	mem_heap_t*		conv_heap = NULL;
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
@@ -1218,6 +1362,9 @@ row_merge_read_clustered_index(
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
 #endif
+
+	ut_ad(trx->mysql_thd != NULL);
+	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
 
 	/* Create and initialize memory for record buffers */
 
@@ -1302,6 +1449,11 @@ row_merge_read_clustered_index(
 	}
 
 	row_heap = mem_heap_create(sizeof(mrec_buf_t));
+
+	if (dict_table_is_comp(old_table)
+	    && !dict_table_is_comp(new_table)) {
+		conv_heap = mem_heap_create(sizeof(mrec_buf_t));
+	}
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -1587,16 +1739,24 @@ write_buffers:
 			row_merge_buf_t*	buf	= merge_buf[i];
 			merge_file_t*		file	= &files[i];
 			ulint			rows_added = 0;
+			bool			exceed_page = false;
 
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table,
-					psort_info, row, ext, &doc_id)))) {
+					psort_info, row, ext, &doc_id,
+					conv_heap, &exceed_page, trx)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
 				records for tokenized word */
 				file->n_rec += rows_added;
+
+				if (exceed_page) {
+					err = DB_TOO_BIG_RECORD;
+					break;
+				}
+
 				if (doc_id > max_doc_id) {
 					max_doc_id = doc_id;
 				}
@@ -1676,13 +1836,25 @@ write_buffers:
 					dict_index_get_lock(buf->index));
 			}
 
-			row_merge_buf_write(buf, file, block);
+			if (buf->n_tuples > 0) {
 
-			if (!row_merge_write(file->fd, file->offset++,
-					     block)) {
-				err = DB_TEMP_FILE_WRITE_FAILURE;
-				trx->error_key_num = i;
-				break;
+				if (row_merge_file_create_if_needed(
+					file, tmpfd, buf->n_tuples, path) < 0) {
+					err = DB_OUT_OF_MEMORY;
+					trx->error_key_num = i;
+					break;
+				}
+
+				ut_ad(file->n_rec > 0);
+
+				row_merge_buf_write(buf, file, block);
+
+				if (!row_merge_write(file->fd, file->offset++,
+						     block)) {
+					err = DB_TEMP_FILE_WRITE_FAILURE;
+					trx->error_key_num = i;
+					break;
+				}
 			}
 
 			UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
@@ -1697,10 +1869,16 @@ write_buffers:
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
 						psort_info, row, ext,
-						&doc_id)))) {
+						&doc_id, conv_heap,
+						&exceed_page, trx)))) {
 					/* An empty buffer should have enough
 					room for at least one record. */
 					ut_error;
+				}
+
+				if (exceed_page) {
+					err = DB_TOO_BIG_RECORD;
+					break;
 				}
 
 				file->n_rec += rows_added;
@@ -1720,6 +1898,7 @@ write_buffers:
 
 func_exit:
 	mtr_commit(&mtr);
+
 	mem_heap_free(row_heap);
 
 	if (nonnull) {
@@ -1727,6 +1906,10 @@ func_exit:
 	}
 
 all_done:
+	if (conv_heap != NULL) {
+		mem_heap_free(conv_heap);
+	}
+
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
 #endif
@@ -2105,6 +2288,7 @@ row_merge(
 	/* Copy the last blocks, if there are any. */
 
 	while (foffs0 < ihalf) {
+
 		if (UNIV_UNLIKELY(trx_is_interrupted(trx))) {
 			return(DB_INTERRUPTED);
 		}
@@ -2121,6 +2305,7 @@ row_merge(
 	ut_ad(foffs0 == ihalf);
 
 	while (foffs1 < file->offset) {
+
 		if (trx_is_interrupted(trx)) {
 			return(DB_INTERRUPTED);
 		}
@@ -2203,10 +2388,23 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
+	/* Progress report only for "normal" indexes. */
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_init(trx->mysql_thd, 1);
+	}
+
 	/* Merge the runs until we have one big run */
 	do {
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset);
+
+		/* Report progress of merge sort to MySQL for
+		show processlist progress field only for
+		"normal" indexes. */
+		if (!(dup->index->type & DICT_FTS)) {
+			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
+
+		}
 
 		if (error != DB_SUCCESS) {
 			break;
@@ -2216,6 +2414,10 @@ row_merge_sort(
 	} while (num_runs > 1);
 
 	mem_free(run_offset);
+
+	if (!(dup->index->type & DICT_FTS)) {
+		thd_progress_end(trx->mysql_thd);
+	}
 
 	DBUG_RETURN(error);
 }
@@ -2928,14 +3130,15 @@ row_merge_drop_temp_indexes(void)
 	trx_free_for_background(trx);
 }
 
-/*********************************************************************//**
-Creates temporary merge files, and if UNIV_PFS_IO defined, register
-the file descriptor with Performance Schema.
-@return file descriptor, or -1 on failure */
+
+/** Create temporary merge files in the given paramater path, and if
+UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
+@param[in]	path	location for creating temporary merge files.
+@return File descriptor */
 UNIV_INTERN
 int
-row_merge_file_create_low(void)
-/*===========================*/
+row_merge_file_create_low(
+	const char*	path)
 {
 	int	fd;
 #ifdef UNIV_PFS_IO
@@ -2949,7 +3152,7 @@ row_merge_file_create_low(void)
 				     "Innodb Merge Temp File",
 				     __FILE__, __LINE__);
 #endif
-	fd = innobase_mysql_tmpfile();
+	fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd);
 #endif
@@ -2962,22 +3165,24 @@ row_merge_file_create_low(void)
 	return(fd);
 }
 
-/*********************************************************************//**
-Create a merge file.
+
+/** Create a merge file in the given location.
+@param[out]	merge_file	merge file structure
+@param[in]	path		location for creating temporary file
 @return file descriptor, or -1 on failure */
 UNIV_INTERN
 int
 row_merge_file_create(
-/*==================*/
-	merge_file_t*	merge_file)	/*!< out: merge file structure */
+	merge_file_t*	merge_file,
+	const char*	path)
 {
-	merge_file->fd = row_merge_file_create_low();
+	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
 
 	if (merge_file->fd >= 0) {
 		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
+			os_file_set_nocache(OS_FILE_FROM_FD(merge_file->fd),
 				"row0merge.cc", "sort");
 		}
 	}
@@ -3321,8 +3526,11 @@ row_merge_create_index(
 /*===================*/
 	trx_t*			trx,	/*!< in/out: trx (sets error_state) */
 	dict_table_t*		table,	/*!< in: the index is on this table */
-	const index_def_t*	index_def)
+	const index_def_t*	index_def,
 					/*!< in: the index definition */
+	const char**		col_names)
+					/*! in: column names if columns are
+					renamed or NULL */
 {
 	dict_index_t*	index;
 	dberr_t		err;
@@ -3342,9 +3550,24 @@ row_merge_create_index(
 
 	for (i = 0; i < n_fields; i++) {
 		index_field_t*	ifield = &index_def->fields[i];
-		const char * col_name = ifield->col_name ?
-			dict_table_get_col_name_for_mysql(table, ifield->col_name) :
-			dict_table_get_col_name(table, ifield->col_no);
+		const char * col_name;
+
+		/*
+		Alter table renaming a column and then adding a index
+		to this new name e.g ALTER TABLE t
+		CHANGE COLUMN b c INT NOT NULL, ADD UNIQUE INDEX (c);
+		requires additional check as column names are not yet
+		changed when new index definitions are created. Table's
+		new column names are on a array of column name pointers
+		if any of the column names are changed. */
+
+		if (col_names && col_names[i]) {
+			col_name = col_names[i];
+		} else {
+			col_name = ifield->col_name ?
+				dict_table_get_col_name_for_mysql(table, ifield->col_name) :
+				dict_table_get_col_name(table, ifield->col_no);
+		}
 
 		dict_mem_index_add_field(
 			index,
@@ -3471,7 +3694,7 @@ row_merge_build_indexes(
 
 	block_size = 3 * srv_sort_buf_size;
 	block = static_cast<row_merge_block_t*>(
-		os_mem_alloc_large(&block_size, FALSE));
+		os_mem_alloc_large(&block_size));
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
@@ -3491,10 +3714,6 @@ row_merge_build_indexes(
 	}
 
 	for (i = 0; i < n_indexes; i++) {
-		if (row_merge_file_create(&merge_files[i]) < 0) {
-			error = DB_OUT_OF_MEMORY;
-			goto func_exit;
-		}
 
 		if (indexes[i]->type & DICT_FTS) {
 			ibool	opt_doc_id_size = FALSE;
@@ -3523,13 +3742,6 @@ row_merge_build_indexes(
 		}
 	}
 
-	tmpfd = row_merge_file_create_low();
-
-	if (tmpfd < 0) {
-		error = DB_OUT_OF_MEMORY;
-		goto func_exit;
-	}
-
 	/* Reset the MySQL row buffer that is used when reporting
 	duplicate keys. */
 	innobase_rec_reset(table);
@@ -3541,7 +3753,7 @@ row_merge_build_indexes(
 		trx, table, old_table, new_table, online, indexes,
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, add_cols, col_map,
-		add_autoinc, sequence, block);
+		add_autoinc, sequence, block, &tmpfd);
 
 	if (error != DB_SUCCESS) {
 
@@ -3622,7 +3834,7 @@ wait_again:
 #ifdef FTS_INTERNAL_DIAG_PRINT
 			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
 #endif
-		} else {
+		} else if (merge_files[i].fd != -1) {
 			row_merge_dup_t	dup = {
 				sort_idx, table, col_map, 0};
 

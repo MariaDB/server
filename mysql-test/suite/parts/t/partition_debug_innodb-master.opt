@@ -1,1 +1,1 @@
---loose-innodb-file-format-check --loose-innodb-file-per-table=1 --skip-stack-trace --skip-core-file
+--loose-innodb-file-format-check --loose-innodb-file-per-table=1 --skip-stack-trace --skip-core-file --loose-innodb-buffer-pool-size=32M

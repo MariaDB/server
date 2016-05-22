@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2014, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -312,6 +313,21 @@ dict_table_autoinc_initialize(
 	dict_table_t*	table,	/*!< in/out: table */
 	ib_uint64_t	value)	/*!< in: next value to assign to a row */
 	__attribute__((nonnull));
+
+/** Store autoinc value when the table is evicted.
+@param[in]	table	table evicted */
+UNIV_INTERN
+void
+dict_table_autoinc_store(
+	const dict_table_t*	table);
+
+/** Restore autoinc value when the table is loaded.
+@param[in]	table	table loaded */
+UNIV_INTERN
+void
+dict_table_autoinc_restore(
+	dict_table_t*	table);
+
 /********************************************************************//**
 Reads the next autoinc value (== autoinc counter value), 0 if not yet
 initialized.
@@ -370,6 +386,15 @@ dict_table_remove_from_cache(
 /*=========================*/
 	dict_table_t*	table)	/*!< in, own: table */
 	__attribute__((nonnull));
+/**********************************************************************//**
+Removes a table object from the dictionary cache. */
+UNIV_INTERN
+void
+dict_table_remove_from_cache_low(
+/*=============================*/
+	dict_table_t*	table,		/*!< in, own: table */
+	ibool		lru_evict);	/*!< in: TRUE if table being evicted
+					to make room in the table LRU list */
 /**********************************************************************//**
 Renames a table object.
 @return	TRUE if success */
@@ -433,18 +458,6 @@ dict_foreign_add_to_cache(
 				/*!< in: error to be ignored */
 	__attribute__((nonnull(1), warn_unused_result));
 /*********************************************************************//**
-Check if the index is referenced by a foreign key, if TRUE return the
-matching instance NULL otherwise.
-@return pointer to foreign key struct if index is defined for foreign
-key, otherwise NULL */
-UNIV_INTERN
-dict_foreign_t*
-dict_table_get_referenced_constraint(
-/*=================================*/
-	dict_table_t*	table,	/*!< in: InnoDB table */
-	dict_index_t*	index)	/*!< in: InnoDB index */
-	__attribute__((nonnull, warn_unused_result));
-/*********************************************************************//**
 Checks if a table is referenced by foreign keys.
 @return	TRUE if table is referenced by a foreign key */
 UNIV_INTERN
@@ -477,19 +490,6 @@ dict_str_starts_with_keyword(
 	THD*		thd,		/*!< in: MySQL thread handle */
 	const char*	str,		/*!< in: string to scan for keyword */
 	const char*	keyword)	/*!< in: keyword to look for */
-	__attribute__((nonnull, warn_unused_result));
-/*********************************************************************//**
-Checks if a index is defined for a foreign key constraint. Index is a part
-of a foreign key constraint if the index is referenced by foreign key
-or index is a foreign key index
-@return pointer to foreign key struct if index is defined for foreign
-key, otherwise NULL */
-UNIV_INTERN
-dict_foreign_t*
-dict_table_get_foreign_constraint(
-/*==============================*/
-	dict_table_t*	table,	/*!< in: InnoDB table */
-	dict_index_t*	index)	/*!< in: InnoDB index */
 	__attribute__((nonnull, warn_unused_result));
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary
@@ -580,10 +580,17 @@ dict_foreign_find_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+			        	/*!< out: index where error
+					happened */
 	__attribute__((nonnull(1,3), warn_unused_result));
 /**********************************************************************//**
 Returns a column's name.
@@ -618,29 +625,25 @@ dict_table_print(
 /**********************************************************************//**
 Outputs info on foreign keys of a table. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_keys(
 /*============================*/
 	ibool		create_table_format, /*!< in: if TRUE then print in
 				a format suitable to be inserted into
 				a CREATE TABLE, otherwise in the format
 				of SHOW TABLE STATUS */
-	FILE*		file,	/*!< in: file where to print */
 	trx_t*		trx,	/*!< in: transaction */
-	dict_table_t*	table)	/*!< in: table */
-	__attribute__((nonnull));
+	dict_table_t*	table);	/*!< in: table */
 /**********************************************************************//**
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
 UNIV_INTERN
-void
+std::string
 dict_print_info_on_foreign_key_in_create_format(
 /*============================================*/
-	FILE*		file,		/*!< in: file where to print */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline)	/*!< in: whether to add a newline */
-	__attribute__((nonnull(1,3)));
+	ibool		add_newline);	/*!< in: whether to add a newline */
 /********************************************************************//**
 Displays the names of the index and the table. */
 UNIV_INTERN
@@ -675,10 +678,18 @@ dict_foreign_qualify_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+					/*!< out: index where error
+					happened */
+
 	__attribute__((nonnull(1,3), warn_unused_result));
 #ifdef UNIV_DEBUG
 /********************************************************************//**
@@ -1582,6 +1593,8 @@ extern dict_sys_t*	dict_sys;
 /** the data dictionary rw-latch protecting dict_sys */
 extern rw_lock_t	dict_operation_lock;
 
+typedef std::map<table_id_t, ib_uint64_t> autoinc_map_t;
+
 /* Dictionary system struct */
 struct dict_sys_t{
 	ib_prio_mutex_t		mutex;		/*!< mutex protecting the data
@@ -1616,6 +1629,8 @@ struct dict_sys_t{
 	UT_LIST_BASE_NODE_T(dict_table_t)
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
+	autoinc_map_t*	autoinc_map;	/*!< Map to store table id and autoinc
+					when table is evicted */
 };
 #endif /* !UNIV_HOTBACKUP */
 

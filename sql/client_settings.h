@@ -37,7 +37,7 @@
                              CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
                              CLIENT_CONNECT_ATTRS)
 
-#define read_user_name(A) {}
+#define read_user_name(A) A[0]= 0
 #undef _CUSTOMCONFIG_
 
 #define mysql_server_init(a,b,c) mysql_client_plugin_init()

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -835,6 +835,10 @@ not_consistent:
 
 		fprintf(stderr,
 			"InnoDB: No valid checkpoint found.\n"
+			"InnoDB: If you are attempting downgrade"
+			" from MySQL 5.7.9 or later,\n"
+			"InnoDB: please refer to " REFMAN
+			"upgrading-downgrading.html\n"
 			"InnoDB: If this error appears when you are"
 			" creating an InnoDB database,\n"
 			"InnoDB: the problem may be that during"
@@ -1933,7 +1937,7 @@ loop:
 		goto loop;
 	}
 
-	ut_ad(!allow_ibuf == mutex_own(&log_sys->mutex));
+	ut_ad((allow_ibuf == 0) == (mutex_own(&log_sys->mutex) != 0));
 
 	if (!allow_ibuf) {
 		recv_no_ibuf_operations = TRUE;
@@ -3097,7 +3101,7 @@ recv_recovery_from_checkpoint_start_func(
 #endif /* UNIV_LOG_ARCHIVE */
 	byte*		buf;
 	byte*		log_hdr_buf;
-	byte*		log_hdr_buf_base = static_cast<byte *>
+	byte*		log_hdr_buf_base = reinterpret_cast<byte *>
 		(alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE));
 	dberr_t		err;
 	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);

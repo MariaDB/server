@@ -929,6 +929,8 @@ a
 31
 32
 SET sql_slave_skip_counter= 1;
+ERROR HY000: When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
+include/stop_slave_io.inc
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
@@ -1649,6 +1651,64 @@ include/stop_slave.inc
 SET GLOBAL debug_dbug= @old_debg;
 SET GLOBAL max_relay_log_size= @old_max;
 include/start_slave.inc
+*** MDEV-8302: Duplicate key with parallel replication ***
+include/stop_slave.inc
+/* Inject a small sleep which makes the race easier to hit. */
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_mdev8302";
+INSERT INTO t7 VALUES (100,1), (101,2), (102,3), (103,4), (104,5);
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 20000;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET SESSION debug_dbug=@old_dbug;
+SELECT * FROM t7 ORDER BY a;
+a	b
+1	1
+2	2
+3	86
+4	4
+5	5
+100	5
+101	1
+102	2
+103	3
+104	4
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t7 ORDER BY a;
+a	b
+1	1
+2	2
+3	86
+4	4
+5	5
+100	5
+101	1
+102	2
+103	3
+104	4
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+include/start_slave.inc
+*** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 VALUES (200);
+INSERT INTO t2 VALUES (201);
+ROLLBACK;
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+a
+200
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
+a
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+a
+200
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
+a
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

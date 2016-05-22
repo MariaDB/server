@@ -548,6 +548,8 @@ err:
   if (maria_log_remove(maria_data_root))
     exit(1);
 
+  my_uuid_end();
+  my_free_open_file_info();
   my_end(0);
   return(exit_status());
 }

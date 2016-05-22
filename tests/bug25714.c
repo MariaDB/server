@@ -70,6 +70,7 @@ int main (int argc, char **argv)
          (long) mysql_insert_id(&conn));
 
   mysql_close(&conn);
+  mysql_server_end();
   my_end(0);
 
   return 0;

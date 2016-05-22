@@ -24,7 +24,9 @@ rootpass=""
 echo_n=
 echo_c=
 basedir=
-bindir=
+defaults_file=
+defaults_extra_file=
+no_defaults=
 
 parse_arg()
 {
@@ -47,8 +49,9 @@ parse_arguments()
   do
     case "$arg" in
       --basedir=*) basedir=`parse_arg "$arg"` ;;
-      --no-defaults|--defaults-file=*|--defaults-extra-file=*)
-        defaults="$arg" ;;
+      --defaults-file=*) defaults_file="$arg" ;;
+      --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
         then
@@ -155,8 +158,15 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+  mysql_command=`find_in_basedir mysql bin`
+  if test -z "$mysql_command"
+  then
+    cannot_find_file mysql $basedir/bin
+    exit 1
+  fi
 else
   print_defaults="@bindir@/my_print_defaults"
+  mysql_command="@bindir@/mysql"
 fi
 
 if test ! -x "$print_defaults"
@@ -165,28 +175,16 @@ then
   exit 1
 fi
 
-# Now we can get arguments from the group [client] and [client-server]
-# in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults client client-server client-mariadb`
-parse_arguments PICK-ARGS-FROM-ARGV "$@"
-
-# Configure paths to support files
-if test -n "$basedir"
+if test ! -x "$mysql_command"
 then
-  bindir="$basedir/bin"
-elif test -f "./bin/mysql"
-  then
-  bindir="./bin"
-else
-  bindir="@bindir@"
-fi
-
-mysql_command=`find_in_basedir mysql $bindir`
-if test -z "$mysql_command"
-then
-  cannot_find_file mysql $bindir
+  cannot_find_file "$mysql_command"
   exit 1
 fi
+
+# Now we can get arguments from the group [client] and [client-server]
+# in the my.cfg file, then re-run to merge with command line arguments.
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
+parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 set_echo_compat() {
     case `echo "testing\c"`,`echo -n testing` in
@@ -204,7 +202,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config <$command
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command
     return $?
 }
 
@@ -228,6 +226,10 @@ basic_single_escape () {
     echo "$1" | sed 's/\(['"'"'\]\)/\\\1/g'
 }
 
+#
+# create a simple my.cnf file to be able to pass the root password to the mysql
+# client without putting it on the command line
+#
 make_config() {
     echo "# mysql_secure_installation config file" >$config
     echo "[mysql]" >>$config
@@ -235,6 +237,12 @@ make_config() {
     esc_pass=`basic_single_escape "$rootpass"`
     echo "password='$esc_pass'" >>$config
     #sed 's,^,> ,' < $config  # Debugging
+
+    if test -n "$defaults_file"
+    then
+        dfile=`parse_arg "$defaults_file"`
+        cat "$dfile" >>$config
+    fi
 }
 
 get_root_password() {

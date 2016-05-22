@@ -618,7 +618,7 @@ executeCallback(int result, NdbConnection* NdbObject, void* aObject)
                 ndbout_c("execute: %s", NdbObject->getNdbError().message);
                  }//if(retCode == 3)
 
-	      //    ndbout << "Error occured in poll:" << endl;
+	      //    ndbout << "Error occurred in poll:" << endl;
 	      //    ndbout << NdbObject->getNdbError() << endl;
     failed++ ;
     return;

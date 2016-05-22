@@ -8107,7 +8107,7 @@ void Dbacc::seizeOverRec(Signal* signal) {
 
 
 /** 
- * A ZPAGESIZE_ERROR has occured, out of index pages
+ * A ZPAGESIZE_ERROR has occurred, out of index pages
  * Print some debug info if debug compiled
  */
 void Dbacc::zpagesize_error(const char* where){

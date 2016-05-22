@@ -1,3 +1,7 @@
+if (`select plugin_auth_version < "5.6.25" from information_schema.plugins where plugin_name='innodb'`)
+{
+  --skip Not fixed in InnoDB as of 5.6.24 or earlier
+}
 --source include/not_embedded.inc
 --source include/have_partition.inc
 --source include/have_innodb.inc
@@ -403,7 +407,7 @@ DROP TABLE t1;
 create table t1 (a int) engine=innodb partition by hash(a) ;
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status like 't1';
 drop table t1;
 
@@ -415,12 +419,12 @@ engine = innodb
 partition by key (a);
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status;
 insert into t1 values (0), (1), (2), (3);
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status;
 drop table t1;
 
@@ -429,17 +433,17 @@ engine = innodb
 partition by key (a);
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 # Data_free for InnoDB tablespace varies depending on which
 # tests have been run before this one
---replace_column 10 #
+--replace_column 10 # 12 #
 show table status;
 drop table t1;
 
@@ -675,6 +679,18 @@ ALTER TABLE t1 ADD UNIQUE KEY (b);
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
+--echo #
+--echo # Bug #17299181  CREATE_TIME AND UPDATE_TIME ARE
+--echo #                WRONG FOR PARTITIONED TABLES
+--echo #
+
+CREATE TABLE t1 (a int, PRIMARY KEY (a)) ENGINE=InnoDB
+PARTITION BY HASH (a) PARTITIONS 2;
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE
+CREATE_TIME IS NOT NULL AND TABLE_NAME='t1';
+
+DROP TABLE t1;
 
 --echo #
 --echo # BUG#12912171 - ASSERTION FAILED: QUICK->HEAD->READ_SET ==
@@ -840,3 +856,45 @@ INSERT INTO t3 SELECT * FROM t2 WHERE f3 = 'm' AND f2 ='c';
 DROP TABLE t1,t2,t3;
 
 set global default_storage_engine=default;
+
+--echo #
+--echo # Bug#13737949: CRASH IN HA_PARTITION::INDEX_INIT
+--echo # Bug#18694052: SERVER CRASH IN HA_PARTITION::INIT_RECORD_PRIORITY_QUEUE
+--echo #
+CREATE TABLE t1
+(a INT,
+ b INT,
+ PRIMARY KEY (a))
+ ENGINE = InnoDB
+ PARTITION BY HASH (a) PARTITIONS 3;
+ START TRANSACTION WITH CONSISTENT SNAPSHOT;
+ --connect (con1, localhost, root,,)
+ --echo # con1
+ ALTER TABLE t1 ADD INDEX idx1 (b);
+ --connection default
+ --echo # con default
+ --error ER_TABLE_DEF_CHANGED
+ SELECT b FROM t1 WHERE b = 0;
+ --error ER_TABLE_DEF_CHANGED
+ SELECT b FROM t1 WHERE b = 0;
+ --disconnect con1
+ DROP TABLE t1;
+
+--echo # Same test without partitioning
+CREATE TABLE t1
+(a INT,
+ b INT,
+ PRIMARY KEY (a))
+ ENGINE = InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--echo # con1
+--connect (con1, localhost, root,,)
+ALTER TABLE t1 ADD INDEX idx1 (b);
+--connection default
+--echo # con default
+--error ER_TABLE_DEF_CHANGED
+SELECT b FROM t1 WHERE b = 0;
+--error ER_TABLE_DEF_CHANGED
+SELECT b FROM t1 WHERE b = 0;
+--disconnect con1
+DROP TABLE t1;

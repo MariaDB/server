@@ -4083,7 +4083,7 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 {
   const char *db= (dbn && *dbn) ? dbn : NULL;
   TABTYPE     type=GetRealType(options);
@@ -4110,6 +4110,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_VEC:
     case TAB_JSON:
       if (options->filename && *options->filename) {
+        if (!quick) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(__WIN__)
         s= "\\";
@@ -4128,7 +4129,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
           my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
           return true;
           } // endif path
-
+        }
       } else
         return false;
 
@@ -4151,10 +4152,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
         Otherwise it's a DML, the table was normally opened, locked,
         privilege were already checked, and table->grant.privilege is set.
         With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+
+        Unless we're in prelocking mode, in this case table->grant.privilege
+        is only checked in start_stmt(), not in external_lock().
       */
       if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
         return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-      if (table->grant.privilege & FILE_ACL)
+      if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
         return false;
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(access_denied_error_code(thd->password), MYF(0),
@@ -4337,6 +4341,9 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   MODE    newmode;
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
+
+  if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
   switch (lock_type) {
@@ -5149,7 +5156,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char       *nsp= NULL, *cls= NULL;
 #endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0, lrecl= 0;
+  int         cop __attribute__((unused))= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop= NULL;
   char       *ucnc= NULL;

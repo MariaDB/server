@@ -28,7 +28,9 @@ Created 11/5/1995 Heikki Tuuri
 
 #include "univ.i"
 #ifndef UNIV_HOTBACKUP
+#ifndef UNIV_INNOCHECKSUM
 #include "ut0byte.h"
+#endif
 #include "buf0types.h"
 
 // Forward declaration

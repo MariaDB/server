@@ -23,7 +23,7 @@
 
 #define ROW_LEN		16
 #define ROW16_LEN	8
-#define MAX_BUF		64*1024
+#define MAX_BUF		(64*1024)
 
 static struct charset_info_st all_charsets[512];
 

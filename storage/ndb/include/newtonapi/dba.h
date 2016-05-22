@@ -124,7 +124,7 @@ typedef enum {
   
   DBA_SCHEMA_ERROR = 4,        /**< Table already exists */
   DBA_INSUFFICIENT_SPACE = 5,  /**< The DB is full */
-  DBA_TEMPORARY_ERROR = 6,     /**< Some temporary problem occured */
+  DBA_TEMPORARY_ERROR = 6,     /**< Some temporary problem occurred */
   DBA_TIMEOUT = 7,             /**< The request timed out, probably due to 
 				  dead-lock */
   DBA_OVERLOAD = 8,            /**< The DB is overloaded */

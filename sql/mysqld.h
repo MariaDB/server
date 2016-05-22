@@ -1,4 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,6 +60,7 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);
+void signal_thd_deleted();
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
@@ -305,7 +307,7 @@ extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
-  key_COND_rpl_thread_pool,
+  key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
@@ -454,6 +456,9 @@ extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
 extern PSI_stage_info stage_waiting_for_workers_idle;
+extern PSI_stage_info stage_waiting_for_ftwrl;
+extern PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause;
+extern PSI_stage_info stage_waiting_for_rpl_thread_pool;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
 extern PSI_stage_info stage_gtid_wait_other_connection;
@@ -528,6 +533,7 @@ extern mysql_mutex_t
        LOCK_slave_init;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
+extern char* des_key_file;
 extern mysql_mutex_t LOCK_des_key_file;
 #endif
 extern mysql_mutex_t LOCK_server_started;
@@ -538,7 +544,7 @@ extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
-extern int32 thread_count;
+extern int32 thread_count, service_thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
 extern my_atomic_rwlock_t slave_executed_entries_lock;
 
@@ -617,7 +623,13 @@ enum enum_query_type
   /// Without character set introducers.
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
-  QT_VIEW_INTERNAL= (1 << 2)
+  QT_VIEW_INTERNAL= (1 << 2),
+  /**
+    If an expression is constant, print the expression, not the value
+    it evaluates to. Should be used for error messages, so that they
+    don't reveal values.
+  */
+  QT_NO_DATA_EXPANSION= (1 << 9),
 };
 
 /* query_id */

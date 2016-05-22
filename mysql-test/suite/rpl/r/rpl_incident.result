@@ -16,9 +16,9 @@ a
 2
 3
 4
-call mtr.add_suppression("Slave SQL.*The incident LOST_EVENTS occured on the master.* 1590");
+call mtr.add_suppression("Slave SQL.*The incident LOST_EVENTS occurred on the master.* 1590");
 include/wait_for_slave_sql_error.inc [errno=1590]
-Last_SQL_Error = 'The incident LOST_EVENTS occured on the master. Message: <none>'
+Last_SQL_Error = 'The incident LOST_EVENTS occurred on the master. Message: <none>'
 **** On Slave ****
 SELECT * FROM t1;
 a

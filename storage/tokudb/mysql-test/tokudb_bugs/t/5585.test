@@ -1,13 +1,11 @@
 --source include/have_innodb.inc
 --source include/have_tokudb.inc
---source include/big_test.inc
 
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings
 
-set local default_storage_engine=innodb;
-set local storage_engine=innodb;
+set default_storage_engine=innodb;
 
 create table t1 (
   file_id bigint unsigned not null auto_increment primary key,

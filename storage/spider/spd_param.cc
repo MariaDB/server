@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -176,6 +176,29 @@ my_bool spider_param_connect_mutex()
 {
   DBUG_ENTER("spider_param_connect_mutex");
   DBUG_RETURN(spider_connect_mutex);
+}
+
+static uint spider_connect_error_interval;
+/*
+  0-: interval
+ */
+static MYSQL_SYSVAR_UINT(
+  connect_error_interval,
+  spider_connect_error_interval,
+  PLUGIN_VAR_RQCMDARG,
+  "Return same error code until interval passes if connection is failed",
+  NULL,
+  NULL,
+  1,
+  0,
+  4294967295U,
+  0
+);
+
+uint spider_param_connect_error_interval()
+{
+  DBUG_ENTER("spider_param_connect_error_interval");
+  DBUG_RETURN(spider_connect_error_interval);
 }
 
 static uint spider_table_init_error_interval;
@@ -3120,6 +3143,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(dry_access),
   MYSQL_SYSVAR(delete_all_rows_type),
   MYSQL_SYSVAR(bka_table_name_type),
+  MYSQL_SYSVAR(connect_error_interval),
   NULL
 };
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,12 +66,6 @@ UNIV_INTERN bool buf_lru_manager_is_active = false;
 UNIV_INTERN mysql_pfs_key_t buf_page_cleaner_thread_key;
 UNIV_INTERN mysql_pfs_key_t buf_lru_manager_thread_key;
 #endif /* UNIV_PFS_THREAD */
-
-/** If LRU list of a buf_pool is less than this size then LRU eviction
-should not happen. This is because when we do LRU flushing we also put
-the blocks on free list. If LRU list is very small then we can end up
-in thrashing. */
-#define BUF_LRU_MIN_LEN		256
 
 /* @} */
 
@@ -931,11 +925,11 @@ buf_flush_write_block_low(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
+		mach_write_to_8(frame + FIL_PAGE_LSN,
+				bpage->newest_modification);
 
 		ut_a(page_zip_verify_checksum(frame, zip_size));
 
-		mach_write_to_8(frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
 		memset(frame + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
@@ -2202,7 +2196,7 @@ Clears up tail of the LRU lists:
 * Flush dirty pages at the tail of LRU to the disk
 The depth to which we scan each buffer pool is controlled by dynamic
 config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
+@return number of pages flushed */
 UNIV_INTERN
 ulint
 buf_flush_LRU_tail(void)
@@ -2306,7 +2300,6 @@ buf_flush_LRU_tail(void)
 			MONITOR_LRU_BATCH_PAGES,
 			total_flushed);
 	}
-
 	return(total_flushed);
 }
 
@@ -2610,19 +2603,24 @@ static
 void
 page_cleaner_adapt_lru_sleep_time(
 /*==============================*/
-	ulint*	lru_sleep_time)	/*!< in/out: desired page cleaner thread sleep
+	ulint*	lru_sleep_time,	/*!< in/out: desired page cleaner thread sleep
 				time for LRU flushes  */
+	ulint	lru_n_flushed) /*!< in: number of flushed in previous batch */
+
 {
 	ulint free_len = buf_get_total_free_list_length();
 	ulint max_free_len = srv_LRU_scan_depth * srv_buf_pool_instances;
 
-	if (free_len < max_free_len / 100) {
+	if (free_len < max_free_len / 100 && lru_n_flushed) {
 
-		/* Free lists filled less than 1%, no sleep */
+		/* Free lists filled less than 1%
+		and iteration was able to flush, no sleep */
 		*lru_sleep_time = 0;
-	} else if (free_len > max_free_len / 5) {
+	} else if (free_len > max_free_len / 5
+		   || (free_len < max_free_len / 100 && lru_n_flushed == 0)) {
 
-		/* Free lists filled more than 20%, sleep a bit more */
+		/* Free lists filled more than 20%
+		or no pages flushed in previous batch, sleep a bit more */
 		*lru_sleep_time += 50;
 		if (*lru_sleep_time > srv_cleaner_max_lru_time)
 			*lru_sleep_time = srv_cleaner_max_lru_time;
@@ -2825,6 +2823,7 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 {
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	lru_sleep_time = srv_cleaner_max_lru_time;
+	ulint	lru_n_flushed = 1;
 
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(buf_lru_manager_thread_key);
@@ -2847,26 +2846,15 @@ DECLARE_THREAD(buf_flush_lru_manager_thread)(
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE
 	       || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP) {
 
-		ulint n_flushed_lru;
-
 		srv_current_thread_priority = srv_cleaner_thread_priority;
 
 		page_cleaner_sleep_if_needed(next_loop_time);
 
-		page_cleaner_adapt_lru_sleep_time(&lru_sleep_time);
+		page_cleaner_adapt_lru_sleep_time(&lru_sleep_time, lru_n_flushed);
 
 		next_loop_time = ut_time_ms() + lru_sleep_time;
 
-		n_flushed_lru = buf_flush_LRU_tail();
-
-		if (n_flushed_lru) {
-
-			MONITOR_INC_VALUE_CUMULATIVE(
-				MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
-				MONITOR_FLUSH_BACKGROUND_COUNT,
-				MONITOR_FLUSH_BACKGROUND_PAGES,
-				n_flushed_lru);
-		}
+		lru_n_flushed = buf_flush_LRU_tail();
 	}
 
 	buf_lru_manager_is_active = false;

@@ -364,7 +364,7 @@ err:
 
   RETURN
     0 - ok
-    1 - error occured
+    1 - error occurred
 */
 
 static int handle_default_option(void *in_ctx, const char *group_name,
@@ -577,6 +577,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
                                      handle_default_option, (void *) &ctx,
                                      dirs)))
   {
+    delete_dynamic(&args);
     free_root(&alloc,MYF(0));
     DBUG_RETURN(error);
   }

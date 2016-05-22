@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include "sql_priv.h"                /* STRING_BUFFER_USUAL_SIZE */
 #include "unireg.h"
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "field.h"                              /* Derivation */
 
@@ -524,7 +523,7 @@ public:
 
     RETURN
       FALSE if parameter value has been set,
-      TRUE if error has occured.
+      TRUE if error has occurred.
   */
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it)= 0;
 
@@ -657,7 +656,7 @@ public:
   */
   uint name_length;                     /* Length of name */
   uint decimals;
-  int8 marker;
+  int  marker;
   bool maybe_null;			/* If item may be null */
   bool in_rollup;                       /* If used in GROUP BY list
                                            of a query with ROLLUP */ 
@@ -2364,7 +2363,7 @@ public:
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(cs, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
@@ -2514,7 +2513,7 @@ public:
 
   /*
     If value for parameter was not set we treat it as non-const
-    so noone will use parameters value in fix_fields still
+    so no one will use parameters value in fix_fields still
     parameter is constant during execution.
   */
   virtual table_map used_tables() const
@@ -3356,6 +3355,7 @@ class Item_ref :public Item_ident
 {
 protected:
   void set_properties();
+  bool set_properties_only; // the item doesn't need full fix_fields
 public:
   enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
   Field *result_field;			 /* Save result here */
@@ -3365,7 +3365,7 @@ public:
            const char *db_arg, const char *table_name_arg,
            const char *field_name_arg)
     :Item_ident(context_arg, db_arg, table_name_arg, field_name_arg),
-    result_field(0), ref(0), reference_trough_name(1) {}
+    set_properties_only(0), result_field(0), ref(0), reference_trough_name(1) {}
   /*
     This constructor is used in two scenarios:
     A) *item = NULL
@@ -3388,7 +3388,7 @@ public:
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
-    :Item_ident(thd, item), result_field(item->result_field), ref(item->ref) {}
+    :Item_ident(thd, item), set_properties_only(0), result_field(item->result_field), ref(item->ref) {}
   enum Type type() const		{ return REF_ITEM; }
   enum Type real_type() const           { return ref ? (*ref)->type() :
                                           REF_ITEM; }
@@ -3770,6 +3770,8 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   Item *get_tmp_table_item(THD *thd)
   {
+    if (const_item())
+      return copy_or_same(thd);
     Item *item= Item_ref::get_tmp_table_item(thd);
     item->name= name;
     return item;
@@ -4477,7 +4479,6 @@ class Item_cache: public Item_basic_constant
 {
 protected:
   Item *example;
-  table_map used_table_map;
   /**
     Field that this object will get value from. This is used by 
     index-based subquery engines to detect and remove the equality injected 
@@ -4495,7 +4496,7 @@ protected:
   bool value_cached;
 public:
   Item_cache():
-    example(0), used_table_map(0), cached_field(0),
+    example(0), cached_field(0),
     cached_field_type(MYSQL_TYPE_STRING),
     value_cached(0)
   {
@@ -4504,7 +4505,7 @@ public:
     null_value= 1;
   }
   Item_cache(enum_field_types field_type_arg):
-    example(0), used_table_map(0), cached_field(0),
+    example(0), cached_field(0),
     cached_field_type(field_type_arg),
     value_cached(0)
   {
@@ -4512,8 +4513,6 @@ public:
     maybe_null= 1;
     null_value= 1;
   }
-
-  void set_used_tables(table_map map) { used_table_map= map; }
 
   virtual bool allocate(uint i) { return 0; }
   virtual bool setup(Item *item)
@@ -4531,7 +4530,6 @@ public:
   enum_field_types field_type() const { return cached_field_type; }
   static Item_cache* get_cache(const Item *item);
   static Item_cache* get_cache(const Item* item, const Item_result type);
-  table_map used_tables() const { return used_table_map; }
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
   bool eq_def(Field *field) 
@@ -4582,6 +4580,7 @@ public:
       return TRUE;
     return (this->*processor)(arg);
   }
+  virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
 };
 
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2858,6 +2858,48 @@ fil_make_isl_name(
 	return(filename);
 }
 
+/** Test if a tablespace file can be renamed to a new filepath by checking
+if that the old filepath exists and the new filepath does not exist.
+@param[in]	space_id	tablespace id
+@param[in]	old_path	old filepath
+@param[in]	new_path	new filepath
+@param[in]	is_discarded	whether the tablespace is discarded
+@return innodb error code */
+dberr_t
+fil_rename_tablespace_check(
+	ulint		space_id,
+	const char*	old_path,
+	const char*	new_path,
+	bool		is_discarded)
+{
+	ulint	exists = false;
+	os_file_type_t	ftype;
+
+	if (!is_discarded
+	    && os_file_status(old_path, &exists, &ftype)
+	    && !exists) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Cannot rename '%s' to '%s' for space ID %lu"
+			" because the source file does not exist.",
+			old_path, new_path, space_id);
+
+		return(DB_TABLESPACE_NOT_FOUND);
+	}
+
+	exists = false;
+	if (!os_file_status(new_path, &exists, &ftype) || exists) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Cannot rename '%s' to '%s' for space ID %lu"
+			" because the target file exists."
+			" Remove the target file and try again.",
+			old_path, new_path, space_id);
+
+		return(DB_TABLESPACE_EXISTS);
+	}
+
+	return(DB_SUCCESS);
+}
+
 /*******************************************************************//**
 Renames a single-table tablespace. The tablespace must be cached in the
 tablespace memory cache.
@@ -5018,12 +5060,15 @@ retry:
 		os_offset_t	offset
 			= ((os_offset_t) (start_page_no - file_start_page_no))
 			* page_size;
+
+		const char* name = node->name == NULL ? space->name : node->name;
+
 #ifdef UNIV_HOTBACKUP
-		success = os_file_write(node->name, node->handle, buf,
+		success = os_file_write(name, node->handle, buf,
 					offset, page_size * n_pages);
 #else
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
-				 node->name, node->handle, buf,
+				 name, node->handle, buf,
 				 offset, page_size * n_pages,
 				 NULL, NULL, space_id, NULL);
 #endif /* UNIV_HOTBACKUP */
@@ -5477,9 +5522,10 @@ _fil_io(
 
 	space = fil_space_get_by_id(space_id);
 
-	/* If we are deleting a tablespace we don't allow any read
-	operations on that. However, we do allow write operations. */
-	if (space == 0 || (type == OS_FILE_READ && space->stop_new_ops)) {
+	/* If we are deleting a tablespace we don't allow async read operations
+	on that. However, we do allow write and sync read operations */
+	if (space == 0
+	    || (type == OS_FILE_READ && !sync && space->stop_new_ops)) {
 		mutex_exit(&fil_system->mutex);
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -5621,7 +5667,9 @@ _fil_io(
 	}
 
 	/* Queue the aio request */
-	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
+	const char* name = node->name == NULL ? space->name : node->name;
+
+	ret = os_aio(type, mode | wake_later, name, node->handle, buf,
 		offset, len, node, message, space_id, trx);
 
 #else
@@ -5630,7 +5678,7 @@ _fil_io(
 		ret = os_file_read(node->handle, buf, offset, len);
 	} else {
 		ut_ad(!srv_read_only_mode);
-		ret = os_file_write(node->name, node->handle, buf,
+		ret = os_file_write(name, node->handle, buf,
 				    offset, len);
 	}
 #endif /* !UNIV_HOTBACKUP */
@@ -5650,9 +5698,9 @@ _fil_io(
 
 	if (!ret) {
 		return(DB_OUT_OF_FILE_SPACE);
-	} else {
-		return(DB_SUCCESS);
 	}
+
+	return(DB_SUCCESS);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -6479,31 +6527,110 @@ fil_get_space_names(
 	return(err);
 }
 
-/****************************************************************//**
-Generate redo logs for swapping two .ibd files */
+/** Generate redo log for swapping two .ibd files
+@param[in]	old_table	old table
+@param[in]	new_table	new table
+@param[in]	tmp_name	temporary table name
+@param[in,out]	mtr		mini-transaction
+@return innodb error code */
 UNIV_INTERN
-void
+dberr_t
 fil_mtr_rename_log(
-/*===============*/
-	ulint		old_space_id,	/*!< in: tablespace id of the old
-					table. */
-	const char*	old_name,	/*!< in: old table name */
-	ulint		new_space_id,	/*!< in: tablespace id of the new
-					table */
-	const char*	new_name,	/*!< in: new table name */
-	const char*	tmp_name,	/*!< in: temp table name used while
-					swapping */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	const dict_table_t*	old_table,
+	const dict_table_t*	new_table,
+	const char*		tmp_name,
+	mtr_t*			mtr)
 {
-	if (old_space_id != TRX_SYS_SPACE) {
-		fil_op_write_log(MLOG_FILE_RENAME, old_space_id,
-				 0, 0, old_name, tmp_name, mtr);
+	dberr_t	err = DB_SUCCESS;
+	char*	old_path;
+
+	/* If neither table is file-per-table,
+	there will be no renaming of files. */
+	if (old_table->space == TRX_SYS_SPACE
+	    && new_table->space == TRX_SYS_SPACE) {
+		return(DB_SUCCESS);
 	}
 
-	if (new_space_id != TRX_SYS_SPACE) {
-		fil_op_write_log(MLOG_FILE_RENAME, new_space_id,
-				 0, 0, new_name, old_name, mtr);
+	if (DICT_TF_HAS_DATA_DIR(old_table->flags)) {
+		old_path = os_file_make_remote_pathname(
+			old_table->data_dir_path, old_table->name, "ibd");
+	} else {
+		old_path = fil_make_ibd_name(old_table->name, false);
 	}
+	if (old_path == NULL) {
+		return(DB_OUT_OF_MEMORY);
+	}
+
+	if (old_table->space != TRX_SYS_SPACE) {
+		char*	tmp_path;
+
+		if (DICT_TF_HAS_DATA_DIR(old_table->flags)) {
+			tmp_path = os_file_make_remote_pathname(
+				old_table->data_dir_path, tmp_name, "ibd");
+		}
+		else {
+			tmp_path = fil_make_ibd_name(tmp_name, false);
+		}
+
+		if (tmp_path == NULL) {
+			mem_free(old_path);
+			return(DB_OUT_OF_MEMORY);
+		}
+
+		/* Temp filepath must not exist. */
+		err = fil_rename_tablespace_check(
+			old_table->space, old_path, tmp_path,
+			dict_table_is_discarded(old_table));
+		mem_free(tmp_path);
+		if (err != DB_SUCCESS) {
+			mem_free(old_path);
+			return(err);
+		}
+
+		fil_op_write_log(MLOG_FILE_RENAME, old_table->space,
+				 0, 0, old_table->name, tmp_name, mtr);
+	}
+
+	if (new_table->space != TRX_SYS_SPACE) {
+
+		/* Destination filepath must not exist unless this ALTER
+		TABLE starts and ends with a file_per-table tablespace. */
+		if (old_table->space == TRX_SYS_SPACE) {
+			char*	new_path = NULL;
+
+			if (DICT_TF_HAS_DATA_DIR(new_table->flags)) {
+				new_path = os_file_make_remote_pathname(
+					new_table->data_dir_path,
+					new_table->name, "ibd");
+			}
+			else {
+				new_path = fil_make_ibd_name(
+					new_table->name, false);
+			}
+
+			if (new_path == NULL) {
+				mem_free(old_path);
+				return(DB_OUT_OF_MEMORY);
+			}
+
+			err = fil_rename_tablespace_check(
+				new_table->space, new_path, old_path,
+				dict_table_is_discarded(new_table));
+			mem_free(new_path);
+			if (err != DB_SUCCESS) {
+				mem_free(old_path);
+				return(err);
+			}
+		}
+
+		fil_op_write_log(MLOG_FILE_RENAME, new_table->space,
+				 0, 0, new_table->name, old_table->name, mtr);
+
+	}
+
+	mem_free(old_path);
+
+	return(err);
 }
 
 /*************************************************************************

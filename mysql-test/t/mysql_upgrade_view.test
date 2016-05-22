@@ -8,6 +8,35 @@ drop view if exists t1,v1,v2,v3,v4,v1badcheck;
 
 create table t1(a int);
 create table kv(k varchar(30) NOT NULL PRIMARY KEY,v  varchar(50));
+create view v1 as select 1;
+
+repair table t1 quick;
+repair table t1 extended;
+repair table t1 use_frm;
+--error ER_PARSE_ERROR
+repair table t1 from mysql;
+
+--error ER_PARSE_ERROR
+repair view v1 quick;
+--error ER_PARSE_ERROR
+repair view v1 extended;
+--error ER_PARSE_ERROR
+repair view v1 use_frm;
+repair view v1 from mysql;
+
+--error ER_PARSE_ERROR
+check view v1 quick;
+--error ER_PARSE_ERROR
+check view v1 fast;
+--error ER_PARSE_ERROR
+check view v1 medium;
+--error ER_PARSE_ERROR
+check view v1 extended;
+--error ER_PARSE_ERROR
+check view v1 changed;
+check view v1 for upgrade;
+
+drop view v1;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -128,5 +157,30 @@ rename table mysql.ev_bk to mysql.event;
 
 drop table if exists kv;
 drop view v1,v2,v3,v4;
-drop table t1;
 
+#
+# MDEV-9453 mysql_upgrade.exe error when mysql is migrated to mariadb
+# (mysql_upgrade.exe --upgrade-system-tables fails on fixing views)
+#
+
+# Make it look like a MySQL directory again
+
+rename table mysql.event to mysql.ev_bk;
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYI $MYSQLD_DATADIR/mysql/event.MYI
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.MYD $MYSQLD_DATADIR/mysql/event.MYD
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/event.frm $MYSQLD_DATADIR/mysql/event.frm
+
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v1.frm $MYSQLD_DATADIR/test/v1.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v2.frm $MYSQLD_DATADIR/test/v2.frm
+--copy_file $MYSQL_TEST_DIR/std_data/mysql_upgrade/v3.frm $MYSQLD_DATADIR/test/v3.frm
+
+flush tables;
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force --upgrade-system-tables 2>&1
+
+# back to mariadb default
+drop table mysql.event;
+rename table mysql.ev_bk to mysql.event;
+drop view v1,v2,v3;
+drop table t1;

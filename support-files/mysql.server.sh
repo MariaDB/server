@@ -114,12 +114,6 @@ mode=$1    # start or stop
 
 [ $# -ge 1 ] && shift
 
-
-other_args="$*"   # uncommon, but needed when called from an RPM upgrade action
-           # Expected: "--skip-networking --skip-grant-tables"
-           # They are not checked here, intentionally, as it is the resposibility
-           # of the "spec" file author to give correct arguments only.
-
 case `echo "testing\c"`,`echo -n testing` in
     *c*,-n*) echo_n=   echo_c=     ;;
     *c*,*)   echo_n=-n echo_c=     ;;
@@ -210,7 +204,8 @@ else
   fi
 fi
 
-parse_server_arguments `$print_defaults $extra_args mysqld server mysql_server mysql.server`
+parse_server_arguments `$print_defaults $extra_args --mysqld mysql.server`
+parse_server_arguments "$@"
 
 # wait for the pid file to disappear
 wait_for_gone () {
@@ -308,7 +303,7 @@ case "$mode" in
     then
       # Give extra arguments to mysqld with the my.cnf file. This script
       # may be overwritten at next upgrade.
-      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" $other_args >/dev/null 2>&1 &
+      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" "$@" >/dev/null 2>&1 &
       wait_for_ready; return_value=$?
 
       # Make lock for RedHat / SuSE
@@ -356,8 +351,8 @@ case "$mode" in
   'restart')
     # Stop the service and regardless of whether it was
     # running or not, start it again.
-    if $0 stop  $other_args; then
-      $0 start $other_args
+    if $0 stop  "$@"; then
+      $0 start "$@"
     else
       log_failure_msg "Failed to stop running server, so refusing to try to start."
       exit 1

@@ -50,7 +50,7 @@ extern ulong my_time_to_wait_for_lock;
 #define ALARM_INIT
 #define ALARM_END
 #define ALARM_TEST (alarm_pos++ >= alarm_end_pos)
-#define ALARM_REINIT alarm_end_pos+=MY_HOW_OFTEN_TO_WRITE
+#define ALARM_REINIT (alarm_end_pos+=MY_HOW_OFTEN_TO_WRITE)
 #endif /* HAVE_ALARM */
 
 #ifdef	__cplusplus

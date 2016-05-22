@@ -200,7 +200,7 @@ struct PFS_global_param
   /** Maximum number of session attribute strings per thread */
   long m_session_connect_attrs_sizing;
 
-  uint m_max_digest_length;
+  long m_max_digest_length;
 
   /** Sizing hints, for auto tuning. */
   PFS_sizing_hints m_hints;

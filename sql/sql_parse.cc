@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"        // sql_kill, *_precheck, *_prepare
 #include "lock.h"             // try_transactional_lock,
                               // check_transactional_lock,
@@ -670,7 +669,7 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 static void handle_bootstrap_impl(THD *thd)
 {
   MYSQL_FILE *file= bootstrap_file;
-  DBUG_ENTER("handle_bootstrap");
+  DBUG_ENTER("handle_bootstrap_impl");
 
 #ifndef EMBEDDED_LIBRARY
   pthread_detach_this_thread();
@@ -1178,6 +1177,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #ifdef HAVE_REPLICATION
   case COM_REGISTER_SLAVE:
   {
+    status_var_increment(thd->status_var.com_register_slave);
     if (!register_slave(thd, (uchar*)packet, packet_length))
       my_ok(thd);
     break;
@@ -3533,7 +3533,10 @@ end_with_restore_list:
                                                  lex->duplicates,
                                                  lex->ignore)))
       {
-	res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
+        if (explain)
+          res= mysql_explain_union(thd, &thd->lex->unit, sel_result);
+        else
+          res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
         /*
           Invalidate the table in the query cache if something changed
           after unlocking when changes become visible.
@@ -3548,6 +3551,16 @@ end_with_restore_list:
           first_table->next_local= 0;
           query_cache_invalidate3(thd, first_table, 1);
           first_table->next_local= save_table;
+        }
+        if (explain)
+        {
+          /*
+            sel_result needs to be cleaned up properly.
+            INSERT... SELECT statement will call either send_eof() or
+            abort_result_set(). EXPLAIN doesn't call either, so we need
+            to cleanup manually.
+          */
+          sel_result->abort_result_set();
         }
         delete sel_result;
       }
@@ -4271,6 +4284,19 @@ end_with_restore_list:
       break;
     }
 
+#ifdef HAVE_REPLICATION
+    if (lex->type & REFRESH_READ_LOCK)
+    {
+      /*
+        We need to pause any parallel replication slave workers during FLUSH
+        TABLES WITH READ LOCK. Otherwise we might cause a deadlock, as
+        worker threads eun run in arbitrary order but need to commit in a
+        specific given order.
+      */
+      if (rpl_pause_for_ftwrl(thd))
+        goto error;
+    }
+#endif
     /*
       reload_acl_and_cache() will tell us if we are allowed to write to the
       binlog or not.
@@ -4301,6 +4327,10 @@ end_with_restore_list:
       if (!res)
         my_ok(thd);
     } 
+#ifdef HAVE_REPLICATION
+    if (lex->type & REFRESH_READ_LOCK)
+      rpl_unpause_after_ftwrl(thd);
+#endif
     
     break;
   }
@@ -4344,21 +4374,10 @@ end_with_restore_list:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
-    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
-        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
-      grant_user->user= current_user;
-
-    if (grant_user->user.str == current_user.str ||
-        grant_user->user.str == current_role.str ||
-        grant_user->user.str == current_user_and_current_role.str ||
-        !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
-    {
-      res = mysql_show_grants(thd, grant_user);
-    }
+    res = mysql_show_grants(thd, grant_user);
     break;
   }
 #endif
@@ -5812,9 +5831,12 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
   for (; i < number && tables != first_not_own_table && tables;
        tables= tables->next_global, i++)
   {
+    TABLE_LIST *const table_ref= tables->correspondent_table ?
+      tables->correspondent_table : tables;
+
     ulong want_access= requirements;
-    if (tables->security_ctx)
-      sctx= tables->security_ctx;
+    if (table_ref->security_ctx)
+      sctx= table_ref->security_ctx;
     else
       sctx= backup_ctx;
 
@@ -5822,26 +5844,26 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
        Register access for view underlying table.
        Remove SHOW_VIEW_ACL, because it will be checked during making view
      */
-    tables->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
+    table_ref->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
 
-    if (tables->schema_table_reformed)
+    if (table_ref->schema_table_reformed)
     {
-      if (check_show_access(thd, tables))
+      if (check_show_access(thd, table_ref))
         goto deny;
       continue;
     }
 
-    DBUG_PRINT("info", ("derived: %d  view: %d", tables->derived != 0,
-                        tables->view != 0));
+    DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
+                        table_ref->view != 0));
 
-    if (tables->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table())
       continue;
 
     thd->security_ctx= sctx;
 
-    if (check_access(thd, want_access, tables->get_db_name(),
-                     &tables->grant.privilege,
-                     &tables->grant.m_internal,
+    if (check_access(thd, want_access, table_ref->get_db_name(),
+                     &table_ref->grant.privilege,
+                     &table_ref->grant.m_internal,
                      0, no_errors))
       goto deny;
   }
@@ -6007,6 +6029,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
                                 temporary table flag)
   @param alter_info    [in]     Initial list of columns and indexes for the
                                 table to be created
+  @param create_db     [in]     Database of the created table
 
   @retval
    false  ok.
@@ -6015,7 +6038,8 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 */
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
-                                  Alter_info *alter_info)
+                                  Alter_info *alter_info,
+                                  const char* create_db)
 {
   Key *key;
   List_iterator<Key> key_iterator(alter_info->key_list);
@@ -6055,10 +6079,28 @@ bool check_fk_parent_table_access(THD *thd,
           return true;
         }
       }
-      else if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
-        return true;
       else
-        is_qualified_table_name= false;
+      {
+        if (!thd->db)
+        {
+          db_name.str= (char *) thd->memdup(create_db, strlen(create_db)+1);
+          db_name.length= strlen(create_db);
+          is_qualified_table_name= true;
+
+          if(create_db && check_db_name(&db_name))
+          {
+            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+            return true;
+          }
+        }
+        else
+        {
+          if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
+            return true;
+          else
+           is_qualified_table_name= false;
+        }
+      }
 
       // if lower_case_table_names is set then convert tablename to lower case.
       if (lower_case_table_names)
@@ -6066,6 +6108,7 @@ bool check_fk_parent_table_access(THD *thd,
         table_name.str= (char *) thd->memdup(fk_key->ref_table.str,
                                              fk_key->ref_table.length+1);
         table_name.length= my_casedn_str(files_charset_info, table_name.str);
+        db_name.length = my_casedn_str(files_charset_info, db_name.str);
       }
 
       parent_table.init_one_table(db_name.str, db_name.length,
@@ -6268,6 +6311,8 @@ void THD::reset_for_next_command()
 
   thd->reset_current_stmt_binlog_format_row();
   thd->binlog_unsafe_warning_flags= 0;
+
+  thd->save_prep_leaf_list= false;
 
   DBUG_PRINT("debug",
              ("is_current_stmt_binlog_format_row(): %d",
@@ -7270,7 +7315,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   @retval
     FALSE  if all is OK
   @retval
-    TRUE   if a memory allocation error occured
+    TRUE   if a memory allocation error occurred
 */
 
 bool
@@ -7749,6 +7794,8 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
   */
   for (table= tables; table; table= table->next_local)
   {
+    if (table->is_jtbm())
+      continue;
     if (table->derived)
       table->grant.privilege= SELECT_ACL;
     else if ((check_access(thd, UPDATE_ACL, table->db,
@@ -8173,7 +8220,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
 
-  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info))
+  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
 
   /*

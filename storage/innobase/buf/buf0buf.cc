@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -53,6 +53,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "srv0mon.h"
 #include "buf0checksum.h"
+#ifdef HAVE_LIBNUMA
+#include <numa.h>
+#include <numaif.h>
+#endif // HAVE_LIBNUMA
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -486,6 +490,79 @@ buf_page_is_zeroes(
 	return(true);
 }
 
+/** Checks if the page is in crc32 checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in crc32 checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_crc32(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	ib_uint32_t	crc32 = buf_calc_page_crc32(read_buf);
+
+	return(checksum_field1 == crc32 && checksum_field2 == crc32);
+}
+
+/** Checks if the page is in innodb checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in innodb checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_innodb(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	/* There are 2 valid formulas for
+	checksum_field2 (old checksum field) which algo=innodb could have
+	written to the page:
+
+	1. Very old versions of InnoDB only stored 8 byte lsn to the
+	start and the end of the page.
+
+	2. Newer InnoDB versions store the old formula checksum
+	(buf_calc_page_old_checksum()). */
+
+	if (checksum_field2 != mach_read_from_4(read_buf + FIL_PAGE_LSN)
+	    && checksum_field2 != buf_calc_page_old_checksum(read_buf)) {
+		return(false);
+	}
+
+	/* old field is fine, check the new field */
+
+	/* InnoDB versions < 4.0.14 and < 4.1.1 stored the space id
+	(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
+
+	if (checksum_field1 != 0
+	    && checksum_field1 != buf_calc_page_new_checksum(read_buf)) {
+		return(false);
+	}
+
+	return(true);
+}
+
+/** Checks if the page is in none checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in none checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_none(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	return(checksum_field1 == checksum_field2
+	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
+}
+
 /********************************************************************//**
 Checks if a page is corrupt.
 @return	TRUE if corrupted */
@@ -501,8 +578,6 @@ buf_page_is_corrupted(
 {
 	ulint		checksum_field1;
 	ulint		checksum_field2;
-	ibool		crc32_inited = FALSE;
-	ib_uint32_t	crc32 = ULINT32_UNDEFINED;
 
 	if (!zip_size
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
@@ -582,148 +657,121 @@ buf_page_is_corrupted(
 		return(FALSE);
 	}
 
-	switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
+	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
+
+	ulint	page_no = mach_read_from_4(read_buf + FIL_PAGE_OFFSET);
+	ulint	space_id = mach_read_from_4(read_buf + FIL_PAGE_SPACE_ID);
+	const srv_checksum_algorithm_t	curr_algo =
+		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	switch (curr_algo) {
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 
-		crc32 = buf_calc_page_crc32(read_buf);
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
+		}
 
-		return(checksum_field1 != crc32 || checksum_field2 != crc32);
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_NONE,
+					space_id, page_no);
+			}
 
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_INNODB,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		return(TRUE);
+
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 
-		return(checksum_field1
-		       != buf_calc_page_new_checksum(read_buf)
-		       || checksum_field2
-		       != buf_calc_page_old_checksum(read_buf));
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_NONE,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_CRC32,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		return(TRUE);
 
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 
-		return(checksum_field1 != BUF_NO_CHECKSUM_MAGIC
-		       || checksum_field2 != BUF_NO_CHECKSUM_MAGIC);
-
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-		/* There are 3 valid formulas for
-		checksum_field2 (old checksum field):
-
-		1. Very old versions of InnoDB only stored 8 byte lsn to the
-		start and the end of the page.
-
-		2. InnoDB versions before MySQL 5.6.3 store the old formula
-		checksum (buf_calc_page_old_checksum()).
-
-		3. InnoDB versions 5.6.3 and newer with
-		innodb_checksum_algorithm=strict_crc32|crc32 store CRC32. */
-
-		/* since innodb_checksum_algorithm is not strict_* allow
-		any of the algos to match for the old field */
-
-		if (checksum_field2
-		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
-		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
-
-			/* The checksum does not match any of the
-			fast to check. First check the selected algorithm
-			for writing checksums because we assume that the
-			chance of it matching is higher. */
-
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = TRUE;
-
-				if (checksum_field2 != crc32
-				    && checksum_field2
-				    != buf_calc_page_old_checksum(read_buf)) {
-
-					return(TRUE);
-				}
-			} else {
-				ut_ad(srv_checksum_algorithm
-				     == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-				if (checksum_field2
-				    != buf_calc_page_old_checksum(read_buf)) {
-
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = TRUE;
-
-					if (checksum_field2 != crc32) {
-						return(TRUE);
-					}
-				}
-			}
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
 		}
 
-		/* old field is fine, check the new field */
-
-		/* InnoDB versions < 4.0.14 and < 4.1.1 stored the space id
-		(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
-
-		if (checksum_field1 != 0
-		    && checksum_field1 != BUF_NO_CHECKSUM_MAGIC) {
-
-			/* The checksum does not match any of the
-			fast to check. First check the selected algorithm
-			for writing checksums because we assume that the
-			chance of it matching is higher. */
-
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
-				if (!crc32_inited) {
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = TRUE;
-				}
-
-				if (checksum_field1 != crc32
-				    && checksum_field1
-				    != buf_calc_page_new_checksum(read_buf)) {
-
-					return(TRUE);
-				}
-			} else {
-				ut_ad(srv_checksum_algorithm
-				     == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-				if (checksum_field1
-				    != buf_calc_page_new_checksum(read_buf)) {
-
-					if (!crc32_inited) {
-						crc32 = buf_calc_page_crc32(
-							read_buf);
-						crc32_inited = TRUE;
-					}
-
-					if (checksum_field1 != crc32) {
-						return(TRUE);
-					}
-				}
-			}
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			page_warn_strict_checksum(
+				curr_algo,
+				SRV_CHECKSUM_ALGORITHM_CRC32,
+				space_id, page_no);
+			return(FALSE);
 		}
 
-		/* If CRC32 is stored in at least one of the fields, then the
-		other field must also be CRC32 */
-		if (crc32_inited
-		    && ((checksum_field1 == crc32
-			 && checksum_field2 != crc32)
-			|| (checksum_field1 != crc32
-			    && checksum_field2 == crc32))) {
-
-			return(TRUE);
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			page_warn_strict_checksum(
+				curr_algo,
+				SRV_CHECKSUM_ALGORITHM_INNODB,
+				space_id, page_no);
+			return(FALSE);
 		}
 
-		break;
+		return(TRUE);
+
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 		/* should have returned FALSE earlier */
-		ut_error;
+		break;
 	/* no default so the compiler will emit a warning if new enum
 	is added and not handled here */
 	}
 
-	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
-
+	ut_error;
 	return(FALSE);
 }
 
@@ -1068,6 +1116,22 @@ buf_chunk_init(
 		return(NULL);
 	}
 
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		int	st = mbind(chunk->mem, chunk->mem_size,
+				   MPOL_INTERLEAVE,
+				   numa_all_nodes_ptr->maskp,
+				   numa_all_nodes_ptr->size,
+				   MPOL_MF_MOVE);
+		if (st != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy of buffer"
+				" pool page frames to MPOL_INTERLEAVE"
+				" (error: %s).", strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
+
 	/* Allocate the block descriptors from
 	the start of the memory block. */
 	chunk->blocks = (buf_block_t*) chunk->mem;
@@ -1398,6 +1462,21 @@ buf_pool_init(
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
 	ut_ad(n_instances == srv_buf_pool_instances);
 
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Setting NUMA memory policy to MPOL_INTERLEAVE");
+		if (set_mempolicy(MPOL_INTERLEAVE,
+				  numa_all_nodes_ptr->maskp,
+				  numa_all_nodes_ptr->size) != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy to"
+				" MPOL_INTERLEAVE (error: %s).",
+				strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
+
 	buf_pool_ptr = (buf_pool_t*) mem_zalloc(
 		n_instances * sizeof *buf_pool_ptr);
 
@@ -1417,6 +1496,18 @@ buf_pool_init(
 	buf_LRU_old_ratio_update(100 * 3/ 8, FALSE);
 
 	btr_search_sys_create(buf_pool_get_curr_size() / sizeof(void*) / 64);
+
+#ifdef HAVE_LIBNUMA
+	if (srv_numa_interleave) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Setting NUMA memory policy to MPOL_DEFAULT");
+		if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set NUMA memory policy to"
+				" MPOL_DEFAULT (error: %s).", strerror(errno));
+		}
+	}
+#endif // HAVE_LIBNUMA
 
 	return(DB_SUCCESS);
 }
@@ -1673,6 +1764,9 @@ page_found:
 		goto page_found;
 	}
 
+	/* The maximum number of purge threads should never exceed
+	BUF_POOL_WATCH_SIZE. So there is no way for purge thread
+	instance to hold a watch when setting another watch. */
 	for (i = 0; i < BUF_POOL_WATCH_SIZE; i++) {
 		bpage = &buf_pool->watch[i];
 
@@ -5205,11 +5299,19 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
+		double hit_rate = ((1000 * pool_info->page_read_delta)
+				/ pool_info->n_page_get_delta);
+
+		if (hit_rate > 1000) {
+			hit_rate = 1000;
+		}
+
+		hit_rate = 1000 - hit_rate;
+
 		fprintf(file,
 			"Buffer pool hit rate %lu / 1000,"
 			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulong) (1000 - (1000 * pool_info->page_read_delta
-					 / pool_info->n_page_get_delta)),
+			(ulong) hit_rate,
 			(ulong) (1000 * pool_info->young_making_delta
 				 / pool_info->n_page_get_delta),
 			(ulong) (1000 * pool_info->not_young_making_delta

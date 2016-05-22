@@ -952,10 +952,20 @@ fsp_try_extend_data_file(
 		}
 	} else {
 		/* We extend single-table tablespaces first one extent
-		at a time, but for bigger tablespaces more. It is not
-		enough to extend always by one extent, because some
-		extents are frag page extents. */
+		at a time, but 4 at a time for bigger tablespaces. It is
+		not enough to extend always by one extent, because we need
+		to add at least one extent to FSP_FREE.
+		A single extent descriptor page will track many extents.
+		And the extent that uses its extent descriptor page is
+		put onto the FSP_FREE_FRAG list. Extents that do not
+		use their extent descriptor page are added to FSP_FREE.
+		The physical page size is used to determine how many
+		extents are tracked on one extent descriptor page. */
 		ulint	extent_size;	/*!< one megabyte, in pages */
+		ulint	threshold;	/*!< The size of the tablespace
+					(in number of pages) where we
+					start allocating more than one
+					extent at a time. */
 
 		if (!zip_size) {
 			extent_size = FSP_EXTENT_SIZE;
@@ -963,6 +973,14 @@ fsp_try_extend_data_file(
 			extent_size = FSP_EXTENT_SIZE
 				* UNIV_PAGE_SIZE / zip_size;
 		}
+
+		/* Threshold is set at 32mb except when the page
+		size is small enough that it must be done sooner.
+		For page size less than 4k, we may reach the
+		extent contains extent descriptor page before
+		32 mb. */
+		threshold = ut_min((32 * extent_size),
+				   (zip_size ? zip_size : UNIV_PAGE_SIZE));
 
 		if (size < extent_size) {
 			/* Let us first extend the file to extent_size */
@@ -980,7 +998,7 @@ fsp_try_extend_data_file(
 			size = extent_size;
 		}
 
-		if (size < 32 * extent_size) {
+		if (size < threshold) {
 			size_increase = extent_size;
 		} else {
 			/* Below in fsp_fill_free_list() we assume
@@ -2715,6 +2733,8 @@ fsp_reserve_free_extents(
 	ulint		reserve;
 	ibool		success;
 	ulint		n_pages_added;
+	size_t		total_reserved = 0;
+	ulint		rounds = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2783,6 +2803,7 @@ try_again:
 	}
 
 	success = fil_space_reserve_free_extents(space, n_free, n_ext);
+	*n_reserved = n_ext;
 
 	if (success) {
 		return(TRUE);
@@ -2790,7 +2811,18 @@ try_again:
 try_to_extend:
 	success = fsp_try_extend_data_file(&n_pages_added, space,
 					   space_header, mtr);
+
 	if (success && n_pages_added > 0) {
+
+		rounds++;
+		total_reserved += n_pages_added;
+
+		if (rounds > 50) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Space id %lu trying to reserve %lu extents actually reserved %lu "
+				" reserve %lu free %lu size %lu rounds %lu total_reserved %llu",
+				space, n_ext, n_pages_added, reserve, n_free, size, rounds, (ullint) total_reserved);
+		}
 
 		goto try_again;
 	}

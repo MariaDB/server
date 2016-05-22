@@ -536,13 +536,13 @@ typedef ulong key_part_map;
 #define SEARCH_NULL_ARE_EQUAL 32768	/* NULL in keys are equal */
 #define SEARCH_NULL_ARE_NOT_EQUAL 65536	/* NULL in keys are not equal */
 /* Use this when inserting a key in position order */
-#define SEARCH_INSERT   SEARCH_NULL_ARE_NOT_EQUAL*2
+#define SEARCH_INSERT   (SEARCH_NULL_ARE_NOT_EQUAL*2)
 /* Only part of the key is specified while reading */
-#define SEARCH_PART_KEY SEARCH_INSERT*2
+#define SEARCH_PART_KEY (SEARCH_INSERT*2)
 /* Used when user key (key 2) contains transaction id's */
-#define SEARCH_USER_KEY_HAS_TRANSID SEARCH_PART_KEY*2
+#define SEARCH_USER_KEY_HAS_TRANSID (SEARCH_PART_KEY*2)
 /* Used when page key (key 1) contains transaction id's */
-#define SEARCH_PAGE_KEY_HAS_TRANSID SEARCH_USER_KEY_HAS_TRANSID*2
+#define SEARCH_PAGE_KEY_HAS_TRANSID (SEARCH_USER_KEY_HAS_TRANSID*2)
 
 	/* bits in opt_flag */
 #define QUICK_USED	1

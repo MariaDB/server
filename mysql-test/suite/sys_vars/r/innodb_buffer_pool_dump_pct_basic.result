@@ -1,0 +1,20 @@
+SET @orig = @@global.innodb_buffer_pool_dump_pct;
+SELECT @orig;
+@orig
+100
+SET GLOBAL innodb_buffer_pool_dump_pct=3, GLOBAL innodb_buffer_pool_dump_now = ON;
+SET GLOBAL innodb_buffer_pool_dump_pct=0;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+@@global.innodb_buffer_pool_dump_pct
+1
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect innodb_buffer_pool_dump_pct value: '0'
+SET GLOBAL innodb_buffer_pool_dump_pct=101;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+@@global.innodb_buffer_pool_dump_pct
+100
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect innodb_buffer_pool_dump_pct value: '101'
+SET GLOBAL innodb_buffer_pool_dump_pct=@orig;

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2005, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2005, 2012, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
 {
   FILE* f;                       /* our input file */
   char* filename;                /* our input filename. */
-  unsigned char *big_buf, *buf;
+  unsigned char *big_buf= 0, *buf;
 
   ulong bytes;                   /* bytes read count */
   ulint ct;                      /* current page number (0 based) */
@@ -266,14 +266,14 @@ int main(int argc, char **argv)
   if (*filename == '\0')
   {
     fprintf(stderr, "Error; File name missing\n");
-    return 1;
+    goto error;
   }
 
   /* stat the file to get size and page count */
   if (stat(filename, &st))
   {
     fprintf(stderr, "Error; %s cannot be found\n", filename);
-    return 1;
+    goto error;
   }
   size= st.st_size;
 
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "Error; %s cannot be opened", filename);
     perror(" ");
-    return 1;
+    goto error;
   }
 
   big_buf = (unsigned char *)malloc(2 * UNIV_PAGE_SIZE_MAX);
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "Error; failed to allocate memory\n");
     perror("");
-    return 1;
+    goto error;
   }
 
   /* Make sure the page is aligned */
@@ -299,10 +299,7 @@ int main(int argc, char **argv)
                                       + UNIV_PAGE_SIZE_MAX, UNIV_PAGE_SIZE_MAX);
 
   if (!get_page_size(f, buf, &logical_page_size, &physical_page_size))
-  {
-    free(big_buf);
-    return 1;
-  }
+    goto error;
 
   if (compressed)
   {
@@ -322,8 +319,7 @@ int main(int argc, char **argv)
     if (verbose)
       printf("Number of pages: ");
     printf("%lu\n", pages);
-    free(big_buf);
-    return 0;
+    goto ok;
   }
   else if (verbose)
   {
@@ -349,8 +345,7 @@ int main(int argc, char **argv)
     if (!fd)
     {
       perror("Error; Unable to obtain file descriptor number");
-      free(big_buf);
-      return 1;
+      goto error;
     }
 
     offset= (off_t)start_page * (off_t)physical_page_size;
@@ -358,8 +353,7 @@ int main(int argc, char **argv)
     if (lseek(fd, offset, SEEK_SET) != offset)
     {
       perror("Error; Unable to seek to necessary offset");
-      free(big_buf);
-      return 1;
+      goto error;
     }
   }
 
@@ -370,17 +364,13 @@ int main(int argc, char **argv)
   {
     bytes= fread(buf, 1, physical_page_size, f);
     if (!bytes && feof(f))
-    {
-      free(big_buf);
-      return 0;
-    }
+      goto ok;
 
     if (ferror(f))
     {
       fprintf(stderr, "Error reading %lu bytes", physical_page_size);
       perror(" ");
-      free(big_buf);
-      return 1;
+      goto error;
     }
 
     if (compressed) {
@@ -388,10 +378,7 @@ int main(int argc, char **argv)
       if (!page_zip_verify_checksum(buf, physical_page_size)) {
         fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
         if (!skip_corrupt)
-        {
-          free(big_buf);
-          return 1;
-        }
+          goto error;
       }
     } else {
 
@@ -404,10 +391,7 @@ int main(int argc, char **argv)
       {
         fprintf(stderr, "Fail; page %lu invalid (fails log sequence number check)\n", ct);
         if (!skip_corrupt)
-        {
-          free(big_buf);
-          return 1;
-        }
+          goto error;
       }
 
       /* check old method of checksumming */
@@ -419,10 +403,7 @@ int main(int argc, char **argv)
       {
         fprintf(stderr, "Fail;  page %lu invalid (fails old style checksum)\n", ct);
         if (!skip_corrupt)
-        {
-          free(big_buf);
-          return 1;
-        }
+          goto error;
       }
 
       /* now check the new method */
@@ -436,18 +417,12 @@ int main(int argc, char **argv)
       {
         fprintf(stderr, "Fail; page %lu invalid (fails innodb and crc32 checksum)\n", ct);
         if (!skip_corrupt)
-        {
-          free(big_buf);
-          return 1;
-        }
+          goto error;
       }
     }
     /* end if this was the last page we were supposed to check */
     if (use_end_page && (ct >= end_page))
-    {
-      free(big_buf);
-      return 0;
-    }
+      goto ok;
 
     /* do counter increase and progress printing */
     ct++;
@@ -465,6 +440,14 @@ int main(int argc, char **argv)
       }
     }
   }
+
+ok:
   free(big_buf);
-  return 0;
+  my_end(0);
+  exit(0);
+
+error:
+  free(big_buf);
+  my_end(0);
+  exit(1);
 }

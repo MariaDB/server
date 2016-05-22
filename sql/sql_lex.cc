@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 #define MYSQL_LEX 1
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END
 #include "sql_lex.h"
 #include "sql_parse.h"                          // add_to_list
@@ -556,6 +555,7 @@ void lex_start(THD *thd)
 
   lex->is_lex_started= TRUE;
   lex->used_tables= 0;
+  lex->only_view= FALSE;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -566,6 +566,16 @@ void lex_end(LEX *lex)
 {
   DBUG_ENTER("lex_end");
   DBUG_PRINT("enter", ("lex: 0x%lx", (long) lex));
+
+  lex_end_stage1(lex);
+  lex_end_stage2(lex);
+
+  DBUG_VOID_RETURN;
+}
+
+void lex_end_stage1(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage1");
 
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
@@ -578,6 +588,19 @@ void lex_end(LEX *lex)
   delete lex->sphead;
   lex->sphead= NULL;
 
+  DBUG_VOID_RETURN;
+}
+
+/*
+  MASTER INFO parameters (or state) is normally cleared towards the end
+  of a statement. But in case of PS, the state needs to be preserved during
+  its lifetime and should only be cleared on PS close or deallocation.
+*/
+void lex_end_stage2(LEX *lex)
+{
+  DBUG_ENTER("lex_end_stage2");
+
+  /* Reset LEX_MASTER_INFO */
   lex->mi.reset();
 
   DBUG_VOID_RETURN;
@@ -1873,7 +1896,7 @@ void st_select_lex::init_query()
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
-  is_prep_leaf_list_saved= FALSE;
+  prep_leaf_list_state= UNINIT;
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   m_non_agg_field_used= false;
@@ -1909,7 +1932,6 @@ void st_select_lex::init_select()
   with_sum_func= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
-  non_agg_fields.empty();
   cond_value= having_value= Item::COND_UNDEF;
   inner_refs_list.empty();
   insert_tables= 0;
@@ -1917,6 +1939,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   name_visibility_map= 0;
+  join= 0;
 }
 
 /*
@@ -3851,6 +3874,19 @@ void SELECT_LEX::update_used_tables()
       tl->on_expr->update_used_tables();
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
     }
+    /*
+      - There is no need to check sj_on_expr, because merged semi-joins inject
+        sj_on_expr into the parent's WHERE clase.
+      - For non-merged semi-joins (aka JTBMs), we need to check their
+        left_expr. There is no need to check the rest of the subselect, we know
+        it is uncorrelated and so cannot refer to any tables in this select.
+    */
+    if (tl->jtbm_subselect)
+    {
+      Item *left_expr= tl->jtbm_subselect->left_expr;
+      left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+    }
+
     embedding= tl->embedding;
     while (embedding)
     {
@@ -4152,12 +4188,22 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
+
+  /*
+    Check that the SELECT_LEX was really prepared and so tables are setup.
+
+    It can be subquery in SET clause of UPDATE which was not prepared yet, so
+    its tables are not yet setup and ready for storing.
+  */
+  if (prep_leaf_list_state != READY)
+    return FALSE;
+
   while ((table= li++))
   {
     if (leaf_tables_prep.push_back(table))
       return TRUE;
   }
-  is_prep_leaf_list_saved= TRUE;
+  prep_leaf_list_state= SAVED;
   for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
   {
     for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())

@@ -1,6 +1,6 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -282,6 +282,13 @@ public:
   void mark_as_in_partitioning_expr()
   {
     in_partitioning_expr= TRUE;
+  }
+  bool is_equal(Virtual_column_info* vcol)
+  {
+    return field_type == vcol->get_real_type()
+        && stored_in_db == vcol->is_stored()
+        && expr_str.length == vcol->expr_str.length
+        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
   }
 };
 
@@ -885,14 +892,32 @@ public:
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
+protected:
+  bool set_warning(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_WARN, code, cuted_increment);
+  }
+  bool set_note(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
+  }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
                             int cuted_increment);
+  void set_datetime_warning(uint code,
+                            const ErrConv *str, timestamp_type ts_type,
+                            int cuted_increment)
+  {
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+                         cuted_increment);
+  }
+  void set_warning_truncated_wrong_value(const char *type, const char *value);
   inline bool check_overflow(int op_result)
   {
     return (op_result == E_DEC_OVERFLOW);
   }
   int warn_if_overflow(int op_result);
+public:
   void set_table_name(String *alias)
   {
     table_name= &alias->Ptr;
@@ -958,6 +983,16 @@ public:
 
   /* Hash value */
   virtual void hash(ulong *nr, ulong *nr2);
+
+/**
+  Checks whether a string field is part of write_set.
+
+  @return
+    FALSE  - If field is not char/varchar/....
+           - If field is char/varchar/.. and is not part of write set.
+    TRUE   - If field is char/varchar/.. and is part of write set.
+*/
+  virtual bool is_updatable() const { return FALSE; }
 
   /* Check whether the field can be used as a join attribute in hash join */
   virtual bool hash_join_is_possible() { return TRUE; }
@@ -1139,6 +1174,13 @@ class Field_longstr :public Field_str
 protected:
   int report_if_important_data(const char *ptr, const char *end,
                                bool count_spaces);
+  bool check_string_copy_error(const char *well_formed_error_pos,
+                               const char *cannot_convert_error_pos,
+                               const char *end,
+                               CHARSET_INFO *cs);
+  my_decimal *val_decimal_from_str(const char *str, uint length,
+                                   CHARSET_INFO *cs,
+                                   my_decimal *decimal_value);
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -1149,6 +1191,11 @@ public:
 
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
+  bool is_updatable() const
+  {
+    DBUG_ASSERT(table && table->write_set);
+    return bitmap_is_set(table->write_set, field_index);
+  }
   bool match_collation_to_optimize_range() const { return true; }
 };
 
@@ -2510,6 +2557,7 @@ public:
   {
     set_ptr_offset(0, length, data);
   }
+  int copy_value(Field_blob *from);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
@@ -2591,6 +2639,7 @@ public:
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
 
   geometry_type get_geometry_type() { return geom_type; };
+  static geometry_type geometry_type_merge(geometry_type, geometry_type);
 };
 #endif /*HAVE_SPATIAL*/
 

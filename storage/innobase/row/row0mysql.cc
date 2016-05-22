@@ -1325,18 +1325,14 @@ row_insert_for_mysql(
 		mem_analyze_corruption(prebuilt);
 
 		ut_error;
-	} else if (srv_created_new_raw || srv_force_recovery) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	} else if (srv_force_recovery) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
 		      "InnoDB: mysqld and edit my.cnf so that"
-		      " newraw is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			return(DB_READ_ONLY);
-		}
-		return(DB_ERROR);
+
+		return(DB_READ_ONLY);
 	}
 
 	trx->op_info = "inserting";
@@ -1727,18 +1723,14 @@ row_update_for_mysql(
 		ut_error;
 	}
 
-	if (UNIV_UNLIKELY(srv_created_new_raw || srv_force_recovery)) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	if (UNIV_UNLIKELY(srv_force_recovery)) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
-		      "InnoDB: mysqld and edit my.cnf so that newraw"
-		      " is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: mysqld and edit my.cnf so that"
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			return(DB_READ_ONLY);
-		}
-		return(DB_ERROR);
+
+		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -1869,6 +1861,12 @@ run_again:
 	columns would not affect statistics. */
 	if (node->is_delete || !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		row_update_statistics_if_needed(prebuilt->table);
+	} else {
+		/* Update the table modification counter even when
+		non-indexed columns change if statistics is initialized. */
+		if (prebuilt->table->stat_initialized) {
+			prebuilt->table->stat_modified_counter++;
+		}
 	}
 
 	trx->op_info = "";
@@ -2237,22 +2235,6 @@ row_create_table_for_mysql(
 		goto err_exit;
 	);
 
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-err_exit:
-		dict_mem_table_free(table);
-
-		if (commit) {
-			trx_commit_for_mysql(trx);
-		}
-
-		return(DB_ERROR);
-	}
-
 	trx->op_info = "creating table";
 
 	if (row_mysql_is_system_table(table->name)) {
@@ -2263,7 +2245,19 @@ err_exit:
 			"InnoDB: MySQL system tables must be"
 			" of the MyISAM type!\n",
 			table->name);
-		goto err_exit;
+
+#ifndef DBUG_OFF
+err_exit:
+#endif /* !DBUG_OFF */
+		dict_mem_table_free(table);
+
+		if (commit) {
+			trx_commit_for_mysql(trx);
+		}
+
+		trx->op_info = "";
+
+		return(DB_ERROR);
 	}
 
 	trx_start_if_not_started_xa(trx);
@@ -3313,16 +3307,6 @@ row_truncate_table_for_mysql(
 
 	ut_ad(table);
 
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-
-		return(DB_ERROR);
-	}
-
 	if (dict_table_is_discarded(table)) {
 		return(DB_TABLESPACE_DELETED);
 	} else if (table->ibd_file_missing) {
@@ -3801,16 +3785,6 @@ row_drop_table_for_mysql(
 	DBUG_PRINT("row_drop_table_for_mysql", ("table: %s", name));
 
 	ut_a(name != NULL);
-
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-
-		DBUG_RETURN(DB_ERROR);
-	}
 
 	/* The table name is prefixed with the database name and a '/'.
 	Certain table names starting with 'innodb_' have their special
@@ -4819,24 +4793,22 @@ row_rename_table_for_mysql(
 	pars_info_t*	info			= NULL;
 	int		retry;
 	bool		aux_fts_rename		= false;
+	char*		is_part 		= NULL;
 
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	if (srv_created_new_raw || srv_force_recovery) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	if (srv_force_recovery) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
-		      "InnoDB: mysqld and edit my.cnf so that newraw"
-		      " is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: mysqld and edit my.cnf so that"
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			err = DB_READ_ONLY;
-		}
 
+		err = DB_READ_ONLY;
 		goto funct_exit;
+
 	} else if (row_mysql_is_system_table(new_name)) {
 
 		fprintf(stderr,
@@ -4858,6 +4830,55 @@ row_rename_table_for_mysql(
 
 	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
 					DICT_ERR_IGNORE_NONE);
+
+	/* We look for pattern #P# to see if the table is partitioned
+	MySQL table. */
+#ifdef __WIN__
+	is_part = strstr((char *)old_name, (char *)"#p#");
+#else
+	is_part = strstr((char *)old_name, (char *)"#P#");
+#endif /* __WIN__ */
+
+	/* MySQL partition engine hard codes the file name
+	separator as "#P#". The text case is fixed even if
+	lower_case_table_names is set to 1 or 2. This is true
+	for sub-partition names as well. InnoDB always
+	normalises file names to lower case on Windows, this
+	can potentially cause problems when copying/moving
+	tables between platforms.
+
+	1) If boot against an installation from Windows
+	platform, then its partition table name could
+	be all be in lower case in system tables. So we
+	will need to check lower case name when load table.
+
+	2) If  we boot an installation from other case
+	sensitive platform in Windows, we might need to
+	check the existence of table name without lowering
+	case them in the system table. */
+	if (!table &&
+	    is_part &&
+	    innobase_get_lower_case_table_names() == 1) {
+		char par_case_name[MAX_FULL_NAME_LEN + 1];
+#ifndef __WIN__
+		/* Check for the table using lower
+		case name, including the partition
+		separator "P" */
+		memcpy(par_case_name, old_name,
+			strlen(old_name));
+		par_case_name[strlen(old_name)] = 0;
+		innobase_casedn_str(par_case_name);
+#else
+		/* On Windows platfrom, check
+		whether there exists table name in
+		system table whose name is
+		not being normalized to lower case */
+		normalize_table_name_low(
+			par_case_name, old_name, FALSE);
+#endif
+		table = dict_table_open_on_name(par_case_name, dict_locked, FALSE,
+					DICT_ERR_IGNORE_NONE);
+	}
 
 	if (!table) {
 		err = DB_TABLE_NOT_FOUND;

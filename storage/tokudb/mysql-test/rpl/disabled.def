@@ -13,3 +13,4 @@ rpl_tokudb_write_unique_uc1: unreliable, uses timestamp differences
 rpl_tokudb_read_only_ff: unreliable, uses timestamp differences
 rpl_tokudb_read_only_tf: unreliable, uses timestamp differences
 rpl_tokudb_read_only_tt: unreliable, uses timestamp differences
+rpl_row_sp002_tokudb : tokudb does not support foreign keys

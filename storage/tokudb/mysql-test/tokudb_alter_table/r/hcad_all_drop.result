@@ -4,7 +4,6 @@ set session tokudb_disable_slow_alter=ON;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -70,7 +69,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a;
 alter table bar drop column a;
@@ -80,7 +78,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -146,7 +143,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b;
 alter table bar drop column b;
@@ -156,7 +152,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -222,7 +217,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c;
 alter table bar drop column c;
@@ -232,7 +226,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -298,7 +291,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d;
 alter table bar drop column d;
@@ -308,7 +300,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -374,7 +365,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa;
 alter table bar drop column aa;
@@ -384,7 +374,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -450,7 +439,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb;
 alter table bar drop column bb;
@@ -460,7 +448,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -526,7 +513,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc;
 alter table bar drop column cc;
@@ -536,7 +522,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -602,7 +587,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd;
 alter table bar drop column dd;
@@ -612,7 +596,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -678,7 +661,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa;
 alter table bar drop column aaa;
@@ -688,7 +670,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -754,7 +735,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb;
 alter table bar drop column bbb;
@@ -764,7 +744,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -830,7 +809,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc;
 alter table bar drop column ccc;
@@ -840,7 +818,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -906,7 +883,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd;
 alter table bar drop column ddd;
@@ -916,7 +892,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -982,7 +957,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b;
 alter table bar drop column a, drop column b;
@@ -992,7 +966,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1058,7 +1031,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column c;
 alter table bar drop column a, drop column c;
@@ -1068,7 +1040,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1134,7 +1105,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column d;
 alter table bar drop column a, drop column d;
@@ -1144,7 +1114,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1210,7 +1179,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column aa;
 alter table bar drop column a, drop column aa;
@@ -1220,7 +1188,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1286,7 +1253,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column bb;
 alter table bar drop column a, drop column bb;
@@ -1296,7 +1262,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1362,7 +1327,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column cc;
 alter table bar drop column a, drop column cc;
@@ -1372,7 +1336,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1438,7 +1401,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column dd;
 alter table bar drop column a, drop column dd;
@@ -1448,7 +1410,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1514,7 +1475,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column aaa;
 alter table bar drop column a, drop column aaa;
@@ -1524,7 +1484,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1590,7 +1549,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column bbb;
 alter table bar drop column a, drop column bbb;
@@ -1600,7 +1558,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1666,7 +1623,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column ccc;
 alter table bar drop column a, drop column ccc;
@@ -1676,7 +1632,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1742,7 +1697,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column ddd;
 alter table bar drop column a, drop column ddd;
@@ -1752,7 +1706,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1818,7 +1771,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column a;
 alter table bar drop column b, drop column a;
@@ -1828,7 +1780,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1894,7 +1845,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column c;
 alter table bar drop column b, drop column c;
@@ -1904,7 +1854,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -1970,7 +1919,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column d;
 alter table bar drop column b, drop column d;
@@ -1980,7 +1928,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2046,7 +1993,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column aa;
 alter table bar drop column b, drop column aa;
@@ -2056,7 +2002,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2122,7 +2067,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column bb;
 alter table bar drop column b, drop column bb;
@@ -2132,7 +2076,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2198,7 +2141,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column cc;
 alter table bar drop column b, drop column cc;
@@ -2208,7 +2150,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2274,7 +2215,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column dd;
 alter table bar drop column b, drop column dd;
@@ -2284,7 +2224,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2350,7 +2289,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column aaa;
 alter table bar drop column b, drop column aaa;
@@ -2360,7 +2298,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2426,7 +2363,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column bbb;
 alter table bar drop column b, drop column bbb;
@@ -2436,7 +2372,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2502,7 +2437,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column ccc;
 alter table bar drop column b, drop column ccc;
@@ -2512,7 +2446,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2578,7 +2511,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column ddd;
 alter table bar drop column b, drop column ddd;
@@ -2588,7 +2520,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2654,7 +2585,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column a;
 alter table bar drop column c, drop column a;
@@ -2664,7 +2594,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2730,7 +2659,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column b;
 alter table bar drop column c, drop column b;
@@ -2740,7 +2668,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2806,7 +2733,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column d;
 alter table bar drop column c, drop column d;
@@ -2816,7 +2742,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2882,7 +2807,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column aa;
 alter table bar drop column c, drop column aa;
@@ -2892,7 +2816,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -2958,7 +2881,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column bb;
 alter table bar drop column c, drop column bb;
@@ -2968,7 +2890,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3034,7 +2955,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column cc;
 alter table bar drop column c, drop column cc;
@@ -3044,7 +2964,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3110,7 +3029,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column dd;
 alter table bar drop column c, drop column dd;
@@ -3120,7 +3038,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3186,7 +3103,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column aaa;
 alter table bar drop column c, drop column aaa;
@@ -3196,7 +3112,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3262,7 +3177,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column bbb;
 alter table bar drop column c, drop column bbb;
@@ -3272,7 +3186,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3338,7 +3251,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column ccc;
 alter table bar drop column c, drop column ccc;
@@ -3348,7 +3260,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3414,7 +3325,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column c, drop column ddd;
 alter table bar drop column c, drop column ddd;
@@ -3424,7 +3334,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3490,7 +3399,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column a;
 alter table bar drop column d, drop column a;
@@ -3500,7 +3408,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3566,7 +3473,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column b;
 alter table bar drop column d, drop column b;
@@ -3576,7 +3482,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3642,7 +3547,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column c;
 alter table bar drop column d, drop column c;
@@ -3652,7 +3556,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3718,7 +3621,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column aa;
 alter table bar drop column d, drop column aa;
@@ -3728,7 +3630,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3794,7 +3695,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column bb;
 alter table bar drop column d, drop column bb;
@@ -3804,7 +3704,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3870,7 +3769,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column cc;
 alter table bar drop column d, drop column cc;
@@ -3880,7 +3778,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -3946,7 +3843,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column dd;
 alter table bar drop column d, drop column dd;
@@ -3956,7 +3852,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4022,7 +3917,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column aaa;
 alter table bar drop column d, drop column aaa;
@@ -4032,7 +3926,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4098,7 +3991,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column bbb;
 alter table bar drop column d, drop column bbb;
@@ -4108,7 +4000,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4174,7 +4065,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column ccc;
 alter table bar drop column d, drop column ccc;
@@ -4184,7 +4074,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4250,7 +4139,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column d, drop column ddd;
 alter table bar drop column d, drop column ddd;
@@ -4260,7 +4148,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4326,7 +4213,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column a;
 alter table bar drop column aa, drop column a;
@@ -4336,7 +4222,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4402,7 +4287,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column b;
 alter table bar drop column aa, drop column b;
@@ -4412,7 +4296,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4478,7 +4361,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column c;
 alter table bar drop column aa, drop column c;
@@ -4488,7 +4370,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4554,7 +4435,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column d;
 alter table bar drop column aa, drop column d;
@@ -4564,7 +4444,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4630,7 +4509,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column bb;
 alter table bar drop column aa, drop column bb;
@@ -4640,7 +4518,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4706,7 +4583,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column cc;
 alter table bar drop column aa, drop column cc;
@@ -4716,7 +4592,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4782,7 +4657,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column dd;
 alter table bar drop column aa, drop column dd;
@@ -4792,7 +4666,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4858,7 +4731,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column aaa;
 alter table bar drop column aa, drop column aaa;
@@ -4868,7 +4740,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -4934,7 +4805,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column bbb;
 alter table bar drop column aa, drop column bbb;
@@ -4944,7 +4814,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5010,7 +4879,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column ccc;
 alter table bar drop column aa, drop column ccc;
@@ -5020,7 +4888,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5086,7 +4953,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column ddd;
 alter table bar drop column aa, drop column ddd;
@@ -5096,7 +4962,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5162,7 +5027,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column a;
 alter table bar drop column bb, drop column a;
@@ -5172,7 +5036,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5238,7 +5101,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column b;
 alter table bar drop column bb, drop column b;
@@ -5248,7 +5110,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5314,7 +5175,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column c;
 alter table bar drop column bb, drop column c;
@@ -5324,7 +5184,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5390,7 +5249,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column d;
 alter table bar drop column bb, drop column d;
@@ -5400,7 +5258,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5466,7 +5323,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column aa;
 alter table bar drop column bb, drop column aa;
@@ -5476,7 +5332,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5542,7 +5397,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column cc;
 alter table bar drop column bb, drop column cc;
@@ -5552,7 +5406,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5618,7 +5471,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column dd;
 alter table bar drop column bb, drop column dd;
@@ -5628,7 +5480,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5694,7 +5545,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column aaa;
 alter table bar drop column bb, drop column aaa;
@@ -5704,7 +5554,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5770,7 +5619,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column bbb;
 alter table bar drop column bb, drop column bbb;
@@ -5780,7 +5628,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5846,7 +5693,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column ccc;
 alter table bar drop column bb, drop column ccc;
@@ -5856,7 +5702,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5922,7 +5767,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bb, drop column ddd;
 alter table bar drop column bb, drop column ddd;
@@ -5932,7 +5776,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -5998,7 +5841,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column a;
 alter table bar drop column cc, drop column a;
@@ -6008,7 +5850,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6074,7 +5915,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column b;
 alter table bar drop column cc, drop column b;
@@ -6084,7 +5924,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6150,7 +5989,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column c;
 alter table bar drop column cc, drop column c;
@@ -6160,7 +5998,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6226,7 +6063,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column d;
 alter table bar drop column cc, drop column d;
@@ -6236,7 +6072,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6302,7 +6137,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column aa;
 alter table bar drop column cc, drop column aa;
@@ -6312,7 +6146,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6378,7 +6211,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column bb;
 alter table bar drop column cc, drop column bb;
@@ -6388,7 +6220,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6454,7 +6285,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column dd;
 alter table bar drop column cc, drop column dd;
@@ -6464,7 +6294,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6530,7 +6359,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column aaa;
 alter table bar drop column cc, drop column aaa;
@@ -6540,7 +6368,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6606,7 +6433,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column bbb;
 alter table bar drop column cc, drop column bbb;
@@ -6616,7 +6442,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6682,7 +6507,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column ccc;
 alter table bar drop column cc, drop column ccc;
@@ -6692,7 +6516,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6758,7 +6581,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column cc, drop column ddd;
 alter table bar drop column cc, drop column ddd;
@@ -6768,7 +6590,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6834,7 +6655,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column a;
 alter table bar drop column dd, drop column a;
@@ -6844,7 +6664,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6910,7 +6729,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column b;
 alter table bar drop column dd, drop column b;
@@ -6920,7 +6738,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -6986,7 +6803,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column c;
 alter table bar drop column dd, drop column c;
@@ -6996,7 +6812,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7062,7 +6877,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column d;
 alter table bar drop column dd, drop column d;
@@ -7072,7 +6886,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7138,7 +6951,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column aa;
 alter table bar drop column dd, drop column aa;
@@ -7148,7 +6960,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7214,7 +7025,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column bb;
 alter table bar drop column dd, drop column bb;
@@ -7224,7 +7034,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7290,7 +7099,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column cc;
 alter table bar drop column dd, drop column cc;
@@ -7300,7 +7108,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7366,7 +7173,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column aaa;
 alter table bar drop column dd, drop column aaa;
@@ -7376,7 +7182,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7442,7 +7247,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column bbb;
 alter table bar drop column dd, drop column bbb;
@@ -7452,7 +7256,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7518,7 +7321,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column ccc;
 alter table bar drop column dd, drop column ccc;
@@ -7528,7 +7330,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7594,7 +7395,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column dd, drop column ddd;
 alter table bar drop column dd, drop column ddd;
@@ -7604,7 +7404,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7670,7 +7469,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column a;
 alter table bar drop column aaa, drop column a;
@@ -7680,7 +7478,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7746,7 +7543,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column b;
 alter table bar drop column aaa, drop column b;
@@ -7756,7 +7552,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7822,7 +7617,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column c;
 alter table bar drop column aaa, drop column c;
@@ -7832,7 +7626,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7898,7 +7691,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column d;
 alter table bar drop column aaa, drop column d;
@@ -7908,7 +7700,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -7974,7 +7765,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column aa;
 alter table bar drop column aaa, drop column aa;
@@ -7984,7 +7774,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8050,7 +7839,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column bb;
 alter table bar drop column aaa, drop column bb;
@@ -8060,7 +7848,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8126,7 +7913,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column cc;
 alter table bar drop column aaa, drop column cc;
@@ -8136,7 +7922,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8202,7 +7987,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column dd;
 alter table bar drop column aaa, drop column dd;
@@ -8212,7 +7996,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8278,7 +8061,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column bbb;
 alter table bar drop column aaa, drop column bbb;
@@ -8288,7 +8070,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8354,7 +8135,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column ccc;
 alter table bar drop column aaa, drop column ccc;
@@ -8364,7 +8144,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8430,7 +8209,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column ddd;
 alter table bar drop column aaa, drop column ddd;
@@ -8440,7 +8218,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8506,7 +8283,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column a;
 alter table bar drop column bbb, drop column a;
@@ -8516,7 +8292,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8582,7 +8357,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column b;
 alter table bar drop column bbb, drop column b;
@@ -8592,7 +8366,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8658,7 +8431,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column c;
 alter table bar drop column bbb, drop column c;
@@ -8668,7 +8440,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8734,7 +8505,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column d;
 alter table bar drop column bbb, drop column d;
@@ -8744,7 +8514,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8810,7 +8579,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column aa;
 alter table bar drop column bbb, drop column aa;
@@ -8820,7 +8588,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8886,7 +8653,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column bb;
 alter table bar drop column bbb, drop column bb;
@@ -8896,7 +8662,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -8962,7 +8727,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column cc;
 alter table bar drop column bbb, drop column cc;
@@ -8972,7 +8736,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9038,7 +8801,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column dd;
 alter table bar drop column bbb, drop column dd;
@@ -9048,7 +8810,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9114,7 +8875,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column aaa;
 alter table bar drop column bbb, drop column aaa;
@@ -9124,7 +8884,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9190,7 +8949,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column ccc;
 alter table bar drop column bbb, drop column ccc;
@@ -9200,7 +8958,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9266,7 +9023,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column bbb, drop column ddd;
 alter table bar drop column bbb, drop column ddd;
@@ -9276,7 +9032,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9342,7 +9097,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column a;
 alter table bar drop column ccc, drop column a;
@@ -9352,7 +9106,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9418,7 +9171,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column b;
 alter table bar drop column ccc, drop column b;
@@ -9428,7 +9180,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9494,7 +9245,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column c;
 alter table bar drop column ccc, drop column c;
@@ -9504,7 +9254,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9570,7 +9319,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column d;
 alter table bar drop column ccc, drop column d;
@@ -9580,7 +9328,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9646,7 +9393,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column aa;
 alter table bar drop column ccc, drop column aa;
@@ -9656,7 +9402,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9722,7 +9467,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column bb;
 alter table bar drop column ccc, drop column bb;
@@ -9732,7 +9476,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9798,7 +9541,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column cc;
 alter table bar drop column ccc, drop column cc;
@@ -9808,7 +9550,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9874,7 +9615,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column dd;
 alter table bar drop column ccc, drop column dd;
@@ -9884,7 +9624,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -9950,7 +9689,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column aaa;
 alter table bar drop column ccc, drop column aaa;
@@ -9960,7 +9698,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10026,7 +9763,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column bbb;
 alter table bar drop column ccc, drop column bbb;
@@ -10036,7 +9772,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10102,7 +9837,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ccc, drop column ddd;
 alter table bar drop column ccc, drop column ddd;
@@ -10112,7 +9846,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10178,7 +9911,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column a;
 alter table bar drop column ddd, drop column a;
@@ -10188,7 +9920,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10254,7 +9985,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column b;
 alter table bar drop column ddd, drop column b;
@@ -10264,7 +9994,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10330,7 +10059,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column c;
 alter table bar drop column ddd, drop column c;
@@ -10340,7 +10068,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10406,7 +10133,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column d;
 alter table bar drop column ddd, drop column d;
@@ -10416,7 +10142,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10482,7 +10207,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column aa;
 alter table bar drop column ddd, drop column aa;
@@ -10492,7 +10216,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10558,7 +10281,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column bb;
 alter table bar drop column ddd, drop column bb;
@@ -10568,7 +10290,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10634,7 +10355,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column cc;
 alter table bar drop column ddd, drop column cc;
@@ -10644,7 +10364,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10710,7 +10429,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column dd;
 alter table bar drop column ddd, drop column dd;
@@ -10720,7 +10438,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10786,7 +10503,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column aaa;
 alter table bar drop column ddd, drop column aaa;
@@ -10796,7 +10512,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10862,7 +10577,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column bbb;
 alter table bar drop column ddd, drop column bbb;
@@ -10872,7 +10586,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -10938,7 +10651,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column ddd, drop column ccc;
 alter table bar drop column ddd, drop column ccc;
@@ -10948,7 +10660,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11014,7 +10725,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b, drop column c;
 alter table bar drop column a, drop column b, drop column c;
@@ -11024,7 +10734,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11090,7 +10799,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b, drop column d;
 alter table bar drop column a, drop column b, drop column d;
@@ -11100,7 +10808,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11166,7 +10873,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column c, drop column d;
 alter table bar drop column a, drop column c, drop column d;
@@ -11176,7 +10882,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11242,7 +10947,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column b, drop column c, drop column d;
 alter table bar drop column b, drop column c, drop column d;
@@ -11252,7 +10956,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11318,7 +11021,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b, drop column c, drop column d;
 alter table bar drop column a, drop column b, drop column c, drop column d;
@@ -11328,7 +11030,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11394,7 +11095,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column bb, drop column cc, drop column dd;
 alter table bar drop column aa, drop column bb, drop column cc, drop column dd;
@@ -11404,7 +11104,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11470,7 +11169,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aaa, drop column bbb, drop column ccc, drop column ddd;
 alter table bar drop column aaa, drop column bbb, drop column ccc, drop column ddd;
@@ -11480,7 +11178,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11546,7 +11243,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b, drop column c, drop column d, drop column aaa, drop column bbb, drop column ccc, drop column ddd;
 alter table bar drop column a, drop column b, drop column c, drop column d, drop column aaa, drop column bbb, drop column ccc, drop column ddd;
@@ -11556,7 +11252,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11622,7 +11317,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column aa, drop column bb, drop column cc, drop column dd, drop column aaa, drop column bbb, drop column ccc, drop column ddd;
 alter table bar drop column aa, drop column bb, drop column cc, drop column dd, drop column aaa, drop column bbb, drop column ccc, drop column ddd;
@@ -11632,7 +11326,6 @@ drop table bar;
 create table foo (a int, b bigint, c date, d tinyint, aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
 create table bar like foo;
 alter table bar engine=MyISAM;
-begin;
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, "adsf",NULL,"hjfdshj",NULL);
 insert into foo values (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,"oifds",NULL,"fdsjfds");
@@ -11698,7 +11391,6 @@ insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "ad
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", NULL,"oifds",NULL,"fdsjfds");
 insert into foo values (2,20,'1999-11-11',0,"rewoiu","fds","fr","oiufdsrew", "rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
-commit;
 include/diff_tables.inc [test.foo, test.bar]
 alter table foo drop column a, drop column b, drop column c, drop column d, drop column aa, drop column bb, drop column cc, drop column dd;
 alter table bar drop column a, drop column b, drop column c, drop column d, drop column aa, drop column bb, drop column cc, drop column dd;

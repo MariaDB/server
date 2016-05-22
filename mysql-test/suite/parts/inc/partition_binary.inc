@@ -8,11 +8,13 @@ partition pa3 max_rows=30 min_rows=4,
 partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 insert into t1 values (repeat('a',255)), ('b'), (repeat('a',128)), (repeat('b',64));
+--sorted_result
 select hex(a) from t1;
 select a from t1 where substr(a,1,2)='b\0';
 update t1 set a='cc' where substr(a,1,2)= 'b\0';
 select a from t1 where substr(a,1,1)='c';
 delete from t1 where substr(a,1,2)='cc';
+--sorted_result
 select hex(a) from t1;
 drop table t1;
 
@@ -33,6 +35,7 @@ inc $letter;
 commit;
 --enable_query_log
 select count(*) from t2;
+--sorted_result
 select hex(a) from t2;
 drop table t2;
 

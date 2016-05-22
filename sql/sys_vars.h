@@ -30,6 +30,7 @@
 #include "strfunc.h"
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "rpl_mi.h" // For Multi-Source Replication
+#include "debug_sync.h"
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -1455,7 +1456,6 @@ public:
   }
   bool session_update(THD *thd, set_var *var)
   {
-    extern bool debug_sync_update(THD *thd, char *val_str);
     return debug_sync_update(thd, var->save_result.string_value.str);
   }
   bool global_update(THD *thd, set_var *var)

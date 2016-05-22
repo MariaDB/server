@@ -1,9 +1,5 @@
-SET DEFAULT_STORAGE_ENGINE='tokudb';
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
 # check 0x00 padding
 create table t1 (s1 binary(3));
 insert into t1 values (0x61), (0x6120), (0x612020);
@@ -21,6 +17,7 @@ drop table t1;
 
 # check that trailing 0x00 and 0x20 do matter on comparison
 create table t1 (s1 varbinary(20), s2 varbinary(20));
+replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
 insert into t1 values (0x41,0x4100),(0x41,0x4120),(0x4100,0x4120);
 select hex(s1), hex(s2) from t1;

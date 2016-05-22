@@ -22,6 +22,7 @@ perl;
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
+               collation-server character-set-server
                version.*/;
 
   # Plugins which may or may not be there:
@@ -30,7 +31,7 @@ perl;
               thread-concurrency super-large-pages mutex-deadlock-detector
               connect null-audit aria oqgraph sphinx thread-handling
               test-sql-discovery rpl-semi-sync query-cache-info
-              query-response-time metadata-lock-info locales/;
+              query-response-time metadata-lock-info locales unix-socket/;
 
   # And substitute the content some environment variables with their
   # names:

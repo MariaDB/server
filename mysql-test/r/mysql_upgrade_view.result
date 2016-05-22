@@ -3,6 +3,41 @@ drop table if exists t1,v1,v2,v3,v4,v1badcheck;
 drop view if exists t1,v1,v2,v3,v4,v1badcheck;
 create table t1(a int);
 create table kv(k varchar(30) NOT NULL PRIMARY KEY,v  varchar(50));
+create view v1 as select 1;
+repair table t1 quick;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+repair table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+repair table t1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+repair table t1 from mysql;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from mysql' at line 1
+repair view v1 quick;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'quick' at line 1
+repair view v1 extended;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'extended' at line 1
+repair view v1 use_frm;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'use_frm' at line 1
+repair view v1 from mysql;
+Table	Op	Msg_type	Msg_text
+test.v1	repair	status	OK
+check view v1 quick;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'quick' at line 1
+check view v1 fast;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'fast' at line 1
+check view v1 medium;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'medium' at line 1
+check view v1 extended;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'extended' at line 1
+check view v1 changed;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'changed' at line 1
+check view v1 for upgrade;
+Table	Op	Msg_type	Msg_text
+test.v1	check	status	OK
+drop view v1;
 flush tables;
 check view v1;
 Table	Op	Msg_type	Msg_text
@@ -283,4 +318,64 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; REPAIR VIEW `v4`  FROM MYSQL
 drop table if exists kv;
 drop view v1,v2,v3,v4;
+rename table mysql.event to mysql.ev_bk;
+flush tables;
+The --upgrade-system-tables option was used, user tables won't be touched.
+MySQL upgrade detected
+Phase 1/6: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.ev_bk                                        OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.host                                         OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.user                                         OK
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/6: Fixing views from mysql
+test.v1                                            OK
+test.v2                                            OK
+test.v3                                            OK
+Phase 3/6: Running 'mysql_fix_privilege_tables'
+Phase 4/6: Fixing table and database names ... Skipped
+Phase 5/6: Checking and upgrading tables... Skipped
+Phase 6/6: Running 'FLUSH PRIVILEGES'
+OK
+drop table mysql.event;
+rename table mysql.ev_bk to mysql.event;
+drop view v1,v2,v3;
 drop table t1;

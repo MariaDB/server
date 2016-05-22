@@ -1,5 +1,4 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Proram Ab.
+/* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2529,7 +2528,8 @@ ndbcluster_check_if_local_tables_in_db(THD *thd, const char *dbname)
   char path[FN_REFLEN + 1];
 
   build_table_filename(path, sizeof(path) - 1, dbname, "", "", 0);
-  if (find_files(thd, &files, dbname, path, NullS, 0) != FIND_FILES_OK)
+  if (find_files(thd, &files, dbname, path, NullS, 0, NULL) !=
+      FIND_FILES_OK)
   {
     DBUG_PRINT("info", ("Failed to find files"));
     DBUG_RETURN(true);
@@ -3875,7 +3875,7 @@ restart:
       else if (ndb_latest_applied_binlog_epoch > 0)
       {
         sql_print_warning("NDB Binlog: cluster has reconnected. "
-                          "Changes to the database that occured while "
+                          "Changes to the database that occurred while "
                           "disconnected will not be in the binlog");
       }
       if (opt_ndb_extra_logging)

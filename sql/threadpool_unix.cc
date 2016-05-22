@@ -1255,7 +1255,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Allocation failed */
-    threadpool_remove_connection(thd);
+    threadpool_cleanup_connection(thd);
   } 
   DBUG_VOID_RETURN;
 }
@@ -1634,7 +1634,7 @@ int tp_get_idle_thread_count()
    Delay in microseconds, after which "pool blocked" message is printed.
    (30 sec == 30 Mio usec)
 */
-#define BLOCK_MSG_DELAY 30*1000000
+#define BLOCK_MSG_DELAY (30*1000000)
 
 #define MAX_THREADS_REACHED_MSG \
 "Threadpool could not create additional thread to handle queries, because the \

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
+#ifdef UNIV_HOTBACKUP
+#include "fsp0types.h"
+
+#else	/* !UNIV_HOTBACKUP */
 #include "fsp0fsp.h"
 #include "mtr0log.h"
 #include "mtr0log.h"
@@ -1115,18 +1118,15 @@ trx_sys_read_pertable_file_format_id(
 	/* get the file format from the page */
 	ptr = page + 54;
 	flags = mach_read_from_4(ptr);
-	if (flags == 0) {
-		/* file format is Antelope */
-		*format_id = 0;
-		return(TRUE);
-	} else if (flags & 1) {
-		/* tablespace flags are ok */
-		*format_id = (flags / 32) % 128;
-		return(TRUE);
-	} else {
+
+	if (!fsp_flags_is_valid(flags) {
 		/* bad tablespace flags */
 		return(FALSE);
 	}
+
+	*format_id = FSP_FLAGS_GET_POST_ANTELOPE(flags);
+
+	return(TRUE);
 }
 
 
@@ -1187,8 +1187,6 @@ trx_sys_close(void)
 	/* Free the double write data structures. */
 	buf_dblwr_free();
 
-	mutex_enter(&trx_sys->mutex);
-
 	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 
 	/* Only prepared transactions may be left in the system. Free them. */
@@ -1227,8 +1225,6 @@ trx_sys_close(void)
 	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
-
-	mutex_exit(&trx_sys->mutex);
 
 	mutex_free(&trx_sys->mutex);
 

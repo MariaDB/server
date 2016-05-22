@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab
+/* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -477,6 +477,7 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
 {
   List_iterator_fast<Ref_to_outside> it(upper_refs);
   Ref_to_outside *upper;
+  DBUG_ENTER("recalc_used_tables");
   
   used_tables_cache= 0;
   while ((upper= it++))
@@ -536,6 +537,8 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
     he has done const table detection, and that will be our chance to update
     const_tables_cache.
   */
+  DBUG_PRINT("exit", ("used_tables_cache: %llx", used_tables_cache));
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1375,7 +1378,7 @@ Item_in_subselect::Item_in_subselect(Item * left_exp,
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= &eq_creator;
   init(select_lex, new select_exists_subselect(this));
   max_columns= UINT_MAX;
@@ -1398,7 +1401,7 @@ Item_allany_subselect::Item_allany_subselect(Item * left_exp,
   :Item_in_subselect(), func_creator(fc), all(all_arg)
 {
   DBUG_ENTER("Item_allany_subselect::Item_allany_subselect");
-  left_expr= left_exp;
+  left_expr_orig= left_expr= left_exp;
   func= func_creator(all_arg);
   init(select_lex, new select_exists_subselect(this));
   max_columns= 1;
@@ -2002,7 +2005,7 @@ bool Item_allany_subselect::is_maxmin_applicable(JOIN *join)
 */
 
 bool
-Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
+Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                    Item **where_item,
                                                    Item **having_item)
 {
@@ -2012,7 +2015,6 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
     during JOIN::optimize: this->tmp_having= this->having; this->having= 0;
   */
   Item* join_having= join->having ? join->having : join->tmp_having;
-
   DBUG_ENTER("Item_in_subselect::create_single_in_to_exists_cond");
 
   *where_item= NULL;
@@ -3030,15 +3032,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   arena= thd->activate_stmt_arena_if_needed(&backup);
   if (!optimizer)
   {
-    result= (!(optimizer= new Item_in_optimizer(left_expr, this)));
+    result= (!(optimizer= new Item_in_optimizer(left_expr_orig, this)));
     if (result)
       goto out;
   }
 
   thd->lex->current_select= current->return_after_parsing();
   result= optimizer->fix_left(thd);
-  /* fix_fields can change reference to left_expr, we need reassign it */
-  left_expr= optimizer->arguments()[0];
   thd->lex->current_select= current;
 
   if (changed)
@@ -3105,11 +3105,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
+  char const *save_where= thd->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new Item_int(1)) );
 
+  thd->where= "IN/ALL/ANY subquery";
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -3140,7 +3142,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     if (outer_cols_num != inner_cols->elements)
     {
       my_error(ER_OPERAND_COLUMNS, MYF(0), outer_cols_num);
-      DBUG_RETURN(TRUE);
+      goto err;
     }
     if (outer_cols_num > 1)
     {
@@ -3150,20 +3152,24 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
       {
         inner_col= inner_col_it++;
         if (inner_col->check_cols(left_expr->element_index(i)->cols()))
-          DBUG_RETURN(TRUE);
+          goto err;
       }
     }
   }
 
-  if (thd_arg->lex->is_view_context_analysis() &&
-      left_expr && !left_expr->fixed &&
+  if (left_expr && !left_expr->fixed &&
       left_expr->fix_fields(thd_arg, &left_expr))
-    DBUG_RETURN(TRUE);
+    goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
-    DBUG_RETURN(TRUE);
+    goto err;
   fixed= TRUE;
+  thd->where= save_where;
   DBUG_RETURN(FALSE);
+
+err:
+  thd->where= save_where;
+  DBUG_RETURN(TRUE);
 }
 
 
@@ -5848,7 +5854,7 @@ int subselect_partial_match_engine::exec()
       /* Search for a complete match. */
       if ((lookup_res= lookup_engine->index_lookup()))
       {
-        /* An error occured during lookup(). */
+        /* An error occurred during lookup(). */
         item_in->value= 0;
         item_in->null_value= 0;
         return lookup_res;

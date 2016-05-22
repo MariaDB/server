@@ -1391,5 +1391,44 @@ eval explain $query;
 drop table t3,t2,t1;
 set optimizer_search_depth=@tmp7474;
 
+--echo #
+--echo #
+--echo #
+CREATE TABLE t1 (
+  id int(16) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE t2 (
+  id int(16) NOT NULL AUTO_INCREMENT,
+  t3_id int(16) NOT NULL DEFAULT '0',
+  t1_id int(16) NOT NULL DEFAULT '0',
+  PRIMARY KEY (id),
+  KEY t3_idx (t3_id),
+  KEY t1_idx (t1_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+CREATE TABLE t3 (
+  id int(16) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+
+INSERT INTO t3 VALUES (1);
+
+INSERT INTO t2 VALUES (1, 1, 1);
+INSERT INTO t2 VALUES (2, 1, 2);
+INSERT INTO t2 VALUES (3, 1, 2);
+INSERT INTO t2 VALUES (4, 1, 1);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+
+SELECT * FROM t1 WHERE t1.id IN (             
+  SELECT t2.t1_id FROM t3 JOIN t2 ON t3.id = t2.t3_id WHERE t3.id = 1
+);
+
+drop table t1,t2,t3;
+
 --echo # This must be the last in the file:
 set optimizer_switch=@subselect_sj2_tmp;

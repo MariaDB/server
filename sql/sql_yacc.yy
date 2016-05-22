@@ -35,7 +35,6 @@
 #define Select Lex->current_select
 #include <my_global.h>
 #include "sql_priv.h"
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                        /* comp_*_creator */
 #include "sql_table.h"                        /* primary_key_name */
 #include "sql_partition.h"  /* mem_alloc_error, partition_info, HASH_PARTITION */
@@ -3697,7 +3696,7 @@ sp_proc_stmt_statement:
               if (yychar == YYEMPTY)
                 i->m_query.length= lip->get_ptr() - sp->m_tmp_query;
               else
-                i->m_query.length= lip->get_tok_end() - sp->m_tmp_query;
+                i->m_query.length= lip->get_tok_start() - sp->m_tmp_query;;
               if (!(i->m_query.str= strmake_root(thd->mem_root,
                                                  sp->m_tmp_query,
                                                  i->m_query.length)) ||
@@ -7142,7 +7141,7 @@ alter:
               my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
               MYSQL_YYABORT;
             }
-            lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
+            lex->create_view_algorithm= VIEW_ALGORITHM_INHERIT;
             lex->create_view_mode= VIEW_ALTER;
           }
           view_tail
@@ -7912,8 +7911,13 @@ opt_checksum_type:
         | EXTENDED_SYM  { Lex->check_opt.flags= T_EXTEND; }
         ;
 
+repair_table_or_view:
+          table_or_tables table_list opt_mi_repair_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_repair_type
+        ;
+
 repair:
-          REPAIR opt_no_write_to_binlog table_or_view
+          REPAIR opt_no_write_to_binlog
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_REPAIR;
@@ -7923,18 +7927,9 @@ repair:
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_repair_type
+          repair_table_or_view
           {
             LEX* lex= thd->lex;
-            if ((lex->only_view &&
-                 ((lex->check_opt.flags & (T_QUICK | T_EXTEND)) ||
-                   (lex->check_opt.sql_flags & TT_USEFRM))) ||
-                (!lex->only_view &&
-                 (lex->check_opt.sql_flags & TT_FROM_MYSQL)))
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
             DBUG_ASSERT(!lex->m_sql_cmd);
             lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_repair_table();
             if (lex->m_sql_cmd == NULL)
@@ -7956,6 +7951,10 @@ mi_repair_type:
           QUICK        { Lex->check_opt.flags|= T_QUICK; }
         | EXTENDED_SYM { Lex->check_opt.flags|= T_EXTEND; }
         | USE_FRM      { Lex->check_opt.sql_flags|= TT_USEFRM; }
+        ;
+
+opt_view_repair_type:
+          /* empty */    { }
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
@@ -8075,30 +8074,27 @@ binlog_base64_event:
           }
         ;
 
-check:
-          CHECK_SYM table_or_view
+check_view_or_table:
+          table_or_tables table_list opt_mi_check_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_check_type
+        ;
+
+check:    CHECK_SYM
           {
             LEX *lex=Lex;
 
-            if (lex->sphead)
-            {
-              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
-              MYSQL_YYABORT;
-            }
             lex->sql_command = SQLCOM_CHECK;
             lex->check_opt.init();
             lex->alter_info.reset();
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_check_type
+          check_view_or_table
           {
             LEX* lex= thd->lex;
-            if (lex->only_view &&
-                (lex->check_opt.flags & (T_QUICK | T_FAST | T_EXTEND |
-                                         T_CHECK_ONLY_CHANGED)))
+            if (lex->sphead)
             {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
+              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
               MYSQL_YYABORT;
             }
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -8124,6 +8120,11 @@ mi_check_type:
         | MEDIUM_SYM          { Lex->check_opt.flags|= T_MEDIUM; }
         | EXTENDED_SYM        { Lex->check_opt.flags|= T_EXTEND; }
         | CHANGED             { Lex->check_opt.flags|= T_CHECK_ONLY_CHANGED; }
+        | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
+        ;
+
+opt_view_check_type:
+          /* empty */         { }
         | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
         ;
 
@@ -8208,7 +8209,6 @@ keycache:
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ASSIGN_TO_KEYCACHE;
             lex->ident= $6;
-            lex->only_view= FALSE;
           }
         ;
 
@@ -8253,7 +8253,6 @@ preload:
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_PRELOAD_KEYS;
             lex->alter_info.reset();
-            lex->only_view= FALSE;
           }
           preload_list_or_parts
           {}
@@ -10784,6 +10783,15 @@ table_factor:
                  nest_level is the same as in the outer query */
               $$= $3;
             }
+            /*
+              Fields in derived table can be used in upper select in
+              case of merge. We do not add HAVING fields because we do
+              not merge such derived. We do not add union because
+              also do not merge them
+            */
+            if ($$ && $$->derived &&
+                !$$->derived->first_select()->next_select())
+              $$->select_lex->add_where_field($$->derived->first_select());
           }
         ;
 
@@ -11507,8 +11515,20 @@ procedure_clause:
             if (add_proc_to_list(lex->thd, item))
               MYSQL_YYABORT;
             Lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
+
+            /*
+              PROCEDURE CLAUSE cannot handle subquery as one of its parameter,
+              so set expr_allows_subselect as false to disallow any subqueries
+              further. Reset expr_allows_subselect back to true once the
+              parameters are reduced.
+            */
+            Lex->expr_allows_subselect= false;
           }
           '(' procedure_list ')'
+          {
+            /* Subqueries are allowed from now.*/
+            Lex->expr_allows_subselect= true;
+          }
         ;
 
 procedure_list:
@@ -12540,7 +12560,6 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
-            lex->only_view= 0;
             lex->create_info.storage_media= HA_SM_DEFAULT;
           }
         | CREATE VIEW_SYM table_ident
@@ -14858,13 +14877,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM        { Lex->only_view= FALSE; }
-        | TABLES           { Lex->only_view= FALSE; }
-        ;
-
-table_or_view:
-          table_or_tables
-        | VIEW_SYM         { Lex->only_view= TRUE;  }
+          TABLE_SYM        { }
+        | TABLES           { }
         ;
 
 table_lock_list:
@@ -15164,6 +15178,9 @@ current_role:
 grant_role:
           ident_or_text
           {
+            CHARSET_INFO *cs= system_charset_info;
+            /* trim end spaces (as they'll be lost in mysql.user anyway) */
+            $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
             if ($1.length == 0)
             {
               my_error(ER_INVALID_ROLE, MYF(0), "");
@@ -15178,8 +15195,7 @@ grant_role:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         username_char_length,
-                                         system_charset_info, 0))
+                                         username_char_length, cs, 0))
               MYSQL_YYABORT;
           }
         | current_role

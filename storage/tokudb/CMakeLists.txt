@@ -1,6 +1,9 @@
-# ft-index only supports x86-64 and cmake-2.8.9+
-IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND
-    NOT CMAKE_VERSION VERSION_LESS "2.8.9")
+SET(TOKUDB_VERSION 5.6.26-74.0)
+# PerconaFT only supports x86-64 and cmake-2.8.9+
+IF(CMAKE_VERSION VERSION_LESS "2.8.9")
+  MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
+ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
+       CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 CHECK_CXX_SOURCE_COMPILES(
 "
 struct a {int b; int c; };
@@ -10,6 +13,7 @@ int main() { return 0; }
 ENDIF()
 
 IF(NOT TOKUDB_OK OR WITHOUT_TOKUDB OR WITHOUT_TOKUDB_STORAGE_ENGINE)
+  MESSAGE(STATUS "TokuDB disabled")
   RETURN()
 ENDIF()
 
@@ -25,19 +29,20 @@ IF (HAVE_WVLA)
 ENDIF()
 
 ############################################
-SET(TOKUDB_VERSION "tokudb-7.5.6")
-SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.0/README-TOKUDB\nusr/share/doc/mariadb-server-10.0/README.md" PARENT_SCOPE)
-SET(USE_BDB OFF CACHE BOOL "")
+SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)
 MARK_AS_ADVANCED(BUILDNAME)
 MARK_AS_ADVANCED(BUILD_TESTING)
 MARK_AS_ADVANCED(CMAKE_TOKUDB_REVISION)
 MARK_AS_ADVANCED(LIBTOKUDB)
 MARK_AS_ADVANCED(LIBTOKUPORTABILITY)
+MARK_AS_ADVANCED(PROFILING)
+MARK_AS_ADVANCED(SNAPPY_SOURCE_DIR)
 MARK_AS_ADVANCED(TOKUDB_DATA)
 MARK_AS_ADVANCED(TOKU_DEBUG_PARANOID)
-MARK_AS_ADVANCED(USE_BDB)
 MARK_AS_ADVANCED(USE_VALGRIND)
 MARK_AS_ADVANCED(XZ_SOURCE_DIR)
+MARK_AS_ADVANCED(gcc_ar)
+MARK_AS_ADVANCED(gcc_ranlib)
 ############################################
 
 SET(BUILD_TESTING OFF CACHE BOOL "")
@@ -101,14 +106,26 @@ endmacro(append_cflags_if_supported)
 set_cflags_if_supported(-Wno-missing-field-initializers)
 append_cflags_if_supported(-Wno-vla)
 
-ADD_SUBDIRECTORY(ft-index)
+IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
+    IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")
+        MESSAGE(FATAL_ERROR "Found both PerconaFT and ft-index sources.  Don't know which to use.")
+    ENDIF ()
+    SET(TOKU_FT_DIR_NAME "PerconaFT")
+    
+ELSEIF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")
+    MESSAGE(WARNING "Found ft-index sources, ft-index is deprecated and replaced with PerconaFT.")
+    SET(TOKU_FT_DIR_NAME "ft-index")
+ELSE ()
+        MESSAGE(FATAL_ERROR "Could not find PerconaFT sources.")
+ENDIF ()
 
-INCLUDE_DIRECTORIES(ft-index)
-INCLUDE_DIRECTORIES(ft-index/portability)
-INCLUDE_DIRECTORIES(ft-index/util)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/ft-index)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/ft-index/buildheader)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/ft-index/portability)
+ADD_SUBDIRECTORY(${TOKU_FT_DIR_NAME})
+INCLUDE_DIRECTORIES(${TOKU_FT_DIR_NAME})
+INCLUDE_DIRECTORIES(${TOKU_FT_DIR_NAME}/portability)
+INCLUDE_DIRECTORIES(${TOKU_FT_DIR_NAME}/util)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME})
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/buildheader)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/portability)
 
 SET(TOKUDB_PLUGIN_DYNAMIC "ha_tokudb")
 SET(TOKUDB_SOURCES ha_tokudb.cc)

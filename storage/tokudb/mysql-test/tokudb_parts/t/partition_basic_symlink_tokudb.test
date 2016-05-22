@@ -1,0 +1,164 @@
+################################################################################
+# t/partition_basic_tokudb.test                                                #
+#                                                                              #
+# Purpose:                                                                     #
+#  Tests around Create Partitioned table using DATA/INDEX DIR                  #
+#        TokuDB branch                                                         #
+#                                                                              #
+#------------------------------------------------------------------------------#
+# Original Author: mleich                                                      #
+# Original Date: 2006-03-05                                                    #
+# Change Author: mattiasj                                                      #
+# Change Date: 2008-02-05                                                      #
+# Change: copied it from partition_basic_tokudb.test and kept DATA DIR         #
+# Change Author: mattiasj                                                      #
+# Change Date: 2008-03-16                                                      #
+# Change: Replaced all test with alter -> myisam, since tokudb does not support#
+# Change Author: Kevin lewis                                                   #
+# Change Date: 2012-03-02                                                      #
+# Change: WL5980 activates DATA DIRECTORY for TokuDB                           #
+################################################################################
+
+# NOTE: As of WL5980, TokuDB supports DATA DIRECTORY, but not INDEX DIRECTORY.
+#       See tokudb.tokudb-tablespace for tests using partition engine, tokudb
+#       and DATADIRECTORY.  The purpose of this test is to show that a
+#       partitioned table remembers the DATA/INDEX DIR and it is used if
+#       altered to MyISAM
+#
+--echo #
+--echo # Verify that the DATA/INDEX DIR is stored and used if ALTER to MyISAM.
+--echo #
+--source include/have_tokudb.inc
+# The server must support partitioning.
+--source include/have_partition.inc
+# The server must support symlink for DATA/INDEX DIRECTORY.
+--source include/have_symlink.inc
+# windows does not support symlink for DATA/INDEX DIRECTORY.
+--source include/not_windows.inc
+
+# Does not work with --embedded
+--source include/not_embedded.inc
+
+--disable_query_log
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+# These values can change during the test
+LET $tokudb_file_per_table_orig=`select @@tokudb_file_per_table`;
+LET $tokudb_strict_mode_orig=`select @@session.tokudb_strict_mode`;
+--enable_query_log
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--mkdir $MYSQLTEST_VARDIR/mysql-test-data-dir
+--mkdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
+
+SET SESSION tokudb_strict_mode = ON;
+
+--echo #
+--echo # TokuDB only supports DATA DIRECTORY with tokudb_file_per_table=ON
+--echo #
+SET GLOBAL tokudb_file_per_table = OFF;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_ILLEGAL_HA
+eval CREATE TABLE t1 (c1 INT)  ENGINE = TokuDB
+PARTITION BY HASH (c1) (
+  PARTITION p0
+    DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir',
+  PARTITION p1
+    DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
+);
+--replace_result ./ MYSQLD_DATADIR/  $MYSQLD_DATADIR MYSQLD_DATADIR
+SHOW WARNINGS;
+
+--echo #
+--echo # TokuDB is different from MyISAM in that it uses a text file
+--echo # with an '.isl' extension instead of a symbolic link so that
+--echo # the tablespace can be re-located on any OS. Also, instead of
+--echo # putting the file directly into the DATA DIRECTORY,
+--echo # it adds a folder under it with the name of the database.
+--echo # Since strict mode is off, TokuDB ignores the INDEX DIRECTORY
+--echo # and it is no longer part of the definition.
+--echo #
+SET SESSION tokudb_strict_mode = OFF;
+SET GLOBAL tokudb_file_per_table = ON;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t1 (c1 INT) ENGINE = TokuDB
+PARTITION BY HASH (c1)
+(PARTITION p0
+ DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir',
+ PARTITION p1
+ DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
+);
+SHOW WARNINGS;
+
+--echo # Verifying .frm, .par, .isl & .ibd files
+--echo ---- MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test
+--echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--echo # The ibd tablespaces should not be directly under the DATA DIRECTORY
+--echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+--echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
+
+FLUSH TABLES;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+
+--echo #
+--echo # Verify that the DATA/INDEX DIRECTORY is stored and used if we
+--echo # ALTER TABLE to MyISAM.
+--echo #
+ALTER TABLE t1 engine=MyISAM;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+--echo # Verifying .frm, .par and MyISAM files (.MYD, MYI)
+--echo ---- MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test
+--echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+--echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
+
+--echo #
+--echo # Now verify that the DATA DIRECTORY is used again if we
+--echo # ALTER TABLE back to TokuDB.
+--echo #
+SET SESSION tokudb_strict_mode = ON;
+ALTER TABLE t1 engine=TokuDB;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+--echo # Verifying .frm, .par, .isl and TokuDB .ibd files
+--echo ---- MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test
+--echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
+--echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+--list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
+--echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+
+DROP TABLE t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+--rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir/test
+--rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir
+--rmdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
+
+--disable_query_log
+EVAL SET GLOBAL tokudb_file_per_table=$tokudb_file_per_table_orig;
+EVAL SET SESSION tokudb_strict_mode=$tokudb_strict_mode_orig;
+--enable_query_log
+
+
+

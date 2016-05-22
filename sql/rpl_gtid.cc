@@ -117,12 +117,12 @@ int
 rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
 {
   uint32 domain_id= gtid->domain_id;
-  uint32 seq_no= gtid->seq_no;
+  uint64 seq_no= gtid->seq_no;
   rpl_slave_state::element *elem;
   int res;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
-  THD *thd;
+  THD *UNINIT_VAR(thd);
   Relay_log_info *rli= rgi->rli;
 
   mysql_mutex_lock(&LOCK_slave_state);
@@ -243,8 +243,10 @@ rpl_slave_state_free_element(void *arg)
 
 
 rpl_slave_state::rpl_slave_state()
-  : last_sub_id(0), inited(false), loaded(false)
+  : last_sub_id(0), loaded(false)
 {
+  mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
+                   MY_MUTEX_INIT_SLOW);
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
 }
@@ -252,15 +254,9 @@ rpl_slave_state::rpl_slave_state()
 
 rpl_slave_state::~rpl_slave_state()
 {
-}
-
-
-void
-rpl_slave_state::init()
-{
-  DBUG_ASSERT(!inited);
-  mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state, MY_MUTEX_INIT_SLOW);
-  inited= true;
+  truncate_hash();
+  my_hash_free(&hash);
+  mysql_mutex_destroy(&LOCK_slave_state);
 }
 
 
@@ -283,16 +279,6 @@ rpl_slave_state::truncate_hash()
     /* The element itself is freed by the hash element free function. */
   }
   my_hash_reset(&hash);
-}
-
-void
-rpl_slave_state::deinit()
-{
-  if (!inited)
-    return;
-  truncate_hash();
-  my_hash_free(&hash);
-  mysql_mutex_destroy(&LOCK_slave_state);
 }
 
 
@@ -2097,16 +2083,16 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
       uint64 wakeup_seq_no;
       queue_element *cur_waiter;
 
-      mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
       /*
         The elements in the gtid_slave_state_hash are never re-allocated once
         they enter the hash, so we do not need to re-do the lookup after releasing
         and re-aquiring the lock.
       */
       if (!slave_state_elem &&
-          !(slave_state_elem= rpl_global_gtid_slave_state.get_element(domain_id)))
+          !(slave_state_elem= rpl_global_gtid_slave_state->get_element(domain_id)))
       {
-        mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+        mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
         remove_from_wait_queue(he, &elem);
         promote_new_waiter(he);
         if (did_enter_cond)
@@ -2123,7 +2109,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
           We do not have to wait. (We will be removed from the wait queue when
           we call process_wait_hash() below.
         */
-        mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+        mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
       }
       else if ((cur_waiter= slave_state_elem->gtid_waiter) &&
                slave_state_elem->min_wait_seq_no <= seq_no)
@@ -2135,7 +2121,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
           lock).
         */
         elem.do_small_wait= false;
-        mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+        mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
       }
       else
       {
@@ -2160,7 +2146,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
         else
           mysql_mutex_unlock(&LOCK_gtid_waiting);
         thd->ENTER_COND(&slave_state_elem->COND_wait_gtid,
-                        &rpl_global_gtid_slave_state.LOCK_slave_state,
+                        &rpl_global_gtid_slave_state->LOCK_slave_state,
                         &stage_master_gtid_wait_primary, &old_stage);
         do
         {
@@ -2170,7 +2156,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
           {
             int err=
               mysql_cond_timedwait(&slave_state_elem->COND_wait_gtid,
-                                   &rpl_global_gtid_slave_state.LOCK_slave_state,
+                                   &rpl_global_gtid_slave_state->LOCK_slave_state,
                                    wait_until);
             if (err == ETIMEDOUT || err == ETIME)
             {
@@ -2180,7 +2166,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
           }
           else
             mysql_cond_wait(&slave_state_elem->COND_wait_gtid,
-                            &rpl_global_gtid_slave_state.LOCK_slave_state);
+                            &rpl_global_gtid_slave_state->LOCK_slave_state);
         } while (slave_state_elem->gtid_waiter == &elem);
         wakeup_seq_no= slave_state_elem->highest_seq_no;
         /*

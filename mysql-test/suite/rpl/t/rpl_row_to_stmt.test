@@ -1,0 +1,23 @@
+#
+# check that master starterd with log-format=ROW replication can replicate to
+# slave started with log-format=STATEMENT
+#
+
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+use test;
+
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3),(4),(5);
+update t1 set a=a*10;
+
+sync_slave_with_master;
+use test;
+select * from t1;
+source include/show_binlog_events.inc;
+
+connection master;
+drop table t1;
+
+--source include/rpl_end.inc

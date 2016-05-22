@@ -5,9 +5,6 @@
 drop table if exists t1;
 --enable_warnings
 
-# Ensure that all tables are properly closed before we start simulating
-# crashes
-FLUSH TABLES;
 
 # test that simple xa commands work with TokuDB
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=tokudb;
@@ -16,7 +13,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-SET SESSION debug="d,tokudb_crash_prepare_before";
+SET SESSION debug_dbug="d,tokudb_crash_prepare_before";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
@@ -39,7 +36,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-SET SESSION debug="d,tokudb_crash_prepare_after";
+SET SESSION debug_dbug="d,tokudb_crash_prepare_after";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 
@@ -60,7 +57,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-SET SESSION debug="d,tokudb_crash_prepare_after";
+SET SESSION debug_dbug="d,tokudb_crash_prepare_after";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
@@ -80,7 +77,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-SET SESSION debug="d,tokudb_crash_commit_before";
+SET SESSION debug_dbug="d,tokudb_crash_commit_before";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 xa prepare 'a','ab';
@@ -100,7 +97,7 @@ xa begin 'a','ab';
 insert into t1 values (1);
 select * from t1;
 xa end 'a','ab';
-SET SESSION debug="d,tokudb_crash_commit_before";
+SET SESSION debug_dbug="d,tokudb_crash_commit_before";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3311,7 +3311,19 @@ void Item_func_group_concat::cleanup()
     }
     DBUG_ASSERT(tree == 0);
   }
-
+  /*
+    As the ORDER structures pointed to by the elements of the
+    'order' array may be modified in find_order_in_list() called
+    from Item_func_group_concat::setup() to point to runtime
+    created objects, we need to reset them back to the original
+    arguments of the function.
+  */
+  ORDER **order_ptr= order;
+  for (uint i= 0; i < arg_count_order; i++)
+  {
+    (*order_ptr)->item= &args[arg_count_field + i];
+    order_ptr++;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -3515,9 +3527,17 @@ bool Item_func_group_concat::setup(THD *thd)
     "all_fields". The resulting field list is used as input to create
     tmp table columns.
   */
-  if (arg_count_order &&
-      setup_order(thd, args, context->table_list, list, all_fields, *order))
-    DBUG_RETURN(TRUE);
+  if (arg_count_order)
+  {
+    uint n_elems= arg_count_order + all_fields.elements;
+    ref_pointer_array= static_cast<Item**>(thd->alloc(sizeof(Item*) * n_elems));
+    if (!ref_pointer_array)
+      DBUG_RETURN(TRUE);
+    memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
+    if (setup_order(thd, ref_pointer_array, context->table_list, list,
+                    all_fields, *order))
+      DBUG_RETURN(TRUE);
+  }
 
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;

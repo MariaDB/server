@@ -10,21 +10,14 @@ show warnings;
 select * from t;
 select last_insert_id() from t limit 1;
 let $i=0;
-let $n=7;
+let $n=16;
 while ($i < $n) {
+    error 0,167;
     insert into t set id=null;
     show warnings;
     select * from t;
     select last_insert_id() from t limit 1;
     inc $i;
-}
-let $i=0;
-let $n=4;
-while ($i < $n) {
-      error 167;
-      insert into t set id=null;
-      select last_insert_id() from t limit 1;
-      inc $i;
 }
 drop table t;
 
@@ -34,21 +27,14 @@ show warnings;
 select * from t;
 select last_insert_id() from t limit 1;
 let $i=0;
-let $n=7;
+let $n=16;
 while ($i < $n) {
+    error 0,167;
     insert into t set id=null;
     show warnings;
     select * from t;
     select last_insert_id() from t limit 1;
     inc $i;
-}
-let $i=0;
-let $n=4;
-while ($i < $n) {
-      error 167;
-      insert into t set id=null;
-      select last_insert_id() from t limit 1;
-      inc $i;
 }
 drop table t;
 
@@ -58,21 +44,14 @@ show warnings;
 select * from t;
 select last_insert_id() from t limit 1;
 let $i=0;
-let $n=7;
+let $n=16;
 while ($i < $n) {
+    error 0,167;
     insert into t set id=null;
     show warnings;
     select * from t;
     select last_insert_id() from t limit 1;
     inc $i;
-}
-let $i=0;
-let $n=4;
-while ($i < $n) {
-      error 167;
-      insert into t set id=null;
-      select last_insert_id() from t limit 1;
-      inc $i;
 }
 drop table t;
 
@@ -88,13 +67,21 @@ while ($i < $n) {
       select last_insert_id() from t limit 1;
       inc $i;
 }
-let $i=0;
-let $n=4;
-while ($i < $n) {
-      error 1467;
-      insert into t set id=null;
-      select last_insert_id() from t limit 1;
-      inc $i;
-}
+
+error 1264,1467;
+insert into t set id=null;
+select last_insert_id() from t limit 1;
+
+error 1264,1467;
+insert into t set id=null;
+select last_insert_id() from t limit 1;
+
+error 1264,1467;
+insert into t set id=null;
+select last_insert_id() from t limit 1;
+
+error 1264,1467;
+insert into t set id=null;
+select last_insert_id() from t limit 1;
 
 drop table t;

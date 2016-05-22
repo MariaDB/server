@@ -52,7 +52,7 @@ IF(NOT SYSTEM_TYPE)
   ENDIF()
 ENDIF()
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 
@@ -175,7 +175,6 @@ CHECK_INCLUDE_FILES (alloca.h HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES (aio.h HAVE_AIO_H)
 CHECK_INCLUDE_FILES (arpa/inet.h HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES (crypt.h HAVE_CRYPT_H)
-CHECK_INCLUDE_FILE_CXX (cxxabi.h HAVE_CXXABI_H)
 CHECK_INCLUDE_FILES (bfd.h BFD_H_EXISTS)
 CHECK_INCLUDE_FILES (dirent.h HAVE_DIRENT_H)
 CHECK_INCLUDE_FILES (dlfcn.h HAVE_DLFCN_H)
@@ -548,6 +547,7 @@ MY_CHECK_TYPE_SIZE(mode_t MODE_T)
 IF(NOT SIZEOF_MODE_T)
  SET(mode_t int)
 ENDIF()
+MY_CHECK_TYPE_SIZE(sighandler_t SIGHANDLER_T)
 
 IF(HAVE_NETINET_IN_H)
   SET(CMAKE_EXTRA_INCLUDE_FILES netinet/in.h)
@@ -790,16 +790,36 @@ ENDIF()
 #
 # Test for how the C compiler does inline, if at all
 #
+# SunPro is weird, apparently it only supports inline at -xO3 or -xO4.
+# And if CMAKE_C_FLAGS has -xO4 but CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE} has -xO2
+# then CHECK_C_SOURCE_COMPILES will succeed but the built will fail.
+# We must test all flags here.
+# XXX actually, we can do this for all compilers, not only SunPro
+IF (CMAKE_CXX_COMPILER_ID MATCHES "SunPro" AND
+    CMAKE_GENERATOR MATCHES "Makefiles")
+  STRING(TOUPPER "CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE}" flags)
+  SET(CMAKE_REQUIRED_FLAGS "${${flags}}")
+ENDIF()
 CHECK_C_SOURCE_COMPILES("
-static inline int foo(){return 0;}
+extern int bar(int x);
+static inline int foo(){return bar(1);}
 int main(int argc, char *argv[]){return 0;}"
                             C_HAS_inline)
 IF(NOT C_HAS_inline)
   CHECK_C_SOURCE_COMPILES("
-  static __inline int foo(){return 0;}
+  extern int bar(int x);
+  static __inline int foo(){return bar(1);}
   int main(int argc, char *argv[]){return 0;}"
                             C_HAS___inline)
-  SET(C_INLINE __inline)
+  IF(C_HAS___inline)
+    SET(C_INLINE __inline)
+  ElSE()
+    SET(C_INLINE)
+    MESSAGE(WARNING "C compiler does not support funcion inlining")
+    IF(NOT NOINLINE)
+      MESSAGE(FATAL_ERROR "Use -DNOINLINE=TRUE to allow compilation without inlining")
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
@@ -874,7 +894,7 @@ ENDIF(NOT HAVE_POSIX_SIGNALS)
 # Assume regular sprintf
 SET(SPRINTFS_RETURNS_INT 1)
 
-IF(CMAKE_COMPILER_IS_GNUCXX AND HAVE_CXXABI_H)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 CHECK_CXX_SOURCE_COMPILES("
  #include <cxxabi.h>
  int main(int argc, char **argv) 
@@ -946,7 +966,6 @@ SET(SIGNAL_WITH_VIO_CLOSE 1)
 MARK_AS_ADVANCED(NO_ALARM)
 
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
 IF(WITH_ATOMIC_OPS STREQUAL "up")
   SET(MY_ATOMIC_MODE_DUMMY 1 CACHE BOOL "Assume single-CPU mode, no concurrency")
 ELSEIF(WITH_ATOMIC_OPS STREQUAL "rwlocks")
@@ -977,9 +996,16 @@ ELSEIF(NOT WITH_ATOMIC_OPS)
     return 0;
   }"
   HAVE_GCC_ATOMIC_BUILTINS)
+  CHECK_CXX_SOURCE_COMPILES("
+  int main()
+  {
+    long long int var= 1;
+    long long int *ptr= &var;
+    return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  }"
+  HAVE_GCC_C11_ATOMICS)
 ELSE()
   MESSAGE(FATAL_ERROR "${WITH_ATOMIC_OPS} is not a valid value for WITH_ATOMIC_OPS!")
-ENDIF()
 ENDIF()
 
 SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING
@@ -1051,3 +1077,8 @@ CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_IN
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
 CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)
+IF(NOT HAVE_UCONTEXT_H)
+  CHECK_INCLUDE_FILE(sys/ucontext.h HAVE_UCONTEXT_H)
+ENDIF()
+CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_sec "time.h" STRUCT_TIMESPEC_HAS_TV_SEC)
+CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_nsec "time.h" STRUCT_TIMESPEC_HAS_TV_NSEC)

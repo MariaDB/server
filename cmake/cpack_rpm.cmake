@@ -21,18 +21,20 @@ SET(CPACK_COMPONENT_MANPAGESCLIENT_GROUP "client")
 SET(CPACK_COMPONENT_README_GROUP "server")
 SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
+SET(CPACK_COMPONENT_CLIENTPLUGINS_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                          SupportFiles Development ManPagesDevelopment
                          ManPagesTest Readme ManPagesClient Test 
-                         Common Client SharedLibraries)
+                         Common Client SharedLibraries ClientPlugins)
 
 SET(CPACK_RPM_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
-SET(CPACK_RPM_PACKAGE_LICENSE "GPL")
+SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
 SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
+SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL "http://mariadb.org")
 SET(CPACK_RPM_PACKAGE_SUMMARY "MariaDB: a very fast and robust SQL database server")
@@ -41,8 +43,8 @@ SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_SUMMARY}
 It is GPL v2 licensed, which means you can use the it free of charge under the
 conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
 
-MariaDB documentation can be found at http://kb.askmonty.org/
-MariaDB bug reports should be submitted through https://mariadb.atlassian.net/
+MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB bug reports should be submitted through https://jira.mariadb.org 
 
 ")
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -158,6 +158,9 @@ static const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
 #define SRV_N_PENDING_IOS_PER_THREAD	OS_AIO_N_PENDING_IOS_PER_THREAD
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
+/** The round off to MB is similar as done in srv_parse_megabytes() */
+#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
+				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 UNIV_INTERN mysql_pfs_key_t	io_handler_thread_key;
@@ -233,8 +236,8 @@ srv_file_check_mode(
 
 		/* Note: stat.rw_perm is only valid of files */
 
-		if (stat.type == OS_FILE_TYPE_FILE
-		    || stat.type == OS_FILE_TYPE_BLOCK) {
+		if (stat.type == OS_FILE_TYPE_FILE) {
+
 			if (!stat.rw_perm) {
 
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -431,14 +434,16 @@ srv_parse_data_file_paths_and_sizes(
 		    && *(str + 1) == 'e'
 		    && *(str + 2) == 'w') {
 			str += 3;
+			/* Initialize new raw device only during bootstrap */
 			(srv_data_file_is_raw_partition)[i] = SRV_NEW_RAW;
 		}
 
 		if (*str == 'r' && *(str + 1) == 'a' && *(str + 2) == 'w') {
 			str += 3;
 
+			/* Initialize new raw device only during bootstrap */
 			if ((srv_data_file_is_raw_partition)[i] == 0) {
-				(srv_data_file_is_raw_partition)[i] = SRV_OLD_RAW;
+				(srv_data_file_is_raw_partition)[i] = SRV_NEW_RAW;
 			}
 		}
 
@@ -891,6 +896,24 @@ open_or_create_data_files(
 
 				return(DB_ERROR);
 			}
+
+			const char*	check_msg;
+			check_msg = fil_read_first_page(
+				files[i], FALSE, &flags, &space,
+#ifdef UNIV_LOG_ARCHIVE
+				min_arch_log_no, max_arch_log_no,
+#endif /* UNIV_LOG_ARCHIVE */
+				min_flushed_lsn, max_flushed_lsn);
+
+			/* If first page is valid, don't overwrite DB.
+			It prevents overwriting DB when mysql_install_db
+			starts mysqld multiple times during bootstrap. */
+			if (check_msg == NULL) {
+
+				srv_created_new_raw = FALSE;
+				ret = FALSE;
+			}
+
 		} else if (srv_data_file_is_raw_partition[i] == SRV_OLD_RAW) {
 			srv_start_raw_disk_in_use = TRUE;
 
@@ -947,10 +970,16 @@ open_or_create_data_files(
 size_check:
 			size = os_file_get_size(files[i]);
 			ut_a(size != (os_offset_t) -1);
-			/* Round size downward to megabytes */
 
-			rounded_size_pages = (ulint)
-				(size >> UNIV_PAGE_SIZE_SHIFT);
+			/* Under some error conditions like disk full
+			narios or file size reaching filesystem
+			limit the data file could contain an incomplete
+			extent at the end. When we extend a data file
+			and if some failure happens, then also the data
+			file could contain an incomplete extent.  So we
+			need to round the size downward to a megabyte.*/
+
+			rounded_size_pages = (ulint) CALC_NUMBER_OF_PAGES(size);
 
 			if (i == srv_n_data_files - 1
 			    && srv_auto_extend_last_data_file) {
@@ -1535,9 +1564,8 @@ innobase_start_or_create_for_mysql(void)
 	size_t		dirnamelen;
 	bool		sys_datafiles_created = false;
 
-	if (srv_force_recovery > SRV_FORCE_NO_TRX_UNDO) {
-		srv_read_only_mode = true;
-	}
+	high_level_read_only = srv_read_only_mode
+		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
 	if (srv_read_only_mode) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Started in read only mode");
@@ -1866,7 +1894,7 @@ innobase_start_or_create_for_mysql(void)
 			}
 		} else {
 			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile();
+			srv_monitor_file = os_file_create_tmpfile(NULL);
 
 			if (!srv_monitor_file) {
 				return(DB_ERROR);
@@ -1876,7 +1904,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_dict_tmpfile_mutex_key,
 			     &srv_dict_tmpfile_mutex, SYNC_DICT_OPERATION);
 
-		srv_dict_tmpfile = os_file_create_tmpfile();
+		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_dict_tmpfile) {
 			return(DB_ERROR);
@@ -1885,7 +1913,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_misc_tmpfile_mutex_key,
 			     &srv_misc_tmpfile_mutex, SYNC_ANY_LATCH);
 
-		srv_misc_tmpfile = os_file_create_tmpfile();
+		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_misc_tmpfile) {
 			return(DB_ERROR);
@@ -3088,9 +3116,9 @@ innobase_shutdown_for_mysql(void)
 
 	ibuf_close();
 	log_shutdown();
-	lock_sys_close();
 	trx_sys_file_format_close();
 	trx_sys_close();
+	lock_sys_close();
 
 	/* We don't create these mutexes in RO mode because we don't create
 	the temp files that the cover. */

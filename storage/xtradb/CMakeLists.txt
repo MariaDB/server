@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,20 @@ INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
 
+IF(CMAKE_CROSSCOMPILING)
+  # Use CHECK_C_SOURCE_COMPILES instead of CHECK_C_SOURCE_RUNS when
+  # cross-compiling. Not as precise, but usually good enough.
+  # This only make sense for atomic tests in this file, this trick doesn't
+  # work in a general case.
+  MACRO(CHECK_C_SOURCE SOURCE VAR)
+    CHECK_C_SOURCE_COMPILES("${SOURCE}" "${VAR}")
+  ENDMACRO()
+ELSE()
+  MACRO(CHECK_C_SOURCE SOURCE VAR)
+    CHECK_C_SOURCE_RUNS("${SOURCE}" "${VAR}")
+  ENDMACRO()
+ENDIF()
+
 # OS tests
 IF(UNIX)
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -35,6 +49,9 @@ IF(UNIX)
       LINK_LIBRARIES(${AIO_LIBRARY})
     ENDIF()
     ADD_DEFINITIONS("-DUNIV_LINUX -D_GNU_SOURCE=1")
+    IF(HAVE_LIBNUMA)
+      LINK_LIBRARIES(numa)
+    ENDIF()
   ELSEIF(CMAKE_SYSTEM_NAME MATCHES "HP*")
     ADD_DEFINITIONS("-DUNIV_HPUX")
   ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "AIX")
@@ -63,15 +80,14 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEB
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 
 IF(NOT MSVC)
-# either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
-IF(NOT CMAKE_CROSSCOMPILING)
+  # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
   # workaround for gcc 4.1.2 RHEL5/x86, gcc atomic ops only work under -march=i686
   IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
      CMAKE_C_COMPILER_VERSION VERSION_LESS "4.1.3")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=i686")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
   ENDIF()
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE(
   "
   int main()
   {
@@ -102,7 +118,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_BUILTINS
   )
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE(
   "
   int main()
   {
@@ -118,7 +134,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE
   )
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE(
   "#include<stdint.h>
   int main()
   {
@@ -138,7 +154,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_BUILTINS_64
   )
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE(
   "#include<stdint.h>
   int main()
   {
@@ -147,7 +163,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_SYNC_SYNCHRONISE
   )
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE(
   "#include<stdint.h>
   int main()
   {
@@ -157,7 +173,18 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_THREAD_FENCE
   )
-ENDIF()
+  CHECK_C_SOURCE(
+  "#include<stdint.h>
+  int main()
+  {
+    unsigned char	c;
+
+    __atomic_test_and_set(&c, __ATOMIC_ACQUIRE);
+    __atomic_clear(&c, __ATOMIC_RELEASE);
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_TEST_AND_SET
+  )
 
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS=1)
@@ -180,28 +207,31 @@ IF(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_THREAD_FENCE=1)
 ENDIF()
 
- # either define HAVE_IB_ATOMIC_PTHREAD_T_GCC or not
-IF(NOT CMAKE_CROSSCOMPILING)
-  CHECK_C_SOURCE_RUNS(
-  "
-  #include <pthread.h>
-  #include <string.h>
-
-  int main() {
-    pthread_t       x1;
-    pthread_t       x2;
-    pthread_t       x3;
-
-    memset(&x1, 0x0, sizeof(x1));
-    memset(&x2, 0x0, sizeof(x2));
-    memset(&x3, 0x0, sizeof(x3));
-
-    __sync_bool_compare_and_swap(&x1, x2, x3);
-
-    return(0);
-  }"
-  HAVE_IB_ATOMIC_PTHREAD_T_GCC)
+IF(HAVE_IB_GCC_ATOMIC_TEST_AND_SET)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_TEST_AND_SET=1)
 ENDIF()
+
+# either define HAVE_IB_ATOMIC_PTHREAD_T_GCC or not
+CHECK_C_SOURCE(
+"
+#include <pthread.h>
+#include <string.h>
+
+int main() {
+  pthread_t       x1;
+  pthread_t       x2;
+  pthread_t       x3;
+
+  memset(&x1, 0x0, sizeof(x1));
+  memset(&x2, 0x0, sizeof(x2));
+  memset(&x3, 0x0, sizeof(x3));
+
+  __sync_bool_compare_and_swap(&x1, x2, x3);
+
+  return(0);
+}"
+HAVE_IB_ATOMIC_PTHREAD_T_GCC)
+
 IF(HAVE_IB_ATOMIC_PTHREAD_T_GCC)
   ADD_DEFINITIONS(-DHAVE_IB_ATOMIC_PTHREAD_T_GCC=1)
 ENDIF()
@@ -233,7 +263,6 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
     SET(XTRADB_OK 1)
   ENDIF()
 
-  IF(NOT CMAKE_CROSSCOMPILING)
   # either define HAVE_IB_ATOMIC_PTHREAD_T_SOLARIS or not
   CHECK_C_SOURCE_COMPILES(
   "   #include <pthread.h>
@@ -272,7 +301,7 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
     return(0);
   }"
   HAVE_IB_MACHINE_BARRIER_SOLARIS)
-  ENDIF()
+
   IF(HAVE_IB_ATOMIC_PTHREAD_T_SOLARIS)
     ADD_DEFINITIONS(-DHAVE_IB_ATOMIC_PTHREAD_T_SOLARIS=1)
   ENDIF()
@@ -455,12 +484,12 @@ IF(WITH_INNODB)
   SET(WITH_INNOBASE_STORAGE_ENGINE TRUE)
 ENDIF()
 
-IF(XTRADB_OK)
-  MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
-    DEFAULT
-    RECOMPILE_FOR_EMBEDDED
-    LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
-ELSE()
+MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
+  DEFAULT
+  RECOMPILE_FOR_EMBEDDED
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
+
+IF(TARGET xtradb AND NOT XTRADB_OK)
   MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
 ENDIF()
 

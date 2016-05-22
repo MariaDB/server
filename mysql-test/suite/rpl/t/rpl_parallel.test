@@ -1423,6 +1423,7 @@ SELECT * FROM t6 ORDER BY a;
 
 --connection server_1
 INSERT INTO t2 VALUES (31);
+--let $gtid1= `SELECT @@LAST_GTID`
 --source include/save_master_gtid.inc
 
 --connection server_2
@@ -1438,6 +1439,7 @@ SET sql_log_bin= 1;
 
 --connection server_1
 INSERT INTO t2 VALUES (32);
+--let $gtid2= `SELECT @@LAST_GTID`
 # Rotate the binlog; the bug is triggered when the master binlog file changes
 # after the event group that causes the duplicate key error.
 FLUSH LOGS;
@@ -1470,7 +1472,12 @@ START SLAVE SQL_THREAD;
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
 
 # Skip the duplicate error, so we can proceed.
+--error ER_SLAVE_SKIP_NOT_IN_GTID
 SET sql_slave_skip_counter= 1;
+--source include/stop_slave_io.inc
+--disable_query_log
+eval SET GLOBAL gtid_slave_pos = REPLACE(@@gtid_slave_pos, "$gtid1", "$gtid2");
+--enable_query_log
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
@@ -2313,6 +2320,82 @@ SET GLOBAL debug_dbug= @old_debg;
 SET GLOBAL max_relay_log_size= @old_max;
 --source include/start_slave.inc
 
+
+--echo *** MDEV-8302: Duplicate key with parallel replication ***
+
+--connection server_2
+--source include/stop_slave.inc
+/* Inject a small sleep which makes the race easier to hit. */
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_mdev8302";
+
+
+--connection server_1
+INSERT INTO t7 VALUES (100,1), (101,2), (102,3), (103,4), (104,5);
+
+# Artificially create a bunch of group commits with conflicting transactions.
+# The bug happened when T1 and T2 was in one group commit, and T3 was in the
+# following group commit. T2 is a DELETE of a row with same primary key as a
+# row that T3 inserts. T1 and T2 can conflict, causing T2 to be deadlock
+# killed after starting to commit. The bug was that T2 could roll back before
+# doing unmark_start_commit(); this could allow T3 to run before the retry
+# of T2, causing duplicate key violation.
+
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 20000;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+
+--let $n = 100
+--disable_query_log
+while ($n)
+{
+  eval UPDATE t7 SET b=b+1 WHERE a=100+($n MOD 5);
+  eval DELETE FROM t7 WHERE a=100+($n MOD 5);
+
+  SET @commit_id = @commit_id + 1;
+  eval INSERT INTO t7 VALUES (100+($n MOD 5), $n);
+  SET @commit_id = @commit_id + 1;
+  dec $n;
+}
+--enable_query_log
+SET SESSION debug_dbug=@old_dbug;
+
+
+SELECT * FROM t7 ORDER BY a;
+--source include/save_master_gtid.inc
+
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t7 ORDER BY a;
+
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+--source include/start_slave.inc
+
+
+
+--echo *** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+--connection server_1
+# Inject an event group terminated by ROLLBACK, by mixing MyISAM and InnoDB
+# in a transaction. The bug was an assertion on the ROLLBACK due to
+# mark_start_commit() being already called.
+--disable_warnings
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 VALUES (200);
+INSERT INTO t2 VALUES (201);
+ROLLBACK;
+--enable_warnings
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
 
 
 # Clean up.

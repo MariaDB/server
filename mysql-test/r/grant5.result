@@ -1,2 +1,18 @@
 SHOW GRANTS FOR root@invalid_host;
 ERROR 42000: There is no such grant defined for user 'root' on host 'invalid_host'
+create user test;
+create user foo;
+create role foo;
+grant foo to test;
+set role foo;
+show grants for test;
+Grants for test@%
+GRANT foo TO 'test'@'%'
+GRANT USAGE ON *.* TO 'test'@'%'
+show grants for foo;
+Grants for foo
+GRANT USAGE ON *.* TO 'foo'
+show grants for foo@'%';
+ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
+drop user test, foo;
+drop role foo;

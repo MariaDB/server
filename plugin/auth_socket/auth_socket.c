@@ -105,7 +105,7 @@ static struct st_mysql_auth socket_auth_handler=
   socket_auth
 };
 
-maria_declare_plugin(socket_auth)
+maria_declare_plugin(auth_socket)
 {
   MYSQL_AUTHENTICATION_PLUGIN,
   &socket_auth_handler,

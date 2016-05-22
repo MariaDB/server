@@ -48,6 +48,24 @@ drop table t1;
 
 SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'not_exists' AND TABLE_NAME = 'not_exists';
 
+#
+# MDEV-6421 SQL_ERROR_LOG doesn't log comments in Events
+#   actually testing SP call is enough for that.
+
+DELIMITER |;
+
+CREATE procedure e1()
+BEGIN
+  START TRANSACTION;
+  INSERT INTO test.non_exists VALUES (0,0,0) /* e1  */;
+  COMMIT;
+END|
+
+DELIMITER ;|
+--error ER_NO_SUCH_TABLE
+CALL e1();
+DROP PROCEDURE e1;
+
 uninstall plugin SQL_ERROR_LOG;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;

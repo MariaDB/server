@@ -325,6 +325,14 @@ static Sys_var_long Sys_pfs_digest_size(
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_pfs_max_digest_length(
+       "performance_schema_max_digest_length",
+       "Maximum length considered for digest text, when stored in performance_schema tables.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_max_digest_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024 * 1024),
+       DEFAULT(1024),
+       BLOCK_SIZE(1));
+
 static Sys_var_long Sys_pfs_connect_attrs_size(
        "performance_schema_session_connect_attrs_size",
        "Size of session attribute string buffer per thread."
@@ -807,30 +815,26 @@ static Sys_var_ulong Sys_delayed_queue_size(
        VALID_RANGE(1, UINT_MAX), DEFAULT(DELAYED_QUEUE_SIZE), BLOCK_SIZE(1));
 
 #ifdef HAVE_EVENT_SCHEDULER
-static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED", NullS };
+static const char *event_scheduler_names[]= { "OFF", "ON", "DISABLED",
+                                              "ORIGINAL", NullS };
 static bool event_scheduler_check(sys_var *self, THD *thd, set_var *var)
 {
-  /* DISABLED is only accepted on the command line */
-  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
-    return true;
-  /*
-    If the scheduler was disabled because there are no/bad
-    system tables, produce a more meaningful error message
-    than ER_OPTION_PREVENTS_STATEMENT
-  */
-  if (Events::check_if_system_tables_error())
-    return true;
   if (Events::opt_event_scheduler == Events::EVENTS_DISABLED)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              "--event-scheduler=DISABLED or --skip-grant-tables");
     return true;
   }
+  /* DISABLED is only accepted on the command line */
+  if (var->save_result.ulonglong_value == Events::EVENTS_DISABLED)
+    return true;
   return false;
 }
+
 static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
 {
   int err_no= 0;
+  bool ret;
   uint opt_event_scheduler_value= Events::opt_event_scheduler;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   /*
@@ -849,9 +853,25 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     rare and it's difficult to avoid it without opening up possibilities
     for deadlocks. See bug#51160.
   */
-  bool ret= opt_event_scheduler_value == Events::EVENTS_ON
-            ? Events::start(&err_no)
-            : Events::stop();
+
+  /* EVENTS_ORIGINAL means we should revert back to the startup state */
+  if (opt_event_scheduler_value == Events::EVENTS_ORIGINAL)
+  {
+    opt_event_scheduler_value= Events::opt_event_scheduler=
+      Events::startup_state;
+  }
+ 
+  /*
+    If the scheduler was not properly inited (because of wrong system tables),
+    try to init it again. This is needed for mysql_upgrade to work properly if
+    the event tables where upgraded.
+  */
+  if (!Events::inited && (Events::init(thd, 0) || !Events::inited))
+    ret= 1;
+  else
+    ret= opt_event_scheduler_value == Events::EVENTS_ON ?
+      Events::start(&err_no) :
+      Events::stop();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
   {
@@ -1315,7 +1335,7 @@ static Sys_var_ulong Sys_max_connect_errors(
 
 static Sys_var_long Sys_max_digest_length(
        "max_digest_length", "Maximum length considered for digest text.",
-       PARSED_EARLY READ_ONLY GLOBAL_VAR(max_digest_length),
+       READ_ONLY GLOBAL_VAR(max_digest_length),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024 * 1024), DEFAULT(1024), BLOCK_SIZE(1));
 
@@ -1584,7 +1604,7 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
     But if the table is not loaded (eg. missing mysql_upgrade_db or some such),
     then the slave state must be empty anyway.
   */
-  if ((rpl_global_gtid_slave_state.loaded &&
+  if ((rpl_global_gtid_slave_state->loaded &&
        rpl_append_gtid_state(&str, false)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
@@ -3271,7 +3291,7 @@ static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
        READ_ONLY SHOW_VALUE_IN_HELP
        GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
-       IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
+       IN_SYSTEM_CHARSET, DEFAULT(DEFAULT_MACHINE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
@@ -4311,6 +4331,29 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
              mi->connection_name.str);
     return true;
   }
+  if (mi->using_gtid != Master_info::USE_GTID_NO &&
+      opt_slave_parallel_threads > 0)
+  {
+    ulong domain_count;
+    mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    domain_count= rpl_global_gtid_slave_state->count();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+    if (domain_count > 1)
+    {
+      /*
+        With domain-based parallel replication, the slave position is
+        multi-dimensional, so the relay log position is not very meaningful.
+        It might not even correspond to the next GTID to execute in _any_
+        domain (the case after error stop). So slave_skip_counter will most
+        likely not do what the user intends. Instead give an error, with a
+        suggestion to instead set @@gtid_slave_pos past the point of error;
+        this works reliably also in the case of multiple domains.
+      */
+      my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
+      return true;
+    }
+  }
+
   /* The value was stored temporarily in thd */
   mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
   return false;

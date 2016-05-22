@@ -828,9 +828,10 @@ String *Item_func_des_encrypt::val_str(String *str)
 
     /* We make good 24-byte (168 bit) key from given plaintext key with MD5 */
     bzero((char*) &ivec,sizeof(ivec));
-    EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
+    if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
 		   (uchar*) keystr->ptr(), (int) keystr->length(),
-		   1, (uchar*) &keyblock,ivec);
+		   1, (uchar*) &keyblock,ivec))
+      goto error;
     DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
     DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
     DES_set_key_unchecked(&keyblock.key3,&keyschedule.ks3);
@@ -921,9 +922,10 @@ String *Item_func_des_decrypt::val_str(String *str)
       goto error;
 
     bzero((char*) &ivec,sizeof(ivec));
-    EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
+    if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
 		   (uchar*) keystr->ptr(),(int) keystr->length(),
-		   1,(uchar*) &keyblock,ivec);
+		   1,(uchar*) &keyblock,ivec))
+      goto error;
     // Here we set all 64-bit keys (56 effective) one by one
     DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
     DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
@@ -1557,7 +1559,7 @@ String *Item_func_insert::val_str(String *str)
    length= res->charpos((int) length, (uint32) start);
 
   /* Re-testing with corrected params */
-  if (start > res->length())
+  if (start + 1 > res->length()) // remember, start = args[1].val_int() - 1
     return res; /* purecov: inspected */        // Wrong param; skip insert
   if (length > res->length() - start)
     length= res->length() - start;
@@ -4448,6 +4450,8 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
     case DYN_COL_DYNCOL:
     case DYN_COL_STRING:
       res= args[valpos]->val_str(&tmp);
+      if (res && defs[i].cs)
+        res->set_charset(defs[i].cs);
       if (res &&
           (vals[i].x.string.value.str= sql_strmake(res->ptr(), res->length())))
       {
@@ -5122,6 +5126,16 @@ null:
 
 void Item_dyncol_get::print(String *str, enum_query_type query_type)
 {
+  /*
+    Parent cast doesn't exist yet, only print dynamic column name. This happens
+    when called from create_func_cast() / wrong_precision_error().
+  */
+  if (!str->length())
+  {
+    args[1]->print(str, query_type);
+    return;
+  }
+
   /* see create_func_dyncol_get */
   DBUG_ASSERT(str->length() >= 5);
   DBUG_ASSERT(strncmp(str->ptr() + str->length() - 5, "cast(", 5) == 0);

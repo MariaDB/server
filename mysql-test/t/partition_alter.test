@@ -1,0 +1,66 @@
+--source include/have_partition.inc
+
+CREATE TABLE `test_data` (
+       `hid` bigint(20) unsigned NOT NULL,
+       `itid` bigint(20) unsigned NOT NULL,
+       `clocktime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       `values` double(16,4) NOT NULL,
+       PRIMARY KEY (`hid`,`itid`,`clocktime`)
+     ) ;
+
+INSERT INTO `test_data` (`hid`, `itid`, `clocktime`, `values`) VALUES
+     (1, 1, '2015-03-10 06:25:16', 0.0000),
+     (1, 1, '2015-03-10 06:26:24', 0.0000),
+     (1, 1, '2015-03-10 06:27:32', 0.0000),
+     (1, 1, '2015-03-10 06:28:40', 0.0000),
+     (1, 1, '2015-03-10 06:29:49', 0.0000),
+     (1, 1, '2015-03-10 06:30:57', 0.0000),
+     (1, 1, '2015-03-10 06:32:05', 0.0000),
+     (1, 1, '2015-03-10 06:33:14', 0.0000),
+     (1, 1, '2015-03-10 06:34:22', 0.0000),
+     (1, 1, '2015-03-10 06:35:30', 0.0000),
+     (1, 1, '2015-03-10 06:36:39', 0.0000),
+     (1, 1, '2015-03-10 06:37:47', 0.0000),
+     (1, 1, '2015-03-10 06:38:55', 0.0000),
+     (1, 1, '2015-03-10 06:40:03', 0.0000),
+     (1, 1, '2015-03-10 06:41:09', 0.0000),
+     (1, 1, '2015-03-10 06:42:21', 0.0000),
+     (1, 1, '2015-03-10 06:43:29', 0.0000),
+     (1, 1, '2015-03-10 06:44:37', 0.0000),
+     (1, 1, '2015-03-10 06:45:46', 0.0000),
+     (1, 1, '2015-03-10 06:47:05', 0.0000),
+     (1, 1, '2015-03-10 06:48:21', 0.0000),
+     (1, 1, '2015-03-10 06:49:41', 0.0000),
+     (1, 1, '2015-03-10 06:50:58', 0.0000),
+     (1, 1, '2015-03-10 06:52:08', 0.0000),
+     (1, 1, '2015-03-10 06:53:17', 0.0000),
+     (1, 1, '2015-03-10 06:54:25', 0.0000),
+     (563, 1, '2015-03-17 14:28:28', 0.3125),
+     (563, 1, '2015-03-17 14:29:39', 0.2775),
+     (563, 1, '2015-03-17 14:30:49', 0.2675);
+
+
+CREATE PROCEDURE `create_part_max`()
+     alter table `test_data`
+     partition by range(unix_timestamp(clocktime)) (
+     partition partMAX values less than MAXVALUE
+     );
+
+call create_part_max();
+
+call create_part_max();
+
+drop procedure create_part_max;
+
+prepare stmt from "alter table `test_data`
+     partition by range(unix_timestamp(clocktime)) (
+     partition partMAX values less than MAXVALUE
+     )";
+
+execute stmt;
+execute stmt;
+
+deallocate prepare stmt;
+
+drop table test_data;
+

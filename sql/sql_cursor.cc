@@ -54,6 +54,8 @@ public:
   virtual void fetch(ulong num_rows);
   virtual void close();
   virtual ~Materialized_cursor();
+
+  void on_table_fill_finished();
 };
 
 
@@ -74,6 +76,18 @@ public:
   Select_materialize(select_result *result_arg)
     :result(result_arg), materialized_cursor(0) {}
   virtual bool send_result_set_metadata(List<Item> &list, uint flags);
+  bool send_eof()
+  {
+    if (materialized_cursor)
+      materialized_cursor->on_table_fill_finished();
+    return false;
+  }
+
+  void abort_result_set()
+  {
+    if (materialized_cursor)
+      materialized_cursor->on_table_fill_finished();
+  }
 };
 
 
@@ -387,6 +401,29 @@ Materialized_cursor::~Materialized_cursor()
     close();
 }
 
+
+/*
+  @brief
+    Perform actions that are to be done when cursor materialization has
+    finished.
+
+  @detail
+    This function is called when "OPEN $cursor" has finished filling the
+    temporary table with rows that the cursor will return.
+
+    Temporary table has table->field->orig_table pointing at the tables
+    that are used in the cursor definition query. Pointers to these tables
+    will not be valid after the query finishes.  So, we do what is done for
+    regular tables: have orig_table point at the table that the fields belong
+    to.
+*/
+
+void Materialized_cursor::on_table_fill_finished()
+{
+  uint fields= table->s->fields;
+  for (uint i= 0; i < fields; i++)
+    table->field[i]->orig_table= table->field[i]->table;
+}
 
 /***************************************************************************
  Select_materialize

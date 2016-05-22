@@ -54,3 +54,16 @@ select * from mysql.roles_mapping;
 
 drop role r1;
 drop user u2;
+
+#
+# MDEV-8614 Assertion `status == 0' failed in add_role_user_mapping_action on RENAME USER
+#
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+--connect (con1, localhost, foo,,)
+create role look, isp, xxx, ppp;
+rename user current_user to nnnn@'%';
+drop role look, isp, xxx, ppp;
+connection default;
+disconnect con1;
+drop user nnnn@'%';

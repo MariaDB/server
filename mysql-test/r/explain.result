@@ -393,3 +393,17 @@ Warnings:
 Note	1003	select NULL AS `a` from (select NULL AS `a` from `test`.`t1` where 0) `t`
 set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2;
+#
+# MDEV-7215: EXPLAIN REPLACE produces an error:
+# Column count doesn't match value count 
+#
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (b int, c int);
+replace into t2 select 100, (select a from t1);
+explain replace into t2 select 100, (select a from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	1	
+drop table t1, t2;
+# End of 10.1 tests

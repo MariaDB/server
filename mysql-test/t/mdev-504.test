@@ -1,5 +1,7 @@
 --disable_ps_protocol
 
+SET GLOBAL net_write_timeout = 900; 
+
 CREATE TABLE A (
   pk INTEGER AUTO_INCREMENT PRIMARY KEY,
   fdate DATE
@@ -74,4 +76,4 @@ DROP TABLE A;
 DROP PROCEDURE p_analyze;
 DROP FUNCTION rnd3;
 SET GLOBAL use_stat_tables = DEFAULT;
-
+SET GLOBAL net_write_timeout = DEFAULT;

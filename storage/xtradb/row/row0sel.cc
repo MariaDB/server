@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -3737,12 +3737,6 @@ row_search_for_mysql(
 
 		ut_error;
 	}
-
-	/* init null bytes with default values as they might be
-	left uninitialized in some cases and these uninited bytes
-	might be copied into mysql record buffer that leads to
-	valgrind warnings */
-	memcpy(buf, prebuilt->default_rec, prebuilt->null_bitmap_len);
 
 #if 0
 	/* August 19, 2005 by Heikki: temporarily disable this error

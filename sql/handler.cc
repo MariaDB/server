@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -313,7 +313,7 @@ int ha_init_errors(void)
   /* Set the dedicated error messages. */
   SETMSG(HA_ERR_KEY_NOT_FOUND,          ER_DEFAULT(ER_KEY_NOT_FOUND));
   SETMSG(HA_ERR_FOUND_DUPP_KEY,         ER_DEFAULT(ER_DUP_KEY));
-  SETMSG(HA_ERR_RECORD_CHANGED,         "Update wich is recoverable");
+  SETMSG(HA_ERR_RECORD_CHANGED,         "Update which is recoverable");
   SETMSG(HA_ERR_WRONG_INDEX,            "Wrong index given to function");
   SETMSG(HA_ERR_CRASHED,                ER_DEFAULT(ER_NOT_KEYFILE));
   SETMSG(HA_ERR_WRONG_IN_RECORD,        ER_DEFAULT(ER_CRASHED_ON_USAGE));
@@ -1582,6 +1582,26 @@ int ha_rollback_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
 
+#ifdef HAVE_REPLICATION
+  if (is_real_trans)
+  {
+    /*
+      In parallel replication, if we need to rollback during commit, we must
+      first inform following transactions that we are going to abort our commit
+      attempt. Otherwise those following transactions can run too early, and
+      possibly cause replication to fail. See comments in retry_event_group().
+
+      There were several bugs with this in the past that were very hard to
+      track down (MDEV-7458, MDEV-8302). So we add here an assertion for
+      rollback without signalling following transactions. And in release
+      builds, we explicitly do the signalling before rolling back.
+    */
+    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit));
+    if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
+      thd->rgi_slave->unmark_start_commit();
+  }
+#endif
+
   if (thd->in_sub_stmt)
   {
     DBUG_ASSERT(0);
@@ -2298,9 +2318,11 @@ handle_condition(THD *,
 }
 
 
-/** @brief
-  This should return ENOENT if the file doesn't exists.
-  The .frm file will be deleted only if we return 0 or ENOENT
+/** delete a table in the engine
+
+  @note
+  ENOENT and HA_ERR_NO_SUCH_TABLE are not considered errors.
+  The .frm file will be deleted only if we return 0.
 */
 int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
                     const char *db, const char *alias, bool generate_warning)
@@ -2315,47 +2337,66 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   /* table_type is NULL in ALTER TABLE when renaming only .frm files */
   if (table_type == NULL || table_type == view_pseudo_hton ||
       ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    DBUG_RETURN(0);
 
   bzero((char*) &dummy_table, sizeof(dummy_table));
   bzero((char*) &dummy_share, sizeof(dummy_share));
   dummy_table.s= &dummy_share;
 
   path= get_canonical_filename(file, path, tmp_path);
-  if ((error= file->ha_delete_table(path)) && generate_warning)
+  if ((error= file->ha_delete_table(path)))
   {
     /*
-      Because file->print_error() use my_error() to generate the error message
-      we use an internal error handler to intercept it and store the text
-      in a temporary buffer. Later the message will be presented to user
-      as a warning.
+      it's not an error if the table doesn't exist in the engine.
+      warn the user, but still report DROP being a success
     */
-    Ha_delete_table_error_handler ha_delete_table_error_handler;
+    bool intercept= error == ENOENT || error == HA_ERR_NO_SUCH_TABLE;
 
-    /* Fill up strucutures that print_error may need */
-    dummy_share.path.str= (char*) path;
-    dummy_share.path.length= strlen(path);
-    dummy_share.normalized_path= dummy_share.path;
-    dummy_share.db.str= (char*) db;
-    dummy_share.db.length= strlen(db);
-    dummy_share.table_name.str= (char*) alias;
-    dummy_share.table_name.length= strlen(alias);
-    dummy_table.alias.set(alias, dummy_share.table_name.length,
-                          table_alias_charset);
+    if (!intercept || generate_warning)
+    {
+      /*
+        Because file->print_error() use my_error() to generate the error message
+        we use an internal error handler to intercept it and store the text
+        in a temporary buffer. Later the message will be presented to user
+        as a warning.
+      */
+      Ha_delete_table_error_handler ha_delete_table_error_handler;
 
-    file->change_table_ptr(&dummy_table, &dummy_share);
+      /* Fill up strucutures that print_error may need */
+      dummy_share.path.str= (char*) path;
+      dummy_share.path.length= strlen(path);
+      dummy_share.normalized_path= dummy_share.path;
+      dummy_share.db.str= (char*) db;
+      dummy_share.db.length= strlen(db);
+      dummy_share.table_name.str= (char*) alias;
+      dummy_share.table_name.length= strlen(alias);
+      dummy_table.alias.set(alias, dummy_share.table_name.length,
+                            table_alias_charset);
 
-    thd->push_internal_handler(&ha_delete_table_error_handler);
-    file->print_error(error, 0);
+      file->change_table_ptr(&dummy_table, &dummy_share);
 
-    thd->pop_internal_handler();
+#if MYSQL_VERSION_ID > 100105
+      // XXX as an ugly 10.0-only hack we intercept HA_ERR_ROW_IS_REFERENCED,
+      // to report it under the old historical error number.
+#error remove HA_ERR_ROW_IS_REFERENCED, use ME_JUST_WARNING instead of a handler
+#endif
+      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
+        thd->push_internal_handler(&ha_delete_table_error_handler);
 
-    /*
-      XXX: should we convert *all* errors to warnings here?
-      What if the error is fatal?
-    */
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, error,
-                ha_delete_table_error_handler.buff);
+      file->print_error(error, 0);
+
+      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
+      {
+        thd->pop_internal_handler();
+        if (error == HA_ERR_ROW_IS_REFERENCED)
+          my_message(ER_ROW_IS_REFERENCED, ER(ER_ROW_IS_REFERENCED), MYF(0));
+        else
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, error,
+                       ha_delete_table_error_handler.buff);
+      }
+    }
+    if (intercept)
+      error= 0;
   }
   delete file;
 
@@ -4168,6 +4209,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_DEFAULT |
     Alter_inplace_info::ALTER_COLUMN_OPTION |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
+    Alter_inplace_info::ALTER_PARTITIONED |
     Alter_inplace_info::ALTER_RENAME;
 
   /* Is there at least one operation that requires copy algorithm? */
@@ -4195,7 +4237,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
-    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
 
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
@@ -5075,7 +5117,7 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
     custom discover_table_names() method, that calls add_table() directly).
     Note: avoid comparing the same name twice (here and in add_file).
   */
-  if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
+  if (wild && my_wildcmp(table_alias_charset, tname, tname + tlen, wild, wend,
                          wild_prefix, wild_one, wild_many))
       return 0;
 

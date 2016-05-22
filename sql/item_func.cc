@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
    Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -227,7 +227,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     }
   }
   fix_length_and_dec();
-  if (thd->is_error()) // An error inside fix_length_and_dec occured
+  if (thd->is_error()) // An error inside fix_length_and_dec occurred
     return TRUE;
   fixed= 1;
   return FALSE;
@@ -639,16 +639,16 @@ void Item_func::count_datetime_length(Item **item, uint nitems)
   result length/precision depends on argument ones.
 */
 
-void Item_func::count_decimal_length()
+void Item_func::count_decimal_length(Item **item, uint nitems)
 {
   int max_int_part= 0;
   decimals= 0;
   unsigned_flag= 1;
-  for (uint i=0 ; i < arg_count ; i++)
+  for (uint i=0 ; i < nitems ; i++)
   {
-    set_if_bigger(decimals, args[i]->decimals);
-    set_if_bigger(max_int_part, args[i]->decimal_int_part());
-    set_if_smaller(unsigned_flag, args[i]->unsigned_flag);
+    set_if_bigger(decimals, item[i]->decimals);
+    set_if_bigger(max_int_part, item[i]->decimal_int_part());
+    set_if_smaller(unsigned_flag, item[i]->unsigned_flag);
   }
   int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
@@ -679,19 +679,19 @@ void Item_func::count_only_length(Item **item, uint nitems)
   result length/precision depends on argument ones.
 */
 
-void Item_func::count_real_length()
+void Item_func::count_real_length(Item **item, uint nitems)
 {
   uint32 length= 0;
   decimals= 0;
   max_length= 0;
-  for (uint i=0 ; i < arg_count ; i++)
+  for (uint i=0 ; i < nitems ; i++)
   {
     if (decimals != NOT_FIXED_DEC)
     {
-      set_if_bigger(decimals, args[i]->decimals);
-      set_if_bigger(length, (args[i]->max_length - args[i]->decimals));
+      set_if_bigger(decimals, item[i]->decimals);
+      set_if_bigger(length, (item[i]->max_length - item[i]->decimals));
     }
-    set_if_bigger(max_length, args[i]->max_length);
+    set_if_bigger(max_length, item[i]->max_length);
   }
   if (decimals != NOT_FIXED_DEC)
   {
@@ -717,7 +717,7 @@ void Item_func::count_real_length()
 bool Item_func::count_string_result_length(enum_field_types field_type,
                                            Item **items, uint nitems)
 {
-  if (agg_arg_charsets(collation, items, nitems, MY_COLL_ALLOW_CONV, 1))
+  if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
     return true;
   if (is_temporal_type(field_type))
     count_datetime_length(items, nitems);
@@ -809,7 +809,7 @@ void Item_num_op::fix_length_and_dec(void)
   if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
       r0 == STRING_RESULT || r1 ==STRING_RESULT)
   {
-    count_real_length();
+    count_real_length(args, arg_count);
     max_length= float_length(decimals);
     cached_result_type= REAL_RESULT;
   }
@@ -885,7 +885,7 @@ String *Item_func_hybrid_result_type::val_str(String *str)
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
-    if (!(val= decimal_op(&decimal_value)))
+    if (!(val= decimal_op_with_null_check(&decimal_value)))
       return 0;                                 // null is set
     my_decimal_round(E_DEC_FATAL_ERROR, val, decimals, FALSE, val);
     str->set_charset(collation.collation);
@@ -912,24 +912,22 @@ String *Item_func_hybrid_result_type::val_str(String *str)
     if (is_temporal_type(field_type()))
     {
       MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0) ||
-          str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      {
-        null_value= 1;
+      if (date_op_with_null_check(&ltime) ||
+          (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
         return (String *) 0;
-      }
       ltime.time_type= mysql_type_to_time_type(field_type());
       str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
       str->set_charset(&my_charset_bin);
+      DBUG_ASSERT(!null_value);
       return str;
     }
-    return str_op(&str_value);
+    return str_op_with_null_check(&str_value);
   case TIME_RESULT:
   case ROW_RESULT:
   case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
+  DBUG_ASSERT(!null_value || (str == NULL));
   return str;
 }
 
@@ -942,7 +940,7 @@ double Item_func_hybrid_result_type::val_real()
   {
     my_decimal decimal_value, *val;
     double result;
-    if (!(val= decimal_op(&decimal_value)))
+    if (!(val= decimal_op_with_null_check(&decimal_value)))
       return 0.0;                               // null is set
     my_decimal2double(E_DEC_FATAL_ERROR, val, &result);
     return result;
@@ -959,18 +957,14 @@ double Item_func_hybrid_result_type::val_real()
     if (is_temporal_type(field_type()))
     {
       MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0 ))
-      {
-        null_value= 1;
+      if (date_op_with_null_check(&ltime))
         return 0;
-      }
       ltime.time_type= mysql_type_to_time_type(field_type());
       return TIME_to_double(&ltime);
     }
     char *end_not_used;
     int err_not_used;
-    String *res= str_op(&str_value);
+    String *res= str_op_with_null_check(&str_value);
     return (res ? my_strntod(res->charset(), (char*) res->ptr(), res->length(),
 			     &end_not_used, &err_not_used) : 0.0);
   }
@@ -990,7 +984,7 @@ longlong Item_func_hybrid_result_type::val_int()
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
-    if (!(val= decimal_op(&decimal_value)))
+    if (!(val= decimal_op_with_null_check(&decimal_value)))
       return 0;                                 // null is set
     longlong result;
     my_decimal2int(E_DEC_FATAL_ERROR, val, unsigned_flag, &result);
@@ -1005,18 +999,14 @@ longlong Item_func_hybrid_result_type::val_int()
     if (is_temporal_type(field_type()))
     {
       MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
-      {
-        null_value= 1;
+      if (date_op_with_null_check(&ltime))
         return 0;
-      }
       ltime.time_type= mysql_type_to_time_type(field_type());
       return TIME_to_ulonglong(&ltime);
     }
     int err_not_used;
     String *res;
-    if (!(res= str_op(&str_value)))
+    if (!(res= str_op_with_null_check(&str_value)))
       return 0;
 
     char *end= (char*) res->ptr() + res->length();
@@ -1038,17 +1028,21 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
   DBUG_ASSERT(fixed == 1);
   switch (cached_result_type) {
   case DECIMAL_RESULT:
-    val= decimal_op(decimal_value);
+    val= decimal_op_with_null_check(decimal_value);
     break;
   case INT_RESULT:
   {
     longlong result= int_op();
+    if (null_value)
+      return NULL;
     int2my_decimal(E_DEC_FATAL_ERROR, result, unsigned_flag, decimal_value);
     break;
   }
   case REAL_RESULT:
   {
     double result= (double)real_op();
+    if (null_value)
+      return NULL;
     double2my_decimal(E_DEC_FATAL_ERROR, result, decimal_value);
     break;
   }
@@ -1057,19 +1051,20 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
     if (is_temporal_type(field_type()))
     {
       MYSQL_TIME ltime;
-      if (date_op(&ltime,
-                  field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0))
+      if (date_op_with_null_check(&ltime))
       {
         my_decimal_set_zero(decimal_value);
-        null_value= 1;
         return 0;
       }
       ltime.time_type= mysql_type_to_time_type(field_type());
       return date2my_decimal(&ltime, decimal_value);
     }
     String *res;
-    if (!(res= str_op(&str_value)))
+    if (!(res= str_op_with_null_check(&str_value)))
+    {
+      null_value= 1;
       return NULL;
+    }
 
     str2my_decimal(E_DEC_FATAL_ERROR, (char*) res->ptr(),
                    res->length(), res->charset(), decimal_value);
@@ -1092,7 +1087,7 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   case DECIMAL_RESULT:
   {
     my_decimal value, *res;
-    if (!(res= decimal_op(&value)) ||
+    if (!(res= decimal_op_with_null_check(&value)) ||
         decimal_to_datetime_with_warn(res, ltime, fuzzydate,
                                       field_name_or_null()))
       goto err;
@@ -1122,7 +1117,7 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
       return date_op(ltime, fuzzydate);
     char buff[40];
     String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-    if (!(res= str_op(&tmp)) ||
+    if (!(res= str_op_with_null_check(&tmp)) ||
         str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
                                   ltime, fuzzydate))
       goto err;
@@ -4271,6 +4266,21 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(1);
   }
 
+  if (args[1]->null_value ||
+      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  {
+    char buf[22];
+    if (args[1]->null_value)
+      strmov(buf, "NULL");
+    else
+      llstr(((longlong) timeout), buf);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+                        "timeout", buf, "get_lock");
+    null_value= 1;
+    DBUG_RETURN(0);
+  }
+
   if (!ull_name_ok(res))
     DBUG_RETURN(0);
   DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
@@ -5629,7 +5639,7 @@ void Item_func_get_user_var::fix_length_and_dec()
 
   /*
     If the variable didn't exist it has been created as a STRING-type.
-    'var_entry' is NULL only if there occured an error during the call to
+    'var_entry' is NULL only if there occurred an error during the call to
     get_var_with_binlog.
   */
   if (!error && var_entry)
@@ -6206,9 +6216,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   table= 0;
   for (uint i=1 ; i < arg_count ; i++)
   {
-    item=args[i];
-    if (item->type() == Item::REF_ITEM)
-      args[i]= item= *((Item_ref *)item)->ref;
+    item= args[i]= args[i]->real_item();
     /*
       When running in PS mode, some Item_field's can already be replaced
       to Item_func_conv_charset during PREPARE time. This is possible
@@ -6221,7 +6229,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     if (!thd->stmt_arena->is_stmt_execute() &&
         item->type() != Item::FIELD_ITEM)
     {
-      my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), "MATCH");
       return TRUE;
     }
     /*
@@ -6297,6 +6305,8 @@ bool Item_func_match::fix_index()
 
   for (i=1; i < arg_count; i++)
   {
+    if (args[i]->type() != FIELD_ITEM)
+      goto err;
     item=(Item_field*)args[i];
     for (keynr=0 ; keynr < fts ; keynr++)
     {

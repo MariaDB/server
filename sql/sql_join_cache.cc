@@ -2206,7 +2206,7 @@ finish:
     for a match for any record from join_tab. To iterate over the candidates
     for a match the virtual function get_next_candidate_for_match is used,
     while the virtual function prepare_look_for_matches is called to prepare
-    for such iteration proccess.     
+    for such iteration process.     
 
   NOTES
     The function produces all matching extensions for the records in the 

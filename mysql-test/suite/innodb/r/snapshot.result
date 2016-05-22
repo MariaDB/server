@@ -1,0 +1,8 @@
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+CREATE TABLE IF NOT EXISTS t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=InnoDB;
+UPDATE t1 SET i = 0;
+ERROR HY000: Table definition has changed, please retry transaction
+UPDATE t1 SET pk = 0;
+ERROR HY000: Table definition has changed, please retry transaction
+commit;
+drop table t1;

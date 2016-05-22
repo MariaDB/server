@@ -1,6 +1,6 @@
+--source include/have_tokudb.inc
 # test tokudb_optimize_index_name session variable
 set default_storage_engine='tokudb';
-source include/have_tokudb.inc;
 disable_warnings;
 drop table if exists t;
 enable_warnings;

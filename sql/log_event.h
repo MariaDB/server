@@ -260,6 +260,7 @@ struct sql_ex_info
 #define EXECUTE_LOAD_QUERY_HEADER_LEN  (QUERY_HEADER_LEN + EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN)
 #define INCIDENT_HEADER_LEN    2
 #define HEARTBEAT_HEADER_LEN   0
+#define IGNORABLE_HEADER_LEN   0
 #define ROWS_HEADER_LEN_V2    10
 #define ANNOTATE_ROWS_HEADER_LEN  0
 #define BINLOG_CHECKPOINT_HEADER_LEN 4
@@ -295,7 +296,7 @@ struct sql_ex_info
   to the slave. It is used to increase the thd(max_allowed) for both the
   DUMP thread on the master and the SQL/IO thread on the slave. 
 */
-#define MAX_MAX_ALLOWED_PACKET 1024*1024*1024
+#define MAX_MAX_ALLOWED_PACKET (1024*1024*1024)
 
 /* 
    Event header offsets; 
@@ -520,6 +521,17 @@ struct sql_ex_info
 #define LOG_EVENT_RELAY_LOG_F 0x40
 
 /**
+   @def LOG_EVENT_IGNORABLE_F
+
+   For an event, 'e', carrying a type code, that a slave,
+   's', does not recognize, 's' will check 'e' for
+   LOG_EVENT_IGNORABLE_F, and if the flag is set, then 'e'
+   is ignored. Otherwise, 's' acknowledges that it has
+   found an unknown event in the relay log.
+*/
+#define LOG_EVENT_IGNORABLE_F 0x80
+
+/**
    @def LOG_EVENT_SKIP_REPLICATION_F
 
    Flag set by application creating the event (with @@skip_replication); the
@@ -697,6 +709,11 @@ enum Log_event_type
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
  
+  /* MySQL 5.6 GTID events, ignored by MariaDB */
+  GTID_LOG_EVENT= 33,
+  ANONYMOUS_GTID_LOG_EVENT= 34,
+  PREVIOUS_GTIDS_LOG_EVENT= 35,
+
   /*
     Add new events here - right above this comment!
     Existing events (except ENUM_END_EVENT) should never change their numbers
@@ -4740,6 +4757,60 @@ private:
   LEX_STRING m_message;
 };
 
+/**
+  @class Ignorable_log_event
+
+  Base class for ignorable log events. Events deriving from
+  this class can be safely ignored by slaves that cannot
+  recognize them. Newer slaves, will be able to read and
+  handle them. This has been designed to be an open-ended
+  architecture, so adding new derived events shall not harm
+  the old slaves that support ignorable log event mechanism
+  (they will just ignore unrecognized ignorable events).
+
+  @note The only thing that makes an event ignorable is that it has
+  the LOG_EVENT_IGNORABLE_F flag set.  It is not strictly necessary
+  that ignorable event types derive from Ignorable_log_event; they may
+  just as well derive from Log_event and pass LOG_EVENT_IGNORABLE_F as
+  argument to the Log_event constructor.
+**/
+
+class Ignorable_log_event : public Log_event {
+public:
+  int number;
+  const char *description;
+
+#ifndef MYSQL_CLIENT
+  Ignorable_log_event(THD *thd_arg)
+    :Log_event(thd_arg, LOG_EVENT_IGNORABLE_F, FALSE),
+    number(0), description("internal")
+  {
+    DBUG_ENTER("Ignorable_log_event::Ignorable_log_event");
+    DBUG_VOID_RETURN;
+  }
+#endif
+
+  Ignorable_log_event(const char *buf,
+                      const Format_description_log_event *descr_event,
+                      const char *event_name);
+  virtual ~Ignorable_log_event();
+
+#ifndef MYSQL_CLIENT
+  void pack_info(THD *, Protocol*);
+#endif
+
+#ifdef MYSQL_CLIENT
+  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+
+  virtual Log_event_type get_type_code() { return IGNORABLE_LOG_EVENT; }
+
+  virtual bool is_valid() const { return 1; }
+
+  virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
+};
+
+
 static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
                                                        FILE *file)
 {
@@ -4797,6 +4868,7 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
                            ulonglong *relay_log_pos);
 
 bool event_checksum_test(uchar *buf, ulong event_len, uint8 alg);
+bool event_that_should_be_ignored(const char *buf);
 uint8 get_checksum_alg(const char* buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
 

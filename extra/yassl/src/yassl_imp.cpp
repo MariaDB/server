@@ -109,15 +109,12 @@ void ClientDiffieHellmanPublic::build(SSL& ssl)
     uint keyLength = dhClient.get_agreedKeyLength(); // pub and agree same
 
     alloc(keyLength, true);
-    dhClient.makeAgreement(dhServer.get_publicKey(), keyLength);
+    dhClient.makeAgreement(dhServer.get_publicKey(),
+                           dhServer.get_publicKeyLength());
     c16toa(keyLength, Yc_);
     memcpy(Yc_ + KEY_OFFSET, dhClient.get_publicKey(), keyLength);
 
-    // because of encoding first byte might be zero, don't use it for preMaster
-    if (*dhClient.get_agreedKey() == 0) 
-        ssl.set_preMaster(dhClient.get_agreedKey() + 1, keyLength - 1);
-    else
-        ssl.set_preMaster(dhClient.get_agreedKey(), keyLength);
+    ssl.set_preMaster(dhClient.get_agreedKey(), keyLength);
 }
 
 
@@ -196,9 +193,16 @@ void DH_Server::build(SSL& ssl)
     sha.update(tmp.get_buffer(), tmp.get_size());
     sha.get_digest(&hash[MD5_LEN]);
 
-    if (ssl.getSecurity().get_parms().sig_algo_ == rsa_sa_algo)
+    if (ssl.getSecurity().get_parms().sig_algo_ == rsa_sa_algo) {
         auth->sign(signature_, hash, sizeof(hash),
                    ssl.getCrypto().get_random());
+        // check for rsa signautre fault
+        if (!auth->verify(hash, sizeof(hash), signature_,
+                                              auth->get_signatureLength())) {
+            ssl.SetError(rsaSignFault_error);
+            return;
+        }
+    }
     else {
         auth->sign(signature_, &hash[MD5_LEN], SHA_LEN,
                    ssl.getCrypto().get_random());
@@ -314,11 +318,7 @@ void ClientDiffieHellmanPublic::read(SSL& ssl, input_buffer& input)
     }
     dh.makeAgreement(Yc_, keyLength); 
 
-    // because of encoding, first byte might be 0, don't use for preMaster 
-    if (*dh.get_agreedKey() == 0) 
-        ssl.set_preMaster(dh.get_agreedKey() + 1, dh.get_agreedKeyLength() - 1);
-    else
-        ssl.set_preMaster(dh.get_agreedKey(), dh.get_agreedKeyLength());
+    ssl.set_preMaster(dh.get_agreedKey(), dh.get_agreedKeyLength());
     ssl.makeMasterSecret();
 }
 
@@ -2159,6 +2159,12 @@ void CertificateVerify::Build(SSL& ssl)
         memcpy(sig.get(), len, VERIFY_HEADER);
         rsa.sign(sig.get() + VERIFY_HEADER, hashes_.md5_, sizeof(Hashes),
                  ssl.getCrypto().get_random());
+        // check for rsa signautre fault
+        if (!rsa.verify(hashes_.md5_, sizeof(Hashes), sig.get() + VERIFY_HEADER,
+                                                      rsa.get_cipherLength())) {
+            ssl.SetError(rsaSignFault_error);
+            return;
+        }
     }
     else {  // DSA
         DSS dss(cert.get_privateKey(), cert.get_privateKeyLength(), false);

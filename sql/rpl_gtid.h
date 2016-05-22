@@ -161,14 +161,11 @@ struct rpl_slave_state
   mysql_mutex_t LOCK_slave_state;
 
   uint64 last_sub_id;
-  bool inited;
   bool loaded;
 
   rpl_slave_state();
   ~rpl_slave_state();
 
-  void init();
-  void deinit();
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
