@@ -1,10 +1,14 @@
 import java.math.*;
 import java.sql.*;
+//import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+//import java.io.File;
+//import java.lang.reflect.Field;
 
 public class JdbcInterface {
 	boolean           DEBUG = false;
+	String            Errmsg = "No error";
 	Connection        conn = null;
 	DatabaseMetaData  dbmd = null;
 	Statement         stmt = null;
@@ -20,6 +24,20 @@ public class JdbcInterface {
     public JdbcInterface(boolean b) {
     	DEBUG = b;
     } // end of constructor
+    
+    private void SetErrmsg(Exception e) {
+        if (DEBUG)
+    		System.out.println(e.getMessage());
+      	
+        Errmsg = e.toString();
+    } // end of SetErrmsg
+      
+    public String GetErrmsg() {
+      String err = Errmsg;
+      
+      Errmsg = "No error";
+      return err;
+    } // end of GetErrmsg
 
     public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
       int rc = 0;
@@ -32,7 +50,9 @@ public class JdbcInterface {
 		  System.out.println("In try block");
 			      
 		if (parms[0] != null && !parms[0].isEmpty()) {
-		  System.out.println("b is true!");
+		  if (DEBUG)
+			System.out.println("Loading class" + parms[0]);
+		  
   		  Class.forName(parms[0]); //loads the driver
 		} // endif driver
 			
@@ -76,50 +96,40 @@ public class JdbcInterface {
         } // endif fsize
 	      
 	  } catch(ClassNotFoundException e) {
-	    System.err.println("ClassNotFoundException: " + e.getMessage());
-	    rc = 1; 
+		SetErrmsg(e);
+	    rc = -1; 
 	  } catch (SQLException se) {
-		System.out.println("SQL Exception:");
-
-		// Loop through the SQL Exceptions
-		while (se != null) {
-			System.out.println("State  : " + se.getSQLState());
-		    System.out.println("Message: " + se.getMessage());
-		    System.out.println("Error  : " + se.getErrorCode());
-
-		    se = se.getNextException();
-		} // end while se
-			
-	    rc = 2; 
+		SetErrmsg(se);
+	    rc = -2; 
 	  } catch( Exception e ) {
-		System.out.println(e);
-	    rc = 3; 
+		SetErrmsg(e);
+	    rc = -3; 
 	  } // end try/catch
       
       return rc;
     } // end of JdbcConnect
     
-    public boolean CreatePrepStmt(String sql) {
-    	boolean b = false;
+    public int CreatePrepStmt(String sql) {
+    	int rc = 0;
     	
     	try {
     		pstmt = conn.prepareStatement(sql);
     	} catch (SQLException se) {
-    		System.out.println(se);
-    	    b = true; 
+    		SetErrmsg(se);
+    	    rc = -1; 
     	} catch (Exception e) {
-    		System.out.println(e);
-    	    b = true; 
+    		SetErrmsg(e);
+    	    rc = -2; 
     	} // end try/catch
     	
-    	return b;
+    	return rc;
     } // end of CreatePrepStmt
     
     public void SetStringParm(int i, String s) {
     	try {
     		pstmt.setString(i, s);
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	} // end try/catch
     	
     } // end of SetStringParm
@@ -128,7 +138,7 @@ public class JdbcInterface {
     	try {
     		pstmt.setInt(i, n);
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	} // end try/catch
     	
     } // end of SetIntParm
@@ -137,7 +147,7 @@ public class JdbcInterface {
     	try {
     		pstmt.setShort(i, n);
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	} // end try/catch
     	
     } // end of SetShortParm
@@ -146,7 +156,7 @@ public class JdbcInterface {
     	try {
     		pstmt.setLong(i, n);
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	} // end try/catch
     	
     } // end of SetBigintParm
@@ -155,8 +165,8 @@ public class JdbcInterface {
     	try {
     		pstmt.setFloat(i, f);
     	} catch (Exception e) {
-    		System.out.println(e);
-    	} // end try/catch
+    		SetErrmsg(e);
+   	} // end try/catch
     	
     } // end of SetFloatParm
     
@@ -164,8 +174,8 @@ public class JdbcInterface {
     	try {
     		pstmt.setDouble(i, d);
     	} catch (Exception e) {
-    		System.out.println(e);
-    	} // end try/catch
+    		SetErrmsg(e);
+   	} // end try/catch
     	
     } // end of SetDoubleParm
     
@@ -173,7 +183,7 @@ public class JdbcInterface {
     	try {
     		pstmt.setTimestamp(i, t);
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	} // end try/catch
     	
     } // end of SetTimestampParm
@@ -184,10 +194,10 @@ public class JdbcInterface {
         if (pstmt != null) try {
       	  n = pstmt.executeUpdate();
         } catch (SQLException se) {
-  		  System.out.println(se);
+    	  SetErrmsg(se);
   		  n = -1;
         } catch (Exception e) {
-    	  System.out.println(e);
+    	  SetErrmsg(e);
     	  n = -2;
         } //end try/catch
 
@@ -201,10 +211,10 @@ public class JdbcInterface {
     		pstmt.close();
     		pstmt = null;
     	} catch (SQLException se) {
-    		System.out.println(se);
+    		SetErrmsg(se);
     	    b = true; 
     	} catch (Exception e) {
-    		System.out.println(e);
+    		SetErrmsg(e);
     	    b = true; 
     	} // end try/catch
     	
@@ -220,26 +230,30 @@ public class JdbcInterface {
 		  System.out.println("Cancelling statement");
 		  stmt.cancel();
 		} catch(SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  rc += 1;
 	    } // nothing more we can do
 		      
 	  // Close the statement and the connection
 	  if (rs != null)
 		try {
-		  System.out.println("Closing result set");
+		  if (DEBUG)
+			System.out.println("Closing result set");
+		  
 		  rs.close();
 		} catch(SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  rc = 2;
 	    } // nothing more we can do
 		      
 	  if (stmt != null)
 		try {
-		  System.out.println("Closing statement");
+		  if (DEBUG)
+		    System.out.println("Closing statement");
+		  
 		  stmt.close();
 		} catch(SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  rc += 4;
 	    } // nothing more we can do
 	  
@@ -247,14 +261,18 @@ public class JdbcInterface {
 		      
       if (conn != null)
 		try {
-		  System.out.println("Closing connection");
+		  if (DEBUG)
+		    System.out.println("Closing connection");
+		  
 		  conn.close();
 	    } catch (SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  rc += 8;
 	    } //end try/catch
 	
-	  System.out.println("All closed");
+      if (DEBUG)
+    	System.out.println("All closed");
+      
       return rc;
     } // end of JdbcDisconnect
     
@@ -281,7 +299,8 @@ public class JdbcInterface {
         } // endswitch n
       
       } catch(Exception e) {
-		System.out.println(e);
+  		SetErrmsg(e);
+  		m = -1;
       } // end try/catch
       
       return m;
@@ -300,7 +319,7 @@ public class JdbcInterface {
 		} // endif rs
 		
       } catch(SQLException se) {
-		System.out.println(se);
+  		SetErrmsg(se);
       } // end try/catch
       
       return ncol;
@@ -325,7 +344,7 @@ public class JdbcInterface {
   		  } // endif rs
   		
         } catch(SQLException se) {
-  		  System.out.println(se);
+    	  SetErrmsg(se);
         } // end try/catch
         
         return ncol;
@@ -341,18 +360,18 @@ public class JdbcInterface {
 	    	boolean b = stmt.execute(query);
 	    	
 	    	if (b == false) {
-	    		n = stmt.getUpdateCount();
-	    		if (rs != null) rs.close();
+	    	  n = stmt.getUpdateCount();
+	    	  if (rs != null) rs.close();
 	    	} // endif b
 	    	
 	    	if (DEBUG)
 			  System.out.println("Query '" + query + "' executed: n = " + n);
 	    		
 	      } catch (SQLException se) {
-			System.out.println(se);
+	  		SetErrmsg(se);
 			n = -1;
 	      } catch (Exception e) {
-	      	System.out.println(e);
+	  		SetErrmsg(e);
 	      	n = -2;
 	      } //end try/catch
 
@@ -375,10 +394,10 @@ public class JdbcInterface {
     		} // endif rs
 	    		
 	    } catch (SQLException se) {
-			System.out.println(se);
+			SetErrmsg(se);
 			ncol = -1;
 	      } catch (Exception e) {
-	    	System.out.println(e);
+	  		SetErrmsg(e);
 	    	ncol = -2;
 	    } //end try/catch
 
@@ -402,10 +421,10 @@ public class JdbcInterface {
     	} // endif DEBUG
     		
       } catch (SQLException se) {
-		System.out.println(se);
+  		SetErrmsg(se);
 		ncol = -1;
       } catch (Exception e) {
-  		System.out.println(e);
+  		SetErrmsg(e);
   		ncol = -2;
       } //end try/catch
 
@@ -419,28 +438,28 @@ public class JdbcInterface {
   		  System.out.println("Executing update query '" + query + "'");
       	
         try {
-      	n = stmt.executeUpdate(query);
+      	  n = stmt.executeUpdate(query);
       	
-      	if (DEBUG)
-  		  System.out.println("Update Query '" + query + "' executed: n = " + n);
+      	  if (DEBUG)
+  		    System.out.println("Update Query '" + query + "' executed: n = " + n);
       		
         } catch (SQLException se) {
-  		  System.out.println(se);
+    	  SetErrmsg(se);
   		  n = -1;
         } catch (Exception e) {
-    	  System.out.println(e);
+    	  SetErrmsg(e);
     	  n = -2;
         } //end try/catch
 
         return n;
-    } // end of ExecuteQuery
+    } // end of ExecuteUpdate
     
     public int ReadNext() {
 	  if (rs != null) {
 	    try {
 	  	  return rs.next() ? 1 : 0;
 		} catch (SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  return -1;
 		} //end try/catch
 	    	  
@@ -454,7 +473,7 @@ public class JdbcInterface {
 	    try {
 	  	  return rs.absolute(row);
 		} catch (SQLException se) {
-		  System.out.println(se);
+		  SetErrmsg(se);
 		  return false;
 		} //end try/catch
 	    	  
@@ -469,7 +488,7 @@ public class JdbcInterface {
       } else try {
     	return rsmd.getColumnLabel(n);
       } catch (SQLException se) {
-		System.out.println(se);
+  		SetErrmsg(se);
       } //end try/catch
     	  
       return null;  
@@ -484,10 +503,10 @@ public class JdbcInterface {
 		
 	    return rsmd.getColumnType(n);
 	  } catch (SQLException se) {
-		System.out.println("ColumnType: " + se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return 0;  
+	  return 666;   // Not a type
 	} // end of ColumnType
 	    
     public String ColumnDesc(int n, int[] val) {
@@ -501,11 +520,11 @@ public class JdbcInterface {
 		val[3] = rsmd.isNullable(n);
 	    return rsmd.getColumnLabel(n);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return null;  
-	} // end of ColumnType
+	} // end of ColumnDesc
 	    
     public String StringField(int n, String name) {
 	  if (rs == null) {
@@ -513,7 +532,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getString(n) : rs.getString(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return null;  
@@ -525,7 +544,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getInt(n) : rs.getInt(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return 0;  
@@ -538,7 +557,7 @@ public class JdbcInterface {
 		BigDecimal bigDecimal = (n > 0) ? rs.getBigDecimal(n) : rs.getBigDecimal(name);
         return bigDecimal != null ? bigDecimal.longValue() : 0;
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return 0;  
@@ -550,7 +569,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getDouble(n) : rs.getDouble(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return 0.;  
@@ -562,7 +581,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getFloat(n) : rs.getFloat(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return 0;  
@@ -574,7 +593,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getBoolean(n) : rs.getBoolean(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return false;  
@@ -586,7 +605,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getDate(n) : rs.getDate(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return null;  
@@ -598,7 +617,7 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getTime(n) : rs.getTime(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return null;  
@@ -610,12 +629,24 @@ public class JdbcInterface {
 	  } else try {
 	    return (n > 0) ? rs.getTimestamp(n) : rs.getTimestamp(name);
 	  } catch (SQLException se) {
-		System.out.println(se);
+		SetErrmsg(se);
 	  } //end try/catch
 	    	  
 	  return null;  
 	} // end of TimestampField
     
+    public String ObjectField(int n, String name) {
+	  if (rs == null) {
+		System.out.println("No result set");
+	  } else try {
+	    return (n > 0) ? rs.getObject(n).toString() : rs.getObject(name).toString();
+	  } catch (SQLException se) {
+		SetErrmsg(se);
+	  } //end try/catch
+	    	  
+	  return null;  
+	} // end of ObjectField
+	    
     public int GetDrivers(String[] s, int mxs) {
     	int n = 0;
     	List<Driver> drivers = Collections.list(DriverManager.getDrivers());
@@ -635,5 +666,47 @@ public class JdbcInterface {
     	
     	return size;
     } // end of GetDrivers
+    
+    /**
+    * Adds the specified path to the java library path
+    * from Fahd Shariff blog
+    *
+    * @param pathToAdd the path to add
+        static public int addLibraryPath(String pathToAdd) {
+		System.out.println("jpath = " + pathToAdd);
+
+    	try {
+    		Field usrPathsField = ClassLoader.class.getDeclaredField("usr_paths");
+    		usrPathsField.setAccessible(true);
+
+    		//get array of paths
+    		String[] paths = (String[])usrPathsField.get(null);
+
+    		//check if the path to add is already present
+    		for (String path : paths) {
+    			System.out.println("path = " + path);
+    			
+    			if (path.equals(pathToAdd))
+    				return -5;
+    			
+    		} // endfor path
+
+    		//add the new path
+    		String[] newPaths = Arrays.copyOf(paths, paths.length + 1);
+    		newPaths[paths.length] = pathToAdd;
+    		usrPathsField.set(null, newPaths);
+            System.setProperty("java.library.path",
+            		System.getProperty("java.library.path") + File.pathSeparator + pathToAdd);
+            Field fieldSysPath = ClassLoader.class.getDeclaredField("sys_paths");
+            fieldSysPath.setAccessible(true);
+            fieldSysPath.set(null, null);
+    	} catch (Exception e) {
+			SetErrmsg(e);
+    		return -1;
+    	} // end try/catch
+    	
+    	return 0;
+    } // end of addLibraryPath
+    */   
 	    
 } // end of class JdbcInterface
