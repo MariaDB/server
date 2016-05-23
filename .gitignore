@@ -21,6 +21,7 @@ Docs/INFO_SRC
 Makefile
 TAGS
 Testing/
+tmp/
 VERSION.dep
 configure
 client/async_example
@@ -115,6 +116,8 @@ scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
+scripts/maria_add_gis_sp.sql
+scripts/maria_add_gis_sp_bootstrap.sql
 sql-bench/bench-count-distinct
 sql-bench/bench-init.pl
 sql-bench/compare-results
@@ -201,6 +204,7 @@ support-files/config.huge.ini
 support-files/config.medium.ini
 support-files/config.small.ini
 support-files/mariadb.pc
+support-files/mariadb@.service
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
@@ -240,6 +244,8 @@ storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
 *.exp
 *.dep
 *.idb
+*.res
+*.tlog
 
 # Precompiled Headers
 *.gch
