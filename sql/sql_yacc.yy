@@ -1883,7 +1883,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         select_derived derived_table_list
         select_derived_union
         derived_query_specification
-
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -1922,7 +1921,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <select_lex> subselect
         get_select_lex get_select_lex_derived
+        query_specification
+        query_term_union_not_ready
+        query_term_union_ready
         query_expression_body
+        select_paren_derived
 
 %type <boolfunc2creator> comp_op
 
@@ -8555,8 +8558,9 @@ select_paren_derived:
           {
             if (setup_select_in_parentheses(Lex))
               MYSQL_YYABORT;
+            $$= Lex->current_select->master_unit()->first_select();
           }
-        | '(' select_paren_derived ')'
+        | '(' select_paren_derived ')'  { $$= $2; }
         ;
 
 select_init3:
@@ -16402,33 +16406,25 @@ union_option:
 */
 query_specification:
           SELECT_SYM select_init2_derived opt_table_expression
-        ;
-
-query_term:
-          query_term_union_ready
-        | query_term_union_not_ready
-        ;
-
-query_term_union_not_ready:
-          query_specification order_or_limit opt_select_lock_type
-        | '(' select_paren_derived ')' union_order_or_limit
-        ;
-
-query_term_union_ready:
-          query_specification opt_select_lock_type
-        | '(' select_paren_derived ')'
-        ;
-
-query_expression_body:
-          query_term
           {
             $$= Lex->current_select->master_unit()->first_select();
           }
-        | query_expression_body union_head_non_top query_term
-          {
-            Lex->pop_context();
-            $$= $1;
-          }
+        ;
+
+query_term_union_not_ready:
+          query_specification order_or_limit opt_select_lock_type { $$= $1; }
+        | '(' select_paren_derived ')' union_order_or_limit       { $$= $2; }
+        ;
+
+query_term_union_ready:
+          query_specification opt_select_lock_type                { $$= $1; }
+        | '(' select_paren_derived ')'                            { $$= $2; }
+        ;
+
+query_expression_body:
+          query_term_union_not_ready                                { $$= $1; }
+        | query_term_union_ready                                    { $$= $1; }
+        | query_term_union_ready union_list_derived                 { $$= $1; }
         ;
 
 /* Corresponds to <query expression> in the SQL:2003 standard. */

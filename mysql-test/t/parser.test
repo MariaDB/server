@@ -949,7 +949,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -957,7 +957,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -965,7 +965,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -981,7 +981,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -989,7 +989,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -997,7 +997,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
@@ -1005,7 +1005,7 @@ eval SELECT 1 FROM ($q) a;
 let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1;
 --error ER_PARSE_ERROR
 eval $q;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 eval SELECT ($q);
 --error ER_PARSE_ERROR
 eval SELECT 1 FROM ($q) a;
