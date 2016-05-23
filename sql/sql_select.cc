@@ -12327,7 +12327,53 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 	    DBUG_PRINT("info",("removing: %s", order->item[0]->full_name()));
 	    continue;
 	  }
-	  *simple_order=0;			// Must do a temp table to sort
+          /*
+            UseMultipleEqualitiesToRemoveTempTable:
+            Can use multiple-equalities here to check that ORDER BY columns
+            can be used without tmp. table.
+          */
+          bool can_subst_to_first_table= false;
+          if (first_is_base_table &&
+              order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
+              join->cond_equal)
+          {
+            table_map first_table_bit=
+              join->join_tab[join->const_tables].table->map;
+
+            Item *item= order->item[0];
+
+            /* 
+              We are using Context_identity below. This means only do
+              substitution when equality means
+            */
+            Item *res= item->propagate_equal_fields(join->thd,
+                                                    Value_source::
+                                                    Context_identity(),
+                                                    join->cond_equal);
+            if (res != item)
+            {
+              /* Substituted to a constant */
+              can_subst_to_first_table= true;
+            }
+            else
+            {
+              Item_equal *item_eq= item->get_item_equal();
+              if (item_eq)
+              {
+                Item *first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+                if (first->const_item() || first->used_tables() ==
+                                           first_table_bit)
+                {
+                  can_subst_to_first_table= true;
+                }
+              }
+            }
+          }
+
+          if (!can_subst_to_first_table)
+          {
+            *simple_order=0;			// Must do a temp table to sort
+          }
 	}
       }
     }
@@ -20327,6 +20373,8 @@ part_of_refkey(TABLE *table,Field *field)
 /**
   Test if one can use the key to resolve ORDER BY.
 
+  @param join                  if not NULL, can use the join's top-level
+                               multiple-equalities.
   @param order                 Sort order
   @param table                 Table to sort
   @param idx                   Index to check
@@ -20349,7 +20397,8 @@ part_of_refkey(TABLE *table,Field *field)
     -1   Reverse key can be used
 */
 
-static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
+static int test_if_order_by_key(JOIN *join,
+                                ORDER *order, TABLE *table, uint idx,
 				uint *used_key_parts= NULL)
 {
   KEY_PART_INFO *key_part,*key_part_end;
@@ -20372,7 +20421,8 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 
   for (; order ; order=order->next, const_key_parts>>=1)
   {
-    Field *field=((Item_field*) (*order->item)->real_item())->field;
+    Item_field *item_field= ((Item_field*) (*order->item)->real_item());
+    Field *field= item_field->field;
     int flag;
 
     /*
@@ -20414,6 +20464,17 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
       DBUG_RETURN(0);
     }
 
+    if (key_part->field != field)
+    {
+      /*
+        Check if there is a multiple equality that allows to infer that field
+        and key_part->field are equal 
+        (see also: compute_part_of_sort_key_for_equals)
+      */
+      if (item_field->item_equal && 
+          item_field->item_equal->contains(key_part->field))
+        field= key_part->field;
+    }
     if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
       DBUG_RETURN(0);
 
@@ -20541,7 +20602,7 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
 	table->key_info[nr].user_defined_key_parts >= ref_key_parts &&
 	is_subkey(table->key_info[nr].key_part, ref_key_part,
 		  ref_key_part_end) &&
-	test_if_order_by_key(order, table, nr))
+	test_if_order_by_key(NULL, order, table, nr))
     {
       min_length= table->key_info[nr].key_length;
       best= nr;
@@ -20680,6 +20741,68 @@ find_field_in_item_list (Field *field, void *data)
 }
 
 
+/*
+  Fill *col_keys with a union of Field::part_of_sortkey of all fields
+  that belong to 'table' and are equal to 'item_field'.
+*/
+
+void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
+                                         Item_field *item_field,
+                                         key_map *col_keys)
+{
+  col_keys->clear_all();
+  col_keys->merge(item_field->field->part_of_sortkey);
+
+  Item_equal *item_eq= NULL;
+
+  if (item_field->item_equal)
+  {
+    /* 
+      The item_field is from ORDER structure, but it already has an item_equal
+      pointer set (UseMultipleEqualitiesToRemoveTempTable code have set it)
+    */
+    item_eq= item_field->item_equal;
+  }
+  else
+  {
+    /* 
+      Walk through join's muliple equalities and find the one that contains
+      item_field.
+    */
+    if (!join->cond_equal)
+      return;
+    table_map needed_tbl_map= item_field->used_tables() | table->map;
+    List_iterator<Item_equal> li(join->cond_equal->current_level);
+    Item_equal *cur_item_eq;
+    while ((cur_item_eq= li++))
+    {
+      if ((cur_item_eq->used_tables() & needed_tbl_map) &&
+          cur_item_eq->contains(item_field->field))
+      {
+        item_eq= cur_item_eq;
+        item_field->item_equal= item_eq; // Save the pointer to our Item_equal.
+        break;
+      }
+    }
+  }
+  
+  if (item_eq)
+  {
+    Item_equal_fields_iterator it(*item_eq);
+    Item *item;
+    /* Loop through other members that belong to table table */
+    while ((item= it++))
+    {
+      if (item->type() == Item::FIELD_ITEM &&
+          ((Item_field*)item)->field->table == table)
+      {
+        col_keys->merge(((Item_field*)item)->field->part_of_sortkey);
+      }
+    }
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -20736,7 +20859,27 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       usable_keys.clear_all();
       DBUG_RETURN(0);
     }
-    usable_keys.intersect(((Item_field*) item)->field->part_of_sortkey);
+
+    /*
+      Take multiple-equalities into account. Suppose we have
+        ORDER BY col1, col10
+      and there are
+         multiple-equal(col1, col2, col3),
+         multiple-equal(col10, col11).
+
+      Then, 
+      - when item=col1, we find the set of indexes that cover one of {col1,
+        col2, col3}
+      - when item=col10, we find the set of indexes that cover one of {col10,
+        col11}
+
+      And we compute an intersection of these sets to find set of indexes that
+      cover all ORDER BY components.
+    */
+    key_map col_keys;
+    compute_part_of_sort_key_for_equals(tab->join, table, (Item_field*)item,
+                                        &col_keys);
+    usable_keys.intersect(col_keys);
     if (usable_keys.is_clear_all())
       goto use_filesort;                        // No usable keys
   }
@@ -20894,7 +21037,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     }
     /* Check if we get the rows in requested sorted order by using the key */
     if (usable_keys.is_set(ref_key) &&
-        (order_direction= test_if_order_by_key(order,table,ref_key,
+        (order_direction= test_if_order_by_key(tab->join, order,table,ref_key,
 					       &used_key_parts)))
       goto check_reverse_order;
   }
@@ -21274,8 +21417,11 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   for (ORDER *ord= join->order; ord; ord= ord->next)
     length++;
   if (!(join->sortorder= 
-        make_unireg_sortorder(thd, order, &length, join->sortorder)))
+        make_unireg_sortorder(thd, join, tab->table->map, order, &length,
+                              join->sortorder)))
+  {
     goto err;				/* purecov: inspected */
+  }
 
   table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
                                              MYF(MY_WME | MY_ZEROFILL|
@@ -21693,7 +21839,9 @@ err:
 }
 
 
-SORT_FIELD *make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
+SORT_FIELD *make_unireg_sortorder(THD *thd, JOIN *join,
+                                  table_map first_table_bit,
+                                  ORDER *order, uint *length,
                                   SORT_FIELD *sortorder)
 {
   uint count;
@@ -21713,7 +21861,30 @@ SORT_FIELD *make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
 
   for (;order;order=order->next,pos++)
   {
-    Item *const item= order->item[0], *const real_item= item->real_item();
+    Item *first= order->item[0];
+    /*
+      It is possible that the query plan is to read table t1, while the
+      sort criteria actually has "ORDER BY t2.col" and the WHERE clause has 
+      a multi-equality(t1.col, t2.col, ...).  
+      The optimizer detects such cases (grep for
+      UseMultipleEqualitiesToRemoveTempTable to see where), but doesn't 
+      perform equality substitution in the order->item. We need to do the
+      substitution here ourselves.
+    */
+    table_map item_map= first->used_tables();
+    if (join && (item_map & ~join->const_table_map) &&
+        !(item_map & first_table_bit) && join->cond_equal &&
+         first->get_item_equal())
+    {
+      /*
+        Ok, this is the case descibed just above. Get the first element of the
+        multi-equality.
+      */
+      Item_equal *item_eq= first->get_item_equal();
+      first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+    }
+
+    Item *const item= first, *const real_item= item->real_item();
     pos->field= 0; pos->item= 0;
     if (real_item->type() == Item::FIELD_ITEM)
     {
@@ -25581,7 +25752,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint used_key_parts= 0;
 
     if (keys.is_set(nr) &&
-        (direction= test_if_order_by_key(order, table, nr, &used_key_parts)))
+        (direction= test_if_order_by_key(join, order, table, nr,
+                                         &used_key_parts)))
     {
       /*
         At this point we are sure that ref_key is a non-ordering
@@ -25824,7 +25996,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     }
 
     uint used_key_parts;
-    switch (test_if_order_by_key(order, table, select->quick->index,
+    switch (test_if_order_by_key(NULL, order, table, select->quick->index,
                                  &used_key_parts)) {
     case 1: // desired order
       *need_sort= FALSE; 
