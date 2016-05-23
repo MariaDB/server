@@ -3223,8 +3223,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
-//scan the the whole alter list  //work
-//and add one field if length of blob is zero 
+  /* 
+    scan the the whole alter list  
+    and add one field if length of blob is zero 
+  */
     
     List_iterator<Key> key_iter(alter_info->key_list);
     Key *key_iter_key;
@@ -3250,7 +3252,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 key_part_iter.rewind();
                 Create_field *cf = new (thd->mem_root) Create_field();
                 cf->flags=NOT_NULL_FLAG;
-                cf->length=cf->char_length=4;
+                cf->length=cf->char_length=5;
                 cf->charset=NULL;
                 char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
                 strcpy(name,"DB_ROW_HASH_");
@@ -3259,7 +3261,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 cf->field_name=name;
                 cf->stored_in_db=true;
                 cf->sql_type=MYSQL_TYPE_LONG;
-                //add the virtual colmn info 
+                /* add the virtual colmn info */
                 Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
                 char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));
                 strcpy(hash_exp,"hash(");

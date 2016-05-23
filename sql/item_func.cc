@@ -1915,16 +1915,13 @@ void Item_func_int_div::fix_length_and_dec()
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
 
-longlong Item_func_hash::val_int(){
-    String * str =  args[0]->val_str();
-    int length = str->length();
-    char * ptr= str->c_ptr();
-    int return_val = 1;
-    for(int i=0;i<length;i++){
-        return_val +=((int)*ptr)*2;
-        ptr++;
-    }
-    return return_val;
+longlong  Item_func_hash::val_int(){
+  String * str =  args[0]->val_str();
+  char * ptr= str->c_ptr();
+  ulong nr1= 1, nr2= 4;
+  CHARSET_INFO *cs= str->charset();
+  cs->coll->hash_sort(cs, (uchar*) str->ptr(), str->length(), &nr1, &nr2);
+  return (longlong)nr1;
 }
 longlong Item_func_mod::int_op()
 {

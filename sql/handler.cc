@@ -5863,16 +5863,72 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-
+  /* Compare two records*/
+  /* Need a better place for this function */
+int rec_hash_cmp(TABLE *tbl ,Field * hash_field)
+{
+  Item * t_item;
+  t_item=hash_field->vcol_info->expr_item->next;
+  while(t_item)
+  {
+    (*tbl->field)->cmp(tbl->record[1]);
+    t_item=t_item->next;
+  }
+}
 int handler::ha_write_row(uchar *buf)
 {
-  int error;
+  int error,map;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
+  Field **field_iter;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-/*  First need to whether inserted record is unique or not */
+  /* First need to whether inserted record is unique or not */
+
+  /* One More Thing  if i implement hidden field then detection can be easy */
+  field_iter=table->field;
+  for(uint i=0;i<table->s->fields;i++)
+  {
+    //if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
+    {
+      table->file->ha_index_init(0,0);
+      map= table->file->ha_index_read_map(table->record[1],(*field_iter)->ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+      while(!map)
+      {
+        rec_hash_cmp(table,*field_iter);
+      }
+      table->file->ha_index_end();
+    }
+    field_iter++;
+  }
+  
+//+  while(!res){
+//+	  //compare the record if not sure how to compare it so just assume it works
+//+		 diff = table->recoDebug session ended
+//rd[1]-table->record[0];
+//+		 src_length = blob_field->data_length();
+//+		 //dest_length = blob_field->data_length(table->record[1]); // i  dont know how to get the length from record 1
+//+		 // so i am enable to do this
+//+		 // then we can comapare records using 
+//+		 //field->cmp_max
+//+ //this is mysql code
+//+	/*  if (!(table->distinct ?
+//+          table_rec_cmp(table) :
+//+          group_rec_cmp(table->group, table->record[0], table->record[1])))
+//+      return false; // skip it
+//+    res= table->file->ha_index_next_same(table->record[1],
+//+                                         table->hash_field->ptr,
+//+                                         sizeof(hash)); */
+//+	  //fetch the next record 
+//+	  res= table->file->ha_index_next_same(table->record[1],
+//+                                         hash_field->ptr,
+//+                                         8);
+//+	
+//+  }
+  
+
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
