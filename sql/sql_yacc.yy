@@ -8545,6 +8545,23 @@ select_paren:
         | '(' select_paren ')'
         ;
 
+select_paren_view:
+          {
+            /*
+              In order to correctly parse UNION's global ORDER BY we need to
+              set braces before parsing the clause.
+            */
+            Lex->current_select->set_braces(true);
+          }
+          SELECT_SYM select_options_and_item_list select_part3_view
+          opt_select_lock_type
+          {
+            if (setup_select_in_parentheses(Lex))
+              MYSQL_YYABORT;
+          }
+        | '(' select_paren_view ')'
+        ;
+
 /* The equivalent of select_paren for nested queries. */
 select_paren_derived:
           {
@@ -8580,9 +8597,35 @@ select_init3:
         ;
 
 
+select_init3_view:
+          opt_table_expression opt_select_lock_type
+          {
+            Lex->current_select->set_braces(false);
+          }
+        | opt_table_expression opt_select_lock_type
+          {
+            Lex->current_select->set_braces(false);
+          }
+          union_list_view
+        | order_or_limit opt_select_lock_type
+          {
+            Lex->current_select->set_braces(false);
+          }
+        | table_expression order_or_limit opt_select_lock_type
+          {
+            Lex->current_select->set_braces(false);
+          }
+        ;
+
 select_part3:
           opt_table_expression
         | select_part3_union_not_ready
+        ;
+
+select_part3_view:
+          opt_table_expression
+        | order_or_limit
+        | table_expression order_or_limit
         ;
 
 /*
@@ -11969,12 +12012,6 @@ procedure_clause:
           {
             LEX *lex=Lex;
 
-            if (! lex->parsing_options.allows_select_procedure)
-            {
-              my_error(ER_VIEW_SELECT_CLAUSE, MYF(0), "PROCEDURE");
-              MYSQL_YYABORT;
-            }
-
             if (&lex->select_lex != lex->current_select)
             {
               // SELECT * FROM t1 UNION SELECT * FROM t2 PROCEDURE ANALYSE();
@@ -12086,15 +12123,7 @@ select_outvar:
         ;
 
 into:
-          INTO
-          {
-            if (! Lex->parsing_options.allows_select_into)
-            {
-              my_error(ER_VIEW_SELECT_CLAUSE, MYF(0), "INTO");
-              MYSQL_YYABORT;
-            }
-          }
-          into_destination
+          INTO into_destination
         ;
 
 into_destination:
@@ -16342,6 +16371,18 @@ union_list:
           }
         ;
 
+union_list_view:
+          UNION_SYM union_option
+          {
+            if (add_select_to_union_list(Lex, (bool)$2, TRUE))
+              MYSQL_YYABORT;
+          }
+          query_expression_body_view
+          {
+            Lex->pop_context();
+          }
+        ;
+
 union_opt:
           opt_union_order_or_limit
         | union_list { $$= 1; }
@@ -16654,12 +16695,10 @@ view_select:
           {
             LEX *lex= Lex;
             lex->parsing_options.allows_variable= FALSE;
-            lex->parsing_options.allows_select_into= FALSE;
-            lex->parsing_options.allows_select_procedure= FALSE;
             lex->parsing_options.allows_derived= FALSE;
             lex->create_view_select.str= (char *) YYLIP->get_cpp_ptr();
           }
-          opt_with_clause view_select_aux view_check_option
+          opt_with_clause query_expression_body_view view_check_option
           {
             LEX *lex= Lex;
             uint len= YYLIP->get_cpp_ptr() - lex->create_view_select.str;
@@ -16668,16 +16707,20 @@ view_select:
             lex->create_view_select.str= (char *) create_view_select;
             trim_whitespace(thd->charset(), &lex->create_view_select);
             lex->parsing_options.allows_variable= TRUE;
-            lex->parsing_options.allows_select_into= TRUE;
-            lex->parsing_options.allows_select_procedure= TRUE;
             lex->parsing_options.allows_derived= TRUE;
             lex->current_select->set_with_clause($2);
           }
         ;
 
-view_select_aux:
-          SELECT_SYM select_options_and_item_list select_init3
-        | '(' select_paren ')' union_opt
+/*
+  SQL Standard <query expression body> for VIEWs.
+  Does not include INTO and PROCEDURE clauses.
+*/
+query_expression_body_view:
+          SELECT_SYM select_options_and_item_list select_init3_view
+        | '(' select_paren_view ')'
+        | '(' select_paren_view ')' union_order_or_limit
+        | '(' select_paren_view ')' union_list_view
         ;
 
 view_check_option:
