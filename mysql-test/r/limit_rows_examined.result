@@ -173,10 +173,8 @@ Warning	1931	Query execution was interrupted. The query examined at least 8 rows
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0
 UNION
 select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6;
-c1	c2
-bb	bb
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 8 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete.
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6' at line 2
 (select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0)
 UNION
 (select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 0)

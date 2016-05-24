@@ -1,6 +1,11 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+
 --echo *** Test MDEV-6120, output of current GTID when a replication error is logged to the errorlog ***
 --connection master
 CREATE TABLE t1(a INT PRIMARY KEY);
@@ -73,4 +78,9 @@ if(!$log_error_)
 --connection master
 DROP TABLE t1;
 
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
 --source include/rpl_end.inc

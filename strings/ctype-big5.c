@@ -848,12 +848,6 @@ static uint16 big5strokexfrm(uint16 i)
 }
 
 
-static uint mbcharlen_big5(CHARSET_INFO *cs __attribute__((unused)), uint c)
-{
-  return (isbig5head(c)? 2 : 1);
-}
-
-
 /* page 0 0xA140-0xC7FC */
 static const uint16 tab_big5_uni0[]={
 0x3000,0xFF0C,0x3001,0x3002,0xFF0E,0x2022,0xFF1B,0xFF1A,
@@ -6731,7 +6725,6 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
 static MY_CHARSET_HANDLER my_charset_big5_handler=
 {
   NULL,			/* init */
-  mbcharlen_big5,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_big5,

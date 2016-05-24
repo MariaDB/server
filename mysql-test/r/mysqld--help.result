@@ -1143,7 +1143,7 @@ big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
 binlog-cache-size 32768
-binlog-checksum NONE
+binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE

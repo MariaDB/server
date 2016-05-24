@@ -191,12 +191,6 @@ static const uchar sort_order_cp932[]=
 #include "ctype-mb.ic"
 
 
-static uint mbcharlen_cp932(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (iscp932head((uchar) c) ? 2 : 1);
-}
-
-
 #define cp932code(c,d)	((((uint) (uchar)(c)) << 8) | (uint) (uchar) (d))
 
 
@@ -34687,7 +34681,6 @@ static MY_COLLATION_HANDLER my_collation_handler_cp932_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  mbcharlen_cp932,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_cp932,

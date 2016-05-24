@@ -5426,21 +5426,6 @@ my_weight_mb3_utf8_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #include "strcoll.ic"
 
 
-static uint my_mbcharlen_utf8(CHARSET_INFO *cs  __attribute__((unused)),
-                              uint c)
-{
-  if (c < 0x80)
-    return 1;
-  else if (c < 0xc2)
-    return 0; /* Illegal mb head */
-  else if (c < 0xe0)
-    return 2;
-  else if (c < 0xf0)
-    return 3;
-  return 0; /* Illegal mb head */;
-}
-
-
 static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
 {
     NULL,               /* init */
@@ -5491,7 +5476,6 @@ static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf8_handler=
 {
     NULL,               /* init */
-    my_mbcharlen_utf8,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_utf8,
@@ -7045,7 +7029,6 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
 static MY_CHARSET_HANDLER my_charset_filename_handler=
 {
     NULL,               /* init */
-    my_mbcharlen_utf8,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_mb,
@@ -7110,57 +7093,6 @@ struct charset_info_st my_charset_filename=
     &my_collation_filename_handler
 };
 
-
-#ifdef MY_TEST_UTF8
-#include <stdio.h>
-
-static void test_mb(CHARSET_INFO *cs, uchar *s)
-{
-  while(*s)
-  {
-    if (my_ismbhead_utf8(cs,*s))
-    {
-      uint len=my_mbcharlen_utf8(cs,*s);
-      while(len--)
-      {
-        printf("%c",*s);
-        s++;
-      }
-      printf("\n");
-    }
-    else
-    {
-      printf("%c\n",*s);
-      s++;
-    }
-  }
-}
-
-int main()
-{
-  char str[1024]=" utf8 test проба ПЕРА по-РУССКИ";
-  CHARSET_INFO *cs;
-
-  test_mb(cs,(uchar*)str);
-
-  printf("orig      :'%s'\n",str);
-
-  my_caseup_utf8(cs,str,15);
-  printf("caseup    :'%s'\n",str);
-
-  my_caseup_str_utf8(cs,str);
-  printf("caseup_str:'%s'\n",str);
-
-  my_casedn_utf8(cs,str,15);
-  printf("casedn    :'%s'\n",str);
-
-  my_casedn_str_utf8(cs,str);
-  printf("casedn_str:'%s'\n",str);
-
-  return 0;
-}
-
-#endif
 
 #endif /* HAVE_CHARSET_UTF8 */
 
@@ -7755,23 +7687,6 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 #include "strcoll.ic"
 
 
-static uint
-my_mbcharlen_utf8mb4(CHARSET_INFO *cs  __attribute__((unused)), uint c)
-{
-  if (c < 0x80)
-    return 1;
-  if (c < 0xc2)
-    return 0; /* Illegal mb head */
-  if (c < 0xe0)
-    return 2;
-  if (c < 0xf0)
-    return 3;
-  if (c < 0xf8)
-    return 4;
-  return 0; /* Illegal mb head */;
-}
-
-
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 {
   NULL,               /* init */
@@ -7807,7 +7722,6 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
 {
   NULL,               /* init */
-  my_mbcharlen_utf8mb4,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_utf8mb4,

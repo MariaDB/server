@@ -125,6 +125,7 @@ UNION
 UNION
 (select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6);
 
+--error ER_PARSE_ERROR
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 0
 UNION
 select * from t1, t2 where c1 < c2 LIMIT ROWS EXAMINED 6;
