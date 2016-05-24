@@ -1049,6 +1049,9 @@ my_scan_mb2(CHARSET_INFO *cs __attribute__((unused)),
     {
     }
     return (size_t) (str - str0);
+  case MY_SEQ_NONSPACES:
+    DBUG_ASSERT(0); /* Not implemented */
+    /* pass through */
   default:
     return 0;
   }
@@ -1431,15 +1434,6 @@ my_charlen_utf16(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 /* Defines my_well_formed_char_length_utf16 */
 
 
-static uint
-my_mbcharlen_utf16(CHARSET_INFO *cs  __attribute__((unused)),
-                   uint c __attribute__((unused)))
-{
-  DBUG_ASSERT(0);
-  return MY_UTF16_HIGH_HEAD(c) ? 4 : 2;
-}
-
-
 static size_t
 my_numchars_utf16(CHARSET_INFO *cs,
                   const char *b, const char *e)
@@ -1567,7 +1561,6 @@ static MY_COLLATION_HANDLER my_collation_utf16_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf16_handler=
 {
   NULL,                /* init         */
-  my_mbcharlen_utf16,  /* mbcharlen    */
   my_numchars_utf16,
   my_charpos_utf16,
   my_well_formed_len_utf16,
@@ -1789,7 +1782,6 @@ static MY_COLLATION_HANDLER my_collation_utf16le_bin_handler =
 static MY_CHARSET_HANDLER my_charset_utf16le_handler=
 {
   NULL,                /* init         */
-  my_mbcharlen_utf16,
   my_numchars_utf16,
   my_charpos_utf16,
   my_well_formed_len_utf16,
@@ -2081,14 +2073,6 @@ my_charlen_utf32(CHARSET_INFO *cs __attribute__((unused)),
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
 /* Defines my_well_formed_char_length_utf32 */
-
-
-static uint
-my_mbcharlen_utf32(CHARSET_INFO *cs  __attribute__((unused)) , 
-                   uint c __attribute__((unused)))
-{
-  return 4;
-}
 
 
 static int
@@ -2484,6 +2468,9 @@ my_scan_utf32(CHARSET_INFO *cs,
       str+= res;
     }
     return (size_t) (str - str0);
+  case MY_SEQ_NONSPACES:
+    DBUG_ASSERT(0); /* Not implemented */
+    /* pass through */
   default:
     return 0;
   }
@@ -2525,7 +2512,6 @@ static MY_COLLATION_HANDLER my_collation_utf32_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf32_handler=
 {
   NULL, /* init */
-  my_mbcharlen_utf32,
   my_numchars_utf32,
   my_charpos_utf32,
   my_well_formed_len_utf32,
@@ -2862,13 +2848,6 @@ my_fill_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static uint my_mbcharlen_ucs2(CHARSET_INFO *cs  __attribute__((unused)) , 
-                              uint c __attribute__((unused)))
-{
-  return 2;
-}
-
-
 static
 size_t my_numchars_ucs2(CHARSET_INFO *cs __attribute__((unused)),
                         const char *b, const char *e)
@@ -3003,7 +2982,6 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
 MY_CHARSET_HANDLER my_charset_ucs2_handler=
 {
     NULL,		/* init */
-    my_mbcharlen_ucs2,	/* mbcharlen    */
     my_numchars_ucs2,
     my_charpos_ucs2,
     my_well_formed_len_ucs2,

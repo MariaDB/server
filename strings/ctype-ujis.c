@@ -220,12 +220,6 @@ static const uchar sort_order_ujis[]=
 #include "strcoll.ic"
 
 
-static uint mbcharlen_ujis(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (isujis(c)? 2: isujis_ss2(c)? 2: isujis_ss3(c)? 3: 1);
-}
-
-
 static
 size_t my_numcells_eucjp(CHARSET_INFO *cs __attribute__((unused)),
                        const char *str, const char *str_end)
@@ -67255,7 +67249,6 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    mbcharlen_ujis,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_ujis,

@@ -230,7 +230,7 @@ int my_strcasecmp_mb(CHARSET_INFO * cs,const char *s, const char *t)
         if (*s++ != *t++) 
           return 1;
     }
-    else if (my_mbcharlen(cs, *t) > 1)
+    else if (my_charlen(cs, t, t + cs->mbmaxlen) > 1)
       return 1;
     else if (map[(uchar) *s++] != map[(uchar) *t++])
       return 1;

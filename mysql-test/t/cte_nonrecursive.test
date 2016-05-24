@@ -452,3 +452,22 @@ with t1 as (select * from v1) select * from t1;
 
 drop view v1;
 drop table t1;
+
+--echo #
+--echo # Bug mdev-10058: Invalid derived table with WITH clause  
+--echo #                 
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t3 VALUES (1),(2),(3);
+
+--ERROR ER_PARSE_ERROR
+SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
+
+SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
+
+DROP TABLE t1,t2,t3;
+

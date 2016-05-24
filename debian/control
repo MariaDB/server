@@ -443,14 +443,18 @@ Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
 
-Package: mariadb-gssapi-server-10.1
+Package: mariadb-gssapi-server-10.2
 Section: database
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-server-10.1
+Depends: libgssapi-krb5-2, mariadb-server-10.2
+Conflicts: mariadb-gssapi-server-10.1
+Replaces: mariadb-gssapi-server-10.1
 Description: GSSAPI authentication plugin for MariaDB server
 
-Package: mariadb-gssapi-client-10.1
+Package: mariadb-gssapi-client-10.2
 Section: database
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-client-10.1
+Depends: libgssapi-krb5-2, mariadb-client-10.2
+Conflicts: mariadb-gssapi-client-10.1
+Replaces: mariadb-gssapi-client-10.1
 Description: GSSAPI authentication plugin for MariaDB client

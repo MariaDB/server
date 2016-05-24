@@ -3451,11 +3451,6 @@ static uint16 gbksortorder(uint16 i)
 }
 
 
-static uint mbcharlen_gbk(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (isgbkhead(c)? 2 : 1);
-}
-
 /* page 0 0x8140-0xFE4F */
 static const uint16 tab_gbk_uni0[]={
 0x4E02,0x4E04,0x4E05,0x4E06,0x4E0F,0x4E12,0x4E17,0x4E1F,
@@ -10666,7 +10661,6 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  mbcharlen_gbk,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_gbk,

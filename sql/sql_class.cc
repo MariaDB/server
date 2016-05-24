@@ -3235,7 +3235,7 @@ int select_export::send_data(List<Item> &items)
 
           if ((NEED_ESCAPING(*pos) ||
                (check_second_byte &&
-                my_mbcharlen(character_set_client, (uchar) *pos) == 2 &&
+                ((uchar) *pos) > 0x7F /* a potential MB2HEAD */ &&
                 pos + 1 < end &&
                 NEED_ESCAPING(pos[1]))) &&
               /*

@@ -277,7 +277,7 @@ protected:
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message);
+                       const char *message, bool skip_flush);
 
   virtual bool send_eof(uint server_status, uint statement_warn_count);
   virtual bool send_error(uint sql_errno, const char *err_msg, const char* sqlstate);
@@ -4877,7 +4877,7 @@ bool Protocol_local::send_out_parameters(List<Item_param> *sp_params)
 bool
 Protocol_local::send_ok(uint server_status, uint statement_warn_count,
                         ulonglong affected_rows, ulonglong last_insert_id,
-                        const char *message)
+                        const char *message, bool skip_flush)
 {
   /*
     Just make sure nothing is sent to the client, we have grabbed

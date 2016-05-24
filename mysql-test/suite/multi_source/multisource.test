@@ -222,7 +222,7 @@ flush logs;
 
 --connection master1
 purge binary logs to 'master-bin.000002';
-let filesize=`select $binlog_start_pos+119`;
+let filesize=`select $binlog_start_pos+131`;
 --replace_result $filesize filesize
 show binary logs;
 insert into t1 (f1) values ('four');

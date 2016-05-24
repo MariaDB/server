@@ -221,12 +221,6 @@ static const uchar sort_order_eucjpms[]=
 #include "strcoll.ic"
 
 
-static uint mbcharlen_eucjpms(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (iseucjpms(c)? 2: iseucjpms_ss2(c)? 2: iseucjpms_ss3(c)? 3: 1);
-}
-
-
 /* Case info pages for JIS-X-0208 range */
 
 static MY_UNICASE_CHARACTER cA2[256]=
@@ -67511,7 +67505,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    mbcharlen_eucjpms,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_eucjpms,
