@@ -159,7 +159,7 @@ Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_
 Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
 1	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
 SELECT * FROM t1 UNION SELECT * FROM t1 PROCEDURE analyse();
-ERROR HY000: Incorrect usage of PROCEDURE and subquery
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE analyse()' at line 1
 #
 # MDEV-10030 sql_yacc.yy: Split table_expression and remove PROCEDURE from create_select, select_paren_derived, select_derived2, query_specification
 #

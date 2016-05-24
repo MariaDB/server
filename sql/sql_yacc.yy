@@ -8528,6 +8528,11 @@ select_init:
         | '(' select_paren ')' union_opt
         ;
 
+union_list_part2:
+          SELECT_SYM select_options_and_item_list select_init3_union_query_term
+        | '(' select_paren_union_query_term ')' union_opt
+        ;
+
 select_paren:
           {
             /*
@@ -8543,6 +8548,23 @@ select_paren:
               MYSQL_YYABORT;
           }
         | '(' select_paren ')'
+        ;
+
+select_paren_union_query_term:
+          {
+            /*
+              In order to correctly parse UNION's global ORDER BY we need to
+              set braces before parsing the clause.
+            */
+            Lex->current_select->set_braces(true);
+          }
+          SELECT_SYM select_options_and_item_list select_part3_union_query_term
+          opt_select_lock_type
+          {
+            if (setup_select_in_parentheses(Lex))
+              MYSQL_YYABORT;
+          }
+        | '(' select_paren_union_query_term ')'
         ;
 
 select_paren_view:
@@ -8597,6 +8619,23 @@ select_init3:
         ;
 
 
+select_init3_union_query_term:
+          opt_table_expression
+          opt_select_lock_type
+          {
+            /* Parentheses carry no meaning here */
+            Lex->current_select->set_braces(false);
+          }
+          union_clause
+        | select_part3_union_not_ready_noproc
+          opt_select_lock_type
+          {
+            /* Parentheses carry no meaning here */
+            Lex->current_select->set_braces(false);
+          }
+        ;
+
+
 select_init3_view:
           opt_table_expression opt_select_lock_type
           {
@@ -8617,9 +8656,18 @@ select_init3_view:
           }
         ;
 
+/*
+  The SELECT parts after select_item_list that cannot be followed by UNION.
+*/
+
 select_part3:
           opt_table_expression
         | select_part3_union_not_ready
+        ;
+
+select_part3_union_query_term:
+          opt_table_expression
+        | select_part3_union_not_ready_noproc
         ;
 
 select_part3_view:
@@ -8628,17 +8676,18 @@ select_part3_view:
         | table_expression order_or_limit
         ;
 
-/*
-  The SELECT parts after select_item_list that cannot be followed by UNION.
-*/
 select_part3_union_not_ready:
+          select_part3_union_not_ready_noproc
+        | table_expression procedure_clause
+        | table_expression order_or_limit procedure_clause
+        ;
+
+select_part3_union_not_ready_noproc:
           order_or_limit
         | into opt_table_expression opt_order_clause opt_limit_clause
         | table_expression into
-        | table_expression procedure_clause
         | table_expression order_or_limit
         | table_expression order_or_limit into
-        | table_expression order_or_limit procedure_clause
         ;
 
 select_options_and_item_list:
@@ -12012,12 +12061,7 @@ procedure_clause:
           {
             LEX *lex=Lex;
 
-            if (&lex->select_lex != lex->current_select)
-            {
-              // SELECT * FROM t1 UNION SELECT * FROM t2 PROCEDURE ANALYSE();
-              my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "subquery");
-              MYSQL_YYABORT;
-            }
+            DBUG_ASSERT(&lex->select_lex == lex->current_select);
 
             lex->proc_list.elements=0;
             lex->proc_list.first=0;
@@ -16361,7 +16405,7 @@ union_list:
             if (add_select_to_union_list(Lex, (bool)$2, TRUE))
               MYSQL_YYABORT;
           }
-          select_init
+          union_list_part2
           {
             /*
               Remove from the name resolution context stack the context of the

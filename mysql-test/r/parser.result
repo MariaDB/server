@@ -705,7 +705,7 @@ SELECT 1 FROM t1
 UNION
 SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
 PROCEDURE ANALYSE() FOR UPDATE;
-ERROR HY000: Incorrect usage of PROCEDURE and subquery
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE() FOR UPDATE' at line 4
 SELECT 1 FROM DUAL PROCEDURE ANALYSE() 
 UNION
 SELECT 1 FROM t1;
@@ -721,7 +721,7 @@ FOR UPDATE);
 UNION 
 (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
 PROCEDURE ANALYSE() FOR UPDATE);
-ERROR HY000: Incorrect usage of PROCEDURE and subquery
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE() FOR UPDATE)' at line 4
 # "FOR UPDATE" tests
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
 1
