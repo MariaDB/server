@@ -1783,8 +1783,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         udf_type opt_local opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options union_option
-        opt_not opt_union_order_or_limit
-        union_opt select_derived_init transaction_access_mode_types
+        opt_not
+        select_derived_init transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
         ev_alter_on_schedule_completion opt_ev_rename_to opt_ev_sql_stmt
@@ -16434,14 +16434,10 @@ union_list_view:
         ;
 
 union_opt:
-          opt_union_order_or_limit
-        | union_list { $$= 1; }
+          /* Empty */
+        | union_order_or_limit
+        | union_list
         ;
-
-opt_union_order_or_limit:
-          /* Empty */ { $$= 0; }
-	| union_order_or_limit { $$= 1; }
-	;
 
 union_order_or_limit:
           {
