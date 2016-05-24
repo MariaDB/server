@@ -30,6 +30,7 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 
+
 /* YACC and LEX Definitions */
 
 /* These may not be declared yet */
@@ -690,7 +691,7 @@ public:
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
-  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
+  void set_with_clause(With_clause *with_cl);
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -1095,10 +1096,7 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
-  void set_with_clause(With_clause *with_clause)
-  {
-    master_unit()->with_clause= with_clause;
-  }
+  void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
     return master_unit()->with_clause;
@@ -1109,8 +1107,8 @@ public:
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standards_compliant); 
-
-
+  void check_subqueries_with_recursive_references();
+  
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
   bool add_window_def(THD *thd, LEX_STRING *win_name, LEX_STRING *win_ref,

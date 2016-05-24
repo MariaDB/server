@@ -675,7 +675,7 @@ ERROR HY000: Duplicate query name in WITH clause
 with t as (select a from s where a<5),
 s as (select a from t1 where b>='d')
 select * from t,s where t.a=s.a;
-ERROR HY000: The definition of the table 't' refers to the table 's' defined later in a non-recursive WITH clause
+ERROR 42S02: Table 'test.s' doesn't exist
 with recursive
 t as (select a from s where a<5),
 s as (select a from t1 where b>='d')
@@ -709,7 +709,8 @@ with recursive
 t as (select * from t1 where b>'aaa' and b <='d') 
 select t.b from t,t2
 where t.a=t2.c and
-t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+t2.c in (with recursive
+s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
 select * from s);
 ERROR HY000: No anchors for recursive WITH element 's'
 #erroneous definition of unreferenced with table t

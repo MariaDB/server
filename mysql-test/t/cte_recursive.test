@@ -24,6 +24,105 @@ select * from c1;
 
 drop table t1;
 
+
+--echo # WITH RECURSIVE vs just WITH
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+
+--echo # just WITH : s refers to t defined after s
+--ERROR ER_NO_SUCH_TABLE
+with 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # WITH RECURSIVE: s refers to t defined after s
+with recursive 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # just WITH : defined t1 is non-recursive and uses base tables t1,t2
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+
+--echo #WITH RECURSIVE : defined t1 is recursive and uses only base table t2
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+    
+--echo # just WITH : types of t1 columns are determined by all parts of union 
+
+create view v1 as
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v1;
+
+
+--echo # WITH RECURSIVE : types of t1 columns are determined by anchor parts 
+
+create view v2 as
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v2;
+
+drop view v1,v2;
+
+drop table t1,t2;
+
+
 create table  folks(id int, name char(32), dob date, father int, mother int);
 
 insert into folks values
@@ -381,7 +480,6 @@ select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
 set standards_compliant_cte=0;
-set optimizer_switch='materialization=off,subquery_cache=off';
 
 --ERROR ER_WITH_COL_WRONG_LIST
 with recursive
@@ -420,7 +518,6 @@ as
 select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
-set optimizer_switch=default;
 set standards_compliant_cte=1;
 
 --ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
@@ -576,6 +673,29 @@ as
   select max(mother), a.generation+1 from folks, ancestor_ids a
     where folks.id = a.id
       group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement max_recursion_level=2 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
 ),
 ancestors 
 as

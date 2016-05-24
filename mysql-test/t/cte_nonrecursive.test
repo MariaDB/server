@@ -366,7 +366,7 @@ with t as (select * from t2 where c>3),
      t as (select a from t1 where a>2)
  select * from t,t1 where t1.a=t.c;
 
---ERROR ER_WRONG_ORDER_IN_WITH_CLAUSE
+--ERROR ER_NO_SUCH_TABLE
 with t as (select a from s where a<5),
      s as (select a from t1 where b>='d')
   select * from t,s where t.a=s.a;
@@ -402,8 +402,9 @@ with recursive
   t as (select * from t1 where b>'aaa' and b <='d') 
   select t.b from t,t2
     where t.a=t2.c and
-          t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
-                     select * from s);
+          t2.c in (with recursive
+                   s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+                   select * from s);
 --echo #erroneous definition of unreferenced with table t
 --ERROR ER_BAD_FIELD_ERROR
 with t as (select count(*) from t1 where d>='f' group by a)

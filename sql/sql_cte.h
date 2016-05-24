@@ -3,8 +3,8 @@
 #include "sql_list.h"
 #include "sql_lex.h"
 
-class With_clause;
 class select_union;
+struct st_unit_ctxt_elem;
 
 /**
   @class With_clause
@@ -100,10 +100,19 @@ public:
 
   bool check_dependencies_in_spec(THD *thd);
   
-  void check_dependencies_in_select(st_select_lex *sl, table_map &dep_map);
+  void check_dependencies_in_select(st_select_lex *sl, st_unit_ctxt_elem *ctxt,
+                                    bool in_subq, table_map *dep_map);
       
-  void check_dependencies_in_unit(st_select_lex_unit *unit, table_map &dep_map);
- 
+  void check_dependencies_in_unit(st_select_lex_unit *unit,
+                                  st_unit_ctxt_elem *ctxt,
+                                  bool in_subq,
+                                  table_map *dep_map);
+
+  void check_dependencies_in_with_clause(With_clause *with_clause, 
+                                         st_unit_ctxt_elem *ctxt,
+                                         bool in_subq,
+                                         table_map *dep_map);
+
   void  set_dependency_on(With_element *with_elem)
   { base_dep_map|= with_elem->get_elem_map(); }
 
@@ -126,7 +135,14 @@ public:
                                     table_map &unrestricted,
                                     table_map &encountered);
 
-   void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+
+  With_clause *get_owner() { return owner; }
+
+  bool contains_sq_with_recursive_reference()
+  { return sq_dep_map & mutually_recursive; }
+
+  table_map get_mutually_recursive() { return mutually_recursive; }
 
   void set_table(TABLE *tab) { table= tab; }
 
@@ -151,11 +167,6 @@ public:
   void set_result_table(TABLE *tab) { result_table= tab; }
 
   friend class With_clause;
-  friend
-  bool 
-  st_select_lex::check_unrestricted_recursive(bool only_standard_compliant);
-  friend
-  bool TABLE_LIST::is_with_table_recursive_reference();
 };
 
 
@@ -209,8 +220,7 @@ public:
   { 
     elem->owner= this;
     elem->number= elements;
-    owner= elem->spec;
-    owner->with_element= elem;
+    elem->spec->with_element= elem;
     *last_next= elem;
     last_next= &elem->next_elem;
     elements++;
@@ -224,6 +234,8 @@ public:
     last_next= &this->next_with_clause;
   }
 
+  void set_owner(st_select_lex_unit *unit) { owner= unit; }
+
   With_clause *pop() { return embedding_with_clause; }
       
   bool check_dependencies(THD *thd);
@@ -232,11 +244,13 @@ public:
 
   void move_anchors_ahead();
 
-  With_element *find_table_def(TABLE_LIST *table);
+  With_element *find_table_def(TABLE_LIST *table, With_element *barrier);
 
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
 
   bool prepare_unreferenced_elements(THD *thd);
+
+  void add_unrestricted(table_map map) { unrestricted|= map; }
 
   void print(String *str, enum_query_type query_type);
 
@@ -245,10 +259,6 @@ public:
   friend
   bool
   check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list);
-  friend
-  bool
-  st_select_lex::check_unrestricted_recursive(bool only_standard_compliant);
-
 };
 
 inline
@@ -292,5 +302,20 @@ void With_element::reset_for_exec()
   owner->cleaned&= ~get_elem_map();    
 }
 
+inline
+void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
+{ 
+    with_clause= with_cl;
+    if (with_clause)
+      with_clause->set_owner(this);
+}
+
+inline
+void st_select_lex::set_with_clause(With_clause *with_clause)
+{
+  master_unit()->with_clause= with_clause;
+  if (with_clause)
+    with_clause->set_owner(master_unit());
+}
 
 #endif /* SQL_CTE_INCLUDED */

@@ -21,6 +21,116 @@ select * from b1 where b1.b > 'auu')
 select * from c1;
 ERROR HY000: No anchors for recursive WITH element 'b1'
 drop table t1;
+# WITH RECURSIVE vs just WITH
+create table t1 (a int);
+insert into t1 values
+(0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+(1), (2), (3), (4), (5);
+# just WITH : s refers to t defined after s
+with 
+s(a) as (select t.a + 10 from t),
+t(a) as (select t1.a from t1)
+select * from s;
+ERROR 42S02: Table 'test.t' doesn't exist
+# WITH RECURSIVE: s refers to t defined after s
+with recursive 
+s(a) as (select t.a + 10 from t),
+t(a) as (select t1.a from t1)
+select * from s;
+a
+10
+11
+12
+13
+14
+# just WITH : defined t1 is non-recursive and uses base tables t1,t2
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+a
+3
+1
+2
+4
+5
+explain
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	30	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+#WITH RECURSIVE : defined t1 is recursive and uses only base table t2
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+a
+3
+4
+5
+explain
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	30	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+3	UNCACHEABLE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	
+3	UNCACHEABLE UNION	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+# just WITH : types of t1 columns are determined by all parts of union 
+create view v1 as
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+show columns from v1;
+Field	Type	Null	Key	Default	Extra
+a	bigint(20)	YES		NULL	
+# WITH RECURSIVE : types of t1 columns are determined by anchor parts 
+create view v2 as
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+show columns from v2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+drop view v1,v2;
+drop table t1,t2;
 create table  folks(id int, name char(32), dob date, father int, mother int);
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -485,7 +595,6 @@ select generation, name from ancestor_ids a, folks
 where a.id = folks.id;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
 set standards_compliant_cte=0;
-set optimizer_switch='materialization=off,subquery_cache=off';
 with recursive
 ancestor_ids (id, generation)
 as
@@ -529,7 +638,6 @@ generation	name
 2	Grandma Ann
 2	Grandma Sally
 3	Grandgrandma Martha
-set optimizer_switch=default;
 set standards_compliant_cte=1;
 with recursive
 coupled_ancestor_ids (id)
@@ -716,4 +824,33 @@ generation	name
 1	Mom
 2	Grandpa Bill
 2	Grandma Ann
+set statement max_recursion_level=2 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+select father, 1 from folks where name = 'Me'
+  union
+select mother, 1 from folks where name = 'Me'
+  union
+select father, a.generation+1 from folks, ancestor_ids a
+where folks.id = a.id
+union
+select mother, a.generation+1 from folks, ancestor_ids a
+where folks.id = a.id
+),
+ancestors 
+as
+(
+select generation, name from folks as p, ancestor_ids as a
+where p.id = a.id
+)
+select * from ancestors;
+generation	name
+1	Dad
+1	Mom
+2	Grandpa Bill
+2	Grandpa Ben
+2	Grandma Ann
+2	Grandma Sally
 drop table folks;
