@@ -3252,7 +3252,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 key_part_iter.rewind();
                 Create_field *cf = new (thd->mem_root) Create_field();
                 cf->flags=NOT_NULL_FLAG;
-                cf->length=cf->char_length=5;
+                cf->length=cf->char_length=8;
                 cf->charset=NULL;
                 char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
                 strcpy(name,"DB_ROW_HASH_");
