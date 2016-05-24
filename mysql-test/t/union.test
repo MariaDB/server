@@ -56,7 +56,7 @@ select a,b from t1 into outfile 'skr' union select a,b from t2;
 --error ER_PARSE_ERROR
 select a,b from t1 order by a union select a,b from t2;
 
---error 1221
+--error ER_PARSE_ERROR
 insert into t3 select a from t1 order by a union select a from t2;
 
 --error 1222

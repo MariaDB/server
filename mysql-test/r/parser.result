@@ -886,3 +886,14 @@ INSERT INTO t1 VALUES (1),(2),(3);
 SELECT * FROM  (SELECT * FROM t1 LIMIT 1 LIMIT 2) t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LIMIT 2) t1' at line 1
 DROP TABLE t1;
+#
+# MDEV-10109 Disallow syntactically INSERT .. SELECT .. {ORDER BY ..| LIMIT ..} .. UNION ..
+#
+INSERT INTO t1 SELECT 1 ORDER BY 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+INSERT INTO t1 SELECT 1 LIMIT 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+CREATE TABLE t1 AS SELECT 1 ORDER BY 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+CREATE TABLE t1 AS SELECT 1 LIMIT 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1

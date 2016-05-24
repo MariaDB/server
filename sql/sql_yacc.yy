@@ -4944,7 +4944,8 @@ create_body:
           conflict that prevents the rule above from parsing a syntax like
           CREATE TABLE t1 (SELECT 1);
         */
-        | '(' create_select ')' { Select->set_braces(1);} union_opt {}
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_opt {}
         | create_like
           {
 
@@ -4965,12 +4966,18 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select
+        | opt_duplicate opt_as create_select_query_expression_body
+        ;
+
+create_select_query_expression_body:
+          SELECT_SYM create_select_part2 opt_table_expression
+          create_select_part4
           { Select->set_braces(0);}
-          union_clause {}
-        | opt_duplicate opt_as '(' create_select ')'
-          { Select->set_braces(1);}
-          union_opt {}
+          union_clause
+        | SELECT_SYM create_select_part2 create_select_part3_union_not_ready
+          create_select_part4
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_opt {}
         ;
 
 opt_create_partitioning:
@@ -5679,8 +5686,11 @@ opt_part_option:
  End of partition parser part
 */
 
-create_select:
-          SELECT_SYM
+create_select_query_specification:
+          SELECT_SYM create_select_part2 create_select_part3 create_select_part4
+        ;
+
+create_select_part2:
           {
             LEX *lex=Lex;
             if (lex->sql_command == SQLCOM_INSERT)
@@ -5699,18 +5709,19 @@ create_select:
           {
             Select->parsing_place= NO_MATTER;
           }
-          /*
-            TODO:
-            The following sequence repeats a few times:
-                  opt_table_expression
-                  opt_order_clause
-                  opt_limit_clause
-                  opt_select_lock_type
-            Perhaps they can be grouped into a dedicated rule.
-          */
+        ;
+
+create_select_part3:
           opt_table_expression
-          opt_order_clause
-          opt_limit_clause
+        | create_select_part3_union_not_ready
+        ;
+
+create_select_part3_union_not_ready:
+          table_expression order_or_limit
+        | order_or_limit
+        ;
+
+create_select_part4:
           opt_select_lock_type
           {
             /*
@@ -12536,12 +12547,7 @@ fields:
 insert_values:
           VALUES values_list {}
         | VALUE_SYM values_list {}
-        | create_select
-          { Select->set_braces(0);}
-          union_clause {}
-        | '(' create_select ')'
-          { Select->set_braces(1);}
-          union_opt {}
+        | create_select_query_expression_body {}
         ;
 
 values_list:
