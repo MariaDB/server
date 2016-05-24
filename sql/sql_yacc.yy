@@ -15982,8 +15982,8 @@ udf_tail2:
           }
         ;
 sf_tail:
-          AGGREGATE_SYM sf_tail2 {  }
-        | sf_tail2               {  }
+          AGGREGATE_SYM sf_tail2 { thd->lex->sphead->is_aggregate = true; }
+        | sf_tail2               { thd->lex->sphead->is_aggregate = false; }
         ;
 
 sf_tail2:
