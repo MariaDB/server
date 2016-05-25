@@ -4945,7 +4945,10 @@ create_body:
           CREATE TABLE t1 (SELECT 1);
         */
         | '(' create_select_query_specification ')'
-          { Select->set_braces(1);} union_opt {}
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_list {}
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_order_or_limit {}
         | create_like
           {
 
@@ -4977,7 +4980,10 @@ create_select_query_expression_body:
         | SELECT_SYM create_select_part2 create_select_part3_union_not_ready
           create_select_part4
         | '(' create_select_query_specification ')'
-          { Select->set_braces(1);} union_opt {}
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_list {}
+        | '(' create_select_query_specification ')'
+          { Select->set_braces(1);} union_order_or_limit {}
         ;
 
 opt_create_partitioning:
@@ -8536,12 +8542,16 @@ select:
 
 select_init:
           SELECT_SYM select_options_and_item_list select_init3
-        | '(' select_paren ')' union_opt
+        | '(' select_paren ')'
+        | '(' select_paren ')' union_list
+        | '(' select_paren ')' union_order_or_limit
         ;
 
 union_list_part2:
           SELECT_SYM select_options_and_item_list select_init3_union_query_term
-        | '(' select_paren_union_query_term ')' union_opt
+        | '(' select_paren_union_query_term ')'
+        | '(' select_paren_union_query_term ')' union_list
+        | '(' select_paren_union_query_term ')' union_order_or_limit
         ;
 
 select_paren:
@@ -16431,12 +16441,6 @@ union_list_view:
           {
             Lex->pop_context();
           }
-        ;
-
-union_opt:
-          /* Empty */
-        | union_order_or_limit
-        | union_list
         ;
 
 union_order_or_limit:
