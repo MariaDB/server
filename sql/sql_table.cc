@@ -3012,8 +3012,8 @@ int prepare_create_field(Create_field *sql_field,
                           (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
     break;
   }
-  if (!(sql_field->flags & NOT_NULL_FLAG) ||
-      (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
+  if (!(sql_field->flags & NOT_NULL_FLAG) )
+     /* (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -3251,7 +3251,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 /* make a virtual field */
                 key_part_iter.rewind();
                 Create_field *cf = new (thd->mem_root) Create_field();
-                cf->flags=NOT_NULL_FLAG;
+                cf->flags|=UNSIGNED_FLAG;
+                cf->flags|=NOT_NULL_FLAG;
+                cf->flags|=NO_DEFAULT_VALUE_FLAG;
                 cf->length=cf->char_length=8;
                 cf->charset=NULL;
                 char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
@@ -3260,7 +3262,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 num++;
                 cf->field_name=name;
                 cf->stored_in_db=true;
-                cf->sql_type=MYSQL_TYPE_LONG;
+                cf->sql_type=MYSQL_TYPE_LONGLONG;
                 /* add the virtual colmn info */
                 Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
                 char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));

@@ -5890,7 +5890,7 @@ int handler::ha_write_row(uchar *buf)
   field_iter=table->field;
   for(uint i=0;i<table->s->fields;i++)
   {
-    //if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
+    if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
     {
       table->file->ha_index_init(0,0);
       map= table->file->ha_index_read_map(table->record[1],(*field_iter)->ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
