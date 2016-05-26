@@ -3536,7 +3536,7 @@ void Item_func_weight_string::fix_length_and_dec()
   {
     uint char_length;
     char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
-                 args[0]->max_char_length() : nweights;
+                 args[0]->max_char_length() : nweights * cs->levels_for_order;
     max_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
   }
   maybe_null= 1;
