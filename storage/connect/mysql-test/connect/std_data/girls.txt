@@ -1,0 +1,5 @@
+Mary     Boston      25
+Nancy    Palo Alto   23
+Susan    Chicago     18
+Betty    Chicago     32
+Anne     Denver      23

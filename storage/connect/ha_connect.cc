@@ -195,6 +195,7 @@ extern "C" {
 #if defined(JDBC_SUPPORT)
 	     char *JvmPath;
 			 char *ClassPath;
+			 char *Wrapper;
 #endif   // JDBC_SUPPORT
 
 #if defined(__WIN__)
@@ -6874,6 +6875,12 @@ static MYSQL_SYSVAR_STR(class_path, ClassPath,
 	"Java class path",
 	//     check_class_path, update_class_path,
 	NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(java_wrapper, Wrapper,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java wrapper class",
+	//     check_class_path, update_class_path,
+	NULL, NULL, "JdbcInterface");
 #endif   // JDBC_SUPPORT
 
 
@@ -6897,6 +6904,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
+	MYSQL_SYSVAR(java_wrapper),
 #endif   // JDBC_SUPPORT
 	NULL
 };

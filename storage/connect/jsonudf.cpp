@@ -5235,21 +5235,28 @@ my_bool envar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count != 1) {
 		strcpy(message, "Unique argument must be an environment variable name");
 		return true;
-	} else
+	} else {
+		initid->maybe_null = true;
 		return false;
+	} // endif count
 
 } // end of envar_init
 
 char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, char *is_null, char *)
 {
 	char *str, name[256];
 	int   n = MY_MIN(args->lengths[0], sizeof(name) - 1);
 
 	memcpy(name, args->args[0], n);
 	name[n] = 0;
-	str = getenv(name);
-	*res_length = (str) ? strlen(str) : 0;
+
+	if (!(str = getenv(name))) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = strlen(str);
+
 	return str;
 } // end of envar
 

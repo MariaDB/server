@@ -4,9 +4,14 @@ import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
 
-import org.apache.commons.dbcp2.BasicDataSource;
+import javax.sql.DataSource;
 
-public class JdbcInterface {
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.postgresql.jdbc2.optional.PoolingDataSource;
+import com.mysql.cj.jdbc.MysqlDataSource;
+import oracle.jdbc.pool.OracleDataSource;
+
+public class JdbcDSInterface {
 	boolean           DEBUG = false;
 	String            Errmsg = "No error";
 	Connection        conn = null;
@@ -15,15 +20,16 @@ public class JdbcInterface {
 	PreparedStatement pstmt = null;
     ResultSet         rs = null;
     ResultSetMetaData rsmd = null;
-    static Hashtable<String,BasicDataSource> pool = new Hashtable<String, BasicDataSource>(); 
+    Hashtable<String,DataSource> dst = null; 
     
     // === Constructors/finalize  =========================================
-    public JdbcInterface() {
+    public JdbcDSInterface() {
     	this(true);
     } // end of default constructor
 
-    public JdbcInterface(boolean b) {
+    public JdbcDSInterface(boolean b) {
     	DEBUG = b;
+        dst = new Hashtable<String, DataSource>(); 
     } // end of constructor
     
     private void SetErrmsg(Exception e) {
@@ -47,24 +53,52 @@ public class JdbcInterface {
       return err;
     } // end of GetErrmsg
 
-    public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
-      int rc = 0;
-      String url = parms[1];
-      BasicDataSource ds = null;
+	public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
+      int               rc = 0;
+      String            url = parms[1];
+      DataSource        ds = null;
+      MysqlDataSource   mds = null;
+      MariaDbDataSource ads = null;
+      OracleDataSource  ods = null;
+      PoolingDataSource pds = null;
       
       if (url == null) {
     	SetErrmsg("URL cannot be null");
     	return -1;
-      } // endif url
+      } // endif driver
          
       try {
-    	if ((ds = pool.get(url)) == null) {
-    	  ds = new BasicDataSource();
-          ds.setDriverClassName(parms[0]);
-          ds.setUrl(url);
-          ds.setUsername(parms[2]);
-          ds.setPassword(parms[3]);
-          pool.put(url, ds);
+    	if ((ds = dst.get(url)) == null) {
+    	  if (url.toLowerCase().contains("mysql")) {
+    		mds = new MysqlDataSource();
+            mds.setURL(url);
+            mds.setUser(parms[2]);
+            mds.setPassword(parms[3]);
+            ds = mds;
+    	  } else if (url.toLowerCase().contains("mariadb")) {
+    		ads = new MariaDbDataSource();
+            ads.setUrl(url);
+            ads.setUser(parms[2]);
+            ads.setPassword(parms[3]);
+            ds = ads;
+    	  } else if (url.toLowerCase().contains("oracle")) {
+    		ods = new OracleDataSource();
+            ods.setURL(url);
+            ods.setUser(parms[2]);
+            ods.setPassword(parms[3]);
+            ds = ods;
+    	  } else if (url.toLowerCase().contains("postgresql")) {
+    		pds = new PoolingDataSource();
+            pds.setUrl(url);
+            pds.setUser(parms[2]);
+            pds.setPassword(parms[3]);
+            ds = pds;
+    	  } else {
+    	    SetErrmsg("Unsupported driver");
+    	    return -4;
+    	  } // endif driver
+    	  
+    	  dst.put(url, ds);
     	} // endif ds
         
         // Get a connection from the data source
@@ -706,4 +740,4 @@ public class JdbcInterface {
     } // end of addLibraryPath
     */   
 	    
-} // end of class JdbcInterface
+} // end of class JdbcDSInterface

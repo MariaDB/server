@@ -1,12 +1,12 @@
 import java.math.*;
 import java.sql.*;
-//import java.util.Arrays;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.List;
-//import java.io.File;
-//import java.lang.reflect.Field;
 
-public class JdbcInterface {
+import org.apache.commons.dbcp2.BasicDataSource;
+
+public class JdbcApacheInterface {
 	boolean           DEBUG = false;
 	String            Errmsg = "No error";
 	Connection        conn = null;
@@ -15,13 +15,14 @@ public class JdbcInterface {
 	PreparedStatement pstmt = null;
     ResultSet         rs = null;
     ResultSetMetaData rsmd = null;
+    static Hashtable<String,BasicDataSource> pool = new Hashtable<String, BasicDataSource>(); 
     
     // === Constructors/finalize  =========================================
-    public JdbcInterface() {
+    public JdbcApacheInterface() {
     	this(true);
     } // end of default constructor
 
-    public JdbcInterface(boolean b) {
+    public JdbcApacheInterface(boolean b) {
     	DEBUG = b;
     } // end of constructor
     
@@ -30,6 +31,13 @@ public class JdbcInterface {
     		System.out.println(e.getMessage());
       	
         Errmsg = e.toString();
+    } // end of SetErrmsg
+      
+    private void SetErrmsg(String s) {
+        if (DEBUG)
+    		System.out.println(s);
+      	
+        Errmsg = s;
     } // end of SetErrmsg
       
     public String GetErrmsg() {
@@ -41,34 +49,26 @@ public class JdbcInterface {
 
     public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
       int rc = 0;
+      String url = parms[1];
+      BasicDataSource ds = null;
       
-      if (DEBUG)
-      	System.out.println("In JdbcInterface: driver=" + parms[0]);
-      
+      if (url == null) {
+    	SetErrmsg("URL cannot be null");
+    	return -1;
+      } // endif url
+         
       try {
-		if (DEBUG)
-		  System.out.println("In try block");
-			      
-		if (parms[0] != null && !parms[0].isEmpty()) {
-		  if (DEBUG)
-			System.out.println("Loading class" + parms[0]);
-		  
-  		  Class.forName(parms[0]); //loads the driver
-		} // endif driver
-			
-	    if (DEBUG)
-		  System.out.println("URL=" + parms[1]);
-	      
-    	if (parms[2] != null && !parms[2].isEmpty()) {
-  	      if (DEBUG)
-  	      	System.out.println("user=" + parms[2] + " pwd=" + parms[3]);
-  	      
-    	  conn = DriverManager.getConnection(parms[1], parms[2], parms[3]);
-    	} else
-    	  conn = DriverManager.getConnection(parms[1]);
-
-	    if (DEBUG)
-		  System.out.println("Connection " + conn.toString() + " established");
+    	if ((ds = pool.get(url)) == null) {
+    	  ds = new BasicDataSource();
+          ds.setDriverClassName(parms[0]);
+          ds.setUrl(url);
+          ds.setUsername(parms[2]);
+          ds.setPassword(parms[3]);
+          pool.put(url, ds);
+    	} // endif ds
+        
+        // Get a connection from the data source
+        conn = ds.getConnection();
 	    
 	    // Get the data base meta data object
 	    dbmd = conn.getMetaData();
@@ -95,17 +95,14 @@ public class JdbcInterface {
 			      
         } // endif fsize
 	      
-	  } catch(ClassNotFoundException e) {
-		SetErrmsg(e);
-	    rc = -1; 
-	  } catch (SQLException se) {
-		SetErrmsg(se);
-	    rc = -2; 
-	  } catch( Exception e ) {
-		SetErrmsg(e);
-	    rc = -3; 
-	  } // end try/catch
-      
+  	  } catch (SQLException se) {
+  		SetErrmsg(se);
+  	    rc = -2; 
+  	  } catch( Exception e ) {
+  		SetErrmsg(e);
+  	    rc = -3; 
+  	  } // end try/catch
+
       return rc;
     } // end of JdbcConnect
     
@@ -709,4 +706,4 @@ public class JdbcInterface {
     } // end of addLibraryPath
     */   
 	    
-} // end of class JdbcInterface
+} // end of class JdbcApacheInterface
