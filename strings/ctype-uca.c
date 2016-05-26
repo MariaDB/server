@@ -35954,7 +35954,7 @@ struct charset_info_st my_charset_utf8_thai_520_w2=
     &my_unicase_unicode520,/* caseinfo   */
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
-    8,                   /* strxfrm_multiply */
+    4,                   /* strxfrm_multiply */
     1,                   /* caseup_multiply  */
     1,                   /* casedn_multiply  */
     1,                   /* mbminlen     */

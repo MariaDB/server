@@ -84,6 +84,7 @@ utf8_vietnamese_ci	utf8	215		#	#
 utf8_general_mysql500_ci	utf8	223		#	#
 utf8_croatian_ci	utf8	576		#	#
 utf8_myanmar_ci	utf8	577		#	#
+utf8_thai_520_w2	utf8	578		#	#
 ucs2_general_ci	ucs2	35	Yes	#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
