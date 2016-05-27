@@ -102,7 +102,8 @@ CREATE TEMPORARY TABLE t1_tmp (i1 int);
 ALTER TABLE t1_tmp ADD COLUMN b INT;
 
 # action: force switch to RBR
-DELETE FROM t2;
+INSERT INTO t1 values(1);
+INSERT INTO t2 (i1) select * from t1;
 
 # assertion: assert that t2_tmp will not make into the binlog (RBR logging atm)
 CREATE TEMPORARY TABLE t2_tmp (a int);

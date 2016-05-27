@@ -5528,94 +5528,6 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
                          &argument);
 }
 
-/*
-  Tells if two (or more) tables have auto_increment columns and we want to
-  lock those tables with a write lock.
-
-  SYNOPSIS
-    has_two_write_locked_tables_with_auto_increment
-      tables        Table list
-
-  NOTES:
-    Call this function only when you have established the list of all tables
-    which you'll want to update (including stored functions, triggers, views
-    inside your statement).
-*/
-
-static bool
-has_write_table_with_auto_increment(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE))
-      return 1;
-  }
-
-  return 0;
-}
-
-/*
-   checks if we have select tables in the table list and write tables
-   with auto-increment column.
-
-  SYNOPSIS
-   has_two_write_locked_tables_with_auto_increment_and_select
-      tables        Table list
-
-  RETURN VALUES
-
-   -true if the table list has atleast one table with auto-increment column
-
-
-         and atleast one table to select from.
-   -false otherwise
-*/
-
-static bool
-has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
-{
-  bool has_select= false;
-  bool has_auto_increment_tables = has_write_table_with_auto_increment(tables);
-  for(TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-     if (!table->placeholder() &&
-        (table->lock_type <= TL_READ_NO_INSERT))
-      {
-        has_select= true;
-        break;
-      }
-  }
-  return(has_select && has_auto_increment_tables);
-}
-
-/*
-  Tells if there is a table whose auto_increment column is a part
-  of a compound primary key while is not the first column in
-  the table definition.
-
-  @param tables Table list
-
-  @return true if the table exists, fais if does not.
-*/
-
-static bool
-has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
-{
-  for (TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    /* we must do preliminary checks as table->table may be NULL */
-    if (!table->placeholder() &&
-        table->table->found_next_number_field &&
-        (table->lock_type >= TL_WRITE_ALLOW_WRITE)
-        && table->table->s->next_number_keypart != 0)
-      return 1;
-  }
-
-  return 0;
-}
 
 /**
   Decide on logging format to use for the statement and issue errors
@@ -5746,17 +5658,24 @@ int THD::decide_logging_format(TABLE_LIST *tables)
        If different types of engines are about to be updated.
        For example: Innodb and Falcon; Innodb and MyIsam.
     */
-    my_bool multi_write_engine= FALSE;
+    bool multi_write_engine= FALSE;
     /*
        If different types of engines are about to be accessed 
        and any of them is about to be updated. For example:
        Innodb and Falcon; Innodb and MyIsam.
     */
-    my_bool multi_access_engine= FALSE;
+    bool multi_access_engine= FALSE;
     /*
       Identifies if a table is changed.
     */
-    my_bool is_write= FALSE;
+    bool is_write= FALSE;                        // If any write tables
+    bool has_read_tables= FALSE;                 // If any read only tables
+    bool has_auto_increment_write_tables= FALSE; // Write with auto-increment
+    /* If a write table that doesn't have auto increment part first */
+    bool has_write_table_auto_increment_not_first_in_pk= FALSE;
+    bool has_auto_increment_write_tables_not_first= FALSE;
+    bool found_first_not_own_table= FALSE;
+
     /*
       A pointer to a previous table that was changed.
     */
@@ -5800,31 +5719,6 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     }
 #endif
 
-    if (wsrep_binlog_format() != BINLOG_FORMAT_ROW && tables)
-    {
-      /*
-        DML statements that modify a table with an auto_increment column based on
-        rows selected from a table are unsafe as the order in which the rows are
-        fetched fron the select tables cannot be determined and may differ on
-        master and slave.
-       */
-      if (has_write_table_with_auto_increment_and_select(tables))
-        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
-
-      if (has_write_table_auto_increment_not_first_in_pk(tables))
-        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
-
-      /*
-        A query that modifies autoinc column in sub-statement can make the
-        master and slave inconsistent.
-        We can solve these problems in mixed mode by switching to binlogging
-        if at least one updated table is used by sub-statement
-       */
-      if (lex->requires_prelocking() &&
-          has_write_table_with_auto_increment(lex->first_not_own_table()))
-        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
-    }
-
     /*
       Get the capabilities vector for all involved storage engines and
       mask out the flags for the binary log.
@@ -5863,8 +5757,21 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           continue;
         }
       }
+      if (table == lex->first_not_own_table())
+        found_first_not_own_table= true;
 
       replicated_tables_count++;
+
+      if (table->lock_type <= TL_READ_NO_INSERT)
+        has_read_tables= true;
+      else if (table->table->found_next_number_field &&
+                (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      {
+        has_auto_increment_write_tables= true;
+        has_auto_increment_write_tables_not_first= found_first_not_own_table;
+        if (table->table->s->next_number_keypart != 0)
+          has_write_table_auto_increment_not_first_in_pk= true;
+      }
 
       if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
       {
@@ -5908,6 +5815,30 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         multi_access_engine= TRUE;
 
       prev_access_table= table->table;
+    }
+
+    if (wsrep_binlog_format() != BINLOG_FORMAT_ROW)
+    {
+      /*
+        DML statements that modify a table with an auto_increment
+        column based on rows selected from a table are unsafe as the
+        order in which the rows are fetched fron the select tables
+        cannot be determined and may differ on master and slave.
+      */
+      if (has_auto_increment_write_tables && has_read_tables)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
+
+      if (has_write_table_auto_increment_not_first_in_pk)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
+      /*
+        A query that modifies autoinc column in sub-statement can make the
+        master and slave inconsistent.
+        We can solve these problems in mixed mode by switching to binlogging
+        if at least one updated table is used by sub-statement
+      */
+      if (lex->requires_prelocking() &&
+          has_auto_increment_write_tables_not_first)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
 
     DBUG_PRINT("info", ("flags_write_all_set: 0x%llx", flags_write_all_set));
