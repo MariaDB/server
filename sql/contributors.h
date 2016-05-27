@@ -46,7 +46,7 @@ struct show_table_contributors_st show_table_contributors[]= {
 
   /* Smaller sponsors, newer per year */
   {"Verkkokauppa.com", "Finland", "Sponsor of the MariaDB Foundation"},
-  {"Webyog", "Bangalore", "Sponsor of the MariaDB Foundation"},
+  {"Virtuozzo", "https://virtuozzo.com/", "Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
   {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},
