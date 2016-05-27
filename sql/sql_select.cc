@@ -12342,30 +12342,26 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 
             Item *item= order->item[0];
 
-            /* 
-              We are using Context_identity below. This means only do
-              substitution when equality means
+            /*
+              TODO: equality substitution in the context of ORDER BY is 
+              sometimes allowed when it is not allowed in the general case.
+              
+              We make the below call for its side effect: it will locate the
+              multiple equality the item belongs to and set item->item_equal
+              accordingly.
             */
             Item *res= item->propagate_equal_fields(join->thd,
                                                     Value_source::
                                                     Context_identity(),
                                                     join->cond_equal);
-            if (res != item)
+            Item_equal *item_eq;
+            if ((item_eq= res->get_item_equal()))
             {
-              /* Substituted to a constant */
-              can_subst_to_first_table= true;
-            }
-            else
-            {
-              Item_equal *item_eq= item->get_item_equal();
-              if (item_eq)
+              Item *first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+              if (first->const_item() || first->used_tables() ==
+                                         first_table_bit)
               {
-                Item *first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
-                if (first->const_item() || first->used_tables() ==
-                                           first_table_bit)
-                {
-                  can_subst_to_first_table= true;
-                }
+                can_subst_to_first_table= true;
               }
             }
           }
