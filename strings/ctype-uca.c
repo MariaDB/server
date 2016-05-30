@@ -34167,6 +34167,23 @@ static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
   return my_strnxfrmlen_any_uca(cs, len) * cs->levels_for_order;
 }
 
+
+MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
+{
+    my_coll_init_uca_multilevel,
+    my_strnncoll_any_uca_multilevel,
+    my_strnncollsp_any_uca_multilevel,
+    my_strnxfrm_any_uca_multilevel,
+    my_strnxfrmlen_any_uca_multilevel,
+    my_like_range_generic,
+    my_wildcmp_uca,
+    NULL,
+    my_instr_mb,
+    my_hash_sort_any_uca,
+    my_propagate_complex
+};
+
+
 #ifdef HAVE_CHARSET_ucs2
 /*
   UCS2 optimized CHARSET_INFO compatible wrappers.
@@ -35000,6 +35017,38 @@ struct charset_info_st my_charset_ucs2_myanmar_uca_ci=
 };
 
 
+struct charset_info_st my_charset_ucs2_thai_520_w2=
+{
+    MY_PAGE2_COLLATION_ID_UCS2+2,0,0, /* number */
+    MY_CS_UCS2_UCA_FLAGS,/* flags        */
+    "ucs2",              /* csname       */
+    "ucs2_thai_520_w2",  /* name         */
+    "",                  /* comment      */
+    "",                  /* tailoring    */
+    NULL,                /* ctype        */
+    NULL,                /* to_lower     */
+    NULL,                /* to_upper     */
+    NULL,                /* sort_order   */
+    &my_uca_v520_th,     /* uca          */
+    NULL,                /* tab_to_uni   */
+    NULL,                /* tab_from_uni */
+    &my_unicase_unicode520,/* caseinfo   */
+    NULL,                /* state_map    */
+    NULL,                /* ident_map    */
+    4,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    1,                   /* casedn_multiply  */
+    2,                   /* mbminlen     */
+    2,                   /* mbmaxlen     */
+    9,                   /* min_sort_char */
+    0xFFFF,              /* max_sort_char */
+    ' ',                 /* pad char      */
+    0,                   /* escape_with_backslash_is_dangerous */
+    2,                   /* levels_for_order   */
+    &my_charset_ucs2_handler,
+    &my_collation_any_uca_handler_multilevel
+};
+
 struct charset_info_st my_charset_ucs2_unicode_520_ci=
 {
     150,0,0,            /* number       */
@@ -35077,21 +35126,6 @@ MY_COLLATION_HANDLER my_collation_any_uca_handler =
     my_strnncollsp_any_uca,
     my_strnxfrm_any_uca,
     my_strnxfrmlen_any_uca,
-    my_like_range_mb,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_any_uca,
-    my_propagate_complex
-};
-
-MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
-{
-    my_coll_init_uca_multilevel,	/* init */
-    my_strnncoll_any_uca_multilevel,
-    my_strnncollsp_any_uca_multilevel,
-    my_strnxfrm_any_uca_multilevel,
-    my_strnxfrmlen_any_uca_multilevel,
     my_like_range_mb,
     my_wildcmp_uca,
     NULL,
@@ -35941,7 +35975,7 @@ struct charset_info_st my_charset_utf8_thai_520_w2=
     MY_PAGE2_COLLATION_ID_UTF8+2,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
     MY_UTF8MB3,          /* csname       */
-    MY_UTF8MB3 "_thai_520_w2",/* name */
+    MY_UTF8MB3 "_thai_520_w2",/* name    */
     "",                  /* comment      */
     "",                  /* tailoring    */
     ctype_utf8,          /* ctype        */
@@ -36782,6 +36816,37 @@ struct charset_info_st my_charset_utf8mb4_myanmar_uca_ci=
     &my_collation_any_uca_handler
 };
 
+struct charset_info_st my_charset_utf8mb4_thai_520_w2=
+{
+    MY_PAGE2_COLLATION_ID_UTF8MB4+2,0,0, /* number */
+    MY_CS_UTF8MB4_UCA_FLAGS,/* flags     */
+    MY_UTF8MB4,          /* csname       */
+    MY_UTF8MB4 "_thai_520_w2", /* name   */
+    "",                  /* comment      */
+    "",                  /* tailoring    */
+    ctype_utf8,          /* ctype        */
+    NULL,                /* to_lower     */
+    NULL,                /* to_upper     */
+    NULL,                /* sort_order   */
+    &my_uca_v520_th,     /* uca          */
+    NULL,                /* tab_to_uni   */
+    NULL,                /* tab_from_uni */
+    &my_unicase_unicode520,/* caseinfo   */
+    NULL,                /* state_map    */
+    NULL,                /* ident_map    */
+    4,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    1,                   /* casedn_multiply  */
+    1,                   /* mbminlen     */
+    4,                   /* mbmaxlen     */
+    9,                   /* min_sort_char */
+    0xFFFF,              /* max_sort_char */
+    ' ',                 /* pad char      */
+    0,                   /* escape_with_backslash_is_dangerous */
+    2,                   /* levels_for_order   */
+    &my_charset_utf8mb4_handler,
+    &my_collation_any_uca_handler_multilevel
+};
 
 struct charset_info_st my_charset_utf8mb4_unicode_520_ci=
 {
@@ -37642,6 +37707,39 @@ struct charset_info_st my_charset_utf32_myanmar_uca_ci=
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
     &my_collation_utf32_uca_handler
+};
+
+
+struct charset_info_st my_charset_utf32_thai_520_w2=
+{
+    MY_PAGE2_COLLATION_ID_UTF32+2,0,0, /* number */
+    MY_CS_UTF32_UCA_FLAGS,/* state      */
+    "utf32",            /* csname       */
+    "utf32_thai_520_w2",/* name         */
+    "",                 /* comment      */
+    "",                 /* tailoring    */
+    NULL,               /* ctype        */
+    NULL,               /* to_lower     */
+    NULL,               /* to_upper     */
+    NULL,               /* sort_order   */
+    &my_uca_v520_th,    /* uca          */
+    NULL,               /* tab_to_uni   */
+    NULL,               /* tab_from_uni */
+    &my_unicase_unicode520,/* caseinfo  */
+    NULL,               /* state_map    */
+    NULL,               /* ident_map    */
+    4,                  /* strxfrm_multiply */
+    1,                  /* caseup_multiply  */
+    1,                  /* casedn_multiply  */
+    4,                  /* mbminlen     */
+    4,                  /* mbmaxlen     */
+    9,                  /* min_sort_char */
+    0xFFFF,             /* max_sort_char */
+    ' ',                /* pad char      */
+    0,                  /* escape_with_backslash_is_dangerous */
+    2,                  /* levels_for_order   */
+    &my_charset_utf32_handler,
+    &my_collation_any_uca_handler_multilevel
 };
 
 
@@ -38507,6 +38605,39 @@ struct charset_info_st my_charset_utf16_myanmar_uca_ci=
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
     &my_collation_utf16_uca_handler
+};
+
+
+struct charset_info_st my_charset_utf16_thai_520_w2=
+{
+    MY_PAGE2_COLLATION_ID_UTF16+2,0,0, /* number */
+    MY_CS_UTF16_UCA_FLAGS,/* state     */
+    "utf16",           /* cs name      */
+    "utf16_thai_520_w2",/* name        */
+    "",                /* comment      */
+    "",                /* tailoring    */
+    NULL,              /* ctype        */
+    NULL,              /* to_lower     */
+    NULL,              /* to_upper     */
+    NULL,              /* sort_order   */
+    &my_uca_v520_th,   /* uca          */
+    NULL,              /* tab_to_uni   */
+    NULL,              /* tab_from_uni */
+    &my_unicase_unicode520,/* caseinfo */
+    NULL,              /* state_map    */
+    NULL,              /* ident_map    */
+    4,                 /* strxfrm_multiply */
+    1,                 /* caseup_multiply  */
+    1,                 /* casedn_multiply  */
+    2,                 /* mbminlen     */
+    4,                 /* mbmaxlen     */
+    9,                 /* min_sort_char */
+    0xFFFF,            /* max_sort_char */
+    ' ',               /* pad char      */
+    0,                 /* escape_with_backslash_is_dangerous */
+    2,                 /* levels_for_order   */
+    &my_charset_utf16_handler,
+    &my_collation_any_uca_handler_multilevel
 };
 
 

@@ -109,14 +109,19 @@ INSERT INTO t1 VALUES ('๑๐ ลิตร {10 litre}');
 # To avoid problems with unpredictable order or 'AA' and 'aa'
 ALTER TABLE t1 ORDER BY a;
 
+SET @backup_character_set_connection=@@character_set_connection;
+SET @backup_collation_connection=@@collation_connection;
+SET NAMES utf8;
 SET @stmt= CONCAT('ALTER TABLE t1 MODIFY a VARCHAR(30)',
-                  ' CHARACTER SET ', @@character_set_connection,
-                  ' COLLATE ', @@collation_connection,
+                  ' CHARACTER SET ', @backup_character_set_connection,
+                  ' COLLATE ', @backup_collation_connection,
                   ' , ADD id INT NOT NULL AUTO_INCREMENT PRIMARY KEY'
                   ' , ADD KEY a_id (a, id)');
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+SET collation_connection=@backup_collation_connection;
+
 SHOW CREATE TABLE t1;
 
 --echo #

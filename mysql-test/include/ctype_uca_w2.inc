@@ -28,12 +28,18 @@ INSERT INTO t1 VALUES ('A'),('À'),('Á'),('Â'),('Ã'),('Ä'),('Å');
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a DESC;
 
-SET @stmt= CONCAT('ALTER TABLE t1 MODIFY a CHAR(10)',
-                  ' CHARACTER SET ',  @@character_set_connection,
-                  ' COLLATE ',  @@collation_connection);
+SET @backup_character_set_connection=@@character_set_connection;
+SET @backup_collation_connection=@@collation_connection;
+
+SET NAMES utf8;
+SET @stmt= CONCAT('ALTER TABLE t1 MODIFY a CHAR(10)' COLLATE utf8_bin,
+                  ' CHARACTER SET ',  @backup_character_set_connection,
+                  ' COLLATE ',  @backup_collation_connection);
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+SET collation_connection=@backup_collation_connection;
+
 SHOW CREATE TABLE t1;
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a DESC;
