@@ -9230,8 +9230,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       goto err_new_table_cleanup;
     }
     /* in case of alter temp table send the tracker in OK packet */
-    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
-                                         NULL);
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
 
 

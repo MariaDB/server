@@ -7150,10 +7150,6 @@ skip-to-error-number 3000
 ER_MYSQL_57_TEST
         eng "5.7 test"
 
-ER_NET_OK_PACKET_TOO_LARGE 08S01
-        eng "OK packet too large"
-        ukr "Пакет OK надто великий"
-
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
 

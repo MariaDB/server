@@ -198,7 +198,7 @@ bool net_send_error(THD *thd, uint sql_errno, const char *err,
   @param affected_rows	   Number of rows changed by statement
   @param id		   Auto_increment id for first row (if used)
   @param message	   Message to send to the client (Used by mysql_status)
-  @param is_eof            this called inted of old EOF packet
+  @param is_eof            this called instead of old EOF packet
 
   @return
     @retval FALSE The message was successfully sent
@@ -217,10 +217,6 @@ net_send_ok(THD *thd,
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
 
-  /*
-    To be used to manage the data storage in case session state change
-    information is present.
-  */
   bool state_changed= false;
 
   bool error= FALSE;
@@ -269,39 +265,25 @@ net_send_ok(THD *thd,
   }
   thd->get_stmt_da()->set_overwrite_status(true);
 
-  if ((thd->client_capabilities & CLIENT_SESSION_TRACK))
-  {
-    if (server_status & SERVER_SESSION_STATE_CHANGED)
-      state_changed= true;
-    /* the info field */
-    if (state_changed || (message && message[0]))
-    {
-      store.q_net_store_data((uchar*) message, message ? strlen(message) : 0);
-    }
+  state_changed=
+    (thd->client_capabilities & CLIENT_SESSION_TRACK) &&
+    (server_status & SERVER_SESSION_STATE_CHANGED);
 
-    /* session state change information */
-    if (unlikely(state_changed))
-    {
-      store.set_charset(thd->variables.collation_database);
-
-      thd->session_tracker.store(thd, &store);
-    }
-  }
-  else if (message && message[0])
+  if (state_changed || (message && message[0]))
   {
-    /* the info field, if there is a message to store */
-    DBUG_ASSERT(strlen(message) <= MYSQL_ERRMSG_SIZE);
-    store.q_net_store_data((uchar*) message, strlen(message));
+    DBUG_ASSERT(safe_strlen(message) <= MYSQL_ERRMSG_SIZE);
+    store.q_net_store_data((uchar*) safe_str(message), safe_strlen(message));
   }
 
-  if (store.length() > MAX_PACKET_LENGTH)
+  if (unlikely(state_changed))
   {
-    net->error= 1;
-    net->last_errno= ER_NET_OK_PACKET_TOO_LARGE;
-    my_error(ER_NET_OK_PACKET_TOO_LARGE, MYF(0));
-    DBUG_PRINT("info", ("OK packet too large"));
-    DBUG_RETURN(1);
+    store.set_charset(thd->variables.collation_database);
+
+    thd->session_tracker.store(thd, &store);
   }
+
+  DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
+
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
   if (!error && (!skip_flush || is_eof))
     error= net_flush(net);

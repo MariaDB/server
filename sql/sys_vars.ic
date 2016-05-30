@@ -567,6 +567,7 @@ public:
   { DBUG_ASSERT(FALSE); }
 };
 
+#ifndef EMBEDDED_LIBRARY
 class Sys_var_sesvartrack: public Sys_var_charptr_base
 {
 public:
@@ -602,7 +603,7 @@ public:
   }
   bool session_update(THD *thd, set_var *var)
   {
-    return sysvartrack_update(thd);
+    return sysvartrack_update(thd, var);
   }
   void session_save_default(THD *thd, set_var *var)
   {
@@ -623,19 +624,17 @@ public:
   {
     DBUG_ASSERT(thd != NULL);
     size_t len= sysvartrack_value_len(thd);
-    char *res= 0;
-    char *buf= (char *)my_safe_alloca(len);
-    if (buf && !sysvartrack_value_construct(thd, buf, len))
+    char *res= (char *)thd->alloc(len + sizeof(char *));
+    if (res)
     {
-      size_t len= strlen(buf) + 1;
-      res= (char*) thd->alloc(len + sizeof(char *));
-      if (res)
-        memcpy((*((char**) res)= res + sizeof(char *)), buf, len);
-      my_safe_afree(buf, len);
+      char *buf= res + sizeof(char *);
+      *((char**) res)= buf;
+      sysvartrack_value_construct(thd, buf, len);
     }
     return (uchar *)res;
   }
 };
+#endif //EMBEDDED_LIBRARY
 
 
 class Sys_var_proxy_user: public sys_var
@@ -2079,7 +2078,47 @@ public:
     if (var->type == OPT_SESSION && Sys_var_enum::session_update(thd, var))
       return TRUE;
     if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
+    {
+#ifndef EMBEDDED_LIBRARY
+      Transaction_state_tracker *tst= NULL;
+
+      if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+        tst= (Transaction_state_tracker *)
+          thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
+#endif //EMBEDDED_LIBRARY
+
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
+
+#ifndef EMBEDDED_LIBRARY
+      if (var->type == OPT_DEFAULT)
+      {
+        enum enum_tx_isol_level l;
+        switch (thd->tx_isolation) {
+        case ISO_READ_UNCOMMITTED:
+          l=  TX_ISOL_UNCOMMITTED;
+          break;
+        case ISO_READ_COMMITTED:
+          l=  TX_ISOL_COMMITTED;
+          break;
+        case ISO_REPEATABLE_READ:
+          l= TX_ISOL_REPEATABLE;
+          break;
+        case ISO_SERIALIZABLE:
+          l= TX_ISOL_SERIALIZABLE;
+          break;
+        default:
+          DBUG_ASSERT(0);
+          return TRUE;
+        }
+        if (tst)
+          tst->set_isol_level(thd, l);
+      }
+      else if (tst)
+      {
+        tst->set_isol_level(thd, TX_ISOL_INHERIT);
+      }
+#endif //EMBEDDED_LIBRARY
+    }
     return FALSE;
   }
 };

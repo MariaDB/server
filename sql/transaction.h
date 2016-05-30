@@ -44,4 +44,10 @@ bool trans_xa_prepare(THD *thd);
 bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 
+#ifndef EMBEDDED_LIBRARY
+void trans_reset_one_shot_chistics(THD *thd);
+#else
+#define trans_reset_one_shot_chistics(A) do{}while(0)
+#endif //EMBEDDED_LIBRARY
+
 #endif /* TRANSACTION_H */

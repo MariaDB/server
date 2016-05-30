@@ -1466,7 +1466,9 @@ void THD::init(void)
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
+#ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
+#endif //EMBEDDED_LIBRARY
 
   apc_target.init(&LOCK_thd_data);
   DBUG_VOID_RETURN;
@@ -1768,7 +1770,9 @@ THD::~THD()
   status_var.local_memory_used-= sizeof(THD);
 
   /* trick to make happy memory accounting system */
+#ifndef EMBEDDED_LIBRARY
   session_tracker.deinit();
+#endif //EMBEDDED_LIBRARY
 
   if (status_var.local_memory_used != 0)
   {

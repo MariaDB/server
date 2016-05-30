@@ -689,10 +689,11 @@ typedef struct system_variables
 
   my_bool pseudo_slave_mode;
 
+  char *session_track_system_variables;
+  ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
 
-  char *session_track_system_variables;
 } SV;
 
 /**
@@ -4059,7 +4060,9 @@ private:
   LEX_STRING invoker_host;
 
 public:
+#ifndef EMBEDDED_LIBRARY
   Session_tracker session_tracker;
+#endif //EMBEDDED_LIBRARY
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
@@ -4293,6 +4296,8 @@ my_eof(THD *thd)
 {
   thd->set_row_count_func(-1);
   thd->get_stmt_da()->set_eof_status(thd);
+
+  TRANSACT_TRACKER(add_trx_state(thd, TX_RESULT_SET));
 }
 
 #define tmp_disable_binlog(A)                                              \

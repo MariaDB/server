@@ -5285,16 +5285,16 @@ static int init_server_components()
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
 
+#ifndef EMBEDDED_LIBRARY
   {
-    Session_tracker session_track_system_variables_check;
-    if (session_track_system_variables_check.
-	server_boot_verify(system_charset_info))
+    if (Session_tracker::server_boot_verify(system_charset_info))
     {
       sql_print_error("The variable session_track_system_variables has "
 		      "invalid values.");
       unireg_abort(1);
     }
   }
+#endif //EMBEDDED_LIBRARY
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)

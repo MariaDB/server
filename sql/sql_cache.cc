@@ -1381,6 +1381,21 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     DBUG_VOID_RETURN;
   }
 
+  /*
+    Do not store queries while tracking transaction state.
+    The tracker already flags queries that actually have
+    transaction tracker items, but this will make behavior
+    more straight forward.
+  */
+#ifndef EMBEDDED_LIBRARY
+  if (thd->variables.session_track_transaction_info != TX_TRACK_NONE)
+  {
+    DBUG_PRINT("qcache", ("Do not work with transaction tracking"));
+    DBUG_VOID_RETURN;
+  }
+#endif //EMBEDDED_LIBRARY
+
+
   /* The following assert fails if we haven't called send_result_to_client */
   DBUG_ASSERT(thd->base_query.is_alloced() ||
               thd->base_query.ptr() == thd->query());
@@ -1718,6 +1733,20 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     DBUG_PRINT("qcache", ("SELECT is non-cacheable"));
     goto err;
   }
+
+  /*
+    Don't allow serving from Query_cache while tracking transaction
+    state. This is a safeguard in case an otherwise matching query
+    was added to the cache before tracking was turned on.
+  */
+#ifndef EMBEDDED_LIBRARY
+  if (thd->variables.session_track_transaction_info != TX_TRACK_NONE)
+  {
+    DBUG_PRINT("qcache", ("Do not work with transaction tracking"));
+    goto err;
+  }
+#endif //EMBEDDED_LIBRARY
+
 
   thd->query_cache_is_applicable= 1;
   sql= org_sql; sql_end= sql + query_length;

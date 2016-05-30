@@ -3363,6 +3363,20 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
   {
     // @see Sys_var_tx_isolation::session_update() above for the rules.
     thd->tx_read_only= var->save_result.ulonglong_value;
+
+#ifndef EMBEDDED_LIBRARY
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+    {
+      Transaction_state_tracker *tst= (Transaction_state_tracker *)
+             thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
+
+      if (var->type == OPT_DEFAULT)
+        tst->set_read_flags(thd,
+                            thd->tx_read_only ? TX_READ_ONLY : TX_READ_WRITE);
+      else
+        tst->set_read_flags(thd, TX_READ_INHERIT);
+    }
+#endif //EMBEDDED_LIBRARY
   }
   return false;
 }
@@ -5375,11 +5389,10 @@ static Sys_var_ulong Sys_log_tc_size(
        BLOCK_SIZE(my_getpagesize()));
 #endif
 
-const LEX_CSTRING SESSION_TRACK_SYSTEM_VARIABLES_NAME=
-  {STRING_WITH_LEN("session_track_system_variables")};
+#ifndef EMBEDDED_LIBRARY
 
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
-       SESSION_TRACK_SYSTEM_VARIABLES_NAME.str,
+       "session_track_system_variables",
        "Track changes in registered system variables.",
        CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
        DEFAULT("autocommit,character_set_client,character_set_connection,"
@@ -5390,30 +5403,61 @@ static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)
 {
   DBUG_ENTER("update_session_track_schema");
-  DBUG_RETURN(thd->session_tracker.get_tracker(CURRENT_SCHEMA_TRACKER)->update(thd));
+  DBUG_RETURN(thd->session_tracker.get_tracker(CURRENT_SCHEMA_TRACKER)->
+              update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_schema(
        "session_track_schema",
-       "Track changes to the 'default schema'.",
+       "Track changes to the default schema.",
        SESSION_VAR(session_track_schema),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(update_session_track_schema));
 
+
+static bool update_session_track_tx_info(sys_var *self, THD *thd,
+                                         enum_var_type type)
+{
+  DBUG_ENTER("update_session_track_tx_info");
+  DBUG_RETURN(thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER)->
+              update(thd, NULL));
+}
+
+static const char *session_track_transaction_info_names[]=
+  { "OFF", "STATE", "CHARACTERISTICS", NullS };
+
+static Sys_var_enum Sys_session_track_transaction_info(
+       "session_track_transaction_info",
+       "Track changes to the transaction attributes. OFF to disable; "
+       "STATE to track just transaction state (Is there an active transaction? "
+       "Does it have any data? etc.); CHARACTERISTICS to track transaction "
+       "state and report all statements needed to start a transaction with"
+       "the same characteristics (isolation level, read only/read write,"
+       "snapshot - but not any work done / data modified within the "
+       "transaction).",
+       SESSION_VAR(session_track_transaction_info),
+       CMD_LINE(REQUIRED_ARG), session_track_transaction_info_names,
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_session_track_tx_info));
+
+
 static bool update_session_track_state_change(sys_var *self, THD *thd,
                                               enum_var_type type)
 {
   DBUG_ENTER("update_session_track_state_change");
-  DBUG_RETURN(thd->session_tracker.get_tracker(SESSION_STATE_CHANGE_TRACKER)->update(thd));
+  DBUG_RETURN(thd->session_tracker.get_tracker(SESSION_STATE_CHANGE_TRACKER)->
+              update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_state_change(
        "session_track_state_change",
-       "Track changes to the 'session state'.",
+       "Track changes to the session state.",
        SESSION_VAR(session_track_state_change),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(update_session_track_state_change));
+
+#endif //EMBEDDED_LIBRARY

@@ -49,8 +49,6 @@ int mysql_add_sys_var_chain(sys_var *chain);
 int mysql_del_sys_var_chain(sys_var *chain);
 
 
-extern const LEX_CSTRING SESSION_TRACK_SYSTEM_VARIABLES_NAME;
-
 /**
   A class representing one system variable - that is something
   that can be accessed as @@global.variable_name or @@session.variable_name,

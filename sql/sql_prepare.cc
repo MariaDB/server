@@ -2759,8 +2759,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   }
   else
   {
-    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
-                                         NULL);
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     my_ok(thd, 0L, 0L, "Statement prepared");
   }
 
@@ -3212,8 +3211,7 @@ void mysql_sql_stmt_close(THD *thd)
   else
   {
     stmt->deallocate();
-    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
-                                         NULL);
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     my_ok(thd);
   }
 }

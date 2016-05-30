@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
+#ifndef EMBEDDED_LIBRARY
 #include "sql_plugin.h"
 #include "session_tracker.h"
 
@@ -26,14 +27,20 @@
 #include "sql_plugin.h"
 #include "set_var.h"
 
+void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
+{
+  m_changed= true;
+  thd->lex->safe_to_cache_query= 0;
+  thd->server_status|= SERVER_SESSION_STATE_CHANGED;
+}
+
+
 class Not_implemented_tracker : public State_tracker
 {
 public:
   bool enable(THD *thd)
   { return false; }
-  bool check(THD *, set_var *)
-  { return false; }
-  bool update(THD *)
+  bool update(THD *, set_var *)
   { return false; }
   bool store(THD *, String *)
   { return false; }
@@ -42,7 +49,6 @@ public:
 
 };
 
-static my_bool name_array_filler(void *ptr, void *data_ptr);
 /**
   Session_sysvars_tracker
 
@@ -123,7 +129,7 @@ private:
       }
     }
 
-    uchar* search(sysvar_node_st *node, const sys_var *svar)
+    uchar* insert_or_search(sysvar_node_st *node, const sys_var *svar)
     {
       uchar *res;
       res= search(svar);
@@ -146,7 +152,7 @@ private:
     void reset();
     void copy(vars_list* from, THD *thd);
     bool parse_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                        const CHARSET_INFO *char_set, bool session_created);
+                        CHARSET_INFO *char_set, bool session_created);
     bool construct_var_list(char *buf, size_t buf_len);
   };
   /**
@@ -184,15 +190,13 @@ public:
     for session_track_system_variables during the server
     startup.
   */
-  static bool server_init_check(THD *thd, const CHARSET_INFO *char_set,
+  static bool server_init_check(THD *thd, CHARSET_INFO *char_set,
                                 LEX_STRING var_list)
   {
-    vars_list dummy;
-    bool result;
-    result= dummy.parse_var_list(thd, var_list, false, char_set, false);
-    return result;
+    return check_var_list(thd, var_list, false, char_set, false);
   }
-  static bool server_init_process(THD *thd, const CHARSET_INFO *char_set,
+
+  static bool server_init_process(THD *thd, CHARSET_INFO *char_set,
                                   LEX_STRING var_list)
   {
     vars_list dummy;
@@ -205,16 +209,17 @@ public:
 
   void reset();
   bool enable(THD *thd);
-  bool check(THD *thd, set_var *var);
-  bool check_str(THD *thd, LEX_STRING val);
-  bool update(THD *thd);
+  bool check_str(THD *thd, LEX_STRING *val);
+  bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
   void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
   /* callback */
   static uchar *sysvars_get_key(const char *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));
 
-  friend my_bool name_array_filler(void *ptr, void *data_ptr);
+  static my_bool name_array_filler(void *ptr, void *data_ptr);
+  static bool check_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
+                             CHARSET_INFO *char_set, bool session_created);
 };
 
 
@@ -240,12 +245,9 @@ public:
   }
 
   bool enable(THD *thd)
-  { return update(thd); }
-  bool check(THD *thd, set_var *var)
-  { return false; }
-  bool update(THD *thd);
+  { return update(thd, NULL); }
+  bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
-  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
 };
 
 /*
@@ -271,15 +273,10 @@ private:
 public:
   Session_state_change_tracker();
   bool enable(THD *thd)
-  { return update(thd); };
-  bool check(THD *thd, set_var *var)
-  { return false; }
-  bool update(THD *thd);
+  { return update(thd, NULL); };
+  bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
-  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
   bool is_state_changed(THD*);
-  void ensure_enabled(THD *thd)
-  {}
 };
 
 
@@ -381,7 +378,7 @@ bool Session_sysvars_tracker::vars_list::insert(sysvar_node_st *node,
 bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
                                                         LEX_STRING var_list,
                                                         bool throw_error,
-							const CHARSET_INFO *char_set,
+							CHARSET_INFO *char_set,
 							bool session_created)
 {
   const char separator= ',';
@@ -463,6 +460,80 @@ error:
   return true;
 }
 
+
+bool Session_sysvars_tracker::check_var_list(THD *thd,
+                                             LEX_STRING var_list,
+                                             bool throw_error,
+                                             CHARSET_INFO *char_set,
+                                             bool session_created)
+{
+  const char separator= ',';
+  char *token, *lasts= NULL;
+  size_t rest= var_list.length;
+
+  if (!var_list.str || var_list.length == 0 ||
+      !strcmp(var_list.str,(const char *)"*"))
+  {
+    return false;
+  }
+
+  token= var_list.str;
+
+  /*
+    If Lock to the plugin mutex is not acquired here itself, it results
+    in having to acquire it multiple times in find_sys_var_ex for each
+    token value. Hence the mutex is handled here to avoid a performance
+    overhead.
+  */
+  if (!thd || session_created)
+    mysql_mutex_lock(&LOCK_plugin);
+  for (;;)
+  {
+    sys_var *svar;
+    LEX_STRING var;
+
+    lasts= (char *) memchr(token, separator, rest);
+
+    var.str= token;
+    if (lasts)
+    {
+      var.length= (lasts - token);
+      rest-= var.length + 1;
+    }
+    else
+      var.length= rest;
+
+    /* Remove leading/trailing whitespace. */
+    trim_whitespace(char_set, &var);
+
+    if (!(svar= find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
+    {
+      if (throw_error && session_created && thd)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_WRONG_VALUE_FOR_VAR,
+                            "%.*s is not a valid system variable and will"
+                            "be ignored.", (int)var.length, token);
+      }
+      else
+      {
+        if (!thd || session_created)
+          mysql_mutex_unlock(&LOCK_plugin);
+        return true;
+      }
+    }
+
+    if (lasts)
+      token= lasts + 1;
+    else
+      break;
+  }
+  if (!thd || session_created)
+    mysql_mutex_unlock(&LOCK_plugin);
+
+  return false;
+}
+
 struct name_array_filler_data
 {
   LEX_CSTRING **names;
@@ -471,7 +542,8 @@ struct name_array_filler_data
 };
 
 /** Collects variable references into array */
-static my_bool name_array_filler(void *ptr, void *data_ptr)
+my_bool Session_sysvars_tracker::name_array_filler(void *ptr,
+                                                   void *data_ptr)
 {
   Session_sysvars_tracker::sysvar_node_st *node=
     (Session_sysvars_tracker::sysvar_node_st *)ptr;
@@ -578,18 +650,11 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
 
 bool Session_sysvars_tracker::enable(THD *thd)
 {
-  sys_var *svar;
-
   mysql_mutex_lock(&LOCK_plugin);
-  svar= find_sys_var_ex(thd, SESSION_TRACK_SYSTEM_VARIABLES_NAME.str,
-                        SESSION_TRACK_SYSTEM_VARIABLES_NAME.length,
-                        false, true);
-  DBUG_ASSERT(svar);
-
-  set_var tmp(thd, SHOW_OPT_GLOBAL, svar, &null_lex_str, NULL);
-  svar->session_save_default(thd, &tmp);
-
-  if (tool_list->parse_var_list(thd, tmp.save_result.string_value,
+  LEX_STRING tmp;
+  tmp.str= global_system_variables.session_track_system_variables;
+  tmp.length= safe_strlen(tmp.str);
+  if (tool_list->parse_var_list(thd, tmp,
                                 true, thd->charset(), false) == true)
   {
     mysql_mutex_unlock(&LOCK_plugin);
@@ -617,16 +682,10 @@ bool Session_sysvars_tracker::enable(THD *thd)
   @retval false Success
 */
 
-inline bool Session_sysvars_tracker::check(THD *thd, set_var *var)
+inline bool Session_sysvars_tracker::check_str(THD *thd, LEX_STRING *val)
 {
-  return check_str(thd, var->save_result.string_value);
-}
-
-inline bool Session_sysvars_tracker::check_str(THD *thd, LEX_STRING val)
-{
-  tool_list->reset();
-  return tool_list->parse_var_list(thd, val, true,
-                                   thd->charset(), true);
+  return Session_sysvars_tracker::check_var_list(thd, *val, true,
+                                                 thd->charset(), true);
 }
 
 
@@ -645,8 +704,16 @@ inline bool Session_sysvars_tracker::check_str(THD *thd, LEX_STRING val)
   @retval false Success
 */
 
-bool Session_sysvars_tracker::update(THD *thd)
+bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
+  /*
+    We are doing via tool list because there possible errors with memory
+    in this case value will be unchanged.
+  */
+  tool_list->reset();
+  if (tool_list->parse_var_list(thd, var->save_result.string_value, true,
+                                thd->charset(), true))
+    return true;
   orig_list->copy(tool_list, thd);
   return false;
 }
@@ -670,7 +737,7 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   SHOW_VAR show;
   const char *value;
   sysvar_node_st *node;
-  const CHARSET_INFO *charset;
+  CHARSET_INFO *charset;
   size_t val_length, length;
   int idx= 0;
 
@@ -701,10 +768,15 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
               val_length;
 
       compile_time_assert(SESSION_TRACK_SYSTEM_VARIABLES < 251);
-      buf->prep_alloc(1 + net_length_size(length) + length, EXTRA_ALLOC);
+      if (unlikely((1 + net_length_size(length) + length + buf->length() >=
+                   MAX_PACKET_LENGTH) ||
+                   buf->prep_alloc(1 + net_length_size(length) + length,
+                                   EXTRA_ALLOC)))
+        return true;
+
 
       /* Session state type (SESSION_TRACK_SYSTEM_VARIABLES) */
-      buf->q_net_store_length((ulonglong)SESSION_TRACK_SYSTEM_VARIABLES);
+      buf->q_append((char)SESSION_TRACK_SYSTEM_VARIABLES);
 
       /* Length of the overall entity. */
       buf->q_net_store_length((ulonglong)length);
@@ -739,13 +811,10 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if ((node= (sysvar_node_st *) (orig_list->search(node, svar))))
+  if ((node= (sysvar_node_st *) (orig_list->insert_or_search(node, svar))))
   {
     node->m_changed= true;
-    m_changed= true;
-    /* do not cache the statement when there is change in session state */
-    thd->lex->safe_to_cache_query= 0;
-    thd->server_status|= SERVER_SESSION_STATE_CHANGED;
+    State_tracker::mark_as_changed(thd, var);
   }
 }
 
@@ -795,8 +864,6 @@ static Session_sysvars_tracker* sysvar_tracker(THD *thd)
 bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
 {
   LEX_STRING tmp= {(char *)str, len};
-  if (thd && sysvar_tracker(thd)->is_enabled())
-    return sysvar_tracker(thd)->check_str(thd, tmp);
   return Session_sysvars_tracker::server_init_check(thd, system_charset_info,
                                                     tmp);
 }
@@ -807,9 +874,9 @@ bool sysvartrack_reprint_value(THD *thd, char *str, size_t len)
                                                        system_charset_info,
                                                        tmp);
 }
-bool sysvartrack_update(THD *thd)
+bool sysvartrack_update(THD *thd, set_var *var)
 {
-  return sysvar_tracker(thd)->update(thd);
+  return sysvar_tracker(thd)->update(thd, var);
 }
 size_t sysvartrack_value_len(THD *thd)
 {
@@ -831,7 +898,7 @@ bool sysvartrack_value_construct(THD *thd, char *val, size_t len)
     false (always)
 */
 
-bool Current_schema_tracker::update(THD *thd)
+bool Current_schema_tracker::update(THD *thd, set_var *)
 {
   m_enabled= thd->variables.session_track_schema;
   return false;
@@ -862,12 +929,13 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
 
   compile_time_assert(SESSION_TRACK_SCHEMA < 251);
   compile_time_assert(NAME_LEN < 251);
-  DBUG_ASSERT(net_length_size(length) < 251);
-  if (buf->prep_alloc(1 + 1 + length, EXTRA_ALLOC))
+  DBUG_ASSERT(length < 251);
+  if (unlikely((1 + 1 + length + buf->length() >= MAX_PACKET_LENGTH) ||
+               buf->prep_alloc(1 + 1 + length, EXTRA_ALLOC)))
     return true;
 
   /* Session state type (SESSION_TRACK_SCHEMA) */
-  buf->q_net_store_length((ulonglong)SESSION_TRACK_SCHEMA);
+  buf->q_append((char)SESSION_TRACK_SCHEMA);
 
   /* Length of the overall entity. */
   buf->q_net_store_length(length);
@@ -882,18 +950,6 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
 
 
 /**
-  Mark the tracker as changed.
-*/
-
-void Current_schema_tracker::mark_as_changed(THD *thd, LEX_CSTRING *)
-{
-  m_changed= true;
-  thd->lex->safe_to_cache_query= 0;
-  thd->server_status|= SERVER_SESSION_STATE_CHANGED;
-}
-
-
-/**
   Reset the m_changed flag for next statement.
 
   @return                   void
@@ -902,6 +958,514 @@ void Current_schema_tracker::mark_as_changed(THD *thd, LEX_CSTRING *)
 void Current_schema_tracker::reset()
 {
   m_changed= false;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+
+Transaction_state_tracker::Transaction_state_tracker()
+{
+  m_enabled        = false;
+  tx_changed       = TX_CHG_NONE;
+  tx_curr_state    =
+  tx_reported_state= TX_EMPTY;
+  tx_read_flags    = TX_READ_INHERIT;
+  tx_isol_level    = TX_ISOL_INHERIT;
+}
+
+/**
+  Enable/disable the tracker based on @@session_track_transaction_info.
+
+  @param thd [IN]           The thd handle.
+
+  @retval true if updating the tracking level failed
+  @retval false otherwise
+*/
+
+bool Transaction_state_tracker::update(THD *thd, set_var *)
+{
+  if (thd->variables.session_track_transaction_info != TX_TRACK_NONE)
+  {
+    /*
+      If we only just turned reporting on (rather than changing between
+      state and characteristics reporting), start from a defined state.
+    */
+    if (!m_enabled)
+    {
+      tx_curr_state     =
+      tx_reported_state = TX_EMPTY;
+      tx_changed       |= TX_CHG_STATE;
+      m_enabled= true;
+    }
+    if (thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS)
+      tx_changed       |= TX_CHG_CHISTICS;
+    mark_as_changed(thd, NULL);
+  }
+  else
+    m_enabled= false;
+
+  return false;
+}
+
+
+/**
+  Store the transaction state (and, optionally, characteristics)
+  as length-encoded string in the specified buffer.  Once the data
+  is stored, we reset the flags related to state-change (see reset()).
+
+
+  @param thd [IN]           The thd handle.
+  @paran buf [INOUT]        Buffer to store the information to.
+
+  @retval false Success
+  @retval true  Error
+*/
+
+static LEX_CSTRING isol[]= {
+  { STRING_WITH_LEN("READ UNCOMMITTED") },
+  { STRING_WITH_LEN("READ COMMITTED") },
+  { STRING_WITH_LEN("REPEATABLE READ") },
+  { STRING_WITH_LEN("SERIALIZABLE") }
+};
+
+bool Transaction_state_tracker::store(THD *thd, String *buf)
+{
+  /* STATE */
+  if (tx_changed & TX_CHG_STATE)
+  {
+    uchar *to;
+    if (unlikely((11 + buf->length() >= MAX_PACKET_LENGTH) ||
+                 ((to= (uchar *) buf->prep_append(11, EXTRA_ALLOC)) == NULL)))
+      return true;
+
+    *(to++)= (char)SESSION_TRACK_TRANSACTION_STATE;
+
+    to= net_store_length((uchar *) to, (ulonglong) 9);
+    to= net_store_length((uchar *) to, (ulonglong) 8);
+
+    *(to++)=  (tx_curr_state & TX_EXPLICIT)       ? 'T' :
+             ((tx_curr_state & TX_IMPLICIT)       ? 'I' : '_');
+    *(to++)=  (tx_curr_state & TX_READ_UNSAFE)    ? 'r' : '_';
+    *(to++)= ((tx_curr_state & TX_READ_TRX) ||
+              (tx_curr_state & TX_WITH_SNAPSHOT)) ? 'R' : '_';
+    *(to++)=  (tx_curr_state & TX_WRITE_UNSAFE)   ? 'w' : '_';
+    *(to++)=  (tx_curr_state & TX_WRITE_TRX)      ? 'W' : '_';
+    *(to++)=  (tx_curr_state & TX_STMT_UNSAFE)    ? 's' : '_';
+    *(to++)=  (tx_curr_state & TX_RESULT_SET)     ? 'S' : '_';
+    *(to++)=  (tx_curr_state & TX_LOCKED_TABLES)  ? 'L' : '_';
+  }
+
+  /* CHARACTERISTICS -- How to restart the transaction */
+
+  if ((thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS) &&
+      (tx_changed & TX_CHG_CHISTICS))
+  {
+    bool is_xa= (thd->transaction.xid_state.xa_state != XA_NOTR);
+    size_t start;
+
+    /* 2 length by 1 byte and code */
+    if (unlikely((1 + 1 + 1 + 110 + buf->length() >= MAX_PACKET_LENGTH) ||
+                 buf->prep_alloc(1 + 1 + 1, EXTRA_ALLOC)))
+      return true;
+
+    compile_time_assert(SESSION_TRACK_TRANSACTION_CHARACTERISTICS < 251);
+    /* Session state type (SESSION_TRACK_TRANSACTION_CHARACTERISTICS) */
+    buf->q_append((char)SESSION_TRACK_TRANSACTION_CHARACTERISTICS);
+
+    /* placeholders for lengths. will be filled in at the end */
+    buf->q_append('\0');
+    buf->q_append('\0');
+
+    start= buf->length();
+
+    {
+      /*
+        We have four basic replay scenarios:
+
+        a) SET TRANSACTION was used, but before an actual transaction
+           was started, the load balancer moves the connection elsewhere.
+           In that case, the same one-shots should be set up in the
+           target session.  (read-only/read-write; isolation-level)
+
+        b) The initial transaction has begun; the relevant characteristics
+           are the session defaults, possibly overridden by previous
+           SET TRANSACTION statements, possibly overridden or extended
+           by options passed to the START TRANSACTION statement.
+           If the load balancer wishes to move this transaction,
+           it needs to be replayed with the correct characteristics.
+           (read-only/read-write from SET or START;
+           isolation-level from SET only, snapshot from START only)
+
+        c) A subsequent transaction started with START TRANSACTION
+           (which is legal syntax in lieu of COMMIT AND CHAIN in MySQL)
+           may add/modify the current one-shots:
+
+           - It may set up a read-only/read-write one-shot.
+             This one-shot will override the value used in the previous
+             transaction (whether that came from the default or a one-shot),
+             and, like all one-shots currently do, it will carry over into
+             any subsequent transactions that don't explicitly override them
+             in turn. This behavior is not guaranteed in the docs and may
+             change in the future, but the tracker item should correctly
+             reflect whatever behavior a given version of mysqld implements.
+
+           - It may also set up a WITH CONSISTENT SNAPSHOT one-shot.
+             This one-shot does not currently carry over into subsequent
+             transactions (meaning that with "traditional syntax", WITH
+             CONSISTENT SNAPSHOT can only be requested for the first part
+             of a transaction chain). Again, the tracker item should reflect
+             mysqld behavior.
+
+        d) A subsequent transaction started using COMMIT AND CHAIN
+           (or, for that matter, BEGIN WORK, which is currently
+           legal and equivalent syntax in MySQL, or START TRANSACTION
+           sans options) will re-use any one-shots set up so far
+           (with SET before the first transaction started, and with
+           all subsequent STARTs), except for WITH CONSISTANT SNAPSHOT,
+           which will never be chained and only applies when explicitly
+           given.
+
+        It bears noting that if we switch sessions in a follow-up
+        transaction, SET TRANSACTION would be illegal in the old
+        session (as a transaction is active), whereas in the target
+        session which is being prepared, it should be legal, as no
+        transaction (chain) should have started yet.
+
+        Therefore, we are free to generate SET TRANSACTION as a replay
+        statement even for a transaction that isn't the first in an
+        ongoing chain. Consider
+
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT;
+          # work
+          COMMIT AND CHAIN;
+
+        If we switch away at this point, the replay in the new session
+        needs to be
+
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          START TRANSACTION READ ONLY;
+
+        When a transaction ends (COMMIT/ROLLBACK sans CHAIN), all
+        per-transaction characteristics are reset to the session's
+        defaults.
+
+        This also holds for a transaction ended implicitly!  (transaction.cc)
+        Once again, the aim is to have the tracker item reflect on a
+        given mysqld's actual behavior.
+      */
+
+      /*
+        "ISOLATION LEVEL"
+        Only legal in SET TRANSACTION, so will always be replayed as such.
+      */
+      if (tx_isol_level != TX_ISOL_INHERIT)
+      {
+        /*
+          Unfortunately, we can't re-use tx_isolation_names /
+          tx_isolation_typelib as it hyphenates its items.
+        */
+        buf->append(STRING_WITH_LEN("SET TRANSACTION ISOLATION LEVEL "));
+        buf->append(isol[tx_isol_level - 1].str, isol[tx_isol_level - 1].length);
+        buf->append(STRING_WITH_LEN("; "));
+      }
+
+      /*
+        Start transaction will usually result in TX_EXPLICIT (transaction
+        started, but no data attached yet), except when WITH CONSISTENT
+        SNAPSHOT, in which case we may have data pending.
+        If it's an XA transaction, we don't go through here so we can
+        first print the trx access mode ("SET TRANSACTION READ ...")
+        separately before adding XA START (whereas with START TRANSACTION,
+        we can merge the access mode into the same statement).
+      */
+      if ((tx_curr_state & TX_EXPLICIT) && !is_xa)
+      {
+        buf->append(STRING_WITH_LEN("START TRANSACTION"));
+
+        /*
+          "WITH CONSISTENT SNAPSHOT"
+          Defaults to no, can only be enabled.
+          Only appears in START TRANSACTION.
+        */
+        if (tx_curr_state & TX_WITH_SNAPSHOT)
+        {
+          buf->append(STRING_WITH_LEN(" WITH CONSISTENT SNAPSHOT"));
+          if (tx_read_flags != TX_READ_INHERIT)
+            buf->append(STRING_WITH_LEN(","));
+        }
+
+        /*
+          "READ WRITE / READ ONLY" can be set globally, per-session,
+          or just for one transaction.
+
+          The latter case can take the form of
+          START TRANSACTION READ (WRITE|ONLY), or of
+          SET TRANSACTION READ (ONLY|WRITE).
+          (Both set thd->read_only for the upcoming transaction;
+          it will ultimately be re-set to the session default.)
+
+          As the regular session-variable tracker does not monitor the one-shot,
+          we'll have to do it here.
+
+          If READ is flagged as set explicitly (rather than just inherited
+          from the session's default), we'll get the actual bool from the THD.
+        */
+        if (tx_read_flags != TX_READ_INHERIT)
+        {
+          if (tx_read_flags == TX_READ_ONLY)
+            buf->append(STRING_WITH_LEN(" READ ONLY"));
+          else
+            buf->append(STRING_WITH_LEN(" READ WRITE"));
+        }
+        buf->append(STRING_WITH_LEN("; "));
+      }
+      else if (tx_read_flags != TX_READ_INHERIT)
+      {
+        /*
+          "READ ONLY" / "READ WRITE"
+          We could transform this to SET TRANSACTION even when it occurs
+          in START TRANSACTION, but for now, we'll resysynthesize the original
+          command as closely as possible.
+        */
+        buf->append(STRING_WITH_LEN("SET TRANSACTION "));
+        if (tx_read_flags == TX_READ_ONLY)
+          buf->append(STRING_WITH_LEN("READ ONLY; "));
+        else
+          buf->append(STRING_WITH_LEN("READ WRITE; "));
+      }
+
+      if ((tx_curr_state & TX_EXPLICIT) && is_xa)
+      {
+        XID *xid= &thd->transaction.xid_state.xid;
+        long glen, blen;
+
+        buf->append(STRING_WITH_LEN("XA START"));
+
+        if ((glen= xid->gtrid_length) > 0)
+        {
+          buf->append(STRING_WITH_LEN(" '"));
+          buf->append(xid->data, glen);
+
+          if ((blen= xid->bqual_length) > 0)
+          {
+            buf->append(STRING_WITH_LEN("','"));
+            buf->append(xid->data + glen, blen);
+          }
+          buf->append(STRING_WITH_LEN("'"));
+
+          if (xid->formatID != 1)
+          {
+            buf->append(STRING_WITH_LEN(","));
+            buf->append_ulonglong(xid->formatID);
+          }
+        }
+
+        buf->append(STRING_WITH_LEN("; "));
+      }
+
+      // discard trailing space
+      if (buf->length() > start)
+        buf->length(buf->length() - 1);
+    }
+
+    {
+      ulonglong length= buf->length() - start;
+      uchar *place= (uchar *)(buf->ptr() + (start - 2));
+      DBUG_ASSERT(length < 249); // in fact < 110
+      DBUG_ASSERT(start >= 3);
+
+      DBUG_ASSERT((place - 1)[0] == SESSION_TRACK_TRANSACTION_CHARACTERISTICS);
+      /* Length of the overall entity. */
+      place[0]= length + 1;
+      /* Transaction characteristics (length-encoded string). */
+      place[1]= length;
+    }
+  }
+
+  reset();
+
+  return false;
+}
+
+
+/**
+  Reset the m_changed flag for next statement.
+*/
+
+void Transaction_state_tracker::reset()
+{
+  m_changed=  false;
+  tx_reported_state=  tx_curr_state;
+  tx_changed=  TX_CHG_NONE;
+}
+
+
+/**
+  Helper function: turn table info into table access flag.
+  Accepts table lock type and engine type flag (transactional/
+  non-transactional), and returns the corresponding access flag
+  out of TX_READ_TRX, TX_READ_UNSAFE, TX_WRITE_TRX, TX_WRITE_UNSAFE.
+
+  @param thd [IN]           The thd handle
+  @param set [IN]           The table's access/lock type
+  @param set [IN]           Whether the table's engine is transactional
+
+  @return                   The table access flag
+*/
+
+enum_tx_state Transaction_state_tracker::calc_trx_state(THD *thd,
+                                                        thr_lock_type l,
+                                                        bool has_trx)
+{
+  enum_tx_state      s;
+  bool               read= (l <= TL_READ_NO_INSERT);
+
+  if (read)
+    s= has_trx ? TX_READ_TRX  : TX_READ_UNSAFE;
+  else
+    s= has_trx ? TX_WRITE_TRX : TX_WRITE_UNSAFE;
+
+  return s;
+}
+
+
+/**
+  Register the end of an (implicit or explicit) transaction.
+
+  @param thd [IN]           The thd handle
+*/
+void Transaction_state_tracker::end_trx(THD *thd)
+{
+  DBUG_ASSERT(thd->variables.session_track_transaction_info > TX_TRACK_NONE);
+
+  if ((!m_enabled) || (thd->state_flags & Open_tables_state::BACKUPS_AVAIL))
+    return;
+
+  if (tx_curr_state != TX_EMPTY)
+  {
+    if (tx_curr_state & TX_EXPLICIT)
+      tx_changed  |= TX_CHG_CHISTICS;
+    tx_curr_state &= TX_LOCKED_TABLES;
+  }
+  update_change_flags(thd);
+}
+
+
+/**
+  Clear flags pertaining to the current statement or transaction.
+  May be called repeatedly within the same execution cycle.
+
+  @param thd [IN]           The thd handle.
+  @param set [IN]           The flags to clear
+*/
+
+void Transaction_state_tracker::clear_trx_state(THD *thd, uint clear)
+{
+  if ((!m_enabled) || (thd->state_flags & Open_tables_state::BACKUPS_AVAIL))
+    return;
+
+  tx_curr_state &= ~clear;
+  update_change_flags(thd);
+}
+
+
+/**
+  Add flags pertaining to the current statement or transaction.
+  May be called repeatedly within the same execution cycle,
+  e.g. to add access info for more tables.
+
+  @param thd [IN]           The thd handle.
+  @param set [IN]           The flags to add
+*/
+
+void Transaction_state_tracker::add_trx_state(THD *thd, uint add)
+{
+  if ((!m_enabled) || (thd->state_flags & Open_tables_state::BACKUPS_AVAIL))
+    return;
+
+  if (add == TX_EXPLICIT)
+  {
+    /* Always send characteristic item (if tracked), always replace state. */
+    tx_changed |= TX_CHG_CHISTICS;
+    tx_curr_state = TX_EXPLICIT;
+  }
+
+  /*
+    If we're not in an implicit or explicit transaction, but
+    autocommit==0 and tables are accessed, we flag "implicit transaction."
+  */
+  else if (!(tx_curr_state & (TX_EXPLICIT|TX_IMPLICIT)) &&
+           (thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT) &&
+           (add &
+            (TX_READ_TRX | TX_READ_UNSAFE | TX_WRITE_TRX | TX_WRITE_UNSAFE)))
+    tx_curr_state |= TX_IMPLICIT;
+
+  /*
+    Only flag state when in transaction or LOCK TABLES is added.
+  */
+  if ((tx_curr_state & (TX_EXPLICIT | TX_IMPLICIT)) ||
+      (add & TX_LOCKED_TABLES))
+    tx_curr_state |= add;
+
+  update_change_flags(thd);
+}
+
+
+/**
+  Add "unsafe statement" flag if applicable.
+
+  @param thd [IN]           The thd handle.
+  @param set [IN]           The flags to add
+*/
+
+void Transaction_state_tracker::add_trx_state_from_thd(THD *thd)
+{
+  if (m_enabled)
+  {
+    if (thd->lex->is_stmt_unsafe())
+      add_trx_state(thd, TX_STMT_UNSAFE);
+  }
+}
+
+
+/**
+  Set read flags (read only/read write) pertaining to the next
+  transaction.
+
+  @param thd [IN]           The thd handle.
+  @param set [IN]           The flags to set
+*/
+
+void Transaction_state_tracker::set_read_flags(THD *thd,
+                                               enum enum_tx_read_flags flags)
+{
+  if (m_enabled && (tx_read_flags != flags))
+  {
+    tx_read_flags = flags;
+    tx_changed   |= TX_CHG_CHISTICS;
+    mark_as_changed(thd, NULL);
+  }
+}
+
+
+/**
+  Set isolation level pertaining to the next transaction.
+
+  @param thd [IN]           The thd handle.
+  @param set [IN]           The isolation level to set
+*/
+
+void Transaction_state_tracker::set_isol_level(THD *thd,
+                                               enum enum_tx_isol_level level)
+{
+  if (m_enabled && (tx_isol_level != level))
+  {
+    tx_isol_level = level;
+    tx_changed   |= TX_CHG_CHISTICS;
+    mark_as_changed(thd, NULL);
+  }
 }
 
 
@@ -920,7 +1484,7 @@ Session_state_change_tracker::Session_state_change_tracker()
 
 **/
 
-bool Session_state_change_tracker::update(THD *thd)
+bool Session_state_change_tracker::update(THD *thd, set_var *)
 {
   m_enabled= thd->variables.session_track_state_change;
   return false;
@@ -938,12 +1502,13 @@ bool Session_state_change_tracker::update(THD *thd)
 
 bool Session_state_change_tracker::store(THD *thd, String *buf)
 {
-  if (buf->prep_alloc(1 + 1 + 1, EXTRA_ALLOC))
+  if (unlikely((1 + 1 + 1 + buf->length() >= MAX_PACKET_LENGTH) ||
+               buf->prep_alloc(1 + 1 + 1, EXTRA_ALLOC)))
     return true;
 
   compile_time_assert(SESSION_TRACK_STATE_CHANGE < 251);
   /* Session state type (SESSION_TRACK_STATE_CHANGE) */
-  buf->q_net_store_length((ulonglong)SESSION_TRACK_STATE_CHANGE);
+  buf->q_append((char)SESSION_TRACK_STATE_CHANGE);
 
   /* Length of the overall entity (1 byte) */
   buf->q_append('\1');
@@ -956,17 +1521,6 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   return false;
 }
 
-/**
-  Mark the tracker as changed and associated session
-  attributes accordingly.
-*/
-
-void Session_state_change_tracker::mark_as_changed(THD *thd, LEX_CSTRING *)
-{
-  m_changed= true;
-  thd->lex->safe_to_cache_query= 0;
-  thd->server_status|= SERVER_SESSION_STATE_CHANGED;
-}
 
 /**
   Reset the m_changed flag for next statement.
@@ -976,6 +1530,7 @@ void Session_state_change_tracker::reset()
 {
   m_changed= false;
 }
+
 
 /**
   Find if there is a session state change.
@@ -994,7 +1549,12 @@ bool Session_state_change_tracker::is_state_changed(THD *)
 
 Session_tracker::Session_tracker()
 {
-  for (int i= 0; i <= SESSION_TRACKER_END; i ++)
+  /* track data ID fit into one byte in net coding */
+  compile_time_assert(SESSION_TRACK_END < 251);
+  /* one tracker could serv several tracking data */
+  compile_time_assert((uint)SESSION_TRACK_END >= (uint)SESSION_TRACKER_END);
+
+  for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]= NULL;
 }
 
@@ -1024,9 +1584,9 @@ void Session_tracker::enable(THD *thd)
   m_trackers[SESSION_GTIDS_TRACKER]=
     new (std::nothrow) Not_implemented_tracker;
   m_trackers[TRANSACTION_INFO_TRACKER]=
-    new (std::nothrow) Not_implemented_tracker;
+    new (std::nothrow) Transaction_state_tracker;
 
-  for (int i= 0; i <= SESSION_TRACKER_END; i ++)
+  for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]->enable(thd);
 }
 
@@ -1039,20 +1599,14 @@ void Session_tracker::enable(THD *thd)
   @retval true  Failure
 */
 
-bool Session_tracker::server_boot_verify(const CHARSET_INFO *char_set)
+bool Session_tracker::server_boot_verify(CHARSET_INFO *char_set)
 {
-  Session_sysvars_tracker *server_tracker;
   bool result;
-  sys_var *svar= find_sys_var_ex(NULL, SESSION_TRACK_SYSTEM_VARIABLES_NAME.str,
-                                 SESSION_TRACK_SYSTEM_VARIABLES_NAME.length,
-                                 false, true);
-  DBUG_ASSERT(svar);
-  set_var tmp(NULL, SHOW_OPT_GLOBAL, svar, &null_lex_str, NULL);
-  svar->session_save_default(NULL, &tmp);
-  server_tracker= new (std::nothrow) Session_sysvars_tracker();
-  result= server_tracker->server_init_check(NULL, char_set,
-                                            tmp.save_result.string_value);
-  delete server_tracker;
+  LEX_STRING tmp;
+  tmp.str= global_system_variables.session_track_system_variables;
+  tmp.length= safe_strlen(tmp.str);
+  result=
+    Session_sysvars_tracker::server_init_check(NULL, char_set, tmp);
   return result;
 }
 
@@ -1067,7 +1621,6 @@ bool Session_tracker::server_boot_verify(const CHARSET_INFO *char_set)
 
 void Session_tracker::store(THD *thd, String *buf)
 {
-  /* Temporary buffer to store all the changes. */
   size_t start;
 
   /*
@@ -1079,7 +1632,7 @@ void Session_tracker::store(THD *thd, String *buf)
   start= buf->length();
 
   /* Get total length. */
-  for (int i= 0; i <= SESSION_TRACKER_END; i ++)
+  for (int i= 0; i < SESSION_TRACKER_END; i++)
   {
     if (m_trackers[i]->is_changed() &&
         m_trackers[i]->store(thd, buf))
@@ -1105,3 +1658,5 @@ void Session_tracker::store(THD *thd, String *buf)
 
   net_store_length(data - 1, length);
 }
+
+#endif //EMBEDDED_LIBRARY

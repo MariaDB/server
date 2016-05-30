@@ -220,14 +220,13 @@ bool sys_var::update(THD *thd, set_var *var)
     */
     if ((var->type == OPT_SESSION) && (!ret))
     {
-      thd->session_tracker.mark_as_changed(thd, SESSION_SYSVARS_TRACKER,
-                                           (LEX_CSTRING*)var->var);
+      SESSION_TRACKER_CHANGED(thd, SESSION_SYSVARS_TRACKER,
+                              (LEX_CSTRING*)var->var);
       /*
         Here MySQL sends variable name to avoid reporting change of
         the tracker itself, but we decided that it is not needed
       */
-      thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
-                                           NULL);
+      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     }
 
     return ret;
@@ -894,7 +893,7 @@ int set_var_user::update(THD *thd)
     return -1;
   }
 
-  thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+  SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   return 0;
 }
 
@@ -1002,6 +1001,7 @@ int set_var_collation_client::update(THD *thd)
                       character_set_results);
 
   /* Mark client collation variables as changed */
+#ifndef EMBEDDED_LIBRARY
   if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
   {
     sys_var *svar;
@@ -1024,6 +1024,7 @@ int set_var_collation_client::update(THD *thd)
     mysql_mutex_unlock(&LOCK_plugin);
   }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+#endif //EMBEDDED_LIBRARY
 
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
