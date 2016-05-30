@@ -646,6 +646,7 @@ DROP TABLE t1;
 
 SET NAMES utf8 COLLATE utf8_thai_520_w2;
 --source include/ctype_uca_w2.inc
+--source include/ctype_thai.inc
 
 --echo #
 --echo # End of MariaDB-10.1 tests

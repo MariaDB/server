@@ -1,12 +1,10 @@
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
+--echo #
+--echo # Start of ctype_thai.inc
+--echo #
 
 #
 # Test Unicode Thai collations based on libthai testcases
 #
-
-SET NAMES utf8;
 
 CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 COLLATE utf8_bin);
 
@@ -111,10 +109,15 @@ INSERT INTO t1 VALUES ('๑๐ ลิตร {10 litre}');
 # To avoid problems with unpredictable order or 'AA' and 'aa'
 ALTER TABLE t1 ORDER BY a;
 
-ALTER TABLE t1
-  MODIFY a VARCHAR(30) CHARACTER SET utf8 COLLATE utf8_thai_520_w2,
-  ADD id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  ADD KEY a_id (a, id);
+SET @stmt= CONCAT('ALTER TABLE t1 MODIFY a VARCHAR(30)',
+                  ' CHARACTER SET ', @@character_set_connection,
+                  ' COLLATE ', @@collation_connection,
+                  ' , ADD id INT NOT NULL AUTO_INCREMENT PRIMARY KEY'
+                  ' , ADD KEY a_id (a, id)');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SHOW CREATE TABLE t1;
 
 --echo #
 --echo # Ascending sort, using filesort
@@ -142,3 +145,7 @@ EXPLAIN SELECT a FROM t1 ORDER BY a DESC, id DESC;
 SELECT a FROM t1 ORDER BY a DESC, id DESC;
 
 DROP TABLE t1;
+
+--echo #
+--echo # End of ctype_thai.inc
+--echo #
