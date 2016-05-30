@@ -642,7 +642,10 @@ SELECT * FROM t1 WHERE a=_utf8'a';
 # Make sure this does not return "Illegal mix of collations"
 SELECT * FROM t1 WHERE a='a' AND a=_utf8'a';
 DROP TABLE t1;
-SET NAMES utf8;
+
+
+SET NAMES utf8 COLLATE utf8_thai_520_w2;
+--source include/ctype_uca_w2.inc
 
 --echo #
 --echo # End of MariaDB-10.1 tests
