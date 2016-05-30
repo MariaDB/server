@@ -5863,15 +5863,28 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-  /* Compare two records*/
-  /* Need a better place for this function */
-int rec_hash_cmp(TABLE *tbl ,Field * hash_field)
+/**  @breif
+   Compare two records
+   Need a better place for this function 
+   @returns true if equal else false*/
+my_bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
 {
   Item * t_item;
   t_item=hash_field->vcol_info->expr_item->next;
+  Field * t_field;
+  int diff = tbl->record[1]-tbl->record[0];
+  int first_length,second_length;
   while(t_item)
   {
-    (*tbl->field)->cmp(tbl->record[1]);
+    /* First check for nulls */
+    t_field = * tbl->field;
+    first_length = t_field->data_length();
+    second_length = ((Field_blob *)t_field)->get_length(t_field->ptr+diff,
+                                2);
+    if(first_length!=second_length)
+      return false;
+    if(t_field->cmp_max(t_field->ptr,t_field->ptr+diff,first_length))
+      return true;
     t_item=t_item->next;
   }
 }
@@ -5893,8 +5906,16 @@ int handler::ha_write_row(uchar *buf)
     if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
     {
       table->file->ha_index_init(0,0);
-      map= table->file->ha_index_read_map(table->record[1],(*field_iter)->ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-      while(!map)
+      /* We need to add the null bit */
+      /* If the column can be NULL, then in the first byte we put 1 if the
+	field value is NULL, 0 otherwise. */
+        uchar * ptr = (uchar *)my_malloc(sizeof(char ) *1+8, MYF(MY_WME));
+        *ptr=0;
+        ptr++;
+        memcpy(ptr,(*field_iter)->ptr,8);
+        ptr--;
+      map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+      if(!map)
       {
         rec_hash_cmp(table,*field_iter);
       }

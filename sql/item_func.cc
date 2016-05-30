@@ -1918,7 +1918,7 @@ void Item_func_int_div::fix_length_and_dec()
 longlong  Item_func_hash::val_int(){
   String * str =  args[0]->val_str();
   char * ptr= str->c_ptr();
-  ulong nr1= 1, nr2= 4;
+  ulong nr1= 1, nr2= 65000;
   CHARSET_INFO *cs= str->charset();
   cs->coll->hash_sort(cs, (uchar*) str->ptr(), str->length(), &nr1, &nr2);
   return (longlong)nr1;
