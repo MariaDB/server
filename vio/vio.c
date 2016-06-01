@@ -67,7 +67,7 @@ int vio_shared_memory_shutdown(Vio *vio, int how)
 
 int vio_pipe_shutdown(Vio *vio, int how)
 {
-  return cancel_io(vio->hPipe, vio->thread_id);
+  return CancelIoEx(vio->hPipe, NULL);
 }
 #endif
 

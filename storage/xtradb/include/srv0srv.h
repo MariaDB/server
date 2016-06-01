@@ -297,9 +297,6 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 extern my_bool	srv_numa_interleave;
-#ifdef __WIN__
-extern ibool	srv_use_native_conditions;
-#endif /* __WIN__ */
 #endif /* !UNIV_HOTBACKUP */
 
 /* Use trim operation */

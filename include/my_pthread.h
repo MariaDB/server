@@ -54,26 +54,7 @@ typedef struct st_pthread_link {
   We use native conditions on Vista and later, and fallback to own 
   implementation on earlier OS version.
 */
-typedef union
-{
-  /* Native condition (used on Vista and later) */
-  CONDITION_VARIABLE native_cond;
-
-  /* Own implementation (used on XP) */
-  struct
-  { 
-    uint32 waiting;
-    CRITICAL_SECTION lock_waiting;
-    enum 
-    {
-      SIGNAL= 0,
-      BROADCAST= 1,
-      MAX_EVENTS= 2
-    } EVENTS;
-    HANDLE events[MAX_EVENTS];
-    HANDLE broadcast_block_event;
-  };
-} pthread_cond_t;
+typedef  CONDITION_VARIABLE pthread_cond_t;
 
 
 typedef int pthread_mutexattr_t;
@@ -81,10 +62,8 @@ typedef int pthread_mutexattr_t;
 #define pthread_handler_t EXTERNC void * __cdecl
 typedef void * (__cdecl *pthread_handler)(void *);
 
-typedef volatile LONG my_pthread_once_t;
-#define MY_PTHREAD_ONCE_INIT  0
-#define MY_PTHREAD_ONCE_INPROGRESS 1
-#define MY_PTHREAD_ONCE_DONE 2
+typedef INIT_ONCE my_pthread_once_t;
+#define MY_PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT;
 
 #if !STRUCT_TIMESPEC_HAS_TV_SEC  || !STRUCT_TIMESPEC_HAS_TV_NSEC
 struct timespec {

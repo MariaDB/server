@@ -4922,25 +4922,14 @@ static void end_ssl()
 /**
   Registers a file to be collected when Windows Error Reporting creates a crash 
   report.
-
-  @note only works on Vista and later, since WerRegisterFile() is not available
-  on earlier Windows.
 */
 #include <werapi.h>
 static void add_file_to_crash_report(char *file)
 {
-  /* Load WerRegisterFile function dynamically.*/
-  HRESULT (WINAPI *pWerRegisterFile)(PCWSTR, WER_REGISTER_FILE_TYPE, DWORD)
-    =(HRESULT (WINAPI *) (PCWSTR, WER_REGISTER_FILE_TYPE, DWORD))
-    GetProcAddress(GetModuleHandle("kernel32"),"WerRegisterFile");
-
-  if (pWerRegisterFile)
+  wchar_t wfile[MAX_PATH+1]= {0};
+  if (mbstowcs(wfile, file, MAX_PATH) != (size_t)-1)
   {
-    wchar_t wfile[MAX_PATH+1]= {0};
-    if (mbstowcs(wfile, file, MAX_PATH) != (size_t)-1)
-    {
-      pWerRegisterFile(wfile, WerRegFileTypeOther, WER_FILE_ANONYMOUS_DATA);
-    }
+    WerRegisterFile(wfile, WerRegFileTypeOther, WER_FILE_ANONYMOUS_DATA);
   }
 }
 #endif
@@ -9639,13 +9628,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   one_thread_scheduler(thread_scheduler);
   one_thread_scheduler(extra_thread_scheduler);
 #else
-
-#ifdef _WIN32
-  /* workaround: disable thread pool on XP */
-  if (GetProcAddress(GetModuleHandle("kernel32"),"CreateThreadpool") == 0 &&
-      thread_handling > SCHEDULER_NO_THREADS)
-    SYSVAR_AUTOSIZE(thread_handling, SCHEDULER_ONE_THREAD_PER_CONNECTION);
-#endif
 
   if (thread_handling <= SCHEDULER_ONE_THREAD_PER_CONNECTION)
     one_thread_per_connection_scheduler(thread_scheduler, &max_connections,

@@ -211,14 +211,6 @@ void vio_end(void);
 #define SHUT_RD SD_RECEIVE
 #endif
 
-/*
-  Set thread id for io cancellation (required on Windows XP only,
-  and should to be removed if XP is no more supported)
-*/
-
-#define vio_set_thread_id(vio, tid) if(vio) vio->thread_id= tid
-#else
-#define vio_set_thread_id(vio, tid)
 #endif
 
 /* This enumerator is used in parser - should be always visible */
@@ -288,7 +280,6 @@ struct st_vio
 #ifdef _WIN32
   HANDLE hPipe;
   OVERLAPPED overlapped;
-  DWORD thread_id; /* Used on XP only by vio_shutdown() */
   DWORD read_timeout_ms;
   DWORD write_timeout_ms;
 #endif

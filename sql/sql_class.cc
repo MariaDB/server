@@ -2100,7 +2100,6 @@ bool THD::store_globals()
                               STACK_DIRECTION * (long)my_thread_stack_size;
   if (net.vio)
   {
-    vio_set_thread_id(net.vio, real_id);
     net.thd= this;
   }
   /*
