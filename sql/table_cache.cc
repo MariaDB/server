@@ -160,6 +160,8 @@ static void tc_wait_for_mdl_deadlock_detector(TDC_element *element)
 
 static void tc_remove_table(TABLE *table)
 {
+  mysql_mutex_assert_owner(&table->s->tdc->LOCK_table_share);
+  tc_wait_for_mdl_deadlock_detector(table->s->tdc);
   my_atomic_add32_explicit(&tc_count, -1, MY_MEMORY_ORDER_RELAXED);
   table->s->tdc->all_tables.remove(table);
 }
@@ -171,7 +173,6 @@ static void tc_remove_all_unused_tables(TDC_element *element,
 {
   TABLE *table;
 
-  tc_wait_for_mdl_deadlock_detector(element);
   /*
     Mark share flushed in order to ensure that it gets
     automatically deleted once it is no longer referenced.
@@ -317,7 +318,6 @@ void tc_add_table(THD *thd, TABLE *table)
         TABLE *entry;
         mysql_mutex_lock(&element->LOCK_table_share);
         lf_hash_search_unpin(thd->tdc_hash_pins);
-        tc_wait_for_mdl_deadlock_detector(element);
 
         /*
           It may happen that oldest table was acquired meanwhile. In this case
@@ -425,7 +425,6 @@ bool tc_release_table(TABLE *table)
   return false;
 
 purge:
-  tc_wait_for_mdl_deadlock_detector(table->s->tdc);
   tc_remove_table(table);
   mysql_mutex_unlock(&table->s->tdc->LOCK_table_share);
   table->in_use= 0;
