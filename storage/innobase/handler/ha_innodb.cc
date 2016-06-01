@@ -13535,14 +13535,15 @@ ha_innobase::info_low(
 					break;
 				}
 
-	DBUG_EXECUTE_IF("ib_ha_innodb_stat_not_initialized",
+				DBUG_EXECUTE_IF("ib_ha_innodb_stat_not_initialized",
 					index->table->stat_initialized = FALSE;);
 
 				if (!ib_table->stat_initialized ||
 					(index->table != ib_table ||
 						!index->table->stat_initialized)) {
 					fprintf(stderr,
-						"InnoDB: Warning: Index %s points to table %s"									        " and ib_table %s statistics is initialized %d "
+						"InnoDB: Warning: Index %s points to table %s"
+						" and ib_table %s statistics is initialized %d "
 						" but index table %s initialized %d "
 					        " mysql table is %s. Have you mixed "
 						"up .frm files from different "
