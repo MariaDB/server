@@ -580,7 +580,7 @@ The following options may be given as the first argument:
  semijoin_with_cache, join_cache_incremental, 
  join_cache_hashed, join_cache_bka, 
  optimize_join_buffer_size, table_elimination, 
- extended_keys, exists_to_in
+ extended_keys, exists_to_in, orderby_uses_equalities
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial

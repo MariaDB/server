@@ -12333,7 +12333,8 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
             can be used without tmp. table.
           */
           bool can_subst_to_first_table= false;
-          if (first_is_base_table &&
+          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
+              first_is_base_table &&
               order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
               join->cond_equal)
           {
@@ -20748,6 +20749,9 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 {
   col_keys->clear_all();
   col_keys->merge(item_field->field->part_of_sortkey);
+  
+  if (!optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP))
+    return;
 
   Item_equal *item_eq= NULL;
 

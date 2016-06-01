@@ -2000,6 +2000,8 @@ drop table t1,t2;
 --echo #
 --echo # MDEV-8989: ORDER BY optimizer ignores equality propagation
 --echo #
+set @tmp_8989=@@optimizer_switch;
+set optimizer_switch='orderby_uses_equalities=on';
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
@@ -2074,4 +2076,8 @@ explain select * from t3 where b=a order by a limit 10;
 --echo # This must not use filesort. The query plan should be like the query above:
 explain select * from t3 where b=a order by b limit 10;
 drop table t0,t1,t2,t3;
+
+set @@optimizer_switch=@tmp_8989;
+
+set optimizer_switch='orderby_uses_equalities=on';
 
