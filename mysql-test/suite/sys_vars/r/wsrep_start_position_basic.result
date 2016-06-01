@@ -27,7 +27,7 @@ SELECT @@global.wsrep_start_position;
 00000000-0000-0000-0000-000000000000:-1
 
 # invalid values
-call mtr.add_suppression("WSREP: SST postion can't be set in past.*");
+call mtr.add_suppression("WSREP: SST position can't be set in past. Requested: -2, Current:  -1.");
 SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-2';
 ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '00000000-0000-0000-0000-000000000000:-2'
 SELECT @@global.wsrep_start_position;
