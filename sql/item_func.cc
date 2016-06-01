@@ -1915,14 +1915,42 @@ void Item_func_int_div::fix_length_and_dec()
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
 
-longlong  Item_func_hash::val_int(){
-  String * str =  args[0]->val_str();
-  char * ptr= str->c_ptr();
-  ulong nr1= 1, nr2= 65000;
-  CHARSET_INFO *cs= str->charset();
-  cs->coll->hash_sort(cs, (uchar*) str->ptr(), str->length(), &nr1, &nr2);
-  return (longlong)nr1;
+
+longlong  Item_func_hash::val_int()
+{
+  unsigned_flag =true;
+  ulong nr1= 1,temp=1, nr2= 0;
+  CHARSET_INFO *cs;
+  for(int i=0;i<arg_count;i++)
+  {
+    String * str = args[i]->val_str();
+    if(args[i]->null_value)
+    {
+      null_value=1;
+      return 0;
+    }
+    nr2=args[i]->max_length;
+    cs=str->charset();
+    char l[4];
+    int4store(l,str->length());
+    cs->coll->hash_sort(cs, (uchar *)l,sizeof(str->length()), &temp, &nr2);
+    nr1^=temp;
+    cs->coll->hash_sort(cs, (uchar *)str->ptr(),str->length(), &temp, &nr2);
+    nr1^=temp;
+  }
+  return   (longlong)nr1;
 }
+
+
+void  Item_func_hash::fix_length_and_dec()
+{
+  maybe_null= 1;
+  null_value= 0;
+  decimals= 0;
+  max_length= 8;
+}
+
+
 longlong Item_func_mod::int_op()
 {
   DBUG_ASSERT(fixed == 1);
