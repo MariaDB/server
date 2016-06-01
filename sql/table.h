@@ -49,7 +49,7 @@ class ACL_internal_table_access;
 class Field;
 class Table_statistics;
 class With_element;
-class TDC_element;
+struct TDC_element;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1013,7 +1013,7 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_all_next, **share_all_prev;
-  friend class TDC_element;
+  friend struct TDC_element;
 
 public:
 

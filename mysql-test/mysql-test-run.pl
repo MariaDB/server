@@ -1854,11 +1854,17 @@ sub collect_mysqld_features {
   $list =~ s/\n {22}(\S)/ $1/g;
 
   my @list= split '\n', $list;
+
+  $mysql_version_id= 0;
+  while (defined(my $line = shift @list)){
+     if ($line =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/ ) {
+      $mysql_version_id= $1*10000 + $2*100 + $3;
+      mtr_report("MariaDB Version $1.$2.$3$4");
+      last;
+    }
+  }
   mtr_error("Could not find version of MariaDB")
-     unless shift(@list) =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
-  $mysql_version_id= $1*10000 + $2*100 + $3;
-  $mysql_version_extra= $4;
-  mtr_report("MariaDB Version $1.$2.$3$4");
+     unless $mysql_version_id > 0;
 
   for (@list)
   {
