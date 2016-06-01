@@ -61,6 +61,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { C_STRING_WITH_LEN("utf8") }
   },
   {
+    { C_STRING_WITH_LEN("aggregate") },
+    { C_STRING_WITH_LEN("enum('YES','NO')") },
+    { NULL, 0 }
+  },
+  {
     { C_STRING_WITH_LEN("type") },
     { C_STRING_WITH_LEN("enum('FUNCTION','PROCEDURE')") },
     { NULL, 0 }
@@ -1139,6 +1144,10 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_NAME]->
         store(sp->m_name.str, sp->m_name.length, system_charset_info);
+
+    store_failed= store_failed ||
+      table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+        store((longlong)(sp->is_aggregate ? 1 : 2), TRUE);
 
     store_failed= store_failed ||
       table->field[MYSQL_PROC_MYSQL_TYPE]->
@@ -2226,6 +2235,8 @@ show_create_sp(THD *thd, String *buf,
   if (thd->lex->create_info.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, definer_user, definer_host);
+  if(sp->is_aggregate)
+    buf->append(STRING_WITH_LEN("AGGREGATE "));
   if (type == TYPE_ENUM_FUNCTION)
     buf->append(STRING_WITH_LEN("FUNCTION "));
   else
