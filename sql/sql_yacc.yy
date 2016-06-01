@@ -737,13 +737,6 @@ bool setup_select_in_parentheses(LEX *lex)
     my_parse_error(lex->thd, ER_SYNTAX_ERROR);
     return TRUE;
   }
-  if (sel->linkage == UNION_TYPE &&
-      sel->olap != UNSPECIFIED_OLAP_TYPE &&
-      sel->master_unit()->fake_select_lex)
-  {
-    my_error(ER_WRONG_USAGE, MYF(0), "CUBE/ROLLUP", "ORDER BY");
-    return TRUE;
-  }
   return FALSE;
 }
 
