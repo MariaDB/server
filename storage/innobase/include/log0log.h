@@ -878,7 +878,7 @@ struct log_t{
 					pending flushes or writes */
 	/* NOTE on the 'flush' in names of the fields below: starting from
 	4.0.14, we separate the write of the log file and the actual fsync()
-	or other method to flush it to disk. The names below shhould really
+	or other method to flush it to disk. The names below should really
 	be 'flush_or_write'! */
 	os_event_t	no_flush_event;	/*!< this event is in the reset state
 					when a flush or a write is running;
