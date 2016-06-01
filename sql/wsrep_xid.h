@@ -28,9 +28,9 @@ const wsrep_uuid_t* wsrep_xid_uuid(const XID&);
 wsrep_seqno_t wsrep_xid_seqno(const XID&);
 
 //void wsrep_get_SE_checkpoint(XID&);             /* uncomment if needed */
-void wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
+bool wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
 //void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
-void wsrep_set_SE_checkpoint(const wsrep_uuid_t&, wsrep_seqno_t);
+bool wsrep_set_SE_checkpoint(const wsrep_uuid_t&, wsrep_seqno_t);
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */

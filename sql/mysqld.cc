@@ -5979,7 +5979,10 @@ int mysqld_main(int argc, char **argv)
         wsrep_SE_init_grab();
         wsrep_SE_init_done();
         /*! in case of SST wsrep waits for wsrep->sst_received */
-        wsrep_sst_continue();
+        if (wsrep_sst_continue())
+        {
+          WSREP_ERROR("Failed to signal the wsrep provider to continue.");
+        }
       }
       else
       {

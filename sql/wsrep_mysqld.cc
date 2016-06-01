@@ -556,8 +556,11 @@ int wsrep_init()
   int rcode= -1;
   DBUG_ASSERT(wsrep_inited == 0);
 
-  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO))
-    wsrep_start_position_init(wsrep_start_position);
+  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO) &&
+      wsrep_start_position_init(wsrep_start_position))
+  {
+    return 1;
+  }
 
   wsrep_sst_auth_init(wsrep_sst_auth);
 
