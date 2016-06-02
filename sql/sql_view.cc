@@ -435,7 +435,16 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     res= TRUE;
     goto err;
   }
-  
+
+  /*
+    ignore lock specs for CREATE statement
+  */
+  if (lex->current_select->lock_type != TL_READ_DEFAULT)
+  {
+    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT);
+    view->mdl_request.set_type(MDL_EXCLUSIVE);
+  }
+
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {

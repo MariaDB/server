@@ -2171,6 +2171,7 @@ void st_select_lex::init_select()
   name_visibility_map= 0;
   with_dep= 0;
   join= 0;
+  lock_type= TL_READ_DEFAULT;
 }
 
 /*
