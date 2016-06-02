@@ -901,8 +901,12 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     if (fld->flags & NOT_NULL_FLAG)
       crp->Nulls = NULL;
     else {
-      crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
-      memset(crp->Nulls, ' ', m_Rows);
+			if (m_Rows) {
+				crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
+				memset(crp->Nulls, ' ', m_Rows);
+			} // endif m_Rows
+
+			crp->Kdata->SetNullable(true);
     } // endelse fld->flags
 
     } // endfor fld

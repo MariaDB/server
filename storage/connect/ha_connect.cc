@@ -1961,7 +1961,7 @@ int ha_connect::MakeRecord(char *buf)
   if (trace > 1)
     htrc("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
-            *table->vcol_set->bitmap,
+            (table->vcol_set) ? *table->vcol_set->bitmap : 0,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
 
   // Avoid asserts in field::store() for columns that are not updated
@@ -5619,7 +5619,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         len= crp->Length;
         dec= crp->Prec;
         flg= crp->Flag;
-        v= crp->Var;
+        v= (crp->Kdata->IsUnsigned()) ? 'U' : crp->Var;
 				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
         if (!len && typ == TYPE_STRING)
