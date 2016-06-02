@@ -195,6 +195,7 @@ extern "C" {
 #if defined(JDBC_SUPPORT)
 	     char *JvmPath;
 			 char *ClassPath;
+			 char *Wrapper;
 #endif   // JDBC_SUPPORT
 
 #if defined(__WIN__)
@@ -1141,7 +1142,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == (ulonglong)NO_IVAL) {
+  if ((ulonglong) opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -1960,7 +1961,7 @@ int ha_connect::MakeRecord(char *buf)
   if (trace > 1)
     htrc("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
-            *table->vcol_set->bitmap,
+            (table->vcol_set) ? *table->vcol_set->bitmap : 0,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
 
   // Avoid asserts in field::store() for columns that are not updated
@@ -4806,7 +4807,11 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
       DBUG_RETURN(rc);
 
     // Get the share info from the .frm file
-    if (!open_table_def(thd, share)) {
+    Dummy_error_handler error_handler;
+    thd->push_internal_handler(&error_handler);
+    bool got_error= open_table_def(thd, share);
+    thd->pop_internal_handler();
+    if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {
         if (check_privileges(thd, pos, db))
@@ -4818,12 +4823,6 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-
-//  This below was done to avoid DBUG_ASSERT in some case that
-//  we don't know anymore what they were. It was suppressed because
-//  it did cause assertion in other cases (see MDEV-7935)
-//  } else       // Avoid infamous DBUG_ASSERT
-//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
@@ -5156,7 +5155,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char       *nsp= NULL, *cls= NULL;
 #endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0;
+  int         cop __attribute__((unused))= 0, lrecl= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop= NULL;
   char       *ucnc= NULL;
@@ -5620,7 +5619,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         len= crp->Length;
         dec= crp->Prec;
         flg= crp->Flag;
-        v= crp->Var;
+        v= (crp->Kdata->IsUnsigned()) ? 'U' : crp->Var;
 				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
         if (!len && typ == TYPE_STRING)
@@ -6876,6 +6875,12 @@ static MYSQL_SYSVAR_STR(class_path, ClassPath,
 	"Java class path",
 	//     check_class_path, update_class_path,
 	NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(java_wrapper, Wrapper,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java wrapper class",
+	//     check_class_path, update_class_path,
+	NULL, NULL, "JdbcInterface");
 #endif   // JDBC_SUPPORT
 
 
@@ -6899,6 +6904,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(JDBC_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
+	MYSQL_SYSVAR(java_wrapper),
 #endif   // JDBC_SUPPORT
 	NULL
 };
@@ -6917,6 +6923,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.04.0006",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+  MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

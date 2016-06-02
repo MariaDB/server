@@ -1433,7 +1433,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				char *p = args->args[0];
 
 				// Is this a file name?
-				if (!strchr("[{ \t\r\n", *p) && (len = GetFileLength(p)))
+				if (p && !strchr("[{ \t\r\n", *p) && (len = GetFileLength(p)))
 					ml += len * (M + 1);
 				else
 					ml += args->lengths[0] * M;
@@ -1805,7 +1805,20 @@ my_bool json_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *messa
 	} else
 		CalcLen(args, false, reslen, memlen);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_array_add_values_init
 
 char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -1850,7 +1863,7 @@ char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		}	// endif str
 
 		// Keep result of constant function
-		g->Xchk = (initid->const_item) ? str : NULL;
+		g->Xchk = (g->N) ? str : NULL;
 	} else
 		str = (char*)g->Xchk;
 
@@ -1873,7 +1886,7 @@ void json_array_add_values_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool json_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-  unsigned long reslen, memlen;
+	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
 		strcpy(message, "This function must have at least 2 arguments");
@@ -1884,7 +1897,20 @@ my_bool json_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_array_add_init
 
 char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1930,7 +1956,7 @@ char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!str)
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Xchk = str;
 
@@ -1966,7 +1992,20 @@ my_bool json_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
-  return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_array_delete_init
 
 char *json_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -2008,7 +2047,7 @@ char *json_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!str)
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Xchk = str;
 
@@ -2184,7 +2223,20 @@ my_bool json_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, true, reslen, memlen, true);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_object_add_init
 
 char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2227,7 +2279,7 @@ char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!str)
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Xchk = str;
 
@@ -2266,7 +2318,20 @@ my_bool json_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, true, reslen, memlen, true);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_object_delete_init
 
 char *json_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2307,7 +2372,7 @@ char *json_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!str)
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Xchk = str;
 
@@ -2605,7 +2670,20 @@ my_bool json_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
 } // end of json_item_merge_init
 
 char *json_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2651,7 +2729,7 @@ char *json_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!str)
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Xchk = str;
 
@@ -3552,11 +3630,11 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PGLOBAL gb = GetMemPtr(g, args, 0);
 
-	if (g->N) {
+	if (g->Alchecked) {
 		str = (char*)g->Activityp;
 		goto fin;
-	} else if (initid->const_item)
-		g->N = 1;
+	} else if (g->N)
+		g->Alchecked = 1;
 
 	if (!strcmp(result, "$set"))
 		w = 0;
@@ -3632,7 +3710,7 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!(str = MakeResult(g, args, jsp, INT_MAX32)))
 		str = MakePSZ(g, args, 0);
 
-	if (initid->const_item)
+	if (g->N)
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)str;
 
@@ -3677,7 +3755,21 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else if (n != 3)
 		memlen += args->lengths[0] * 3;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		g->Alchecked = 0;
+		return false;
+	} else
+		return true;
+
 } // end of json_set_item_init
 
 char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3742,8 +3834,8 @@ my_bool json_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count < 1 || args->arg_count > 4) {
 		strcpy(message, "This function only accepts 1 to 4 arguments");
 		return true;
-	} else if (!args->args[0] || args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "First argument must be a constant string (file name)");
+	} else if (args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be a string (file name)");
 		return true;
 	} // endif's args[0]
 
@@ -3761,7 +3853,12 @@ my_bool json_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	initid->maybe_null = 1;
 	CalcLen(args, false, reslen, memlen);
-	fl = GetFileLength(args->args[0]);
+
+	if (args->args[0])
+		fl = GetFileLength(args->args[0]);
+	else
+		fl = 100;		 // What can be done here?
+
 	reslen += fl;
 
 	if (initid->const_item)
@@ -4020,7 +4117,18 @@ void jbin_array_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_array_add_values_init(initid, args, message);
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be a json string or item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of jbin_array_add_values_init
 
 char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -4090,7 +4198,18 @@ void jbin_array_add_values_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_array_add_init(initid, args, message);
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of jbin_array_add_init
 
 char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -4160,8 +4279,19 @@ void jbin_array_add_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_array_delete_init(initid, args, message);
-} // end of jbin_array_delete_init
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+	} // end of jbin_array_delete_init
 
 char *jbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
@@ -4383,8 +4513,19 @@ void jbin_object_key_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_object_add_init(initid, args, message);
-} // end of jbin_object_add_init
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, true, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+	} // end of jbin_object_add_init
 
 char *jbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
@@ -4449,8 +4590,22 @@ void jbin_object_add_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_object_delete_init(initid, args, message);
-} // end of jbin_object_delete_init
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have 2 or 3 arguments");
+		return true;
+	} else if (!IsJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else if (args->arg_type[1] != STRING_RESULT) {
+		strcpy(message, "Second argument must be a key string");
+		return true;
+	} else
+		CalcLen(args, true, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+	} // end of jbin_object_delete_init
 
 char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
@@ -4659,8 +4814,22 @@ void jbin_get_item_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jbin_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_item_merge_init(initid, args, message);
-} // end of jbin_item_merge_init
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else if (!IsJson(args, 1)) {
+		strcpy(message, "Second argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+	} // end of jbin_item_merge_init
 
 char *jbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
@@ -4820,8 +4989,31 @@ fin:
 /*********************************************************************************/
 my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	return json_set_item_init(initid, args, message);
-} // end of jbin_set_item_init
+	unsigned long reslen, memlen;
+	int n = IsJson(args, 0);
+
+	if (!(args->arg_count % 2)) {
+		strcpy(message, "This function must have an odd number of arguments");
+		return true;
+	} else if (!n && args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	if (n == 2 && args->args[0]) {
+		char fn[_MAX_PATH];
+		long fl;
+
+		memcpy(fn, args->args[0], args->lengths[0]);
+		fn[args->lengths[0]] = 0;
+		fl = GetFileLength(fn);
+		memlen += fl * 3;
+	} else if (n != 3)
+		memlen += args->lengths[0] * 3;
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+	} // end of jbin_set_item_init
 
 char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *p)
@@ -4992,7 +5184,7 @@ my_bool json_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count != 1) {
 		strcpy(message, "This function must have 1 argument");
 		return true;
-	} else if (IsJson(args, 0) != 3) {
+	} else if (args->args[0] && IsJson(args, 0) != 3) {
 		strcpy(message, "Argument must be a Jbin tree");
 		return true;
 	} else
@@ -5002,21 +5194,27 @@ my_bool json_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_serialize_init
 
 char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, char *, char *error)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
 	if (!g->Xchk) {
-		PBSON bsp = (PBSON)args->args[0];
+		if (IsJson(args, 0) == 3) {
+			PBSON bsp = (PBSON)args->args[0];
 
-		JsonSubSet(g);
+			JsonSubSet(g);
 
-		if (!(str = Serialize(g, bsp->Jsp, NULL, 0)))
-			str = strcpy(result, g->Message);
+			if (!(str = Serialize(g, bsp->Jsp, NULL, 0)))
+				str = strcpy(result, g->Message);
 
-		// Keep result of constant function
-		g->Xchk = (initid->const_item) ? str : NULL;
+			// Keep result of constant function
+			g->Xchk = (initid->const_item) ? str : NULL;
+		} else {
+			*error = 1;
+			str = strcpy(result, "Argument is not a Jbin tree");
+		} // endif
+
 	} else
 		str = (char*)g->Xchk;
 
@@ -5037,21 +5235,28 @@ my_bool envar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count != 1) {
 		strcpy(message, "Unique argument must be an environment variable name");
 		return true;
-	} else
+	} else {
+		initid->maybe_null = true;
 		return false;
+	} // endif count
 
 } // end of envar_init
 
 char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, char *is_null, char *)
 {
 	char *str, name[256];
 	int   n = MY_MIN(args->lengths[0], sizeof(name) - 1);
 
 	memcpy(name, args->args[0], n);
 	name[n] = 0;
-	str = getenv(name);
-	*res_length = (str) ? strlen(str) : 0;
+
+	if (!(str = getenv(name))) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = strlen(str);
+
 	return str;
 } // end of envar
 

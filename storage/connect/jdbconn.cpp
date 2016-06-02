@@ -53,8 +53,9 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
 int GetConvSize();
-extern char *JvmPath;     // The connect_jvm_path global variable value
-extern char *ClassPath;   // The connect_class_path global variable value
+extern char *JvmPath;   // The connect_jvm_path global variable value
+extern char *ClassPath; // The connect_class_path global variable value
+extern char *Wrapper;		// The connect_java_wrapper global variable value
 
 /***********************************************************************/
 /*  Static JDBConn objects.                                            */
@@ -645,8 +646,8 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	m_Tdb = tdbp;
 	jvm = nullptr;            // Pointer to the JVM (Java Virtual Machine)
 	env= nullptr;             // Pointer to native interface
-	jdi = nullptr;						// Pointer to the JdbcInterface class
-	job = nullptr;						// The JdbcInterface class object
+	jdi = nullptr;						// Pointer to the java wrapper class
+	job = nullptr;						// The java wrapper class object
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
 	chrfldid = intfldid = dblfldid = fltfldid = datfldid = bigfldid = nullptr;
@@ -1028,11 +1029,11 @@ int JDBConn::Open(PJPARM sop)
   printf("JVM Version %d.%d\n", ((ver>>16)&0x0f), (ver&0x0f));
 #endif   //_DEBUG
 
-	// try to find the JdbcInterface class
-	jdi = env->FindClass("JdbcInterface");
+	// try to find the java wrapper class
+	jdi = env->FindClass(Wrapper);
 
 	if (jdi == nullptr) {
-		strcpy(g->Message, "ERROR: class JdbcInterface not found !");
+		sprintf(g->Message, "ERROR: class %s not found!", Wrapper);
 		return RC_FX;
 	} // endif jdi
 
@@ -1078,7 +1079,7 @@ int JDBConn::Open(PJPARM sop)
 	jmethodID ctor = env->GetMethodID(jdi, "<init>", "()V");
 
 	if (ctor == nullptr) {
-		strcpy(g->Message, "ERROR: JdbcInterface constructor not found !");
+		sprintf(g->Message, "ERROR: %s constructor not found!", Wrapper);
 		return RC_FX;
 	} else
 		job = env->NewObject(jdi, ctor);
@@ -1087,7 +1088,7 @@ int JDBConn::Open(PJPARM sop)
 	// we can then search for the method we want to call, 
 	// and invoke it for the object:
 	if (job == nullptr) {
-		strcpy(g->Message, "JdbcInterface class object not constructed !");
+		sprintf(g->Message, "%s class object not constructed!", Wrapper);
 		return RC_FX;
 	} // endif job
 
@@ -1328,6 +1329,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 4:           // INTEGER
 	case 5:           // SMALLINT
 	case -6:          // TINYINT
+	case -7:          // BIT
 		if (!gmID(g, intfldid, "IntField", "(ILjava/lang/String;)I"))
 			val->SetValue((int)env->CallIntMethod(job, intfldid, rank, jn));
 		else
@@ -1393,6 +1395,9 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		break;
 		case java.sql.Types.BOOLEAN:
 		System.out.print(jdi.BooleanField(i)); */
+	case 0:						// NULL
+		val->SetNull(true);
+		// passthru
 	default:
 		val->Reset();
 	} // endswitch Type
