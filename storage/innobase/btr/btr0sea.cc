@@ -50,13 +50,6 @@ UNIV_INTERN char		btr_search_enabled	= TRUE;
 /** A dummy variable to fool the compiler */
 UNIV_INTERN ulint		btr_search_this_is_zero = 0;
 
-#ifdef UNIV_SEARCH_PERF_STAT
-/** Number of successful adaptive hash index lookups */
-UNIV_INTERN ulint		btr_search_n_succ	= 0;
-/** Number of failed adaptive hash index lookups */
-UNIV_INTERN ulint		btr_search_n_hash_fail	= 0;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
 /** padding to prevent other memory update
 hotspots from residing on the same memory
 cache line as btr_search_latch */
@@ -651,10 +644,6 @@ btr_search_info_update_slow(
 	if (cursor->flag == BTR_CUR_HASH_FAIL) {
 		/* Update the hash node reference, if appropriate */
 
-#ifdef UNIV_SEARCH_PERF_STAT
-		btr_search_n_hash_fail++;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
 		rw_lock_x_lock(&btr_search_latch);
 
 		btr_search_update_hash_ref(info, block, cursor);
@@ -1010,9 +999,6 @@ btr_search_guess_on_hash(
 #endif
 	info->last_hash_succ = TRUE;
 
-#ifdef UNIV_SEARCH_PERF_STAT
-	btr_search_n_succ++;
-#endif
 	if (UNIV_LIKELY(!has_search_latch)
 	    && buf_page_peek_if_too_old(&block->page)) {
 
