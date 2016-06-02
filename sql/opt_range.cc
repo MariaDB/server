@@ -8566,14 +8566,30 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     imerge[0]= new SEL_IMERGE(tree1->merges.head(), 0, param);
   }
   bool no_imerge_from_ranges= FALSE;
-  if (!(result= new (param->mem_root) SEL_TREE(param->mem_root, param->keys)))
-    DBUG_RETURN(result);
 
   /* Build the range part of the tree for the formula (1) */ 
   if (sel_trees_can_be_ored(param, tree1, tree2, &ored_keys))
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
+
+    if (no_imerge_from_ranges && no_merges1 && no_merges2)
+    {
+      /*
+        Reuse tree1 as the result in simple cases. This reduces memory usage
+        for e.g. "key IN (c1, ..., cN)" which produces a lot of ranges.
+      */
+      result= tree1;
+    }
+    else
+    {
+      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                   param->keys)))
+      {
+        DBUG_RETURN(result);
+      }
+    }
+
     key_map::Iterator it(ored_keys);
     int key_no;
     while ((key_no= it++) != key_map::Iterator::BITMAP_END)
@@ -8590,7 +8606,13 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     }
     result->type= tree1->type;
   }
-      
+  else
+  {
+    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                            param->keys)))
+      DBUG_RETURN(result);
+  }
+
   if (no_imerge_from_ranges && no_merges1 && no_merges2)
   {
     if (result->keys_map.is_clear_all())
