@@ -5918,6 +5918,57 @@ drop table t1;
 #
 # Start of 10.2 tests
 #
+# Checking that SHOW CREATE VIEW preserve parentheses
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `a` union select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+1
+10
+20
+30
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1 LIMIT 1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `a` union select `t1`.`a` AS `a` from `t1` limit 1	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+1
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1);
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `a` union (select `t1`.`a` AS `a` from `t1`)	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+1
+10
+20
+30
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1 LIMIT 1);
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `a` union (select `t1`.`a` AS `a` from `t1` limit 1)	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+1
+10
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1) LIMIT 1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `a` union (select `t1`.`a` AS `a` from `t1`) limit 1	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+1
+DROP VIEW v1;
+DROP TABLE t1;
 #
 # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
 #
