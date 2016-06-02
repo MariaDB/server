@@ -69,8 +69,7 @@ enum stored_procedure_type
 enum
 {
   MYSQL_PROC_FIELD_DB = 0,
-  MYSQL_PROC_FIELD_NAME,
-  MYSQL_PROC_FIELD_AGGREGATE,
+  MYSQL_PROC_FIELD_NAME,  
   MYSQL_PROC_MYSQL_TYPE,
   MYSQL_PROC_FIELD_SPECIFIC_NAME,
   MYSQL_PROC_FIELD_LANGUAGE,
@@ -89,6 +88,7 @@ enum
   MYSQL_PROC_FIELD_COLLATION_CONNECTION,
   MYSQL_PROC_FIELD_DB_COLLATION,
   MYSQL_PROC_FIELD_BODY_UTF8,
+  MYSQL_PROC_FIELD_AGGREGATE,
   MYSQL_PROC_FIELD_COUNT
 };
 
@@ -229,5 +229,5 @@ bool show_create_sp(THD *thd, String *buf,
               st_sp_chistics *chistics,
               const LEX_STRING *definer_user,
               const LEX_STRING *definer_host,
-	      ulonglong sql_mode);
+	      ulonglong sql_mode,bool agg_res);
 #endif /* _SP_H_ */

@@ -2192,7 +2192,7 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
                      sp->m_body.str, sp->m_body.length,
                      sp->m_chistics, &(thd->lex->definer->user),
                      &(thd->lex->definer->host),
-                     saved_mode))
+                     saved_mode,FALSE))
   {
     WSREP_WARN("SP create string failed: schema: %s, query: %s",
                (thd->db ? thd->db : "(null)"), thd->query());

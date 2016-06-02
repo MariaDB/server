@@ -45,7 +45,7 @@ db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
                 longlong created, longlong modified,
-                Stored_program_creation_ctx *creation_ctx);
+                Stored_program_creation_ctx *creation_ctx,bool agg_res);
 
 static const
 TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
@@ -59,11 +59,6 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { C_STRING_WITH_LEN("name") },
     { C_STRING_WITH_LEN("char(64)") },
     { C_STRING_WITH_LEN("utf8") }
-  },
-  {
-    { C_STRING_WITH_LEN("aggregate") },
-    { C_STRING_WITH_LEN("enum('YES','NO')") },
-    { NULL, 0 }
   },
   {
     { C_STRING_WITH_LEN("type") },
@@ -163,7 +158,14 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { C_STRING_WITH_LEN("body_utf8") },
     { C_STRING_WITH_LEN("longblob") },
     { NULL, 0 }
+
+  },
+  {
+    { C_STRING_WITH_LEN("aggregate") },
+    { C_STRING_WITH_LEN("enum('YES','NO')") },
+    { NULL, 0 }
   }
+
 };
 
 static const TABLE_FIELD_DEF
@@ -551,6 +553,7 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   LEX_STRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
   char definer_host_name_holder[HOSTNAME_LENGTH + 1];
   LEX_STRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
+  bool agg_res;
 
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
@@ -634,6 +637,14 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     goto done;
   }
 
+  if ((ptr= get_field(thd->mem_root,
+          table->field[MYSQL_PROC_FIELD_AGGREGATE])) == NULL)
+  {
+    ret= SP_GET_FIELD_FAILED;
+    goto done;
+  }
+  agg_res= (ptr[0] == 'N' ? FALSE : TRUE);
+
   // Get additional information
   if ((definer= get_field(thd->mem_root,
 			  table->field[MYSQL_PROC_FIELD_DEFINER])) == NULL)
@@ -641,6 +652,8 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
+
+
 
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
@@ -672,7 +685,7 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   ret= db_load_routine(thd, type, name, sphp,
                        sql_mode, params, returns, body, chistics,
                        &definer_user_name, &definer_host_name,
-                       created, modified, creation_ctx);
+                       created, modified, creation_ctx,agg_res);
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
@@ -819,7 +832,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
                 longlong created, longlong modified,
-                Stored_program_creation_ctx *creation_ctx)
+                Stored_program_creation_ctx *creation_ctx,bool agg_res)
 {
   LEX *old_lex= thd->lex, newlex;
   String defstr;
@@ -852,7 +865,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
                      returns, strlen(returns),
                      body, strlen(body),
                      &chistics, definer_user_name, definer_host_name,
-                     sql_mode))
+                     sql_mode,agg_res))
   {
     ret= SP_INTERNAL_ERROR;
     goto end;
@@ -904,6 +917,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
     (*sphp)->set_definer(definer_user_name, definer_host_name);
     (*sphp)->set_info(created, modified, &chistics, sql_mode);
     (*sphp)->set_creation_ctx(creation_ctx);
+    (*sphp)->is_aggregate= agg_res;
     (*sphp)->optimize();
     /*
       Not strictly necessary to invoke this method here, since we know
@@ -1297,7 +1311,7 @@ log:
                        sp->m_body.str, sp->m_body.length,
                        sp->m_chistics, &(thd->lex->definer->user),
                        &(thd->lex->definer->host),
-                       saved_mode))
+                       saved_mode,sp->is_aggregate))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
@@ -1799,7 +1813,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
                         sp->m_body.str, *sp->m_chistics,
                         &sp->m_definer_user, &sp->m_definer_host,
                         sp->m_created, sp->m_modified,
-                        sp->get_creation_ctx()) == SP_OK)
+                        sp->get_creation_ctx(),sp->is_aggregate) == SP_OK)
     {
       sp->m_last_cached_sp->m_next_cached_sp= new_sp;
       new_sp->m_recursion_level= level;
@@ -2221,13 +2235,15 @@ show_create_sp(THD *thd, String *buf,
               st_sp_chistics *chistics,
               const LEX_STRING *definer_user,
               const LEX_STRING *definer_host,
-              ulonglong sql_mode)
+              ulonglong sql_mode,bool agg_res)
 {
   ulonglong old_sql_mode= thd->variables.sql_mode;
+  ulong agglen= (agg_res)? 10 : 0;
+  const char *agg_str= "AGGREGATE ";
   /* Make some room to begin with */
   if (buf->alloc(100 + dblen + 1 + namelen + paramslen + returnslen + bodylen +
-		 chistics->comment.length + 10 /* length of " DEFINER= "*/ +
-                 USER_HOST_BUFF_SIZE))
+		 chistics->comment.length + 10 /* length of " DEFINER= "*/ + agglen +
+                      USER_HOST_BUFF_SIZE))
     return FALSE;
 
   thd->variables.sql_mode= sql_mode;
@@ -2235,7 +2251,7 @@ show_create_sp(THD *thd, String *buf,
   if (thd->lex->create_info.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, definer_user, definer_host);
-  if(sp->is_aggregate)
+  if (agg_res)
     buf->append(STRING_WITH_LEN("AGGREGATE "));
   if (type == TYPE_ENUM_FUNCTION)
     buf->append(STRING_WITH_LEN("FUNCTION "));
@@ -2350,7 +2366,7 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
                      params, strlen(params),
                      returns, strlen(returns), 
                      sp_body, strlen(sp_body),
-                     &sp_chistics, &definer_user, &definer_host, sql_mode))
+                     &sp_chistics, &definer_user, &definer_host, sql_mode,FALSE))
     return 0;
 
   thd->lex= &newlex;

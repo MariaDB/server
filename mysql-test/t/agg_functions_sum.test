@@ -1,16 +1,15 @@
 DELIMITER $$;
-CREATE AGGREGATE FUNCTION avg(x DOUBLE) RETURNS DOUBLE
+CREATE AGGREGATE FUNCTION total_sum(x DOUBLE) RETURNS DOUBLE
 BEGIN
-     DECLARE count INT DEFAULT 0;
 	DECLARE sum DOUBLE DEFAULT 0;
-					DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN sum/count;
+					DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' RETURN sum;
 					LOOP
 										FETCH GROUP NEXT ROW;
-										SET count:=count+1;
-										SET sum:=sum+x;
+										SET sum=sum+x;
 					END LOOP;
 END
 $$
 DELIMITER ;$$
-DROP FUNCTION TotalSum;
 
+show create function total_sum;
+DROP function total_sum;
