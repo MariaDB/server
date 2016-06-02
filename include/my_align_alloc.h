@@ -19,6 +19,7 @@
 
 
 #if defined (_MSC_VER)
+#include <malloc.h>
 #define ALIGNED_ALLOC(S,A) _aligned_malloc((A), (S))
 #elif defined (_ISOC11_SOURCE)
 #define ALIGNED_ALLOC(S,A)  aligned_alloc((A), (S))
@@ -32,7 +33,7 @@ inline void *XXaligned_alloc(size_t size, size_t align)
 #define ALIGNED_ALLOC(S,A)  XXaligned_alloc((S), (A))
 
 #else
-#warn   "No aligned malloc - cache lines may be shared"
+#warning   "No aligned malloc - cache lines may be shared"
 #define ALIGNED_ALLOC(S,A)  malloc(S)
 #endif
 
