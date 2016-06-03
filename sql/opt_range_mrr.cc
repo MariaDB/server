@@ -266,12 +266,28 @@ walk_up_n_right:
     range->end_key.flag= (cur->max_key_flag & NEAR_MAX ? HA_READ_BEFORE_KEY : 
                                                          HA_READ_AFTER_KEY);
     range->end_key.keypart_map= make_prev_keypart_map(cur->max_key_parts);
-
+    
+    KEY *key_info;
+    if (seq->real_keyno== MAX_KEY)
+      key_info= NULL;
+    else
+      key_info= &seq->param->table->key_info[seq->real_keyno];
+    
+    /*
+      Conditions below:
+       (1) - range analysis is used for estimating condition selectivity
+       (2) - This is a unique key, and we have conditions for all its 
+             user-defined key parts.
+       (3) - The table uses extended keys, and we have conditions for 
+             all key parts.
+    */
     if (!(cur->min_key_flag & ~NULL_RANGE) && !cur->max_key_flag &&
-        (seq->real_keyno == MAX_KEY ||
-         ((uint)key_tree->part+1 ==
-          seq->param->table->key_info[seq->real_keyno].user_defined_key_parts &&
-	  (seq->param->table->key_info[seq->real_keyno].flags & HA_NOSAME))) &&
+        (!key_info ||   // (1)
+         ((uint)key_tree->part+1 == key_info->user_defined_key_parts && // (2)
+	  key_info->flags & HA_NOSAME) ||                               // (2)
+         (seq->param->table->s->use_ext_keys &&               // (3)
+          (uint)key_tree->part+1 == key_info->ext_key_parts)  // (3)
+        ) &&
         range->start_key.length == range->end_key.length &&
         !memcmp(seq->param->min_key,seq->param->max_key,range->start_key.length))
       range->range_flag= UNIQUE_RANGE | (cur->min_key_flag & NULL_RANGE);
