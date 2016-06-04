@@ -7588,11 +7588,11 @@ void Field_varstring::sql_type(String &res) const
 }
 
 
-uint32 Field_varstring::data_length()
+uint32 Field_varstring::data_length(int row_offset=0)
 {
-  return length_bytes == 1 ? (uint32) *ptr : uint2korr(ptr);
+  return length_bytes == 1 ? (uint32) *(ptr+row_offset) 
+          : uint2korr(ptr+row_offset);
 }
-
 /*
   Functions to create a packed row.
   Here the number of length bytes are depending on the given max_length

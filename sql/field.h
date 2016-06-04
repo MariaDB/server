@@ -806,7 +806,7 @@ public:
   /*
     data_length() return the "real size" of the data in memory.
   */
-  virtual uint32 data_length() { return pack_length(); }
+  virtual uint32 data_length(int row_offset=0) { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
 
   /* 
@@ -828,7 +828,6 @@ public:
     } 
     return data_length();
   }
-
   /**
      Get the maximum size of the data in packed format.
 
@@ -2937,7 +2936,7 @@ public:
   int key_cmp(const uchar *str, uint length);
   uint packed_col_length(const uchar *to, uint length);
   uint max_packed_col_length(uint max_length);
-  uint32 data_length();
+  uint32 data_length(int row_offset);
   uint size_of() const { return sizeof(*this); }
   enum_field_types real_type() const { return MYSQL_TYPE_VARCHAR; }
   bool has_charset(void) const
@@ -3051,6 +3050,10 @@ public:
   inline uint32 get_length(uint row_offset= 0)
   { return get_length(ptr+row_offset, this->packlength); }
   uint32 get_length(const uchar *ptr, uint packlength);
+  uint32 data_length(int row_offset=0)
+  {
+    return get_length(row_offset);
+  }
   uint32 get_length(const uchar *ptr_arg)
   { return get_length(ptr_arg, this->packlength); }
   inline void get_ptr(uchar **str)

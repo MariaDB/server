@@ -5871,21 +5871,37 @@ my_bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
 {
   Item * t_item;
   t_item=hash_field->vcol_info->expr_item->next;
-  Field * t_field;
   int diff = tbl->record[1]-tbl->record[0];
+  Field * t_field;
   int first_length,second_length;
   while(t_item)
   {
+    for(int i=0;i<tbl->s->fields;i++)
+    {
+      t_field=tbl->field[i];
+      if(!my_strcasecmp(system_charset_info,
+           t_item->name,t_field->field_name))
+        break;
+    }
     /* First check for nulls */
-    t_field = * tbl->field;
-    first_length = t_field->val_str()->length();
-    second_length = ((Field_blob *)t_field)->get_length(t_field->ptr+diff,2);
+    if(t_field->is_real_null()||t_field->is_real_null(diff))
+    {
+      return false; 
+    }
+
+    /*
+       length of field is not equal to pack length when it is
+       subclass of field_blob and field _varsting
+     */
+    first_length = t_field->data_length();
+    second_length = t_field->data_length(diff);
     if(first_length!=second_length)
       return false;
     if(t_field->cmp_max(t_field->ptr,t_field->ptr+diff,first_length))
-      return true;
+      return false;
     t_item=t_item->next;
   }
+  return true;
 }
 int handler::ha_write_row(uchar *buf)
 {
@@ -5907,9 +5923,8 @@ int handler::ha_write_row(uchar *buf)
       table->file->ha_index_init(0,0);
       /* We need to add the null bit */
       /* If the column can be NULL, then in the first byte we put 1 if the
-	field value is NULL, 0 otherwise. */
+	   field value is NULL, 0 otherwise. */
       uchar * ptr = (uchar *)my_malloc(sizeof(char ) *1+8, MYF(MY_WME));
-     // if(field_iter->null_ptr[field_iter->null_bit])
       *ptr=0;
       ptr++;
       memcpy(ptr,(*field_iter)->ptr,8);
@@ -5917,39 +5932,17 @@ int handler::ha_write_row(uchar *buf)
       map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!map)
       {
-        rec_hash_cmp(table,*field_iter);
+        if(rec_hash_cmp(table,*field_iter))
+        {
+          table->file->ha_index_end();
+          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
+        }
+          
       }
       table->file->ha_index_end();
     }
     field_iter++;
   }
-  
-//+  while(!res){
-//+	  //compare the record if not sure how to compare it so just assume it works
-//+		 diff = table->recoDebug session ended
-//rd[1]-table->record[0];
-//+		 src_length = blob_field->data_length();
-//+		 //dest_length = blob_field->data_length(table->record[1]); // i  dont know how to get the length from record 1
-//+		 // so i am enable to do this
-//+		 // then we can comapare records using 
-//+		 //field->cmp_max
-//+ //this is mysql code
-//+	/*  if (!(table->distinct ?
-//+          table_rec_cmp(table) :
-//+          group_rec_cmp(table->group, table->record[0], table->record[1])))
-//+      return false; // skip it
-//+    res= table->file->ha_index_next_same(table->record[1],
-//+                                         table->hash_field->ptr,
-//+                                         sizeof(hash)); */
-//+	  //fetch the next record 
-//+	  res= table->file->ha_index_next_same(table->record[1],
-//+                                         hash_field->ptr,
-//+                                         8);
-//+	
-//+  }
-  
-
-
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
