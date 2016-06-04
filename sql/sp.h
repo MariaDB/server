@@ -229,5 +229,5 @@ bool show_create_sp(THD *thd, String *buf,
               st_sp_chistics *chistics,
               const LEX_STRING *definer_user,
               const LEX_STRING *definer_host,
-	      ulonglong sql_mode,bool agg_res);
+	      ulonglong sql_mode);
 #endif /* _SP_H_ */

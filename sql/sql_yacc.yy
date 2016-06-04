@@ -2855,7 +2855,9 @@ sp_c_chistic:
         ;
 sp_a_chistic:
          sp_chistic             {}
-        | AGGREGATE_SYM  TEXT_STRING_sys {/* just parse it for now, conditions will come soon */}
+        | AGGREGATE_SYM  TRUE_SYM { Lex->sp_chistics.is_aggregate= true; }             
+        | AGGREGATE_SYM  FALSE_SYM { Lex->sp_chistics.is_aggregate= false; }
+        ;
 
 sp_suid:
           SQL_SYM SECURITY_SYM DEFINER_SYM
@@ -15987,8 +15989,8 @@ udf_tail2:
           }
         ;
 sf_tail:
-          AGGREGATE_SYM sf_tail2 { thd->lex->sphead->is_aggregate = true; }
-        | sf_tail2               { thd->lex->sphead->is_aggregate = false; }
+          AGGREGATE_SYM sf_tail2 { thd->lex->sphead->is_aggregate= true; Lex->sp_chistics.is_aggregate= true;}
+        | sf_tail2               { thd->lex->sphead->is_aggregate= false; Lex->sp_chistics.is_aggregate= false;}
         ;
 
 sf_tail2:

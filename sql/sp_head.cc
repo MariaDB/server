@@ -602,8 +602,7 @@ sp_head::sp_head()
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
-   m_cont_level(0),
-   is_aggregate(false)
+   m_cont_level(0)
 {
   m_first_instance= this;
   m_first_free_instance= this;
