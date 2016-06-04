@@ -1,0 +1,26 @@
+delimiter |;
+create aggregate function increm(x INT) returns INT
+begin
+set x=5;
+return x+1;
+end |
+delimiter ;|
+
+# change from aggregate to non-aggregate
+alter function increm aggregate false;
+show create function increm;
+
+# change from non-aggregate to aggregate
+alter function increm aggregate true;
+show create function increm;
+
+# multiple field added to alter conditon
+
+# first field not aggregatre
+alter function increm comment 'not aggregate' aggregate false; 
+show create function increm;
+
+# first field aggregate
+alter function increm aggregate true comment 'aggregate'; 
+show create function increm;
+drop function increm;
