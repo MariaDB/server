@@ -174,12 +174,6 @@ error:
 }
 
 /*
- * to chech the total number of blob uniques in the table
- * */
-int check_total_blob_unique(TABLE *table){
-   // table->s->field;
-}
-/*
   Check if insert fields are correct.
 
   @param thd            The current thread.
@@ -728,20 +722,20 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     if (open_and_lock_tables(thd, table_list, TRUE, 0))
       DBUG_RETURN(TRUE);
   }
-    //now assume that table list contains only one table //work
-    //simple insert 
-    //now i need to add default value into  value_list
-    context= &thd->lex->select_lex.context;
-    Field ** f=table_list->table->field;
-    List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
-    for(uint i=0;i<table_list->table->s->fields;i++){
-        if(strncmp((*f)->field_name,"DB_ROW_HASH_",12)==0){
-            i_list->push_back(new (thd->mem_root) 
-                Item_default_value(thd,context),thd->mem_root);
-        }
-        f++;
+    
+  context= &thd->lex->select_lex.context;
+  Field ** f=table_list->table->field;
+  List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
+  for(uint i=0;i<table_list->table->s->fields;i++)
+  {
+    if(strncmp((*f)->field_name,"DB_ROW_HASH_",12)==0)
+    {
+      i_list->push_back(new (thd->mem_root) 
+      Item_default_value(thd,context),thd->mem_root);
     }
-     List_iterator_fast<List_item> its(values_list);
+    f++;
+  }
+  List_iterator_fast<List_item> its(values_list);
      
   lock_type= table_list->lock_type;
 

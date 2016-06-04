@@ -3013,7 +3013,7 @@ int prepare_create_field(Create_field *sql_field,
     break;
   }
   if (!(sql_field->flags & NOT_NULL_FLAG) )
-     /* (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
+     /* (sql_field->vcol_info))   Make virtual columns allow NULL values */
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
