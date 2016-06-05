@@ -1762,12 +1762,10 @@ pthread_handler_t start_wsrep_THD(void *arg)
   THD *thd;
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
-  if (my_thread_init() || (!(thd= new THD(true))))
+  if (my_thread_init() || (!(thd= new THD(next_thread_id(), true))))
   {
     goto error;
   }
-
-  thd->thread_id= next_thread_id();
 
   mysql_mutex_lock(&LOCK_thread_count);
 
