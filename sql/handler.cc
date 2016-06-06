@@ -5863,11 +5863,11 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-/**  @breif
+/** @brief
    Compare two records
-   Need a better place for this function 
-   @returns true if equal else false*/
-my_bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
+   @returns true if equal else false
+*/
+bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
 {
   Item * t_item;
   t_item=hash_field->vcol_info->expr_item->next;

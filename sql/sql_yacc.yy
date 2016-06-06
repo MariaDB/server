@@ -9543,8 +9543,6 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        /*Currently hash for just 1 field
-         * */
         |HASH_SYM '(' expr_list ')'
             {
                 $$= new (thd->mem_root)Item_func_hash(thd,*$3);
