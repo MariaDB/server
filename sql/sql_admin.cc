@@ -381,9 +381,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       To allow concurrent execution of read-only operations we acquire
       weak metadata lock for them.
     */
-    table->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                MDL_SHARED_NO_READ_WRITE : MDL_SHARED_READ);
+    table->mdl_request.set_type(lex->sql_command == SQLCOM_REPAIR
+                                ? MDL_SHARED_NO_READ_WRITE
+                                : lock_type >= TL_WRITE_ALLOW_WRITE
+                                ? MDL_SHARED_WRITE : MDL_SHARED_READ);
+
     /* open only one table from local list of command */
+    while (1)
     {
       TABLE_LIST *save_next_global, *save_next_local;
       save_next_global= table->next_global;
@@ -483,6 +487,20 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         result_code= HA_ADMIN_FAILED;
         goto send_result;
       }
+
+      if (!table->table || table->mdl_request.type != MDL_SHARED_WRITE ||
+          table->table->file->ha_table_flags() & HA_CONCURRENT_OPTIMIZE)
+        break;
+
+      trans_rollback_stmt(thd);
+      trans_rollback(thd);
+      close_thread_tables(thd);
+      table->table= NULL;
+      thd->mdl_context.release_transactional_locks();
+      table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
+                              MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
+    }
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (table->table)
       {
@@ -521,7 +539,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         }
       }
 #endif
-    }
     DBUG_PRINT("admin", ("table: 0x%lx", (long) table->table));
 
     if (prepare_func)
@@ -622,18 +639,18 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     /*
       Close all instances of the table to allow MyISAM "repair"
-      to rename files.
+      (which is internally also used from "optimize") to rename files.
       @todo: This code does not close all instances of the table.
       It only closes instances in other connections, but if this
       connection has LOCK TABLE t1 a READ, t1 b WRITE,
       both t1 instances will be kept open.
-      There is no need to execute this branch for InnoDB, which does
-      repair by recreate. There is no need to do it for OPTIMIZE,
-      which doesn't move files around.
-      Hence, this code should be moved to prepare_for_repair(),
-      and executed only for MyISAM engine.
+
+      Note that this code is only executed for engines that request
+      MDL_SHARED_NO_READ_WRITE lock (MDL_SHARED_WRITE cannot be upgraded)
+      by *not* having HA_CONCURRENT_OPTIMIZE table_flag.
     */
-    if (lock_type == TL_WRITE && !table->table->s->tmp_table)
+    if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
+                        table->mdl_request.type > MDL_SHARED_WRITE)
     {
       if (wait_while_table_is_used(thd, table->table,
                                    HA_EXTRA_PREPARE_FOR_RENAME))

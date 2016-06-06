@@ -1152,6 +1152,13 @@
    fun:SSL_library_init
 }
 
+{
+   libcrypto 2.2.1 leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:ERR_get_state
+}
 
 {
   Problem with udf and libresolve

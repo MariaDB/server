@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4200,6 +4200,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_DEFAULT |
     Alter_inplace_info::ALTER_COLUMN_OPTION |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
+    Alter_inplace_info::ALTER_PARTITIONED |
     Alter_inplace_info::ALTER_RENAME;
 
   /* Is there at least one operation that requires copy algorithm? */
@@ -6191,7 +6192,6 @@ void ha_fake_trx_id(THD *thd)
     else
       hton->fake_trx_id(hton, thd);
     ha_info_next= ha_info->next();
-    ha_info->reset(); /* keep it conveniently zero-filled */
   }
   DBUG_VOID_RETURN;
 }

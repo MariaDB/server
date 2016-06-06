@@ -194,8 +194,10 @@ struct st_mysql_show_var {
   enum enum_mysql_show_type type;
 };
 
+struct system_status_var;
+
 #define SHOW_VAR_FUNC_BUFF_SIZE (256 * sizeof(void*))
-typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, enum enum_var_type);
+typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, struct system_status_var *status_var, enum enum_var_type);
 
 
 /*

@@ -241,7 +241,7 @@ void spider_release_ping_table_mon_list(
   DBUG_PRINT("info", ("spider link_idx=%d", link_idx));
   link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
     link_idx));
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   spider_string conv_name_str(conv_name_length + link_idx_str_length + 1);
   conv_name_str.set_charset(system_charset_info);
 #else
@@ -1362,7 +1362,7 @@ int spider_ping_table_mon_from_table(
 
   link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
     link_idx));
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   spider_string conv_name_str(conv_name_length + link_idx_str_length + 1);
   conv_name_str.set_charset(system_charset_info);
   *((char *)(conv_name_str.ptr() + conv_name_length + link_idx_str_length)) =

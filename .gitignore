@@ -21,6 +21,7 @@ Docs/INFO_SRC
 Makefile
 TAGS
 Testing/
+tmp/
 VERSION.dep
 configure
 client/async_example

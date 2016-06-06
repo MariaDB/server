@@ -1,5 +1,8 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
+# test takes very long time on debug build
+-- source include/not_debug.inc
+-- source include/big_test.inc
 -- source filekeys_plugin.inc
 
 call mtr.add_suppression("InnoDB: New log files created, LSN=.*");

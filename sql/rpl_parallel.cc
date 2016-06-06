@@ -1372,10 +1372,11 @@ handle_rpl_parallel_thread(void *arg)
   thd->reset_db(NULL, 0);
   thd_proc_info(thd, "Slave worker thread exiting");
   thd->temporary_tables= 0;
+
   mysql_mutex_lock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
-  delete thd;
+  thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
+  delete thd;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->running= false;

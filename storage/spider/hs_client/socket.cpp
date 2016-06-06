@@ -67,7 +67,7 @@ socket_args::set(const config& conf)
         message.append(node);
         message.q_append(":", sizeof(":") - 1);
         message.append(port);
-        fatal_exit(message);
+        fatal_abort(message);
       }
     }
   }

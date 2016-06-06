@@ -128,10 +128,7 @@ enum os_file_create_t {
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
 #define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
-#define OS_FILE_READ_WRITE_CACHED	666     /* OS_FILE_READ_WRITE but never
-						O_DIRECT. Only for
-						os_file_create_simple_no_error_handling
-						currently. */
+
 /* Options for file_create */
 #define	OS_FILE_AIO			61
 #define	OS_FILE_NORMAL			62

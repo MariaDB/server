@@ -536,7 +536,7 @@ private:
   DsMrr_impl ds_mrr;
 
 protected:
-  bool check_privileges(THD *thd, PTOS options, char *dbn);
+  bool check_privileges(THD *thd, PTOS options, char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
   char *GetDBfromName(const char *name);
 
@@ -554,7 +554,7 @@ protected:
   PVAL          sdvalin4;             // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
-  char          partname[64];         // The partition name
+  char          partname[65];         // The partition name
   MODE          xmod;                 // Table mode
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid

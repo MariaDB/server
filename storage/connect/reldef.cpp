@@ -305,7 +305,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       case TAB_OEM:
         poff = 0;      // Offset represents an independant flag
         break;
-      default:         // VCT PLG ODBC MYSQL WMI...
+      default:         // VCT PLG ODBC JDBC MYSQL WMI...
         poff = 0;			 // NA
         break;
 			} // endswitch tc

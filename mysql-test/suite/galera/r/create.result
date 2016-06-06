@@ -58,4 +58,14 @@ t2	CREATE TABLE `t2` (
   KEY `idx` (`i`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
+#
+# MDEV-9853: WSREP says it cannot get fake InnoDB transaction ID
+# followed by segmentation fault
+#
+CREATE TABLE `t1`(`c1` INT) ENGINE=INNODB;
+SET autocommit=0;
+CREATE TABLE `t2` (`c1` INT) ENGINE=INNODB SELECT * FROM t1;
+COMMIT;
+SET autocommit=1;
+DROP TABLE t1, t2;
 # End of tests

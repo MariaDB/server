@@ -311,9 +311,7 @@ handle_slave_init(void *arg __attribute__((unused)))
                       thd->get_stmt_da()->sql_errno(),
                       thd->get_stmt_da()->message());
 
-  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
   my_thread_end();
@@ -4961,8 +4959,9 @@ err_during_init:
   mysql_mutex_unlock(&LOCK_active_mi);
 
   mysql_mutex_lock(&LOCK_thread_count);
-  delete thd;
+  thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
+  delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
 

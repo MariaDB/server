@@ -1997,3 +1997,87 @@ EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-8989: ORDER BY optimizer ignores equality propagation
+--echo #
+set @tmp_8989=@@optimizer_switch;
+set optimizer_switch='orderby_uses_equalities=on';
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+create table t2 (
+  pk int primary key, 
+  a int, b int, 
+  filler char(200), 
+  key(a)
+);
+insert into t2 select a, 1000-a, 1000-a, repeat('abc-',50) from t1 where a<200 limit 200;
+
+create table t3 (
+  pk int primary key, 
+  a int, b int, 
+  filler char(200), 
+  key(a)
+);
+insert into t3 select a,      1000-a, 1000-a, repeat('abc-',50) from t1;
+insert into t3 select a+1000, 1000+a, 1000+a, repeat('abc-',50) from t1;
+
+--echo # The optimizer produces an order of 't2,t3' for this join
+--echo #
+--echo # Case #1 (from the bug report): 
+--echo #  Q1 can take advantage of t2.a to resolve ORDER BY limit w/o sorting
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 5;
+
+--echo # 
+--echo # This is Q2 which used to have "Using temporary; using filesort" but
+--echo #   has the same query plan as Q1:
+--echo # 
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 5; 
+
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 5;
+
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 5;
+
+
+--echo # 
+--echo # Case #2: here, only "Using temporary" is removed. "Using filesort" remains.
+--echo # 
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 25;
+
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 25; 
+
+
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 25;
+
+
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 25; 
+
+--echo #
+--echo # Case #3: single table access (the code that decides whether we need
+--echo #          "Using temporary" is not invoked)
+--echo #
+explain select * from t3 where b=a order by a limit 10;
+
+--echo # This must not use filesort. The query plan should be like the query above:
+explain select * from t3 where b=a order by b limit 10;
+drop table t0,t1,t2,t3;
+
+set @@optimizer_switch=@tmp_8989;
+
+set optimizer_switch='orderby_uses_equalities=on';
+

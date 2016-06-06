@@ -1793,3 +1793,13 @@ from t1
 group by t1.b;
 
 drop table t0,t1,t2;
+
+--echo #
+--echo # MDEV-9602 crash in st_key::actual_rec_per_key when group by constant
+--echo #
+
+create table t1 (a date not null,unique (a)) engine=innodb;
+select distinct a from t1 group by 'a';
+insert into t1 values("2001-02-02"),("2001-02-03");
+select distinct a from t1 group by 'a';
+drop table t1;

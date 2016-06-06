@@ -1556,7 +1556,7 @@ set names utf8;
 create table t1 (f1 varchar(10));
 insert into t1 values ('2015-12-31');
 select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
-ERROR 22003: DOUBLE value is out of range in 'pow(cast((case when '2002-09-08' = '2015-12-31' then NULL else '2002-09-08' end) as datetime(6)),24)'
+ERROR 22003: DOUBLE value is out of range in 'pow(cast((case when '2002-09-08' = `test`.`t1`.`f1` then NULL else '2002-09-08' end) as datetime(6)),24)'
 drop table t1;
 CREATE TABLE t1 (f1 INT);
 INSERT INTO t1 VALUES (1),(2);

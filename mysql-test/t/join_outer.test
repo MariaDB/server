@@ -1824,4 +1824,62 @@ explain select * from t1 left join t2 on t2.c is null;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-10006: optimizer doesn't convert outer join to inner on views with WHERE clause
+--echo #
+
+CREATE TABLE t1(i1 int primary key, v1 int, key(v1));
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 3);
+INSERT INTO t1 VALUES (4, 4);
+INSERT INTO t1 VALUES (5, 3);
+INSERT INTO t1 VALUES (6, 6);
+INSERT INTO t1 VALUES (7, 7);
+INSERT INTO t1 VALUES (8, 8);
+INSERT INTO t1 VALUES (9, 9);
+ 
+CREATE TABLE t2(i2 int primary key, v2 int, key(v2));
+INSERT INTO t2 VALUES (1, 1);
+INSERT INTO t2 VALUES (2, 2);
+INSERT INTO t2 VALUES (3, 3);
+INSERT INTO t2 VALUES (4, 4);
+INSERT INTO t2 VALUES (5, 3);
+INSERT INTO t2 VALUES (6, 6);
+INSERT INTO t2 VALUES (7, 7);
+INSERT INTO t2 VALUES (8, 8);
+INSERT INTO t2 VALUES (9, 9);
+ 
+CREATE TABLE t3(i3 int primary key, v3 int, key(v3));
+INSERT INTO t3 VALUES (2, 2);
+INSERT INTO t3 VALUES (4, 4);
+INSERT INTO t3 VALUES (6, 6);
+INSERT INTO t3 VALUES (8, 8);
+
+--echo # This should have a join order of t3,t1,t2 (or t3,t2,t1, the idea is that t3 is the first one)
+EXPLAIN EXTENDED 
+SELECT * FROM 
+ (SELECT t1.i1 as i1, t1.v1 as v1,
+                 t2.i2 as i2, t2.v2 as v2,
+                 t3.i3 as i3, t3.v3 as v3
+            FROM t1 JOIN t2 on t1.i1 = t2.i2
+       LEFT JOIN t3 on t2.i2 = t3.i3
+ ) as w1 
+WHERE v3 = 4;
+
+--echo # This should have the same join order like the query above:
+EXPLAIN EXTENDED 
+SELECT * FROM 
+ (SELECT t1.i1 as i1, t1.v1 as v1,
+                 t2.i2 as i2, t2.v2 as v2,
+                 t3.i3 as i3, t3.v3 as v3
+            FROM t1 JOIN t2 on t1.i1 = t2.i2
+       LEFT JOIN t3 on t2.i2 = t3.i3
+           WHERE t1.i1 = t2.i2
+             AND 1 = 1
+ ) as w2 
+WHERE v3 = 4;
+
+drop table t1,t2,t3;
+
 SET optimizer_switch=@save_optimizer_switch;

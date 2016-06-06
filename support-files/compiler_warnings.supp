@@ -178,10 +178,10 @@ jemalloc/src/jemalloc\.c: set but not used
 #
 # Connect engine
 #
-storage/connect/ha_connect\.cc: might be clobbered by ~longjmp~
-storage/connect/connect\.cc: might be clobbered by ~longjmp~
+storage/connect/ha_connect\.cc: might be clobbered by .*longjmp
+storage/connect/connect\.cc: might be clobbered by .*longjmp
 storage/connect/filamvct\.cpp: ignoring return value of
-storage/connect/filamvct\.cpp: might be clobbered by
+storage/connect/filamvct\.cpp: might be clobbered by .*longjmp
 storage/connect/xindex\.cpp: ignoring return value of
 storage/connect/value\.cpp: always false
 

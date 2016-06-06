@@ -131,6 +131,14 @@ int i_s_metadata_lock_info_fill_table(
 static int i_s_metadata_lock_info_init(
   void *p
 ) {
+
+  compile_time_assert(sizeof(metadata_lock_info_lock_name)/sizeof(LEX_STRING)
+                      == MDL_key::NAMESPACE_END);
+  compile_time_assert(sizeof(metadata_lock_info_lock_mode)/sizeof(LEX_STRING)
+                      == MDL_TYPE_END);
+  compile_time_assert(sizeof(metadata_lock_info_duration)/sizeof(LEX_STRING)
+                      == MDL_DURATION_END);
+
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("i_s_metadata_lock_info_init");
   schema->fields_info = i_s_metadata_lock_info_fields_info;

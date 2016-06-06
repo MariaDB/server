@@ -1,4 +1,5 @@
 Setting SST method to mysqldump ...
+CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 SET GLOBAL wsrep_sst_auth = 'sst:';
 SET GLOBAL wsrep_sst_method = 'mysqldump';

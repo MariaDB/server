@@ -3,9 +3,7 @@
 #
 
 --source include/have_innodb.inc
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
+--source include/have_partition.inc
 #
 # Test of things that can be done online
 #
@@ -101,6 +99,28 @@ create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t3 union=(t1,t2);
 drop table t1,t2,t3;
+
+#
+# MDEV-9868 Altering a partitioned table comment does a full copy
+#
+create table t1 (i int) partition by hash(i) partitions 2;
+alter online table t1 comment 'test';
+drop table t1;
+
+#
+# MDEV-9168 altering a column comment does a full copy
+#
+create table t1 (a int);
+alter online table t1 modify a int comment 'test';
+drop table t1;
+
+create table t1 (a int) engine=innodb;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+
+create table t1 (a int) partition by hash(a) partitions 2;
+alter online table t1 modify a int comment 'test';
+drop table t1;
 
 --echo #
 --echo # MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB

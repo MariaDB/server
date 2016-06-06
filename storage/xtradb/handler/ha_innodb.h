@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -696,3 +696,39 @@ innobase_copy_frm_flags_from_table_share(
 /*=====================================*/
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const TABLE_SHARE*	table_share);	/*!< in: table share */
+
+/*******************************************************************//**
+This function builds a translation table in INNOBASE_SHARE
+structure for fast index location with mysql array number from its
+table->key_info structure. This also provides the necessary translation
+between the key order in mysql key_info and Innodb ib_table->indexes if
+they are not fully matched with each other.
+Note we do not have any mutex protecting the translation table
+building based on the assumption that there is no concurrent
+index creation/drop and DMLs that requires index lookup. All table
+handle will be closed before the index creation/drop.
+@return TRUE if index translation table built successfully */
+UNIV_INTERN
+ibool
+innobase_build_index_translation(
+/*=============================*/
+	const TABLE*		table,	  /*!< in: table in MySQL data
+					  dictionary */
+	dict_table_t*		ib_table, /*!< in: table in Innodb data
+					  dictionary */
+	INNOBASE_SHARE*		share);	  /*!< in/out: share structure
+					  where index translation table
+					  will be constructed in. */
+
+/********************************************************************//**
+Helper function to push frm mismatch error to error log and
+if needed to sql-layer. */
+UNIV_INTERN
+void
+ib_push_frm_error(
+/*==============*/
+	THD*		thd,		/*!< in: MySQL thd */
+	dict_table_t*	ib_table,	/*!< in: InnoDB table */
+	TABLE*		table,		/*!< in: MySQL table */
+	ulint		n_keys,		/*!< in: InnoDB #keys */
+	bool		push_warning);	/*!< in: print warning ? */

@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 modify b int default 5;
@@ -62,6 +61,18 @@ create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge 
 alter online table t3 union=(t1,t2);
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 drop table t1,t2,t3;
+create table t1 (i int) partition by hash(i) partitions 2;
+alter online table t1 comment 'test';
+drop table t1;
+create table t1 (a int);
+alter online table t1 modify a int comment 'test';
+drop table t1;
+create table t1 (a int) engine=innodb;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+create table t1 (a int) partition by hash(a) partitions 2;
+alter online table t1 modify a int comment 'test';
+drop table t1;
 #
 # MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
 #

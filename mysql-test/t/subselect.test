@@ -6000,3 +6000,14 @@ SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
 
 drop view v2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
+--echo # with UNION in ALL subquery
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (f VARCHAR(8)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar' UNION SELECT 'baz' );
+drop table t1;
+SET NAMES default;

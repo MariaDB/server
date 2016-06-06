@@ -1102,7 +1102,8 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
     case TYPE_AM_DOM:   strcpy(amn, "DOM");   break;
     case TYPE_AM_DIR:   strcpy(amn, "DIR");   break;
     case TYPE_AM_ODBC:  strcpy(amn, "ODBC");  break;
-    case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
+		case TYPE_AM_JDBC:  strcpy(amn, "JDBC");  break;
+		case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
     case TYPE_AM_OEM:   strcpy(amn, "OEM");   break;
     case TYPE_AM_OUT:   strcpy(amn, "OUT");   break;
     default:           sprintf(amn, "OEM(%d)", am);

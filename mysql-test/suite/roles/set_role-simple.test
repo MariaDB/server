@@ -37,3 +37,18 @@ delete from mysql.user where user='test_role1';
 delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;
 drop user 'test_user'@'localhost';
+
+#
+# MDEV-9898 SET ROLE NONE can crash mysqld.
+#
+
+create user user1;
+
+--connect (con1,localhost,user1,,)
+select current_user;
+show grants;
+set role none;
+
+connection default;
+drop user user1;
+
