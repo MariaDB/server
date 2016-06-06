@@ -87,6 +87,7 @@ public:
 
   TABLE *result_table;
 
+
   With_element(LEX_STRING *name,
                List <LEX_STRING> list,
                st_select_lex_unit *unit)
@@ -164,6 +165,30 @@ public:
 
   void reset_for_exec();
 
+  bool no_driving_recursive_is_set();
+
+  void set_as_driving_recursive();
+
+  bool is_driving_recursive();
+
+  void cleanup_driving_recursive();
+
+  void cleanup_incr_ready();
+
+  void set_as_incr_ready();
+
+  bool is_incr_ready();
+
+  bool all_incr_are_ready();
+
+  void cleanup_stabilized();
+
+  void set_as_stabilized();
+
+  bool is_stabilized();
+
+  bool all_are_stabilized();
+
   void set_result_table(TABLE *tab) { result_table= tab; }
 
   friend class With_clause;
@@ -202,6 +227,9 @@ private:
   table_map unrestricted;
   table_map with_prepared_anchor;
   table_map cleaned;
+  table_map driving_recursive;
+  table_map incr_ready;
+  table_map stabilized;
 
 public:
  /* If true the specifier RECURSIVE is present in the with clause */
@@ -211,7 +239,8 @@ public:
     : owner(NULL), first_elem(NULL), elements(0),
       embedding_with_clause(emb_with_clause), next_with_clause(NULL),
       dependencies_are_checked(false),
-    unrestricted(0), with_prepared_anchor(0), cleaned(0),
+      unrestricted(0), with_prepared_anchor(0), cleaned(0),
+      driving_recursive(0), incr_ready(0), stabilized(0),
       with_recursive(recursive_fl)
   { last_next= &first_elem; }
 
@@ -287,6 +316,7 @@ bool With_element::is_cleaned()
   return owner->cleaned & get_elem_map();
 }
 
+
 inline
 void With_element::mark_as_cleaned() 
 {
@@ -299,8 +329,96 @@ void With_element::reset_for_exec()
 {
   level= 0;
   owner->with_prepared_anchor&= ~mutually_recursive;
-  owner->cleaned&= ~get_elem_map();    
+  owner->cleaned&= ~get_elem_map();
+  owner->driving_recursive&= ~get_elem_map();
+  cleanup_incr_ready();
+  cleanup_stabilized();
 }
+
+
+inline
+bool With_element::no_driving_recursive_is_set()
+{
+  return !(owner->driving_recursive & mutually_recursive);
+}
+
+
+inline
+void With_element::set_as_driving_recursive()
+{
+  owner->driving_recursive|= get_elem_map();
+}
+
+
+inline
+bool With_element::is_driving_recursive()
+{
+  return owner->driving_recursive & get_elem_map();
+}
+
+
+inline
+void With_element::cleanup_driving_recursive()
+{
+  owner->driving_recursive&= ~mutually_recursive;
+}
+
+
+inline
+void With_element::cleanup_incr_ready()
+{
+  owner->incr_ready&= ~mutually_recursive;
+}
+
+
+inline
+void With_element::set_as_incr_ready()
+{
+  owner->incr_ready|= get_elem_map();
+}
+
+
+inline
+bool With_element::is_incr_ready()
+{
+  return owner->incr_ready & get_elem_map();
+}
+
+
+inline
+bool With_element::all_incr_are_ready()
+{
+  return (owner->incr_ready & mutually_recursive) == mutually_recursive;
+}
+
+
+inline
+void With_element::cleanup_stabilized()
+{
+  owner->stabilized&= ~mutually_recursive;
+}
+
+
+inline
+void With_element::set_as_stabilized()
+{
+  owner->stabilized|= get_elem_map();
+}
+
+
+inline
+bool With_element::is_stabilized()
+{
+  return owner->stabilized & get_elem_map();
+}
+
+
+inline
+bool With_element::all_are_stabilized()
+{
+  return (owner->stabilized & mutually_recursive) == mutually_recursive;
+}
+
 
 inline
 void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
@@ -309,6 +427,7 @@ void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
     if (with_clause)
       with_clause->set_owner(this);
 }
+
 
 inline
 void st_select_lex::set_with_clause(With_clause *with_clause)

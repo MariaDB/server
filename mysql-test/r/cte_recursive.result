@@ -372,9 +372,9 @@ id	name	dob	father	mother
 100	Me	2000-01-01	20	30
 20	Dad	1970-02-02	10	9
 30	Mom	1975-03-03	8	7
-9	Grandma Ann	1941-10-15	NULL	NULL
 10	Grandpa Bill	1940-04-05	NULL	NULL
 8	Grandpa Ben	1940-10-21	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
 7	Grandma Sally	1943-08-23	NULL	6
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 with recursive
@@ -403,6 +403,254 @@ from ancestor_couples
 select h_name, h_dob, w_name, w_dob
 from ancestor_couples;
 h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union 
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union all
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union all
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select *
+from ancestor_couple_ids;
+h_id	w_id
+20	30
+10	9
+8	7
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+from ancestor_couple_ids c, folks h, folks w
+where c.h_id = h.id and c.w_id= w.id;
+name	dob	name	dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+where c.h_id = h.id and c.w_id= w.id;
+name	dob	name	dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+explain extended
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+where c.h_id = h.id and c.w_id= w.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	36	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	468	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	468	100.00	Using where; Using join buffer (incremental, BNL join)
+3	SUBQUERY	folks	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+4	UNCACHEABLE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	
+4	UNCACHEABLE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	36	100.00	Using where; Using join buffer (flat, BNL join)
+5	UNCACHEABLE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	UNCACHEABLE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+2	UNCACHEABLE SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	36	100.00	Using where
+Warnings:
+Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where ((`a`.`father` is not null) and (`a`.`mother` is not null)))coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where (`test`.`folks`.`name` = 'Me') union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where (`fa`.`h_id` = `test`.`p`.`id`) union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where (`test`.`p`.`id` = `ma`.`w_id`)), select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where ((`h`.`id` = `c`.`h_id`) and (`w`.`id` = `c`.`w_id`))
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select *
+from ancestor_couple_ids;
+h_id	w_id
+20	30
+10	9
+8	7
+NULL	NULL
+NULL	NULL
+NULL	NULL
+NULL	6
+NULL	NULL
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+select a.father, a.mother
+from coupled_ancestors a
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select * 
+from folks 
+where name = 'Me'
+  union all
+select p.*
+from folks p, ancestor_couple_ids fa
+where p.id = fa.h_id
+union all
+select p.*
+from folks p, ancestor_couple_ids ma
+where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+where c.h_id = h.id and c.w_id= w.id;
+name	dob	name	dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
@@ -495,9 +743,9 @@ id	name	dob	father	mother
 100	Me	2000-01-01	20	30
 20	Dad	1970-02-02	10	9
 30	Mom	1975-03-03	8	7
-9	Grandma Ann	1941-10-15	NULL	NULL
 10	Grandpa Bill	1940-04-05	NULL	NULL
 8	Grandpa Ben	1940-10-21	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
 7	Grandma Sally	1943-08-23	NULL	6
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 drop view v1,v2;
@@ -571,7 +819,6 @@ id	name	dob	father	mother
 100	Me	2000-01-01	20	30
 20	Dad	1970-02-02	10	9
 30	Mom	1975-03-03	8	7
-9	Grandma Ann	1941-10-15	NULL	NULL
 10	Grandpa Bill	1940-04-05	NULL	NULL
 8	Grandpa Ben	1940-10-21	NULL	NULL
 9	Grandma Ann	1941-10-15	NULL	NULL

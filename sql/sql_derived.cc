@@ -661,7 +661,10 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->derived_result->set_unit(unit);
       derived->table= derived->derived_result->table;
       if (derived->is_with_table_recursive_reference())
+      {
         unit->with_element->rec_result->rec_tables.push_back(derived->table);
+        derived->table->is_rec_table= true;
+      }
     }
     DBUG_ASSERT(derived->table || res);
     goto exit;
@@ -945,9 +948,10 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_fill");
   SELECT_LEX_UNIT *unit= derived->get_unit();
+  bool derived_is_recursive= derived->is_recursive_with_table();
   bool res= FALSE;
 
-  if (derived->is_recursive_with_table() && unit->executed)
+  if (derived_is_recursive && derived->with->all_are_stabilized())
   {
     TABLE *src= unit->with_element->rec_result->table;
     TABLE *dest= derived->table;
@@ -955,17 +959,18 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(res);
   }
 
-  if (unit->executed && !unit->uncacheable && !unit->describe)
+  if (unit->executed && !unit->uncacheable && !unit->describe &&
+      !derived_is_recursive)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
   SELECT_LEX *first_select= unit->first_select();
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
-  if (unit->is_union())
+  if (unit->is_union() || derived_is_recursive)
   {
     // execute union without clean up
-    if (derived->is_recursive_with_table())
+    if (derived_is_recursive)
       unit->with_element->set_result_table(derived->table);
     res= unit->exec();
   }

@@ -7328,7 +7328,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     if (!is_materialized_derived() && first_select->is_mergeable() &&
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
         !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-          thd->lex->sql_command == SQLCOM_DELETE_MULTI))
+          thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+        !is_recursive_with_table())
       set_merged_derived();
     else
       set_materialized_derived();

@@ -244,6 +244,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   if (rec_tables.push_back(rec_table))
     return true;
+  rec_table->is_rec_table= true;
 
   return false;
 }
@@ -494,7 +495,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
   /* Global option */
 
-  if (is_union_select)
+  if (is_union_select || is_recursive)
   {
     if (is_union() && !union_needs_tmp_table())
     {
@@ -530,7 +531,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   sl->context.resolve_in_select_list= TRUE;
  
   for (;sl; sl= sl->next_select())
-  {
+  {  
     bool can_skip_order_by;
     sl->options|=  SELECT_NO_UNLOCK;
     JOIN *join= new JOIN(thd_arg, sl->item_list, 
@@ -587,7 +588,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       Use items list of underlaid select for derived tables to preserve
       information about fields lengths and exact types
     */
-    if (!is_union_select)
+    if (!is_union_select && !is_recursive)
       types= first_sl->item_list;
     else if (sl == first_sl)
     {
@@ -917,8 +918,9 @@ bool st_select_lex_unit::exec()
   bool first_execution= !executed;
   DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
+  bool is_recursive= with_element && with_element->is_recursive;
 
-  if (executed && !uncacheable && !describe)
+  if (executed && !uncacheable && !describe && !is_recursive)
     DBUG_RETURN(FALSE);
   executed= 1;
   if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item)
@@ -934,7 +936,7 @@ bool st_select_lex_unit::exec()
   if (saved_error)
     DBUG_RETURN(saved_error);
 
-  if (with_element && with_element->is_recursive && !describe)
+  if (is_recursive && !describe)
   {
     saved_error= exec_recursive();
     DBUG_RETURN(saved_error);
@@ -1174,10 +1176,7 @@ bool st_select_lex_unit::exec_recursive()
   TABLE *result_table= with_element->result_table;
   ha_rows examined_rows= 0;
   bool unrestricted= with_element->is_unrestricted();
-  bool no_more_iterations= false;
   bool with_anchor= with_element->with_anchor;
-  st_select_lex *first_sl= first_select();
-  st_select_lex *barrier= with_anchor ? first_recursive_sel : NULL;
   uint max_level= thd->variables.max_recursion_level;
   List_iterator_fast<TABLE> li(with_element->rec_result->rec_tables);
   TABLE *rec_table;
@@ -1186,9 +1185,31 @@ bool st_select_lex_unit::exec_recursive()
 
   do
   {
+    st_select_lex *first_sl;
+    st_select_lex *barrier;
     if ((saved_error= incr_table->file->ha_delete_all_rows()))
       goto err;
 
+    if (with_element->no_driving_recursive_is_set())
+        with_element->set_as_driving_recursive();
+
+    if (with_element->level == 0)
+    {
+      first_sl= first_select();
+      if (with_anchor)
+        barrier= first_recursive_sel;
+      else
+	barrier= NULL;
+    }
+    else
+    {
+      first_sl= first_recursive_sel;
+      barrier= NULL;
+    }
+
+    if (with_element->all_incr_are_ready())
+      with_element->cleanup_incr_ready();
+   
     for (st_select_lex *sl= first_sl ; sl != barrier; sl= sl->next_select())
     {
       thd->lex->current_select= sl;
@@ -1211,16 +1232,12 @@ bool st_select_lex_unit::exec_recursive()
       }
     }
 
-    if (with_element->level == 0)
-    {
-      first_sl= first_recursive_sel;
-      barrier= NULL;
-    }
+    with_element->set_as_incr_ready();
 
     incr_table->file->info(HA_STATUS_VARIABLE);
     if (incr_table->file->stats.records == 0 ||
         with_element->level + 1 == max_level)
-       no_more_iterations= true;
+      with_element->set_as_stabilized();
     else
       with_element->level++;
 
@@ -1231,12 +1248,21 @@ bool st_select_lex_unit::exec_recursive()
                                                          !unrestricted)))
 	  goto err;
     }
-  } while (!no_more_iterations); 
+    
+    if (!with_element->is_driving_recursive())
+      break;
 
-  if ((saved_error= table->insert_all_rows_into(thd,
-                                                result_table,
-                                                true)))
-    goto err;
+  } while (!with_element->all_are_stabilized()); 
+
+  if (with_element->is_driving_recursive())
+  {
+    TABLE *table= with_element->rec_result->table;
+    if ((saved_error= table->insert_all_rows_into(thd,
+                                                  result_table,
+                                                  true)))
+      goto err;
+    with_element->cleanup_driving_recursive();
+  }
 
   thd->lex->current_select= lex_select_save;
 err:
