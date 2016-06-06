@@ -60,11 +60,6 @@ UNIV_INTERN ulint		btr_search_n_succ	= 0;
 UNIV_INTERN ulint		btr_search_n_hash_fail	= 0;
 #endif /* UNIV_SEARCH_PERF_STAT */
 
-/** padding to prevent other memory update
-hotspots from residing on the same memory
-cache line as btr_search_latch */
-UNIV_INTERN byte		btr_sea_pad1[64];
-
 /** Array of latches protecting individual AHI partitions. The latches
 protect: (1) positions of records on those pages where a hash index from the
 corresponding AHI partition has been built.
@@ -72,14 +67,12 @@ NOTE: They do not protect values of non-ordering fields within a record from
 being updated in-place! We can use fact (1) to perform unique searches to
 indexes. */
 
-UNIV_INTERN prio_rw_lock_t*	btr_search_latch_arr;
-
-/** padding to prevent other memory update hotspots from residing on
-the same memory cache line */
-UNIV_INTERN byte		btr_sea_pad2[64];
+UNIV_INTERN prio_rw_lock_t*	btr_search_latch_arr
+					MY_ALIGNED(CACHE_LINE_SIZE);
 
 /** The adaptive hash index */
-UNIV_INTERN btr_search_sys_t*	btr_search_sys;
+UNIV_INTERN btr_search_sys_t*	btr_search_sys
+					MY_ALIGNED(CACHE_LINE_SIZE);
 
 #ifdef UNIV_PFS_RWLOCK
 /* Key to register btr_search_sys with performance schema */

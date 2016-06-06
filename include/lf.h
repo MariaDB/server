@@ -68,11 +68,12 @@ typedef struct {
   void  *purgatory;
   uint32 purgatory_count;
   uint32 volatile link;
-/* we want sizeof(LF_PINS) to be 128 to avoid false sharing */
-  char pad[128-sizeof(uint32)*2
-              -sizeof(LF_PINBOX *)
-              -sizeof(void*)
-              -sizeof(void *)*(LF_PINBOX_PINS+1)];
+#if SIZEOF_INT*2+SIZEOF_CHARP*(LF_PINBOX_PINS+3) != CPU_LEVEL1_DCACHE_LINESIZE
+  char pad[ ( CPU_LEVEL1_DCACHE_LINESIZE *2
+              -sizeof(uint32)*2
+              -sizeof(void*)*(LF_PINBOX_PINS+3)
+            ) % CPU_LEVEL1_DCACHE_LINESIZE ];
+#endif
 } LF_PINS;
 
 /* compile-time assert to make sure we have enough pins.  */
