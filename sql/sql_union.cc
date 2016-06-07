@@ -1349,10 +1349,10 @@ void st_select_lex_unit::reinit_exec_mechanism()
       */
       field->fixed= 0;
     }
-    if (with_element && with_element->is_recursive)
-      with_element->reset_for_exec();
   }
 #endif
+  if (with_element && with_element->is_recursive)
+    with_element->reset_for_exec();
 }
 
 
