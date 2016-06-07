@@ -81,6 +81,7 @@ public:
 
   st_select_lex *first_recursive;
   
+  /* The number of the last performed iteration for recursive table */
   uint level;
 
   select_union_recursive *rec_result;
