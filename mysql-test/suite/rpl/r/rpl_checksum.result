@@ -41,7 +41,7 @@ master-bin.000002	#
 set @@global.binlog_checksum = default;
 select @@global.binlog_checksum;
 @@global.binlog_checksum
-NONE
+CRC32
 set @@global.binlog_checksum = CRC32;
 select @@global.binlog_checksum;
 @@global.binlog_checksum

@@ -854,7 +854,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   if (!thd)
   {
 
-    if (!(thd= new THD()))
+    if (!(thd= new THD(0)))
     {
       res= TRUE;
       goto end;

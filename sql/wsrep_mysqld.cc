@@ -556,8 +556,11 @@ int wsrep_init()
   int rcode= -1;
   DBUG_ASSERT(wsrep_inited == 0);
 
-  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO))
-    wsrep_start_position_init(wsrep_start_position);
+  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO) &&
+      wsrep_start_position_init(wsrep_start_position))
+  {
+    return 1;
+  }
 
   wsrep_sst_auth_init(wsrep_sst_auth);
 
@@ -1759,12 +1762,10 @@ pthread_handler_t start_wsrep_THD(void *arg)
   THD *thd;
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
-  if (my_thread_init() || (!(thd= new THD(true))))
+  if (my_thread_init() || (!(thd= new THD(next_thread_id(), true))))
   {
     goto error;
   }
-
-  thd->thread_id= next_thread_id();
 
   mysql_mutex_lock(&LOCK_thread_count);
 
@@ -1775,7 +1776,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
   }
 
   thd->real_id=pthread_self(); // Keep purify happy
-  thread_count++;
   thread_created++;
   threads.append(thd);
 
@@ -1873,7 +1873,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
     thd->unlink();
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
-    dec_thread_count();
   }
   my_thread_end();
   return(NULL);

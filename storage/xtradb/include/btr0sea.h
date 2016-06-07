@@ -332,13 +332,6 @@ struct btr_search_sys_t{
 /** The adaptive hash index */
 extern btr_search_sys_t*	btr_search_sys;
 
-#ifdef UNIV_SEARCH_PERF_STAT
-/** Number of successful adaptive hash index lookups */
-extern ulint	btr_search_n_succ;
-/** Number of failed adaptive hash index lookups */
-extern ulint	btr_search_n_hash_fail;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
 /** After change in n_fields or n_bytes in info, this many rounds are waited
 before starting the hash analysis again: this is to save CPU time when there
 is no hope in building a hash index. */

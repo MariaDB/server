@@ -1,4 +1,5 @@
 set sql_mode="";
+set global binlog_checksum=NONE;
 drop table if exists t1;
 reset master;
 set @a=UNIX_TIMESTAMP("2020-01-21 15:32:22");
@@ -1627,3 +1628,4 @@ ROLLBACK /* added by mysqlbinlog */;
 
 --- end of test --
 drop table t1;
+set global binlog_checksum=default;

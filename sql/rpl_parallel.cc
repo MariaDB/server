@@ -967,9 +967,8 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
   my_thread_init();
-  thd = new THD;
+  thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   add_to_active_threads(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();

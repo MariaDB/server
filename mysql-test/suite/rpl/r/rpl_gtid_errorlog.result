@@ -1,5 +1,9 @@
 include/master-slave.inc
 [connection master]
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
 *** Test MDEV-6120, output of current GTID when a replication error is logged to the errorlog ***
 connection master;
 CREATE TABLE t1(a INT PRIMARY KEY);
@@ -49,4 +53,9 @@ FOUND /Slave SQL: Error 'Duplicate entry .* on query\. .*Query: '.*', Gtid 0-1-1
 FOUND /Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: <none>, Internal MariaDB error code: 1590/ in mysqld.2.err
 connection master;
 DROP TABLE t1;
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
 include/rpl_end.inc

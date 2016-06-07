@@ -426,7 +426,6 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   THD *thd= (THD*)mysql->thd;
   mysql_mutex_lock(&LOCK_thread_count);
   thd->clear_data_list();
-  thread_count--;
   thd->store_globals();
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -667,8 +666,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
 */
 void *create_embedded_thd(int client_flag)
 {
-  THD * thd= new THD;
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
+  THD * thd= new THD(next_thread_id());
 
   thd->thread_stack= (char*) &thd;
   if (thd->store_globals())
@@ -701,7 +699,6 @@ void *create_embedded_thd(int client_flag)
   bzero((char*) &thd->net, sizeof(thd->net));
 
   mysql_mutex_lock(&LOCK_thread_count);
-  thread_count++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;
@@ -1170,7 +1167,8 @@ bool Protocol_binary::write()
 bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
-            ulonglong affected_rows, ulonglong id, const char *message)
+            ulonglong affected_rows, ulonglong id, const char *message,
+            bool unused __attribute__((unused)))
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;

@@ -266,14 +266,14 @@ CREATE TABLE t1 (f1 BIGINT) ;
 
 # SELECT INTO is illegal
 SET @x=0;
---error ER_VIEW_SELECT_CLAUSE
+--error ER_PARSE_ERROR
 CREATE or REPLACE VIEW v1 AS Select 1 INTO @x;
 Select @x;
 
 # Subquery in the FROM clause is illegal
---error ER_VIEW_SELECT_DERIVED
 CREATE or REPLACE VIEW v1 AS Select 1
 FROM (SELECT 1 FROM t1) my_table;
+DROP VIEW v1;
 
 # Triggers cannot be associated with VIEWs
 CREATE VIEW v1 AS SELECT f1 FROM t1;
@@ -1557,9 +1557,9 @@ let $message= Testcase 3.3.1.39 ;
 --disable_warnings
 Drop view if exists test.v1 ;
 --enable_warnings
---error ER_VIEW_SELECT_DERIVED
 CREATE VIEW test.v1
 AS Select f59 from (Select * FROM tb2 limit 20) tx ;
+DROP VIEW test.v1;
 --error ER_NO_SUCH_TABLE
 SELECT * FROM test.v1 order by f59 ;
 --disable_warnings

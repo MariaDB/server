@@ -32,16 +32,6 @@
 #include <windows.h>
 
 
-/*
-  Threadpool API is not available on XP. We still want to compile a single 
-  version on Windows, but use the latest functionality if available.
-  We cannot use threadpool functionality directly, since executable won't 
-  start on XP and loader will complain about missing symbols.
-
-  We solve using the usual way it is done on Windows, i.e with dynamic loading.
-  We'll need to load a lot of function, and make this less painful with the
-  WEAK_SYMBOL macro below
-*/
 
 /*
  WEAK_SYMBOL(return_type, function_name, argument_type1,..,argument_typeN)
@@ -61,107 +51,10 @@
   static pFN_##function my_##function = (pFN_##function) \
     (GetProcAddress(GetModuleHandle("kernel32"),#function))
 
-WEAK_SYMBOL(VOID, CancelThreadpoolIo, PTP_IO);
-#define CancelThreadpoolIo my_CancelThreadpoolIo
 
-WEAK_SYMBOL(VOID, CloseThreadpool, PTP_POOL);
-#define CloseThreadpool my_CloseThreadpool
-
-WEAK_SYMBOL(VOID, CloseThreadpoolIo, PTP_IO);
-#define CloseThreadpoolIo my_CloseThreadpoolIo
-
-WEAK_SYMBOL(VOID, CloseThreadpoolTimer,PTP_TIMER);
-#define CloseThreadpoolTimer my_CloseThreadpoolTimer
-
-WEAK_SYMBOL(VOID, CloseThreadpoolWait,PTP_WAIT);
-#define CloseThreadpoolWait my_CloseThreadpoolWait
-
-WEAK_SYMBOL(PTP_POOL, CreateThreadpool,PVOID);
-#define CreateThreadpool my_CreateThreadpool
-
-WEAK_SYMBOL(PTP_IO, CreateThreadpoolIo, HANDLE, PTP_WIN32_IO_CALLBACK, PVOID ,
-  PTP_CALLBACK_ENVIRON);
-#define CreateThreadpoolIo my_CreateThreadpoolIo
-
-WEAK_SYMBOL(PTP_TIMER, CreateThreadpoolTimer, PTP_TIMER_CALLBACK ,
- PVOID pv, PTP_CALLBACK_ENVIRON pcbe);
-#define CreateThreadpoolTimer my_CreateThreadpoolTimer
-
-WEAK_SYMBOL(PTP_WAIT, CreateThreadpoolWait, PTP_WAIT_CALLBACK, PVOID, 
-  PTP_CALLBACK_ENVIRON);
-#define CreateThreadpoolWait my_CreateThreadpoolWait
-
-WEAK_SYMBOL(VOID, DisassociateCurrentThreadFromCallback, PTP_CALLBACK_INSTANCE);
-#define DisassociateCurrentThreadFromCallback my_DisassociateCurrentThreadFromCallback
-
-WEAK_SYMBOL(DWORD, FlsAlloc, PFLS_CALLBACK_FUNCTION);
-#define FlsAlloc my_FlsAlloc
-
-WEAK_SYMBOL(PVOID, FlsGetValue, DWORD);
-#define FlsGetValue my_FlsGetValue
-
-WEAK_SYMBOL(BOOL, FlsSetValue, DWORD, PVOID);
-#define FlsSetValue my_FlsSetValue
-
-WEAK_SYMBOL(VOID, SetThreadpoolThreadMaximum, PTP_POOL, DWORD);
-#define SetThreadpoolThreadMaximum my_SetThreadpoolThreadMaximum
-
-WEAK_SYMBOL(BOOL, SetThreadpoolThreadMinimum, PTP_POOL, DWORD);
-#define SetThreadpoolThreadMinimum my_SetThreadpoolThreadMinimum
-
-WEAK_SYMBOL(VOID, SetThreadpoolTimer, PTP_TIMER, PFILETIME,DWORD,DWORD);
-#define SetThreadpoolTimer my_SetThreadpoolTimer
-
-WEAK_SYMBOL(VOID, SetThreadpoolWait, PTP_WAIT,HANDLE,PFILETIME);
-#define SetThreadpoolWait my_SetThreadpoolWait
-
-WEAK_SYMBOL(VOID, StartThreadpoolIo, PTP_IO);
-#define StartThreadpoolIo my_StartThreadpoolIo
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolIoCallbacks,PTP_IO, BOOL);
-#define WaitForThreadpoolIoCallbacks my_WaitForThreadpoolIoCallbacks
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolTimerCallbacks, PTP_TIMER, BOOL);
-#define WaitForThreadpoolTimerCallbacks my_WaitForThreadpoolTimerCallbacks
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolWaitCallbacks, PTP_WAIT, BOOL);
-#define WaitForThreadpoolWaitCallbacks my_WaitForThreadpoolWaitCallbacks
-
-WEAK_SYMBOL(BOOL, SetFileCompletionNotificationModes, HANDLE, UCHAR);
-#define SetFileCompletionNotificationModes my_SetFileCompletionNotificationModes
-
-WEAK_SYMBOL(BOOL, TrySubmitThreadpoolCallback, PTP_SIMPLE_CALLBACK pfns, 
-  PVOID pv,PTP_CALLBACK_ENVIRON pcbe);
-#define TrySubmitThreadpoolCallback my_TrySubmitThreadpoolCallback
-
-WEAK_SYMBOL(PTP_WORK, CreateThreadpoolWork, PTP_WORK_CALLBACK pfnwk, PVOID pv,
-  PTP_CALLBACK_ENVIRON pcbe);
-#define CreateThreadpoolWork my_CreateThreadpoolWork
-
-WEAK_SYMBOL(VOID, SubmitThreadpoolWork,PTP_WORK pwk);
-#define SubmitThreadpoolWork my_SubmitThreadpoolWork
-
-WEAK_SYMBOL(VOID, CloseThreadpoolWork, PTP_WORK pwk);
-#define CloseThreadpoolWork my_CloseThreadpoolWork 
-
-WEAK_SYMBOL(BOOL, CallbackMayRunLong, PTP_CALLBACK_INSTANCE pci);
-#define CallbackMayRunLong my_CallbackMayRunLong
-
-#if _MSC_VER >= 1600
-/* Stack size manipulation available only on Win7+ /declarations in VS10 */
 WEAK_SYMBOL(BOOL, SetThreadpoolStackInformation, PTP_POOL, 
   PTP_POOL_STACK_INFORMATION);
 #define SetThreadpoolStackInformation my_SetThreadpoolStackInformation
-#else /* _MSC_VER < 1600 */
-#define SetThreadpoolCallbackPriority(env,prio)
-typedef enum _TP_CALLBACK_PRIORITY {
-    TP_CALLBACK_PRIORITY_HIGH,
-    TP_CALLBACK_PRIORITY_NORMAL,
-    TP_CALLBACK_PRIORITY_LOW,
-    TP_CALLBACK_PRIORITY_INVALID
-} TP_CALLBACK_PRIORITY;
-#endif
-
 
 /* Log a warning */
 static void tp_log_warning(const char *msg, const char *fct)

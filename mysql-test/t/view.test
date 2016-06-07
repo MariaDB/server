@@ -840,15 +840,16 @@ drop view v4, v3, v2, v1;
 #
 # VIEW over SELECT with prohibited clauses
 #
--- error ER_VIEW_SELECT_CLAUSE
+-- error ER_PARSE_ERROR
 create view v1 as select 5 into @w;
--- error ER_VIEW_SELECT_CLAUSE
+-- error ER_PARSE_ERROR
 create view v1 as select 5 into outfile 'ttt';
 create table t1 (a int);
--- error ER_VIEW_SELECT_CLAUSE
+-- error ER_PARSE_ERROR
 create view v1 as select a from t1 procedure analyse();
--- error ER_VIEW_SELECT_DERIVED
+# now derived tables are allowed
 create view v1 as select 1 from (select 1) as d1;
+drop view v1;
 drop table t1;
 
 #
@@ -3173,10 +3174,10 @@ DROP TABLE t1;
 DROP VIEW IF EXISTS v1;
 --enable_warnings
 
-let $query = SELECT * FROM (SELECT 1) AS t;
+let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
 eval $query;
---error ER_VIEW_SELECT_DERIVED
+--error ER_PARSE_ERROR
 eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
@@ -5765,6 +5766,39 @@ drop table t1;
 --echo # Start of 10.2 tests
 --echo #
 
+--echo # Checking that SHOW CREATE VIEW preserve parentheses
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1 LIMIT 1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1);
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1 LIMIT 1);
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1) LIMIT 1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+
 --echo #
 --echo # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
 --echo #
@@ -5784,7 +5818,172 @@ SHOW CREATE TABLE t3;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-3944: Allow derived tables in VIEWS
+--echo #
+create table t1 (s1 int);
+insert into t1 values (1),(2),(3);
 
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1>1) AS x;
+CREATE VIEW v2 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1<3) AS x;
+
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+CREATE VIEW v2 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+> -100) as xx WHERE s1<3) AS x;
+insert into t1 values (200),(-200);
+--sorted_result
+select * from t1;
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE algorithm=temptable VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+CREATE algorithm=temptable VIEW v2 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+> -100) as xx WHERE s1<3) AS x;
+--sorted_result
+select * from t1;
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT s1,s2 FROM (SELECT s1 as s2 FROM t1 WHERE s1 <
+100) x, t1 WHERE t1.s1=x.s2;
+select * from v1;
+
+insert into v1 (s1) values (-300);
+update v1 set s1=s1+1;
+select * from v1;
+select * from t1;
+--error ER_NON_INSERTABLE_TABLE
+insert into v1(s2) values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s2=s2+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1
+< 100) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+create view v2 as select * from v1;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v2 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v2 set s1=s1+1;
+
+drop view v1, v2;
+drop table t1;
+
+--echo #
+--echo # MDEV-9671:Wrong result upon select from a view with a FROM subquery
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(2);
+
+CREATE TABLE t2 (j INT);
+INSERT INTO t2 VALUES (8),(3),(3);
+
+CREATE TABLE t3 (k INT);
+INSERT INTO t3 VALUES (1),(8);
+
+CREATE VIEW v1 AS SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
+
+show create view v1;
+
+SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
+
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1, t2, t3;
 --echo #
 --echo # End of 10.2 tests
 --echo #

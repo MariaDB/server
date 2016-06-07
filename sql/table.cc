@@ -4448,13 +4448,14 @@ bool TABLE_LIST::single_table_updatable()
 {
   if (!updatable)
     return false;
-  if (view_tables && view_tables->elements == 1)
+  if (view && view->select_lex.table_list.elements == 1)
   {
     /*
       We need to check deeply only single table views. Multi-table views
       will be turned to multi-table updates and then checked by leaf tables
     */
-    return view_tables->head()->single_table_updatable();
+    return (((TABLE_LIST *)view->select_lex.table_list.first)->
+            single_table_updatable());
   }
   return true;
 }
@@ -5499,6 +5500,8 @@ const char *Field_iterator_table_ref::get_table_name()
 {
   if (table_ref->view)
     return table_ref->view_name.str;
+  if (table_ref->is_derived())
+    return table_ref->table->s->table_name.str;
   else if (table_ref->is_natural_join)
     return natural_join_it.column_ref()->table_name();
 
@@ -7259,6 +7262,7 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && first_select->is_mergeable() &&
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
+        !thd->lex->can_not_use_merged() &&
         !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))
       set_merged_derived();

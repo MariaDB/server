@@ -111,7 +111,9 @@
 #include "wsrep_thd.h"
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
-                              Parser_state *parser_state, bool is_next_command);
+                              Parser_state *parser_state,
+                              bool is_com_multi,
+                              bool is_next_command);
 
 /**
   @defgroup Runtime_Environment Runtime Environment
@@ -1020,7 +1022,7 @@ static void handle_bootstrap_impl(THD *thd)
       break;
     }
 
-    mysql_parse(thd, thd->query(), length, &parser_state, FALSE);
+    mysql_parse(thd, thd->query(), length, &parser_state, FALSE, FALSE);
 
     bootstrap_error= thd->is_error();
     thd->protocol->end_statement();
@@ -1074,16 +1076,11 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
+  in_bootstrap= FALSE;
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(thread_count == 1);
-  in_bootstrap= FALSE;
-  /*
-    dec_thread_count will signal bootstrap() function that we have ended as
-    thread_count will become 0.
-  */
-  dec_thread_count();
+  DBUG_ASSERT(thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif
@@ -1633,6 +1630,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     drop_more_results= !MY_TEST(thd->server_status &
                                 SERVER_MORE_RESULTS_EXISTS);
     thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
+    if (is_com_multi)
+      thd->get_stmt_da()->set_skip_flush();
   }
 
   switch (command) {
@@ -1784,10 +1783,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
     if (WSREP_ON)
       wsrep_mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
-                        is_next_command);
+                        is_com_multi, is_next_command);
     else
       mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
-                  is_next_command);
+                  is_com_multi, is_next_command);
 
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
@@ -1873,10 +1872,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       if (WSREP_ON)
         wsrep_mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
-                          is_next_command);
+                          is_com_multi, is_next_command);
       else
         mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
-                    is_next_command);
+                    is_com_multi, is_next_command);
 
     }
 
@@ -1930,7 +1929,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->reset_for_next_command();
     // thd->reset_for_next_command reset state => restore it
     if (is_next_command)
+    {
       thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
+      if (is_com_multi)
+        thd->get_stmt_da()->set_skip_flush();
+    }
+
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
@@ -2232,6 +2236,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       if (net_allocate_new_packet(net, thd, MYF(0)))
         break;
 
+      PSI_statement_locker *save_locker= thd->m_statement_psi;
+      sql_digest_state *save_digest= thd->m_digest;
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
+
       while (packet_length)
       {
         current_com++;
@@ -2263,7 +2272,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
 
 com_multi_end:
+      thd->m_statement_psi= save_locker;
+      thd->m_digest= save_digest;
+
       /* release old buffer */
+      net_flush(net);
       DBUG_ASSERT(net->buff == net->write_pos); // nothing to send
       my_free(readbuff);
     }
@@ -7500,7 +7513,9 @@ void mysql_init_multi_delete(LEX *lex)
 }
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
-                              Parser_state *parser_state, bool is_next_command)
+                              Parser_state *parser_state,
+                              bool is_com_multi,
+                              bool is_next_command)
 {
 #ifdef WITH_WSREP
   bool is_autocommit=
@@ -7519,7 +7534,8 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
 	                       thd->query_length());
     }
-    mysql_parse(thd, rawbuf, length, parser_state, is_next_command);
+    mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
+                is_next_command);
 
     if (WSREP(thd)) {
       /* wsrep BF abort in query exec phase */
@@ -7621,7 +7637,9 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 */
 
 void mysql_parse(THD *thd, char *rawbuf, uint length,
-                 Parser_state *parser_state, bool is_next_command)
+                 Parser_state *parser_state,
+                 bool is_com_multi,
+                 bool is_next_command)
 {
   int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
@@ -7646,7 +7664,11 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   lex_start(thd);
   thd->reset_for_next_command();
   if (is_next_command)
+  {
     thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
+    if (is_com_multi)
+      thd->get_stmt_da()->set_skip_flush();
+  }
 
   if (query_cache_send_result_to_client(thd, rawbuf, length) <= 0)
   {

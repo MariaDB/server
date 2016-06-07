@@ -225,13 +225,6 @@ static int my_strcasecmp_bin(CHARSET_INFO * cs __attribute__((unused)),
 }
 
 
-uint my_mbcharlen_8bit(CHARSET_INFO *cs __attribute__((unused)),
-                      uint c __attribute__((unused)))
-{
-  return 1;
-}
-
-
 static int my_mb_wc_bin(CHARSET_INFO *cs __attribute__((unused)),
 			my_wc_t *wc,
 			const uchar *str,
@@ -510,7 +503,6 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  my_mbcharlen_8bit,	/* mbcharlen     */
   my_numchars_8bit,
   my_charpos_8bit,
   my_well_formed_len_8bit,

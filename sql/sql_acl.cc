@@ -1133,7 +1133,7 @@ bool acl_init(bool dont_read_acl_tables)
   /*
     To be able to run this from boot, we allocate a temporary THD
   */
-  if (!(thd=new THD))
+  if (!(thd=new THD(0)))
     DBUG_RETURN(1); /* purecov: inspected */
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
@@ -6570,7 +6570,7 @@ bool grant_init()
   bool return_val;
   DBUG_ENTER("grant_init");
 
-  if (!(thd= new THD))
+  if (!(thd= new THD(0)))
     DBUG_RETURN(1);				/* purecov: deadcode */
   thd->thread_stack= (char*) &thd;
   thd->store_globals();

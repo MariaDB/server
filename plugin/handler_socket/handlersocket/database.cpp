@@ -278,7 +278,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
   DBG_THR(fprintf(stderr, "HNDSOCK init thread\n"));
   {
     my_thread_init();
-    thd = new THD;
+    thd = new THD(0);
     thd->thread_stack = (char *)stack_bottom;
     DBG_THR(fprintf(stderr,
       "thread_stack = %p sizeof(THD)=%zu sizeof(mtx)=%zu "
@@ -310,7 +310,6 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
   }
   {
     thd->thread_id = next_thread_id();
-    thread_safe_increment32(&thread_count);
     add_to_active_threads(thd);
   }
 
@@ -348,7 +347,6 @@ dbcontext::term_thread()
     pthread_mutex_lock(&LOCK_thread_count);
     delete thd;
     thd = 0;
-    --thread_count;
     pthread_mutex_unlock(&LOCK_thread_count);
     my_thread_end();
   }

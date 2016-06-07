@@ -1059,6 +1059,13 @@ size_t my_scan_8bit(CHARSET_INFO *cs, const char *str, const char *end, int sq)
         break;
     }
     return (size_t) (str - str0);
+  case MY_SEQ_NONSPACES:
+    for ( ; str < end ; str++)
+    {
+      if (my_isspace(cs, *str))
+        break;
+    }
+    return (size_t) (str - str0);
   default:
     return 0;
   }
@@ -1916,7 +1923,6 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
 MY_CHARSET_HANDLER my_charset_8bit_handler=
 {
     my_cset_init_8bit,
-    my_mbcharlen_8bit,		/* mbcharlen     */
     my_numchars_8bit,
     my_charpos_8bit,
     my_well_formed_len_8bit,

@@ -81,31 +81,67 @@ bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
   return false;
 }
 
-static int wsrep_start_position_verify (const char* start_str)
+
+/*
+  Verify the format of the given UUID:seqno.
+
+  @return
+    true                    Fail
+    false                   Pass
+*/
+static
+bool wsrep_start_position_verify (const char* start_str)
 {
   size_t        start_len;
   wsrep_uuid_t  uuid;
   ssize_t       uuid_len;
 
+  // Check whether it has minimum acceptable length.
   start_len = strlen (start_str);
   if (start_len < 34)
-    return 1;
+    return true;
 
+  /*
+    Parse the input to check whether UUID length is acceptable
+    and seqno has been provided.
+  */
   uuid_len = wsrep_uuid_scan (start_str, start_len, &uuid);
   if (uuid_len < 0 || (start_len - uuid_len) < 2)
-    return 1;
+    return true;
 
-  if (start_str[uuid_len] != ':') // separator should follow UUID
-    return 1;
+  // Separator must follow the UUID.
+  if (start_str[uuid_len] != ':')
+    return true;
 
   char* endptr;
   wsrep_seqno_t const seqno __attribute__((unused)) // to avoid GCC warnings
     (strtoll(&start_str[uuid_len + 1], &endptr, 10));
 
-  if (*endptr == '\0') return 0; // remaining string was seqno
+  // Remaining string was seqno.
+  if (*endptr == '\0') return false;
 
-  return 1;
+  return true;
 }
+
+
+static
+bool wsrep_set_local_position(const char* const value, size_t length,
+                              bool const sst)
+{
+  wsrep_uuid_t uuid;
+  size_t const uuid_len = wsrep_uuid_scan(value, length, &uuid);
+  wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
+
+  if (sst) {
+    return wsrep_sst_received (wsrep, uuid, seqno, NULL, 0, false);
+  } else {
+    // initialization
+    local_uuid = uuid;
+    local_seqno = seqno;
+  }
+  return false;
+}
+
 
 bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
 {
@@ -119,52 +155,52 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
          var->save_result.string_value.length);
   start_pos_buf[var->save_result.string_value.length]= 0;
 
-  if (!wsrep_start_position_verify(start_pos_buf)) return 0;
+  // Verify the format.
+  if (wsrep_start_position_verify(start_pos_buf)) return true;
+
+  /*
+    As part of further verification, we try to update the value and catch
+    errors (if any).
+  */
+  if (wsrep_set_local_position(var->save_result.string_value.str,
+                               var->save_result.string_value.length,
+                               true))
+  {
+    goto err;
+  }
+
+  return false;
 
 err:
   my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
            var->save_result.string_value.str ?
            var->save_result.string_value.str : "NULL");
-  return 1;
-}
-
-static
-void wsrep_set_local_position(const char* const value, bool const sst)
-{
-  size_t const value_len = strlen(value);
-  wsrep_uuid_t uuid;
-  size_t const uuid_len = wsrep_uuid_scan(value, value_len, &uuid);
-  wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
-
-  if (sst) {
-    wsrep_sst_received (wsrep, uuid, seqno, NULL, 0);
-  } else {
-    // initialization
-    local_uuid = uuid;
-    local_seqno = seqno;
-  }
+  return true;
 }
 
 bool wsrep_start_position_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  WSREP_INFO ("wsrep_start_position var submitted: '%s'",
-              wsrep_start_position);
-  // since this value passed wsrep_start_position_check, don't check anything
-  // here
-  wsrep_set_local_position (wsrep_start_position, true);
-  return 0;
+  // Print a confirmation that wsrep_start_position has been updated.
+  WSREP_INFO ("wsrep_start_position set to '%s'", wsrep_start_position);
+  return false;
 }
 
-void wsrep_start_position_init (const char* val)
+bool wsrep_start_position_init (const char* val)
 {
   if (NULL == val || wsrep_start_position_verify (val))
   {
     WSREP_ERROR("Bad initial value for wsrep_start_position: %s", 
                 (val ? val : ""));
-    return;
+    return true;
   }
 
-  wsrep_set_local_position (val, false);
+  if (wsrep_set_local_position (val, strlen(val), false))
+  {
+    WSREP_ERROR("Failed to set initial wsep_start_position: %s", val);
+    return true;
+  }
+
+  return false;
 }
 
 static bool refresh_provider_options()

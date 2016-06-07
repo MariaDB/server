@@ -79,7 +79,7 @@ SELECT 1 FROM (SELECT 1 as a) b WHERE 1 IN (SELECT (SELECT a));
 1
 1
 select (SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE(1));
-ERROR HY000: Incorrect usage of PROCEDURE and subquery
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(1))' at line 1
 SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE((SELECT 1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1))' at line 1
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NULL;
@@ -1056,7 +1056,7 @@ create table t1 (a float);
 select 10.5 IN (SELECT * from t1 LIMIT 1);
 ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOME subquery'
 select 10.5 IN (SELECT * from t1 LIMIT 1 UNION SELECT 1.5);
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1.5)' at line 1
 select 10.5 IN (SELECT * from t1 UNION SELECT 1.5 LIMIT 1);
 ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOME subquery'
 drop table t1;
@@ -5188,9 +5188,9 @@ a	1
 SELECT * FROM t1 JOIN ((SELECT 1 UNION SELECT 1)) ON 1;
 ERROR 42000: Every derived table must have its own alias
 SELECT * FROM t1 JOIN  (t1 t1a UNION SELECT 1)  ON 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')  ON 1' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)  ON 1' at line 1
 SELECT * FROM t1 JOIN ((t1 t1a UNION SELECT 1)) ON 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')) ON 1' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)) ON 1' at line 1
 SELECT * FROM t1 JOIN  (t1 t1a)  t1a ON 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't1a ON 1' at line 1
 SELECT * FROM t1 JOIN ((t1 t1a)) t1a ON 1;

@@ -324,6 +324,7 @@ public:
   /* ... from INFORMATION_SCHEMA.PROFILING ... */
   int fill_statistics_info(THD *thd, TABLE_LIST *tables, Item *cond);
   void reset();
+  void restart();
 };
 
 #  endif /* ENABLED_PROFILING */

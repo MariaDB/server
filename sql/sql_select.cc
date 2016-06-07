@@ -988,6 +988,12 @@ JOIN::prepare(TABLE_LIST *tables_init,
     }
     if (thd->lex->derived_tables)
     {
+      /*
+        Queries with derived tables and PROCEDURE are not allowed.
+        Many of such queries are disallowed grammatically, but there
+        are still some complex cases:
+          SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE()
+      */
       my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", 
                thd->lex->derived_tables & DERIVED_VIEW ?
                "view" : "subquery"); 
@@ -995,6 +1001,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
     }
     if (thd->lex->sql_command != SQLCOM_SELECT)
     {
+      // EXPLAIN SELECT * FROM t1 PROCEDURE ANALYSE()
       my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "non-SELECT");
       goto err;
     }
@@ -24534,7 +24541,8 @@ static void print_table_array(THD *thd,
       continue;
     }
 
-    if (curr->outer_join)
+    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
     {
       /* MySQL converts right to left joins */
       str->append(STRING_WITH_LEN(" left join "));

@@ -1906,6 +1906,20 @@ private:
   inline bool is_conventional() const
   { DBUG_ASSERT(0); return Statement::is_conventional(); }
 
+  void dec_thread_count(void)
+  {
+    DBUG_ASSERT(thread_count > 0);
+    thread_safe_decrement32(const_cast<int32*>(&thread_count));
+    signal_thd_deleted();
+  }
+
+
+  void inc_thread_count(void)
+  {
+    thread_safe_increment32(const_cast<int32*>(&thread_count));
+    DBUG_ASSERT(!abort_loop);
+  }
+
 public:
   MDL_context mdl_context;
 
@@ -2652,7 +2666,7 @@ public:
   ulong      query_plan_flags; 
   ulong      query_plan_fsort_passes; 
   pthread_t  real_id;                           /* For debugging */
-  my_thread_id  thread_id;
+  my_thread_id  thread_id, thread_dbug_id;
   uint32      os_thread_id;
   uint	     tmp_table, global_disable_checkpoint;
   uint	     server_status,open_options;
@@ -2764,7 +2778,7 @@ public:
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
-  bool       bootstrap, cleanup_done;
+  bool       bootstrap, cleanup_done, free_connection_done;
 
   /**  is set if some thread specific value(s) used in a statement. */
   bool       thread_specific_used;
@@ -2906,7 +2920,7 @@ public:
   /* Debug Sync facility. See debug_sync.cc. */
   struct st_debug_sync_control *debug_sync_control;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  THD(bool is_wsrep_applier= false);
+  THD(my_thread_id id, bool is_wsrep_applier= false);
 
   ~THD();
 
@@ -2926,6 +2940,8 @@ public:
   void change_user(void);
   void cleanup(void);
   void cleanup_after_query();
+  void free_connection();
+  void reset_for_reuse();
   bool store_globals();
   void reset_globals();
 #ifdef SIGNAL_WITH_VIO_CLOSE
@@ -2933,7 +2949,6 @@ public:
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = vio;
-    vio_set_thread_id(vio, pthread_self());
     mysql_mutex_unlock(&LOCK_thd_data);
   }
   inline void clear_active_vio()
@@ -4083,12 +4098,12 @@ inline void add_to_active_threads(THD *thd)
 /*
   This should be called when you want to delete a thd that was not
   running any queries.
-  This function will assert if the THD was not linked.
+  This function will assert that the THD is linked.
 */
 
 inline void unlink_not_visible_thd(THD *thd)
 {
-  thd->assert_if_linked();
+  thd->assert_linked();
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);

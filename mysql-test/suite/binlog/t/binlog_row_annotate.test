@@ -25,6 +25,7 @@
 --disable_query_log
 
 set sql_mode="";
+set global binlog_checksum=NONE;
 
 # Fix timestamp to avoid varying results
 SET timestamp=1000000000;
@@ -182,6 +183,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 # Clean-up
 
 --disable_query_log
+set global binlog_checksum=default;
 DROP DATABASE test1;
 DROP DATABASE test2;
 DROP DATABASE test3;

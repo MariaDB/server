@@ -186,6 +186,7 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 
 #define MY_SEQ_INTTAIL	1
 #define MY_SEQ_SPACES	2
+#define MY_SEQ_NONSPACES 3 /* Skip non-space characters, including bad bytes */
 
         /* My charsets_list flags */
 #define MY_CS_COMPILED  1      /* compiled-in sets               */
@@ -403,7 +404,6 @@ struct my_charset_handler_st
 {
   my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *loader);
   /* Multibyte routines */
-  uint    (*mbcharlen)(CHARSET_INFO *, uint c);
   size_t  (*numchars)(CHARSET_INFO *, const char *b, const char *e);
   size_t  (*charpos)(CHARSET_INFO *, const char *b, const char *e,
                      size_t pos);
@@ -779,7 +779,6 @@ size_t my_well_formed_char_length_8bit(CHARSET_INFO *cs,
                                        size_t nchars,
                                        MY_STRCOPY_STATUS *status);
 int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
-uint my_mbcharlen_8bit(CHARSET_INFO *, uint c);
 
 
 /* Functions for multibyte charsets */
@@ -1010,11 +1009,19 @@ int my_charlen(CHARSET_INFO *cs, const char *str, const char *end)
   return (cs->cset->charlen)(cs, (const uchar *) str,
                                  (const uchar *) end);
 }
-#ifdef USE_MB
-#define my_mbcharlen(s, a)            ((s)->cset->mbcharlen((s),(a)))
-#else
-#define my_mbcharlen(s, a)            1
-#endif
+
+
+/**
+  Convert broken and incomplete byte sequences to 1 byte.
+*/
+static inline
+uint my_charlen_fix(CHARSET_INFO *cs, const char *str, const char *end)
+{
+  int char_length= my_charlen(cs, str, end);
+  DBUG_ASSERT(str < end);
+  return char_length > 0 ? (uint) char_length : (uint) 1U;
+}
+
 
 #define my_caseup_str(s, a)           ((s)->cset->caseup_str((s), (a)))
 #define my_casedn_str(s, a)           ((s)->cset->casedn_str((s), (a)))

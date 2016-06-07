@@ -793,23 +793,6 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
 
 
 /**
-  Auxiliary function to close all tables in the open_tables list.
-
-  @param thd Thread context.
-
-  @remark It should not ordinarily be called directly.
-*/
-
-static void close_open_tables(THD *thd)
-{
-  DBUG_PRINT("info", ("thd->open_tables: 0x%lx", (long) thd->open_tables));
-
-  while (thd->open_tables)
-    (void) close_thread_table(thd, &thd->open_tables);
-}
-
-
-/**
   Close all open instances of the table but keep the MDL lock.
 
   Works both under LOCK TABLES and in the normal mode.
@@ -1028,8 +1011,8 @@ void close_thread_tables(THD *thd)
     Closing a MERGE child before the parent would be fatal if the
     other thread tries to abort the MERGE lock in between.
   */
-  if (thd->open_tables)
-    close_open_tables(thd);
+  while (thd->open_tables)
+    (void) close_thread_table(thd, &thd->open_tables);
 
   DBUG_VOID_RETURN;
 }
@@ -9055,7 +9038,7 @@ my_bool mysql_rm_tmp_tables(void)
   THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
-  if (!(thd= new THD))
+  if (!(thd= new THD(0)))
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
