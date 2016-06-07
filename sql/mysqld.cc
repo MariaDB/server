@@ -9205,7 +9205,7 @@ static int mysql_init_variables(void)
   strmake_buf(mysql_home, tmpenv);
 #endif
 #ifdef WITH_WSREP
-  if (WSREP_ON && wsrep_init_vars())
+  if (wsrep_init_vars())
     return 1;
 #endif
   return 0;
