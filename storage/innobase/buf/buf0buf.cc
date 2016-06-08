@@ -5192,7 +5192,7 @@ buf_page_init(
 
 	ut_ad(buf_pool == buf_pool_get(page_id));
 
-	ut_ad(!mutex_own(buf_page_get_mutex(&block->page)));
+	ut_ad(mutex_own(buf_page_get_mutex(&block->page)));
 	ut_a(buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE);
 
 	ut_ad(rw_lock_own(buf_page_hash_lock_get(buf_pool, page_id),
@@ -5372,9 +5372,9 @@ buf_page_init_for_read(
 
 		ut_ad(buf_pool_from_bpage(bpage) == buf_pool);
 
-		buf_page_init(buf_pool, page_id, page_size, block);
-
 		buf_page_mutex_enter(block);
+
+		buf_page_init(buf_pool, page_id, page_size, block);
 
 		/* Note: We are using the hash_lock for protection. This is
 		safe because no other thread can lookup the block from the
@@ -5548,9 +5548,9 @@ buf_page_create(
 
 	block = free_block;
 
-	buf_page_init(buf_pool, page_id, page_size, block);
-
 	buf_page_mutex_enter(block);
+
+	buf_page_init(buf_pool, page_id, page_size, block);
 
 	rw_lock_x_unlock(hash_lock);
 
