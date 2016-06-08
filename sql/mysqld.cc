@@ -5288,8 +5288,15 @@ static int init_server_components()
   tc_log= get_tc_log_implementation();
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && tc_log == &tc_log_mmap)
-    tc_log= &tc_log_dummy;
+  if (tc_log == &tc_log_mmap)
+  {
+    /*
+      wsrep hton raises total_ha_2pc count to 2, even in native mysql mode.
+      Have to force using tc_log_dummy here, as tc_log_mmap segfaults.
+    */
+    if (WSREP_ON || total_ha_2pc <= 2)
+      tc_log=  &tc_log_dummy;
+  }
 
   WSREP_DEBUG("Initial TC log open: %s",
               (tc_log == &mysql_bin_log) ? "binlog" :
