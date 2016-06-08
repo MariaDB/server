@@ -642,7 +642,7 @@ AC_SUBST([AM_CFLAGS])
 # Set additional flags for static/dynamic linking. The idea is that every
 # program (not library) being built will use either STATIC_{CPPFLAGS,LDFLAGS}
 # or DYNAMIC_{CPPFLAGS,LDFLAGS} depending on which type of linkage is
-# preferred. These preferences get overriden by use of --disable-static,
+# preferred. These preferences get overridden by use of --disable-static,
 # --disable-shared, or --enable-dynamic.
 #
 # This is quite messy, because we want to use LZMA_API_STATIC when linking

@@ -8017,7 +8017,7 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         return;
       str_to_hex(hex_str, val, val_len);
       /*
-        For proper behaviour when mysqlbinlog|mysql, we need to explicitely
+        For proper behaviour when mysqlbinlog|mysql, we need to explicitly
         specify the variable's collation. It will however cause problems when
         people want to mysqlbinlog|mysql into another server not supporting the
         character set. But there's not much to do about this and it's unlikely.

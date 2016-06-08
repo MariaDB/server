@@ -144,7 +144,7 @@ enum {
 //     field type         4 see field types above
 //     unused             4 unused
 //     field null num     4 bit 31 is 1 if the field is nullible and the remaining bits contain the null bit number
-//     field offset       4 for fixed fields, this is the offset from begining of the row of the field
+//     field offset       4 for fixed fields, this is the offset from beginning of the row of the field
 //     value:
 //         value length   4 == N, length of the value
 //         value          N value to add or subtract

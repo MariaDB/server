@@ -175,7 +175,7 @@ typedef struct st_maria_state_info
   uint changed;                         /* Changed since maria_chk */
   /**
      Birthday of the table: no record in the log before this LSN should ever
-     be applied to the table. Updated when created, renamed, explicitely
+     be applied to the table. Updated when created, renamed, explicitly
      repaired (REPAIR|OPTIMIZE TABLE, ALTER TABLE ENABLE KEYS, maria_chk).
   */
   LSN create_rename_lsn;

@@ -35,7 +35,7 @@ insert into t1 values (@i1), (@i2), (@i3), (@i4);
 insert into t1 values (@r1), (@r2);
 insert into t1 values (@s1), (@s2), (@s3), (@s4), (@s5);
 insert into t1 values (@n1);
-insert into t1 values (@n2); # not explicitely set before
+insert into t1 values (@n2); # not explicitly set before
 insert into t1 values (@a:=0), (@a:=@a+1), (@a:=@a+1);
 insert into t1 values (@a+(@b:=@a+1));
 set @q:='abc';

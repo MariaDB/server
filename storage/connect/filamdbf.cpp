@@ -655,7 +655,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     } // endif Headlen
 
   /**************************************************************************/
-  /*  Position the file at the begining of the data.                        */
+  /*  Position the file at the beginning of the data.                        */
   /**************************************************************************/
   if (Tdbp->GetMode() == MODE_INSERT)
     rc = fseek(Stream, 0, SEEK_END);
@@ -969,7 +969,7 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
     } // endif Headlen
 
   /**************************************************************************/
-  /*  Position the file at the begining of the data.                        */
+  /*  Position the file at the beginning of the data.                        */
   /**************************************************************************/
   Fpos = Mempos = Memory + Headlen;
   Top--;                               // Because of EOF marker

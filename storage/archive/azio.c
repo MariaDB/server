@@ -220,7 +220,7 @@ int write_header(azio_stream *s)
             AZHEADER_SIZE + AZMETA_BUFFER_SIZE); /* FRM position */
   *(ptr + AZ_DIRTY_POS)= (unsigned char)s->dirty; /* Start of Data Block Index Block */
 
-  /* Always begin at the begining, and end there as well */
+  /* Always begin at the beginning, and end there as well */
   return my_pwrite(s->file, (uchar*) buffer, AZHEADER_SIZE + AZMETA_BUFFER_SIZE,
                    0, MYF(MY_NABP)) ? 1 : 0;
 }

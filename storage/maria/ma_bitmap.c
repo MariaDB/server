@@ -105,7 +105,7 @@
   - On checkpoint
   (Ie: When we do a checkpoint, we have to ensure that all bitmaps are
   put on disk even if they are not in the page cache).
-  - When explicitely requested (for example on backup or after recovery,
+  - When explicitly requested (for example on backup or after recovery,
   to simplify things)
 
  The flow of writing a row is that:

@@ -4372,7 +4372,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 
   /*
    * Need to update the log pos because purge logs has been called 
-   * after fetching initially the log pos at the begining of the method.
+   * after fetching initially the log pos at the beginning of the method.
    */
   if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
   {

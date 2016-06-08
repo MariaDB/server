@@ -41,7 +41,7 @@ Speciella användbara nya string-rutiner:
   backwards from pos from.  pat is not a regex(3) pattern, it is a literal
   string which must be matched exactly.
   The result 0 if the pattern was not found else it is the start char of
-  the pattern counted from the begining of the string.
+  the pattern counted from the beginning of the string.
 
   strappend(dest, len, fill) appends fill-characters to a string so that
   the result length == len. If the string is longer than len it's

@@ -13914,7 +13914,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max()
     SELECT [SUM|COUNT|AVG](DISTINCT a,...) FROM t
   This method comes to replace the index scan + Unique class 
   (distinct selection) for loose index scan that visits all the rows of a 
-  covering index instead of jumping in the begining of each group.
+  covering index instead of jumping in the beginning of each group.
   TODO: Placeholder function. To be replaced by a handler API call
 
   @param is_index_scan     hint to use index scan instead of random index read 

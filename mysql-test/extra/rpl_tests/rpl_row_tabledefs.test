@@ -73,7 +73,7 @@ ALTER TABLE t8 ADD e1 INT NOT NULL DEFAULT 0, ADD e2 INT NOT NULL DEFAULT 0,
 # the following INSERTs to pass the mode is switched temprorarily
 set @@global.slave_exec_mode= 'IDEMPOTENT';
 
-# so the inserts are going to be overriden
+# so the inserts are going to be overridden
 INSERT INTO t1_int  VALUES (2, 4, 4711);
 INSERT INTO t1_char VALUES (2, 4, 'Foo is a bar');
 INSERT INTO t1_bit  VALUES (2, 4, b'101', b'11100', b'01');
