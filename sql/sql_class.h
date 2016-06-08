@@ -1917,7 +1917,6 @@ private:
   void inc_thread_count(void)
   {
     thread_safe_increment32(const_cast<int32*>(&thread_count));
-    DBUG_ASSERT(!abort_loop);
   }
 
 public:
