@@ -1413,9 +1413,12 @@ bool mark_unsupported_function(const char *where, uchar *store, uint result)
 {
   Item::vcol_func_processor_result *res=
     (Item::vcol_func_processor_result*) store;
+  uint old_errors= res->errors;
   mark_unsupported_func(where, "check_vcol_func_processor");
   res->errors|= result;  /* Store type of expression */
-  res->name= where ? where : "";
+  /* Store the name to the highest violation (normally VCOL_IMPOSSIBLE) */
+  if (res->errors > old_errors)
+    res->name= where ? where : "";
   return false;
 }
 
