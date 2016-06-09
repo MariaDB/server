@@ -484,8 +484,7 @@ int wsrep_init()
       WSREP_ERROR("wsrep_load(%s) failed: %s (%d). Reverting to no provider.",
                   wsrep_provider, strerror(rcode), rcode);
       strcpy((char*)wsrep_provider, WSREP_NONE); // damn it's a dirty hack
-      (void) wsrep_init();
-      return rcode;
+      return wsrep_init();
     }
     else /* this is for recursive call above */
     {
@@ -670,6 +669,9 @@ void wsrep_init_startup (bool first)
 
   wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
                       wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
+
+  /* Skip replication start if dummy wsrep provider is loaded */
+  if (!strcmp(wsrep_provider, WSREP_NONE)) return;
 
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address || strlen(wsrep_cluster_address) == 0) return;
