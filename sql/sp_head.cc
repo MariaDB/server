@@ -3883,6 +3883,7 @@ sp_instr_cclose::print(String *str)
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
+  printf("EXECUTION ENTERS HERE");
   sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
   Query_arena backup_arena;
