@@ -3226,15 +3226,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   /* 
     scan the the whole alter list  
     and add one field if length of blob is zero 
+    TODO change to work for all too-long unique keys like varchar,text
   */
     
   List_iterator<Key> key_iter(alter_info->key_list);
   Key *key_iter_key;
   Key_part_spec *temp_colms;
   char num = '1';
-  bool is_blob_unique=false;
+  bool is_long_unique=false;
   int key_initial_elements=alter_info->key_list.elements;
-  while((key_iter_key=key_iter++)&&key_initial_elements){
+  while((key_iter_key=key_iter++)&&key_initial_elements)
+  {
     key_initial_elements--;
     List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
     while((temp_colms=key_part_iter++)){
@@ -3244,10 +3246,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            sql_field->field_name)){}
 
       if(sql_field->sql_type==MYSQL_TYPE_BLOB){
-        is_blob_unique=true;
+        is_long_unique=true;
       }
+
     }
-    if(is_blob_unique){
+    if(is_long_unique){
       /* make a virtual field */
       key_part_iter.rewind();
       Create_field *cf = new (thd->mem_root) Create_field();
@@ -3295,6 +3298,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                                                     strlen(name), 0),thd->mem_root);
 
     }
+    is_long_unique=false;
   }
   it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;

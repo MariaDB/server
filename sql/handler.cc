@@ -5870,26 +5870,16 @@ int handler::ha_reset()
 */
 bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
 {
-  Item * t_item;
-  t_item=hash_field->vcol_info->expr_item->next;
-  int diff = tbl->record[1]-tbl->record[0];
+  Item_args * t_item=(Item_args *)hash_field->vcol_info->expr_item;
+  int arg_count = t_item->argument_count();
+  Item ** arguments=t_item->arguments();
+  int diff = tbl->s->rec_buff_length;
   Field * t_field;
   int first_length,second_length;
-  while(t_item)
-  {
-    for(int i=0;i<tbl->s->fields;i++)
-    {
-      t_field=tbl->field[i];
-      if(!my_strcasecmp(system_charset_info,
-           t_item->name,t_field->field_name))
-        break;
-    }
-    /* First check for nulls */
-    if(t_field->is_real_null()||t_field->is_real_null(diff))
-    {
-      return false; 
-    }
 
+  for(int i=0;i<arg_count;i++)
+  {
+    t_field = ((Item_field *)arguments[i])->field;
     /*
        length of field is not equal to pack length when it is
        subclass of field_blob and field _varsting
@@ -5900,7 +5890,6 @@ bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
       return false;
     if(t_field->cmp_max(t_field->ptr,t_field->ptr+diff,first_length))
       return false;
-    t_item=t_item->next;
   }
   return true;
 }
@@ -5921,15 +5910,20 @@ int handler::ha_write_row(uchar *buf)
   {
     if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
     {
-      table->file->ha_index_init(0,0);
+
       /* We need to add the null bit */
       /* If the column can be NULL, then in the first byte we put 1 if the
 	   field value is NULL, 0 otherwise. */
-      uchar * ptr = (uchar *)my_malloc(sizeof(char ) *1+8, MYF(MY_WME));
-      *ptr=0;
-      ptr++;
-      memcpy(ptr,(*field_iter)->ptr,8);
-      ptr--;
+			uchar  ptr[9];
+			if((*field_iter)->is_null())
+			{
+				goto write_row;
+			}
+			ptr[0]=0;
+		 // ptr++;
+			memcpy(ptr+1,(*field_iter)->ptr,8);
+		 // ptr--;
+			table->file->ha_index_init(i,0);
       map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!map)
       {
@@ -5944,6 +5938,7 @@ int handler::ha_write_row(uchar *buf)
     }
     field_iter++;
   }
+  write_row:
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
