@@ -1489,3 +1489,27 @@ CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a NOT BETWEEN 'aaa' AND 'bbb');
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # Numeric result functions with string input
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT STRCMP(a,'b'));
+INSERT INTO t1 (a) VALUES ('A'),('a'),('B'),('b'),('C'),('c');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT LENGTH(a), c INT DEFAULT CHAR_LENGTH(a), d INT DEFAULT BIT_LENGTH(a));
+INSERT INTO t1 (a) VALUES ('a'),('aa'),('aaa');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT LOCATE('a',a));
+INSERT INTO t1 (a) VALUES ('xa'),('xxa'),('xxxa');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT REGEXP_INSTR(a, 'a'));
+INSERT INTO t1 (a) VALUES ('xa'),('xxa'),('xxxa');
+SELECT * FROM t1;
+DROP TABLE t1;

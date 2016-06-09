@@ -1898,3 +1898,41 @@ aaa	0
 bbb	0
 ccc	1
 DROP TABLE t1;
+#
+# Numeric result functions with string input
+#
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT STRCMP(a,'b'));
+INSERT INTO t1 (a) VALUES ('A'),('a'),('B'),('b'),('C'),('c');
+SELECT * FROM t1;
+a	b
+A	-1
+a	-1
+B	0
+b	0
+C	1
+c	1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT LENGTH(a), c INT DEFAULT CHAR_LENGTH(a), d INT DEFAULT BIT_LENGTH(a));
+INSERT INTO t1 (a) VALUES ('a'),('aa'),('aaa');
+SELECT * FROM t1;
+a	b	c	d
+a	1	1	8
+aa	2	2	16
+aaa	3	3	24
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT LOCATE('a',a));
+INSERT INTO t1 (a) VALUES ('xa'),('xxa'),('xxxa');
+SELECT * FROM t1;
+a	b
+xa	2
+xxa	3
+xxxa	4
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT REGEXP_INSTR(a, 'a'));
+INSERT INTO t1 (a) VALUES ('xa'),('xxa'),('xxxa');
+SELECT * FROM t1;
+a	b
+xa	2
+xxa	3
+xxxa	4
+DROP TABLE t1;
