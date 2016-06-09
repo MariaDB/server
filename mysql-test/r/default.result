@@ -1781,3 +1781,120 @@ SELECT * FROM t1;
 a	b
 64	40
 DROP TABLE t1;
+#
+# Predicates
+#
+CREATE TABLE t1 (a INT, b INT DEFAULT NOT a);
+INSERT INTO t1 (a) VALUES (NULL),(0),(1);
+SELECT * FROM t1;
+a	b
+NULL	NULL
+0	1
+1	0
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, x INT DEFAULT a XOR b);
+INSERT INTO t1 (a,b) VALUES (0,0),(0,1),(1,0),(1,1);
+SELECT * FROM t1;
+a	b	x
+0	0	0
+0	1	1
+1	0	1
+1	1	0
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT DEFAULT a IS TRUE, c INT DEFAULT a IS NOT TRUE);
+INSERT INTO t1 (a) VALUES (NULL),(0),(1);
+SELECT * FROM t1;
+a	b	c
+NULL	0	1
+0	0	1
+1	1	0
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT DEFAULT a IS FALSE, c INT DEFAULT a IS NOT FALSE);
+INSERT INTO t1 (a) VALUES (NULL),(0),(1);
+SELECT * FROM t1;
+a	b	c
+NULL	0	1
+0	1	0
+1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT DEFAULT a IS NULL, c INT DEFAULT a IS NOT NULL);
+INSERT INTO t1 (a) VALUES (NULL),(0),(1);
+SELECT * FROM t1;
+a	b	c
+NULL	1	0
+0	0	1
+1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT DEFAULT a IS UNKNOWN, c INT DEFAULT a IS NOT UNKNOWN);
+INSERT INTO t1 (a) VALUES (NULL),(0),(1);
+SELECT * FROM t1;
+a	b	c
+NULL	1	0
+0	0	1
+1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,
+eq INT DEFAULT a=0, equal INT DEFAULT a<=>0,
+ne INT DEFAULT a<>0,
+lt INT DEFAULT a<0, le INT DEFAULT a<=0,
+gt INT DEFAULT a>0, ge INT DEFAULT a>=0);
+INSERT INTO t1 (a) VALUES (NULL),(-1),(0),(1);
+SELECT * FROM t1;
+a	eq	equal	ne	lt	le	gt	ge
+NULL	NULL	0	NULL	NULL	NULL	NULL	NULL
+-1	0	0	1	1	1	0	0
+0	1	1	0	0	1	0	1
+1	0	0	1	0	0	1	1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a LIKE 'a%');
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
+SELECT * FROM t1;
+a	b
+AAA	1
+aaa	1
+bbb	0
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a RLIKE 'a$');
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
+SELECT * FROM t1;
+a	b
+AAA	1
+aaa	1
+bbb	0
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a IN ('aaa','bbb'));
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
+SELECT * FROM t1;
+a	b
+AAA	1
+aaa	1
+bbb	1
+ccc	0
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a NOT IN ('aaa','bbb'));
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
+SELECT * FROM t1;
+a	b
+AAA	0
+aaa	0
+bbb	0
+ccc	1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a BETWEEN 'aaa' AND 'bbb');
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
+SELECT * FROM t1;
+a	b
+AAA	1
+aaa	1
+bbb	1
+ccc	0
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a NOT BETWEEN 'aaa' AND 'bbb');
+INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
+SELECT * FROM t1;
+a	b
+AAA	0
+aaa	0
+bbb	0
+ccc	1
+DROP TABLE t1;
