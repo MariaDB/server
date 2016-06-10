@@ -208,3 +208,22 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (
+a VARCHAR(30),
+b BLOB DEFAULT DES_ENCRYPT(a, 'passwd'),
+c TEXT DEFAULT DES_DECRYPT(b, 'passwd')
+);
+INSERT INTO t1 (a) VALUES ('test');
+SELECT c FROM t1;
+c
+test
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

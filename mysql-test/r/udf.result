@@ -446,7 +446,7 @@ DROP TABLE t1;
 #
 End of 5.1 tests.
 #
-# MDEV-10134 Add full support for DEFAULT 
+# MDEV-10134 Add full support for DEFAULT
 #
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 SELECT METAPHON('Hello');
