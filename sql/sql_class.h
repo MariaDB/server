@@ -1264,6 +1264,61 @@ enum enum_locked_tables_mode
   LTM_PRELOCKED_UNDER_LOCK_TABLES
 };
 
+/**
+  The following structure is an extension to TABLE_SHARE and is
+  exclusively for temporary tables.
+
+  @note:
+  Although, TDC_element has data members (like next, prev &
+  all_tables) to store the list of TABLE_SHARE & TABLE objects
+  related to a particular TABLE_SHARE, they cannot be moved to
+  TABLE_SHARE in order to be reused for temporary tables. This
+  is because, as concurrent threads iterating through hash of
+  TDC_element's may need access to all_tables, but if all_tables
+  is made part of TABLE_SHARE, then TDC_element->share->all_tables
+  is not always guaranteed to be valid, as TDC_element can live
+  longer than TABLE_SHARE.
+*/
+struct TMP_TABLE_SHARE : public TABLE_SHARE
+{
+private:
+  /*
+   Link to all temporary table shares. Declared as private to
+   avoid direct manipulation with those objects. One should
+   use methods of I_P_List template instead.
+  */
+  TMP_TABLE_SHARE *tmp_next;
+  TMP_TABLE_SHARE **tmp_prev;
+
+  friend struct All_tmp_table_shares;
+
+public:
+  /*
+    Doubly-linked (back-linked) lists of used and unused TABLE objects
+    for this share.
+  */
+  All_share_tables_list all_tmp_tables;
+};
+
+/**
+  Helper class which specifies which members of TMP_TABLE_SHARE are
+  used for participation in the list of temporary tables.
+*/
+
+struct All_tmp_table_shares
+{
+  static inline TMP_TABLE_SHARE **next_ptr(TMP_TABLE_SHARE *l)
+  {
+    return &l->tmp_next;
+  }
+  static inline TMP_TABLE_SHARE ***prev_ptr(TMP_TABLE_SHARE *l)
+  {
+    return &l->tmp_prev;
+  }
+};
+
+/* Also used in rpl_rli.h. */
+typedef I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares> All_tmp_tables_list;
 
 /**
   Class that holds information about tables which were opened and locked
@@ -1293,15 +1348,20 @@ public:
     base tables that were opened with @see open_tables().
   */
   TABLE *open_tables;
+
   /**
-    List of temporary tables used by this thread. Contains user-level
-    temporary tables, created with CREATE TEMPORARY TABLE, and
-    internal temporary tables, created, e.g., to resolve a SELECT,
+    A list of temporary tables used by this thread. This includes
+    user-level temporary tables, created with CREATE TEMPORARY TABLE,
+    and internal temporary tables, created, e.g., to resolve a SELECT,
     or for an intermediate table used in ALTER.
-    XXX Why are internal temporary tables added to this list?
   */
-  TABLE *temporary_tables;
+  All_tmp_tables_list *temporary_tables;
+
+  /*
+    Derived tables.
+  */
   TABLE *derived_tables;
+
   /*
     During a MySQL session, one can lock tables in two modes: automatic
     or manual. In automatic mode all necessary tables are locked just before
@@ -1379,8 +1439,11 @@ public:
 
   void reset_open_tables_state(THD *thd)
   {
-    open_tables= temporary_tables= derived_tables= 0;
-    extra_lock= lock= 0;
+    open_tables= 0;
+    temporary_tables= 0;
+    derived_tables= 0;
+    extra_lock= 0;
+    lock= 0;
     locked_tables_mode= LTM_NONE;
     state_flags= 0U;
     m_reprepare_observer= NULL;
@@ -3544,13 +3607,13 @@ public:
     */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
-                YESNO(temporary_tables), YESNO(in_sub_stmt),
+                YESNO(has_thd_temporary_tables()), YESNO(in_sub_stmt),
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
       if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (temporary_tables == NULL)
+      else if (!has_thd_temporary_tables())
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
@@ -3950,10 +4013,6 @@ private:
   LEX_STRING invoker_user;
   LEX_STRING invoker_host;
 
-  /* Protect against add/delete of temporary tables in parallel replication */
-  void rgi_lock_temporary_tables();
-  void rgi_unlock_temporary_tables();
-  bool rgi_have_temporary_tables();
 public:
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
@@ -3971,26 +4030,85 @@ public:
   */
   rpl_gtid last_commit_gtid;
 
-  inline void lock_temporary_tables()
-  {
-    if (rgi_slave)
-      rgi_lock_temporary_tables();
-  }
-  inline void unlock_temporary_tables()
-  {
-    if (rgi_slave)
-      rgi_unlock_temporary_tables();
-  }    
-  inline bool have_temporary_tables()
-  {
-    return (temporary_tables ||
-            (rgi_slave && rgi_have_temporary_tables()));
-  }
-
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
   bool fix_xid_hash_pins();
 
+/* Members related to temporary tables. */
+public:
+  bool has_thd_temporary_tables();
+
+  TABLE *create_and_open_tmp_table(handlerton *hton,
+                                   LEX_CUSTRING *frm,
+                                   const char *path,
+                                   const char *db,
+                                   const char *table_name,
+                                   bool open_in_engine);
+
+  TABLE *find_temporary_table(const char *db, const char *table_name);
+  TABLE *find_temporary_table(const TABLE_LIST *tl);
+
+  TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
+                                                   uint key_length);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *db,
+                                        const char *table_name);
+  TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, uint key_length);
+
+  bool open_temporary_table(TABLE_LIST *tl);
+  bool open_temporary_tables(TABLE_LIST *tl);
+
+  bool close_temporary_tables();
+  bool rename_temporary_table(TABLE *table, const char *db,
+                              const char *table_name);
+  bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
+  bool rm_temporary_table(handlerton *hton, const char *path);
+  void mark_tmp_tables_as_free_for_reuse();
+  void mark_tmp_table_as_free_for_reuse(TABLE *table);
+
+private:
+  /* Whether a lock has been acquired? */
+  bool m_tmp_tables_locked;
+
+  /* Opened table states. */
+  enum Temporary_table_state {
+    TMP_TABLE_IN_USE,
+    TMP_TABLE_NOT_IN_USE,
+    TMP_TABLE_ANY
+  };
+
+  bool has_temporary_tables();
+  uint create_tmp_table_def_key(char *key, const char *db,
+                                const char *table_name);
+  TMP_TABLE_SHARE *create_temporary_table(handlerton *hton, LEX_CUSTRING *frm,
+                                          const char *path, const char *db,
+                                          const char *table_name);
+  TABLE *find_temporary_table(const char *key, uint key_length,
+                              Temporary_table_state state);
+  TABLE *open_temporary_table(TMP_TABLE_SHARE *share, const char *alias,
+                              bool open_in_engine);
+  bool find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table);
+  bool use_temporary_table(TABLE *table, TABLE **out_table);
+  void close_temporary_table(TABLE *table);
+  bool log_events_and_free_tmp_shares();
+  void free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table);
+  void free_temporary_table(TABLE *table);
+  bool lock_temporary_tables();
+  void unlock_temporary_tables();
+
+  inline uint tmpkeyval(TMP_TABLE_SHARE *share)
+  {
+    return uint4korr(share->table_cache_key.str +
+                     share->table_cache_key.length - 4);
+  }
+
+  inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
+  {
+    DBUG_ASSERT(table->s->tmp_table);
+    return static_cast<TMP_TABLE_SHARE *>(table->s);
+  }
+
+public:
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_FORMAT(variables.binlog_format);

@@ -54,7 +54,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (open_temporary_tables(thd, table_list) ||
+  result_code= (thd->open_temporary_tables(table_list) ||
                 mysql_recreate_table(thd, table_list, false));
   reenable_binlog(thd);
   /*
@@ -445,7 +445,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
         da->push_warning_info(&tmp_wi);
 
-        open_error= (open_temporary_tables(thd, table) ||
+        open_error= (thd->open_temporary_tables(table) ||
                      open_and_lock_tables(thd, table, TRUE, 0));
 
         da->pop_warning_info();
@@ -460,7 +460,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           mode. It does make sense for the user to see such errors.
         */
 
-        open_error= (open_temporary_tables(thd, table) ||
+        open_error= (thd->open_temporary_tables(table) ||
                      open_and_lock_tables(thd, table, TRUE, 0));
       }
       thd->prepare_derived_at_open= FALSE;
@@ -952,7 +952,7 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
-        if (!open_temporary_tables(thd, table) &&
+        if (!thd->open_temporary_tables(table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
           uint save_flags;

@@ -24,7 +24,7 @@
 #include "sql_parse.h"                          // parse_sql
 #include "parse_file.h"
 #include "sp.h"
-#include "sql_base.h"                          // find_temporary_table
+#include "sql_base.h"
 #include "sql_show.h"                // append_definer, append_identifier
 #include "sql_table.h"                        // build_table_filename,
                                               // check_n_cut_mysql50_prefix
@@ -507,7 +507,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   DBUG_ASSERT(tables->next_global == 0);
 
   /* We do not allow creation of triggers on temporary tables. */
-  if (create && find_temporary_table(thd, tables))
+  if (create && thd->find_tmp_table_share(tables))
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), tables->alias);
     goto end;

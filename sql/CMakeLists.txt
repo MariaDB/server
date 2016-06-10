@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2015, MariaDB
+# Copyright (c) 2010, 2016, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -141,7 +141,7 @@ SET (SQL_SOURCE
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc sql_cte.h
 	       ${WSREP_SOURCES}
-               table_cache.cc encryption.cc
+               table_cache.cc encryption.cc temporary_tables.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${GEN_DIGEST_SOURCES}

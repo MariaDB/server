@@ -632,7 +632,18 @@ handler a1 read a next;
 a	b
 3	d
 select a,b from t1;
-ERROR HY000: Can't reopen table: 'a1'
+a	b
+0	a
+1	b
+2	c
+3	d
+4	e
+5	f
+6	g
+7	h
+8	i
+9	j
+9	k
 handler a1 read a prev;
 a	b
 2	c
@@ -745,7 +756,7 @@ ERROR HY000: Can't execute the given command because you have active locked tabl
 handler t2 close;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 handler t3 open;
-ERROR HY000: Can't reopen table: 't3'
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 # After UNLOCK TABLES handlers should be around and
 # we should be able to continue reading through them.
 unlock tables;
@@ -1396,7 +1407,12 @@ handler t2 read a next;
 a	b
 3	NULL
 select * from t2;
-ERROR HY000: Can't reopen table: 't2'
+a	b
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
 handler t2 read a next;
 a	b
 4	NULL

@@ -6159,7 +6159,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
         update it inside mysql_load().
       */
       List<Item> tmp_list;
-      if (open_temporary_tables(thd, &tables) ||
+      if (thd->open_temporary_tables(&tables) ||
           mysql_load(thd, &ex, &tables, field_list, tmp_list, tmp_list,
                      handle_dup, ignore, net != 0))
         thd->is_slave_error= 1;

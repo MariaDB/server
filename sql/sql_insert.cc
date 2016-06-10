@@ -4078,7 +4078,12 @@ static TABLE *create_table_from_items(THD *thd,
     }
     else
     {
-      if (open_temporary_table(thd, create_table))
+      /*
+        The pointer to the newly created temporary table has been stored in
+        table->create_info.
+      */
+      create_table->table= create_info->table;
+      if (!create_table->table)
       {
         /*
           This shouldn't happen as creation of temporary table should make
@@ -4087,7 +4092,6 @@ static TABLE *create_table_from_items(THD *thd,
         */
         DBUG_ASSERT(0);
       }
-      DBUG_ASSERT(create_table->table == create_info->table);
     }
   }
   else
@@ -4461,6 +4465,7 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
+
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;

@@ -1736,7 +1736,8 @@ drop view t1;
 create table t1 (a int) select 1 as a;
 create temporary table if not exists t1 (a int) select * from t1;
 create temporary table if not exists t1 (a int) select * from t1;
-ERROR HY000: Can't reopen table: 't1'
+Warnings:
+Note	1050	Table 't1' already exists
 select * from t1;
 a
 1

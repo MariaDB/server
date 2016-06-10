@@ -3922,7 +3922,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tdc->all_tables_refs++;
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
-  TDC_element::All_share_tables_list::Iterator tables_it(tdc->all_tables);
+  All_share_tables_list::Iterator tables_it(tdc->all_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going

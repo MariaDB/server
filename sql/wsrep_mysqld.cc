@@ -1085,8 +1085,6 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     ka->keys= 0;
     ka->keys_len= 0;
 
-    extern TABLE* find_temporary_table(THD*, const TABLE_LIST*);
-
     if (db || table)
     {
         TABLE_LIST tmp_table;
@@ -1098,7 +1096,7 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
 				   (table) ? table : "",
 				   MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
 
-        if (!table || !find_temporary_table(thd, &tmp_table))
+        if (!table || !thd->find_temporary_table(&tmp_table))
         {
             if (!(ka->keys= (wsrep_key_t*)my_malloc(sizeof(wsrep_key_t), MYF(0))))
             {
@@ -1126,7 +1124,7 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
 
     for (const TABLE_LIST* table= table_list; table; table= table->next_global)
     {
-        if (!find_temporary_table(thd, table))
+        if (!thd->find_temporary_table(table))
         {
             wsrep_key_t* tmp;
             tmp= (wsrep_key_t*)my_realloc(
@@ -2443,26 +2441,13 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
                              HA_CREATE_INFO *create_info)
 {
-  TABLE *tmp_table;
-  bool is_tmp_table= FALSE;
-
-  for (tmp_table= thd->temporary_tables; tmp_table; tmp_table=tmp_table->next)
-  {
-      if (!strcmp(src_table->db, tmp_table->s->db.str)     &&
-          !strcmp(src_table->table_name, tmp_table->s->table_name.str))
-      {
-        is_tmp_table= TRUE;
-        break;
-      }
-  }
   if (create_info->tmp_table())
   {
-
     /* CREATE TEMPORARY TABLE LIKE must be skipped from replication */
     WSREP_DEBUG("CREATE TEMPORARY TABLE LIKE... skipped replication\n %s", 
                 thd->query());
   }
-  else if (!is_tmp_table)
+  else if (!(thd->find_temporary_table(src_table)))
   {
     /* this is straight CREATE TABLE LIKE... eith no tmp tables */
     WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
@@ -2477,7 +2462,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
     bzero((void*) &tbl, sizeof(tbl));
     tbl.db= src_table->db;
     tbl.table_name= tbl.alias= src_table->table_name;
-    tbl.table= tmp_table;
+    tbl.table= src_table->table;
     char buf[2048];
     String query(buf, sizeof(buf), system_charset_info);
     query.length(0);  // Have to zero it since constructor doesn't

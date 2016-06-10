@@ -82,7 +82,7 @@ static my_bool print_cached_tables_callback(TDC_element *element,
   TABLE *entry;
 
   mysql_mutex_lock(&element->LOCK_table_share);
-  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
+  All_share_tables_list::Iterator it(element->all_tables);
   while ((entry= it++))
   {
     THD *in_use= entry->in_use;

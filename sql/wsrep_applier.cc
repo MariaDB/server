@@ -62,7 +62,6 @@ err:
 
 #include "transaction.h" // trans_commit(), trans_rollback()
 #include "rpl_rli.h"     // class Relay_log_info;
-#include "sql_base.h"    // close_temporary_table()
 
 void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
 {
@@ -277,14 +276,11 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
     wsrep_dump_rbr_buf_with_header(thd, buf, buf_len);
   }
 
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
+  if (thd->has_thd_temporary_tables())
   {
-    WSREP_DEBUG("Applier %lld, has temporary tables: %s.%s",
-		(longlong) thd->thread_id,
-		(tmp->s) ? tmp->s->db.str : "void",
-		(tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(thd, tmp, 1, 1);
+    WSREP_DEBUG("Applier %lld has temporary tables. Closing them now..",
+                thd->thread_id);
+    thd->close_temporary_tables();
   }
 
   return rcode;

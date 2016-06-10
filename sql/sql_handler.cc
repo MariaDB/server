@@ -1,5 +1,5 @@
 /* Copyright (c) 2001, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2015, MariaDB
+   Copyright (c) 2011, 2016, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -178,9 +178,8 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
   {
     /* Must be a temporary table */
     table->file->ha_index_or_rnd_end();
-    table->query_id= thd->query_id;
     table->open_by_handler= 0;
-    mark_tmp_table_for_reuse(table);
+    thd->mark_tmp_table_as_free_for_reuse(table);
   }
   my_free(handler->lock);
   handler->init();
@@ -294,7 +293,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     open_ltable() or open_table() because we would like to be able
     to open a temporary table.
   */
-  error= (open_temporary_tables(thd, tables) ||
+  error= (thd->open_temporary_tables(tables) ||
           open_tables(thd, &tables, &counter, 0));
 
   if (error)
@@ -389,8 +388,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   /*
     Assert that the above check prevents opening of views and merge tables.
     For temporary tables, TABLE::next can be set even if only one table
-    was opened for HANDLER as it is used to link them together
-    (see thd->temporary_tables).
+    was opened for HANDLER as it is used to link them together.
   */
   DBUG_ASSERT(sql_handler->table->next == NULL ||
               sql_handler->table->s->tmp_table);
@@ -1195,10 +1193,10 @@ void mysql_ha_set_explicit_lock_duration(THD *thd)
   Remove temporary tables from the HANDLER's hash table. The reason
   for having a separate function, rather than calling
   mysql_ha_rm_tables() is that it is not always feasible (e.g. in
-  close_temporary_tables) to obtain a TABLE_LIST containing the
+  THD::close_temporary_tables) to obtain a TABLE_LIST containing the
   temporary tables.
 
-  @See close_temporary_tables
+  @See THD::close_temporary_tables()
   @param thd Thread identifier.
 */
 void mysql_ha_rm_temporary_tables(THD *thd)

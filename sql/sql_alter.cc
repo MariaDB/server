@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2016, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +17,6 @@
 #include "sql_parse.h"                       // check_access
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
-#include "sql_base.h"                        // open_temporary_tables
 #include "sql_alter.h"
 #include "wsrep_mysqld.h"
 
@@ -305,10 +305,8 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   thd->enable_slow_log= opt_log_slow_admin_statements;
 
 #ifdef WITH_WSREP
-  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
-
   if ((!thd->is_current_stmt_binlog_format_row() ||
-       !find_temporary_table(thd, first_table)))
+       !thd->find_temporary_table(first_table)))
   {
     WSREP_TO_ISOLATION_BEGIN(((lex->name.str) ? select_lex->db : NULL),
                              ((lex->name.str) ? lex->name.str : NULL),
