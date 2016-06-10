@@ -1,3 +1,5 @@
+#ifndef TABLE_CACHE_H_INCLUDED
+#define TABLE_CACHE_H_INCLUDED
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 2010, 2011 Monty Program Ab
    Copyright (C) 2013 Sergey Vojtovich and MariaDB Foundation
@@ -109,3 +111,4 @@ inline uint tdc_create_key(char *key, const char *db, const char *table_name)
   return (uint) (strmake(strmake(key, db, NAME_LEN) + 1, table_name,
                          NAME_LEN) - key + 1);
 }
+#endif /* TABLE_CACHE_H_INCLUDED */

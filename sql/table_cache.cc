@@ -741,10 +741,9 @@ void tdc_unlock_share(TDC_element *element)
 
   tdc_acquire_share()
   thd                   Thread handle
-  table_list            Table that should be opened
-  key                   Table cache key
-  key_length            Length of key
+  tl                    Table that should be opened
   flags                 operation: what to open table or view
+  out_table             TABLE for the requested table
 
   IMPLEMENTATION
     Get a table definition from the table definition cache.

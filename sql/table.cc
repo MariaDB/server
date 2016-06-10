@@ -279,7 +279,8 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db, const LEX_STRING *name)
 
   SYNOPSIS
     alloc_table_share()
-    TABLE_LIST		Take database and table name from there
+    db                  Database name
+    table_name          Table name
     key			Table cache key (db \0 table_name \0...)
     key_length		Length of key
 
