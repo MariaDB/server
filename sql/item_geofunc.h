@@ -613,6 +613,10 @@ class Item_func_gis_debug: public Item_int_func
     { null_value= false; }
     const char *func_name() const  { return "st_gis_debug"; }
     longlong val_int();
+    bool check_vcol_func_processor(uchar *arg)
+    {
+      return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    }
 };
 #endif
 

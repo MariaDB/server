@@ -763,6 +763,10 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "binlog_gtid_pos"; }
+  bool check_vcol_func_processor(uchar *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 

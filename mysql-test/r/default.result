@@ -1242,6 +1242,26 @@ SELECT * FROM t1;
 a	b	c
 a	97	97
 DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT BENCHMARK(1,1));
+ERROR HY000: Function or expression 'benchmark' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT GET_LOCK('a',1));
+ERROR HY000: Function or expression 'get_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT RELEASE_LOCK('a'));
+ERROR HY000: Function or expression 'release_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT IS_USED_LOCK('a'));
+ERROR HY000: Function or expression 'is_used_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT IS_FREE_LOCK('a'));
+ERROR HY000: Function or expression 'is_free_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT SLEEP(1));
+ERROR HY000: Function or expression 'sleep' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT ROW_COUNT());
+ERROR HY000: Function or expression 'row_count' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT FOUND_ROWS());
+ERROR HY000: Function or expression 'found_rows' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT MASTER_POS_WAIT('test',100));
+ERROR HY000: Function or expression 'master_pos_wait' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT MASTER_GTID_WAIT('test'));
+ERROR HY000: Function or expression 'master_gtid_wait' is not allowed for 'DEFAULT' of column/constraint 'a'
 #
 # Temporal functions
 #
