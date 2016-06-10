@@ -1474,6 +1474,37 @@ INSERT INTO t1 (a) VALUES (64);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+# QQ: this depends on @@lc_time_names
+CREATE TABLE t1 (a INT, b INT, c VARCHAR(30) DEFAULT FORMAT(a,b));
+INSERT INTO t1 (a,b) VALUES (10000,3);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, l VARCHAR(10), c VARCHAR(30) DEFAULT FORMAT(a,b,l));
+INSERT INTO t1 (a,b,l) VALUES (10000,2,'no_NO'),(10000,2,'ru_RU'),(10000,2,'ar_BH');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(20) DEFAULT GET_FORMAT(DATE,a));
+INSERT INTO t1 (a) VALUES ('EUR'),('USA'),('JIS'),('ISO'),('INTERNAL');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  bits INT,
+  v_on VARCHAR(10),
+  v_off VARCHAR(10),
+  v_separator VARCHAR(10),
+  number_of_bits INT,
+  x VARCHAR(30) DEFAULT EXPORT_SET(bits, v_on, v_off, v_separator, number_of_bits)
+);
+INSERT INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a VARCHAR(30), b BLOB DEFAULT LOAD_FILE(a));
+
 --echo #
 --echo # Predicates
 --echo #

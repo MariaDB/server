@@ -1848,6 +1848,47 @@ SELECT * FROM t1;
 a	b
 64	40
 DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c VARCHAR(30) DEFAULT FORMAT(a,b));
+INSERT INTO t1 (a,b) VALUES (10000,3);
+SELECT * FROM t1;
+a	b	c
+10000	3	10,000.000
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, l VARCHAR(10), c VARCHAR(30) DEFAULT FORMAT(a,b,l));
+INSERT INTO t1 (a,b,l) VALUES (10000,2,'no_NO'),(10000,2,'ru_RU'),(10000,2,'ar_BH');
+SELECT * FROM t1;
+a	b	l	c
+10000	2	no_NO	10.000,00
+10000	2	ru_RU	10 000,00
+10000	2	ar_BH	10,000.00
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(20) DEFAULT GET_FORMAT(DATE,a));
+INSERT INTO t1 (a) VALUES ('EUR'),('USA'),('JIS'),('ISO'),('INTERNAL');
+SELECT * FROM t1;
+a	b
+EUR	%d.%m.%Y
+USA	%m.%d.%Y
+JIS	%Y-%m-%d
+ISO	%Y-%m-%d
+INTERNAL	%Y%m%d
+DROP TABLE t1;
+CREATE TABLE t1 (
+bits INT,
+v_on VARCHAR(10),
+v_off VARCHAR(10),
+v_separator VARCHAR(10),
+number_of_bits INT,
+x VARCHAR(30) DEFAULT EXPORT_SET(bits, v_on, v_off, v_separator, number_of_bits)
+);
+INSERT INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
+Warnings:
+Warning	1265	Data truncated for column 'x' at row 1
+SELECT * FROM t1;
+bits	v_on	v_off	v_separator	number_of_bits	x
+327686	Y	N		64	NYYNNNNNNNNNNNNNYNYNNNNNNNNNNN
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(30), b BLOB DEFAULT LOAD_FILE(a));
+ERROR HY000: Function or expression 'load_file' is not allowed for 'DEFAULT' of column/constraint 'b'
 #
 # Predicates
 #
