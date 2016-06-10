@@ -1,0 +1,56 @@
+-- source include/have_tokudb.inc
+
+-- disable_query_log
+
+set @orig_throttle = @@session.tokudb_analyze_throttle;
+set @orig_time = @@session.tokudb_analyze_time;
+set @orig_scale_percent = @@global.tokudb_cardinality_scale_percent;
+
+create table tt (a int, b int, c int, d int, primary key(a), key(b), key(c), key(d)) engine=tokudb;
+let $i=0;
+while ($i < 1000) {
+    eval insert into tt values ($i, $i, $i, $i);
+    inc $i;
+}
+while ($i < 2000) {
+    eval insert into tt values ($i, $i, $i, 0);
+    inc $i;
+}
+while ($i < 3000) {
+    eval insert into tt values ($i, $i, 0, 0);
+    inc $i;
+}
+while ($i < 4000) {
+    eval insert into tt values ($i, 0, 0, 0);
+    inc $i;
+}
+
+set session tokudb_analyze_time=0;
+set session tokudb_analyze_throttle=0;
+
+-- enable_query_log
+
+set global tokudb_cardinality_scale_percent = 10;
+analyze table tt;
+show indexes from tt;
+
+set global tokudb_cardinality_scale_percent = 50;
+analyze table tt;
+show indexes from tt;
+
+set global tokudb_cardinality_scale_percent = 100;
+analyze table tt;
+show indexes from tt;
+
+set global tokudb_cardinality_scale_percent = 200;
+analyze table tt;
+show indexes from tt;
+
+-- disable_query_log
+
+drop table tt;
+set session tokudb_analyze_throttle = @orig_throttle;
+set session tokudb_analyze_time = @orig_time;
+set global tokudb_cardinality_scale_percent = @orig_scale_percent;
+
+-- enable_query_log

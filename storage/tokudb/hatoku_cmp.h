@@ -26,9 +26,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #ifndef _HATOKU_CMP
 #define _HATOKU_CMP
 
-#include "stdint.h"
+#include "hatoku_defines.h"
+#include "tokudb_debug.h"
 
-#include <db.h>
 
 //
 // A MySQL row is encoded in TokuDB, as follows:
@@ -180,7 +180,7 @@ static inline uint32_t get_blob_field_len(const uchar* from_tokudb, uint32_t len
         length = uint4korr(from_tokudb);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
     return length;
 }

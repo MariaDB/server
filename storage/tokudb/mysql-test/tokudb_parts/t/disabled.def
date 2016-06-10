@@ -1,0 +1,4 @@
+partition_basic_symlink_tokudb : tokudb_file_per_table is not supported
+partition_reorganize_tokudb : tokudb_file_per_table is not supported
+partition_mgm_lc0_tokudb : https://tokutek.atlassian.net/browse/DB-637
+partition_mgm_lc1_tokudb : https://tokutek.atlassian.net/browse/DB-637
