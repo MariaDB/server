@@ -406,6 +406,16 @@ static int tokudb_init_func(void *p) {
     db_env->set_errcall(db_env, tokudb_print_error);
     db_env->set_errpfx(db_env, tokudb_hton_name);
 
+    // Handle deprecated options
+    if (tokudb::sysvars::pk_insert_mode(NULL) != 1) {
+        TOKUDB_TRACE("Using tokudb_pk_insert_mode is deprecated and the "
+            "parameter may be removed in future releases. "
+            "tokudb_pk_insert_mode=0 is now forbidden. "
+            "See documentation and release notes for details");
+        if (tokudb::sysvars::pk_insert_mode(NULL) < 1)
+           tokudb::sysvars::set_pk_insert_mode(NULL, 1);
+    }
+
     //
     // set default comparison functions
     //

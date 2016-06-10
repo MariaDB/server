@@ -34,6 +34,55 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 namespace tokudb {
 namespace thread {
 
+#if (defined(__MACH__) || defined(__APPLE__)) && _POSIX_TIMERS <= 0
+
+#define _x_min(a, b) ((a) < (b) ? (a) : (b))
+
+#define timed_lock_define(timed_func_name, lock_type_name, lock_func_name)     \
+inline int timed_func_name(lock_type_name *mutex,                              \
+                     const struct timespec *abs_timeout) {                     \
+    int pthread_rc;                                                            \
+    struct timespec remaining, slept, ts;                                      \
+    static const int sleep_step = 1000000;                                     \
+                                                                               \
+    remaining = *abs_timeout;                                                  \
+    while ((pthread_rc = lock_func_name(mutex)) == EBUSY) {                    \
+        ts.tv_sec = 0;                                                         \
+        ts.tv_nsec = (remaining.tv_sec > 0 ?                                   \
+                      sleep_step :                                             \
+                      _x_min(remaining.tv_nsec,sleep_step));                   \
+        nanosleep(&ts, &slept);                                                \
+        ts.tv_nsec -= slept.tv_nsec;                                           \
+        if (ts.tv_nsec <= remaining.tv_nsec) {                                 \
+            remaining.tv_nsec -= ts.tv_nsec;                                   \
+        } else {                                                               \
+            remaining.tv_sec--;                                                \
+            remaining.tv_nsec =                                                \
+              (sleep_step - (ts.tv_nsec - remaining.tv_nsec));                 \
+        }                                                                      \
+        if (remaining.tv_sec < 0 ||                                            \
+            (!remaining.tv_sec && remaining.tv_nsec <= 0)) {                   \
+            return ETIMEDOUT;                                                  \
+        }                                                                      \
+    }                                                                          \
+                                                                               \
+    return pthread_rc;                                                         \
+}
+
+timed_lock_define(pthread_mutex_timedlock,
+                  pthread_mutex_t,
+                  pthread_mutex_trylock);
+
+timed_lock_define(pthread_rwlock_timedrdlock,
+                  pthread_rwlock_t,
+                  pthread_rwlock_tryrdlock);
+
+timed_lock_define(pthread_rwlock_timedwrlock,
+                  pthread_rwlock_t,
+                  pthread_rwlock_trywrlock);
+
+#endif //(defined(__MACH__) || defined(__APPLE__)) && _POSIX_TIMERS <= 0
+
 uint my_tid(void);
 
 // Your basic mutex

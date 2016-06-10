@@ -734,12 +734,45 @@ static MYSQL_THDVAR_ULONGLONG(
     ~0ULL,
     1);
 
+static const char* deprecated_tokudb_pk_insert_mode =
+    "Using tokudb_pk_insert_mode is deprecated and the "
+    "parameter may be removed in future releases.";
+static const char* deprecated_tokudb_pk_insert_mode_zero =
+    "Using tokudb_pk_insert_mode=0 is deprecated and the "
+    "parameter may be removed in future releases. "
+    "Only tokudb_pk_insert_mode=1|2 is allowed."
+    "Resettig the value to 1.";
+
+static void pk_insert_mode_update(
+    THD* thd,
+    st_mysql_sys_var* var,
+    void* var_ptr,
+    const void* save) {
+    const uint* new_pk_insert_mode = static_cast<const uint*>(save);
+    uint* pk_insert_mode = static_cast<uint*>(var_ptr);
+    if (*new_pk_insert_mode == 0) {
+        push_warning(
+            thd,
+            Sql_condition::WARN_LEVEL_WARN,
+            HA_ERR_WRONG_COMMAND,
+            deprecated_tokudb_pk_insert_mode_zero);
+        *pk_insert_mode = 1;
+    } else {
+        push_warning(
+            thd,
+            Sql_condition::WARN_LEVEL_WARN,
+            HA_ERR_WRONG_COMMAND,
+            deprecated_tokudb_pk_insert_mode);
+        *pk_insert_mode = *new_pk_insert_mode;
+    }
+}
+
 static MYSQL_THDVAR_UINT(
     pk_insert_mode,
     0,
     "set the primary key insert mode",
     NULL,
-    NULL,
+    pk_insert_mode_update,
     1,
     0,
     2,
@@ -1063,6 +1096,9 @@ ulonglong optimize_throttle(THD* thd) {
 }
 uint pk_insert_mode(THD* thd) {
     return THDVAR(thd, pk_insert_mode);
+}
+void set_pk_insert_mode(THD* thd, uint mode) {
+    THDVAR(thd, pk_insert_mode) = mode;
 }
 my_bool prelock_empty(THD* thd) {
     return (THDVAR(thd, prelock_empty) != 0);

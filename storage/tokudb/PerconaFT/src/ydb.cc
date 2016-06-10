@@ -3148,7 +3148,7 @@ toku_test_get_latest_lsn(DB_ENV *env) {
     return rval.lsn;
 }
 
-void toku_set_test_txn_sync_callback(void (* cb) (uint64_t, void *), void * extra) {
+void toku_set_test_txn_sync_callback(void (* cb) (pthread_t, void *), void * extra) {
     set_test_txn_sync_callback(cb, extra);
 }
 

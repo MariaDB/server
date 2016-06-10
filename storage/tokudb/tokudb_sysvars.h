@@ -128,6 +128,7 @@ double      optimize_index_fraction(THD* thd);
 const char* optimize_index_name(THD* thd);
 ulonglong   optimize_throttle(THD* thd);
 uint        pk_insert_mode(THD* thd);
+void        set_pk_insert_mode(THD* thd, uint mode);
 my_bool     prelock_empty(THD* thd);
 uint        read_block_size(THD* thd);
 uint        read_buf_size(THD* thd);

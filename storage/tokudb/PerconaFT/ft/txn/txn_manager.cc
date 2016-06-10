@@ -47,10 +47,10 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "util/omt.h"
 //this is only for testing
 
-static void  (* test_txn_sync_callback) (uint64_t, void *) = NULL;
+static void  (* test_txn_sync_callback) (pthread_t, void *) = NULL;
 static void * test_txn_sync_callback_extra = NULL;
 
-void set_test_txn_sync_callback(void (*cb) (uint64_t, void *), void *extra) {
+void set_test_txn_sync_callback(void (*cb) (pthread_t, void *), void *extra) {
         test_txn_sync_callback = cb;
         test_txn_sync_callback_extra = extra;
 }

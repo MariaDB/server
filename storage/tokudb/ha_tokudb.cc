@@ -462,19 +462,13 @@ static inline bool do_ignore_flag_optimization(
     bool opt_eligible) {
 
     bool do_opt = false;
-    if (opt_eligible) {
-        if (is_replace_into(thd) || is_insert_ignore(thd)) {
-            uint pk_insert_mode = tokudb::sysvars::pk_insert_mode(thd);
-            if ((!table->triggers && pk_insert_mode < 2) ||
-                pk_insert_mode == 0) {
-                if (mysql_bin_log.is_open() &&
-                    thd->variables.binlog_format != BINLOG_FORMAT_STMT) {
-                    do_opt = false;
-                } else {
-                    do_opt = true;
-                }
-            }
-        }
+    if (opt_eligible &&
+        (is_replace_into(thd) || is_insert_ignore(thd)) &&
+        tokudb::sysvars::pk_insert_mode(thd) == 1 &&
+        !table->triggers &&
+        !(mysql_bin_log.is_open() &&
+         thd->variables.binlog_format != BINLOG_FORMAT_STMT)) {
+        do_opt = true;
     }
     return do_opt;
 }
@@ -504,10 +498,7 @@ ulong ha_tokudb::index_flags(uint idx, uint part, bool all_parts) const {
     TOKUDB_HANDLER_DBUG_ENTER("");
     assert_always(table_share);
     ulong flags = (HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER |
-        HA_KEYREAD_ONLY | HA_READ_RANGE);
-#if defined(MARIADB_BASE_VERSION) || (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699)
-    flags |= HA_DO_INDEX_COND_PUSHDOWN;
-#endif
+        HA_KEYREAD_ONLY | HA_READ_RANGE | HA_DO_INDEX_COND_PUSHDOWN);
     if (key_is_clustering(&table_share->key_info[idx])) {
         flags |= HA_CLUSTERED_INDEX;
     }
@@ -4890,7 +4881,7 @@ int ha_tokudb::read_full_row(uchar * buf) {
 //      HA_ERR_END_OF_FILE if not found 
 //      error otherwise 
 // 
-int ha_tokudb::index_next_same(uchar * buf, const uchar * key, uint keylen) { 
+int ha_tokudb::index_next_same(uchar* buf, const uchar* key, uint keylen) {
     TOKUDB_HANDLER_DBUG_ENTER("");
     ha_statistic_increment(&SSV::ha_read_next_count);
 
@@ -4908,8 +4899,16 @@ int ha_tokudb::index_next_same(uchar * buf, const uchar * key, uint keylen) {
     //
     // now do the comparison
     //
-    create_dbt_key_from_table(&found_key,tokudb_active_index,key_buff3,buf,&has_null);
-    cmp = tokudb_prefix_cmp_dbt_key(share->key_file[tokudb_active_index], &curr_key, &found_key);
+    create_dbt_key_from_table(
+        &found_key,
+        tokudb_active_index,
+        key_buff3,buf,
+        &has_null);
+    cmp =
+        tokudb_prefix_cmp_dbt_key(
+            share->key_file[tokudb_active_index],
+            &curr_key,
+            &found_key);
     if (cmp) {
         error = HA_ERR_END_OF_FILE; 
     }
@@ -5168,17 +5167,27 @@ exit:
     return error;
 }
 
-static int
-smart_dbt_bf_callback(DBT const *key, DBT  const *row, void *context) {
+static int smart_dbt_bf_callback(
+    DBT const* key,
+    DBT const* row,
+    void* context) {
     SMART_DBT_BF_INFO info = (SMART_DBT_BF_INFO)context;
-    return info->ha->fill_range_query_buf(info->need_val, key, row, info->direction, info->thd, info->buf, info->key_to_compare);
+    return
+        info->ha->fill_range_query_buf(
+            info->need_val,
+            key,
+            row,
+            info->direction,
+            info->thd,
+            info->buf,
+            info->key_to_compare);
 }
 
-#if defined(MARIADB_BASE_VERSION) || (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699)
-enum icp_result ha_tokudb::toku_handler_index_cond_check(Item* pushed_idx_cond)
-{
+enum icp_result ha_tokudb::toku_handler_index_cond_check(
+    Item* pushed_idx_cond) {
+
     enum icp_result res;
-    if (end_range ) {
+    if (end_range) {
         int cmp;
 #ifdef MARIADB_BASE_VERSION
         cmp = compare_key2(end_range);
@@ -5188,27 +5197,27 @@ enum icp_result ha_tokudb::toku_handler_index_cond_check(Item* pushed_idx_cond)
         if (cmp > 0) {
             return ICP_OUT_OF_RANGE;
         }
-    }  
+    }
     res = pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH;
     return res;
 }
-#endif
 
 // fill in the range query buf for bulk fetch
 int ha_tokudb::fill_range_query_buf(
     bool need_val, 
-    DBT const *key, 
-    DBT  const *row, 
+    DBT const* key,
+    DBT const* row,
     int direction,
     THD* thd,
     uchar* buf,
-    DBT* key_to_compare
-    ) {
+    DBT* key_to_compare) {
+
     int error;
     //
     // first put the value into range_query_buf
     //
-    uint32_t size_remaining = size_range_query_buff - bytes_used_in_range_query_buff;
+    uint32_t size_remaining =
+        size_range_query_buff - bytes_used_in_range_query_buff;
     uint32_t size_needed;
     uint32_t user_defined_size = tokudb::sysvars::read_buf_size(thd);
     uchar* curr_pos = NULL;
@@ -5217,8 +5226,7 @@ int ha_tokudb::fill_range_query_buf(
         int cmp = tokudb_prefix_cmp_dbt_key(
             share->key_file[tokudb_active_index], 
             key_to_compare, 
-            key
-            );
+            key);
         if (cmp) {
             icp_went_out_of_range = true;
             error = 0;
@@ -5226,26 +5234,38 @@ int ha_tokudb::fill_range_query_buf(
         }
     }
 
-#if defined(MARIADB_BASE_VERSION) || (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699)
     // if we have an index condition pushed down, we check it
-    if (toku_pushed_idx_cond && (tokudb_active_index == toku_pushed_idx_cond_keyno)) {
+    if (toku_pushed_idx_cond &&
+        (tokudb_active_index == toku_pushed_idx_cond_keyno)) {
         unpack_key(buf, key, tokudb_active_index);
-        enum icp_result result = toku_handler_index_cond_check(toku_pushed_idx_cond);
+        enum icp_result result =
+            toku_handler_index_cond_check(toku_pushed_idx_cond);
+
         // If we have reason to stop, we set icp_went_out_of_range and get out
-        if (result == ICP_OUT_OF_RANGE || thd_killed(thd)) {
-            icp_went_out_of_range = true;
-            error = 0;
-            goto cleanup;
-        }
         // otherwise, if we simply see that the current key is no match,
         // we tell the cursor to continue and don't store
         // the key locally
-        else if (result == ICP_NO_MATCH) {
+        if (result == ICP_OUT_OF_RANGE || thd_killed(thd)) {
+            icp_went_out_of_range = true;
+            error = 0;
+            DEBUG_SYNC(ha_thd(), "tokudb_icp_asc_scan_out_of_range");
+            goto cleanup;
+        } else if (result == ICP_NO_MATCH) {
+            // if we are performing a DESC ICP scan and have no end_range
+            // to compare to stop using ICP filtering as there isn't much more
+            // that we can do without going through contortions with remembering
+            // and comparing key parts.
+            if (!end_range &&
+                direction < 0) {
+
+                cancel_pushed_idx_cond();
+                DEBUG_SYNC(ha_thd(), "tokudb_icp_desc_scan_invalidate");
+            }
+
             error = TOKUDB_CURSOR_CONTINUE;
             goto cleanup;
         }
     }
-#endif
 
     // at this point, if ICP is on, we have verified that the key is one
     // we are interested in, so we proceed with placing the data 
@@ -5254,57 +5274,63 @@ int ha_tokudb::fill_range_query_buf(
     if (need_val) {
         if (unpack_entire_row) {
             size_needed = 2*sizeof(uint32_t) + key->size + row->size;
-        }
-        else {
+        } else {
             // this is an upper bound
-            size_needed = sizeof(uint32_t) + // size of key length
-                          key->size + row->size + //key and row
-                          num_var_cols_for_query*(sizeof(uint32_t)) + //lengths of varchars stored
-                          sizeof(uint32_t); //length of blobs
+            size_needed =
+                // size of key length
+                sizeof(uint32_t) +
+                // key and row
+                key->size + row->size +
+                // lengths of varchars stored
+                num_var_cols_for_query * (sizeof(uint32_t)) +
+                // length of blobs
+                sizeof(uint32_t);
         }
-    }
-    else {
+    } else {
         size_needed = sizeof(uint32_t) + key->size;
     }
     if (size_remaining < size_needed) {
-        range_query_buff = (uchar *)tokudb::memory::realloc(
-            (void *)range_query_buff, 
-            bytes_used_in_range_query_buff+size_needed, 
-            MYF(MY_WME)
-            );
+        range_query_buff =
+            static_cast<uchar*>(tokudb::memory::realloc(
+                static_cast<void*>(range_query_buff),
+                bytes_used_in_range_query_buff + size_needed,
+                MYF(MY_WME)));
         if (range_query_buff == NULL) {
             error = ENOMEM;
             invalidate_bulk_fetch();
             goto cleanup;
         }
-        size_range_query_buff = bytes_used_in_range_query_buff+size_needed;
+        size_range_query_buff = bytes_used_in_range_query_buff + size_needed;
     }
     //
     // now we know we have the size, let's fill the buffer, starting with the key
     //
     curr_pos = range_query_buff + bytes_used_in_range_query_buff;
 
-    *(uint32_t *)curr_pos = key->size;
+    *reinterpret_cast<uint32_t*>(curr_pos) = key->size;
     curr_pos += sizeof(uint32_t);
     memcpy(curr_pos, key->data, key->size);
     curr_pos += key->size;
     if (need_val) {
         if (unpack_entire_row) {
-            *(uint32_t *)curr_pos = row->size;
+            *reinterpret_cast<uint32_t*>(curr_pos) = row->size;
             curr_pos += sizeof(uint32_t);
             memcpy(curr_pos, row->data, row->size);
             curr_pos += row->size;
-        }
-        else {
+        } else {
             // need to unpack just the data we care about
-            const uchar* fixed_field_ptr = (const uchar *) row->data;
+            const uchar* fixed_field_ptr = static_cast<const uchar*>(row->data);
             fixed_field_ptr += table_share->null_bytes;
 
             const uchar* var_field_offset_ptr = NULL;
             const uchar* var_field_data_ptr = NULL;
             
-            var_field_offset_ptr = fixed_field_ptr + share->kc_info.mcp_info[tokudb_active_index].fixed_field_size;
-            var_field_data_ptr = var_field_offset_ptr + share->kc_info.mcp_info[tokudb_active_index].len_of_offsets;
+            var_field_offset_ptr =
+                fixed_field_ptr +
+                share->kc_info.mcp_info[tokudb_active_index].fixed_field_size;
+            var_field_data_ptr =
+                var_field_offset_ptr +
+                share->kc_info.mcp_info[tokudb_active_index].len_of_offsets;
 
             // first the null bytes
             memcpy(curr_pos, row->data, table_share->null_bytes);
@@ -5318,8 +5344,7 @@ int ha_tokudb::fill_range_query_buf(
                 memcpy(
                     curr_pos, 
                     fixed_field_ptr + share->kc_info.cp_info[tokudb_active_index][field_index].col_pack_val,
-                    share->kc_info.field_lengths[field_index]
-                    );
+                    share->kc_info.field_lengths[field_index]);
                 curr_pos += share->kc_info.field_lengths[field_index];
             }
             
@@ -5328,7 +5353,8 @@ int ha_tokudb::fill_range_query_buf(
             //
             for (uint32_t i = 0; i < num_var_cols_for_query; i++) {
                 uint field_index = var_cols_for_query[i];
-                uint32_t var_field_index = share->kc_info.cp_info[tokudb_active_index][field_index].col_pack_val;
+                uint32_t var_field_index =
+                    share->kc_info.cp_info[tokudb_active_index][field_index].col_pack_val;
                 uint32_t data_start_offset;
                 uint32_t field_len;
                 
@@ -5337,11 +5363,13 @@ int ha_tokudb::fill_range_query_buf(
                     &data_start_offset, 
                     var_field_index, 
                     var_field_offset_ptr, 
-                    share->kc_info.num_offset_bytes
-                    );
+                    share->kc_info.num_offset_bytes);
                 memcpy(curr_pos, &field_len, sizeof(field_len));
                 curr_pos += sizeof(field_len);
-                memcpy(curr_pos, var_field_data_ptr + data_start_offset, field_len);
+                memcpy(
+                    curr_pos,
+                    var_field_data_ptr + data_start_offset,
+                    field_len);
                 curr_pos += field_len;
             }
             
@@ -5355,9 +5383,12 @@ int ha_tokudb::fill_range_query_buf(
                     &blob_offset, 
                     share->kc_info.mcp_info[tokudb_active_index].len_of_offsets,
                     var_field_data_ptr, 
-                    share->kc_info.num_offset_bytes
-                    );
-                data_size = row->size - blob_offset - (uint32_t)(var_field_data_ptr - (const uchar *)row->data);
+                    share->kc_info.num_offset_bytes);
+                data_size =
+                    row->size -
+                    blob_offset -
+                    static_cast<uint32_t>((var_field_data_ptr -
+                        static_cast<const uchar*>(row->data)));
                 memcpy(curr_pos, &data_size, sizeof(data_size));
                 curr_pos += sizeof(data_size);
                 memcpy(curr_pos, var_field_data_ptr + blob_offset, data_size);
@@ -5391,7 +5422,9 @@ int ha_tokudb::fill_range_query_buf(
         }
     }
 
-    if (bytes_used_in_range_query_buff + table_share->rec_buff_length > user_defined_size) {
+    if (bytes_used_in_range_query_buff +
+        table_share->rec_buff_length >
+        user_defined_size) {
         error = 0;
         goto cleanup;
     }
@@ -5409,11 +5442,9 @@ int ha_tokudb::fill_range_query_buf(
         int cmp = tokudb_cmp_dbt_key(
             share->key_file[tokudb_active_index], 
             key, 
-            &right_range
-            );
+            &right_range);
         error = (cmp > 0) ? 0 : TOKUDB_CURSOR_CONTINUE;
-    }
-    else {
+    } else {
         // compare what we got to the left endpoint of prelocked range
         // because we are searching keys in descending order
         if (prelocked_left_range_size == 0) {
@@ -5427,15 +5458,19 @@ int ha_tokudb::fill_range_query_buf(
         int cmp = tokudb_cmp_dbt_key(
             share->key_file[tokudb_active_index], 
             key, 
-            &left_range
-            );
+            &left_range);
         error = (cmp < 0) ? 0 : TOKUDB_CURSOR_CONTINUE;
     }
 cleanup:
     return error;
 }
 
-int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_key_read) {
+int ha_tokudb::get_next(
+    uchar* buf,
+    int direction,
+    DBT* key_to_compare,
+    bool do_key_read) {
+
     int error = 0;
     HANDLE_INVALID_CURSOR();
 
@@ -5452,17 +5487,18 @@ int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_
         // we need to read the val of what we retrieve if
         // we do NOT have a covering index AND we are using a clustering secondary
         // key
-        bool need_val = (do_key_read == 0) && 
-            (tokudb_active_index == primary_key || key_is_clustering(&table->key_info[tokudb_active_index]));
+        bool need_val =
+            (do_key_read == 0) &&
+            (tokudb_active_index == primary_key ||
+             key_is_clustering(&table->key_info[tokudb_active_index]));
 
-        if ((bytes_used_in_range_query_buff - curr_range_query_buff_offset) > 0) {
+        if ((bytes_used_in_range_query_buff -
+             curr_range_query_buff_offset) > 0) {
             error = read_data_from_range_query_buff(buf, need_val, do_key_read);
-        }
-        else if (icp_went_out_of_range) {
+        } else if (icp_went_out_of_range) {
             icp_went_out_of_range = false;
             error = HA_ERR_END_OF_FILE;
-        }
-        else {
+        } else {
             invalidate_bulk_fetch();
             if (doing_bulk_fetch) {
                 struct smart_dbt_bf_info bf_info;
@@ -5483,16 +5519,28 @@ int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_
                 // this while loop. icp_out_of_range will be set if we hit a row that
                 // the index condition states is out of our range. When that hits,
                 // we know all the data in the buffer is the last data we will retrieve
-                while (bytes_used_in_range_query_buff == 0 && !icp_went_out_of_range && error == 0) {
+                while (bytes_used_in_range_query_buff == 0 &&
+                       !icp_went_out_of_range && error == 0) {
                     if (direction > 0) {
-                        error = cursor->c_getf_next(cursor, flags, smart_dbt_bf_callback, &bf_info);
+                        error =
+                            cursor->c_getf_next(
+                                cursor,
+                                flags,
+                                smart_dbt_bf_callback,
+                                &bf_info);
                     } else {
-                        error = cursor->c_getf_prev(cursor, flags, smart_dbt_bf_callback, &bf_info);
+                        error =
+                            cursor->c_getf_prev(
+                                cursor,
+                                flags,
+                                smart_dbt_bf_callback,
+                                &bf_info);
                     }
                 }
                 // if there is no data set and we went out of range, 
                 // then there is nothing to return
-                if (bytes_used_in_range_query_buff == 0 && icp_went_out_of_range) {
+                if (bytes_used_in_range_query_buff == 0 &&
+                    icp_went_out_of_range) {
                     icp_went_out_of_range = false;
                     error = HA_ERR_END_OF_FILE;
                 }
@@ -5500,26 +5548,46 @@ int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_
                     bulk_fetch_iteration++;
                 }
 
-                error = handle_cursor_error(error, HA_ERR_END_OF_FILE,tokudb_active_index);
-                if (error) { goto cleanup; }
+                error =
+                    handle_cursor_error(
+                        error,
+                        HA_ERR_END_OF_FILE,
+                        tokudb_active_index);
+                if (error) {
+                    goto cleanup;
+                }
             
                 //
                 // now that range_query_buff is filled, read an element
                 //
-                error = read_data_from_range_query_buff(buf, need_val, do_key_read);
-            }
-            else {
+                error =
+                    read_data_from_range_query_buff(buf, need_val, do_key_read);
+            } else {
                 struct smart_dbt_info info;
                 info.ha = this;
                 info.buf = buf;
                 info.keynr = tokudb_active_index;
                 
                 if (direction > 0) {
-                    error = cursor->c_getf_next(cursor, flags, SMART_DBT_CALLBACK(do_key_read), &info);
+                    error =
+                        cursor->c_getf_next(
+                            cursor,
+                            flags,
+                            SMART_DBT_CALLBACK(do_key_read),
+                            &info);
                 } else {
-                    error = cursor->c_getf_prev(cursor, flags, SMART_DBT_CALLBACK(do_key_read), &info);
+                    error =
+                        cursor->c_getf_prev(
+                            cursor,
+                            flags,
+                            SMART_DBT_CALLBACK(do_key_read),
+                            &info);
                 }
-                error = handle_cursor_error(error, HA_ERR_END_OF_FILE, tokudb_active_index);
+                error =
+                    handle_cursor_error(
+                        error,
+                        HA_ERR_END_OF_FILE,
+                        tokudb_active_index);
             }
         }
     }
@@ -5532,13 +5600,17 @@ int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_
     // read the full row by doing a point query into the 
     // main table.
     //
-    if (!error && !do_key_read && (tokudb_active_index != primary_key) && !key_is_clustering(&table->key_info[tokudb_active_index])) {
+    if (!error &&
+        !do_key_read &&
+        (tokudb_active_index != primary_key) &&
+        !key_is_clustering(&table->key_info[tokudb_active_index])) {
         error = read_full_row(buf);
     }
 
     if (!error) {
         THD *thd = ha_thd();
-        tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
+        tokudb_trx_data* trx =
+            static_cast<tokudb_trx_data*>(thd_get_ha_data(thd, tokudb_hton));
         trx->stmt_progress.queried++;
         track_progress(thd);
         if (thd_killed(thd))
@@ -8766,6 +8838,11 @@ Item* ha_tokudb::idx_cond_push(uint keyno_arg, Item* idx_cond_arg) {
     toku_pushed_idx_cond_keyno = keyno_arg;
     toku_pushed_idx_cond = idx_cond_arg;
     return idx_cond_arg;
+}
+
+void ha_tokudb::cancel_pushed_idx_cond() {
+    invalidate_icp();
+    handler::cancel_pushed_idx_cond();
 }
 
 void ha_tokudb::cleanup_txn(DB_TXN *txn) {

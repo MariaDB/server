@@ -83,7 +83,7 @@ static void add_records(DB* db, DB_TXN* txn, uint64_t start_id, uint64_t num) {
     for (uint64_t i = 0, j=start_id; i < num; i++,j++) {
         char key[100], val[256];
         DBT k,v;
-        snprintf(key, 100, "%08lu", j);
+        snprintf(key, 100, "%08" PRIu64, j);
         snprintf(val, 256, "%*s", 200, key);
         r =
             db->put(
@@ -105,7 +105,7 @@ static void delete_records(
     for (uint64_t i = 0, j=start_id; i < num; i++,j++) {
         char key[100];
         DBT k;
-        snprintf(key, 100, "%08lu", j);
+        snprintf(key, 100, "%08" PRIu64, j);
         r =
             db->del(
                 db,
@@ -143,7 +143,7 @@ static void test_insert_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : before commit %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : before commit %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->commit(txn, 0); 
     assert(r == 0);
@@ -153,7 +153,7 @@ static void test_insert_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : after commit %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after commit %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     db->close(db, 0);
 }
@@ -175,7 +175,7 @@ static void test_insert_delete_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : before delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : before delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     delete_records(db, txn, 0, num_records);
 
@@ -184,7 +184,7 @@ static void test_insert_delete_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->commit(txn, 0);
     assert(r == 0);
@@ -194,7 +194,7 @@ static void test_insert_delete_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after commit %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after commit %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     db->close(db, 0);
 }
@@ -217,7 +217,7 @@ static void test_insert_commit_delete_commit(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : before insert commit %lu rows\n",
+            "%s : before insert commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -230,7 +230,7 @@ static void test_insert_commit_delete_commit(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : after insert commit %lu rows\n",
+            "%s : after insert commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -244,7 +244,7 @@ static void test_insert_commit_delete_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->commit(txn, 0);
     assert(r == 0);
@@ -255,7 +255,7 @@ static void test_insert_commit_delete_commit(DB_ENV* env) {
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
         printf(
-            "%s : after delete commit %lu rows\n",
+            "%s : after delete commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -279,7 +279,7 @@ static void test_insert_rollback(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : before rollback %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : before rollback %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->abort(txn);
     assert(r == 0);
@@ -292,7 +292,7 @@ static void test_insert_rollback(DB_ENV* env) {
     // MESSAGES ARE "IN-FLIGHT" IN THE TREE AND MUST BE APPLIED IN ORDER TO
     // CORRECT THE RUNNING LOGICAL COUNT
     if (verbose)
-        printf("%s : after rollback %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after rollback %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     full_optimize(db);
 
@@ -302,7 +302,7 @@ static void test_insert_rollback(DB_ENV* env) {
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
         printf(
-            "%s : after rollback optimize %lu rows\n",
+            "%s : after rollback optimize %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -326,7 +326,7 @@ static void test_insert_delete_rollback(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : before delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : before delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     delete_records(db, txn, 0, num_records);
 
@@ -335,7 +335,7 @@ static void test_insert_delete_rollback(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->abort(txn); 
     assert(r == 0);
@@ -345,7 +345,7 @@ static void test_insert_delete_rollback(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after commit %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after commit %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     db->close(db, 0);
 }
@@ -368,7 +368,7 @@ static void test_insert_commit_delete_rollback(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : before insert commit %lu rows\n",
+            "%s : before insert commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -381,7 +381,7 @@ static void test_insert_commit_delete_rollback(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : after insert commit %lu rows\n",
+            "%s : after insert commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -395,7 +395,7 @@ static void test_insert_commit_delete_rollback(DB_ENV* env) {
 
     CHECK_NUM_ROWS(0, stats);
     if (verbose)
-        printf("%s : after delete %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after delete %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     r = txn->abort(txn); 
     assert(r == 0);
@@ -409,7 +409,7 @@ static void test_insert_commit_delete_rollback(DB_ENV* env) {
     // CORRECT THE RUNNING LOGICAL COUNT
     if (verbose)
         printf(
-            "%s : after delete rollback %lu rows\n",
+            "%s : after delete rollback %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -421,16 +421,11 @@ static void test_insert_commit_delete_rollback(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : after delete rollback optimize %lu rows\n",
+            "%s : after delete rollback optimize %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
     db->close(db, 0);
-}
-static inline uint64_t time_in_microsec() {
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    return t.tv_sec * (1UL * 1000 * 1000) + t.tv_usec;
 }
 
 static int test_recount_insert_commit_progress(
@@ -440,7 +435,7 @@ static int test_recount_insert_commit_progress(
 
     if (verbose)
         printf(
-            "%s : count[%lu] deleted[%lu]\n",
+            "%s : count[%" PRIu64 "] deleted[%" PRIu64 "]\n",
             __FUNCTION__,
             count,
             deleted);
@@ -469,7 +464,7 @@ static void test_recount_insert_commit(DB_ENV* env) {
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
         printf(
-            "%s : before commit %lu rows\n",
+            "%s : before commit %" PRIu64 " rows\n",
             __FUNCTION__,
             stats.bt_ndata);
 
@@ -481,7 +476,7 @@ static void test_recount_insert_commit(DB_ENV* env) {
 
     CHECK_NUM_ROWS(num_records, stats);
     if (verbose)
-        printf("%s : after commit %lu rows\n", __FUNCTION__, stats.bt_ndata);
+        printf("%s : after commit %" PRIu64 " rows\n", __FUNCTION__, stats.bt_ndata);
 
     // test that recount counted correct # of rows
     r = db->recount_rows(db, test_recount_insert_commit_progress, NULL);

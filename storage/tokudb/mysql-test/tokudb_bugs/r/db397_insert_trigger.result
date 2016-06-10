@@ -25,10 +25,10 @@ select col1,action from t1_audit;
 col1	action
 0	DUMMY
 1	BEFORE INSERT
-select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks;
+select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks order by locks_dname,locks_key_left,locks_key_right;
 locks_dname	locks_key_left	locks_key_right
-./test/t1_audit-main	0200000000000000	0200000000000000
 ./test/t1-main	0001000000	0001000000
+./test/t1_audit-main	0200000000000000	0200000000000000
 commit;
 drop trigger t1_trigger;
 create trigger t1_trigger after insert on t1
@@ -46,10 +46,10 @@ col1	action
 0	DUMMY
 1	BEFORE INSERT
 2	AFTER INSERT
-select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks;
+select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks order by locks_dname,locks_key_left,locks_key_right;
 locks_dname	locks_key_left	locks_key_right
-./test/t1_audit-main	0300000000000000	0300000000000000
 ./test/t1-main	0002000000	0002000000
+./test/t1_audit-main	0300000000000000	0300000000000000
 commit;
 drop trigger t1_trigger;
 drop table t1;

@@ -92,19 +92,19 @@ struct start_txn_arg {
 
 static struct test_sync sync_s;
 
-static void test_callback(uint64_t self_tid, void * extra) {
+static void test_callback(pthread_t self_tid, void * extra) {
     pthread_t **p = (pthread_t **) extra;
     pthread_t tid_1 = *p[0];
     pthread_t tid_2 = *p[1];
-    assert(self_tid == tid_2);
-    printf("%s: the thread[%" PRIu64 "] is going to wait...\n", __func__, tid_1);
+    assert(pthread_equal(self_tid, tid_2));
+    printf("%s: the thread[%" PRIu64 "] is going to wait...\n", __func__, reinterpret_cast<uint64_t>(tid_1));
     test_sync_next_state(&sync_s);
     sleep(3);
     //test_sync_sleep(&sync_s,3);
     //using test_sync_sleep/test_sync_next_state pair can sync threads better, however
     //after the fix, this might cause a deadlock. just simply use sleep to do a proof-
     //of-concept test. 
-    printf("%s: the thread[%" PRIu64 "] is resuming...\n", __func__, tid_1);
+    printf("%s: the thread[%" PRIu64 "] is resuming...\n", __func__, reinterpret_cast<uint64_t>(tid_1));
     return;
 }
 
@@ -114,7 +114,7 @@ static void * start_txn2(void * extra) {
     DB * db = args->db;
     DB_TXN * parent = args->parent;
     test_sync_sleep(&sync_s, 1);
-    printf("start %s [thread %" PRIu64 "]\n", __func__, pthread_self());
+    printf("start %s [thread %" PRIu64 "]\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     DB_TXN *txn;
     int r = env->txn_begin(env, parent, &txn,  DB_READ_COMMITTED);
     assert(r == 0);
@@ -127,7 +127,7 @@ static void * start_txn2(void * extra) {
    
     r = txn->commit(txn, 0);
     assert(r == 0);
-    printf("%s done[thread %" PRIu64 "]\n", __func__, pthread_self());
+    printf("%s done[thread %" PRIu64 "]\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     return extra;
 }
 
@@ -135,14 +135,14 @@ static void * start_txn1(void * extra) {
     struct start_txn_arg * args = (struct start_txn_arg *) extra;
     DB_ENV * env = args -> env;
     DB * db = args->db;
-    printf("start %s: [thread %" PRIu64 "]\n", __func__, pthread_self());
+    printf("start %s: [thread %" PRIu64 "]\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     DB_TXN *txn;
     int r = env->txn_begin(env, NULL, &txn,  DB_READ_COMMITTED);
     assert(r == 0);
-    printf("%s: txn began by [thread %" PRIu64 "], will wait\n", __func__, pthread_self());
+    printf("%s: txn began by [thread %" PRIu64 "], will wait\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     test_sync_next_state(&sync_s);
     test_sync_sleep(&sync_s,2);
-    printf("%s: [thread %" PRIu64 "] resumed\n", __func__, pthread_self());
+    printf("%s: [thread %" PRIu64 "] resumed\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     //do some random things...
     DBT key, data;
     dbt_init(&key, "hello", 6);
@@ -151,7 +151,7 @@ static void * start_txn1(void * extra) {
     db->get(db, txn, &key, &data, 0);
     r = txn->commit(txn, 0);
     assert(r == 0);
-    printf("%s: done[thread %" PRIu64 "]\n", __func__, pthread_self());
+    printf("%s: done[thread %" PRIu64 "]\n", __func__, reinterpret_cast<uint64_t>(pthread_self()));
     //test_sync_next_state(&sync_s);
     return extra;
 }
