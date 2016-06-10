@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.28-76.1)
+SET(TOKUDB_VERSION 5.6.30-76.3)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -52,7 +52,7 @@ include(CheckCXXCompilerFlag)
 # pick language dialect
 check_cxx_compiler_flag(-std=c++11 HAVE_STDCXX11)
 if (HAVE_STDCXX11)
-  set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-deprecated-declarations ${CMAKE_CXX_FLAGS}")
 else ()
   message(FATAL_ERROR "${CMAKE_CXX_COMPILER} doesn't support -std=c++11, you need one that does.")
 endif ()

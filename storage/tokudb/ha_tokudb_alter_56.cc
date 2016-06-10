@@ -680,7 +680,7 @@ int ha_tokudb::alter_table_add_index(
         KEY *key = &key_info[i];
         *key = ha_alter_info->key_info_buffer[ha_alter_info->index_add_buffer[i]];
         for (KEY_PART_INFO* key_part = key->key_part;
-             key_part < key->key_part + get_key_parts(key);
+             key_part < key->key_part + key->user_defined_key_parts;
              key_part++) {
             key_part->field = table->field[key_part->fieldnr];
         }
@@ -1123,7 +1123,7 @@ int ha_tokudb::alter_table_expand_varchar_offsets(
 
 // Return true if a field is part of a key
 static bool field_in_key(KEY *key, Field *field) {
-    for (uint i = 0; i < get_key_parts(key); i++) {
+    for (uint i = 0; i < key->user_defined_key_parts; i++) {
         KEY_PART_INFO *key_part = &key->key_part[i];
         if (strcmp(key_part->field->field_name, field->field_name) == 0)
             return true;

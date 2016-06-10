@@ -521,14 +521,16 @@ Test output:
                     }))
 
 def send_mail(toaddrs, subject, body):
-    m = MIMEText(body)
-    fromaddr = 'tim@tokutek.com'
-    m['From'] = fromaddr
-    m['To'] = ', '.join(toaddrs)
-    m['Subject'] = subject
-    s = SMTP('192.168.1.114')
-    s.sendmail(fromaddr, toaddrs, str(m))
-    s.quit()
+    # m = MIMEText(body)
+    # fromaddr = 'dev-private@percona.com'
+    # m['From'] = fromaddr
+    # m['To'] = ', '.join(toaddrs)
+    # m['Subject'] = subject
+    # s = SMTP('192.168.1.114')
+    # s.sendmail(fromaddr, toaddrs, str(m))
+    # s.quit()
+    info(subject);
+    info(body);
 
 def update(tokudb):
     info('Updating from git.')
@@ -554,12 +556,12 @@ def rebuild(tokudb, builddir, tokudb_data, cc, cxx, tests):
              env=newenv,
              cwd=builddir)
     if r != 0:
-        send_mail(['leif@tokutek.com'], 'Stress tests on %s failed to build.' % gethostname(), '')
+        send_mail(['dev-private@percona.com'], 'Stress tests on %s failed to build.' % gethostname(), '')
         error('Building the tests failed.')
         sys.exit(r)
     r = call(['make', '-j8'], cwd=builddir)
     if r != 0:
-        send_mail(['leif@tokutek.com'], 'Stress tests on %s failed to build.' % gethostname(), '')
+        send_mail(['dev-private@percona.com'], 'Stress tests on %s failed to build.' % gethostname(), '')
         error('Building the tests failed.')
         sys.exit(r)
 
@@ -671,7 +673,7 @@ def main(opts):
         sys.exit(0)
     except Exception, e:
         exception('Unhandled exception caught in main.')
-        send_mail(['leif@tokutek.com'], 'Stress tests caught unhandled exception in main, on %s' % gethostname(), format_exc())
+        send_mail(['dev-private@percona.com'], 'Stress tests caught unhandled exception in main, on %s' % gethostname(), format_exc())
         raise e
 
 if __name__ == '__main__':
@@ -786,7 +788,7 @@ if __name__ == '__main__':
     if not opts.send_emails:
         opts.email = None
     elif len(opts.email) == 0:
-        opts.email.append('tokueng@tokutek.com')
+        opts.email.append('dev-private@percona.com')
 
     if opts.debug:
         logging.basicConfig(level=logging.DEBUG)

@@ -54,9 +54,9 @@ populate_table(int start, int end, DB_TXN * parent, DB_ENV * env, DB * db) {
         char str[220];
         memset(kk, 0, sizeof kk);
         memcpy(kk, &k, sizeof k);
-        memset(str,'a', sizeof str-1);
+        memset(str,'a', sizeof str);
         DBT key = { .data = kk, .size = sizeof kk };
-        DBT val = { .data = str, .size = 220 };
+        DBT val = { .data = str, .size = sizeof str };
         r = db->put(db, txn, &key, &val, 0);
         assert_zero(r);
     }

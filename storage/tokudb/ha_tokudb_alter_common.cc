@@ -75,8 +75,8 @@ static bool tables_have_same_keys(
             if (print_error) {
                 sql_print_error(
                     "keys disagree on if they are clustering, %d, %d",
-                    get_key_parts(curr_orig_key),
-                    get_key_parts(curr_altered_key));
+                    curr_orig_key->user_defined_key_parts,
+                    curr_altered_key->user_defined_key_parts);
             }
             retval = false;
             goto cleanup;
@@ -86,18 +86,19 @@ static bool tables_have_same_keys(
             if (print_error) {
                 sql_print_error(
                     "keys disagree on if they are unique, %d, %d",
-                    get_key_parts(curr_orig_key),
-                    get_key_parts(curr_altered_key));
+                    curr_orig_key->user_defined_key_parts,
+                    curr_altered_key->user_defined_key_parts);
             }
             retval = false;
             goto cleanup;
         }
-        if (get_key_parts(curr_orig_key) != get_key_parts(curr_altered_key)) {
+        if (curr_orig_key->user_defined_key_parts !=
+            curr_altered_key->user_defined_key_parts) {
             if (print_error) {
                 sql_print_error(
                     "keys have different number of parts, %d, %d",
-                    get_key_parts(curr_orig_key),
-                    get_key_parts(curr_altered_key));
+                    curr_orig_key->user_defined_key_parts,
+                    curr_altered_key->user_defined_key_parts);
             }
             retval = false;
             goto cleanup;
@@ -105,7 +106,7 @@ static bool tables_have_same_keys(
         //
         // now verify that each field in the key is the same
         //
-        for (uint32_t j = 0; j < get_key_parts(curr_orig_key); j++) {
+        for (uint32_t j = 0; j < curr_orig_key->user_defined_key_parts; j++) {
             KEY_PART_INFO* curr_orig_part = &curr_orig_key->key_part[j];
             KEY_PART_INFO* curr_altered_part = &curr_altered_key->key_part[j];
             Field* curr_orig_field = curr_orig_part->field;

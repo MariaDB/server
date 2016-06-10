@@ -46,5 +46,5 @@ show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t	0	PRIMARY	1	id	A	9	NULL	NULL		BTREE		
 t	1	x	1	x	A	9	NULL	NULL	YES	BTREE		
-t	1	y	1	y	A	4	NULL	NULL	YES	BTREE		
+t	1	y	1	y	A	9	NULL	NULL	YES	BTREE		
 drop table t;

@@ -79,7 +79,7 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
         NULL,
         NULL);
 
-    // dont forget to dirty the node
+    // don't forget to dirty the node
     leafnode->dirty = 1;
 }
 

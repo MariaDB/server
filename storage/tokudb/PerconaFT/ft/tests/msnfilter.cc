@@ -160,7 +160,7 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
 	      assert(pair2.call_count==2);
     }
 
-    // dont forget to dirty the node
+    // don't forget to dirty the node
     leafnode->dirty = 1;
 }
 

@@ -92,7 +92,7 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
     // Create bad tree (don't do following):
     // leafnode->max_msn_applied_to_node = msn;
 
-    // dont forget to dirty the node
+    // don't forget to dirty the node
     leafnode->dirty = 1;
 }
 

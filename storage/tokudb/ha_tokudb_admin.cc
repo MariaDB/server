@@ -374,6 +374,7 @@ void standard_t::on_run() {
         _local_txn = false;
     }
 
+    assert_always(_share->key_file[0] != NULL);
     _result = _share->key_file[0]->stat64(_share->key_file[0], _txn, &stat64);
     if (_result != 0) {
         _result = HA_ADMIN_FAILED;
@@ -575,6 +576,7 @@ int standard_t::analyze_key_progress(void) {
 int standard_t::analyze_key(uint64_t* rec_per_key_part) {
     int error = 0;
     DB* db = _share->key_file[_current_key];
+    assert_always(db != NULL);
     uint64_t num_key_parts = _share->_key_descriptors[_current_key]._parts;
     uint64_t unique_rows[num_key_parts];
     bool is_unique = _share->_key_descriptors[_current_key]._is_unique;
@@ -610,8 +612,8 @@ int standard_t::analyze_key(uint64_t* rec_per_key_part) {
                 analyze_standard_cursor_callback,
                 this);
 
-            memset(&key, 0, sizeof(DBT)); key.flags = DB_DBT_REALLOC;
-            memset(&prev_key, 0, sizeof(DBT)); prev_key.flags = DB_DBT_REALLOC;
+            memset(&key, 0, sizeof(DBT));
+            memset(&prev_key, 0, sizeof(DBT));
             copy_key = true;
         }
 
@@ -679,7 +681,6 @@ int standard_t::analyze_key(uint64_t* rec_per_key_part) {
             _key_elapsed_time >= _half_time &&
             _rows < _half_rows)) {
 
-            tokudb::memory::free(key.data); key.data = NULL;
             tokudb::memory::free(prev_key.data); prev_key.data = NULL;
             close_error = cursor->c_close(cursor);
             assert_always(close_error == 0);
@@ -688,7 +689,6 @@ int standard_t::analyze_key(uint64_t* rec_per_key_part) {
         }
     }
     // cleanup
-    if (key.data) tokudb::memory::free(key.data);
     if (prev_key.data) tokudb::memory::free(prev_key.data);
     if (cursor) close_error = cursor->c_close(cursor);
     assert_always(close_error == 0);
@@ -770,10 +770,11 @@ int TOKUDB_SHARE::analyze_standard(THD* thd, DB_TXN* txn) {
     int result = HA_ADMIN_OK;
 
     // stub out analyze if optimize is remapped to alter recreate + analyze
-    // when not auto analyze
-    if (txn &&
-        thd_sql_command(thd) != SQLCOM_ANALYZE &&
-        thd_sql_command(thd) != SQLCOM_ALTER_TABLE) {
+    // when not auto analyze or if this is an alter
+    if ((txn &&
+         thd_sql_command(thd) != SQLCOM_ANALYZE &&
+         thd_sql_command(thd) != SQLCOM_ALTER_TABLE) ||
+        thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
         TOKUDB_HANDLER_DBUG_RETURN(result);
     }
 
@@ -897,6 +898,7 @@ int ha_tokudb::do_optimize(THD* thd) {
         }
 
         DB* db = share->key_file[i];
+        assert_always(db != NULL);
         error = db->optimize(db);
         if (error) {
             goto cleanup;
@@ -1016,7 +1018,8 @@ int ha_tokudb::check(THD* thd, HA_CHECK_OPT* check_opt) {
                 write_status_msg);
         }
         for (uint i = 0; i < num_DBs; i++) {
-            DB *db = share->key_file[i];
+            DB* db = share->key_file[i];
+            assert_always(db != NULL);
             const char* kname =
                 i == primary_key ? "primary" : table_share->key_info[i].name;
             snprintf(

@@ -1010,7 +1010,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
     uchar* pos = buf;
     uint32_t num_bytes_in_field = 0;
     uint32_t charset_num = 0;
-    for (uint i = 0; i < get_key_parts(key); i++){
+    for (uint i = 0; i < key->user_defined_key_parts; i++) {
         Field* field = key->key_part[i].field;
         //
         // The first byte states if there is a null byte
@@ -1881,7 +1881,7 @@ static uint32_t pack_desc_pk_offset_info(
 
     bool is_constant_offset = true;
     uint32_t offset = 0;
-    for (uint i = 0; i < get_key_parts(prim_key); i++) {
+    for (uint i = 0; i < prim_key->user_defined_key_parts; i++) {
         KEY_PART_INFO curr = prim_key->key_part[i];
         uint16 curr_field_index = curr.field->field_index;
 
@@ -2503,8 +2503,8 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         // store number of parts
         //
-        assert_always(get_key_parts(prim_key) < 128);
-        pos[0] = 2 * get_key_parts(prim_key);
+        assert_always(prim_key->user_defined_key_parts < 128);
+        pos[0] = 2 * prim_key->user_defined_key_parts;
         pos++;
         //
         // for each part, store if it is a fixed field or var field
@@ -2514,7 +2514,7 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         pk_info = pos;
         uchar* tmp = pos;
-        for (uint i = 0; i < get_key_parts(prim_key); i++) {
+        for (uint i = 0; i < prim_key->user_defined_key_parts; i++) {
             tmp += pack_desc_pk_info(
                 tmp,
                 kc_info,
@@ -2525,11 +2525,11 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         // asserting that we moved forward as much as we think we have
         //
-        assert_always(tmp - pos == (2 * get_key_parts(prim_key)));
+        assert_always(tmp - pos == (2 * prim_key->user_defined_key_parts));
         pos = tmp;
     }
 
-    for (uint i = 0; i < get_key_parts(key_info); i++) {
+    for (uint i = 0; i < key_info->user_defined_key_parts; i++) {
         KEY_PART_INFO curr_kpi = key_info->key_part[i];
         uint16 field_index = curr_kpi.field->field_index;
         Field* field = table_share->field[field_index];
