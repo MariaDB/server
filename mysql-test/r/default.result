@@ -2003,3 +2003,37 @@ xa	2
 xxa	3
 xxxa	4
 DROP TABLE t1;
+#
+# INT result metadata functions
+#
+CREATE TABLE t1
+(
+id SERIAL PRIMARY KEY,
+b INT DEFAULT LAST_INSERT_ID()
+);
+ERROR HY000: Function or expression 'last_insert_id' is not allowed for 'DEFAULT' of column/constraint 'b'
+CREATE TABLE t1 (a INT DEFAULT CONNECTION_ID());
+INSERT INTO t1 VALUES();
+SELECT a>0 FROM t1;
+a>0
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT COERCIBILITY(a), c INT DEFAULT COERCIBILITY(b));
+INSERT INTO t1 (a) VALUES ('test');
+SELECT * FROM t1;
+a	b	c
+test	2	5
+DROP TABLE t1;
+#
+# String result metadata functions
+#
+CREATE TABLE t1 (
+a VARCHAR(10) CHARACTER SET latin1,
+b VARCHAR(20) DEFAULT CHARSET(a),
+c VARCHAR(20) DEFAULT COLLATION(a)
+);
+INSERT INTO t1 (a) VALUES ('test');
+SELECT * FROM t1;
+a	b	c
+test	latin1	latin1_swedish_ci
+DROP TABLE t1;

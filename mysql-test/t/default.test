@@ -1570,3 +1570,37 @@ CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT REGEXP_INSTR(a, 'a'));
 INSERT INTO t1 (a) VALUES ('xa'),('xxa'),('xxxa');
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # INT result metadata functions
+--echo #
+
+# QQ: LAST_INSERT_ID() should probably be allowed
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1
+(
+  id SERIAL PRIMARY KEY,
+  b INT DEFAULT LAST_INSERT_ID()
+);
+
+CREATE TABLE t1 (a INT DEFAULT CONNECTION_ID());
+INSERT INTO t1 VALUES();
+SELECT a>0 FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT COERCIBILITY(a), c INT DEFAULT COERCIBILITY(b));
+INSERT INTO t1 (a) VALUES ('test');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # String result metadata functions
+--echo #
+CREATE TABLE t1 (
+   a VARCHAR(10) CHARACTER SET latin1,
+   b VARCHAR(20) DEFAULT CHARSET(a),
+   c VARCHAR(20) DEFAULT COLLATION(a)
+);
+INSERT INTO t1 (a) VALUES ('test');
+SELECT * FROM t1;
+DROP TABLE t1;
