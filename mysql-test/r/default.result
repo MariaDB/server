@@ -1242,6 +1242,12 @@ SELECT * FROM t1;
 a	b	c
 a	97	97
 DROP TABLE t1;
+CREATE TABLE t1 (a TEXT DEFAULT UUID_SHORT());
+INSERT INTO t1 VALUES ();
+SELECT a>0 FROM t1;
+a>0
+1
+DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT BENCHMARK(1,1));
 ERROR HY000: Function or expression 'benchmark' is not allowed for 'DEFAULT' of column/constraint 'a'
 CREATE TABLE t1 (a INT DEFAULT GET_LOCK('a',1));
@@ -2025,6 +2031,12 @@ AAA	0
 aaa	0
 bbb	0
 ccc	1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT DEFAULT UUID());
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a)>0 FROM t1;
+LENGTH(a)>0
+1
 DROP TABLE t1;
 #
 # Numeric result functions with string input
