@@ -1524,14 +1524,14 @@ drop temporary table t1;
 return 1;
 end|
 create temporary table t1 as select f1();
-ERROR HY000: Can't reopen table: 't1'
+ERROR 42S02: Unknown table 'test.t1'
 create function f2() returns int
 begin
 create temporary table t2 as select f1();
 return 1;
 end|
 create temporary table t1 as select f2();
-ERROR HY000: Can't reopen table: 't1'
+ERROR 42S02: Unknown table 'test.t1'
 drop function f1;
 drop function f2;
 create function f1() returns int
@@ -1545,7 +1545,7 @@ create temporary table t2 as select f1();
 return 1;
 end|
 create temporary table t1 as select f2();
-ERROR HY000: Can't reopen table: 't2'
+ERROR 42S02: Unknown table 'test.t2,test.t1'
 drop function f1;
 drop function f2;
 create temporary table t2(a int);

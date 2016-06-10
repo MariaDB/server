@@ -4226,6 +4226,18 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     /* abort() deletes table */
     DBUG_RETURN(-1);
 
+  if (create_info->tmp_table())
+  {
+    /*
+      When the temporary table was created & opened in create_table_impl(),
+      the table's TABLE_SHARE (and thus TABLE) object was also linked to THD
+      temporary tables lists. So, we must temporarily remove it from the
+      list to keep them inaccessible from inner statements.
+      e.g. CREATE TEMPORARY TABLE `t1` AS SELECT * FROM `t1`;
+    */
+    saved_tmp_table_share= thd->save_tmp_table_share(create_table->table);
+  }
+
   if (extra_lock)
   {
     DBUG_ASSERT(m_plock == NULL);
@@ -4339,6 +4351,27 @@ bool select_create::send_eof()
   {
     abort_result_set();
     DBUG_RETURN(true);
+  }
+
+  if (table->s->tmp_table)
+  {
+    /*
+      Now is good time to add the new table to THD temporary tables list.
+      But, before that we need to check if same table got created by the sub-
+      statement.
+    */
+    if (thd->find_tmp_table_share(table->s->table_cache_key.str,
+                                  table->s->table_cache_key.length))
+    {
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table->alias.c_ptr());
+      abort_result_set();
+      DBUG_RETURN(true);
+    }
+    else
+    {
+      DBUG_ASSERT(saved_tmp_table_share);
+      thd->restore_tmp_table_share(saved_tmp_table_share);
+    }
   }
 
   /*
@@ -4465,6 +4498,12 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
+
+    if (tmp_table)
+    {
+      DBUG_ASSERT(saved_tmp_table_share);
+      thd->restore_tmp_table_share(saved_tmp_table_share);
+    }
 
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);

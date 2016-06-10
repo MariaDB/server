@@ -2231,7 +2231,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f1();
 
 delimiter |;
@@ -2241,7 +2241,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f2();
 
 drop function f1;
@@ -2259,7 +2259,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f2();
 
 drop function f1;

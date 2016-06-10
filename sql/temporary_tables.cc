@@ -802,6 +802,50 @@ void THD::mark_tmp_table_as_free_for_reuse(TABLE *table)
 
 
 /**
+  Remove and return the specified table's TABLE_SHARE from the temporary
+  tables list.
+
+  @param table [IN]                   Table
+
+  @return TMP_TABLE_SHARE of the specified table.
+*/
+TMP_TABLE_SHARE *THD::save_tmp_table_share(TABLE *table)
+{
+  DBUG_ENTER("THD::save_tmp_table_share");
+
+  TMP_TABLE_SHARE *share;
+
+  lock_temporary_tables();
+  DBUG_ASSERT(temporary_tables);
+  share= tmp_table_share(table);
+  temporary_tables->remove(share);
+  unlock_temporary_tables();
+
+  DBUG_RETURN(share);
+}
+
+
+/**
+  Add the specified TMP_TABLE_SHARE to the temporary tables list.
+
+  @param share [IN]                   Table share
+
+  @return void
+*/
+void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
+{
+  DBUG_ENTER("THD::restore_tmp_table_share");
+
+  lock_temporary_tables();
+  DBUG_ASSERT(temporary_tables);
+  temporary_tables->push_front(share);
+  unlock_temporary_tables();
+
+  DBUG_VOID_RETURN;
+}
+
+
+/**
   If its a replication slave, report whether slave temporary tables
   exist (Relay_log_info::save_temporary_tables) or report about THD
   temporary table (Open_tables_state::temporary_tables) otherwise.

@@ -4066,6 +4066,9 @@ public:
   void mark_tmp_tables_as_free_for_reuse();
   void mark_tmp_table_as_free_for_reuse(TABLE *table);
 
+  TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
+  void restore_tmp_table_share(TMP_TABLE_SHARE *share);
+
 private:
   /* Whether a lock has been acquired? */
   bool m_tmp_tables_locked;
@@ -4617,6 +4620,7 @@ class select_create: public select_insert {
   /* m_lock or thd->extra_lock */
   MYSQL_LOCK **m_plock;
   bool       exit_done;
+  TMP_TABLE_SHARE *saved_tmp_table_share;
 
 public:
   select_create(THD *thd_arg, TABLE_LIST *table_arg,
@@ -4629,7 +4633,8 @@ public:
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
-    m_plock(NULL), exit_done(0)
+    m_plock(NULL), exit_done(0),
+    saved_tmp_table_share(0)
     {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
