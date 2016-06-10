@@ -534,7 +534,7 @@ with t as (select a from t1 where b >= 'c')
 select * from t2,t where t2.c=t.a;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS WITH t AS (select `t1`.`a` AS `a` from `t1` where (`t1`.`b` >= 'c'))select `t2`.`c` AS `c`,`t`.`a` AS `a` from (`t2` join `t`) where (`t2`.`c` = `t`.`a`)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `t1`.`a` AS `a` from `t1` where (`t1`.`b` >= 'c'))select `t2`.`c` AS `c`,`t`.`a` AS `a` from (`t2` join `t`) where (`t2`.`c` = `t`.`a`)	latin1	latin1_swedish_ci
 select * from v1;
 c	a
 4	4
@@ -551,7 +551,7 @@ with t as (select a, count(*) from t1 where b >= 'c' group by a)
 select * from t2,t where t2.c=t.a;
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS WITH t AS (select `t1`.`a` AS `a`,count(0) AS `count(*)` from `t1` where (`t1`.`b` >= 'c') group by `t1`.`a`)select `t2`.`c` AS `c`,`t`.`a` AS `a`,`t`.`count(*)` AS `count(*)` from (`t2` join `t`) where (`t2`.`c` = `t`.`a`)	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with t as (select `t1`.`a` AS `a`,count(0) AS `count(*)` from `t1` where (`t1`.`b` >= 'c') group by `t1`.`a`)select `t2`.`c` AS `c`,`t`.`a` AS `a`,`t`.`count(*)` AS `count(*)` from (`t2` join `t`) where (`t2`.`c` = `t`.`a`)	latin1	latin1_swedish_ci
 select * from v2;
 c	a	count(*)
 4	4	2
@@ -569,7 +569,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1 where r1.c=4;
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS WITH t AS (select `t1`.`a` AS `c` from `t1` where (`t1`.`b` >= 'c'))select `r1`.`c` AS `c` from `t` `r1` where (`r1`.`c` = 4)	latin1	latin1_swedish_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t as (select `t1`.`a` AS `c` from `t1` where (`t1`.`b` >= 'c'))select `r1`.`c` AS `c` from `t` `r1` where (`r1`.`c` = 4)	latin1	latin1_swedish_ci
 select * from v3;
 c
 4
@@ -581,7 +581,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
 show create view v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS WITH t AS (select `t1`.`a` AS `c` from `t1` where (`t1`.`b` >= 'c'))select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where ((`r1`.`c` = `r2`.`c`) and (`r2`.`c` = 4))	latin1	latin1_swedish_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t as (select `t1`.`a` AS `c` from `t1` where (`t1`.`b` >= 'c'))select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where ((`r1`.`c` = `r2`.`c`) and (`r2`.`c` = 4))	latin1	latin1_swedish_ci
 select * from v4;
 c	d
 4	4
@@ -672,7 +672,7 @@ ERROR HY000: Duplicate query name in WITH clause
 with t as (select a from s where a<5),
 s as (select a from t1 where b>='d')
 select * from t,s where t.a=s.a;
-ERROR HY000: The definition of the table 't' refers to the table 's' defined later in a non-recursive WITH clause
+ERROR 42S02: Table 'test.s' doesn't exist
 with recursive
 t as (select a from s where a<5),
 s as (select a from t1 where b>='d')
@@ -688,24 +688,28 @@ with recursive t as (select * from s where a>2),
 s as (select a from t1,r where t1.a>r.c), 
 r as (select c from t,t2 where t.a=t2.c) 
 select * from r where r.c<7;
-ERROR HY000: Recursive queries in WITH clause are not supported yet
-with t as (select * from s where a>2),
+ERROR HY000: No anchors for recursive WITH element 't'
+with recursive
+t as (select * from s where a>2),
 s as (select a from t1,r where t1.a>r.c), 
 r as (select c from t,t2 where t.a=t2.c) 
 select * from r where r.c<7;
-ERROR HY000: Recursive queries in WITH clause are not supported yet
-with t as (select * from t1
+ERROR HY000: No anchors for recursive WITH element 't'
+with recursive
+t as (select * from t1
 where a in (select c from s where b<='ccc') and  b>'b'),
 s as (select * from t1,t2
 where t1.a=t2.c and t1.c in (select a from t where a<5))
 select * from s where s.b>'aaa';
-ERROR HY000: Recursive queries in WITH clause are not supported yet
-with t as (select * from t1 where b>'aaa' and b <='d') 
+ERROR HY000: No anchors for recursive WITH element 't'
+with recursive 
+t as (select * from t1 where b>'aaa' and b <='d') 
 select t.b from t,t2
 where t.a=t2.c and
-t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+t2.c in (with recursive
+s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
 select * from s);
-ERROR HY000: Recursive queries in WITH clause are not supported yet
+ERROR HY000: No anchors for recursive WITH element 's'
 #erroneous definition of unreferenced with table t
 with t as (select count(*) from t1 where d>='f' group by a)
 select t1.b from t2,t1 where t1.a = t2.c;

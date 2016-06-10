@@ -1,0 +1,709 @@
+create table t1 (a int, b varchar(32));
+insert into t1 values
+(4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
+insert into t1 values
+(3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
+
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+a1(a,b) as
+(select * from t1 where t1.a>3
+union
+select * from b1 where b1.a >3
+union
+select * from c1 where c1.a>3),
+b1(a,b) as
+(select * from a1 where a1.b > 'ccc'
+union
+select * from c1 where c1.b > 'ddd'),
+c1(a,b) as
+(select * from a1 where a1.a<6 and a1.b< 'zz'
+union
+select * from b1 where b1.b > 'auu')
+select * from c1; 
+
+drop table t1;
+
+
+--echo # WITH RECURSIVE vs just WITH
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+
+--echo # just WITH : s refers to t defined after s
+--ERROR ER_NO_SUCH_TABLE
+with 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # WITH RECURSIVE: s refers to t defined after s
+with recursive 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # just WITH : defined t1 is non-recursive and uses base tables t1,t2
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+
+--echo #WITH RECURSIVE : defined t1 is recursive and uses only base table t2
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+    
+--echo # just WITH : types of t1 columns are determined by all parts of union 
+
+create view v1 as
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v1;
+
+
+--echo # WITH RECURSIVE : types of t1 columns are determined by anchor parts 
+
+create view v2 as
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v2;
+
+drop view v1,v2;
+
+drop table t1,t2;
+
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null); 
+
+
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+with recursive 
+ancestors
+as
+(
+  select p.*
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+  union
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+)
+select * from ancestors;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Cousin Eddie'
+  union 
+  select p.*
+    from folks as p, ancestors as a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from  folks
+      where name = 'Me' or name='Sister Amy'
+  union 
+  select  p.*
+    from folks as p, ancestors as a
+  where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+with recursive 
+prev_gen
+as
+(
+  select folks.*
+    from folks, prev_gen
+      where folks.id=prev_gen.father or folks.id=prev_gen.mother
+  union
+  select * 
+    from folks
+      where name='Me'
+),
+ancestors
+as
+(
+  select *
+    from folks
+      where name='Me'
+  union 
+  select *
+    from ancestors
+  union
+    select *
+     from prev_gen
+)
+select ancestors.name, ancestors.dob from ancestors;
+
+
+with recursive
+descendants
+as
+(
+  select *
+    from folks
+      where name = 'Grandpa Bill'
+  union 
+  select folks.*
+    from folks, descendants as d
+      where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+
+with recursive
+descendants
+as
+(
+  select *
+    from folks
+      where name = 'Grandma Sally'
+  union 
+  select folks.*
+    from folks, descendants as d
+      where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me' and dob = '2000-01-01'
+  union
+  select p.*   
+    from folks as p, ancestors AS a   
+      where p.id = a.father OR p.id = a.mother
+)
+select *
+  from ancestors t1, ancestors t2 
+    where exists (select * from ancestors a 
+                  where a.father=t1.id AND a.mother=t2.id);
+
+with 
+ancestor_couples(husband, h_dob, wife, w_dob)
+as
+(
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks 
+       where name = 'Me'
+  union
+  select p.*   
+    from folks as p, ancestors AS a   
+      where p.id = a.father OR p.id = a.mother
+)
+select t1.name, t1.dob, t2.name, t2.dob
+  from ancestors t1, ancestors t2 
+    where exists (select * from ancestors a 
+                    where a.father=t1.id AND a.mother=t2.id)
+)
+select * from ancestor_couples;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+prepare stmt1 from "
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+";
+
+execute stmt1;
+execute stmt1;
+
+deallocate prepare stmt1;
+
+
+create view v1 as
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+show create view v1;
+
+select * from v1;
+
+create view v2 as
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+show create view v2;
+
+select * from v2;
+
+drop view v1,v2;
+
+explain extended
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union all
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set standards_compliant_cte=0;
+
+--ERROR ER_WITH_COL_WRONG_LIST
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father from folks where name = 'Me' and  father is not null
+  union all
+  select mother from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and father is not null and
+          (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and mother is not null and
+          (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set standards_compliant_cte=1;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me' and father is not null
+  union 
+  select mother from folks where name = 'Me' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+set statement standards_compliant_cte=0 for
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me' and father is not null
+  union 
+  select mother from folks where name = 'Me' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standards_compliant_cte=0 for
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+--ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select max(father), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standards_compliant_cte=0 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select max(father), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement max_recursion_level=2 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+drop table folks;
+

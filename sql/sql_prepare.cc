@@ -1509,7 +1509,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+  if (check_dependencies_in_with_clauses(thd,lex->with_clauses_list))
     goto error;
   if (tables)
   {

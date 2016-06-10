@@ -859,6 +859,13 @@ JOIN::prepare(TABLE_LIST *tables_init,
   With_clause *with_clause=select_lex->get_with_clause();
   if (with_clause && with_clause->prepare_unreferenced_elements(thd))
     DBUG_RETURN(1);
+
+  With_element *with_elem= select_lex->get_with_element();
+  if (with_elem &&
+      select_lex->check_unrestricted_recursive(
+                      thd->variables.only_standards_compliant_cte))
+    DBUG_RETURN(-1);
+  select_lex->check_subqueries_with_recursive_references();
   
   int res= check_and_do_in_subquery_rewrites(this);
 
@@ -3669,6 +3676,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     s->checked_keys.init();
     s->needed_reg.init();
     table_vector[i]=s->table=table=tables->table;
+    s->tab_list= tables;
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
     set_statistics_for_table(join->thd, table);
@@ -11423,6 +11431,11 @@ bool error_if_full_join(JOIN *join)
 void JOIN_TAB::cleanup()
 {
   DBUG_ENTER("JOIN_TAB::cleanup");
+  
+  if (tab_list && tab_list->is_with_table_recursive_reference() &&
+    tab_list->with->is_cleaned())
+  DBUG_VOID_RETURN;
+
   DBUG_PRINT("enter", ("tab: %p  table %s.%s",
                        this,
                        (table ? table->s->db.str : "?"),
@@ -11592,7 +11605,7 @@ bool JOIN_TAB::preread_init()
   }
 
   /* Materialize derived table/view. */
-  if (!derived->get_unit()->executed &&
+  if ((!derived->get_unit()->executed  || derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
@@ -24485,7 +24498,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    if (unit->union_needs_tmp_table())
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= "UNION RESULT";

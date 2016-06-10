@@ -2145,6 +2145,12 @@ static Sys_var_ulong Sys_max_prepared_stmt_count(
        VALID_RANGE(0, 1024*1024), DEFAULT(16382), BLOCK_SIZE(1),
        &PLock_prepared_stmt_count);
 
+static Sys_var_ulong Sys_max_recursion_level(
+       "max_recursion_level",
+       "Maximum number of iterations when executing recursive queries",
+       SESSION_VAR(max_recursion_level), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_max_sort_length(
        "max_sort_length",
        "The number of bytes to use when sorting BLOB or TEXT values (only "
@@ -3155,6 +3161,12 @@ static Sys_var_charptr Sys_ssl_crlpath(
        "CRL directory (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_mybool Sys_standards_compliant_cte(
+       "standards_compliant_cte",
+       "Allow only standards compiant CTE",
+       SESSION_VAR(only_standards_compliant_cte), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
 
 
 // why ENUM and not BOOL ?

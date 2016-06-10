@@ -450,6 +450,9 @@ The following options may be given as the first argument:
  max_allowed_packet instead.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
+ --max-recursion-level[=#] 
+ Maximum number of iterations when executing recursive
+ queries
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
  exceeds this value.  If 0 at startup, it's set to
@@ -1033,6 +1036,9 @@ The following options may be given as the first argument:
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
+ --standards-compliant-cte 
+ Allow only standards compiant CTE
+ (Defaults to on; use --skip-standards-compliant-cte to disable.)
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -1267,6 +1273,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 4194304
 max-prepared-stmt-count 16382
+max-recursion-level 18446744073709551615
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
@@ -1414,6 +1421,7 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 stack-trace TRUE
+standards-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE

@@ -558,6 +558,7 @@ typedef struct system_variables
   ulong max_allowed_packet;
   ulong max_error_count;
   ulong max_length_for_sort_data;
+  ulong max_recursion_level;
   ulong max_sort_length;
   ulong max_tmp_tables;
   ulong max_insert_delayed_threads;
@@ -628,6 +629,7 @@ typedef struct system_variables
   my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
+  my_bool only_standards_compliant_cte;
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
@@ -4210,6 +4212,7 @@ protected:
   /* Something used only by the parser: */
 public:
   select_result(THD *thd_arg): select_result_sink(thd_arg) {}
+  void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
     Change wrapped select_result.
@@ -4651,6 +4654,7 @@ public:
   }
 };
 
+
 class select_union :public select_result_interceptor
 {
 public:
@@ -4687,6 +4691,25 @@ public:
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
 };
 
+
+class select_union_recursive :public select_union
+{
+ public:
+  TABLE *incr_table;
+  List<TABLE> rec_tables;
+
+  select_union_recursive(THD *thd_arg):
+    select_union(thd_arg), incr_table(0) {};
+
+  int send_data(List<Item> &items);
+  bool create_result_table(THD *thd, List<Item> *column_types,
+                           bool is_distinct, ulonglong options,
+                           const char *alias, 
+                           bool bit_fields_as_long,
+                           bool create_table,
+                           bool keep_row_order= FALSE);
+  void cleanup();
+};
 
 /**
   UNION result that is passed directly to the receiving select_result

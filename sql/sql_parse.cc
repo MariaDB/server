@@ -6228,7 +6228,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         new (thd->mem_root) Item_int(thd,
                                      (ulonglong) thd->variables.select_limit);
   }
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+  if (check_dependencies_in_with_clauses(thd, lex->with_clauses_list))
     return 1;
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))

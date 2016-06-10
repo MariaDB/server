@@ -30,6 +30,7 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 
+
 /* YACC and LEX Definitions */
 
 /* These may not be declared yet */
@@ -546,6 +547,14 @@ public:
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  void move_node(st_select_lex_node *where_to_move)
+  {
+    if (where_to_move == this)
+      return;
+    *prev= next;
+    *where_to_move->prev= this;
+    next= where_to_move;
+  }
   st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
                                           st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
@@ -682,7 +691,7 @@ public:
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
-  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
+  void set_with_clause(With_clause *with_cl);
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -695,6 +704,7 @@ public:
   bool prepare(THD *thd, select_result *result, ulong additional_options);
   bool optimize();
   bool exec();
+  bool exec_recursive();
   bool cleanup();
   inline void unclean() { cleaned= 0; }
   void reinit_exec_mechanism();
@@ -911,6 +921,8 @@ public:
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
 
+  table_map with_dep;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -1084,10 +1096,7 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
-  void set_with_clause(With_clause *with_clause)
-  {
-    master_unit()->with_clause= with_clause;
-  }
+  void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
     return master_unit()->with_clause;
@@ -1097,7 +1106,9 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
-
+  bool check_unrestricted_recursive(bool only_standards_compliant); 
+  void check_subqueries_with_recursive_references();
+  
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
   bool add_window_def(THD *thd, LEX_STRING *win_name, LEX_STRING *win_ref,

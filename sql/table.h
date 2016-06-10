@@ -1415,6 +1415,8 @@ public:
 
   inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
+
+  bool insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup);
 };
 
 
@@ -1855,6 +1857,8 @@ struct TABLE_LIST
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;                   /* With element of with_table */
+  table_map with_internal_reference_map;
+  bool block_handle_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2224,6 +2228,9 @@ struct TABLE_LIST
     return (derived_type & DTYPE_TABLE);
   }
   bool is_with_table();
+  bool is_recursive_with_table();
+  bool is_with_table_recursive_reference();
+
   inline void set_view()
   {
     derived_type= DTYPE_VIEW;

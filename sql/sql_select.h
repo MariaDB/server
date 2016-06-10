@@ -205,6 +205,7 @@ class Filesort;
 typedef struct st_join_table {
   st_join_table() {}
   TABLE		*table;
+  TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;			/**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
 				    not supported by any index                 */

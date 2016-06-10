@@ -30,6 +30,7 @@
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
+#include "sql_class.h"
 #include "sql_cte.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
@@ -631,6 +632,7 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
     true   Error
 */
 
+
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -638,24 +640,55 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   bool res= FALSE;
   DBUG_PRINT("enter", ("unit 0x%lx", (ulong) unit));
 
+  if (!unit)
+    DBUG_RETURN(FALSE);
+
+  SELECT_LEX *first_select= unit->first_select();
+
+  if (unit->prepared && derived->is_recursive_with_table() &&
+      !derived->table)
+  {
+    if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+      DBUG_RETURN(TRUE); // out of memory
+    thd->create_tmp_table_for_derived= TRUE;
+    if (!derived->table)
+      res= derived->derived_result->create_result_table(
+                                    thd, &unit->types, FALSE,
+                                    (first_select->options |
+                                     thd->variables.option_bits |
+                                     TMP_TABLE_ALL_COLUMNS),
+                                    derived->alias, FALSE, TRUE);
+    thd->create_tmp_table_for_derived= FALSE;
+
+    if (!res && !derived->table)
+    {
+      derived->derived_result->set_unit(unit);
+      derived->table= derived->derived_result->table;
+      if (derived->is_with_table_recursive_reference())
+        unit->with_element->rec_result->rec_tables.push_back(derived->table);
+    }
+    DBUG_ASSERT(derived->table || res);
+    goto exit;
+  }
+
   // Skip already prepared views/DT
-  if (!unit || unit->prepared ||
+  if (unit->prepared ||
       (derived->merged_for_insert && 
        !(derived->is_multitable() &&
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
     DBUG_RETURN(FALSE);
 
-  SELECT_LEX *first_select= unit->first_select();
-
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
     sl->context.outer_context= 0;
-    // Prepare underlying views/DT first.
-    if ((res= sl->handle_derived(lex, DT_PREPARE)))
-      goto exit;
-
+    if (!derived->is_with_table_recursive_reference())
+    {
+      // Prepare underlying views/DT first.
+      if ((res= sl->handle_derived(lex, DT_PREPARE)))
+        goto exit;
+    }
     if (derived->outer_join && sl->first_cond_optimization)
     {
       /* Mark that table is part of OUTER JOIN and fields may be NULL */
@@ -701,19 +734,21 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     SELECT is last SELECT of UNION).
   */
   thd->create_tmp_table_for_derived= TRUE;
-  if (derived->derived_result->create_result_table(thd, &unit->types, FALSE,
-                                                (first_select->options |
-                                                 thd->variables.option_bits |
-                                                 TMP_TABLE_ALL_COLUMNS),
-                                                derived->alias,
-                                                FALSE, FALSE))
+  if (!(derived->table) &&
+      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+                                                   (first_select->options |
+                                                   thd->variables.option_bits |
+                                                   TMP_TABLE_ALL_COLUMNS),
+                                                   derived->alias,
+                                                   FALSE, FALSE, FALSE))
   { 
     thd->create_tmp_table_for_derived= FALSE;
     goto exit;
   }
   thd->create_tmp_table_for_derived= FALSE;
 
-  derived->table= derived->derived_result->table;
+  if (!derived->table)
+    derived->table= derived->derived_result->table;
   DBUG_ASSERT(derived->table);
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
@@ -740,7 +775,7 @@ exit:
   */
   if (res)
   {
-    if (derived->table)
+    if (derived->table && !derived->is_with_table_recursive_reference())
       free_tmp_table(thd, derived->table);
     delete derived->derived_result;
   }
@@ -760,8 +795,11 @@ exit:
     }
 #endif
     /* Add new temporary table to list of open derived tables */
-    table->next= thd->derived_tables;
-    thd->derived_tables= table;
+    if (!derived->is_with_table_recursive_reference())
+    {
+      table->next= thd->derived_tables;
+      thd->derived_tables= table;
+    }
 
     /* If table is used by a left join, mark that any column may be null */
     if (derived->outer_join)
@@ -913,6 +951,14 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   bool res= FALSE;
 
+  if (derived->is_recursive_with_table() && unit->executed)
+  {
+    TABLE *src= unit->with_element->rec_result->table;
+    TABLE *dest= derived->table;
+    res= src->insert_all_rows_into(thd, dest, true);
+    DBUG_RETURN(res);
+  }
+
   if (unit->executed && !unit->uncacheable && !unit->describe)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
@@ -923,6 +969,8 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (unit->is_union())
   {
     // execute union without clean up
+    if (derived->is_recursive_with_table())
+      unit->with_element->set_result_table(derived->table);
     res= unit->exec();
   }
   else
@@ -952,7 +1000,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       res= TRUE;
     unit->executed= TRUE;
   }
-  if (res || !lex->describe) 
+  if (res ||
+      (!lex->describe &&
+       !(unit->with_element && unit->with_element->is_recursive))) 
     unit->cleanup();
   lex->current_select= save_current_select;
 

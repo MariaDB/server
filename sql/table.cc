@@ -41,6 +41,7 @@
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
 #include "rpl_filter.h"
+#include "sql_cte.h"
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -7080,7 +7081,7 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
         /*
           We're here if:
           - validate_value_in_record_with_warn() failed and
-            strict mode converted WARN to ERROR
+            strict mo validate_default_values_of_unset_fieldsde converted WARN to ERROR
           - or the connection was killed, or closed unexpectedly
         */
         DBUG_RETURN(true);
@@ -7089,6 +7090,59 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
   }
   DBUG_RETURN(false);
 }
+
+
+bool TABLE::insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup)
+{
+  int write_err= 0;
+
+  DBUG_ENTER("TABLE::insert_all_rows_into");
+
+  if (with_cleanup)
+  {
+   if ((write_err= dest->file->ha_delete_all_rows()))
+      goto err;
+  }
+   
+  if (file->indexes_are_disabled())
+    dest->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+  file->ha_index_or_rnd_end();
+
+  if (file->ha_rnd_init_with_error(1))
+    DBUG_RETURN(1);
+
+  if (dest->no_rows)
+    dest->file->extra(HA_EXTRA_NO_ROWS);
+  else
+  {
+    /* update table->file->stats.records */
+    file->info(HA_STATUS_VARIABLE);
+    dest->file->ha_start_bulk_insert(file->stats.records);
+  }
+
+  while (!file->ha_rnd_next(dest->record[1]))
+  {
+    write_err= dest->file->ha_write_tmp_row(dest->record[1]);
+    if (write_err)
+      goto err;
+    if (thd->check_killed())
+    {
+      thd->send_kill_message();
+      goto err_killed;
+    }
+  }
+  if (!dest->no_rows && dest->file->ha_end_bulk_insert())
+    goto err;
+  DBUG_RETURN(0);
+
+err:
+  DBUG_PRINT("error",("Got error: %d",write_err));
+  file->print_error(write_err, MYF(0));
+err_killed:
+  (void) file->ha_rnd_end();
+  DBUG_RETURN(1);
+}
+
 
 
 /*
@@ -7131,19 +7185,33 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit;
+  SELECT_LEX_UNIT *unit= get_unit();
   DBUG_ENTER("handle_derived");
   DBUG_PRINT("enter", ("phases: 0x%x", phases));
-  if ((unit= get_unit()))
+
+  if (is_with_table_recursive_reference())
+  {
+    if (!(with->with_anchor || with->is_with_prepared_anchor()))
+    {
+      for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+        if (sl->handle_derived(lex, phases))
+          DBUG_RETURN(TRUE);
+    }
+    else if (mysql_handle_single_derived(lex, this, phases))
+      DBUG_RETURN(TRUE);
+    DBUG_RETURN(FALSE);
+  }
+  
+  if (unit)
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
       if (sl->handle_derived(lex, phases))
         DBUG_RETURN(TRUE);
-    DBUG_RETURN(mysql_handle_single_derived(lex, this, phases));
+    if (mysql_handle_single_derived(lex, this, phases))
+      DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
 }
-
 
 /**
   @brief
@@ -7421,6 +7489,7 @@ bool TABLE_LIST::is_with_table()
 {
   return derived && derived->with_element;
 }
+
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
