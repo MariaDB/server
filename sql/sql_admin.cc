@@ -261,7 +261,10 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 end:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   if (table == &tmp_table)
-    closefrm(table, 1);				// Free allocated memory
+  {
+    closefrm(table);
+    tdc_release_share(table->s);
+  }
   /* In case of a temporary table there will be no metadata lock. */
   if (error && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();

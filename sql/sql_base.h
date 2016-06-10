@@ -271,8 +271,6 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
                                     uint dt_phases);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
-void intern_close_table(TABLE *entry);
-void kill_delayed_threads_for_table(TDC_element *element);
 void close_thread_table(THD *thd, TABLE **table_ptr);
 bool close_temporary_tables(THD *thd);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,

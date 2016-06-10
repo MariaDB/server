@@ -4694,7 +4694,7 @@ int ha_create_table(THD *thd, const char *path,
                               share.table_name.str, share.table_name.length);
   }
 
-  (void) closefrm(&table, 0);
+  (void) closefrm(&table);
  
 err:
   free_table_share(&share);

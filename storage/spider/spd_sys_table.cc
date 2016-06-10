@@ -227,7 +227,8 @@ void spider_close_sys_table(
     close_performance_schema_table(thd, open_tables_backup);
   } else {
     table->file->ha_reset();
-    closefrm(table, TRUE);
+    closefrm(table);
+    tdc_release_share(table->s);
     spider_free(spider_current_trx, table, MYF(0));
     thd->restore_backup_open_tables_state(open_tables_backup);
   }

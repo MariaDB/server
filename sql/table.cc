@@ -3020,21 +3020,16 @@ partititon_err:
   SYNOPSIS
     closefrm()
     table		TABLE object to free
-    free_share		Is 1 if we also want to free table_share
 */
 
-int closefrm(register TABLE *table, bool free_share)
+int closefrm(register TABLE *table)
 {
   int error=0;
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: 0x%lx", (long) table));
 
   if (table->db_stat)
-  {
-    if (table->s->deleting)
-      table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     error=table->file->ha_close();
-  }
   table->alias.free();
   if (table->expr_arena)
     table->expr_arena->free_items();
@@ -3057,13 +3052,6 @@ int closefrm(register TABLE *table, bool free_share)
     table->part_info= 0;
   }
 #endif
-  if (free_share)
-  {
-    if (table->s->tmp_table == NO_TMP_TABLE)
-      tdc_release_share(table->s);
-    else
-      free_table_share(table->s);
-  }
   free_root(&table->mem_root, MYF(0));
   DBUG_RETURN(error);
 }

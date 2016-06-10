@@ -336,68 +336,6 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
   DBUG_RETURN(argument.open_list);
 }
 
-/*****************************************************************************
- *	 Functions to free open table cache
- ****************************************************************************/
-
-
-void intern_close_table(TABLE *table)
-{						// Free all structures
-  DBUG_ENTER("intern_close_table");
-  DBUG_PRINT("tcache", ("table: '%s'.'%s' 0x%lx",
-                        table->s ? table->s->db.str : "?",
-                        table->s ? table->s->table_name.str : "?",
-                        (long) table));
-
-  delete table->triggers;
-  if (table->file)                              // Not true if placeholder
-    (void) closefrm(table, 1);			// close file
-  table->alias.free();
-  my_free(table);
-  DBUG_VOID_RETURN;
-}
-
-
-/**
-   Auxiliary function which allows to kill delayed threads for
-   particular table identified by its share.
-
-   @param share Table share.
-
-   @pre Caller should have TABLE_SHARE::tdc.LOCK_table_share mutex.
-*/
-
-void kill_delayed_threads_for_table(TDC_element *element)
-{
-  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
-  TABLE *tab;
-
-  mysql_mutex_assert_owner(&element->LOCK_table_share);
-
-  if (!delayed_insert_threads)
-    return;
-
-  while ((tab= it++))
-  {
-    THD *in_use= tab->in_use;
-
-    DBUG_ASSERT(in_use && tab->s->tdc->flushed);
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-        ! in_use->killed)
-    {
-      in_use->killed= KILL_SYSTEM_THREAD;
-      mysql_mutex_lock(&in_use->mysys_var->mutex);
-      if (in_use->mysys_var->current_cond)
-      {
-        mysql_mutex_lock(in_use->mysys_var->current_mutex);
-        mysql_cond_broadcast(in_use->mysys_var->current_cond);
-        mysql_mutex_unlock(in_use->mysys_var->current_mutex);
-      }
-      mysql_mutex_unlock(&in_use->mysys_var->mutex);
-    }
-  }
-}
-
 
 /*
   Close all tables which aren't in use by any thread
@@ -1779,7 +1717,7 @@ void close_temporary(TABLE *table, bool free_share, bool delete_table)
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  closefrm(table, 0);
+  closefrm(table);
   if (delete_table)
     rm_temporary_table(table_type, table->s->path.str);
   if (free_share)
@@ -2545,7 +2483,7 @@ retry_share:
     }
     if (open_table_entry_fini(thd, share, table))
     {
-      closefrm(table, 0);
+      closefrm(table);
       my_free(table);
       goto err_lock;
     }
@@ -3361,12 +3299,12 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
     sql_print_error("Couldn't repair table: %s.%s", share->db.str,
                     share->table_name.str);
     if (entry->file)
-      closefrm(entry, 0);
+      closefrm(entry);
   }
   else
   {
     thd->clear_error();			// Clear error message
-    closefrm(entry, 0);
+    closefrm(entry);
     result= FALSE;
   }
 

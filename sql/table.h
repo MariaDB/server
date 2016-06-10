@@ -673,7 +673,6 @@ struct TABLE_SHARE
   bool crypted;                         /* If .frm file is crypted */
   bool crashed;
   bool is_view;
-  bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
   bool table_creation_was_logged;
   ulong table_map_id;                   /* for row-based replication */
@@ -2019,8 +2018,6 @@ struct TABLE_LIST
   */
   bool          is_fqtn;
 
-  bool          deleting;               /* going to delete this table */
-
   /* TRUE <=> derived table should be filled right after optimization. */
   bool          fill_me;
   /* TRUE <=> view/DT is merged. */
@@ -2621,7 +2618,7 @@ bool get_field(MEM_ROOT *mem, Field *field, class String *res);
 bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
                              uint err_code, const char *name);
 
-int closefrm(TABLE *table, bool free_share);
+int closefrm(TABLE *table);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
 ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);

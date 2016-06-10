@@ -4889,7 +4889,7 @@ int create_table_impl(THD *thd,
                   open_table_from_share(thd, &share, "", 0, (uint) READ_ALL,
                                         0, &table, true));
     if (!result)
-      (void) closefrm(&table, 0);
+      (void) closefrm(&table);
 
     free_table_share(&share);
 
