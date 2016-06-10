@@ -849,6 +849,18 @@ CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
 
 --echo #
+--echo # Other Item_func_sysconst derived functions
+--echo #
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT DATABASE());
+INSERT INTO t1 VALUES ();
+USE INFORMATION_SCHEMA;
+INSERT INTO test.t1 VALUES ();
+USE test;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Check DEFAULT() function
 --echo #
 

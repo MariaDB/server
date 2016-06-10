@@ -1118,6 +1118,21 @@ ERROR HY000: Function or expression 'current_user()' is not allowed for 'DEFAULT
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
 ERROR HY000: Function or expression 'current_role()' is not allowed for 'DEFAULT' of column/constraint 'a'
 #
+# Other Item_func_sysconst derived functions
+#
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT DATABASE());
+INSERT INTO t1 VALUES ();
+USE INFORMATION_SCHEMA;
+INSERT INTO test.t1 VALUES ();
+USE test;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+a
+test
+information_schema
+test
+DROP TABLE t1;
+#
 # Check DEFAULT() function
 #
 CREATE TABLE `t1` (`a` int(11) DEFAULT 3+3,`b` int(11) DEFAULT '1000');
