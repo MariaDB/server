@@ -1,5 +1,6 @@
 # test DB-917
 # test that table/share open lock timeout does not crash the server on subsequent access
+source include/have_partition.inc;
 source include/have_tokudb.inc;
 disable_warnings;
 drop table if exists t1;

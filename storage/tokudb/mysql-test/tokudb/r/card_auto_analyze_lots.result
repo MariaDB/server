@@ -798,3 +798,8 @@ SHOW INDEX FROM ar_1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 ar_1	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
 ar_1	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SET SESSION tokudb_auto_analyze = @orig_auto_analyze;
+SET SESSION tokudb_analyze_in_background = @orig_in_background;
+SET SESSION tokudb_analyze_mode = @orig_mode;
+SET SESSION tokudb_analyze_throttle = @orig_throttle;
+SET SESSION tokudb_analyze_time = @orig_time;
