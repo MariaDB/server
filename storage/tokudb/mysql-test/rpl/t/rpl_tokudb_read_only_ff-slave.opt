@@ -1,1 +1,1 @@
---read-only=OFF --tokudb-rpl-check-readonly=OFF --tokudb-rpl-unique-checks-delay=5000 --tokudb-rpl-unique-checks=OFF
+--read-only=OFF --loose-tokudb-rpl-check-readonly=OFF --loose-tokudb-rpl-unique-checks-delay=5000 --loose-tokudb-rpl-unique-checks=OFF

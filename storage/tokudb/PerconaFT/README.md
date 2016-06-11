@@ -113,11 +113,11 @@ All source code and test contributions must be provided under a [BSD 2-Clause][b
 License
 -------
 
-PerconaFT is available under the GPL version 2, and AGPL version 3, with slight modifications.
+PerconaFT is available under the GPL version 2, and AGPL version 3.
 See [COPYING.AGPLv3][agpllicense],
 [COPYING.GPLv2][gpllicense], and
 [PATENTS][patents].
 
-[agpllicense]: http://github.com/Perona/PerconaFT/blob/master/COPYING.AGPLv3
-[gpllicense]: http://github.com/Perona/PerconaFT/blob/master/COPYING.GPLv2
-[patents]: http://github.com/Perona/PerconaFT/blob/master/PATENTS
+[agpllicense]: http://github.com/Percona/PerconaFT/blob/master/COPYING.AGPLv3
+[gpllicense]: http://github.com/Percona/PerconaFT/blob/master/COPYING.GPLv2
+[patents]: http://github.com/Percona/PerconaFT/blob/master/PATENTS

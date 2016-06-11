@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.26-74.0)
+SET(TOKUDB_VERSION 5.6.30-76.3)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -45,9 +45,24 @@ MARK_AS_ADVANCED(gcc_ar)
 MARK_AS_ADVANCED(gcc_ranlib)
 ############################################
 
+## adds a compiler flag if the compiler supports it
+include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
+
+# pick language dialect
+check_cxx_compiler_flag(-std=c++11 HAVE_STDCXX11)
+if (HAVE_STDCXX11)
+  set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-deprecated-declarations ${CMAKE_CXX_FLAGS}")
+else ()
+  message(FATAL_ERROR "${CMAKE_CXX_COMPILER} doesn't support -std=c++11, you need one that does.")
+endif ()
+
 SET(BUILD_TESTING OFF CACHE BOOL "")
 SET(USE_VALGRIND OFF CACHE BOOL "")
 SET(TOKU_DEBUG_PARANOID OFF CACHE BOOL "")
+
+# Enable TokuDB's TOKUDB_DEBUG in debug builds
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTOKUDB_DEBUG")
 
 IF(NOT DEFINED TOKUDB_VERSION)
     IF(DEFINED ENV{TOKUDB_VERSION})
@@ -70,10 +85,6 @@ ENDIF()
 IF(DEFINED TOKUDB_CHECK_JEMALLOC)
     ADD_DEFINITIONS("-DTOKUDB_CHECK_JEMALLOC=${TOKUDB_CHECK_JEMALLOC}")
 ENDIF()
-
-## adds a compiler flag if the compiler supports it
-include(CheckCCompilerFlag)
-include(CheckCXXCompilerFlag)
 
 macro(set_cflags_if_supported)
   foreach(flag ${ARGN})
@@ -128,7 +139,12 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/buildheader)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/portability)
 
 SET(TOKUDB_PLUGIN_DYNAMIC "ha_tokudb")
-SET(TOKUDB_SOURCES ha_tokudb.cc)
+SET(TOKUDB_SOURCES
+    ha_tokudb.cc
+    tokudb_background.cc
+    tokudb_information_schema.cc
+    tokudb_sysvars.cc
+    tokudb_thread.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
     LINK_LIBRARIES tokufractaltree_static tokuportability_static ${ZLIB_LIBRARY} stdc++)
 SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} -flto -fuse-linker-plugin")

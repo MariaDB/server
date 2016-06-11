@@ -4,6 +4,13 @@ Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
 Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
 [connection master]
 drop table if exists t;
+show variables like 'tokudb_rpl%';
+Variable_name	Value
+tokudb_rpl_check_readonly	OFF
+tokudb_rpl_lookup_rows	ON
+tokudb_rpl_lookup_rows_delay	0
+tokudb_rpl_unique_checks	OFF
+tokudb_rpl_unique_checks_delay	5000
 create table t (a bigint not null, primary key(a)) engine=tokudb;
 select unix_timestamp() into @tstart;
 insert into t values (1);

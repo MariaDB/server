@@ -53,7 +53,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
   target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static z ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
   add_space_separated_property(TARGET test-5138.tdb COMPILE_FLAGS -fvisibility=hidden)
   add_ydb_test(test-5138.tdb)
-
+  add_ydb_test(rollback-inconsistency.tdb)
   foreach(bin ${tdb_bins})
     get_filename_component(base ${bin} NAME_WE)
 

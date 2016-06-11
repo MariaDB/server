@@ -1,14 +1,2 @@
-memcache_dirty : #4609 memcache patch from facebook not ported to mysql 5.5
-4472 : #4521 MDL for alter table in 5.5 prohibits this test from having any chance of working
-
-tokudb_drop_part_table_668: no tokudb test data in mariadb tree
-tokudb_drop_simple_table_668: no tokudb test data in mariadb tree
 5585: times out, too many huge insert...selects
-fileops-3: how this could work, if alter needs an exclusive mdl lock?
-6053: tokudb is not the default storage engine
-
-checkpoint_lock_2: test can not work when the checkpoint_safe_lock is a fair rwlock
-
-# this test was added in 7.5.4 and fails in 10.0
-# but running this very test in 7.5.3 fails in exactly the same manner
-db768: never worked. tokutek was informed, 2015-01-14
+db233: different execution path in mariadb, debug_sync point is not hit

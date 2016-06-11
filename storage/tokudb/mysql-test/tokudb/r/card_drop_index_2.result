@@ -132,21 +132,21 @@ count(*)
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	500	NULL	NULL		BTREE		
-tt	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
-tt	1	c	1	c	A	NULL	NULL	NULL	YES	BTREE		
+tt	1	b	1	b	A	500	NULL	NULL	YES	BTREE		
+tt	1	c	1	c	A	500	NULL	NULL	YES	BTREE		
 analyze table tt;
 Table	Op	Msg_type	Msg_text
 test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	500	NULL	NULL		BTREE		
-tt	1	b	1	b	A	125	NULL	NULL	YES	BTREE		
-tt	1	c	1	c	A	1	NULL	NULL	YES	BTREE		
+tt	1	b	1	b	A	250	NULL	NULL	YES	BTREE		
+tt	1	c	1	c	A	2	NULL	NULL	YES	BTREE		
 alter table tt drop key b;
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	500	NULL	NULL		BTREE		
-tt	1	c	1	c	A	1	NULL	NULL	YES	BTREE		
+tt	1	c	1	c	A	2	NULL	NULL	YES	BTREE		
 alter table tt drop key c;
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
