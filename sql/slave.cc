@@ -1361,6 +1361,10 @@ bool is_network_error(uint errorno)
       errorno == ER_NET_READ_INTERRUPTED ||
       errorno == ER_SERVER_SHUTDOWN)
     return TRUE;
+#ifdef WITH_WSREP
+  if (errorno == ER_UNKNOWN_COM_ERROR)
+    return TRUE;
+#endif
 
   return FALSE;   
 }
