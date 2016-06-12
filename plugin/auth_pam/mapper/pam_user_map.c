@@ -71,6 +71,7 @@ static int populate_user_groups(const char *user, gid_t **groups)
 static int user_in_group(const gid_t *user_groups, int ng,const char *group)
 {
   gid_t group_id;
+  const gid_t *groups_end = user_groups + ng;
 
   {
     struct group *g= getgrnam(group);
@@ -79,7 +80,7 @@ static int user_in_group(const gid_t *user_groups, int ng,const char *group)
     group_id= g->gr_gid;
   }
 
-  for (; user_groups < user_groups + ng; user_groups++)
+  for (; user_groups < groups_end; user_groups++)
   {
     if (*user_groups == group_id)
       return 1;
@@ -146,7 +147,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
       goto ret;
     }
   }
-  pam_err= PAM_SUCCESS;
+  pam_err= PAM_AUTH_ERR;
   goto ret;
 
 syntax_error:
