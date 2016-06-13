@@ -1815,11 +1815,10 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
     DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
                         (longlong) global_status_var.global_memory_used,
                         (longlong) from_var->global_memory_used));
+    update_global_memory_status(from_var->global_memory_used);
   }
-  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-  int64 volatile * volatile ptr= &to_var->global_memory_used;
-  my_atomic_add64_explicit(ptr, from_var->global_memory_used,
-                           MY_MEMORY_ORDER_RELAXED);
+  else
+   to_var->global_memory_used+= from_var->global_memory_used;
 }
 
 /*
