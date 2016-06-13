@@ -2141,6 +2141,7 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
+  DBUG_ASSERT(global_status_var.global_memory_used == 0);
   cleanup_tls();
   DBUG_LEAVE;
   if (opt_endinfo && global_status_var.global_memory_used)
@@ -4109,14 +4110,6 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
   else
   {
     update_global_memory_status(size);
-#ifndef EMBEDDED_LIBRARY
-    /*
-      Check if we have missed some mallocs. THis can't be done for embedded
-      server as the main code may have done calls to malloc before starting
-      the embedded library.
-    */
-    DBUG_ASSERT(global_status_var.global_memory_used >= 0);
-#endif
   }
 }
 }
