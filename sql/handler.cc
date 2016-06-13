@@ -5866,23 +5866,25 @@ int handler::ha_reset()
 
 /** @brief
    Compare two records
+   It requires both records to be present in table->record[0]
+   and table->record[1]
    @returns true if equal else false
-*/
-bool rec_hash_cmp(TABLE *tbl ,Field * hash_field)
+  */
+bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
 {
   Item_args * t_item=(Item_args *)hash_field->vcol_info->expr_item;
   int arg_count = t_item->argument_count();
   Item ** arguments=t_item->arguments();
-  int diff = tbl->s->rec_buff_length;
+  int diff = sec_rec-first_rec;
   Field * t_field;
   int first_length,second_length;
 
   for(int i=0;i<arg_count;i++)
   {
-    t_field = ((Item_field *)arguments[i])->field;
+    t_field = ((Item_field *)arguments[i])->field;//need a debug assert
     /*
-       length of field is not equal to pack length when it is
-       subclass of field_blob and field _varsting
+      length of field is not equal to pack length when it is
+      subclass of field_blob and field _varsting
      */
     first_length = t_field->data_length();
     second_length = t_field->data_length(diff);
@@ -5905,36 +5907,37 @@ int handler::ha_write_row(uchar *buf)
   /* First need to whether inserted record is unique or not */
 
   /* One More Thing  if i implement hidden field then detection can be easy */
-  field_iter=table->field;
-  for(uint i=0;i<table->s->fields;i++)
+  field_iter=table->vfield;
+  for(uint i=0;i<table->s->vfields;i++)
   {
     if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
     {
 
-      /* We need to add the null bit */
-      /* If the column can be NULL, then in the first byte we put 1 if the
-	   field value is NULL, 0 otherwise. */
+      /*
+        We need to add the null bit
+        If the column can be NULL, then in the first byte we put 1 if the
+        field value is NULL, 0 otherwise.
+       */
 			uchar  ptr[9];
 			if((*field_iter)->is_null())
 			{
 				goto write_row;
 			}
 			ptr[0]=0;
-		 // ptr++;
 			memcpy(ptr+1,(*field_iter)->ptr,8);
 		 // ptr--;
-			table->file->ha_index_init(i,0);
-			map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+			//table->file->ha_index_init(i,0);
+			map= table->file->ha_index_read_idx_map(table->record[1],0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!map)
       {
-        if(rec_hash_cmp(table,*field_iter))
+        if(rec_hash_cmp(table->record[0],table->record[1],*field_iter))
         {
-          table->file->ha_index_end();
+          //table->file->ha_index_end();
           DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
         }
           
       }
-      table->file->ha_index_end();
+      //table->file->ha_index_end();
     }
     field_iter++;
   }
@@ -5961,6 +5964,7 @@ int handler::ha_write_row(uchar *buf)
 int handler::ha_update_row(const uchar *old_data, uchar *new_data)
 {
   int error;
+  Field **field_iter;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
@@ -5971,7 +5975,43 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
+  /*
+    Need to check for unique constraint of very long fields
+    First we will compare new_record and old record
+   */
 
+  field_iter=table->vfield;
+  for(uint i=0;i<table->s->vfields;i++)
+  {
+    if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
+    {
+      if(rec_hash_cmp(table->record[0],table->record[1],*field_iter))
+        return HA_ERR_FOUND_DUPP_KEY;
+      //need to retrive a index
+      uchar *new_rec = (uchar *)alloc_root(&table->mem_root,
+                                           table->s->reclength*sizeof(uchar));
+      uchar  ptr[9];
+      if((*field_iter)->is_null())
+      {
+        goto write_row;
+      }
+      ptr[0]=0;
+      memcpy(ptr+1,(*field_iter)->ptr,8);
+      int map= table->file->ha_index_read_idx_map(new_rec,
+                                0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+      if(!map)
+      {
+        if(rec_hash_cmp(table->record[0],new_rec,*field_iter))
+        {
+          //table->file->ha_index_end();
+          return HA_ERR_FOUND_DUPP_KEY;
+        }
+
+      }
+     // table->file->ha_index_end();
+    }
+  }
+  write_row:
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
