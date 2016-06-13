@@ -1,6 +1,6 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
-/*  PROGRAM NAME: jsonudf     Version 1.3                                        */
-/*  (C) Copyright to the author Olivier BERTRAND          2015                   */
+/*  PROGRAM NAME: jsonudf     Version 1.4                                        */
+/*  (C) Copyright to the author Olivier BERTRAND          2015-2016              */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
 

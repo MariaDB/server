@@ -2081,7 +2081,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		if (!m_Rows) {
 			strcpy(g->Message, "Void result");
 			return NULL;
-		} // endif m_Res
+		} // endif m_Rows
 
 		/*********************************************************************/
 		/*  Allocate the result storage for future retrieval.                */
