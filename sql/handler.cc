@@ -5924,7 +5924,7 @@ int handler::ha_write_row(uchar *buf)
 			memcpy(ptr+1,(*field_iter)->ptr,8);
 		 // ptr--;
 			table->file->ha_index_init(i,0);
-      map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+			map= table->file->ha_index_read_map(table->record[1],ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!map)
       {
         if(rec_hash_cmp(table,*field_iter))

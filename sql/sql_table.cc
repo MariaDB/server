@@ -3248,7 +3248,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if(sql_field->sql_type==MYSQL_TYPE_BLOB){
         is_long_unique=true;
       }
-
+      it.rewind();
     }
     if(is_long_unique){
       /* make a virtual field */
