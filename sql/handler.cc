@@ -5897,7 +5897,7 @@ bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
 }
 int handler::ha_write_row(uchar *buf)
 {
-  int error,map;
+  int error,result;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
   Field **field_iter;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
@@ -5927,9 +5927,9 @@ int handler::ha_write_row(uchar *buf)
 			memcpy(ptr+1,(*field_iter)->ptr,8);
 		 // ptr--;
 			//table->file->ha_index_init(i,0);
-			map= table->file->ha_index_read_idx_map(table->record[1],0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-      if(!map)
-      {
+			result= table->file->ha_index_read_idx_map(table->record[1],0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+			if(!result)
+			{
         if(rec_hash_cmp(table->record[0],table->record[1],*field_iter))
         {
           //table->file->ha_index_end();
@@ -5993,9 +5993,9 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
       }
       ptr[0]=0;
       memcpy(ptr+1,(*field_iter)->ptr,8);
-      int map= table->file->ha_index_read_idx_map(new_rec,
+      int result= table->file->ha_index_read_idx_map(new_rec,
                                 0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-      if(!map)
+      if(!result)
       {
         if(rec_hash_cmp(table->record[0],new_rec,*field_iter))
           return HA_ERR_FOUND_DUPP_KEY;

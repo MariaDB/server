@@ -3245,13 +3245,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            temp_colms->field_name.str,
                            sql_field->field_name)){}
 
-      if(sql_field->sql_type==MYSQL_TYPE_BLOB&&temp_colms->length==0){
+      if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
+          sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
+          sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
+         &&temp_colms->length==0){
         is_long_unique=true;
         /*
           One long key  unique in enough
          */
         break;
       }
+     // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
       it.rewind();
     }
     if(is_long_unique){
@@ -3259,11 +3263,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       key_part_iter.rewind();
       Create_field *cf = new (thd->mem_root) Create_field();
       cf->flags|=UNSIGNED_FLAG;
-
-      if(sql_field->flags&NOT_NULL_FLAG)
-        cf->flags|=NOT_NULL_FLAG;
-
-      cf->flags|=NO_DEFAULT_VALUE_FLAG;
       cf->length=cf->char_length=8;
       cf->charset=NULL;
       cf->decimals=0;
@@ -4212,6 +4211,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         (sql_field->flags & NOT_NULL_FLAG) &&
         !is_timestamp_type(sql_field->sql_type))
     {
+      int a = (!sql_field->def &&
+               !sql_field->has_default_function() &&
+               (sql_field->flags & NOT_NULL_FLAG) &&
+               !is_timestamp_type(sql_field->sql_type));
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
     }
