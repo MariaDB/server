@@ -73,9 +73,8 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
   DBUG_UNLOCK_FILE;
 }
 
+#ifdef EXTRA_DEBUG
 	/* This is for debugging purposes */
-
-
 static my_bool print_cached_tables_callback(TDC_element *element,
                                             void *arg __attribute__((unused)))
 {
@@ -112,6 +111,7 @@ static void print_cached_tables(void)
   /* purecov: end */
   return;
 }
+#endif
 
 
 void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
