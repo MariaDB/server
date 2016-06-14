@@ -80,7 +80,7 @@ void seq_storage_destroy(SEQ_STORAGE *seq)
 
 
 /**
-  @brief Starts the sequence from begining
+  @brief Starts the sequence from beginning
 
   @param seq             Reference on the sequence storage.
 */

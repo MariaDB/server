@@ -6526,7 +6526,7 @@ int read_line(char *buf, int size)
                               start_lineno));
         }
 
-        /* Skip all space at begining of line */
+        /* Skip all space at beginning of line */
 	skip_char= 1;
       }
       else if (end_of_query(c))
@@ -6538,10 +6538,10 @@ int read_line(char *buf, int size)
       }
       else if (c == '}')
       {
-        /* A "}" need to be by itself in the begining of a line to terminate */
+        /* A "}" need to be by itself in the beginning of a line to terminate */
         *p++= c;
 	*p= 0;
-        DBUG_PRINT("exit", ("Found '}' in begining of a line at line: %d",
+        DBUG_PRINT("exit", ("Found '}' in beginning of a line at line: %d",
                             cur_file->lineno));
 	DBUG_RETURN(0);
       }

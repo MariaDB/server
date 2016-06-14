@@ -2451,9 +2451,9 @@ master_file_def:
                If the user specified a value < BIN_LOG_HEADER_SIZE, adjust it
                instead of causing subsequent errors. 
                We need to do it in this file, because only there we know that 
-               MASTER_LOG_POS has been explicitely specified. On the contrary
+               MASTER_LOG_POS has been explicitly specified. On the contrary
                in change_master() (sql_repl.cc) we cannot distinguish between 0
-               (MASTER_LOG_POS explicitely specified as 0) and 0 (unspecified),
+               (MASTER_LOG_POS explicitly specified as 0) and 0 (unspecified),
                whereas we want to distinguish (specified 0 means "read the binlog
                from 0" (4 in fact), unspecified means "don't change the position
                (keep the preceding value)").
@@ -8097,7 +8097,7 @@ checksum:
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_CHECKSUM;
-            /* Will be overriden during execution. */
+            /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
           table_list opt_checksum_type
@@ -8123,7 +8123,7 @@ repair:
             lex->no_write_to_binlog= $2;
             lex->check_opt.init();
             lex->alter_info.reset();
-            /* Will be overriden during execution. */
+            /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
           repair_table_or_view
@@ -8165,7 +8165,7 @@ analyze:
             lex->no_write_to_binlog= $2;
             lex->check_opt.init();
             lex->alter_info.reset();
-            /* Will be overriden during execution. */
+            /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
           analyze_table_list
@@ -8287,7 +8287,7 @@ check:    CHECK_SYM
             lex->sql_command = SQLCOM_CHECK;
             lex->check_opt.init();
             lex->alter_info.reset();
-            /* Will be overriden during execution. */
+            /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
           check_view_or_table
@@ -8337,7 +8337,7 @@ optimize:
             lex->no_write_to_binlog= $2;
             lex->check_opt.init();
             lex->alter_info.reset();
-            /* Will be overriden during execution. */
+            /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
           table_list

@@ -2826,7 +2826,7 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 {
   /*
     If we have set THD::next_insert_id previously and plan to insert an
-    explicitely-specified value larger than this, we need to increase
+    explicitly-specified value larger than this, we need to increase
     THD::next_insert_id to be greater than the explicit value.
   */
   if ((next_insert_id > 0) && (nr >= next_insert_id))

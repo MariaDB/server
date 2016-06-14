@@ -3359,7 +3359,7 @@ int ha_connect::delete_row(const uchar *)
 
 
 /****************************************************************************/
-/*  We seem to come here at the begining of an index use.                   */
+/*  We seem to come here at the beginning of an index use.                   */
 /****************************************************************************/
 int ha_connect::index_init(uint idx, bool sorted)
 {

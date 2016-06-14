@@ -2066,7 +2066,7 @@ static uchar *find_entry_named(DYN_HEADER *hdr, LEX_STRING *key)
 /**
   Write number in the buffer (backward direction - starts from the buffer end)
 
-  @return pointer on the number begining
+  @return pointer on the number beginning
 */
 
 static char *backwritenum(char *chr, uint numkey)

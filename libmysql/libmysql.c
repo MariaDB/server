@@ -220,7 +220,7 @@ void STDCALL mysql_server_end()
   }
 #ifdef NOT_NEEDED
   /*
-    The following is not needed as if the program explicitely called
+    The following is not needed as if the program explicitly called
     my_init() then we can assume it will also call my_end().
     The reason to not also do it here is in that case we can't get
     statistics from my_end() to debug log.

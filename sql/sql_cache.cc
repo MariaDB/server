@@ -2356,7 +2356,7 @@ void Query_cache::invalidate(THD *thd, char *db)
           }
           /* 
             The used tables are linked in a circular list;
-            loop until we return to the begining.
+            loop until we return to the beginning.
           */
         } while (table_block != tables_blocks);
         /*
@@ -3297,7 +3297,7 @@ Query_cache::invalidate_query_block_list(THD *thd,
 }
 
 /*
-  Register given table list begining with given position in tables table of
+  Register given table list beginning with given position in tables table of
   block
 
   SYNOPSIS
@@ -4340,7 +4340,7 @@ my_bool Query_cache::move_by_type(uchar **border,
     {
       Query_cache_block_table *block_table = new_block->table(j);
 
-      // use aligment from begining of table if 'next' is in same block
+      // use aligment from beginning of table if 'next' is in same block
       if ((beg_of_table_table <= block_table->next) &&
 	  (block_table->next < end_of_table_table))
 	((Query_cache_block_table *)(beg_of_new_table_table + 
@@ -4350,7 +4350,7 @@ my_bool Query_cache::move_by_type(uchar **border,
       else
 	block_table->next->prev= block_table;
 
-      // use aligment from begining of table if 'prev' is in same block
+      // use aligment from beginning of table if 'prev' is in same block
       if ((beg_of_table_table <= block_table->prev) &&
 	  (block_table->prev < end_of_table_table))
 	((Query_cache_block_table *)(beg_of_new_table_table + 
@@ -4847,7 +4847,7 @@ my_bool Query_cache::check_integrity(bool locked)
       if (((uchar*)block) + block->length != ((uchar*)block->pnext))
       {
 	DBUG_PRINT("error", 
-		   ("block 0x%lx, type %u, ended at 0x%lx, but next block begining at 0x%lx",
+		   ("block 0x%lx, type %u, ended at 0x%lx, but next block beginning at 0x%lx",
 		    (ulong) block, (uint) block->type, 
 		    (ulong) (((uchar*)block) + block->length),
 		    (ulong) ((uchar*)block->pnext)));

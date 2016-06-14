@@ -4220,7 +4220,7 @@ bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
     create_info        Table create information
 
   DESCRIPTION
-    If the table character set was not given explicitely,
+    If the table character set was not given explicitly,
     let's fetch the database default character set and
     apply it to the table.
 */

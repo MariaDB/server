@@ -660,7 +660,7 @@ parse_quoted_escaped_string(const char *ptr, const char *end,
 
   @param[in,out] ptr          pointer to parameter
   @param[in] end              end of the configuration
-  @param[in] line             pointer to the line begining
+  @param[in] line             pointer to the line beginning
   @param[in] base             base address for parameter writing (structure
     like TABLE)
   @param[in] parameter        description

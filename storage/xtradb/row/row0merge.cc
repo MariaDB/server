@@ -97,7 +97,7 @@ row_merge_encrypt_buf(
 
 	key_version =  encryption_key_get_latest_version(crypt_data->key_id);
 
-	/* Store key_version at the begining of the input buffer */
+	/* Store key_version at the beginning of the input buffer */
 	mach_write_to_4((byte *)crypted_buf, key_version);
 
 	int rc = encryption_scheme_encrypt(input_buf+ROW_MERGE_RESERVE_SIZE,
@@ -134,7 +134,7 @@ row_merge_decrypt_buf(
 	uint dstlen=0;
 	os_offset_t ofs = (os_offset_t)srv_sort_buf_size * (os_offset_t)offset;
 
-	/* Read key_version from begining of the buffer */
+	/* Read key_version from beginning of the buffer */
 	key_version = mach_read_from_4((byte *)input_buf);
 
 	if (key_version == 0) {

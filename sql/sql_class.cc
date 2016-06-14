@@ -1783,7 +1783,7 @@ THD::~THD()
 
   NOTES
     This function assumes that all variables at start are long/ulong and
-    other types are handled explicitely
+    other types are handled explicitly
 */
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
@@ -1832,7 +1832,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   
   NOTE
     This function assumes that all variables at start are long/ulong and
-    other types are handled explicitely
+    other types are handled explicitly
 */
 
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,

@@ -1385,7 +1385,7 @@ sub command_line_setup {
 
   if ( @opt_cases )
   {
-    # Run big tests if explicitely specified on command line
+    # Run big tests if explicitly specified on command line
     $opt_big_test= 1;
   }
 
@@ -5847,7 +5847,7 @@ sub valgrind_arguments {
     }
   }
 
-  # Add valgrind options, can be overriden by user
+  # Add valgrind options, can be overridden by user
   mtr_add_arg($args, '%s', $_) for (@valgrind_args);
 
   mtr_add_arg($args, $$exe);
@@ -5874,7 +5874,7 @@ sub strace_arguments {
   mtr_add_arg($args, "-f");
   mtr_add_arg($args, "-o%s/var/log/%s.strace", $glob_mysql_test_dir, $mysqld_name);
 
-  # Add strace options, can be overriden by user
+  # Add strace options, can be overridden by user
   mtr_add_arg($args, '%s', $_) for (@strace_args);
 
   mtr_add_arg($args, $$exe);

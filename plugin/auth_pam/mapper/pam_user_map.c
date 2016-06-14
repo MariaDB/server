@@ -15,7 +15,7 @@ auth            required        pam_user_map.so
   in the format:  orig_user_name: mapped_user_name
                   @user's_group_name: mapped_user_name
 =========================================================
-#comments and emtpy lines are ignored
+#comments and empty lines are ignored
 john: jack
 bob:  admin
 top:  accounting

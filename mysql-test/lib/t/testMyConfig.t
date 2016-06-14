@@ -129,10 +129,10 @@ my $config3= My::Config->new($test_include_cnf);
 isa_ok( $config3, "My::Config" );
 print $config3;
 is( $config3->value('mysqld', 'basedir'), 'anotherbasedir',
-    "mysqld_basedir has been overriden by value in test_include.cnf");
+    "mysqld_basedir has been overridden by value in test_include.cnf");
 
 is( $config3->value('mysqld', 'option1'), 'values3',
-    "mysqld_option1 has been overriden by value in test_include.cnf");
+    "mysqld_option1 has been overridden by value in test_include.cnf");
 
 is( $config3->value('mysqld', 'option2'), 'value4',
     "mysqld_option2 is from included file");
