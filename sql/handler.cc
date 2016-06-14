@@ -5977,7 +5977,6 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   DBUG_ASSERT(old_data == table->record[1]);
   /*
     Need to check for unique constraint of very long fields
-    First we will compare new_record and old record
    */
 
   field_iter=table->vfield;
@@ -5985,9 +5984,6 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   {
     if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
     {
-      if(rec_hash_cmp(table->record[0],table->record[1],*field_iter))
-        return HA_ERR_FOUND_DUPP_KEY;
-      //need to retrive a index
       uchar *new_rec = (uchar *)alloc_root(&table->mem_root,
                                            table->s->reclength*sizeof(uchar));
       uchar  ptr[9];
@@ -6002,13 +5998,8 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
       if(!map)
       {
         if(rec_hash_cmp(table->record[0],new_rec,*field_iter))
-        {
-          //table->file->ha_index_end();
           return HA_ERR_FOUND_DUPP_KEY;
-        }
-
       }
-     // table->file->ha_index_end();
     }
   }
   write_row:

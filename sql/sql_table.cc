@@ -3245,8 +3245,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            temp_colms->field_name.str,
                            sql_field->field_name)){}
 
-      if(sql_field->sql_type==MYSQL_TYPE_BLOB){
+      if(sql_field->sql_type==MYSQL_TYPE_BLOB&&temp_colms->length==0){
         is_long_unique=true;
+        /*
+          One long key  unique in enough
+         */
+        break;
       }
       it.rewind();
     }
