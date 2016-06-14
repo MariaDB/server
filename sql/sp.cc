@@ -162,7 +162,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { C_STRING_WITH_LEN("aggregate") },
-    { C_STRING_WITH_LEN("enum('YES','NO')") },
+    { C_STRING_WITH_LEN("enum('NONE','GROUP','WINDOW')") },
     { NULL, 0 }
   }
 
@@ -642,8 +642,19 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
-  chistics.is_aggregate= (ptr[0] == 'N' ? FALSE : TRUE);
-
+  switch (ptr[0]) {
+  case 'G':
+    chistics.agg_type= GROUP_AGGREGATE;
+    break;
+  case 'W':
+    chistics.agg_type= WINDOW_AGGREGATE;
+    break;
+  case 'N':
+    chistics.agg_type= NOT_AGGREGATE;
+    break;
+  default:
+    chistics.agg_type= DEFAULT_AGGREGATE;
+  }
   // Get additional information
   if ((definer= get_field(thd->mem_root,
 			  table->field[MYSQL_PROC_FIELD_DEFINER])) == NULL)
@@ -1157,10 +1168,11 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       table->field[MYSQL_PROC_FIELD_NAME]->
         store(sp->m_name.str, sp->m_name.length, system_charset_info);
 
+    if(sp->m_chistics->agg_type != DEFAULT_AGGREGATE)
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
-        store((longlong)(sp->m_chistics->is_aggregate ? 1 : 2), TRUE);
-
+        store((longlong)sp->m_chistics->agg_type,TRUE);
+    
     store_failed= store_failed ||
       table->field[MYSQL_PROC_MYSQL_TYPE]->
         store((longlong)type, TRUE);
@@ -1467,8 +1479,8 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment.str,
 						    chistics->comment.length,
 						    system_charset_info);
-      table->field[MYSQL_PROC_FIELD_AGGREGATE]->
-        store((longlong)(thd->lex->sp_chistics.is_aggregate ? 1 : 2), TRUE);
+    table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+        store((longlong)thd->lex->sp_chistics.agg_type, TRUE);
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;
@@ -2238,7 +2250,7 @@ show_create_sp(THD *thd, String *buf,
               ulonglong sql_mode)
 {
   ulonglong old_sql_mode= thd->variables.sql_mode;
-  ulong agglen= (chistics->is_aggregate)? 10 : 0;
+  ulong agglen= (chistics->agg_type == GROUP_AGGREGATE)? 10 : 0;
   
   /* Make some room to begin with */
   if (buf->alloc(100 + dblen + 1 + namelen + paramslen + returnslen + bodylen +
@@ -2251,7 +2263,7 @@ show_create_sp(THD *thd, String *buf,
   if (thd->lex->create_info.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, definer_user, definer_host);
-  if (chistics->is_aggregate)
+  if (chistics->agg_type == GROUP_AGGREGATE)
     buf->append(STRING_WITH_LEN("AGGREGATE "));
   if (type == TYPE_ENUM_FUNCTION)
     buf->append(STRING_WITH_LEN("FUNCTION "));

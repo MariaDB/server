@@ -167,6 +167,14 @@ enum enum_sp_data_access
   SP_MODIFIES_SQL_DATA
 };
 
+enum aggregate_type
+{
+  DEFAULT_AGGREGATE= 0,
+  NOT_AGGREGATE,
+  GROUP_AGGREGATE,
+  WINDOW_AGGREGATE
+};
+
 const LEX_STRING sp_data_access_name[]=
 {
   { C_STRING_WITH_LEN("") },
@@ -1099,7 +1107,7 @@ struct st_sp_chistics
   enum enum_sp_suid_behaviour suid;
   bool detistic;
   enum enum_sp_data_access daccess;
-  bool is_aggregate;
+  enum aggregate_type agg_type;
 };
 
 struct st_trg_chistics

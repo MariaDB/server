@@ -2855,8 +2855,8 @@ sp_c_chistic:
         ;
 sp_a_chistic:
          sp_chistic             {}
-        | AGGREGATE_SYM  TRUE_SYM { Lex->sp_chistics.is_aggregate= true; }             
-        | AGGREGATE_SYM  FALSE_SYM { Lex->sp_chistics.is_aggregate= false; }
+        | AGGREGATE_SYM  GROUP_SYM { Lex->sp_chistics.agg_type= GROUP_AGGREGATE; }             
+        | AGGREGATE_SYM  NONE_SYM { Lex->sp_chistics.agg_type= NOT_AGGREGATE; }
         ;
 
 sp_suid:
@@ -16001,8 +16001,8 @@ udf_tail2:
           }
         ;
 sf_tail:
-          AGGREGATE_SYM sf_tail2 { Lex->sp_chistics.is_aggregate= true;}
-        | sf_tail2               { Lex->sp_chistics.is_aggregate= false;}
+          AGGREGATE_SYM sf_tail2 { Lex->sp_chistics.agg_type= GROUP_AGGREGATE;}
+        | sf_tail2               { Lex->sp_chistics.agg_type= NOT_AGGREGATE;}
         ;
 
 sf_tail2:
