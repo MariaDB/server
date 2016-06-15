@@ -115,7 +115,8 @@ void *sf_malloc(size_t size, myf my_flags)
     init_done= 1;
   }
 
-  irem= (struct st_irem *) malloc (sizeof(struct st_irem) + size + 4);
+  irem= (struct st_irem *) ALIGNED_ALLOC (sizeof(struct st_irem) + size + 4,
+                                          CPU_LEVEL1_DCACHE_LINESIZE);
 
   if (!irem)
     return 0;

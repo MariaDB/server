@@ -47,7 +47,7 @@ bool flag_statements_digest= true;
   Current index in Stat array where new record is to be inserted.
   index 0 is reserved for "all else" case when entire array is full.
 */
-volatile uint32 digest_index;
+PFS_ALIGNED volatile uint32 digest_index;
 bool digest_full= false;
 
 LF_HASH digest_hash;

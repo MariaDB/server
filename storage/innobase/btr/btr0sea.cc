@@ -50,11 +50,6 @@ UNIV_INTERN char		btr_search_enabled	= TRUE;
 /** A dummy variable to fool the compiler */
 UNIV_INTERN ulint		btr_search_this_is_zero = 0;
 
-/** padding to prevent other memory update
-hotspots from residing on the same memory
-cache line as btr_search_latch */
-UNIV_INTERN byte		btr_sea_pad1[CACHE_LINE_SIZE];
-
 /** The latch protecting the adaptive search system: this latch protects the
 (1) positions of records on those pages where a hash index has been built.
 NOTE: It does not protect values of non-ordering fields within a record from
@@ -63,14 +58,11 @@ indexes. */
 
 /* We will allocate the latch from dynamic memory to get it to the
 same DRAM page as other hotspot semaphores */
-UNIV_INTERN rw_lock_t*		btr_search_latch_temp;
-
-/** padding to prevent other memory update hotspots from residing on
-the same memory cache line */
-UNIV_INTERN byte		btr_sea_pad2[CACHE_LINE_SIZE];
+UNIV_INTERN rw_lock_t*		btr_search_latch_temp
+					 MY_ALIGNED(CACHE_LINE_SIZE);
 
 /** The adaptive hash index */
-UNIV_INTERN btr_search_sys_t*	btr_search_sys;
+UNIV_INTERN btr_search_sys_t*	btr_search_sys MY_ALIGNED(CACHE_LINE_SIZE);
 
 #ifdef UNIV_PFS_RWLOCK
 /* Key to register btr_search_sys with performance schema */

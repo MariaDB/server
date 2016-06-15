@@ -87,16 +87,7 @@ typedef struct {
 extern int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count);
 
-#ifdef SAFEMALLOC
-void *sf_malloc(size_t size, myf my_flags);
-void *sf_realloc(void *ptr, size_t size, myf my_flags);
-void sf_free(void *ptr);
-size_t sf_malloc_usable_size(void *ptr, my_bool *is_thread_specific);
-#else
-#define sf_malloc(X,Y)    malloc(X)
-#define sf_realloc(X,Y,Z) realloc(X,Y)
-#define sf_free(X)      free(X)
-#endif
+#include <my_align_alloc.h>
 
 /*
   EDQUOT is used only in 3 C files only in mysys/. If it does not exist on

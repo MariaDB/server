@@ -45,7 +45,7 @@ bool flag_thread_instrumentation= false;
 /** True if EVENTS_WAITS_HISTORY_LONG circular buffer is full. */
 bool events_waits_history_long_full= false;
 /** Index in EVENTS_WAITS_HISTORY_LONG circular buffer. */
-volatile uint32 events_waits_history_long_index= 0;
+PFS_ALIGNED volatile uint32 events_waits_history_long_index= 0;
 /** EVENTS_WAITS_HISTORY_LONG circular buffer. */
 PFS_events_waits *events_waits_history_long_array= NULL;
 

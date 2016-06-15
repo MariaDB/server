@@ -110,14 +110,12 @@ UNIV_INTERN mysql_pfs_key_t	srv_conc_mutex_key;
 
 /** Variables tracking the active and waiting threads. */
 struct srv_conc_t {
-	char		pad[CACHE_LINE_SIZE  - (sizeof(ulint) + sizeof(lint))];
-
 	/** Number of transactions that have declared_to_be_inside_innodb set.
 	It used to be a non-error for this value to drop below zero temporarily.
 	This is no longer true. We'll, however, keep the lint datatype to add
 	assertions to catch any corner cases that we may have missed. */
 
-	volatile lint	n_active;
+	volatile lint	n_active MY_ALIGNED(CACHE_LINE_SIZE);
 
 	/** Number of OS threads waiting in the FIFO for permission to
 	enter InnoDB */
