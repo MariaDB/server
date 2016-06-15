@@ -836,10 +836,8 @@ struct log_group_t{
 
 /** Redo log buffer */
 struct log_t{
-	byte		pad[CACHE_LINE_SIZE];	/*!< padding to prevent other memory
-					update hotspots from residing on the
-					same memory cache line */
-	lsn_t		lsn;		/*!< log sequence number */
+	lsn_t		lsn MY_ALIGNED(CACHE_LINE_SIZE);
+					/*!< log sequence number */
 	ulint		buf_free;	/*!< first free offset within the log
 					buffer */
 #ifndef UNIV_HOTBACKUP

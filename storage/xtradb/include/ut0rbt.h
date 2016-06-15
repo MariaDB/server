@@ -34,7 +34,7 @@ Created 2007-03-20 Sunny Bains
 #include <string.h>
 #include <assert.h>
 
-#define	ut_malloc	malloc
+#define	ut_malloc(X)	ALIGNED_ALLOC(X, CACHE_LINE_SIZE)
 #define	ut_free		free
 #define	ulint		unsigned long
 #define	ut_a(c)		assert(c)

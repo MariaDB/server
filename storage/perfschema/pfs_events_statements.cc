@@ -41,7 +41,7 @@ bool flag_events_statements_history_long= false;
 /** True if EVENTS_STATEMENTS_HISTORY_LONG circular buffer is full. */
 bool events_statements_history_long_full= false;
 /** Index in EVENTS_STATEMENTS_HISTORY_LONG circular buffer. */
-volatile uint32 events_statements_history_long_index= 0;
+PFS_ALIGNED volatile uint32 events_statements_history_long_index= 0;
 /** EVENTS_STATEMENTS_HISTORY_LONG circular buffer. */
 PFS_events_statements *events_statements_history_long_array= NULL;
 static unsigned char *h_long_stmts_digest_token_array= NULL;

@@ -126,6 +126,8 @@ InnoDB:
 
 #include <stddef.h>
 #include <stdlib.h> /* malloc() */
+#include <my_align_alloc.h>
+
 #include <string.h> /* strlen(), strrchr(), strncmp() */
 
 #include "my_global.h" /* needed for headers from mysql/psi/ */
@@ -329,10 +331,9 @@ public:
 
 		for (size_t retries = 1; ; retries++) {
 
-			if (set_to_zero) {
-				ptr = calloc(1, total_bytes);
-			} else {
-				ptr = malloc(total_bytes);
+			ptr = ALIGNED_ALLOC(total_bytes, CPU_LEVEL1_DCACHE_LINESIZE);
+			if (set_to_zero && ptr) {
+				bzero(ptr, total_bytes);
 			}
 
 			if (ptr != NULL || retries >= alloc_max_retries) {
@@ -882,15 +883,15 @@ ut_delete_array(
 
 #define UT_DELETE_ARRAY(ptr)		::delete[] ptr
 
-#define ut_malloc(n_bytes, key)		::malloc(n_bytes)
+#define ut_malloc(n_bytes, key)		ALIGNED_ALLOC(n_bytes, CPU_LEVEL1_DCACHE_LINESIZE)
 
-#define ut_zalloc(n_bytes, key)		::calloc(1, n_bytes)
+#define ut_zalloc(n_bytes, key)		::aligned_calloc(1, n_bytes)
 
-#define ut_malloc_nokey(n_bytes)	::malloc(n_bytes)
+#define ut_malloc_nokey(n_bytes)	ALIGNED_ALLOC(n_bytes, CPU_LEVEL1_DCACHE_LINESIZE)
 
-#define ut_zalloc_nokey(n_bytes)	::calloc(1, n_bytes)
+#define ut_zalloc_nokey(n_bytes)	::aligned_calloc(1, n_bytes)
 
-#define ut_zalloc_nokey_nofatal(n_bytes)	::calloc(1, n_bytes)
+#define ut_zalloc_nokey_nofatal(n_bytes)	::aligned_calloc(1, n_bytes)
 
 #define ut_realloc(ptr, n_bytes)	::realloc(ptr, n_bytes)
 

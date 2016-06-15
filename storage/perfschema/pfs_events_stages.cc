@@ -41,7 +41,7 @@ bool flag_events_stages_history_long= false;
 /** True if EVENTS_STAGES_HISTORY_LONG circular buffer is full. */
 bool events_stages_history_long_full= false;
 /** Index in EVENTS_STAGES_HISTORY_LONG circular buffer. */
-volatile uint32 events_stages_history_long_index= 0;
+PFS_ALIGNED volatile uint32 events_stages_history_long_index= 0;
 /** EVENTS_STAGES_HISTORY_LONG circular buffer. */
 PFS_events_stages *events_stages_history_long_array= NULL;
 

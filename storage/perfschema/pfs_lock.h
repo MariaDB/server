@@ -21,6 +21,7 @@
   Performance schema internal locks (declarations).
 */
 
+#include "pfs_global.h"
 #include "pfs_atomic.h"
 
 /**
@@ -79,7 +80,7 @@ struct pfs_lock
     The version number is stored in the high 30 bits.
     The state is stored in the low 2 bits.
   */
-  volatile uint32 m_version_state;
+  PFS_ALIGNED volatile uint32 m_version_state;
 
   /** Returns true if the record is free. */
   bool is_free(void)
