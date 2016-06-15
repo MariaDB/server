@@ -785,7 +785,11 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
+    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME)
+//        && !(keyinfo->user_defined_key_parts==1 &&
+//        strncmp((keyinfo->key_part->field)->field_name,
+//        "DB_ROW_HASH_",12)==0))
+  )
     {
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;

@@ -5877,20 +5877,10 @@ bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
   Item ** arguments=t_item->arguments();
   int diff = sec_rec-first_rec;
   Field * t_field;
-  int first_length,second_length;
-
   for(int i=0;i<arg_count;i++)
   {
     t_field = ((Item_field *)arguments[i])->field;//need a debug assert
-    /*
-      length of field is not equal to pack length when it is
-      subclass of field_blob and field _varsting
-     */
-    first_length = t_field->data_length();
-    second_length = t_field->data_length(diff);
-    if(first_length!=second_length)
-      return false;
-    if(t_field->cmp_max(t_field->ptr,t_field->ptr+diff,first_length))
+    if(t_field->cmp_binary_offset(diff))
       return false;
   }
   return true;
@@ -5926,14 +5916,12 @@ int handler::ha_write_row(uchar *buf)
 			}
 			ptr[0]=0;
 			memcpy(ptr+1,field_iter->ptr,8);
-			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
+														HA_WHOLE_KEY,HA_READ_KEY_EXACT);
 			if(!result)
 			{
 				if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
-        {
-          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
-        }
-          
+          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);          
       }
     }
 
