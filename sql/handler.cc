@@ -5909,13 +5909,13 @@ int handler::ha_write_row(uchar *buf)
         field value is NULL, 0 otherwise.
        */
       field_iter=table->key_info[i].key_part->field;
-      uchar  ptr[13];
+      uchar  ptr[9];
 			if(field_iter->is_null())
 			{
 				goto write_row;
 			}
 			//ptr[0]=0;
-			key_copy(ptr,buf,&table->key_info[i],13,false);
+			key_copy(ptr,buf,&table->key_info[i],9,false);
 			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
 														HA_WHOLE_KEY,HA_READ_KEY_EXACT);
 			if(!result)
