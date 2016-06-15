@@ -3239,26 +3239,27 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     key_initial_elements--;
     List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
-    while((temp_colms=key_part_iter++)){
-      while ((sql_field=it++) &&
-             my_strcasecmp(system_charset_info,
+    while((temp_colms=key_part_iter++))
+    {
+      while ((sql_field=it++) && my_strcasecmp(system_charset_info,
                            temp_colms->field_name.str,
                            sql_field->field_name)){}
-
-      if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
+       if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
           sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
           sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
-         &&temp_colms->length==0){
+         &&temp_colms->length==0)
+       {
         is_long_unique=true;
         /*
           One long key  unique in enough
          */
         break;
-      }
+       }
      // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
       it.rewind();
     }
-    if(is_long_unique){
+    if(is_long_unique)
+    {
       /* make a virtual field */
       key_part_iter.rewind();
       Create_field *cf = new (thd->mem_root) Create_field();
@@ -3268,7 +3269,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->decimals=0;
       char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
       strcpy(name,"DB_ROW_HASH_");
-      strcat(name,&num);
+      strncat(name,&num,1);
       num++;
       cf->field_name=name;
       cf->stored_in_db=true;
@@ -3322,7 +3323,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     /* Set field charset. */
     save_cs= sql_field->charset= get_sql_field_charset(sql_field, create_info);
     if ((sql_field->flags & BINCMP_FLAG) &&
-	!(sql_field->charset= find_bin_collation(sql_field->charset)))
+  !(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
 
     /*
@@ -4211,10 +4212,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         (sql_field->flags & NOT_NULL_FLAG) &&
         !is_timestamp_type(sql_field->sql_type))
     {
-      int a = (!sql_field->def &&
-               !sql_field->has_default_function() &&
-               (sql_field->flags & NOT_NULL_FLAG) &&
-               !is_timestamp_type(sql_field->sql_type));
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
     }

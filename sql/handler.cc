@@ -5899,7 +5899,7 @@ int handler::ha_write_row(uchar *buf)
 {
   int error,result;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
-  Field **field_iter;
+  Field *field_iter;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
@@ -5907,39 +5907,36 @@ int handler::ha_write_row(uchar *buf)
   /* First need to whether inserted record is unique or not */
 
   /* One More Thing  if i implement hidden field then detection can be easy */
-  field_iter=table->vfield;
-  for(uint i=0;i<table->s->vfields;i++)
+  for(uint i=0;i<table->s->keys;i++)
   {
-    if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
+    if(table->key_info[i].user_defined_key_parts==1 &&
+        strncmp((table->key_info[i].key_part->field)->field_name,
+                "DB_ROW_HASH_",12)==0)
     {
-
       /*
         We need to add the null bit
         If the column can be NULL, then in the first byte we put 1 if the
         field value is NULL, 0 otherwise.
        */
+      field_iter=table->key_info[i].key_part->field;
 			uchar  ptr[9];
-			if((*field_iter)->is_null())
+			if(field_iter->is_null())
 			{
 				goto write_row;
 			}
 			ptr[0]=0;
-			memcpy(ptr+1,(*field_iter)->ptr,8);
-		 // ptr--;
-			//table->file->ha_index_init(i,0);
-			result= table->file->ha_index_read_idx_map(table->record[1],0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+			memcpy(ptr+1,field_iter->ptr,8);
+			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
 			if(!result)
 			{
-        if(rec_hash_cmp(table->record[0],table->record[1],*field_iter))
+				if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
         {
-          //table->file->ha_index_end();
           DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
         }
           
       }
-      //table->file->ha_index_end();
     }
-    field_iter++;
+
   }
   write_row:
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
