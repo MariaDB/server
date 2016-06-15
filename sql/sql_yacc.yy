@@ -9512,6 +9512,34 @@ dyncall_create_list:
        }
    ;
 
+/*
+  Expressions that the parser allows in a column DEFAULT clause
+  without parentheses. These expressions cannot end with a COLLATE clause.
+
+  If we allowed any "expr" in DEFAULT clause, there would be a confusion
+  in queries like this:
+    CREATE TABLE t1 (a TEXT DEFAULT 'a' COLLATE latin1_bin);
+  It would be not clear what COLLATE stands for:
+  - the collation of the column `a`, or
+  - the collation of the string literal 'a'
+
+  This restriction allows to parse the above query unambiguiusly:
+  COLLATE belongs to the column rather than the literal.
+  If one needs COLLATE to belong to the literal, parentheses must be used:
+    CREATE TABLE t1 (a TEXT DEFAULT ('a' COLLATE latin1_bin));
+  Note: the COLLATE clause is rather meaningless here, but the query
+  is syntactically correct.
+
+  Note, some of the expressions are not actually allowed in DEFAULT,
+  e.g. sum_expr, window_func_expr, ROW(...), VALUES().
+  We could move them to simple_expr, but that would make
+  these two queries return a different error messages:
+    CREATE TABLE t1 (a INT DEFAULT AVG(1));
+    CREATE TABLE t1 (a INT DEFAULT (AVG(1)));
+  The first query would return "syntax error".
+  Currenly both return:
+   Function or expression 'avg(' is not allowed for 'DEFAULT' ...
+*/
 column_default_non_parenthesized_expr:
           simple_ident
         | function_call_keyword
