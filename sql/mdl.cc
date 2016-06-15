@@ -706,10 +706,10 @@ static inline int mdl_iterate_lock(MDL_lock *lock,
                                    int (*callback)(MDL_ticket *ticket, void *arg),
                                    void *arg)
 {
-  MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
-  MDL_ticket *ticket;
   int res= 0;
   mysql_prlock_rdlock(&lock->m_rwlock);
+  MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
+  MDL_ticket *ticket;
   while ((ticket= ticket_it++) && !(res= callback(ticket, arg))) /* no-op */;
   mysql_prlock_unlock(&lock->m_rwlock);
   return res;

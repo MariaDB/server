@@ -953,7 +953,7 @@ private:
   MDL_context &operator=(MDL_context &rhs);     /* not implemented */
 
   /* metadata_lock_info plugin */
-  friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
+  friend class Ticket_info;
 };
 
 
