@@ -3274,6 +3274,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->field_name=name;
       cf->stored_in_db=true;
       cf->sql_type=MYSQL_TYPE_LONGLONG;
+      /* hash column should be atmost hidden */
+      cf->is_row_hash=true;
+      cf->field_visibility=cf->field_visible_type::FULL_HIDDEN;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
       char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));

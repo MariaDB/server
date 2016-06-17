@@ -951,7 +951,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->ext_key_parts= 0;
   MEM_ROOT **root_ptr, *old_root;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
-
+  struct visible_property{
+    Field::field_visible_type visibility;
+    bool is_row_hash;
+  };
+  List<visible_property> v_p_list;
+  List_iterator<visible_property> v_p_iter(v_p_list);
+  visible_property * vp;
   root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
   old_root= *root_ptr;
   *root_ptr= &share->mem_root;
@@ -1032,7 +1038,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif /*HAVE_SPATIAL*/
         break;
       case EXTRA2_FIELD_FLAGS:
-
+        visible_property temp;
+        temp.visibility = (Field::field_visible_type)*extra2;
+        temp.is_row_hash=(bool)*(extra2+1);
+        v_p_list.push_back(&temp);
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1470,6 +1479,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                             share->fields,0,0,
                             (my_hash_get_key) get_field_name,0,0);
 
+
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint pack_flag, interval_nr, unireg_type, recpos, field_length;
@@ -1674,8 +1684,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
-
-
+    if(v_p_list.elements!=0)
+    {
+      DBUG_ASSERT(v_p_list.elements==share->fields);
+      vp=v_p_iter++;
+      reg_field->field_visibility=vp->visibility;
+      reg_field->is_row_hash=vp->is_row_hash;
+    }
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
