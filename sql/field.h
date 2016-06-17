@@ -631,8 +631,8 @@ public:
 
   enum field_visible_type{NORMAL,USER_DEFINED_HIDDEN,
                           MEDIUM_HIDDEN,FULL_HIDDEN};
-  field_visible_type field_visibility;
-  bool is_row_hash;
+  field_visible_type field_visibility=NORMAL;
+  bool is_row_hash=false;
   /*
     Note that you can use table->in_use as replacement for current_thd member
     only inside of val_*() and store() members (e.g. you can't use it in cons)
@@ -3465,8 +3465,8 @@ public:
   ulonglong length;
   enum field_visible_type{NORMAL,USER_DEFINED_HIDDEN,
                           MEDIUM_HIDDEN,FULL_HIDDEN};
-  field_visible_type field_visibility;
-  bool is_row_hash;
+  field_visible_type field_visibility=NORMAL;
+  bool is_row_hash=false;
   /*
     The value of `length' as set by parser: is the number of characters
     for most of the types, or of bytes for BLOBs or numeric types.

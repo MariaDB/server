@@ -86,6 +86,11 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
 static uchar *extra2_write_field(uchar *pos,Create_field * cf)
 {
   *pos++=EXTRA2_FIELD_FLAGS;
+  /*
+   always 2  first for field visibility
+   second for is this column represent long unique hash
+   */
+  *pos++=2;
   *pos++=cf->field_visibility;
   *pos++=cf->is_row_hash;
   return pos;
@@ -212,7 +217,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
-  extra2_size+=3*create_fields.elements;
+  extra2_size+=4*create_fields.elements;
 
   key_buff_length= uint4korr(fileinfo+47);
 

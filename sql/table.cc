@@ -1032,7 +1032,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif /*HAVE_SPATIAL*/
         break;
       case EXTRA2_FIELD_FLAGS:
-        length=3;
+
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
