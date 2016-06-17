@@ -5895,7 +5895,6 @@ int handler::ha_write_row(uchar *buf)
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
   /* First need to whether inserted record is unique or not */
-
   /* One More Thing  if i implement hidden field then detection can be easy */
   for(uint i=0;i<table->s->keys;i++)
   {
@@ -5914,7 +5913,6 @@ int handler::ha_write_row(uchar *buf)
 			{
 				goto write_row;
 			}
-			//ptr[0]=0;
 			key_copy(ptr,buf,&table->key_info[i],9,false);
 			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
 														HA_WHOLE_KEY,HA_READ_KEY_EXACT);
@@ -5924,7 +5922,6 @@ int handler::ha_write_row(uchar *buf)
           DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);          
       }
     }
-
   }
   write_row:
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -5948,8 +5945,8 @@ int handler::ha_write_row(uchar *buf)
 
 int handler::ha_update_row(const uchar *old_data, uchar *new_data)
 {
-  int error;
-  Field **field_iter;
+  int error,result;
+  Field *field_iter;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
@@ -5960,29 +5957,34 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
-  /*
-    Need to check for unique constraint of very long fields
-   */
 
-  field_iter=table->vfield;
-  for(uint i=0;i<table->s->vfields;i++)
+  /* First need to whether inserted record is unique or not */
+  /* One More Thing  if i implement hidden field then detection can be easy */
+  for(uint i=0;i<table->s->keys;i++)
   {
-    if(strncmp((*field_iter)->field_name,"DB_ROW_HASH_",12)==0)
+    if(table->key_info[i].user_defined_key_parts==1 &&
+        strncmp((table->key_info[i].key_part->field)->field_name,
+                "DB_ROW_HASH_",12)==0)
     {
+      /*
+        We need to add the null bit
+        If the column can be NULL, then in the first byte we put 1 if the
+        field value is NULL, 0 otherwise.
+       */
       uchar *new_rec = (uchar *)alloc_root(&table->mem_root,
                                            table->s->reclength*sizeof(uchar));
+      field_iter=table->key_info[i].key_part->field;
       uchar  ptr[9];
-      if((*field_iter)->is_null())
+      if(field_iter->is_null())
       {
         goto write_row;
       }
-      ptr[0]=0;
-      memcpy(ptr+1,(*field_iter)->ptr,8);
-      int result= table->file->ha_index_read_idx_map(new_rec,
-                                0,ptr,HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+      key_copy(ptr,new_data,&table->key_info[i],9,false);
+      result= table->file->ha_index_read_idx_map(new_rec,i,ptr,
+                            HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!result)
       {
-        if(rec_hash_cmp(table->record[0],new_rec,*field_iter))
+        if(rec_hash_cmp(table->record[0],new_rec,field_iter))
           return HA_ERR_FOUND_DUPP_KEY;
       }
     }
