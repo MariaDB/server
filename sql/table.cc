@@ -986,7 +986,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (length < 256)
           goto err;
       }
-      if (extra2 + length > e2end)
+      if (type!=EXTRA2_FIELD_FLAGS && extra2 + length > e2end)
         goto err;
       switch (type) {
       case EXTRA2_TABLEDEF_VERSION:
@@ -1030,6 +1030,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           gis_options_len= length;
         }
 #endif /*HAVE_SPATIAL*/
+        break;
+      case EXTRA2_FIELD_FLAGS:
+        length=3;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */

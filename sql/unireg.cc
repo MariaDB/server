@@ -83,6 +83,13 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
+static uchar *extra2_write_field(uchar *pos,Create_field * cf)
+{
+  *pos++=EXTRA2_FIELD_FLAGS;
+  *pos++=cf->field_visibility;
+  *pos++=cf->is_row_hash;
+  return pos;
+}
 /**
   Create a frm (table definition) file
 
@@ -115,7 +122,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
   DBUG_ENTER("build_frm_image");
-
+  List_iterator<Create_field> it(create_fields);
+  Create_field *field;
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
     create_info->null_bits++;
@@ -204,6 +212,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
+  extra2_size+=3*create_fields.elements;
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -257,6 +266,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
+
+  while((field=it++))
+  {
+    pos=extra2_write_field(pos,field);
+  }
+  it.rewind();
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
@@ -334,8 +349,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       Restore all UCS2 intervals.
       HEX representation of them is not needed anymore.
     */
-    List_iterator<Create_field> it(create_fields);
-    Create_field *field;
+
     while ((field=it++))
     {
       if (field->save_interval)
