@@ -1,0 +1,23 @@
+delimiter |;
+
+create function increm(x INT) returns INT
+begin
+declare z INT default 0;
+declare y INT default 0;
+#while z < 5 do
+fetch group next row;
+set y=y+x;
+set z=z+1;
+#end while;
+return y;
+end|
+delimiter ;|
+
+create table t1 (sal int(10));
+INSERT INTO t1 (sal) VALUES (2000);
+INSERT INTO t1 (sal) VALUES (3000);
+INSERT INTO t1 (sal) VALUES (4000);
+INSERT INTO t1 (sal) VALUES (5000);
+select increm(sal) from t1 where sal>= 1000;
+drop function increm;
+drop table t1;
