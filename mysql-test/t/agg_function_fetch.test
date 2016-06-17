@@ -1,15 +1,10 @@
 delimiter |;
 
-create function increm(x INT) returns INT
+create aggregate function increm(x INT,y INT) returns INT
 begin
 declare z INT default 0;
-declare y INT default 0;
-#while z < 5 do
-fetch group next row;
-set y=y+x;
-set z=z+1;
-#end while;
-return y;
+set z=z+x;
+return z;
 end|
 delimiter ;|
 
@@ -18,6 +13,6 @@ INSERT INTO t1 (sal) VALUES (2000);
 INSERT INTO t1 (sal) VALUES (3000);
 INSERT INTO t1 (sal) VALUES (4000);
 INSERT INTO t1 (sal) VALUES (5000);
-select increm(sal) from t1 where sal>= 1000;
+select increm(sal,10) from t1 where sal>= 1000;
 drop function increm;
 drop table t1;

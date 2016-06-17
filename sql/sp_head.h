@@ -177,7 +177,7 @@ public:
      */
     MODIFIES_DATA= 4096
   };
-
+  
   stored_procedure_type m_type;
   uint m_flags;                 // Boolean attributes of a stored routine
 
@@ -524,9 +524,11 @@ public:
 private:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
+  MEM_ROOT callee_mem_root;
   THD *m_thd;			///< Set if we have reset mem_root
 
   sp_pcontext *m_pcont;		///< Parse context
+  sp_rcontext *m_rcont;
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
   typedef struct
