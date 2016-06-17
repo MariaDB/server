@@ -1933,7 +1933,7 @@ longlong  Item_func_hash::val_int()
     cs=str->charset();
     char l[4];
     int4store(l,str->length());
-    cs->coll->hash_sort(cs, (uchar *)l,sizeof(str->length()), &temp, &nr2);
+    cs->coll->hash_sort(cs, (uchar *)l,sizeof(l), &temp, &nr2);
     nr1^=temp;
     cs->coll->hash_sort(cs, (uchar *)str->ptr(),str->length(), &temp, &nr2);
     nr1^=temp;
@@ -1945,7 +1945,6 @@ longlong  Item_func_hash::val_int()
 void  Item_func_hash::fix_length_and_dec()
 {
   maybe_null= 1;
-  null_value= 0;
   decimals= 0;
   max_length= 8;
 }

@@ -2005,8 +2005,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
       if(keyinfo->user_defined_key_parts==1 &&
-              strncmp((keyinfo->key_part->field)->field_name,
-              "DB_ROW_HASH_",12)==0)
+              strncmp((keyinfo->key_part->field)->is_row_hash)
       {
         keyinfo->ext_key_parts=1;
         break;
