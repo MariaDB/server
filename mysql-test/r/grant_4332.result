@@ -10,7 +10,7 @@ alter table mysql.event modify definer char(77) collate utf8_bin not null defaul
 flush privileges;
 select user();
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					user()	253	77	14	N	1	31	8
+def					user()	253	77	14	N	1	39	8
 user()
 root@localhost
 create user a17aaaaaaaaaaaaa0@localhost;
@@ -29,7 +29,7 @@ alter table mysql.event modify definer char(141) collate utf8_bin not null defau
 flush privileges;
 select user();
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					user()	253	141	14	N	1	31	8
+def					user()	253	141	14	N	1	39	8
 user()
 root@localhost
 set GLOBAL sql_mode=default;

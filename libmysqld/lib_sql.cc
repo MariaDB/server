@@ -1067,6 +1067,10 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     client_field->type=   server_field.type;
     client_field->flags= (uint16) server_field.flags;
     client_field->decimals= server_field.decimals;
+    if (server_field.type == MYSQL_TYPE_FLOAT ||
+        server_field.type == MYSQL_TYPE_DOUBLE)
+      set_if_smaller(client_field->decimals, FLOATING_POINT_DECIMALS);
+
     client_field->db_length=		strlen(client_field->db);
     client_field->table_length=		strlen(client_field->table);
     client_field->name_length=		strlen(client_field->name);

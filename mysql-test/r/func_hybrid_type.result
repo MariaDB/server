@@ -1592,21 +1592,21 @@ GREATEST(b, b)                            AS greatest_b_b
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t1	t1	a	___________a	253	10	1	Y	0	0	8
-def					case_______a	253	10	1	Y	0	31	8
-def					case_____a_a	253	10	1	Y	0	31	8
-def					coalesce___a	253	10	1	Y	0	31	8
-def					coalesce_a_a	253	10	1	Y	0	31	8
-def					if_______a_a	253	10	1	Y	0	31	8
-def					ifnull___a_a	253	10	1	Y	0	31	8
-def					least____a_a	253	10	1	Y	0	31	8
-def					greatest_a_a	253	10	1	Y	0	31	8
+def					case_______a	253	10	1	Y	0	39	8
+def					case_____a_a	253	10	1	Y	0	39	8
+def					coalesce___a	253	10	1	Y	0	39	8
+def					coalesce_a_a	253	10	1	Y	0	39	8
+def					if_______a_a	253	10	1	Y	0	39	8
+def					ifnull___a_a	253	10	1	Y	0	39	8
+def					least____a_a	253	10	1	Y	0	39	8
+def					greatest_a_a	253	10	1	Y	0	39	8
 def	test	t1	t1	b	___________b	254	1	1	Y	256	0	8
-def					case_______b	254	1	1	Y	0	31	8
-def					case_____b_b	254	1	1	Y	0	31	8
-def					coalesce___b	254	1	1	Y	0	31	8
-def					coalesce_b_b	254	1	1	Y	0	31	8
-def					if_______b_b	254	1	1	Y	0	31	8
-def					ifnull___b_b	254	1	1	Y	0	31	8
+def					case_______b	254	1	1	Y	0	39	8
+def					case_____b_b	254	1	1	Y	0	39	8
+def					coalesce___b	254	1	1	Y	0	39	8
+def					coalesce_b_b	254	1	1	Y	0	39	8
+def					if_______b_b	254	1	1	Y	0	39	8
+def					ifnull___b_b	254	1	1	Y	0	39	8
 def					least____b_b	254	1	1	Y	0	0	8
 def					greatest_b_b	254	1	1	Y	0	0	8
 ___________a	a
@@ -1642,18 +1642,18 @@ GREATEST(a, b)                            AS greatest_a_b,
 GREATEST(b, a)                            AS greatest_b_a
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					case_____a_b	253	10	1	Y	0	31	8
-def					case_____b_a	253	10	1	Y	0	31	8
-def					coalesce_a_b	253	10	1	Y	0	31	8
-def					coalesce_b_a	253	10	1	Y	0	31	8
-def					if_______a_b	253	10	1	Y	0	31	8
-def					if_______b_a	253	10	1	Y	0	31	8
-def					ifnull___a_b	253	10	1	Y	0	31	8
-def					ifnull___b_a	253	10	1	Y	0	31	8
-def					least____a_b	253	10	1	Y	0	31	8
-def					least____b_a	253	10	1	Y	0	31	8
-def					greatest_a_b	253	10	1	Y	0	31	8
-def					greatest_b_a	253	10	1	Y	0	31	8
+def					case_____a_b	253	10	1	Y	0	39	8
+def					case_____b_a	253	10	1	Y	0	39	8
+def					coalesce_a_b	253	10	1	Y	0	39	8
+def					coalesce_b_a	253	10	1	Y	0	39	8
+def					if_______a_b	253	10	1	Y	0	39	8
+def					if_______b_a	253	10	1	Y	0	39	8
+def					ifnull___a_b	253	10	1	Y	0	39	8
+def					ifnull___b_a	253	10	1	Y	0	39	8
+def					least____a_b	253	10	1	Y	0	39	8
+def					least____b_a	253	10	1	Y	0	39	8
+def					greatest_a_b	253	10	1	Y	0	39	8
+def					greatest_b_a	253	10	1	Y	0	39	8
 case_____a_b	a
 case_____b_a	b
 coalesce_a_b	a
@@ -2843,14 +2843,14 @@ def					ifnull___a_a	3	11	11	Y	32896	0	63
 def					least____a_a	3	11	11	Y	32896	0	63
 def					greatest_a_a	3	11	11	Y	32896	0	63
 def	test	t1	t1	b	___________b	253	10	4	Y	0	0	8
-def					case_______b	253	10	4	Y	0	31	8
-def					case_____b_b	253	10	4	Y	0	31	8
-def					coalesce___b	253	10	4	Y	0	31	8
-def					coalesce_b_b	253	10	4	Y	0	31	8
-def					if_______b_b	253	10	4	Y	0	31	8
-def					ifnull___b_b	253	10	4	Y	0	31	8
-def					least____b_b	253	10	4	Y	0	31	8
-def					greatest_b_b	253	10	4	Y	0	31	8
+def					case_______b	253	10	4	Y	0	39	8
+def					case_____b_b	253	10	4	Y	0	39	8
+def					coalesce___b	253	10	4	Y	0	39	8
+def					coalesce_b_b	253	10	4	Y	0	39	8
+def					if_______b_b	253	10	4	Y	0	39	8
+def					ifnull___b_b	253	10	4	Y	0	39	8
+def					least____b_b	253	10	4	Y	0	39	8
+def					greatest_b_b	253	10	4	Y	0	39	8
 ___________a	-2147483648
 case_______a	-2147483648
 case_____a_a	-2147483648
@@ -2884,14 +2884,14 @@ GREATEST(a, b)                            AS greatest_a_b,
 GREATEST(b, a)                            AS greatest_b_a
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					case_____a_b	253	11	11	Y	0	31	8
-def					case_____b_a	253	11	4	Y	0	31	8
-def					coalesce_a_b	253	11	11	Y	0	31	8
-def					coalesce_b_a	253	11	4	Y	0	31	8
-def					if_______a_b	253	11	4	Y	0	31	8
-def					if_______b_a	253	11	11	Y	0	31	8
-def					ifnull___a_b	253	11	11	Y	0	31	8
-def					ifnull___b_a	253	11	4	Y	0	31	8
+def					case_____a_b	253	11	11	Y	0	39	8
+def					case_____b_a	253	11	4	Y	0	39	8
+def					coalesce_a_b	253	11	11	Y	0	39	8
+def					coalesce_b_a	253	11	4	Y	0	39	8
+def					if_______a_b	253	11	4	Y	0	39	8
+def					if_______b_a	253	11	11	Y	0	39	8
+def					ifnull___a_b	253	11	11	Y	0	39	8
+def					ifnull___b_a	253	11	4	Y	0	39	8
 def					least____a_b	5	23	11	Y	32896	31	63
 def					least____b_a	5	23	11	Y	32896	31	63
 def					greatest_a_b	5	23	3	Y	32896	31	63
@@ -3084,10 +3084,10 @@ MAX(COALESCE(c3)) AS c3,
 MAX(COALESCE(c4)) AS c4
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	255	0	Y	128	31	63
-def					c2	250	16777215	0	Y	128	31	63
-def					c3	252	65535	0	Y	128	31	63
-def					c4	251	4294967295	0	Y	128	31	63
+def					c1	253	255	0	Y	128	39	63
+def					c2	250	16777215	0	Y	128	39	63
+def					c3	252	65535	0	Y	128	39	63
+def					c4	251	4294967295	0	Y	128	39	63
 c1	c2	c3	c4
 NULL	NULL	NULL	NULL
 DROP TABLE t2;
@@ -3109,8 +3109,8 @@ MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
 c1	c2
 NULL	NULL
 DROP TABLE t2;
@@ -3132,8 +3132,8 @@ MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
 c1	c2
 NULL	NULL
 DROP TABLE t2;
@@ -3158,9 +3158,9 @@ MAX(COALESCE(c2)) AS c2,
 MAX(COALESCE(c3)) AS c3
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
-def					c3	252	20000	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	20000	0	Y	0	39	8
 c1	c2	c3
 NULL	NULL	NULL
 DROP TABLE t2;
@@ -3185,9 +3185,9 @@ MAX(COALESCE(c2)) AS c2,
 MAX(COALESCE(c3)) AS c3
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
-def					c3	252	60000	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	60000	0	Y	0	39	8
 c1	c2	c3
 NULL	NULL	NULL
 DROP TABLE t2;
@@ -3206,7 +3206,7 @@ SELECT
 MAX(COALESCE(c1)) AS c1
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
 c1
 NULL
 DROP TABLE t2;
@@ -3225,7 +3225,7 @@ SELECT
 MAX(COALESCE(c1)) AS c1
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
 c1
 NULL
 DROP TABLE t2;
@@ -3256,10 +3256,10 @@ SELECT
 @c4:=c4 AS c4
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	255	0	Y	128	31	63
-def					c2	252	65535	0	Y	128	31	63
-def					c3	250	16777215	0	Y	128	31	63
-def					c4	251	4294967295	0	Y	128	31	63
+def					c1	253	255	0	Y	128	39	63
+def					c2	252	65535	0	Y	128	39	63
+def					c3	250	16777215	0	Y	128	39	63
+def					c4	251	4294967295	0	Y	128	39	63
 c1	c2	c3	c4
 DROP TABLE t2;
 DROP TABLE t1;
@@ -3280,8 +3280,8 @@ SELECT
 @c2:=c2 AS c2
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
 c1	c2
 DROP TABLE t2;
 DROP TABLE t1;
@@ -3302,8 +3302,8 @@ SELECT
 @c2:=c2 AS c2
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
 c1	c2
 DROP TABLE t2;
 DROP TABLE t1;
@@ -3327,9 +3327,9 @@ SELECT
 @c:=c3 AS c3
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
-def					c3	252	20000	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	20000	0	Y	0	39	8
 c1	c2	c3
 DROP TABLE t2;
 DROP TABLE t1;
@@ -3353,9 +3353,9 @@ SELECT
 @c:=c3 AS c3
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c1	253	1	0	Y	0	31	8
-def					c2	253	255	0	Y	0	31	8
-def					c3	252	60000	0	Y	0	31	8
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	60000	0	Y	0	39	8
 c1	c2	c3
 DROP TABLE t2;
 DROP TABLE t1;

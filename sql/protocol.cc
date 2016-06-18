@@ -759,6 +759,10 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     Send_field field;
     item->make_field(thd, &field);
 
+    /* limit number of decimals for float and double */
+    if (field.type == MYSQL_TYPE_FLOAT || field.type == MYSQL_TYPE_DOUBLE)
+      set_if_smaller(field.decimals, FLOATING_POINT_DECIMALS);
+
     /* Keep things compatible for old clients */
     if (field.type == MYSQL_TYPE_VARCHAR)
       field.type= MYSQL_TYPE_VAR_STRING;

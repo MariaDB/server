@@ -36,17 +36,17 @@ LAST_VALUE(@last_a:=1,@last_b:=1.0)
 1.0
 select @last_b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@last_b	246	83	3	Y	32896	30	63
+def					@last_b	246	83	3	Y	32896	38	63
 @last_b
 1.0
 SELECT LAST_VALUE(@last_a:=1,@last_b:="hello");
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LAST_VALUE(@last_a:=1,@last_b:="hello")	253	5	5	N	1	31	8
+def					LAST_VALUE(@last_a:=1,@last_b:="hello")	253	5	5	N	1	39	8
 LAST_VALUE(@last_a:=1,@last_b:="hello")
 hello
 select @last_b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@last_b	250	16777215	5	Y	0	31	8
+def					@last_b	250	16777215	5	Y	0	39	8
 @last_b
 hello
 SELECT date(LAST_VALUE(@last_a:=1,@last_b:="2001-02-03"));
@@ -56,7 +56,7 @@ date(LAST_VALUE(@last_a:=1,@last_b:="2001-02-03"))
 2001-02-03
 select @last_b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@last_b	250	16777215	10	Y	0	31	8
+def					@last_b	250	16777215	10	Y	0	39	8
 @last_b
 2001-02-03
 SELECT LAST_VALUE(@last_a:=1,@last_b:="2001-02-03",NULL);
@@ -66,7 +66,7 @@ LAST_VALUE(@last_a:=1,@last_b:="2001-02-03",NULL)
 NULL
 select @last_b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@last_b	250	16777215	10	Y	0	31	8
+def					@last_b	250	16777215	10	Y	0	39	8
 @last_b
 2001-02-03
 SELECT LAST_VALUE();

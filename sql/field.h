@@ -51,7 +51,6 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL
 };
 
-
 /*
   Common declarations for Field and Item
 */
@@ -1699,7 +1698,7 @@ public:
              uint8 dec_arg, bool zero_arg, bool unsigned_arg)
     :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg, dec_arg, zero_arg, unsigned_arg),
-    not_fixed(dec_arg >= NOT_FIXED_DEC)
+    not_fixed(dec_arg >= FLOATING_POINT_DECIMALS)
     {}
   Item_result result_type () const { return REAL_RESULT; }
   Copy_func *get_copy_func(const Field *from) const
@@ -2062,12 +2061,18 @@ public:
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_float(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	      uint8 dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   enum_field_types type() const { return MYSQL_TYPE_FLOAT;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_FLOAT; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2097,17 +2102,27 @@ public:
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_double(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	       uint8 dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_double(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	       uint8 dec_arg, bool not_fixed_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {not_fixed= not_fixed_arg; }
+    {
+      not_fixed= not_fixed_arg;
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   enum_field_types type() const { return MYSQL_TYPE_DOUBLE;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_DOUBLE; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2898,7 +2913,7 @@ new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr,
                       null_bit, unireg_check, field_name, share);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
@@ -2914,7 +2929,7 @@ new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
                  field_name);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_time_hires(ptr, null_ptr, null_bit, unireg_check, field_name, dec);
@@ -2929,7 +2944,7 @@ new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
                      unireg_check, field_name);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_datetime_hires(ptr, null_ptr, null_bit,
@@ -3886,7 +3901,7 @@ int convert_null_to_field_value_or_error(Field *field);
 #define FIELDFLAG_HEX_ESCAPE		((uint) 0x10000)
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
-#define FIELDFLAG_MAX_DEC		31
+#define FIELDFLAG_MAX_DEC		63
 #define FIELDFLAG_NUM_SCREEN_TYPE	0x7F01
 #define FIELDFLAG_ALFA_SCREEN_TYPE	0x7800
 

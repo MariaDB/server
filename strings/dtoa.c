@@ -90,7 +90,7 @@ size_t my_fcvt(double x, int precision, char *to, my_bool *error)
   int decpt, sign, len, i;
   char *res, *src, *end, *dst= to;
   char buf[DTOA_BUFF_SIZE];
-  DBUG_ASSERT(precision >= 0 && precision < NOT_FIXED_DEC && to != NULL);
+  DBUG_ASSERT(precision >= 0 && precision < DECIMAL_NOT_SPECIFIED && to != NULL);
   
   res= dtoa(x, 5, precision, &decpt, &sign, &end, buf, sizeof(buf));
 

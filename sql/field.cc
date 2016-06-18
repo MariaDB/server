@@ -4435,13 +4435,13 @@ String *Field_float::val_str(String *val_buffer,
   char *to=(char*) val_buffer->ptr();
   size_t len;
 
-  if (dec >= NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     len= my_gcvt(nr, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
   else
   {
     /*
       We are safe here because the buffer length is 70, and
-      fabs(float) < 10^39, dec < NOT_FIXED_DEC. So the resulting string
+      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
       will be not longer than 69 chars + terminating '\0'.
     */
     len= my_fcvt(nr, dec, to, NULL);
@@ -4525,7 +4525,7 @@ int Field_float::do_save_field_metadata(uchar *metadata_ptr)
 
 void Field_float::sql_type(String &res) const
 {
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
   {
     res.set_ascii(STRING_WITH_LEN("float"));
   }
@@ -4606,7 +4606,7 @@ int truncate_double(double *nr, uint field_length, uint dec,
     return 1;
   }
 
-  if (dec < NOT_FIXED_DEC)
+  if (dec < FLOATING_POINT_DECIMALS)
   {
     uint order= field_length - dec;
     uint step= array_elements(log_10) - 1;
@@ -4788,7 +4788,7 @@ String *Field_double::val_str(String *val_buffer,
   char *to=(char*) val_buffer->ptr();
   size_t len;
 
-  if (dec >= NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     len= my_gcvt(nr, MY_GCVT_ARG_DOUBLE, to_length - 1, to, NULL);
   else
     len= my_fcvt(nr, dec, to, NULL);
@@ -4847,7 +4847,7 @@ int Field_double::do_save_field_metadata(uchar *metadata_ptr)
 void Field_double::sql_type(String &res) const
 {
   CHARSET_INFO *cs=res.charset();
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
   {
     res.set_ascii(STRING_WITH_LEN("double"));
   }
@@ -9772,13 +9772,6 @@ bool Column_definition::check(THD *thd)
   if (length > MAX_FIELD_BLOBLENGTH)
   {
     my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name, MAX_FIELD_BLOBLENGTH);
-    DBUG_RETURN(1);
-  }
-
-  if (decimals >= NOT_FIXED_DEC)
-  {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-             field_name, static_cast<ulong>(NOT_FIXED_DEC - 1));
     DBUG_RETURN(TRUE);
   }
 
@@ -9797,7 +9790,7 @@ bool Column_definition::check(THD *thd)
          def->decimals < length))
     {
       my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
-      DBUG_RETURN(1);
+      DBUG_RETURN(TRUE);
     }
     else if (def->type() == Item::NULL_ITEM)
     {
@@ -9811,7 +9804,7 @@ bool Column_definition::check(THD *thd)
     else if (flags & AUTO_INCREMENT_FLAG)
     {
       my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
-      DBUG_RETURN(1);
+      DBUG_RETURN(TRUE);
     }
   }
 
@@ -9839,7 +9832,7 @@ bool Column_definition::check(THD *thd)
        on_update->decimals < length))
   {
     my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
-    DBUG_RETURN(1);
+    DBUG_RETURN(TRUE);
   }
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
@@ -9873,6 +9866,12 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_NULL:
     break;
   case MYSQL_TYPE_NEWDECIMAL:
+    if (decimals >= NOT_FIXED_DEC)
+    {
+      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+               field_name, static_cast<ulong>(NOT_FIXED_DEC - 1));
+      DBUG_RETURN(TRUE);
+    }
     my_decimal_trim(&length, &decimals);
     if (length > DECIMAL_MAX_PRECISION)
     {
@@ -9952,6 +9951,12 @@ bool Column_definition::check(THD *thd)
       my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
       DBUG_RETURN(TRUE);
     }
+    if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
+    {
+      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
+      DBUG_RETURN(TRUE);
+    }
     break;
   case MYSQL_TYPE_DOUBLE:
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
@@ -9964,6 +9969,12 @@ bool Column_definition::check(THD *thd)
         decimals != NOT_FIXED_DEC)
     {
       my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
+      DBUG_RETURN(TRUE);
+    }
+    if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
+    {
+      my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
       DBUG_RETURN(TRUE);
     }
     break;
@@ -10280,19 +10291,29 @@ Field *make_field(TABLE_SHARE *share,
                         f_is_zerofill(pack_flag) != 0,
                         f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_FLOAT:
+  {
+    int decimals= f_decimals(pack_flag);
+    if (decimals == FLOATING_POINT_DECIMALS)
+      decimals= NOT_FIXED_DEC;
     return new (mem_root)
       Field_float(ptr,field_length,null_pos,null_bit,
                   unireg_check, field_name,
-                  f_decimals(pack_flag),
+                  decimals,
                   f_is_zerofill(pack_flag) != 0,
                   f_is_dec(pack_flag)== 0);
+  }
   case MYSQL_TYPE_DOUBLE:
+  {
+    int decimals= f_decimals(pack_flag);
+    if (decimals == FLOATING_POINT_DECIMALS)
+      decimals= NOT_FIXED_DEC;
     return new (mem_root)
       Field_double(ptr,field_length,null_pos,null_bit,
                    unireg_check, field_name,
-                   f_decimals(pack_flag),
+                   decimals,
                    f_is_zerofill(pack_flag) != 0,
                    f_is_dec(pack_flag)== 0);
+  }
   case MYSQL_TYPE_TINY:
     return new (mem_root)
       Field_tiny(ptr,field_length,null_pos,null_bit,
@@ -10458,6 +10479,15 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
                           ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
                           buff, "YEAR(4)");
     }
+    break;
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+    /*
+      Floating points are stored with FLOATING_POINT_DECIMALS but internally
+      in MariaDB used with NOT_FIXED_DEC, which is >= FLOATING_POINT_DECIMALS.
+    */
+    if (decimals >= FLOATING_POINT_DECIMALS)
+      decimals= NOT_FIXED_DEC;
     break;
   default:
     break;

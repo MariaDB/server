@@ -21,6 +21,8 @@
 #ifndef _mysql_com_h
 #define _mysql_com_h
 
+#include "my_decimal_limits.h"
+
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
@@ -648,5 +650,18 @@ uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
 #define MYSQL_STMT_HEADER       4
 #define MYSQL_LONG_DATA_HEADER  6
 
-#define NOT_FIXED_DEC           31
+/*
+  If a float or double field have more than this number of decimals,
+  it's regarded as floating point field without any specific number of
+  decimals
+*/
+
+#define FLOATING_POINT_DECIMALS 31
+
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
+#endif
 #endif

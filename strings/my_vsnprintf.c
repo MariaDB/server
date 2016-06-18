@@ -16,11 +16,10 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
-#include <stdarg.h>
 #include <my_sys.h>
 #include <my_base.h>
 #include <my_handler_errors.h>
-
+#include <mysql_com.h>                        /* For FLOATING_POINT_DECIMALS */
 
 #define MAX_ARGS 32                           /* max positional args count*/
 #define MAX_PRINT_INFO 32                     /* max print position count */
@@ -240,8 +239,8 @@ static char *process_dbl_arg(char *to, char *end, size_t width,
 {
   if (width == MAX_WIDTH)
     width= FLT_DIG; /* width not set, use default */
-  else if (width >= NOT_FIXED_DEC)
-    width= NOT_FIXED_DEC - 1; /* max.precision for my_fcvt() */
+  else if (width >= FLOATING_POINT_DECIMALS)
+    width= FLOATING_POINT_DECIMALS - 1; /* max.precision for my_fcvt() */
   width= MY_MIN(width, (size_t)(end-to) - 1);
   
   if (arg_type == 'f')

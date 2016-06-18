@@ -390,9 +390,9 @@ ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65.
 select cast(1 as decimal(66,6));
 ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65.
 select cast(1 as decimal(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 30.
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38.
 select cast(1 as double(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 30.
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38.
 set names binary;
 select cast(_latin1'test' as char character set latin2);
 cast(_latin1'test' as char character set latin2)

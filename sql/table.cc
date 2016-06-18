@@ -1633,6 +1633,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       bzero((char*) &comment, sizeof(comment));
     }
 
+    /* Remove >32 decimals from old files */
+    if (share->mysql_version < 100200)
+      pack_flag&= ~(FIELDFLAG_LEFT_FULLSCREEN);
+
     if (interval_nr && charset->mbminlen > 1)
     {
       /* Unescape UCS2 intervals from HEX notation */

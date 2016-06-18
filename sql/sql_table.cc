@@ -2876,7 +2876,8 @@ int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns, 
 			 longlong table_flags)
 {
-  unsigned int dup_val_count;
+  uint dup_val_count;
+  uint decimals= sql_field->decimals;
   DBUG_ENTER("prepare_create_field");
 
   /*
@@ -2994,8 +2995,18 @@ int prepare_create_field(Column_definition *sql_field,
                            FIELDFLAG_DECIMAL) |
                           (sql_field->flags & ZEROFILL_FLAG ?
                            FIELDFLAG_ZEROFILL : 0) |
-                          (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
+                          (decimals << FIELDFLAG_DEC_SHIFT));
     break;
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+    /*
+      User specified FLOAT() or DOUBLE() without precision. Change to
+      FLOATING_POINT_DECIMALS to keep things compatible with earlier MariaDB
+      versions.
+    */
+    if (decimals >= FLOATING_POINT_DECIMALS)
+      decimals= FLOATING_POINT_DECIMALS;
+    /* fall-trough */
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
     /* fall-through */
@@ -3006,7 +3017,7 @@ int prepare_create_field(Column_definition *sql_field,
                           (sql_field->flags & ZEROFILL_FLAG ?
                            FIELDFLAG_ZEROFILL : 0) |
                           f_settype((uint) sql_field->sql_type) |
-                          (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
+                          (decimals << FIELDFLAG_DEC_SHIFT));
     break;
   }
   if (!(sql_field->flags & NOT_NULL_FLAG) ||

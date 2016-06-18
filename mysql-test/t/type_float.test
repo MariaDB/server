@@ -510,5 +510,29 @@ SELECT * FROM t1;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # Test of using wrong scale
+--echo #
+
+create or replace table t1 (a double(40,30));
+--error ER_TOO_BIG_SCALE 1425
+create or replace table t1 (a double(40,31));
+create or replace table t1 as select 1.01e1;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 30) as t;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 31) as t;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 39) as t;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 51) as t;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 20)/2 as t;
+show create table t1;
+create or replace table t1 as select truncate(10.000000000001e1, 28)/2 as t;
+show create table t1;
+
+drop table if exists t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

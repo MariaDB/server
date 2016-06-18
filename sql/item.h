@@ -1107,7 +1107,7 @@ public:
   virtual Item *clone_item(THD *thd) { return 0; }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
-  { return decimals != NOT_FIXED_DEC ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
+  { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
   /* Returns total number of decimal digits */
   virtual uint decimal_precision() const;
   /* Returns the number of integer part digits only */

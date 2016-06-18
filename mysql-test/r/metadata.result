@@ -4,7 +4,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					1	8	1	1	N	32897	0	63
 def					1.0	246	4	3	N	32897	1	63
 def					-1	8	2	2	N	32897	0	63
-def					hello	253	5	5	N	1	31	8
+def					hello	253	5	5	N	1	39	8
 def					NULL	6	0	0	Y	32896	0	63
 1	1.0	-1	hello	NULL
 1	1.0	-1	hello	NULL

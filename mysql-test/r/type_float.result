@@ -723,5 +723,54 @@ d2_2
 0.99
 DROP TABLE t1,t2;
 #
+# Test of using wrong scale
+#
+create or replace table t1 (a double(40,30));
+create or replace table t1 (a double(40,31));
+ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30.
+create or replace table t1 as select 1.01e1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `1.01e1` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 30) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double(47,30) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 31) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 39) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 51) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 20)/2 as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double(41,24) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 28)/2 as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table if exists t1;
+#
 # End of 10.2 tests
 #
