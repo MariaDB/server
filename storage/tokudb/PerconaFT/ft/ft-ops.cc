@@ -147,6 +147,7 @@ basement nodes, bulk fetch,  and partial fetch:
 
 */
 
+#include <my_global.h>
 #include "ft/cachetable/checkpoint.h"
 #include "ft/cursor.h"
 #include "ft/ft.h"

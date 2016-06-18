@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <my_global.h>
 #include "ft/serialize/block_table.h"
 #include "ft/ft.h"
 #include "ft/ft-cachetable-wrappers.h"

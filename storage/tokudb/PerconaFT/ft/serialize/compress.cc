@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <my_global.h>
 #include <toku_portability.h>
 #include <util/scoped_malloc.h>
 
@@ -97,7 +98,6 @@ void toku_compress (enum toku_compression_method a,
     static const int zlib_without_checksum_windowbits = -15;
 
     a = normalize_compression_method(a);
-    assert(sourceLen < (1LL << 32));
     switch (a) {
     case TOKU_NO_COMPRESSION:
         dest[0] = TOKU_NO_COMPRESSION;
@@ -171,8 +171,10 @@ void toku_compress (enum toku_compression_method a,
         return;
     }
     case TOKU_SNAPPY_METHOD: {
-        snappy::RawCompress((char*)source, sourceLen, (char*)dest + 1, destLen);
-        *destLen += 1;
+        size_t tmp_dest= *destLen;
+        snappy::RawCompress((char*)source, sourceLen, (char*)dest + 1,
+                            &tmp_dest);
+        *destLen= tmp_dest + 1;
         dest[0] = TOKU_SNAPPY_METHOD;
         return;
     }

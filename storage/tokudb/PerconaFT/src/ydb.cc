@@ -39,6 +39,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 extern const char *toku_patent_string;
 const char *toku_copyright_string = "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.";
 
+#include <my_global.h>
 #include <db.h>
 #include <errno.h>
 #include <string.h>
