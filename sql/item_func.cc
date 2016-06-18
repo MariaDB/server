@@ -1918,25 +1918,22 @@ void Item_func_int_div::fix_length_and_dec()
 
 longlong  Item_func_hash::val_int()
 {
-  unsigned_flag =true;
-  ulong nr1= 1,temp=1, nr2= 0;
+  unsigned_flag= true;
+  ulong nr1= 1,nr2= 4;
   CHARSET_INFO *cs;
-  for(int i=0;i<arg_count;i++)
+  for(uint i= 0;i<arg_count;i++)
   {
     String * str = args[i]->val_str();
     if(args[i]->null_value)
     {
-      null_value=1;
+      null_value= 1;
       return 0;
     }
-    nr2=args[i]->max_length;
-    cs=str->charset();
-    char l[4];
+    cs= str->charset();
+    uchar l[4];
     int4store(l,str->length());
-    cs->coll->hash_sort(cs, (uchar *)l,sizeof(l), &temp, &nr2);
-    nr1^=temp;
-    cs->coll->hash_sort(cs, (uchar *)str->ptr(),str->length(), &temp, &nr2);
-    nr1^=temp;
+    cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+    cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
   }
   return   (longlong)nr1;
 }

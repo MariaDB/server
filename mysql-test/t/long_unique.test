@@ -4,3 +4,14 @@ insert into z_1 values('56666666666666666666666666666666666666666666666666666666
 insert into z_1 values('sachin');
 --error 1022
 insert into z_1 values('sachin');
+CREATE TABLE t1(i1 int not null auto_increment, c1 INT, primary key(i1)) engine=innodb;
+CREATE TABLE t2(i1 int not null auto_increment, c2 INT, primary key(i1)) engine=innodb;
+CREATE TABLE t3(i1 int not null auto_increment, a int, primary key(i1)) engine=innodb;
+create trigger tr16 after insert on t1 for each row insert into t3(a) values(new.c1);
+create trigger tr17 after insert on t2 for each row insert into t3(a) values(new.c2);
+begin;
+INSERT INTO t1(c1) VALUES (11), (12);
+INSERT INTO t2(c2) VALUES (13), (14);
+CREATE VIEW v16 AS SELECT c1, c2 FROM t1, t2;
+INSERT INTO v16(c1) VALUES (15),(16);
+commit;
