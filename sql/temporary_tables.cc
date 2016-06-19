@@ -635,6 +635,12 @@ bool THD::drop_temporary_table(TABLE *table,
   */
   while ((tab= share->all_tmp_tables.pop_front()))
   {
+    /*
+      We need to set the THD as it may be different in case of
+      parallel replication
+    */
+    tab->in_use= this;
+
     free_temporary_table(tab);
   }
 
@@ -1188,6 +1194,8 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
   DBUG_ENTER("THD::use_temporary_table");
 
   *out_table= table;
+
+  /* The following can happen if find_temporary_table() returns NULL */
   if (!table)
     DBUG_RETURN(false);
 
@@ -1215,10 +1223,7 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     We need to set the THD as it may be different in case of
     parallel replication
   */
-  if (table->in_use != this)
-  {
-    table->in_use= this;
-  }
+  table->in_use= this;
 
   DBUG_RETURN(false);
 }
