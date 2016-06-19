@@ -2736,7 +2736,7 @@ fsp_reserve_free_extents(
 	ulint		zip_size;
 	ulint		n_free;
 	ulint		n_free_up;
-	ulint		reserve;
+	ulint		reserve= 0;
 	ibool		success;
 	ulint		n_pages_added;
 	size_t		total_reserved = 0;

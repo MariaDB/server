@@ -178,12 +178,13 @@ jemalloc/src/jemalloc\.c: set but not used
 #
 # Connect engine
 #
-storage/connect/ha_connect\.cc: might be clobbered by ~longjmp~
-storage/connect/connect\.cc: might be clobbered by ~longjmp~
+storage/connect/ha_connect\.cc: might be clobbered by.*longjmp
+storage/connect/connect\.cc: might be clobbered by.*longjmp
 storage/connect/filamvct\.cpp: ignoring return value of
 storage/connect/filamvct\.cpp: might be clobbered by
 storage/connect/xindex\.cpp: ignoring return value of
 storage/connect/value\.cpp: always false
+storage/connect/json\.cpp: might be clobbered by
 
 #
 # mroonga
@@ -238,6 +239,10 @@ libmysql\.c: passing argument 2 of .*memcpy.* discards qualifiers from pointer t
 storage/.*/dict/dict0dict\.c : passing argument 1 of .*strcpy.* discards qualifiers from pointer target type : 2500-3500
 storage/.*/sync/sync0rw\.c : passing argument 1 of .*memset.* discards qualifiers from pointer target type : 200-300
 storage/.*/btr/btr0sea\.c : passing argument 2 of .*btr_cur_position.* discards qualifiers from pointer
+
+# Fixed wrong warning in GCC due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=61520
+
+strings/decimal.c: array subscript is below array bounds
 
 #
 # Strange things from autoconf that is probably safe to ignore

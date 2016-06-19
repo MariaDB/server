@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+call mtr.add_suppression("Master is configured to log replication events");
 connection slave;
 start slave;
 connection master;

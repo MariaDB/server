@@ -2910,6 +2910,15 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
               safe_str(rolename), safe_str(user), safe_str(host));
   }
 
+  /*
+    This statement will be replicated as a statement, even when using
+    row-based replication.  The flag will be reset at the end of the
+    statement.
+    This has to be handled here as it's called by set_var.cc, which is
+    not automaticly handled by sql_parse.cc
+  */
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
     thd->set_query_inner(buff, query_length, system_charset_info);
@@ -2921,15 +2930,6 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   table= tables[USER_TABLE].table;
   result= 1;
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-    This has to be handled here as it's called by set_var.cc, which is
-    not automaticly handled by sql_parse.cc
-  */
-  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user;

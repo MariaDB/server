@@ -3,6 +3,7 @@ drop table if exists t;
 create table t (id int not null primary key, v longblob not null);
 select @@max_allowed_packet into @my_max_allowed_packet;
 set global max_allowed_packet=100000000;
+connect conn1,localhost,root,,;
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
@@ -1003,6 +1004,8 @@ insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
 insert ignore into t (id,v) values (floor(rand()*1000),repeat('a',(32*1024*1024-4)*rand()));
+connection default;
+disconnect conn1;
 set global max_allowed_packet=@my_max_allowed_packet;
 check table t;
 Table	Op	Msg_type	Msg_text
