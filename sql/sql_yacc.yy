@@ -1271,6 +1271,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_NUM
 %token  HEX_STRING
 %token  HIGH_PRIORITY
+%token  HIDDEN
 %token  HOST_SYM
 %token  HOSTS_SYM
 %token  HOUR_MICROSECOND_SYM
@@ -6047,6 +6048,11 @@ vcol_attribute:
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
+        | HIDDEN
+          {
+              LEX *lex =Lex;
+              lex->last_field->field_visibility=Create_field::USER_DEFINED_HIDDEN;
+          }
         ;
 
 parse_vcol_expr:
@@ -6468,6 +6474,11 @@ attribute:
           {
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
+          }
+        | HIDDEN
+          {
+              LEX *lex =Lex;
+              lex->last_field->field_visibility=Create_field::USER_DEFINED_HIDDEN;
           }
         ;
 

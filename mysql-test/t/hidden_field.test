@@ -1,0 +1,6 @@
+create table h_1(abc int primary key, xyz int hidden);
+create table h_2(a1 int hidden);
+--error 1064
+create table h_3(a1 blob,hidden(a1));
+create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
+int not null hidden unique);
