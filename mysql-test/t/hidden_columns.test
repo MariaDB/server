@@ -1,0 +1,13 @@
+create table t1(blob unique);
+insert into t1(1);
+insert into t1('mariadb');
+--error 1022
+insert into t1(1);
+select * from t1;
+show columns from t1;
+show create table t1;
+select * from information_schema.columns where table_schema='test' and table_name='t1';
+--error 1064
+alter table drop DB_ROW_HASH_1;
+# should not generate any error
+alter table add column DB_ROW_HASH_1;
