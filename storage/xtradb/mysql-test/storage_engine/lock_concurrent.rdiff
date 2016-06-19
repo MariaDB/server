@@ -1,7 +1,7 @@
 --- suite/storage_engine/lock_concurrent.result	2012-06-24 23:55:19.539380000 +0400
 +++ suite/storage_engine/lock_concurrent.reject	2012-07-15 17:50:21.279222746 +0400
-@@ -3,10 +3,19 @@
- LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
+@@ -4,6 +4,14 @@
+ connect  con1,localhost,root,,;
  SET lock_wait_timeout = 1;
  LOCK TABLES t1 READ LOCAL;
 +ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -13,10 +13,13 @@
 +# Also, this problem may cause a chain effect (more errors of different kinds in the test).
 +# -------------------------------------------
  UNLOCK TABLES;
+ connection default;
  UNLOCK TABLES;
+@@ -11,6 +19,7 @@
  LOCK TABLES t1 READ LOCAL;
+ connection default;
  LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
 +ERROR HY000: Lock wait timeout exceeded; try restarting transaction
  UNLOCK TABLES;
+ connection con1;
  UNLOCK TABLES;
- DROP TABLE t1;
