@@ -55,6 +55,6 @@ grant SELECT ON test.* TO '' identified via unix_socket;
 
 # restoring mysql.user to the original state.
 delete from mysql.user where user='';
+FLUSH PRIVILEGES;
 uninstall plugin unix_socket;
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
-
