@@ -90,7 +90,7 @@ SET @@global.delay_key_write = FALSE0;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.delay_key_write = ONN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@global.delay_key_write = OF;
+SET @@global.delay_key_write = OFFF;
 
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.delay_key_write = ' ';

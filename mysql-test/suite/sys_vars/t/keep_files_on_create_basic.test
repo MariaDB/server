@@ -132,7 +132,7 @@ SET @@session.keep_files_on_create = ONN;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.keep_files_on_create = ONF;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.keep_files_on_create = OF;
+SET @@session.keep_files_on_create = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.keep_files_on_create = 'OFN';
 --Error ER_WRONG_VALUE_FOR_VAR

@@ -98,7 +98,7 @@ SET @@session.sql_quote_show_create = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_quote_show_create = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_quote_show_create = OF;
+SET @@session.sql_quote_show_create = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_quote_show_create = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR

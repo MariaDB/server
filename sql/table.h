@@ -742,6 +742,38 @@ struct TABLE_SHARE
 #endif
 
   /**
+    System versioning support.
+   */
+
+  bool versioned;
+  uint16 row_start_field;
+  uint16 row_end_field;
+
+  void enable_system_versioning(uint16 row_start, uint row_end)
+  {
+    versioned = true;
+    row_start_field = row_start;
+    row_end_field = row_end;
+  }
+
+  void disable_system_versioning()
+  {
+    versioned = false;
+    row_start_field = 0;
+    row_end_field = 0;
+  }
+
+  Field *vers_start_field()
+  {
+    return field[row_start_field];
+  }
+
+  Field *vers_end_field()
+  {
+    return field[row_end_field];
+  }
+
+  /**
     Cache the checked structure of this table.
 
     The pointer data is used to describe the structure that
@@ -1051,7 +1083,7 @@ public:
   uint32 instance; /** Table cache instance this TABLE is belonging to */
   THD	*in_use;                        /* Which thread uses this */
 
-  uchar *record[2];			/* Pointer to records */
+  uchar *record[3];			/* Pointer to records */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1084,6 +1116,8 @@ public:
   Field **default_field;                /* Fields with non-constant DEFAULT */
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
+  Field **non_generated_field;          /* Like **field but without generated
+					                                 fields */
   Virtual_column_info **check_constraints;
 
   /* Table's triggers, 0 if there are no of them */
@@ -1431,6 +1465,7 @@ public:
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
+  bool vers_update_fields();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
@@ -1447,6 +1482,37 @@ public:
                                       bool with_cleanup);
   Field *find_field_by_name(const char *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
+
+  /**
+    System versioning support.
+   */
+
+  bool versioned() const
+  {
+    return s->versioned;
+  }
+
+  Field *vers_start_field() const
+  {
+    DBUG_ASSERT(versioned());
+    return field[s->row_start_field];
+  }
+
+  Field *vers_end_field() const
+  {
+    DBUG_ASSERT(versioned());
+    return field[s->row_end_field];
+  }
+
+/** Number of additional fields used in versioned tables */
+#define VERSIONING_FIELDS 2
+
+  uint user_fields() const
+  {
+    return versioned() ?
+      s->fields - VERSIONING_FIELDS :
+      s->fields;
+  }
 };
 
 
@@ -1736,6 +1802,31 @@ class Item_in_subselect;
      - semi-join nest (sj_on_expr!= NULL && sj_subq_pred!=NULL)
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
+
+enum for_system_time_type
+{
+  FOR_SYSTEM_TIME_UNSPECIFIED, FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO, FOR_SYSTEM_TIME_BETWEEN
+};
+
+/** System versioning support. */
+struct system_versioning_for_select
+{
+  enum for_system_time_type type;
+  Item *start, *end;
+  bool is_moved_to_where;
+
+  void init(
+    const enum for_system_time_type t=FOR_SYSTEM_TIME_UNSPECIFIED,
+    Item * const s=NULL,
+    Item * const e=NULL)
+  {
+    type= t;
+    start= s;
+    end= e;
+    is_moved_to_where= false;
+  }
+};
 
 struct LEX;
 class Index_hint;
@@ -2192,6 +2283,10 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+
+  /** System versioning support. */
+  system_versioning_for_select system_versioning;
+
   /**
      @brief
        Find the bottom in the chain of embedded table VIEWs.
@@ -2389,6 +2484,9 @@ struct TABLE_LIST
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
+
+  void print_system_versioning(THD *thd, table_map eliminated_tables,
+                   String *str, enum_query_type query_type);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

@@ -138,6 +138,7 @@ static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
+static bool check_system_versioning(Table_scope_and_contents_source_st *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -3849,6 +3850,9 @@ mysql_execute_command(THD *thd)
     */
     Alter_info alter_info(lex->alter_info, thd->mem_root);
 
+    if (check_system_versioning(&create_info))
+      goto end_with_restore_list;
+
     if (thd->is_fatal_error)
     {
       /* If out of memory when creating a copy of alter_info. */
@@ -7318,6 +7322,66 @@ bool check_fk_parent_table_access(THD *thd,
   return false;
 }
 
+
+
+/****************************************************************************
+  Checks related to system versioning
+****************************************************************************/
+
+static bool check_system_versioning(Table_scope_and_contents_source_st *create_info)
+{
+  const System_versioning_info *versioning_info = &create_info->system_versioning_info;
+
+  if (!versioning_info->versioned)
+    return false;
+
+  bool r = false;
+
+  if (!versioning_info->declared_system_versioning)
+  {
+    r = true;
+    my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
+  }
+
+  if (!versioning_info->generated_as_row.start)
+  {
+    r = true;
+    my_error(ER_SYS_START_NOT_SPECIFIED, MYF(0));
+  }
+
+  if (!versioning_info->generated_as_row.end)
+  {
+    r = true;
+    my_error(ER_SYS_END_NOT_SPECIFIED, MYF(0));
+  }
+
+  if (!versioning_info->period_for_system_time.start || !versioning_info->period_for_system_time.end)
+  {
+    r = true;
+    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
+  }
+
+  if (!r)
+  {
+    if (my_strcasecmp(system_charset_info,
+                      versioning_info->generated_as_row.start->c_ptr(),
+                      versioning_info->period_for_system_time.start->c_ptr()))
+    {
+      r = true;
+      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN, MYF(0));
+    }
+
+    if (my_strcasecmp(system_charset_info,
+                      versioning_info->generated_as_row.end->c_ptr(),
+                      versioning_info->period_for_system_time.end->c_ptr()))
+    {
+      r = true;
+      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN, MYF(0));
+    }
+  }
+
+  return r; // false means no error
+}
 
 /****************************************************************************
 	Check stack size; Send error if there isn't enough stack to continue

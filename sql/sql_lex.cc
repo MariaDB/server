@@ -1343,6 +1343,27 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return WITH;
     }
     break;
+  case FOR_SYM:
+    /*
+     * Additional look-ahead to resolve doubtful cases like:
+     * SELECT ... FOR UPDATE
+     * SELECT ... FOR SYSTEM_TIME ... .
+     */
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case SYSTEM_TIME_SYM:
+      return FOR_SYSTEM_TIME_SYM;
+    default:
+      /*
+        Save the token following 'FOR_SYM'
+      */
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return FOR_SYM;
+    }
+    break;
   default:
     break;
   }
@@ -2998,8 +3019,7 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL),
-    result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
+  : explain(NULL), result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
     option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {

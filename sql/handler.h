@@ -1660,6 +1660,36 @@ struct Schema_specification_st
 };
 
 
+struct System_versioning_info
+{
+  struct
+  {
+    String *start, *end;
+  } period_for_system_time;
+
+  struct
+  {
+    String *start;
+    String *end;
+  } generated_as_row;
+
+  void set_period_for_system_time(String *start, String *end)
+  {
+    period_for_system_time.start = start;
+    period_for_system_time.end = end;
+  }
+  void set_period_for_system_time()
+  {
+    set_period_for_system_time(NULL, NULL);
+  }
+
+  /** User has added 'WITH SYSTEM VERSIONING' to table definition */
+  bool declared_system_versioning;
+
+  /** Table described by this structure have enabled system versioning */
+  bool versioned;
+};
+
 /**
   A helper struct for table DDL statements, e.g.:
   CREATE [OR REPLACE] [TEMPORARY]
@@ -1734,6 +1764,8 @@ struct Table_scope_and_contents_source_st
   bool table_was_deleted;
   sequence_definition *seq_create_info;
 
+  System_versioning_info system_versioning_info;
+
   void init()
   {
     bzero(this, sizeof(*this));
@@ -1743,6 +1775,17 @@ struct Table_scope_and_contents_source_st
   {
     db_type= tmp_table() ? ha_default_tmp_handlerton(thd)
                          : ha_default_handlerton(thd);
+  }
+
+  bool versioned()
+  {
+    return system_versioning_info.versioned;
+  }
+  const System_versioning_info *get_system_versioning_info()
+  {
+    if (!versioned())
+      return NULL;
+    return &system_versioning_info;
   }
 };
 

@@ -98,7 +98,7 @@ SET @@session.sql_log_bin = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_log_bin = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_log_bin = OF;
+SET @@session.sql_log_bin = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_log_bin = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR

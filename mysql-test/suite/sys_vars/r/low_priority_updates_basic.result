@@ -101,8 +101,8 @@ SET @@session.low_priority_updates = ONN;
 ERROR 42000: Variable 'low_priority_updates' can't be set to the value of 'ONN'
 SET @@session.low_priority_updates = ONF;
 ERROR 42000: Variable 'low_priority_updates' can't be set to the value of 'ONF'
-SET @@session.low_priority_updates = OF;
-ERROR 42000: Variable 'low_priority_updates' can't be set to the value of 'OF'
+SET @@session.low_priority_updates = OFFF;
+ERROR 42000: Variable 'low_priority_updates' can't be set to the value of 'OFFF'
 SET @@session.low_priority_updates = 'OFN';
 ERROR 42000: Variable 'low_priority_updates' can't be set to the value of 'OFN'
 SET @@session.low_priority_updates = -2;

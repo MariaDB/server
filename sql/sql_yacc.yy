@@ -758,6 +758,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   uint sp_instr_addr;
 
   /* structs */
+  system_versioning_for_select system_versioning;
   LEX_STRING lex_str;
   LEX_SYMBOL symbol;
   Lex_string_with_metadata_st lex_string_with_metadata;
@@ -859,10 +860,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 106 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 106
 
 /*
    Comments for TOKENS.
@@ -878,6 +879,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
    FUTURE-USE : Reserved for future use
+   32N2439    : Reserver keywords per ISO/IEC PDTR 19075-2,
+                http://jtc1sc32.org/doc/N2401-2450/32N2439-text_for_ballot-PDTR_19075-2.pdf
+                System Versioned Tables
 
    This makes the code grep-able, and helps maintenance.
 */
@@ -1090,6 +1094,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
+%token  FOR_SYSTEM_TIME_SYM           /* internal */
 %token  FORMAT_SYM
 %token  FOUND_SYM                     /* SQL-2003-R */
 %token  FROM
@@ -1320,6 +1325,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
+%token  PERIOD_SYM                    /* 32N2439 */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -1484,6 +1490,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWAPS_SYM
 %token  SWITCHES_SYM
 %token  SYSDATE
+%token  SYSTEM                        /* 32N2439 */
+%token  SYSTEM_TIME_SYM               /* 32N2439 */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -1552,6 +1560,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
+%token  VERSIONING                    /* 32N2439 */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -1638,6 +1647,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
+        period_for_system_time_column_id
 
 %type <field_type> int_type real_type
 
@@ -1885,6 +1895,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 	keep_gcc_happy
         key_using_alg
         part_column_list
+        period_for_system_time
         server_def server_options_list server_option
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
@@ -1908,6 +1919,7 @@ END_OF_INPUT
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
+%type <num> start_or_end
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
@@ -1942,7 +1954,7 @@ END_OF_INPUT
 %type <NONE> window_frame_extent;
 %type <frame_exclusion> opt_window_frame_exclusion;
 %type <window_frame_bound> window_frame_start window_frame_bound;
-
+%type <system_versioning> opt_for_system_time_clause;
 
 %type <NONE>
         '-' '+' '*' '/' '%' '(' ')'
@@ -5837,6 +5849,13 @@ create_table_option:
           {
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= $3;
+	  }
+        | WITH SYSTEM VERSIONING
+          {
+            System_versioning_info *info = Lex->vers_get_info();
+            if (!info)
+              MYSQL_YYABORT;
+            info->declared_system_versioning = true;
           }
         ;
 
@@ -5937,6 +5956,7 @@ field_list_item:
           column_def { }
         | key_def
         | constraint_def
+        | period_for_system_time
         ;
 
 column_def:
@@ -6036,6 +6056,22 @@ constraint_def:
          }
        ;
 
+period_for_system_time:
+          // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
+          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
+          {
+            System_versioning_info *info = Lex->vers_get_info();
+            if (!info)
+              MYSQL_YYABORT;
+            if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
+            {
+              my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), $4->c_ptr());
+              MYSQL_YYABORT;
+            }
+            info->set_period_for_system_time($4, $6);
+          }
+        ;
+
 opt_check_constraint:
           /* empty */      { $$= (Virtual_column_info*) 0; }
         | check_constraint { $$= $1;}
@@ -6130,6 +6166,46 @@ field_def:
            Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
+        | opt_generated_always AS ROW_SYM start_or_end
+          {
+            System_versioning_info *info =
+              Lex->vers_get_info();
+            if (!info)
+              MYSQL_YYABORT;
+            String *field_name = new (thd->mem_root)
+              String((const char*)Lex->last_field->field_name, system_charset_info);
+            if (!field_name)
+              MYSQL_YYABORT;
+
+            String **p = NULL;
+            int err_nr = 0;
+            switch ($4)
+            {
+            case 1:
+              p = &info->generated_as_row.start;
+              err_nr = ER_SYS_START_MORE_THAN_ONCE;
+              break;
+            case 0:
+              p = &info->generated_as_row.end;
+              err_nr = ER_SYS_END_MORE_THAN_ONCE;
+              break;
+            default:
+              /* Not Reachable */
+              MYSQL_YYABORT;
+              break;
+            }
+            if (*p)
+            {
+              my_error(err_nr, MYF(0), field_name->c_ptr());
+              MYSQL_YYABORT;
+            }
+            *p = field_name;
+          }
+        ;
+
+start_or_end:
+          START_SYM { $$ = 1; }
+        | END { $$ = 0; }
         ;
 
 opt_generated_always:
@@ -7535,6 +7611,9 @@ alter_list_item:
             Lex->create_last_non_select_table= Lex->last_table();
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
+        | ADD period_for_system_time
+          {
+          }
         | add_column '(' create_field_list ')'
           {
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN |
@@ -8584,6 +8663,60 @@ select_options:
           {
             if (Select->options & SELECT_DISTINCT && Select->options & SELECT_ALL)
               my_yyabort_error((ER_WRONG_USAGE, MYF(0), "ALL", "DISTINCT"));
+          }
+        ;
+
+opt_for_system_time_clause:
+          /* empty */
+          {
+            $$.init();
+          }
+        | FOR_SYSTEM_TIME_SYM
+          AS OF_SYM
+          TIMESTAMP TEXT_STRING
+          {
+            Item *item= create_temporal_literal(thd, $5.str, $5.length, YYCSCL,
+                                                MYSQL_TYPE_DATETIME, true);
+            if (item == NULL)
+              MYSQL_YYABORT;
+            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          AS OF_SYM
+          NOW_SYM
+          {
+            Item *item= new (thd->mem_root) Item_func_now_local(thd, 6);
+            if (item == NULL)
+              MYSQL_YYABORT;
+            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          FROM
+          TIMESTAMP TEXT_STRING
+          TO_SYM
+          TIMESTAMP TEXT_STRING
+          {
+            Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
+                                                 MYSQL_TYPE_DATETIME, true);
+            Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
+                                                 MYSQL_TYPE_DATETIME, true);
+            if (item1 == NULL || item2 == NULL)
+              MYSQL_YYABORT;
+            $$.init(FOR_SYSTEM_TIME_FROM_TO, item1, item2);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          BETWEEN_SYM
+          TIMESTAMP TEXT_STRING
+          AND_SYM
+          TIMESTAMP TEXT_STRING
+          {
+            Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
+                                                 MYSQL_TYPE_DATETIME, true);
+            Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
+                                                 MYSQL_TYPE_DATETIME, true);
+            if (item1 == NULL || item2 == NULL)
+              MYSQL_YYABORT;
+            $$.init(FOR_SYSTEM_TIME_BETWEEN, item1, item2);
           }
         ;
 
@@ -10994,7 +11127,7 @@ table_primary_ident:
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
           }
-          table_ident opt_use_partition opt_table_alias opt_key_definition
+          table_ident opt_use_partition opt_table_alias opt_key_definition opt_for_system_time_clause
           {
             if (!($$= Select->add_table_to_list(thd, $2, $4,
                                                 Select->get_table_join_options(),
@@ -11004,6 +11137,7 @@ table_primary_ident:
                                                 $3)))
               MYSQL_YYABORT;
             Select->add_joined_table($$);
+            $$->system_versioning= $6;
           }
         ;
 
@@ -15891,6 +16025,16 @@ column_list:
         | column_list_id
         ;
 
+period_for_system_time_column_id:
+          ident
+          {
+            String *new_str= new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
+            if (new_str == NULL)
+              MYSQL_YYABORT;
+            $$= new_str;
+          }
+        ;
+
 column_list_id:
           ident
           {
@@ -16537,7 +16681,12 @@ trigger_tail:
           FOR_SYM
           remember_name /* $13 */
           { /* $14 */
-            Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
+            /*
+              FOR token is already passed through (see 'case FOR_SYM' in sql_lex.cc),
+              so we use _prev() to get it back.
+            */
+            DBUG_ASSERT(YYLIP->lookahead_token >= 0);
+            Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start_prev();
           }
           EACH_SYM
           ROW_SYM

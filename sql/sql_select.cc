@@ -588,7 +588,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
     subq_select_lex->group_list.empty();
     DBUG_PRINT("info", ("GROUP BY removed"));
   }
-
+  
   /*
     TODO: This would prevent processing quries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
@@ -666,6 +666,77 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_RETURN(res);
 }
 
+static int
+setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *select_lex)
+{
+  DBUG_ENTER("setup_for_system_time");
+
+  TABLE_LIST *table;
+  int versioned_tables= 0;
+
+  for (table= tables; table; table= table->next_local)
+  {
+    if (table->table && table->table->versioned())
+      versioned_tables++;
+    else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    {
+      my_error(ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING, MYF(0), table->table_name);
+      DBUG_RETURN(-1);
+    }
+  }
+
+  if (versioned_tables == 0)
+    DBUG_RETURN(0);
+
+  for (table= tables; table; table= table->next_local)
+  {
+    if (table->table && table->table->versioned())
+    {
+      Field *fstart= table->table->vers_start_field();
+      Field *fend= table->table->vers_end_field();
+      Item *istart= new (thd->mem_root) Item_field(thd, fstart);
+      Item *iend= new (thd->mem_root) Item_field(thd, fend);
+      Item *cond1= 0, *cond2= 0, *curr = 0;
+      switch (table->system_versioning.type)
+      {
+        case FOR_SYSTEM_TIME_UNSPECIFIED:
+          curr= new (thd->mem_root) Item_func_now_local(thd, 6);
+          cond1= new (thd->mem_root) Item_func_le(thd, istart, curr);
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend, curr);
+          break;
+        case FOR_SYSTEM_TIME_AS_OF:
+          cond1= new (thd->mem_root) Item_func_le(thd, istart,
+                                                  table->system_versioning.start);
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend,
+                                                  table->system_versioning.start);
+          break;
+        case FOR_SYSTEM_TIME_FROM_TO:
+          cond1= new (thd->mem_root) Item_func_lt(thd, istart,
+                                                  table->system_versioning.end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  table->system_versioning.start);
+          break;
+        case FOR_SYSTEM_TIME_BETWEEN:
+          cond1= new (thd->mem_root) Item_func_le(thd, istart,
+                                                  table->system_versioning.end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  table->system_versioning.start);
+          break;
+        default:
+          DBUG_ASSERT(0);
+      }
+      if (cond1 && cond2)
+      {
+        COND *system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
+        thd->change_item_tree(conds, and_items(thd, *conds, system_time_cond));
+        table->system_versioning.is_moved_to_where= true;
+      }
+    }
+  }
+
+  DBUG_RETURN(0);
+}
+
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
   mysql_select assumes that all tables are already opened
@@ -740,7 +811,11 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     remove_redundant_subquery_clauses(select_lex);
   }
-  
+
+  /* Handle FOR SYSTEM_TIME clause. */
+  if (setup_for_system_time(thd, tables_list, &conds, select_lex) < 0)
+    DBUG_RETURN(-1);
+
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
@@ -24784,6 +24859,38 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_RETURN(res || thd->is_error());
 }
 
+void TABLE_LIST::print_system_versioning(THD *thd, table_map eliminated_tables,
+                   String *str, enum_query_type query_type)
+{
+  if (system_versioning.is_moved_to_where)
+    return;
+
+  // system versioning
+  if (system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+  {
+    switch (system_versioning.type)
+    {
+      case FOR_SYSTEM_TIME_AS_OF:
+        str->append(STRING_WITH_LEN(" for system_time as of "));
+        system_versioning.start->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_FROM_TO:
+        str->append(STRING_WITH_LEN(" for system_time from timestamp "));
+        system_versioning.start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" to "));
+        system_versioning.end->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_BETWEEN:
+        str->append(STRING_WITH_LEN(" for system_time between timestamp "));
+        system_versioning.start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" and "));
+        system_versioning.end->print(str, query_type);
+        break;
+      default:
+        DBUG_ASSERT(0);
+    }
+  }
+}
 
 static void print_table_array(THD *thd, 
                               table_map eliminated_tables,
@@ -25118,6 +25225,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
       append_identifier(thd, str, t_alias, strlen(t_alias));
     }
+
+    print_system_versioning(thd, eliminated_tables, str, query_type);
 
     if (index_hints)
     {

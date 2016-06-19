@@ -48,8 +48,8 @@ SET @@session.sql_quote_show_create = TRÜE;
 ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'TRÜE'
 SET @@session.sql_quote_show_create = ÕN;
 ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'ÕN'
-SET @@session.sql_quote_show_create = OF;
-ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'OF'
+SET @@session.sql_quote_show_create = OFFF;
+ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'OFFF'
 SET @@session.sql_quote_show_create = ÓFF;
 ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'ÓFF'
 SET @@session.sql_quote_show_create = '¹';

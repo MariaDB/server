@@ -48,8 +48,8 @@ SET @@session.sql_notes = TRÜE;
 ERROR 42000: Variable 'sql_notes' can't be set to the value of 'TRÜE'
 SET @@session.sql_notes = ÕN;
 ERROR 42000: Variable 'sql_notes' can't be set to the value of 'ÕN'
-SET @@session.sql_notes = OF;
-ERROR 42000: Variable 'sql_notes' can't be set to the value of 'OF'
+SET @@session.sql_notes = OFFF;
+ERROR 42000: Variable 'sql_notes' can't be set to the value of 'OFFF'
 SET @@session.sql_notes = ÓFF;
 ERROR 42000: Variable 'sql_notes' can't be set to the value of 'ÓFF'
 SET @@session.sql_notes = '¹';

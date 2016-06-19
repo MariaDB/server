@@ -7,18 +7,18 @@ Variable_name	Value
 Compression	ON
 drop table if exists t1,t2,t3,t4;
 CREATE TABLE t1 (
-Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
+Period_ smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
 Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
 );
 INSERT INTO t1 VALUES (9410,9412);
-select period from t1;
-period
+select period_ from t1;
+period_
 9410
 select * from t1;
-Period	Varor_period
+Period_	Varor_period
 9410	9412
 select t1.* from t1;
-Period	Varor_period
+Period_	Varor_period
 9410	9412
 CREATE TABLE t2 (
 auto int not null auto_increment,
@@ -282,8 +282,8 @@ companynr
 34
 29
 00
-select distinct t2.fld3,period from t2,t1 where companynr=37 and fld3 like "O%";
-fld3	period
+select distinct t2.fld3,period_ from t2,t1 where companynr=37 and fld3 like "O%";
+fld3	period_
 obliterates	9410
 offload	9410
 opaquely	9410
@@ -487,12 +487,12 @@ acu
 Ade
 adj
 create table t3 (
-period    int not null,
+period_   int not null,
 name      char(32) not null,
 companynr int not null,
 price     double(11,0),
 price2     double(11,0),
-key (period),
+key (period_),
 key (name)
 );
 create temporary table tmp engine = myisam select * from t3;
@@ -606,35 +606,35 @@ explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	fld1	NULL	NULL	NULL	1199	Using where; Using temporary; Using filesort
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.fld1	1	Using where; Using index
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t3.period_;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	Using filesort
-1	SIMPLE	t3	ref	period	period	4	test.t1.period	4181	
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
+1	SIMPLE	t1	ALL	period_	NULL	NULL	NULL	41810	Using filesort
+1	SIMPLE	t3	ref	period_	period_	4	test.t1.period_	4181	
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t3.period_ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	period	period	4	NULL	1	
-1	SIMPLE	t1	ref	period	period	4	test.t3.period	4181	
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+1	SIMPLE	t3	index	period_	period_	4	NULL	1	
+1	SIMPLE	t1	ref	period_	period_	4	test.t3.period_	4181	
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t1.period_ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	period	period	4	NULL	1	
-1	SIMPLE	t3	ref	period	period	4	test.t1.period	4181	
-select period from t1;
-period
+1	SIMPLE	t1	index	period_	period_	4	NULL	1	
+1	SIMPLE	t3	ref	period_	period_	4	test.t1.period_	4181	
+select period_ from t1;
+period_
 9410
-select period from t1 where period=1900;
-period
-select fld3,period from t1,t2 where fld1 = 011401 order by period;
-fld3	period
+select period_ from t1 where period_=1900;
+period_
+select fld3,period_ from t1,t2 where fld1 = 011401 order by period_;
+fld3	period_
 breaking	9410
-select fld3,period from t2,t3 where t2.fld1 = 011401 and t2.fld1=t3.t2nr and t3.period=1001;
-fld3	period
+select fld3,period_ from t2,t3 where t2.fld1 = 011401 and t2.fld1=t3.t2nr and t3.period_=1001;
+fld3	period_
 breaking	1001
-explain select fld3,period from t2,t3 where t2.fld1 = 011401 and t3.t2nr=t2.fld1 and 1001 = t3.period;
+explain select fld3,period_ from t2,t3 where t2.fld1 = 011401 and t3.t2nr=t2.fld1 and 1001 = t3.period_;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	const	fld1	fld1	4	const	1	
-1	SIMPLE	t3	const	PRIMARY,period	PRIMARY	4	const	1	
-select fld3,period from t2,t1 where companynr*10 = 37*10;
-fld3	period
+1	SIMPLE	t3	const	PRIMARY,period_	PRIMARY	4	const	1	
+select fld3,period_ from t2,t1 where companynr*10 = 37*10;
+fld3	period_
 breaking	9410
 Romans	9410
 intercepted	9410
@@ -1223,8 +1223,8 @@ dusted	9410
 encompasses	9410
 presentation	9410
 Kantian	9410
-select fld3,period,price,price2 from t2,t3 where t2.fld1=t3.t2nr and period >= 1001 and period <= 1002 and t2.companynr = 37 order by fld3,period, price;
-fld3	period	price	price2
+select fld3,period_,price,price2 from t2,t3 where t2.fld1=t3.t2nr and period_ >= 1001 and period_ <= 1002 and t2.companynr = 37 order by fld3,period_, price;
+fld3	period_	price	price2
 admonishing	1002	28357832	8723648
 analyzable	1002	28357832	8723648
 annihilates	1001	5987435	234724
@@ -1284,8 +1284,8 @@ ventilate	1001	5987435	234724
 wallet	1001	5987435	234724
 Weissmuller	1002	28357832	8723648
 Wotan	1002	28357832	8723648
-select t2.fld1,fld3,period,price,price2 from t2,t3 where t2.fld1>= 18201 and t2.fld1 <= 18811 and t2.fld1=t3.t2nr and period = 1001 and t2.companynr = 37;
-fld1	fld3	period	price	price2
+select t2.fld1,fld3,period_,price,price2 from t2,t3 where t2.fld1>= 18201 and t2.fld1 <= 18811 and t2.fld1=t3.t2nr and period_ = 1001 and t2.companynr = 37;
+fld1	fld3	period_	price	price2
 018201	relaxing	1001	5987435	234724
 018601	vacuuming	1001	5987435	234724
 018801	inch	1001	5987435	234724
@@ -1325,7 +1325,7 @@ companynr	companyname
 65	company 9
 68	company 10
 select * from t1,t1 t12;
-Period	Varor_period	Period	Varor_period
+Period_	Varor_period	Period_	Varor_period
 9410	9412	9410	9412
 select t2.fld1,t22.fld1 from t2,t2 t22 where t2.fld1 >= 250501 and t2.fld1 <= 250505 and t22.fld1 >= 250501 and t22.fld1 <= 250505;
 fld1	fld1
@@ -1440,23 +1440,23 @@ explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	index	NULL	PRIMARY	1	NULL	12	Using index; Using temporary
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where; Using join buffer (flat, BNL join)
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where t2.fld1 = 38208 and t2.fld1=t3.t2nr and period = 1008 or t2.fld1 = 38008 and t2.fld1 =t3.t2nr and period = 1008;
-fld1	companynr	fld3	period
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where t2.fld1 = 38208 and t2.fld1=t3.t2nr and period_ = 1008 or t2.fld1 = 38008 and t2.fld1 =t3.t2nr and period_ = 1008;
+fld1	companynr	fld3	period_
 038008	37	reporters	1008
 038208	37	Selfridge	1008
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where (t2.fld1 = 38208 or t2.fld1 = 38008) and t2.fld1=t3.t2nr and period>=1008 and period<=1009;
-fld1	companynr	fld3	period
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where (t2.fld1 = 38208 or t2.fld1 = 38008) and t2.fld1=t3.t2nr and period_>=1008 and period_<=1009;
+fld1	companynr	fld3	period_
 038008	37	reporters	1008
 038208	37	Selfridge	1008
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where (t3.t2nr = 38208 or t3.t2nr = 38008) and t2.fld1=t3.t2nr and period>=1008 and period<=1009;
-fld1	companynr	fld3	period
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where (t3.t2nr = 38208 or t3.t2nr = 38008) and t2.fld1=t3.t2nr and period_>=1008 and period_<=1009;
+fld1	companynr	fld3	period_
 038008	37	reporters	1008
 038208	37	Selfridge	1008
-select period from t1 where (((period > 0) or period < 10000 or (period = 1900)) and (period=1900 and period <= 1901) or (period=1903 and (period=1903)) and period>=1902) or ((period=1904 or period=1905) or (period=1906 or period>1907)) or (period=1908 and period = 1909);
-period
+select period_ from t1 where (((period_ > 0) or period_ < 10000 or (period_ = 1900)) and (period_=1900 and period_ <= 1901) or (period_=1903 and (period_=1903)) and period_>=1902) or ((period_=1904 or period_=1905) or (period_=1906 or period_>1907)) or (period_=1908 and period_ = 1909);
+period_
 9410
-select period from t1 where ((period > 0 and period < 1) or (((period > 0 and period < 100) and (period > 10)) or (period > 10)) or (period > 0 and (period > 5 or period > 6)));
-period
+select period_ from t1 where ((period_ > 0 and period_ < 1) or (((period_ > 0 and period_ < 100) and (period_ > 10)) or (period_ > 10)) or (period_ > 0 and (period_ > 5 or period_ > 6)));
+period_
 9410
 select a.fld1 from t2 as a,t2 b where ((a.fld1 = 250501 and a.fld1=b.fld1) or a.fld1=250502 or a.fld1=250503 or (a.fld1=250505 and a.fld1<=b.fld1 and b.fld1>=a.fld1)) and a.fld1=b.fld1;
 fld1
@@ -1713,8 +1713,8 @@ companynr	companyname	count(*)
 select t2.fld1,count(*) from t2,t3 where t2.fld1=158402 and t3.name=t2.fld3 group by t3.name;
 fld1	count(*)
 158402	4181
-select sum(Period)/count(*) from t1;
-sum(Period)/count(*)
+select sum(Period_)/count(*) from t1;
+sum(Period_)/count(*)
 9410.0000
 select companynr,count(price) as "count",sum(price) as "sum" ,abs(sum(price)/count(price)-avg(price)) as "diff",(0+count(price))*companynr as func from t3 group by companynr;
 companynr	count	sum	diff	func
@@ -2044,26 +2044,26 @@ t2nr	count(*)
 select max(t2nr) from t3 where price=983543950;
 max(t2nr)
 41807
-select t1.period from t3 = t1 limit 1;
-period
+select t1.period_ from t3 = t1 limit 1;
+period_
 1001
-select t1.period from t1 as t1 limit 1;
-period
+select t1.period_ from t1 as t1 limit 1;
+period_
 9410
-select t1.period as "Nuvarande period" from t1 as t1 limit 1;
-Nuvarande period
+select t1.period_ as "Nuvarande period_" from t1 as t1 limit 1;
+Nuvarande period_
 9410
-select period as ok_period from t1 limit 1;
+select period_ as ok_period from t1 limit 1;
 ok_period
 9410
-select period as ok_period from t1 group by ok_period limit 1;
+select period_ as ok_period from t1 group by ok_period limit 1;
 ok_period
 9410
 select 1+1 as summa from t1 group by summa limit 1;
 summa
 2
-select period as "Nuvarande period" from t1 group by "Nuvarande period" limit 1;
-Nuvarande period
+select period_ as "Nuvarande period_" from t1 group by "Nuvarande period_" limit 1;
+Nuvarande period_
 9410
 show tables;
 Tables_in_test

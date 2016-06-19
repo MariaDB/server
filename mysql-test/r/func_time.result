@@ -950,7 +950,7 @@ sec_to_time(1) + 0, from_unixtime(1) + 0;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `now() - now()` bigint(21) NOT NULL,
+  `now() - now()` bigint(21) DEFAULT NULL,
   `curtime() - curtime()` bigint(12) NOT NULL,
   `sec_to_time(1) + 0` bigint(12) DEFAULT NULL,
   `from_unixtime(1) + 0` bigint(21) DEFAULT NULL

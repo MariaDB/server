@@ -1197,6 +1197,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
+  const uchar *system_period = 0;
+
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
@@ -1289,6 +1291,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           gis_options_len= length;
         }
 #endif /*HAVE_SPATIAL*/
+        break;
+      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+        if (system_period || length != 2 * sizeof(uint16))
+          goto err;
+        system_period = extra2;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -2470,6 +2477,35 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
   }
 
+  /* Set system versioning information. */
+  if (system_period == NULL)
+  {
+    share->disable_system_versioning();
+  }
+  else
+  {
+    DBUG_PRINT("info", ("Setting system versioning informations"));
+    uint16 row_start = uint2korr(system_period);
+    uint16 row_end =  uint2korr(system_period + sizeof(uint16));
+    if (row_start >= share->fields || row_end >= share->fields)
+      goto err;
+    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
+    share->enable_system_versioning(row_start, row_end);
+    vers_start_field()->set_generated_row_start();
+    vers_end_field()->set_generated_row_end();
+
+    if (vers_start_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    {
+      my_error(ER_SYS_START_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
+      goto err;
+    }
+    if (vers_end_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    {
+      my_error(ER_SYS_END_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
+      goto err;
+    }
+  }
+
   /*
     the correct null_bytes can now be set, since bitfields have been taken
     into account
@@ -3013,25 +3049,30 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   records=0;
   if ((db_stat & HA_OPEN_KEYFILE) || (prgflag & DELAYED_OPEN))
     records=1;
-  if (prgflag & (READ_ALL+EXTRA_RECORD))
+  if (prgflag & (READ_ALL + EXTRA_RECORD))
+  {
     records++;
-
-  if (!(record= (uchar*) alloc_root(&outparam->mem_root,
-                                    share->rec_buff_length * records)))
-    goto err;                                   /* purecov: inspected */
+    if (share->versioned)
+      records++;
+  }
 
   if (records == 0)
   {
     /* We are probably in hard repair, and the buffers should not be used */
-    outparam->record[0]= outparam->record[1]= share->default_values;
+    record= share->default_values;
   }
   else
   {
-    outparam->record[0]= record;
-    if (records > 1)
-      outparam->record[1]= record+ share->rec_buff_length;
-    else
-      outparam->record[1]= outparam->record[0];   // Safety
+    if (!(record= (uchar*) alloc_root(&outparam->mem_root,
+                                      share->rec_buff_length * records)))
+      goto err;                                   /* purecov: inspected */
+  }
+
+  for (i= 0; i < 3;)
+  {
+    outparam->record[i]= record;
+    if (++i < records)
+      record+= share->rec_buff_length;
   }
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
@@ -3055,6 +3096,26 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       goto err;
   }
   (*field_ptr)= 0;                              // End marker
+
+  if (share->versioned)
+  {
+    Field **fptr = NULL;
+    if (!(fptr = (Field **) alloc_root(&outparam->mem_root,
+                                            (uint) ((share->fields+1)*
+                                                    sizeof(Field*)))))
+      goto err;
+
+    outparam->non_generated_field = fptr;
+    for (i=0 ; i < share->fields; i++)
+    {
+      if (outparam->field[i]->is_generated())
+        continue;
+      *fptr++ = outparam->field[i];
+    }
+    (*fptr)= 0;                                 // End marker
+  }
+  else
+    outparam->non_generated_field= NULL;
 
   if (share->found_next_number_field)
     outparam->found_next_number_field=
@@ -6225,6 +6286,15 @@ void TABLE::mark_columns_needed_for_delete()
 
   if (need_signal)
     file->column_bitmaps_signal();
+
+  /*
+     For System Versioning we have to write and read Sys_end.
+  */
+  if (s->versioned)
+  {
+    bitmap_set_bit(read_set, s->vers_end_field()->field_index);
+    bitmap_set_bit(write_set, s->vers_end_field()->field_index);
+  }
 }
 
 
@@ -6300,6 +6370,15 @@ void TABLE::mark_columns_needed_for_update()
       mark_columns_used_by_index_no_reset(s->primary_key, read_set);
       need_signal= true;
     }
+  }
+  /*
+     For System Versioning we have to read all columns since we will store
+     a copy of previous row with modified Sys_end column back to a table.
+  */
+  if (s->versioned)
+  {
+    // We will copy old columns to a new row.
+    use_all_columns();
   }
   if (check_constraints)
   {
@@ -7483,6 +7562,29 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   }
   in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(res);
+}
+
+bool TABLE::vers_update_fields()
+{
+  DBUG_ENTER("vers_update_fields");
+
+  if (!versioned())
+    DBUG_RETURN(FALSE);
+
+  if (vers_start_field()->set_time())
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  if (vers_end_field()->set_max_timestamp())
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  bitmap_set_bit(write_set, vers_start_field()->field_index);
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
+
+  DBUG_RETURN(FALSE);
 }
 
 /**

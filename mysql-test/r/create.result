@@ -132,7 +132,7 @@ drop table t2;
 create table t2 select now() as a , curtime() as b, curdate() as c , 1+1 as d , 1.0 + 1 as e , 33333333333333333 + 3 as f;
 describe t2;
 Field	Type	Null	Key	Default	Extra
-a	datetime	NO		NULL	
+a	datetime	YES		NULL	
 b	time	NO		NULL	
 c	date	NO		NULL	
 d	int(3)	NO		NULL	
@@ -1931,3 +1931,92 @@ create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# Test for SYSTEM VERSIONING CREATE
+#
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `XNo` int(10) unsigned DEFAULT NULL,
+  `Sys_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `Sys_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: 'Generated as row start' specified more than once
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: Second column in 'period for system time' must be equal to 'generated as row end' column
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: Generated as row end specified more than once
+create table t1 (
+XNo INT UNSIGNED,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: 'Generated as row start' not specified
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+ERROR HY000: Generated as row end specified more than once
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_insert, Sys_remove)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: First column in 'period for system time' must be equal to 'generated as row start' column
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+ERROR HY000: 'With system versioning' is missing
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
+);
+ERROR HY000: 'Period for system_time' must contain two different columns
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start INT GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: System start field must be of type TIMESTAMP
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end INT GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+ERROR HY000: System end field must be of type TIMESTAMP

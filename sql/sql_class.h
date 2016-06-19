@@ -3906,7 +3906,12 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (!(yytext= lip->get_tok_start()))
+      if (lip->lookahead_token >= 0)
+        yytext= lip->get_tok_start_prev();
+      else
+        yytext= lip->get_tok_start();
+
+      if (!yytext)
         yytext= "";
     }
     /* Push an error into the error stack */
@@ -5516,6 +5521,10 @@ class multi_update :public select_result_interceptor
   
   /* Need this to protect against multiple prepare() calls */
   bool prepared;
+
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver;
+
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,

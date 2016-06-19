@@ -3560,6 +3560,12 @@ public:
   SELECT_LEX *exclude_last_select();
   bool add_unit_in_brackets(SELECT_LEX *nselect);
   void check_automatic_up(enum sub_select_type type);
+
+  System_versioning_info *vers_get_info()
+  {
+    create_info.system_versioning_info.versioned = true;
+    return &create_info.system_versioning_info;
+  }
 };
 
 

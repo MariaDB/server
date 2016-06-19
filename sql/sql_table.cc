@@ -3046,10 +3046,12 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
     if (is_timestamp_type(column_definition->sql_type) ||    // TIMESTAMP
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      DBUG_PRINT("info", ("field-ptr:%p", column_definition->field));
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
-          column_definition->vcol_info == NULL)
+          column_definition->vcol_info == NULL &&
+          !(column_definition->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG))) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3144,6 +3146,39 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
   }
 }
 
+static void
+copy_info_about_generated_fields(Alter_info *dst_alter_info,
+                                 HA_CREATE_INFO *src_create_info)
+{
+  if (!src_create_info->versioned())
+    return;
+
+  const System_versioning_info *versioning_info =
+    src_create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+  const char *row_start_field = versioning_info->generated_as_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+  const char *row_end_field = versioning_info->generated_as_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
+
+  List_iterator<Create_field> it(dst_alter_info->create_list);
+  Create_field *column_definition = NULL;
+  while ( (column_definition = it++) )
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_start_field,
+                       column_definition->field_name))
+    {
+      column_definition->flags |= GENERATED_ROW_START_FLAG;
+    }
+    else if (!my_strcasecmp(system_charset_info,
+                       row_end_field,
+                       column_definition->field_name))
+    {
+      column_definition->flags |= GENERATED_ROW_END_FLAG;
+    }
+  }
+}
 
 /*
   Preparation for table creation
@@ -3212,6 +3247,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   select_field_pos= alter_info->create_list.elements - select_field_count;
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
     CHARSET_INFO *save_cs;
@@ -3437,6 +3475,23 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
+
+    if (versioning_info)
+    {
+      const bool is_generated_as_row_start =
+        !my_strcasecmp(system_charset_info,
+                      versioning_info->generated_as_row.start->c_ptr(),
+                      sql_field->field_name);
+      const bool is_generated_as_row_end =
+        !my_strcasecmp(system_charset_info,
+                      versioning_info->generated_as_row.end->c_ptr(),
+                      sql_field->field_name);
+      if (is_generated_as_row_start && is_generated_as_row_end)
+      {
+        my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+    }
   }
   /* Update virtual fields' offset*/
   it.rewind();
@@ -4285,6 +4340,58 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 }
 
 
+static bool
+prepare_keys_for_sys_ver(THD *thd,
+                         HA_CREATE_INFO *create_info,
+                         Alter_info *alter_info,
+                         KEY **key_info,
+                         uint key_count)
+{
+  if (!create_info->versioned())
+    return false;
+
+  const System_versioning_info *versioning_info=
+    create_info->get_system_versioning_info();
+
+  DBUG_ASSERT(versioning_info);
+  const char *row_start_field= versioning_info->generated_as_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+  const char *row_end_field= versioning_info->generated_as_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
+
+  List_iterator<Key> key_it(alter_info->key_list);
+  Key *key= NULL;
+  while ((key=key_it++))
+  {
+    if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
+      continue;
+
+    Key_part_spec *key_part= NULL;
+    List_iterator<Key_part_spec> part_it(key->columns);
+    while ((key_part=part_it++))
+    {
+      if (!my_strcasecmp(system_charset_info,
+                         row_start_field,
+                         key_part->field_name.str) ||
+
+          !my_strcasecmp(system_charset_info,
+                         row_end_field,
+                         key_part->field_name.str))
+        break;
+    }
+    if (key_part)
+      continue; // Key already contains Sys_start or Sys_end
+
+    const LEX_STRING &lex_sys_end=
+      versioning_info->generated_as_row.end->lex_string();
+    Key_part_spec *key_part_sys_end_col=
+      new(thd->mem_root) Key_part_spec(lex_sys_end, 0);
+    key->columns.push_back(key_part_sys_end_col);
+  }
+
+  return false;
+}
+
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
@@ -4521,6 +4628,27 @@ handler *mysql_create_frm_image(THD *thd,
     }
   }
 #endif
+
+  if (create_info->versioned())
+  {
+    // FIXME: This test doesn't detect foreign key relationship on the side of
+    //   parent table and System Time support will not work correctly for such
+    //   table either. But this cannot be implemented without changes to innodb
+    //   that are postponed for later time.
+    List_iterator_fast<Key> key_iterator(alter_info->key_list);
+    Key *key;
+    while ((key= key_iterator++))
+    {
+      if (key->type == Key::FOREIGN_KEY)
+      {
+        my_error(ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED, MYF(0));
+        goto err;
+      }
+    }
+    if(prepare_keys_for_sys_ver(thd, create_info, alter_info, key_info,
+                                *key_count))
+      goto err;
+  }
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count,
@@ -4951,6 +5079,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     create_table_mode= C_ORDINARY_CREATE;
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
+
+  copy_info_about_generated_fields(alter_info, create_info);
 
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);

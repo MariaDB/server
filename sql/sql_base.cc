@@ -7071,7 +7071,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->is_item_list_lookup= 0;
 
   /*
-    To prevent fail on forward lookup we fill it with zerows,
+    To prevent fail on forward lookup we fill it with zeroes,
     then if we got pointer on zero after find_item_in_list we will know
     that it is forward lookup.
 
@@ -7962,6 +7962,13 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
+    if (table->versioned() && rfield->is_generated() &&
+        !ignore_errors)
+    {
+      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
+      goto err;
+    }
+
     if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
@@ -8002,7 +8009,7 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
   Field** field= table->field_to_fill();
 
  /* True if we have NOT NULL fields and BEFORE triggers */
-  if (field != table->field)
+  if (field != table->field && field != table->non_generated_field)
   {
     List_iterator_fast<Item> it(items);
     Item *item;
@@ -8207,6 +8214,13 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                             ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                             field->field_name, table->s->table_name.str);
       }
+    }
+
+    if (table->versioned() && field->is_generated() &&
+        !ignore_errors)
+    {
+      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
+      goto err;
     }
 
     if (use_value)
@@ -8460,7 +8474,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
   {
     List_iterator<Item_func_match> li(*(select_lex->ftfunc_list));
     Item_func_match *ifm;
-    DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
       ifm->init_search(thd, no_order);

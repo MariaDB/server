@@ -87,6 +87,72 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
+static bool
+versioned(HA_CREATE_INFO *create_info)
+{
+  return create_info->versioned();
+}
+
+static uint16
+get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
+{
+  DBUG_ASSERT(versioned(create_info));
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field*sql_field = NULL;
+
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+
+  const char *row_start_field = versioning_info->generated_as_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_start_field,
+                       sql_field->field_name))
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0); /* Not Reachable */
+  return 0;
+}
+
+static uint16
+get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
+{
+  DBUG_ASSERT(versioned(create_info));
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field*sql_field = NULL;
+
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+
+  const char *row_end_field = versioning_info->generated_as_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_end_field,
+                       sql_field->field_name))
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0); /* Not Reachable */
+  return 0;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -219,6 +285,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
+  if (versioned(create_info))
+  {
+    extra2_size+= 1 + 1 + 2 * sizeof(uint16);
+  }
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -274,6 +344,16 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
+
+  if (versioned(create_info))
+  {
+    *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
+    *pos++= 2 * sizeof(uint16);
+    int2store(pos, get_row_start_field(create_info, create_fields));
+    pos+= sizeof(uint16);
+    int2store(pos, get_row_end_field(create_info, create_fields));
+    pos+= sizeof(uint16);
+  }
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;

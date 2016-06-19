@@ -33,6 +33,8 @@
 #include "compat56.h"
 #include "sql_type.h"                           /* Type_std_attributes */
 
+#include <limits>
+
 class Send_field;
 class Copy_field;
 class Protocol;
@@ -673,6 +675,19 @@ public:
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
+
+  /**
+     Is used by System Versioning.
+   */
+  virtual bool set_max_timestamp() {
+    return true;
+  }
+  /**
+     Is used by System Versioning.
+   */
+  virtual bool is_max_timestamp() {
+    return false;
+  }
 
   uchar		*ptr;			// Position to field in record
   /**
@@ -1389,6 +1404,56 @@ public:
     DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
     flags |= static_cast<uint32>(column_format_arg) <<
       FIELD_FLAGS_COLUMN_FORMAT;
+  }
+
+  /*
+    System versioning support.
+   */
+
+  bool is_generated()
+  {
+    return flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG);
+  }
+
+  bool is_generated_row_start()
+  {
+    return flags & GENERATED_ROW_START_FLAG;
+  }
+
+  bool is_generated_row_end()
+  {
+    return flags & GENERATED_ROW_END_FLAG;
+  }
+
+  bool is_versioning_disabled()
+  {
+    return flags & WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_start()
+  {
+    //DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
+    flags |= GENERATED_ROW_START_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_end()
+  {
+    //DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
+    flags |= GENERATED_ROW_END_FLAG;
+  }
+
+  /* Disable a field versioning for a versioned table. */
+  void disable_versioning()
+  {
+    flags |= WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Inherit a field versioning status from the table. */
+  void inherit_versioning()
+  {
+    flags &= ~WITHOUT_SYSTEM_VERSIONING_FLAG;
   }
 
   /*
@@ -2517,6 +2582,8 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
+  virtual bool set_max_timestamp();
+  virtual bool is_max_timestamp();
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   uint size_of() const { return sizeof(*this); }

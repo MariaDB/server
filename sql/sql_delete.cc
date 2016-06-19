@@ -343,7 +343,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   */
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
-       !(table->triggers && table->triggers->has_delete_triggers())))
+       !(table->triggers && table->triggers->has_delete_triggers()))
+      && !table->versioned())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -559,6 +560,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
+    if (table->versioned() &&
+        !table->vers_end_field()->is_max_timestamp())
+    {
+      continue;
+    }
+
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (table->vfield)
@@ -580,7 +587,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
-      if (!(error= table->file->ha_delete_row(table->record[0])))
+      if (!table->versioned())
+        error= table->file->ha_delete_row(table->record[0]);
+      else
+      {
+        store_record(table,record[1]);
+        table->vers_end_field()->set_time();
+        error= table->file->ha_update_row(table->record[1],
+                                          table->record[0]);
+      }
+      if (!error)
       {
 	deleted++;
         if (table->triggers &&
@@ -1052,6 +1068,12 @@ int multi_delete::send_data(List<Item> &values)
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
 
+    if (table->versioned() &&
+        !table->vers_end_field()->is_max_timestamp())
+    {
+      continue;
+    }
+
     table->file->position(table->record[0]);
     found++;
 
@@ -1064,7 +1086,16 @@ int multi_delete::send_data(List<Item> &values)
                                             TRG_ACTION_BEFORE, FALSE))
         DBUG_RETURN(1);
       table->status|= STATUS_DELETED;
-      if (!(error=table->file->ha_delete_row(table->record[0])))
+      if (!table->versioned())
+        error= table->file->ha_delete_row(table->record[0]);
+      else
+      {
+        store_record(table,record[1]);
+        table->vers_end_field()->set_time();
+        error= table->file->ha_update_row(table->record[1],
+                                          table->record[0]);
+      }
+      if (!error)
       {
         deleted++;
         if (!table->file->has_transactions())
@@ -1243,8 +1274,16 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       local_error= 1;
       break;
     }
-      
-    local_error= table->file->ha_delete_row(table->record[0]);
+
+    if (!table->versioned())
+      local_error= table->file->ha_delete_row(table->record[0]);
+    else
+    {
+      store_record(table,record[1]);
+      table->vers_end_field()->set_time();
+      local_error= table->file->ha_update_row(table->record[1],
+                                              table->record[0]);
+    }
     if (local_error && !ignore)
     {
       table->file->print_error(local_error, MYF(0));
