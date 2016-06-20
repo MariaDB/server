@@ -27,4 +27,5 @@ USER@localhost	@%	test
 # name does not match = failure
 #
 delete from mysql.user where user='';
+FLUSH PRIVILEGES;
 uninstall plugin unix_socket;

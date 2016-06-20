@@ -70,3 +70,16 @@ SET NAMES utf8mb4 COLLATE utf8mb4_myanmar_ci;
 --echo #
 --echo # End of MariaDB-10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+SET NAMES utf8;
+SET collation_connection=utf8mb4_thai_520_w2;
+--source include/ctype_uca_w2.inc
+--source include/ctype_thai.inc
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
