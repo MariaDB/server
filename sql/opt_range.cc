@@ -7730,7 +7730,7 @@ static SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param, Item_func *cond_func,
           break;
         }
         SEL_TREE *tree2;
-        for (; i < func->array->count; i++)
+        for (; i < func->array->used_count; i++)
         {
           if (func->array->compare_elems(i, i-1))
           {
