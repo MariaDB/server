@@ -955,8 +955,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     Field::field_visible_type visibility;
     bool is_row_hash;
   };
-  List<visible_property> v_p_list;
-  List_iterator<visible_property> v_p_iter(v_p_list);
+  visible_property *temp;
+  List<visible_property > v_p_list;
+  List_iterator<visible_property >  v_p_iter(v_p_list);
   visible_property * vp;
   root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
   old_root= *root_ptr;
@@ -1038,10 +1039,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif /*HAVE_SPATIAL*/
         break;
       case EXTRA2_FIELD_FLAGS:
-        visible_property temp;
-        temp.visibility = (Field::field_visible_type)*extra2;
-        temp.is_row_hash=(bool)*(extra2+1);
-        v_p_list.push_back(&temp);
+        temp= new visible_property();
+        temp->visibility = static_cast<Field::field_visible_type>(*extra2);
+        temp->is_row_hash=(bool)*(extra2+1);
+        v_p_list.push_back(temp);
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1053,7 +1054,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (extra2 != e2end)
       goto err;
   }
-
+  v_p_iter.rewind();
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
     goto err;
@@ -1478,7 +1479,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                             system_charset_info,
                             share->fields,0,0,
                             (my_hash_get_key) get_field_name,0,0);
-
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
