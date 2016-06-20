@@ -46,9 +46,9 @@ enum JCATINFO {
 typedef struct tagJCATPARM {
 	JCATINFO Id;                 // Id to indicate function 
 	PQRYRES  Qrp;                // Result set pointer
-	PUCHAR   DB;                 // Database (Schema)
-	PUCHAR   Tab;                // Table name or pattern
-	PUCHAR   Pat;                // Table type or column pattern
+	char    *DB;                 // Database (Schema)
+	char    *Tab;                // Table name or pattern
+	char    *Pat;                // Table type or column pattern
 } JCATPARM;
 
 typedef jint(JNICALL *CRTJVM) (JavaVM **, void **, void *);

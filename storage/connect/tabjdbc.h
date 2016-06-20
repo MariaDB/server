@@ -26,6 +26,7 @@ class DllExport JDBCDEF : public TABDEF { /* Logical table description */
 	friend class TDBXJDC;
 	friend class TDBJDRV;
 	friend class TDBJTB;
+	friend class TDBJDBCL;
 public:
 	// Constructor
 	JDBCDEF(void);
@@ -58,6 +59,7 @@ protected:
 	PSZ     Password;           /* Password connect info                 */
 	PSZ     Tabcat;             /* External table catalog                */
 	PSZ     Tabtype;            /* External table type                   */
+	PSZ     Colpat;             /* Catalog column pattern                */
 	PSZ     Srcdef;             /* The source table SQL definition       */
 	PSZ     Qchar;              /* Identifier quoting character          */
 	PSZ     Qrystr;             /* The original query                    */
@@ -317,14 +319,15 @@ protected:
 class TDBJDBCL : public TDBJTB {
 public:
 	// Constructor
-	TDBJDBCL(PJDBCDEF tdp) : TDBJTB(tdp) {}
+	TDBJDBCL(PJDBCDEF tdp);
 
 protected:
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
-	// No additional Members
-}; // end of class TDBJCL
+	// Members
+	char    *Colpat;            // Points to catalog column pattern
+}; // end of class TDBJDBCL
 
 #if 0
 /***********************************************************************/

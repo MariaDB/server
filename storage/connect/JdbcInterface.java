@@ -307,7 +307,7 @@ public class JdbcInterface {
     } // end of GetMaxValue
     
     public int GetColumns(String[] parms) {
-      int ncol = 0;
+      int ncol = -1;
       
       try {
   		if (rs != null) rs.close();

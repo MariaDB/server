@@ -96,7 +96,7 @@ bool ExactInfo(void);
 /***********************************************************************/
 JDBCDEF::JDBCDEF(void)
 {
-	Driver = Url = Tabname = Tabschema = Username = NULL;
+	Driver = Url = Tabname = Tabschema = Username = Colpat = NULL;
 	Password = Tabcat = Tabtype = Srcdef = Qchar = Qrystr = Sep = NULL;
 	Options = Quoted = Maxerr = Maxres = Memory = 0;
 	Scrollable = Xsrc = false;
@@ -237,7 +237,13 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
 	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
 	Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
-	Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
+
+	if (Catfunc == FNC_COL)
+		Colpat = GetStringCatInfo(g, "Colpat", NULL);
+
+	if (Catfunc == FNC_TABLE)
+		Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
+
 	Qrystr = GetStringCatInfo(g, "Query_String", "?");
 	Sep = GetStringCatInfo(g, "Separator", NULL);
 	Xsrc = GetBoolCatInfo("Execsrc", FALSE);
@@ -1788,11 +1794,19 @@ PQRYRES TDBJTB::GetResult(PGLOBAL g)
 /* --------------------------TDBJDBCL class -------------------------- */
 
 /***********************************************************************/
+/*  TDBJDBCL class constructor.                                        */
+/***********************************************************************/
+TDBJDBCL::TDBJDBCL(PJDBCDEF tdp) : TDBJTB(tdp)
+{
+	Colpat = tdp->Colpat;
+} // end of TDBJDBCL constructor
+
+/***********************************************************************/
 /*  GetResult: Get the list of JDBC table columns.                     */
 /***********************************************************************/
 PQRYRES TDBJDBCL::GetResult(PGLOBAL g)
 {
-	return JDBCColumns(g, Schema, Tab, NULL, Maxres, false, &Ops);
+	return JDBCColumns(g, Schema, Tab, Colpat, Maxres, false, &Ops);
 } // end of GetResult
 
 #if 0

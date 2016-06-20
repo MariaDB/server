@@ -5508,7 +5508,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, true, sop);
+            qrp= ODBCTables(g, dsn, shm, tab, NULL, mxr, true, sop);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);

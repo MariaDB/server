@@ -174,42 +174,20 @@ int TranslateJDBCType(int stp, int prec, int& len, char& v)
 static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, char *db,
 	char *tab, PQRYRES qrp)
 {
-//size_t    m, n;
 	JCATPARM *cap;
 
 #if defined(_DEBUG)
 	assert(qrp);
 #endif
 
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return NULL;
-	} // endif jump_level
+	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
+		memset(cap, 0, sizeof(JCATPARM));
+		cap->Id = fid;
+		cap->Qrp = qrp;
+		cap->DB = db;
+		cap->Tab = tab;
+	} // endif cap
 
-	if (setjmp(g->jumper[++g->jump_level]) != 0) {
-		printf("%s\n", g->Message);
-		cap = NULL;
-		goto fin;
-	} // endif rc
-
-//m = (size_t)qrp->Maxres;
-//n = (size_t)qrp->Nbcol;
-	cap = (JCATPARM *)PlugSubAlloc(g, NULL, sizeof(JCATPARM));
-	memset(cap, 0, sizeof(JCATPARM));
-	cap->Id = fid;
-	cap->Qrp = qrp;
-	cap->DB = (PUCHAR)db;
-	cap->Tab = (PUCHAR)tab;
-//cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
-
-//for (i = 0; i < n; i++)
-//	cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
-
-//cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
-
-fin:
-	g->jump_level--;
 	return cap;
 } // end of AllocCatInfo
 
@@ -291,7 +269,8 @@ PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table, char *colpat,
 	if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
 		return NULL;
 
-	cap->Pat = (PUCHAR)colpat;
+	// Colpat cannot be null or empty for some drivers
+	cap->Pat = (colpat && *colpat) ? colpat : "%";
 
 	/************************************************************************/
 	/*  Now get the results into blocks.                                    */
@@ -402,7 +381,7 @@ PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat, char *tabtyp,
 	if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
 		return NULL;
 
-	cap->Pat = (PUCHAR)tabtyp;
+	cap->Pat = tabtyp;
 
 	if (trace)
 		htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
@@ -1931,9 +1910,9 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	{
 		PGLOBAL& g = m_G;
 //	void    *buffer;
-		int      i;
+		int      i, ncol;
 		PSZ      fnc = "Unknown";
-		uint     n, ncol;
+		uint     n;
 		short    len, tp;
 		int      crow = 0;
 		PQRYRES  qrp = cap->Qrp;
@@ -1956,9 +1935,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		env->SetObjectArrayElement(parms, 0, env->NewStringUTF(name.ptr(2)));
 		env->SetObjectArrayElement(parms, 1, env->NewStringUTF(name.ptr(1)));
 		env->SetObjectArrayElement(parms, 2, env->NewStringUTF(name.ptr(0)));
-
-		if (cap->Pat)
-			env->SetObjectArrayElement(parms, 3, env->NewStringUTF((const char*)cap->Pat));
+		env->SetObjectArrayElement(parms, 3, env->NewStringUTF((const char*)cap->Pat));
 
 		// Now do call the proper JDBC API
 		switch (cap->Id) {
