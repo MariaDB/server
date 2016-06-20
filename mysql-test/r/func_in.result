@@ -812,3 +812,22 @@ EXECUTE s;
 1
 DROP TABLE t1;
 # End of 5.3 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-10020 InnoDB NOT IN Query Crash When One Item Is NULL
+#
+CREATE TABLE t1
+(
+a INT(11),
+b VARCHAR(10),
+KEY (b)
+);
+INSERT INTO t1 VALUES (1,'x'),(2,'y'),(3,'z');
+SELECT * FROM t1 WHERE b NOT IN (NULL, '', 'A');
+a	b
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
