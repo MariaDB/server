@@ -1584,7 +1584,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= thd->is_strict_mode();
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
   res= mysql_select(thd, &select_lex->ref_pointer_array,
