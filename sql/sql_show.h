@@ -113,7 +113,8 @@ void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 void init_fill_schema_files_row(TABLE* table);
 bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
-
+int del_global_index_stat(THD *thd, TABLE* tab, KEY* key_info);
+int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
