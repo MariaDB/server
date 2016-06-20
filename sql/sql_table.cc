@@ -3267,9 +3267,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->length=cf->char_length=8;
       cf->charset=NULL;
       cf->decimals=0;
-      char * name = (char *)my_malloc(sizeof(char)*30,MYF(MY_WME));
-      strcpy(name,"DB_ROW_HASH_");
-      strncat(name,&num,1);
+      char  name_t[30];
+      strcpy(name_t,"DB_ROW_HASH_");
+      strncat(name_t,&num,1);
+      char * name = (char *)thd->memdup(&name_t,strlen(name));
       num++;
       cf->field_name=name;
       cf->stored_in_db=true;
@@ -3279,15 +3280,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->field_visibility=cf->field_visible_type::FULL_HIDDEN;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-      char *hash_exp=(char *)my_malloc(sizeof(char)*257,MYF(MY_WME));
-      strcpy(hash_exp,"hash(");
+      char hash_exp_t[252];
+      strcpy(hash_exp_t,"hash(");
       temp_colms=key_part_iter++;
-      strcat(hash_exp,temp_colms->field_name.str);
+      strcat(hash_exp_t,temp_colms->field_name.str);
       while((temp_colms=key_part_iter++)){
-        strcat(hash_exp,(const char * )",");
-        strcat(hash_exp,temp_colms->field_name.str);
+        strcat(hash_exp_t,(const char * )",");
+        strcat(hash_exp_t,temp_colms->field_name.str);
       }
-      strcat(hash_exp,(const char * )")");
+      strcat(hash_exp_t,(const char * )")");
+      char * hash_exp = (char *)thd->memdup(&hash_exp_t,
+                                   strlen(hash_exp_t)+1);// for /0
       v->expr_str.str= hash_exp;
       v->expr_str.length= strlen(hash_exp);
       v->expr_item= NULL;
@@ -3300,9 +3303,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 */
       key_iter_key->type=Key::MULTIPLE;
       key_iter_key->columns.delete_elements();
-      LEX_STRING * ls = (LEX_STRING *)my_malloc(sizeof(LEX_STRING),MYF(MY_WME));
-      ls->str=(char *)sql_field->field_name;
-      ls->length =strlen(sql_field->field_name);
+      LEX_STRING  ls_t;
+      ls_t.str=(char *)sql_field->field_name;
+      ls_t.length =strlen(sql_field->field_name);
+      LEX_STRING *ls=(LEX_STRING *)thd->memdup(&ls_t,sizeof(LEX_STRING));
       key_iter_key->name=*ls;
       key_iter_key->columns.push_back(new (thd->mem_root)
                                       Key_part_spec(name,
