@@ -8343,6 +8343,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
+      if(field_iterator.field()->field_visibility==Field::NORMAL){
       Item *item;
 
       if (!(item= field_iterator.create_item(thd)))
@@ -8441,6 +8442,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
     */
     if (table)
       table->used_fields= table->s->fields;
+  }
   }
   if (found)
     DBUG_RETURN(FALSE);

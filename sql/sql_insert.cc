@@ -732,7 +732,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     {
       if((*f)->is_row_hash)
       {
-        i_list->push_back(new (thd->mem_root)
+        i_list->push_front(new (thd->mem_root)
         Item_default_value(thd,context),thd->mem_root);
       }
       f++;

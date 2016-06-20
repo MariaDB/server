@@ -3293,7 +3293,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       v->expr_item= NULL;
       v->set_stored_in_db_flag(true);
       cf->vcol_info=v;
-      alter_info->create_list.push_back(cf,thd->mem_root);
+      alter_info->create_list.push_front(cf,thd->mem_root);
       /*
          Now create  the key field kind
          of harder then prevoius one i guess
