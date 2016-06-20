@@ -2007,7 +2007,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if(keyinfo->user_defined_key_parts==1 &&(keyinfo->key_part->field)->is_row_hash)
       {
         keyinfo->ext_key_parts=1;
-        break;
       }
     }
     if (primary_key < MAX_KEY &&

@@ -4,3 +4,7 @@ insert into z_1 values('56666666666666666666666666666666666666666666666666666666
 insert into z_1 values('sachin');
 insert into z_1 values('sachin');
 ERROR 23000: Can't write; duplicate key in table 'z_1'
+create table tst_1(xyz blob unique , x2 blob unique);
+insert into tst_1 values(1,22);
+insert into tst_1 values(2,22);
+ERROR 23000: Can't write; duplicate key in table 'tst_1'
