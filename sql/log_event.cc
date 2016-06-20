@@ -3631,10 +3631,25 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   if (time_zone_len)
     copy_str_and_move(&time_zone_str, &start, time_zone_len);
 
-  if (user.length > 0)
+  if (user.length)
+  {
     copy_str_and_move((const char **)&(user.str), &start, user.length);
-  if (host.length > 0)
+  }
+  else
+  {
+    user.str= (char *) start++;
+    user.str[0]= '\0';
+  }
+
+  if (host.length)
+  {
     copy_str_and_move((const char **)&(host.str), &start, host.length);
+  }
+  else
+  {
+    host.str= (char *) start++;
+    host.str[0]= '\0';
+  }
 
   /**
     if time_zone_len or catalog_len are 0, then time_zone and catalog
