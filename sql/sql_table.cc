@@ -3300,9 +3300,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                 */
       key_iter_key->type=Key::MULTIPLE;
       key_iter_key->columns.delete_elements();
-      LEX_STRING * ls = (LEX_STRING *)my_malloc(sizeof(LEX_STRING),MYF(MY_WME));;
-      ls->str=name;
-      ls->length =strlen(name);
+      LEX_STRING * ls = (LEX_STRING *)my_malloc(sizeof(LEX_STRING),MYF(MY_WME));
+      ls->str=(char *)sql_field->field_name;
+      ls->length =strlen(sql_field->field_name);
       key_iter_key->name=*ls;
       key_iter_key->columns.push_back(new (thd->mem_root)
                                       Key_part_spec(name,
