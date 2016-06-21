@@ -613,6 +613,7 @@ EXTRA_DIST += \
   testdata/testoutput25 \
   testdata/testoutput26 \
   testdata/testoutputEBC \
+  testdata/valgrind-jit.supp \
   testdata/wintestinput3 \
   testdata/wintestoutput3 \
   perltest.pl

@@ -1070,9 +1070,9 @@ EXTRA_DIST = m4/ax_pthread.m4 m4/pcre_visibility.m4 doc/perltest.txt \
 	testdata/testoutput22-16 testdata/testoutput22-32 \
 	testdata/testoutput23 testdata/testoutput24 \
 	testdata/testoutput25 testdata/testoutput26 \
-	testdata/testoutputEBC testdata/wintestinput3 \
-	testdata/wintestoutput3 perltest.pl pcredemo.c $(pcrecpp_man) \
-	cmake/COPYING-CMAKE-SCRIPTS \
+	testdata/testoutputEBC testdata/valgrind-jit.supp \
+	testdata/wintestinput3 testdata/wintestoutput3 perltest.pl \
+	pcredemo.c $(pcrecpp_man) cmake/COPYING-CMAKE-SCRIPTS \
 	cmake/FindPackageHandleStandardArgs.cmake \
 	cmake/FindReadline.cmake cmake/FindEditline.cmake \
 	CMakeLists.txt config-cmake.h.in
