@@ -63,10 +63,10 @@ buf_read_page_handle_error(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const bool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
-	rw_lock_t*	hash_lock = buf_page_hash_lock_get(buf_pool, bpage->id);
 
 	/* First unfix and release lock on the bpage */
 	mutex_enter(&buf_pool->LRU_list_mutex);
+	rw_lock_t*	hash_lock = buf_page_hash_lock_get(buf_pool, bpage->id);
 	rw_lock_x_lock(hash_lock);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
