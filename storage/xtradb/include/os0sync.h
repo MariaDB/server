@@ -96,8 +96,8 @@ struct os_event {
 private:
 	/** Masks for the event signal count and set flag in the count_and_set
 	field */
-	enum { count_mask = 0x7fffffffffffffffULL,
-	       set_mask   = 0x8000000000000000ULL};
+	static const ib_uint64_t count_mask = 0x7fffffffffffffffULL;
+	static const ib_uint64_t set_mask   = 0x8000000000000000ULL;
 
 	/** The MSB is set whenever when the event is in the signaled state,
 	i.e. a thread does not stop if it tries to wait for this event. Lower
