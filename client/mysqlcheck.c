@@ -246,7 +246,7 @@ static void dbDisconnect(char *host);
 static void DBerror(MYSQL *mysql, const char *when);
 static void safe_exit(int error);
 static void print_result();
-static uint fixed_name_length(const char *name);
+static size_t fixed_name_length(const char *name);
 static char *fix_table_name(char *dest, char *src);
 int what_to_do = 0;
 
@@ -594,10 +594,10 @@ static int process_selected_tables(char *db, char **table_names, int tables)
 } /* process_selected_tables */
 
 
-static uint fixed_name_length(const char *name)
+static size_t fixed_name_length(const char *name)
 {
   const char *p;
-  uint extra_length= 2;  /* count the first/last backticks */
+  size_t extra_length= 2;  /* count the first/last backticks */
   DBUG_ENTER("fixed_name_length");
 
   for (p= name; *p; p++)
@@ -605,7 +605,7 @@ static uint fixed_name_length(const char *name)
     if (*p == '`')
       extra_length++;
   }
-  DBUG_RETURN((uint) ((p - name) + extra_length));
+  DBUG_RETURN((size_t) ((p - name) + extra_length));
 }
 
 
@@ -664,7 +664,7 @@ static int process_all_tables_in_db(char *database)
      */
 
     char *tables, *end;
-    uint tot_length = 0;
+    size_t tot_length = 0;
 
     char *views, *views_end;
     uint tot_views_length = 0;
@@ -769,7 +769,9 @@ static int fix_table_storage_name(const char *name)
 
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
-  sprintf(qbuf, "RENAME TABLE `%s` TO `%s`", name, name + 9);
+  my_snprintf(qbuf, sizeof(qbuf), "RENAME TABLE %`s TO %`s",
+              name, name + 9);
+
   rc= run_query(qbuf, 1);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
@@ -784,7 +786,8 @@ static int fix_database_storage_name(const char *name)
 
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
-  sprintf(qbuf, "ALTER DATABASE `%s` UPGRADE DATA DIRECTORY NAME", name);
+  my_snprintf(qbuf, sizeof(qbuf), "ALTER DATABASE %`s UPGRADE DATA DIRECTORY "
+              "NAME", name);
   rc= run_query(qbuf, 1);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
@@ -806,7 +809,7 @@ static int rebuild_table(char *name)
   ptr= strxmov(ptr, " FORCE", NullS);
   if (verbose >= 3)
     puts(query);
-  if (mysql_real_query(sock, query, (uint)(ptr - query)))
+  if (mysql_real_query(sock, query, (ulong)(ptr - query)))
   {
     fprintf(stderr, "Failed to %s\n", query);
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
@@ -870,7 +873,7 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
 {
   char *query, *end, options[100], message[100];
   char table_name_buff[NAME_CHAR_LEN*2*2+1], *table_name;
-  uint query_length= 0;
+  size_t query_length= 0, query_size= sizeof(char)*(length+110);
   const char *op = 0;
   const char *tab_view;
   DBUG_ENTER("handle_request_for_tables");
@@ -923,10 +926,12 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
     DBUG_RETURN(fix_table_storage_name(tables));
   }
 
-  if (!(query =(char *) my_malloc((sizeof(char)*(length+110)), MYF(MY_WME))))
+  if (!(query =(char *) my_malloc(query_size, MYF(MY_WME))))
     DBUG_RETURN(1);
   if (opt_all_in_1)
   {
+    DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
+
     /* No backticks here as we added them before */
     query_length= sprintf(query, "%s%s%s %s", op,
                           tab_view, tables, options);
@@ -942,7 +947,7 @@ static int handle_request_for_tables(char *tables, size_t length, my_bool view)
                                          (int) (ptr - org)));
     table_name= table_name_buff;
     ptr= strxmov(ptr, " ", options, NullS);
-    query_length= (uint) (ptr - query);
+    query_length= (size_t) (ptr - query);
   }
   if (verbose >= 3)
     puts(query);
@@ -1208,7 +1213,7 @@ int main(int argc, char **argv)
     process_databases(argv);
   if (opt_auto_repair)
   {
-    uint i;
+    size_t i;
 
     if (!opt_silent && (tables4repair.elements || tables4rebuild.elements))
       puts("\nRepairing tables");
