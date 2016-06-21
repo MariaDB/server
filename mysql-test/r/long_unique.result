@@ -4,6 +4,13 @@ insert into z_1 values('56666666666666666666666666666666666666666666666666666666
 insert into z_1 values('sachin');
 insert into z_1 values('sachin');
 ERROR 23000: Can't write; duplicate key in table 'z_1'
+select * from z_1;
+abc
+112
+5666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+sachin
+select db_row_hash_1 from z_1;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
 create table tst_1(xyz blob unique , x2 blob unique);
 insert into tst_1 values(1,22);
 insert into tst_1 values(2,22);
@@ -11,8 +18,17 @@ ERROR 23000: Can't write; duplicate key in table 'tst_1'
 select * from tst_1;
 xyz	x2
 1	22
-select * from z_1;
-abc
-112
-5666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-sachin
+select db_row_hash_1 from tst_1;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+select db_row_hash_2 from tst_1;
+ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
+select db_row_hash_1,db_row_hash_2 from tst_1;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+create table t1 (empnum smallint, grp int);
+create table t2 (empnum int, name char(5));
+insert into t1 values(1,1);
+insert into t2 values(1,'bob');
+create view v1 as select * from t2 inner join t1 using (empnum);
+select * from v1;
+empnum	name	grp
+1	bob	1

@@ -5,14 +5,23 @@ insert into z_1 values('sachin');
 --error 1022
 insert into z_1 values('sachin');
 select * from z_1;
+--error 1054
+select db_row_hash_1 from z_1;
 create table tst_1(xyz blob unique , x2 blob unique);
 insert into tst_1 values(1,22);
 --error 1022
 insert into tst_1 values(2,22);
 select * from tst_1;
+--error 1054
+select db_row_hash_1 from tst_1;
+--error 1054
+select db_row_hash_2 from tst_1;
+--error 1054 
+select db_row_hash_1,db_row_hash_2 from tst_1;
 create table t1 (empnum smallint, grp int);
 create table t2 (empnum int, name char(5));
 insert into t1 values(1,1);
 insert into t2 values(1,'bob');
 create view v1 as select * from t2 inner join t1 using (empnum);
 select * from v1;
+
