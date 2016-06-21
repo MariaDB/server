@@ -6539,7 +6539,8 @@ MY_UCA_INFO my_uca_v400=
         0,       /*   nitems          */
         NULL,    /*   item            */
         NULL     /*   flags           */
-      }
+      },
+      0         /* levelno            */
     },
   },
 
@@ -30084,7 +30085,8 @@ MY_UCA_INFO my_uca_v520_th=
           THAI_CONTRACTIONS, /*   nitems */
           thai_contractions, /*   item */
           NULL               /*   flags */
-      }
+      },
+      0              /* levelno */
     },
     {
       0x10FFFF,      /* maxchar */
@@ -30094,7 +30096,8 @@ MY_UCA_INFO my_uca_v520_th=
           THAI_CONTRACTIONS_W2, /*   nitems */
           thai_contractions_w2, /*   item */
           NULL                  /*   flags */
-      }
+      },
+      1              /* levelno */
     },
   },
 
@@ -30127,8 +30130,9 @@ MY_UCA_INFO my_uca_v520=
       {              /* Contractions:     */
 	0,           /*   nitems          */
 	NULL,        /*   item            */
-	NULL       /*   flags           */
-      }
+	NULL         /*   flags           */
+      },
+      0              /* levelno */
     },
   },
 
@@ -31529,36 +31533,87 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
 
 /****************************************************************/
 
+/**
+  Implicit weights for a code CP are constructed as follows:
+    [.AAAA.0020.0002][.BBBB.0000.0000]
+
+  where:
+    AAAA= BASE + (CP >> 15);
+    BBBB= (CP & 0x7FFF) | 0x8000;
+
+  There are two weights in the primary level (AAAA followed by BBBB).
+  There is one weight on other levels:
+  - 0020 on the secondary level
+  - 0002 on the tertiary level
+*/
+
 
 /**
-  Return implicit UCA weight
+  Return BASE for an implicit weight on the primary level
+
+  According to UCA, BASE is calculated as follows:
+  - FB40 for Unified_Ideograph=True AND
+             ((Block=CJK_Unified_Ideograph) OR
+              (Block=CJK_Compatibility_Ideographs))
+  - FB80 for Unified_Ideograph=True AND NOT
+             ((Block=CJK_Unified_Ideograph) OR
+              (Block=CJK_Compatibility_Ideographs))
+  - FBC0 for any other code point
+  TODO: it seems we're not handling BASE correctly:
+  - check what are those blocks
+  - there are more Unified Ideograph blocks in the latest Unicode versions
+*/
+static inline uint16
+my_uca_implicit_weight_base(my_wc_t code)
+{
+  if (code >= 0x3400 && code <= 0x4DB5)
+    return 0xFB80;
+  if (code >= 0x4E00 && code <= 0x9FA5)
+    return 0xFB40;
+  return 0xFBC0;
+}
+
+
+/**
+  Return an implicit UCA weight for the primary level.
   Used for characters that do not have assigned UCA weights.
   
   @param scanner  UCA weight scanner
   
   @return   The leading implicit weight.
+
+  The second weight is stored in scanner->implicit[0]
+  and is later returned on the next my_uca_scanner_next_any() call.
 */
 
 static inline int
-my_uca_scanner_next_implicit(my_uca_scanner *scanner)
+my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner)
 {
-  scanner->code= (scanner->page << 8) + scanner->code;
-  scanner->implicit[0]= (scanner->code & 0x7FFF) | 0x8000;
-  scanner->implicit[1]= 0;
+  my_wc_t wc= (scanner->page << 8) + scanner->code;
+  scanner->implicit[0]= (wc & 0x7FFF) | 0x8000; /* The second weight */
+  scanner->implicit[1]= 0;                      /* 0 terminator      */
   scanner->wbeg= scanner->implicit;
-  
-  scanner->page= scanner->page >> 7;
-  
-  if (scanner->code >= 0x3400 && scanner->code <= 0x4DB5)
-    scanner->page+= 0xFB80;
-  else if (scanner->code >= 0x4E00 && scanner->code <= 0x9FA5)
-    scanner->page+= 0xFB40;
-  else
-    scanner->page+= 0xFBC0;
-  
-  return scanner->page;
+  return my_uca_implicit_weight_base(wc) + (wc >> 15);
 }
 
+
+/**
+  Return an implicit weight for the current level
+  (according to scanner->level->levelno).
+
+*/
+static inline int
+my_uca_scanner_next_implicit(my_uca_scanner *scanner)
+{
+  switch (scanner->level->levelno) {
+  case 0: return my_uca_scanner_next_implicit_primary(scanner);/* Primary level*/
+  case 1: scanner->wbeg= nochar; return 0x0020; /* Secondary level */
+  case 2: scanner->wbeg= nochar; return 0x0002; /* Tertiary level  */
+  default: scanner->wbeg= nochar; break;
+  }
+  DBUG_ASSERT(0);
+  return 0;
+}
 
 /*
   The same two functions for any character set
@@ -33829,6 +33884,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
   size_t i, npages= (src->maxchar + 1) / 256;
 
   dst->maxchar= src->maxchar;
+  dst->levelno= src->levelno;
 
   if (check_rules(loader, rules, dst, src))
     return TRUE;
