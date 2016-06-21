@@ -174,7 +174,10 @@ static int i_s_metadata_lock_info_fill_table(THD *thd, TABLE_LIST *tables,
 
   delete_dynamic(&ids);
   if (info.error == 0)
+  {
+    info.target_thd= thd;
     info.call_in_target_thread();
+  }
   DBUG_RETURN(info.error);
 }
 
