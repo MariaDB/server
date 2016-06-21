@@ -322,8 +322,6 @@ UNIV_INTERN ulong	srv_read_ahead_threshold	= 56;
 
 #ifdef UNIV_LOG_ARCHIVE
 UNIV_INTERN ibool		srv_log_archive_on	= FALSE;
-UNIV_INTERN ibool		srv_archive_recovery	= 0;
-UNIV_INTERN ib_uint64_t	srv_archive_recovery_limit_lsn;
 #endif /* UNIV_LOG_ARCHIVE */
 
 /* This parameter is used to throttle the number of insert buffers that are
@@ -741,6 +739,10 @@ struct srv_sys_t{
 	srv_stats_t::ulint_ctr_1_t
 			activity_count;		/*!< For tracking server
 						activity */
+	srv_stats_t::ulint_ctr_1_t
+			ibuf_merge_activity_count;/*!< For tracking change
+						buffer merge activity, a subset
+						of overall server activity */
 };
 
 #ifndef HAVE_ATOMIC_BUILTINS
@@ -1131,8 +1133,9 @@ srv_init(void)
 
 		srv_checkpoint_completed_event = os_event_create();
 
+		srv_redo_log_tracked_event = os_event_create();
+
 		if (srv_track_changed_pages) {
-			srv_redo_log_tracked_event = os_event_create();
 			os_event_set(srv_redo_log_tracked_event);
 		}
 
@@ -1174,17 +1177,30 @@ srv_free(void)
 {
 	srv_conc_free();
 
-	/* The mutexes srv_sys->mutex and srv_sys->tasks_mutex should have
-	been freed by sync_close() already. */
+	if (!srv_read_only_mode) {
+
+		for (ulint i = 0; i < srv_sys->n_sys_threads; i++)
+			os_event_free(srv_sys->sys_threads[i].event);
+
+		os_event_free(srv_error_event);
+		os_event_free(srv_monitor_event);
+		os_event_free(srv_buf_dump_event);
+		os_event_free(srv_checkpoint_completed_event);
+		os_event_free(srv_redo_log_tracked_event);
+		mutex_free(&srv_sys->mutex);
+		mutex_free(&srv_sys->tasks_mutex);
+	}
+
+#ifndef HAVE_ATOMIC_BUILTINS
+	mutex_free(&server_mutex);
+#endif
+	mutex_free(&srv_innodb_monitor_mutex);
+	mutex_free(&page_zip_stat_per_index_mutex);
+
 	mem_free(srv_sys);
 	srv_sys = NULL;
 
 	trx_i_s_cache_free(trx_i_s_cache);
-
-	if (!srv_read_only_mode) {
-		os_event_free(srv_buf_dump_event);
-		srv_buf_dump_event = NULL;
-	}
 }
 
 /*********************************************************************//**
@@ -2263,10 +2279,15 @@ rescan_idle:
 Increment the server activity count. */
 UNIV_INTERN
 void
-srv_inc_activity_count(void)
-/*========================*/
+srv_inc_activity_count(
+/*===================*/
+	bool ibuf_merge_activity)	/*!< whether this activity bump
+					is caused by the background
+					change buffer merge */
 {
 	srv_sys->activity_count.inc();
+	if (ibuf_merge_activity)
+		srv_sys->ibuf_merge_activity_count.inc();
 }
 
 /**********************************************************************//**
@@ -2382,7 +2403,7 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 				/* TODO: sync with I_S log tracking status? */
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"log tracking bitmap write failed, "
-					"stopping log tracking thread!\n");
+					"stopping log tracking thread!");
 				break;
 			}
 			os_event_set(srv_redo_log_tracked_event);
@@ -2424,7 +2445,7 @@ purge_archived_logs(
 		if (!dir) {
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"opening archived log directory %s failed. "
-				"Purge archived logs are not available\n",
+				"Purge archived logs are not available",
 				srv_arch_dir);
 			/* failed to open directory */
 			return(DB_ERROR);
@@ -2512,7 +2533,7 @@ purge_archived_logs(
 					     archived_log_filename)) {
 
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"can't delete archived log file %s.\n",
+				"can't delete archived log file %s.",
 				archived_log_filename);
 
 			mutex_exit(&log_sys->mutex);
@@ -2620,16 +2641,49 @@ srv_get_activity_count(void)
 	return(srv_sys->activity_count);
 }
 
+/** Get current server ibuf merge activity count.
+@return ibuf merge activity count */
+static
+ulint
+srv_get_ibuf_merge_activity_count(void)
+{
+	return(srv_sys->ibuf_merge_activity_count);
+}
+
 /*******************************************************************//**
-Check if there has been any activity.
+Check if there has been any activity. Considers background change buffer
+merge as regular server activity unless a non-default
+old_ibuf_merge_activity_count value is passed, in which case the merge will be
+treated as keeping server idle.
 @return FALSE if no change in activity counter. */
 UNIV_INTERN
 ibool
 srv_check_activity(
 /*===============*/
-	ulint		old_activity_count)	/*!< in: old activity count */
+	ulint		old_activity_count,	/*!< in: old activity count */
+						/*!< old change buffer merge
+						activity count, or
+						ULINT_UNDEFINED */
+	ulint		old_ibuf_merge_activity_count)
 {
-	return(srv_sys->activity_count != old_activity_count);
+	ulint	new_activity_count = srv_sys->activity_count;
+	if (old_ibuf_merge_activity_count == ULINT_UNDEFINED)
+		return(new_activity_count != old_activity_count);
+
+	/* If we care about ibuf merge activity, then the server is considered
+	idle if all activity, if any, was due to ibuf merge. */
+	ulint	new_ibuf_merge_activity_count
+		= srv_sys->ibuf_merge_activity_count;
+
+	ut_ad(new_ibuf_merge_activity_count <= new_activity_count);
+	ut_ad(new_ibuf_merge_activity_count >= old_ibuf_merge_activity_count);
+	ut_ad(new_activity_count >= old_activity_count);
+
+	ulint	ibuf_merge_activity_delta =
+		new_ibuf_merge_activity_count - old_ibuf_merge_activity_count;
+	ulint	activity_delta = new_activity_count - old_activity_count;
+
+	return (activity_delta > ibuf_merge_activity_delta);
 }
 
 /********************************************************************//**
@@ -2987,6 +3041,8 @@ DECLARE_THREAD(srv_master_thread)(
 {
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
+	ulint		old_ibuf_merge_activity_count
+		= srv_get_ibuf_merge_activity_count();
 	ib_time_t	last_print_time;
 
 	ut_ad(!srv_read_only_mode);
@@ -3024,8 +3080,12 @@ loop:
 
 		srv_current_thread_priority = srv_master_thread_priority;
 
-		if (srv_check_activity(old_activity_count)) {
+		if (srv_check_activity(old_activity_count,
+				       old_ibuf_merge_activity_count)) {
+
 			old_activity_count = srv_get_activity_count();
+			old_ibuf_merge_activity_count
+				= srv_get_ibuf_merge_activity_count();
 			srv_master_do_active_tasks();
 		} else {
 			srv_master_do_idle_tasks();
