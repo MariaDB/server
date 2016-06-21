@@ -449,12 +449,6 @@ os_get_os_version(void);
 /*===================*/
 #endif /* __WIN__ */
 #ifndef UNIV_HOTBACKUP
-/****************************************************************//**
-Creates the seek mutexes used in positioned reads and writes. */
-UNIV_INTERN
-void
-os_io_init_simple(void);
-/*===================*/
 
 
 /** Create a temporary file. This function is like tmpfile(3), but

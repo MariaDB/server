@@ -298,7 +298,7 @@ log_online_read_bitmap_page(
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 		ib_logf(IB_LOG_LEVEL_WARN,
-			"failed reading changed page bitmap file \'%s\'\n",
+			"failed reading changed page bitmap file \'%s\'",
 			bitmap_file->name);
 		return FALSE;
 	}
@@ -358,7 +358,7 @@ log_online_read_last_tracked_lsn(void)
 
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"corruption detected in \'%s\' at offset "
-				UINT64PF "\n",
+				UINT64PF,
 				log_bmp_sys->out.name, read_offset);
 		}
 	};
@@ -372,7 +372,7 @@ log_online_read_last_tracked_lsn(void)
 				log_bmp_sys->out.offset)) {
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"failed truncating changed page bitmap file \'%s\' to "
-			UINT64PF " bytes\n",
+			UINT64PF " bytes",
 			log_bmp_sys->out.name, log_bmp_sys->out.offset);
 		result = 0;
 	}
@@ -390,16 +390,8 @@ log_set_tracked_lsn(
 /*================*/
 	lsn_t	tracked_lsn)	/*!<in: new value */
 {
-#ifdef HAVE_ATOMIC_BUILTINS_64
-	/* Single writer, no data race here */
-	lsn_t old_value = os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
-	(void) os_atomic_increment_uint64(&log_sys->tracked_lsn,
-					  tracked_lsn - old_value);
-#else
-	mutex_enter(&log_sys->mutex);
 	log_sys->tracked_lsn = tracked_lsn;
-	mutex_exit(&log_sys->mutex);
-#endif
+	os_wmb;
 }
 
 /*********************************************************************//**
@@ -424,7 +416,7 @@ log_online_can_track_missing(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"last tracked LSN " LSN_PF " is ahead of tracking "
 			"start LSN " LSN_PF ".  This can be caused by "
-			"mismatched bitmap files.\n",
+			"mismatched bitmap files.",
 			last_tracked_lsn, tracking_start_lsn);
 		exit(1);
 	}
@@ -452,7 +444,7 @@ log_online_track_missing_on_startup(
 
 	ib_logf(IB_LOG_LEVEL_WARN, "last tracked LSN in \'%s\' is " LSN_PF
 		", but the last checkpoint LSN is " LSN_PF ".  This might be "
-		"due to a server crash or a very fast shutdown.  ",
+		"due to a server crash or a very fast shutdown.",
 		log_bmp_sys->out.name, last_tracked_lsn, tracking_start_lsn);
 
 	/* See if we can fully recover the missing interval */
@@ -460,7 +452,7 @@ log_online_track_missing_on_startup(
 					 tracking_start_lsn)) {
 
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"reading the log to advance the last tracked LSN.\n");
+			"reading the log to advance the last tracked LSN.");
 
 		log_bmp_sys->start_lsn = ut_max(last_tracked_lsn,
 						MIN_TRACKED_LSN);
@@ -471,22 +463,22 @@ log_online_track_missing_on_startup(
 		ut_ad(log_bmp_sys->end_lsn >= tracking_start_lsn);
 
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"continuing tracking changed pages from LSN " LSN_PF
-			"\n", log_bmp_sys->end_lsn);
+			"continuing tracking changed pages from LSN " LSN_PF,
+			log_bmp_sys->end_lsn);
 	}
 	else {
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"the age of last tracked LSN exceeds log capacity, "
 			"tracking-based incremental backups will work only "
-			"from the higher LSN!\n");
+			"from the higher LSN!");
 
 		log_bmp_sys->end_lsn = log_bmp_sys->start_lsn
 			= tracking_start_lsn;
 		log_set_tracked_lsn(log_bmp_sys->start_lsn);
 
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"starting tracking changed pages from LSN " LSN_PF
-			"\n", log_bmp_sys->end_lsn);
+			"starting tracking changed pages from LSN " LSN_PF,
+			log_bmp_sys->end_lsn);
 	}
 }
 
@@ -554,7 +546,7 @@ log_online_start_bitmap_file(void)
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"cannot create \'%s\'\n", log_bmp_sys->out.name);
+			"cannot create \'%s\'", log_bmp_sys->out.name);
 		return FALSE;
 	}
 
@@ -690,7 +682,7 @@ log_online_read_init(void)
 
 	if (os_file_closedir(bitmap_dir)) {
 		os_file_get_last_error(TRUE);
-		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'",
 			log_bmp_sys->bmp_file_home);
 		exit(1);
 	}
@@ -730,7 +722,7 @@ log_online_read_init(void)
 
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"truncated block detected in \'%s\' at offset "
-				UINT64PF "\n",
+				UINT64PF,
 				log_bmp_sys->out.name,
 				log_bmp_sys->out.offset);
 			log_bmp_sys->out.offset -=
@@ -768,14 +760,14 @@ log_online_read_init(void)
 				"last tracked LSN is " LSN_PF ", but the last "
 				"checkpoint LSN is " LSN_PF ". The "
 				"tracking-based incremental backups will work "
-				"only from the latter LSN!\n",
+				"only from the latter LSN!",
 				last_tracked_lsn, tracking_start_lsn);
 		}
 
 	}
 
 	ib_logf(IB_LOG_LEVEL_INFO, "starting tracking changed pages from LSN "
-		LSN_PF "\n", tracking_start_lsn);
+		LSN_PF, tracking_start_lsn);
 	log_bmp_sys->start_lsn = tracking_start_lsn;
 	log_set_tracked_lsn(tracking_start_lsn);
 }
@@ -919,7 +911,7 @@ log_online_is_valid_log_seg(
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"log block checksum mismatch: expected " ULINTPF ", "
-			"calculated checksum " ULINTPF "\n",
+			"calculated checksum " ULINTPF,
 			log_block_get_checksum(log_block),
 			log_block_calc_checksum(log_block));
 	}
@@ -1118,7 +1110,7 @@ log_online_write_bitmap_page(
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 		ib_logf(IB_LOG_LEVEL_ERROR, "failed writing changed page "
-			"bitmap file \'%s\'\n", log_bmp_sys->out.name);
+			"bitmap file \'%s\'", log_bmp_sys->out.name);
 		return FALSE;
 	}
 
@@ -1128,7 +1120,7 @@ log_online_write_bitmap_page(
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 		ib_logf(IB_LOG_LEVEL_ERROR, "failed flushing changed page "
-			"bitmap file \'%s\'\n",	log_bmp_sys->out.name);
+			"bitmap file \'%s\'",	log_bmp_sys->out.name);
 		return FALSE;
 	}
 
@@ -1275,8 +1267,7 @@ log_online_diagnose_inconsistent_dir(
 	ib_logf(IB_LOG_LEVEL_WARN,
 		"InnoDB: Warning: inconsistent bitmap file "
 		"directory for a "
-		"INFORMATION_SCHEMA.INNODB_CHANGED_PAGES query"
-		"\n");
+		"INFORMATION_SCHEMA.INNODB_CHANGED_PAGES query");
 	free(bitmap_files->files);
 }
 
@@ -1318,7 +1309,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(!bitmap_dir)) {
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"failed to open bitmap directory \'%s\'\n",
+			"failed to open bitmap directory \'%s\'",
 			srv_data_home);
 		return FALSE;
 	}
@@ -1368,7 +1359,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
 
 		os_file_get_last_error(TRUE);
-		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'",
 			srv_data_home);
 		return FALSE;
 	}
@@ -1389,7 +1380,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(!bitmap_dir)) {
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"failed to open bitmap directory \'%s\'\n",
+			"failed to open bitmap directory \'%s\'",
 			srv_data_home);
 		return FALSE;
 	}
@@ -1440,7 +1431,7 @@ log_online_setup_bitmap_file_range(
 	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
 
 		os_file_get_last_error(TRUE);
-		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'\n",
+		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'",
 			srv_data_home);
 		free(bitmap_files->files);
 		return FALSE;
@@ -1515,7 +1506,7 @@ log_online_open_bitmap_file_read_only(
 		/* Here and below assume that bitmap file names do not
 		contain apostrophes, thus no need for ut_print_filename(). */
 		ib_logf(IB_LOG_LEVEL_WARN,
-			"error opening the changed page bitmap \'%s\'\n",
+			"error opening the changed page bitmap \'%s\'",
 			bitmap_file->name);
 		return FALSE;
 	}
@@ -1561,7 +1552,7 @@ log_online_diagnose_bitmap_eof(
 
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"junk at the end of changed page bitmap file "
-				"\'%s\'.\n", bitmap_file->name);
+				"\'%s\'.", bitmap_file->name);
 		}
 
 		if (UNIV_UNLIKELY(!last_page_in_run)) {
@@ -1572,7 +1563,7 @@ log_online_diagnose_bitmap_eof(
 			for the whole server */
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"changed page bitmap file \'%s\' does not "
-				"contain a complete run at the end.\n",
+				"contain a complete run at the end.",
 				bitmap_file->name);
 			return FALSE;
 		}
@@ -1765,7 +1756,7 @@ log_online_bitmap_iterator_next(
 			os_file_get_last_error(TRUE);
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"failed reading changed page bitmap file "
-				"\'%s\'\n", i->in_files.files[i->in_i].name);
+				"\'%s\'", i->in_files.files[i->in_i].name);
 			i->failed = TRUE;
 			return FALSE;
 		}

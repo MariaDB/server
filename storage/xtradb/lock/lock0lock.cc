@@ -641,6 +641,17 @@ lock_sys_close(void)
 	mutex_free(&lock_sys->mutex);
 	mutex_free(&lock_sys->wait_mutex);
 
+	os_event_free(lock_sys->timeout_event);
+
+	for (srv_slot_t* slot = lock_sys->waiting_threads;
+	     slot < lock_sys->waiting_threads + OS_THREAD_MAX_N; slot++) {
+
+		ut_ad(!slot->in_use);
+		ut_ad(!slot->thr);
+		if (slot->event != NULL)
+			os_event_free(slot->event);
+	}
+
 	mem_free(lock_stack);
 	mem_free(lock_sys);
 

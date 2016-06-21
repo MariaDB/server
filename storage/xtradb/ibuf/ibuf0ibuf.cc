@@ -2892,7 +2892,7 @@ ibuf_contract_in_background(
 		sum_bytes += n_bytes;
 		sum_pages += n_pag2;
 
-		srv_inc_activity_count();
+		srv_inc_activity_count(true);
 	}
 
 	return(sum_bytes);
