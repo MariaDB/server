@@ -3884,6 +3884,24 @@ check_if_can_drop_indexes:
 		drop_index = NULL;
 	}
 
+	/* Check if any of the existing indexes are marked as corruption
+	and if they are, refuse adding more indexes. */
+	if (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) {
+		for (dict_index_t* index = dict_table_get_first_index(indexed_table);
+		     index != NULL; index = dict_table_get_next_index(index)) {
+
+			if (!index->to_be_dropped && dict_index_is_corrupted(index)) {
+				char	index_name[MAX_FULL_NAME_LEN + 1];
+
+				innobase_format_name(index_name, sizeof index_name,
+					index->name, TRUE);
+
+				my_error(ER_INDEX_CORRUPT, MYF(0), index_name);
+				DBUG_RETURN(true);
+			}
+		}
+	}
+
 	n_add_fk = 0;
 
 	if (ha_alter_info->handler_flags

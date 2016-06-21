@@ -29,7 +29,12 @@
 let $engine= 'TokuDB';
 --source include/have_tokudb.inc
 
+SET @tokudb_prelock_empty_saved = @@GLOBAL.tokudb_prelock_empty;
+SET GLOBAL tokudb_prelock_empty = 0;
+SET SESSION tokudb_prelock_empty = 0;
+
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
 --source suite/parts/inc/partition_auto_increment.inc
 
+SET GLOBAL tokudb_prelock_empty = @tokudb_prelock_empty_saved;

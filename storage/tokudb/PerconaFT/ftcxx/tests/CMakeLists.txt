@@ -2,6 +2,8 @@ include_directories(..)
 include_directories(../../src)
 include_directories(../../src/tests)
 
+find_library(JEMALLOC_STATIC_LIBRARY libjemalloc.a)
+
 if (BUILD_TESTING)
   ## reference implementation with simple size-doubling buffer without
   ## jemalloc size tricks
@@ -24,15 +26,15 @@ if (BUILD_TESTING)
           cursor_test
           )
         set(_testname ${impl}_${test})
-        if (with_jemalloc)
+        if (with_jemalloc AND JEMALLOC_STATIC_LIBRARY)
           set(_testname ${_testname}_j)
         endif ()
         add_executable(${_testname} ${test})
-        if (with_jemalloc)
+        if (with_jemalloc AND JEMALLOC_STATIC_LIBRARY)
           if (APPLE)
-            target_link_libraries(${_testname} -Wl,-force_load jemalloc)
+            target_link_libraries(${_testname} -Wl,-force_load ${JEMALLOC_STATIC_LIBRARY})
           else ()
-            target_link_libraries(${_testname} -Wl,--whole-archive jemalloc -Wl,--no-whole-archive)
+            target_link_libraries(${_testname} -Wl,--whole-archive ${JEMALLOC_STATIC_LIBRARY} -Wl,--no-whole-archive)
           endif ()
         endif ()
         target_link_libraries(${_testname} ${impl})

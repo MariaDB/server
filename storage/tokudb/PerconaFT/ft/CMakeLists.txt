@@ -36,6 +36,7 @@ set(FT_SOURCES
   ft-flusher
   ft-hot-flusher
   ft-ops
+  ft-recount-rows
   ft-status
   ft-test-helpers
   ft-verify

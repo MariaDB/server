@@ -507,6 +507,7 @@ int _my_b_read(register IO_CACHE *info, uchar *Buffer, size_t Count)
     {
       /* End of file. Return, what we did copy from the buffer. */
       info->error= (int) left_length;
+      info->seek_not_done=1;
       DBUG_RETURN(1);
     }
     /*
@@ -524,6 +525,7 @@ int _my_b_read(register IO_CACHE *info, uchar *Buffer, size_t Count)
       */
       info->error= (read_length == (size_t) -1 ? -1 :
 		    (int) (read_length+left_length));
+      info->seek_not_done=1;
       DBUG_RETURN(1);
     }
     Count-=length;
@@ -572,6 +574,7 @@ int _my_b_read(register IO_CACHE *info, uchar *Buffer, size_t Count)
     /* For a read error, return -1, otherwise, what we got in total. */
     info->error= length == (size_t) -1 ? -1 : (int) (length+left_length);
     info->read_pos=info->read_end=info->buffer;
+    info->seek_not_done=1;
     DBUG_RETURN(1);
   }
   /*
@@ -1870,6 +1873,7 @@ void die(const char* fmt, ...)
   fprintf(stderr,"Error:");
   vfprintf(stderr, fmt,va_args);
   fprintf(stderr,", errno=%d\n", errno);
+  va_end(va_args);
   exit(1);
 }
 

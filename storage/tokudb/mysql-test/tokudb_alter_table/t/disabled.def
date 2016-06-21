@@ -1,0 +1,8 @@
+# alter table
+hcad_tmp_tables: tmp tables bypass hot alter, we run hcad_tmp_tables_56 instead
+hcad_with_locks: cant alter table concurrent with reading a table in 5.5
+
+# virtual columns
+virtual_columns: no virtual columns in MySQL 5.5
+
+frm_discover_partition: needs the tokutek patch for frm discovery for partitioned tables

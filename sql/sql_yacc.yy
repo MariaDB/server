@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1148,7 +1148,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ENGINES_SYM
 %token  ENGINE_SYM
 %token  ENUM
-%token  EQ                            /* OPERATOR */
 %token  EQUAL_SYM                     /* OPERATOR */
 %token  ERROR_SYM
 %token  ERRORS
@@ -1197,7 +1196,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  GRANTS
 %token  GROUP_SYM                     /* SQL-2003-R */
 %token  GROUP_CONCAT_SYM
-%token  GT_SYM                        /* OPERATOR */
 %token  HANDLER_SYM
 %token  HARD_SYM
 %token  HASH_SYM
@@ -1277,7 +1275,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LONG_SYM
 %token  LOOP_SYM
 %token  LOW_PRIORITY
-%token  LT                            /* OPERATOR */
 %token  MASTER_CONNECT_RETRY_SYM
 %token  MASTER_GTID_POS_SYM
 %token  MASTER_HOST_SYM
@@ -1637,7 +1634,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left   XOR
 %left   AND_SYM AND_AND_SYM
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
-%left   EQ EQUAL_SYM GE GT_SYM LE LT NE IS LIKE REGEXP IN_SYM
+%left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE REGEXP IN_SYM
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
@@ -2154,66 +2151,66 @@ master_defs:
         ;
 
 master_def:
-          MASTER_HOST_SYM EQ TEXT_STRING_sys
+          MASTER_HOST_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.host = $3.str;
           }
-        | MASTER_USER_SYM EQ TEXT_STRING_sys
+        | MASTER_USER_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.user = $3.str;
           }
-        | MASTER_PASSWORD_SYM EQ TEXT_STRING_sys
+        | MASTER_PASSWORD_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.password = $3.str;
           }
-        | MASTER_PORT_SYM EQ ulong_num
+        | MASTER_PORT_SYM '=' ulong_num
           {
             Lex->mi.port = $3;
           }
-        | MASTER_CONNECT_RETRY_SYM EQ ulong_num
+        | MASTER_CONNECT_RETRY_SYM '=' ulong_num
           {
             Lex->mi.connect_retry = $3;
           }
-        | MASTER_SSL_SYM EQ ulong_num
+        | MASTER_SSL_SYM '=' ulong_num
           {
             Lex->mi.ssl= $3 ? 
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CA_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CA_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_ca= $3.str;
           }
-        | MASTER_SSL_CAPATH_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CAPATH_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_capath= $3.str;
           }
-        | MASTER_SSL_CERT_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CERT_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_cert= $3.str;
           }
-        | MASTER_SSL_CIPHER_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CIPHER_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_cipher= $3.str;
           }
-        | MASTER_SSL_KEY_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_KEY_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_key= $3.str;
           }
-        | MASTER_SSL_VERIFY_SERVER_CERT_SYM EQ ulong_num
+        | MASTER_SSL_VERIFY_SERVER_CERT_SYM '=' ulong_num
           {
             Lex->mi.ssl_verify_server_cert= $3 ?
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CRL_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CRL_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_crl= $3.str;
           }
-        | MASTER_SSL_CRLPATH_SYM EQ TEXT_STRING_sys
+        | MASTER_SSL_CRLPATH_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.ssl_crlpath= $3.str;
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM EQ NUM_literal
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
           {
             Lex->mi.heartbeat_period= (float) $3->val_real();
             if (Lex->mi.heartbeat_period > SLAVE_MAX_HEARTBEAT_PERIOD ||
@@ -2244,7 +2241,7 @@ master_def:
             }
             Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_ENABLE;
           }
-        | IGNORE_SERVER_IDS_SYM EQ '(' ignore_server_id_list ')'
+        | IGNORE_SERVER_IDS_SYM '=' '(' ignore_server_id_list ')'
           {
             Lex->mi.repl_ignore_server_ids_opt= LEX_MASTER_INFO::LEX_MI_ENABLE;
            }
@@ -2265,11 +2262,11 @@ ignore_server_id:
           }
 
 master_file_def:
-          MASTER_LOG_FILE_SYM EQ TEXT_STRING_sys
+          MASTER_LOG_FILE_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.log_file_name = $3.str;
           }
-        | MASTER_LOG_POS_SYM EQ ulonglong_num
+        | MASTER_LOG_POS_SYM '=' ulonglong_num
           {
             Lex->mi.pos = $3;
             /* 
@@ -2285,17 +2282,17 @@ master_file_def:
             */
             Lex->mi.pos= MY_MAX(BIN_LOG_HEADER_SIZE, Lex->mi.pos);
           }
-        | RELAY_LOG_FILE_SYM EQ TEXT_STRING_sys
+        | RELAY_LOG_FILE_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.relay_log_name = $3.str;
           }
-        | RELAY_LOG_POS_SYM EQ ulong_num
+        | RELAY_LOG_POS_SYM '=' ulong_num
           {
             Lex->mi.relay_log_pos = $3;
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos= MY_MAX(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
-        | MASTER_USE_GTID_SYM EQ CURRENT_POS_SYM
+        | MASTER_USE_GTID_SYM '=' CURRENT_POS_SYM
           {
             if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
             {
@@ -2305,7 +2302,7 @@ master_file_def:
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_CURRENT_POS;
           }
         ;
-        | MASTER_USE_GTID_SYM EQ SLAVE_POS_SYM
+        | MASTER_USE_GTID_SYM '=' SLAVE_POS_SYM
           {
             if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
             {
@@ -2315,7 +2312,7 @@ master_file_def:
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_SLAVE_POS;
           }
         ;
-        | MASTER_USE_GTID_SYM EQ NO_SYM
+        | MASTER_USE_GTID_SYM '=' NO_SYM
           {
             if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
             {
@@ -3346,7 +3343,7 @@ opt_set_signal_information:
         ;
 
 signal_information_item_list:
-          signal_condition_information_item_name EQ signal_allowed_expr
+          signal_condition_information_item_name '=' signal_allowed_expr
           {
             Set_signal_information *info;
             info= &thd->m_parser_state->m_yacc.m_set_signal_info;
@@ -3355,7 +3352,7 @@ signal_information_item_list:
             info->m_item[index]= $3;
           }
         | signal_information_item_list ','
-          signal_condition_information_item_name EQ signal_allowed_expr
+          signal_condition_information_item_name '=' signal_allowed_expr
           {
             Set_signal_information *info;
             info= &thd->m_parser_state->m_yacc.m_set_signal_info;
@@ -3494,7 +3491,7 @@ statement_information:
         ;
 
 statement_information_item:
-          simple_target_specification EQ statement_information_item_name
+          simple_target_specification '=' statement_information_item_name
           {
             $$= new (thd->mem_root) Statement_information_item($3, $1);
             if ($$ == NULL)
@@ -3551,7 +3548,7 @@ condition_information:
         ;
 
 condition_information_item:
-          simple_target_specification EQ condition_information_item_name
+          simple_target_specification '=' condition_information_item_name
           {
             $$= new (thd->mem_root) Condition_information_item($3, $1);
             if ($$ == NULL)
@@ -4886,7 +4883,7 @@ opt_linear:
 opt_key_algo:
           /* empty */
           { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
-        | ALGORITHM_SYM EQ real_ulong_num
+        | ALGORITHM_SYM '=' real_ulong_num
           {
             switch ($3) {
             case 1:
@@ -7760,7 +7757,7 @@ opt_place:
 opt_to:
           /* empty */ {}
         | TO_SYM {}
-        | EQ {}
+        | '=' {}
         | AS {}
         ;
 
@@ -7882,7 +7879,7 @@ slave_until:
                MYSQL_YYABORT;
             }
           }
-        | UNTIL_SYM MASTER_GTID_POS_SYM EQ TEXT_STRING_sys
+        | UNTIL_SYM MASTER_GTID_POS_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.gtid_pos_str = $4;
           }
@@ -8756,13 +8753,13 @@ bool_pri:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | bool_pri comp_op predicate %prec EQ
+        | bool_pri comp_op predicate %prec '='
           {
             $$= (*$2)(0)->create($1,$3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | bool_pri comp_op all_or_any '(' subselect ')' %prec EQ
+        | bool_pri comp_op all_or_any '(' subselect ')' %prec '='
           {
             $$= all_any_subquery_creator($1, $2, $3, $5);
             if ($$ == NULL)
@@ -8985,11 +8982,11 @@ not2:
         ;
 
 comp_op:
-          EQ     { $$ = &comp_eq_creator; }
+          '='     { $$ = &comp_eq_creator; }
         | GE     { $$ = &comp_ge_creator; }
-        | GT_SYM { $$ = &comp_gt_creator; }
+        | '>' { $$ = &comp_gt_creator; }
         | LE     { $$ = &comp_le_creator; }
-        | LT     { $$ = &comp_lt_creator; }
+        | '<'     { $$ = &comp_lt_creator; }
         | NE     { $$ = &comp_ne_creator; }
         ;
 
@@ -11088,7 +11085,7 @@ date_time_type:
 table_alias:
           /* empty */
         | AS
-        | EQ
+        | '='
         ;
 
 opt_table_alias:
@@ -12019,7 +12016,7 @@ ident_eq_value:
         ;
 
 equal:
-          EQ {}
+          '=' {}
         | SET_VAR {}
         ;
 
@@ -15019,11 +15016,11 @@ handler_rkey_function:
         ;
 
 handler_rkey_mode:
-          EQ     { $$=HA_READ_KEY_EXACT;   }
+          '='     { $$=HA_READ_KEY_EXACT;   }
         | GE     { $$=HA_READ_KEY_OR_NEXT; }
         | LE     { $$=HA_READ_KEY_OR_PREV; }
-        | GT_SYM { $$=HA_READ_AFTER_KEY;   }
-        | LT     { $$=HA_READ_BEFORE_KEY;  }
+        | '>' { $$=HA_READ_AFTER_KEY;   }
+        | '<'     { $$=HA_READ_BEFORE_KEY;  }
         ;
 
 /* GRANT / REVOKE */
@@ -15890,7 +15887,7 @@ no_definer:
         ;
 
 definer:
-          DEFINER_SYM EQ user_or_role
+          DEFINER_SYM '=' user_or_role
           {
             thd->lex->definer= $3;
           }
@@ -15903,11 +15900,11 @@ definer:
 **************************************************************************/
 
 view_algorithm:
-          ALGORITHM_SYM EQ UNDEFINED_SYM
+          ALGORITHM_SYM '=' UNDEFINED_SYM
           { Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED; }
-        | ALGORITHM_SYM EQ MERGE_SYM
+        | ALGORITHM_SYM '=' MERGE_SYM
           { Lex->create_view_algorithm= VIEW_ALGORITHM_MERGE; }
-        | ALGORITHM_SYM EQ TEMPTABLE_SYM
+        | ALGORITHM_SYM '=' TEMPTABLE_SYM
           { Lex->create_view_algorithm= VIEW_ALGORITHM_TMPTABLE; }
         ;
 

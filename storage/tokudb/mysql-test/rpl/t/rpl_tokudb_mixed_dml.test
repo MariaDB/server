@@ -6,4 +6,7 @@
 --source include/have_binlog_format_mixed.inc
 --source include/have_tokudb.inc
 let $engine_type=TokuDB;
+
+SET SESSION tokudb_pk_insert_mode = 2;
+
 --source suite/rpl/include/rpl_mixed_dml.inc
