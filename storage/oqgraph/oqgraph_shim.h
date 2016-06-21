@@ -254,7 +254,7 @@ namespace boost
     typedef no_property type;
   };
 
-#if BOOST_VERSION >= 104601
+#if BOOST_VERSION < 106000 && BOOST_VERSION >= 104601
   template <>
   struct graph_bundle_type<oqgraph3::graph>
   {
