@@ -516,7 +516,7 @@ extern struct charset_info_st my_charset_utf16le_general_ci;
 extern struct charset_info_st my_charset_utf32_bin;
 extern struct charset_info_st my_charset_utf32_general_ci;
 extern struct charset_info_st my_charset_utf32_unicode_ci;
-extern struct charset_info_st MYSQL_PLUGIN_IMPORT my_charset_utf8_bin;
+extern struct charset_info_st my_charset_utf8_bin;
 extern struct charset_info_st my_charset_utf8_general_mysql500_ci;
 extern struct charset_info_st my_charset_utf8_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb4_bin;

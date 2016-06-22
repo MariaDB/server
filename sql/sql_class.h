@@ -1094,8 +1094,8 @@ typedef struct st_xid_state {
   uint rm_error;
 } XID_STATE;
 
-extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_xid_cache;
-extern MYSQL_PLUGIN_IMPORT HASH xid_cache;
+extern mysql_mutex_t LOCK_xid_cache;
+extern HASH xid_cache;
 bool xid_cache_init(void);
 void xid_cache_free(void);
 XID_STATE *xid_cache_search(XID *xid);

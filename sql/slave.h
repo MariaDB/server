@@ -244,7 +244,7 @@ void slave_output_error_info(rpl_group_info *rgi, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
 bool net_request_file(NET* net, const char* fname);
 
-extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
+extern bool volatile abort_loop;
 extern Master_info *active_mi; /* active_mi for multi-master */
 extern Master_info *default_master_info; /* To replace active_mi */
 extern Master_info_index *master_info_index;
@@ -258,7 +258,7 @@ extern uint report_port;
 extern char *master_info_file, *report_user;
 extern char *report_host, *report_password;
 
-extern MYSQL_PLUGIN_IMPORT I_List<THD> threads;
+extern I_List<THD> threads;
 
 #else
 #define close_active_mi() /* no-op */

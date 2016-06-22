@@ -20,9 +20,9 @@
 
 C_MODE_START
 
-extern MYSQL_PLUGIN_IMPORT const char *my_defaults_extra_file;
+extern const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
-extern MYSQL_PLUGIN_IMPORT const char *my_defaults_file;
+extern const char *my_defaults_file;
 extern my_bool my_getopt_use_args_separator;
 extern my_bool my_getopt_is_args_separator(const char* arg);
 
