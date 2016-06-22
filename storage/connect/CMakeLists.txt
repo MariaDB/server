@@ -243,8 +243,8 @@ IF(CONNECT_WITH_JDBC)
   # TODO: Find how to compile and install the java wrapper class
   # Find required libraries and include directories
 
-  FIND_PACKAGE(Java)
-	FIND_PACKAGE(JNI)
+  FIND_PACKAGE(Java 1.6)
+  FIND_PACKAGE(JNI)
   IF (JAVA_FOUND AND JNI_FOUND)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})

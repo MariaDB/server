@@ -20,6 +20,8 @@
 #include "sql_class.h"
 #include "sql_show.h"
 
+I_List<THD> *thds;
+
 static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Global read lock") },
   { C_STRING_WITH_LEN("Schema metadata lock") },
@@ -134,7 +136,7 @@ static THD *find_thread(my_thread_id id)
   THD *tmp;
 
   mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
+  I_List_iterator<THD> it(*thds);
   while ((tmp= it++))
   {
     if (id == tmp->thread_id)
@@ -160,7 +162,7 @@ static int i_s_metadata_lock_info_fill_table(THD *thd, TABLE_LIST *tables,
   /* Gather thread identifiers */
   my_init_dynamic_array(&ids, sizeof(my_thread_id), 512, 1, MYF(0));
   mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
+  I_List_iterator<THD> it(*thds);
   while ((tmp= it++))
     if (tmp != thd && (info.error= insert_dynamic(&ids, &tmp->thread_id)))
       break;
@@ -186,10 +188,16 @@ static int i_s_metadata_lock_info_init(
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("i_s_metadata_lock_info_init");
+#ifdef _WIN32
+  thds = (I_List<THD>*)
+    GetProcAddress(GetModuleHandle(NULL), "?threads@@3V?$I_List@VTHD@@@@A");
+#else
+  thds = &threads;
+#endif
   schema->fields_info = i_s_metadata_lock_info_fields_info;
   schema->fill_table = i_s_metadata_lock_info_fill_table;
   schema->idx_field1 = 0;
-  DBUG_RETURN(0);
+  DBUG_RETURN(thds == 0);
 }
 
 static int i_s_metadata_lock_info_deinit(
