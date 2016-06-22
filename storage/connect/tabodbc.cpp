@@ -97,8 +97,8 @@ ODBCDEF::ODBCDEF(void)
   {
   Connect = Tabname = Tabschema = Username = Password = NULL;
   Tabcat = Srcdef = Qchar = Qrystr = Sep = NULL;
-  Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = 0;
-  Scrollable = Memory = Xsrc = UseCnc = false;
+  Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = Memory = 0;
+  Scrollable = Xsrc = UseCnc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -1009,7 +1009,7 @@ bool TDBODBC::SetRecpos(PGLOBAL g, int recpos)
   } // end of SetRecpos
 
 /***********************************************************************/
-/*  Data Base indexed read routine for MYSQL access method.            */
+/*  Data Base indexed read routine for ODBC access method.             */
 /***********************************************************************/
 bool TDBODBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 {
@@ -1028,7 +1028,7 @@ bool TDBODBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 
 		return false;
 	}	else {
-		if (To_Def->GetHandler()->MakeKeyWhere(g, Query, op, c, kr))
+		if (hc->MakeKeyWhere(g, Query, op, c, kr))
 			return true;
 
 		if (To_CondFil) {

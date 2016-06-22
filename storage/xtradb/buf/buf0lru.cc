@@ -607,6 +607,7 @@ rescan:
 	     bpage != NULL;
 	     bpage = prev) {
 
+		ut_ad(!must_restart);
 		ut_a(buf_page_in_file(bpage));
 
 		/* Save the previous link because once we free the
@@ -624,9 +625,6 @@ rescan:
 
 			/* Remove was unsuccessful, we have to try again
 			by scanning the entire list from the end.
-			This also means that we never released the
-			flush list mutex. Therefore we can trust the prev
-			pointer.
 			buf_flush_or_remove_page() released the
 			flush list mutex but not the LRU list mutex.
 			Therefore it is possible that a new page was
@@ -643,6 +641,11 @@ rescan:
 			iteration. */
 
 			all_freed = false;
+			if (UNIV_UNLIKELY(must_restart)) {
+
+				/* Cannot trust the prev pointer */
+				break;
+			}
 		} else if (flush) {
 
 			/* The processing was successful. And during the
@@ -650,12 +653,9 @@ rescan:
 			when calling buf_page_flush(). We cannot trust
 			prev pointer. */
 			goto rescan;
-		} else if (UNIV_UNLIKELY(must_restart)) {
-
-			ut_ad(!all_freed);
-			break;
 		}
 
+		ut_ad(!must_restart);
 		++processed;
 
 		/* Yield if we have hogged the CPU and mutexes for too long. */
@@ -666,6 +666,11 @@ rescan:
 			/* Reset the batch size counter if we had to yield. */
 
 			processed = 0;
+		} else if (UNIV_UNLIKELY(must_restart)) {
+
+			/* Cannot trust the prev pointer */
+			all_freed = false;
+			break;
 		}
 
 #ifdef DBUG_OFF

@@ -27,6 +27,8 @@ insert into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
+set tokudb_prelock_empty=OFF;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 
 send insert into t values (1);
 

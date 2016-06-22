@@ -1045,27 +1045,43 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
     } while (0)
 
 
-#define EXTENSION_SET_STRING(OPTS, X, STR)                       \
+#define EXTENSION_SET_STRING_X(OPTS, X, STR, dup)                \
     do {                                                         \
       if ((OPTS)->extension)                                     \
         my_free((OPTS)->extension->X);                           \
       else                                                       \
         ALLOCATE_EXTENSIONS(OPTS);                               \
       (OPTS)->extension->X= ((STR) != NULL) ?                    \
-        my_strdup((STR), MYF(MY_WME)) : NULL;                    \
+        dup((STR), MYF(MY_WME)) : NULL;                          \
     } while (0)
+
+#define EXTENSION_SET_STRING(OPTS, X, STR)      \
+  EXTENSION_SET_STRING_X(OPTS, X, STR, my_strdup)
 
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-#define SET_SSL_OPTION(OPTS, opt_var, arg)        \
-  my_free((OPTS)->opt_var);                       \
-  (OPTS)->opt_var= arg ? my_strdup(arg, MYF(MY_WME)) : NULL;
-#define EXTENSION_SET_SSL_STRING(OPTS, X, STR) \
-  EXTENSION_SET_STRING((OPTS), X, (STR));
+#define SET_SSL_OPTION_X(OPTS, opt_var, arg, dup)                \
+  my_free((OPTS)->opt_var);                                      \
+  (OPTS)->opt_var= arg ? dup(arg, MYF(MY_WME)) : NULL;
+#define EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, dup)            \
+  EXTENSION_SET_STRING_X((OPTS), X, (STR), dup);
+
+static char *set_ssl_option_unpack_path(const char *arg, myf flags)
+{
+  char buff[FN_REFLEN + 1];
+  unpack_filename(buff, (char *)arg);
+  return my_strdup(buff, flags);
+}
+
 #else
-#define SET_SSL_OPTION(OPTS, opt_var,arg) do { } while(0)
-#define EXTENSION_SET_SSL_STRING(OPTS, X, STR) do { } while(0)
+#define SET_SSL_OPTION_X(OPTS, opt_var,arg, dup) do { } while(0)
+#define EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, dup) do { } while(0)
 #endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+
+#define SET_SSL_OPTION(OPTS, opt_var,arg) SET_SSL_OPTION_X(OPTS, opt_var, arg, my_strdup)
+#define EXTENSION_SET_SSL_STRING(OPTS, X, STR) EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, my_strdup)
+#define SET_SSL_PATH_OPTION(OPTS, opt_var,arg) SET_SSL_OPTION_X(OPTS, opt_var, arg, set_ssl_option_unpack_path)
+#define EXTENSION_SET_SSL_PATH_STRING(OPTS, X, STR) EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, set_ssl_option_unpack_path)
 
 void mysql_read_default_options(struct st_mysql_options *options,
 				const char *filename,const char *group)
@@ -4373,25 +4389,25 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
       mysql->net.vio->async_context= ctxt;
     break;
   case MYSQL_OPT_SSL_KEY:
-    SET_SSL_OPTION(&mysql->options,ssl_key, arg);
+    SET_SSL_PATH_OPTION(&mysql->options,ssl_key, arg);
     break;
   case MYSQL_OPT_SSL_CERT:
-    SET_SSL_OPTION(&mysql->options, ssl_cert, arg);
+    SET_SSL_PATH_OPTION(&mysql->options, ssl_cert, arg);
     break;
   case MYSQL_OPT_SSL_CA:
-    SET_SSL_OPTION(&mysql->options,ssl_ca, arg);
+    SET_SSL_PATH_OPTION(&mysql->options,ssl_ca, arg);
     break;
   case MYSQL_OPT_SSL_CAPATH:
-    SET_SSL_OPTION(&mysql->options,ssl_capath, arg);
+    SET_SSL_PATH_OPTION(&mysql->options,ssl_capath, arg);
     break;
   case MYSQL_OPT_SSL_CIPHER:
     SET_SSL_OPTION(&mysql->options,ssl_cipher, arg);
     break;
   case MYSQL_OPT_SSL_CRL:
-    EXTENSION_SET_SSL_STRING(&mysql->options, ssl_crl, arg);
+    EXTENSION_SET_SSL_PATH_STRING(&mysql->options, ssl_crl, arg);
     break;
   case MYSQL_OPT_SSL_CRLPATH:
-    EXTENSION_SET_SSL_STRING(&mysql->options, ssl_crlpath, arg);
+    EXTENSION_SET_SSL_PATH_STRING(&mysql->options, ssl_crlpath, arg);
     break;
   case MYSQL_OPT_CONNECT_ATTR_RESET:
     ENSURE_EXTENSIONS_PRESENT(&mysql->options);

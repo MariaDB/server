@@ -1,0 +1,143 @@
+-- source jdbconn.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/girls.txt $MYSQLD_DATADIR/test/girls.txt
+
+let $PORT= `select @@port`;
+
+#
+# This test is run against a local MariaDB server
+#
+CREATE DATABASE connect;
+USE connect;
+CREATE TABLE t2 (
+  id bigint not null,
+  msg varchar(500),
+  tm time,
+  dt date,
+  dtm datetime,
+  ts timestamp);
+INSERT INTO t2 VALUES(455000000000, 'A very big number', '18:10:25', '2016-03-16', '1999-12-11 23:01:52', '2015-07-24 09:32:45');
+SELECT * FROM t2;
+
+--echo #
+--echo # Testing JDBC connection to MySQL driver
+--echo #
+USE test;
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root'
+SELECT * FROM t1;
+INSERT INTO t1 VALUES(786325481247, 'Hello!', '19:45:03', '1933-08-10', '1985-11-12 09:02:44', '2014-06-17 10:32:01');
+SELECT * FROM t1;
+DELETE FROM t1 WHERE msg = 'Hello!';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing JDBC view
+--echo #
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root'
+SELECT * FROM t1;
+SELECT msg, dt FROM t1;
+DROP TABLE t1, connect.t2;
+
+--echo #
+--echo # Testing JDBC write operations
+--echo #
+USE connect;
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/connect/boys.txt
+CREATE TABLE boys (
+  name CHAR(12) NOT NULL,
+  city CHAR(11),
+  birth DATE DATE_FORMAT='DD/MM/YYYY',
+  hired DATE DATE_FORMAT='DD/MM/YYYY' flag=36)
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+SELECT * FROM boys;
+
+USE test;
+CREATE TABLE t3 (
+  name CHAR(12) NOT NULL,
+  city CHAR(12),
+  birth DATE,
+  hired DATE);
+INSERT INTO t3 VALUES('Donald','Atlanta','1999-04-01','2016-03-31'),('Mick','New York','1980-01-20','2002-09-11');
+SELECT * FROM t3;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root' OPTION_LIST='scrollable=1'
+SELECT * FROM t1;
+UPDATE t1 SET city = 'Phoenix' WHERE name = 'Henry';
+INSERT INTO t1 SELECT * FROM t3;
+INSERT INTO t1 VALUES('Tom','Seatle','2002-03-15',NULL);
+SELECT * FROM t1;
+DROP TABLE t3;
+
+--echo #
+--echo # Testing JDBC join operations
+--echo #
+CREATE TABLE t3 (
+  name CHAR(9) NOT NULL,
+  city CHAR(12) NOT NULL,
+  age INT(2))
+engine=CONNECT table_type=FIX file_name='girls.txt';
+SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN connect.boys b where g.city = b.city;
+SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN t1 b where g.city = b.city;
+DROP TABLE t1, t3, connect.boys;
+
+--echo #
+--echo # Testing MariaDB JDBC driver
+--echo #
+USE connect;
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/connect/employee.dat
+CREATE TABLE emp (
+  serialno CHAR(5) NOT NULL,
+  name VARCHAR(12) NOT NULL FLAG=6,
+  sex TINYINT(1) NOT NULL,
+  title VARCHAR(15) NOT NULL FLAG=20,
+  manager CHAR(5) NOT NULL,
+  department CHAR(4) NOT NULL FLAG=41,
+  secretary CHAR(5) NOT NULL FLAG=46,
+  salary DOUBLE(8,2) NOT NULL FLAG=52)
+ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+SELECT * FROM emp;
+
+USE test;
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:$PORT/connect?user=root'
+--replace_result $PORT PORT
+--eval SHOW CREATE TABLE t1
+SELECT * FROM t1;
+SELECT name, title, salary FROM t1 WHERE sex = 1;
+
+DROP TABLE t1, connect.emp;
+
+#
+# Testing remote command execution
+#
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:$PORT/connect' OPTION_LIST='User=root,Execsrc=1'
+SELECT * FROM t2 WHERE command='drop table tx1';
+SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
+SELECT * FROM t2 WHERE command in ('insert into tx1 values(1,''The number one'',456.12)',"insert into tx1(a,b) values(2,'The number two'),(3,'The number three')");
+SELECT * FROM t2 WHERE command='update tx1 set c = 3.1416 where a = 2';
+SELECT * FROM t2 WHERE command='select * from tx1';
+SELECT * FROM t2 WHERE command='delete from tx1 where a = 2';
+SELECT * FROM connect.tx1;
+DROP TABLE t2;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables CONNECTION='jdbc:mariadb://localhost:$PORT/connect' option_list='User=root,Maxres=50'
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE connect.tx1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/connect/boys.txt
+--remove_file $MYSQLD_DATADIR/connect/employee.dat
+DROP DATABASE connect;
+--remove_file $MYSQLD_DATADIR/test/girls.txt
+
+-- source jdbconn_cleanup.inc

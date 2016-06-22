@@ -1,0 +1,72 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_analyze_mode;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_analyze_mode;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_standard';
+SELECT @@global.tokudb_analyze_mode;
+
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@global.tokudb_analyze_mode;
+
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_cancel';
+SELECT @@global.tokudb_analyze_mode;
+
+SET GLOBAL tokudb_analyze_mode = DEFAULT;
+SELECT @@global.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_mode = '';
+SELECT @@global.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_mode = 'foobar';
+SELECT @@global.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_mode = 123;
+SELECT @@global.tokudb_analyze_mode;
+
+# Test session
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_standard';
+SELECT @@session.tokudb_analyze_mode;
+
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@session.tokudb_analyze_mode;
+
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_cancel';
+SELECT @@session.tokudb_analyze_mode;
+
+SET SESSION tokudb_analyze_mode = DEFAULT;
+SELECT @@session.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_mode = '';
+SELECT @@session.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_mode = 'foobar';
+SELECT @@session.tokudb_analyze_mode;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_mode = 123;
+SELECT @@session.tokudb_analyze_mode;
+
+# both
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_standard';
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@global.tokudb_analyze_mode;
+SELECT @@session.tokudb_analyze_mode;
+SHOW VARIABLES LIKE 'tokudb_analyze_mode';
+
+# Clean up
+SET SESSION tokudb_analyze_mode = @orig_session;
+SELECT @@session.tokudb_analyze_mode;
+
+SET GLOBAL tokudb_analyze_mode = @orig_global;
+SELECT @@global.tokudb_analyze_mode;

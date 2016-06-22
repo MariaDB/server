@@ -1,0 +1,32 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_cardinality_scale_percent;
+SELECT @orig_global;
+
+# Test global
+SET GLOBAL tokudb_cardinality_scale_percent = 10;
+SELECT @@global.tokudb_cardinality_scale_percent;
+
+SET GLOBAL tokudb_cardinality_scale_percent = 0;
+SELECT @@global.tokudb_cardinality_scale_percent;
+
+SET GLOBAL tokudb_cardinality_scale_percent = DEFAULT;
+SELECT @@global.tokudb_cardinality_scale_percent;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_cardinality_scale_percent = 'foobar';
+SELECT @@global.tokudb_cardinality_scale_percent;
+
+# both
+SET GLOBAL tokudb_cardinality_scale_percent = 12;
+-- error ER_GLOBAL_VARIABLE
+SET SESSION tokudb_cardinality_scale_percent = 13;
+SELECT @@global.tokudb_cardinality_scale_percent;
+-- error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.tokudb_cardinality_scale_percent;
+SHOW VARIABLES LIKE 'tokudb_cardinality_scale_percent';
+
+# Clean up
+SET GLOBAL tokudb_cardinality_scale_percent = @orig_global;
+SELECT @@global.tokudb_cardinality_scale_percent;

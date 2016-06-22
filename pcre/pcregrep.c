@@ -2437,7 +2437,7 @@ return options;
 static char *
 ordin(int n)
 {
-static char buffer[8];
+static char buffer[14];
 char *p = buffer;
 sprintf(p, "%d", n);
 while (*p != 0) p++;

@@ -1042,7 +1042,7 @@ t	CREATE TABLE `t` (
 explain select straight_join * from s,t where s.b = t.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	s	ALL	b	NULL	NULL	NULL	1000	Using where
-1	SIMPLE	t	ref	b	b	5	test.s.b	11	
+1	SIMPLE	t	ref	b	b	5	test.s.b	1	
 alter table s add key(b) clustering=yes;
 Warnings:
 Note	1831	Duplicate index 'b_2' defined on the table 'test.s'. This is deprecated and will be disallowed in a future release.
@@ -1092,7 +1092,7 @@ t	CREATE TABLE `t` (
 explain select straight_join * from s,t where s.b = t.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	s	index	b_2	b_2	5	NULL	1000	Using where; Using index
-1	SIMPLE	t	ref	b_2	b_2	5	test.s.b	11	Using index
+1	SIMPLE	t	ref	b_2	b_2	5	test.s.b	1	Using index
 alter table s add key(b);
 Warnings:
 Note	1831	Duplicate index 'b' defined on the table 'test.s'. This is deprecated and will be disallowed in a future release.

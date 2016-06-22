@@ -67,7 +67,7 @@ int tokuft_recover(DB_ENV *env,
 
 // Effect: Check the tokuft logs to determine whether or not we need to run recovery.
 // If the log is empty or if there is a clean shutdown at the end of the log, then we
-// dont need to run recovery.
+// don't need to run recovery.
 // Returns: true if we need recovery, otherwise false.
 int tokuft_needs_recovery(const char *logdir, bool ignore_empty_log);
 

@@ -1,0 +1,56 @@
+-- source jdbconn.inc
+
+#
+# This test is run against Oracle driver
+#
+CREATE TABLE t2 (
+  command varchar(128) not null,
+  number int(5) not null flag=1,
+  message varchar(255) flag=2)
+ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager,Execsrc=1';
+SELECT * FROM t2 WHERE command = 'drop table employee';
+SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary number(8,2))';
+SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
+CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager';
+SELECT * FROM t1 WHERE table_name='employee';
+DROP TABLE t1;
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='EMPLOYEE' CATFUNC=columns
+CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Test connecting via a Federated server
+#
+CREATE SERVER 'oracle' FOREIGN DATA WRAPPER 'oracle.jdbc.driver.OracleDriver' OPTIONS (
+HOST 'jdbc:oracle:thin:@localhost:1521:xe',
+DATABASE 'SYSTEM',
+USER 'system',
+PASSWORD 'manager',
+PORT 0,
+SOCKET '',
+OWNER 'SYSTEM');
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='oracle' tabname='EMPLOYEE';
+SELECT * FROM t1;
+INSERT INTO t1 VALUES(6214, 'Clinton', 'Retired', NULL);
+UPDATE t1 set name='Trump' WHERE id = 4567;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE id = 6214;
+SELECT * FROM t1;
+DROP TABLE t1;
+SELECT * FROM t2 WHERE command = 'drop table employee';
+DROP TABLE t2;
+DROP SERVER 'oracle';
+
+#
+# Clean up
+#
+
+-- source jdbconn_cleanup.inc

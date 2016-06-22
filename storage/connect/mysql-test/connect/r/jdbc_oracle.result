@@ -1,0 +1,70 @@
+CREATE TABLE t2 (
+command varchar(128) not null,
+number int(5) not null flag=1,
+message varchar(255) flag=2)
+ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager,Execsrc=1';
+SELECT * FROM t2 WHERE command = 'drop table employee';
+command	number	message
+drop table employee	0	Execute: java.sql.SQLSyntaxErrorException: ORA-00942: table or view does not exist
+
+SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary number(8,2))';
+command	number	message
+create table employee (id int not null, name varchar(32), title char(16), salary number(8,2))	0	Affected rows
+SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
+command	number	message
+insert into employee values(4567,'Johnson', 'Engineer', 12560.50)	1	Affected rows
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
+CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager';
+SELECT * FROM t1 WHERE table_name='employee';
+Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
+NULL	SYSTEM	EMPLOYEE	TABLE	NULL
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='EMPLOYEE' CATFUNC=columns
+CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
+OPTION_LIST='User=system,Password=manager';
+SELECT * FROM t1;
+Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
+NULL	SYSTEM	EMPLOYEE	ID	3	NUMBER	38	0	0	10	0	NULL
+NULL	SYSTEM	EMPLOYEE	NAME	12	VARCHAR2	32	0	0	10	1	NULL
+NULL	SYSTEM	EMPLOYEE	TITLE	1	CHAR	16	0	0	10	1	NULL
+NULL	SYSTEM	EMPLOYEE	SALARY	3	NUMBER	8	0	2	10	1	NULL
+DROP TABLE t1;
+CREATE SERVER 'oracle' FOREIGN DATA WRAPPER 'oracle.jdbc.driver.OracleDriver' OPTIONS (
+HOST 'jdbc:oracle:thin:@localhost:1521:xe',
+DATABASE 'SYSTEM',
+USER 'system',
+PASSWORD 'manager',
+PORT 0,
+SOCKET '',
+OWNER 'SYSTEM');
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='oracle' tabname='EMPLOYEE';
+SELECT * FROM t1;
+ID	NAME	TITLE	SALARY
+4567	Johnson	Engineer	12560.50
+INSERT INTO t1 VALUES(6214, 'Clinton', 'Retired', NULL);
+Warnings:
+Note	1105	EMPLOYEE: 1 affected rows
+UPDATE t1 set name='Trump' WHERE id = 4567;
+Warnings:
+Note	1105	EMPLOYEE: 1 affected rows
+SELECT * FROM t1;
+ID	NAME	TITLE	SALARY
+4567	Trump	Engineer	12560.50
+6214	Clinton	Retired	0.00
+DELETE FROM t1 WHERE id = 6214;
+Warnings:
+Note	1105	EMPLOYEE: 1 affected rows
+SELECT * FROM t1;
+ID	NAME	TITLE	SALARY
+4567	Trump	Engineer	12560.50
+DROP TABLE t1;
+SELECT * FROM t2 WHERE command = 'drop table employee';
+command	number	message
+drop table employee	0	Affected rows
+DROP TABLE t2;
+DROP SERVER 'oracle';
+SET GLOBAL connect_jvm_path=NULL;
+SET GLOBAL connect_class_path=NULL;
+SET GLOBAL time_zone = SYSTEM;

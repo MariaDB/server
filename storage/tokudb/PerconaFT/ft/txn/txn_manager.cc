@@ -45,7 +45,15 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/txn/txn_manager.h"
 #include "ft/txn/rollback.h"
 #include "util/omt.h"
+//this is only for testing
 
+static void  (* test_txn_sync_callback) (pthread_t, void *) = NULL;
+static void * test_txn_sync_callback_extra = NULL;
+
+void set_test_txn_sync_callback(void (*cb) (pthread_t, void *), void *extra) {
+        test_txn_sync_callback = cb;
+        test_txn_sync_callback_extra = extra;
+}
 bool garbage_collection_debug = false;
 
 static bool txn_records_snapshot(TXN_SNAPSHOT_TYPE snapshot_type, struct tokutxn *parent) {
@@ -525,14 +533,19 @@ void toku_txn_manager_handle_snapshot_create_for_child_txn(
         XMALLOC(txn->live_root_txn_list);
         txn_manager_lock(txn_manager);
         txn_manager_create_snapshot_unlocked(txn_manager, txn);
-        txn_manager_unlock(txn_manager);
     }
     else {
         inherit_snapshot_from_parent(txn);
     }
-    if (copies_snapshot) {
-        setup_live_root_txn_list(&txn_manager->live_root_ids, txn->live_root_txn_list);  
-    }
+   
+    toku_debug_txn_sync(pthread_self());
+    
+    if (copies_snapshot) { 
+	if(!records_snapshot) 
+    	    txn_manager_lock(txn_manager);
+	setup_live_root_txn_list(&txn_manager->live_root_ids, txn->live_root_txn_list);  
+       txn_manager_unlock(txn_manager);
+    } 
 }
 
 void toku_txn_manager_handle_snapshot_destroy_for_child_txn(
