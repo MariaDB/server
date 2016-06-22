@@ -4713,6 +4713,8 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   if (opt_slave_parallel_threads > 0)
     rli->parallel.wait_for_done(thd, rli);
 
+ err:
+
   /* Thread stopped. Print the current replication position to the log */
   {
     String tmp;
@@ -4728,8 +4730,6 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
                           llstr(rli->group_master_log_pos,llbuff),
                           tmp.c_ptr_safe());
   }
-
- err:
 
   /*
     Once again, in case we aborted with an error and skipped the first one.
