@@ -270,7 +270,7 @@ PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table, char *colpat,
 		return NULL;
 
 	// Colpat cannot be null or empty for some drivers
-	cap->Pat = (colpat && *colpat) ? colpat : "%";
+	cap->Pat = (colpat && *colpat) ? colpat : PlugDup(g, "%");
 
 	/************************************************************************/
 	/*  Now get the results into blocks.                                    */
