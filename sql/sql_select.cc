@@ -694,7 +694,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   DBUG_ENTER("JOIN::prepare");
 
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
 
   conds= conds_init;
@@ -1032,24 +1032,13 @@ err:
 
 int JOIN::optimize()
 {
-  bool was_optimized= optimized;
+  // to prevent double initialization on EXPLAIN
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
+    return FALSE;
+  optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+
   int res= optimize_inner();
-  /*
-    If we're inside a non-correlated subquery, this function may be 
-    called for the second time after the subquery has been executed
-    and deleted. The second call will not produce a valid query plan, it will
-    short-circuit because optimized==TRUE.
-
-    "was_optimized != optimized" is here to handle this case:
-      - first optimization starts, gets an error (from a const. cheap
-        subquery), returns 1
-      - another JOIN::optimize() call made, and now join->optimize() will
-        return 0, even though we never had a query plan.
-
-    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
-    SELECT * FROM tbl LIMIT 0)
-  */
-  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  if (!res && have_query_plan != QEP_DELETED)
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
@@ -1058,6 +1047,7 @@ int JOIN::optimize()
                       !skip_sort_order && !no_order && (order || group_list),
                       select_distinct);
   }
+  optimization_state= JOIN::OPTIMIZATION_DONE;
   return res;
 }
 
@@ -1083,10 +1073,6 @@ JOIN::optimize_inner()
   DBUG_ENTER("JOIN::optimize");
 
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
-  // to prevent double initialization on EXPLAIN
-  if (optimized)
-    DBUG_RETURN(0);
-  optimized= 1;
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
@@ -2060,7 +2046,7 @@ int JOIN::init_execution()
 {
   DBUG_ENTER("JOIN::init_execution");
 
-  DBUG_ASSERT(optimized);
+  DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
   DBUG_ASSERT(!(select_options & SELECT_DESCRIBE));
   initialized= true;
 
