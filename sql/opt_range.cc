@@ -8580,6 +8580,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
         for e.g. "key IN (c1, ..., cN)" which produces a lot of ranges.
       */
       result= tree1;
+      result->keys_map.clear_all();
     }
     else
     {
