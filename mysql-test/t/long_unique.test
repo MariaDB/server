@@ -7,6 +7,8 @@ insert into z_1 values('sachin');
 select * from z_1;
 --error 1054
 select db_row_hash_1 from z_1;
+desc z_1;
+select * from information_schema.columns where table_schema='mtr' and table_name='z_1';
 create table tst_1(xyz blob unique , x2 blob unique);
 insert into tst_1 values(1,22);
 --error 1022
@@ -18,6 +20,8 @@ select db_row_hash_1 from tst_1;
 select db_row_hash_2 from tst_1;
 --error 1054 
 select db_row_hash_1,db_row_hash_2 from tst_1;
+desc tst_1;
+select * from information_schema.columns where table_schema='mtr' and table_name='tst_1';
 create table t1 (empnum smallint, grp int);
 create table t2 (empnum int, name char(5));
 insert into t1 values(1,1);

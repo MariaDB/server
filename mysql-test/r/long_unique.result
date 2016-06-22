@@ -11,6 +11,11 @@ abc
 sachin
 select db_row_hash_1 from z_1;
 ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+desc z_1;
+Field	Type	Null	Key	Default	Extra
+abc	blob	YES		NULL	
+select * from information_schema.columns where table_schema='mtr' and table_name='z_1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
 create table tst_1(xyz blob unique , x2 blob unique);
 insert into tst_1 values(1,22);
 insert into tst_1 values(2,22);
@@ -24,6 +29,12 @@ select db_row_hash_2 from tst_1;
 ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
 select db_row_hash_1,db_row_hash_2 from tst_1;
 ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+desc tst_1;
+Field	Type	Null	Key	Default	Extra
+xyz	blob	YES		NULL	
+x2	blob	YES		NULL	
+select * from information_schema.columns where table_schema='mtr' and table_name='tst_1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
 create table t1 (empnum smallint, grp int);
 create table t2 (empnum int, name char(5));
 insert into t1 values(1,1);

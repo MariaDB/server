@@ -5348,6 +5348,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
   for (; (field= *ptr) ; ptr++)
   {
+    if(field->field_visibility == Field::FULL_HIDDEN ||
+           field->field_visibility == Field::MEDIUM_HIDDEN)
+      continue;
     uchar *pos;
     char tmp[MAX_FIELD_WIDTH];
     String type(tmp,sizeof(tmp), system_charset_info);
