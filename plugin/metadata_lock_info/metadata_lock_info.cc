@@ -20,8 +20,6 @@
 #include "sql_class.h"
 #include "sql_show.h"
 
-I_List<THD> *thds;
-
 static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Global read lock") },
   { C_STRING_WITH_LEN("Schema metadata lock") },
@@ -69,118 +67,65 @@ static ST_FIELD_INFO i_s_metadata_lock_info_fields_info[] =
   {NULL, 0,  MYSQL_TYPE_STRING, 0, 0, NULL, 0}
 };
 
-
-class Ticket_info: public Apc_target::Apc_call
+struct st_i_s_metadata_param
 {
-public:
-  bool timed_out;
-  THD *request_thd;
-  THD *target_thd;
+  THD   *thd;
   TABLE *table;
-  int error;
-
-  Ticket_info(THD *request_thd_arg, TABLE *table_arg):
-    request_thd(request_thd_arg), table(table_arg), error(0)
-  { }
-
-  void call_in_target_thread()
-  {
-    MDL_ticket *ticket;
-    int i;
-
-    for (i= 0; i < MDL_DURATION_END; i++)
-    {
-      MDL_context::Ticket_iterator it(request_thd->mdl_context.m_tickets[i]);
-      while ((ticket= it++))
-      {
-        MDL_key *key= ticket->get_key();
-
-        table->field[0]->store((longlong) target_thd->thread_id, TRUE);
-
-        table->field[1]->set_notnull();
-        table->field[1]->store(
-          metadata_lock_info_lock_mode[(int) ticket->get_type()].str,
-          metadata_lock_info_lock_mode[(int) ticket->get_type()].length,
-          system_charset_info);
-
-        table->field[2]->set_notnull();
-        table->field[2]->store(
-          metadata_lock_info_duration[i].str,
-          metadata_lock_info_duration[i].length,
-          system_charset_info);
-
-        table->field[3]->set_notnull();
-        table->field[3]->store(
-          metadata_lock_info_lock_name[(int) key->mdl_namespace()].str,
-          metadata_lock_info_lock_name[(int) key->mdl_namespace()].length,
-          system_charset_info);
-
-        table->field[4]->set_notnull();
-        table->field[4]->store(key->db_name(), key->db_name_length(),
-                               system_charset_info);
-
-        table->field[5]->set_notnull();
-        table->field[5]->store(key->name(), key->name_length(),
-                               system_charset_info);
-
-        if ((error= schema_table_store_record(request_thd, table)))
-          return;
-      }
-    }
-  }
 };
 
-
-static THD *find_thread(my_thread_id id)
-{
-  THD *tmp;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(*thds);
-  while ((tmp= it++))
-  {
-    if (id == tmp->thread_id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return tmp;
+int i_s_metadata_lock_info_fill_row(
+  MDL_ticket *mdl_ticket,
+  void *arg
+) {
+  st_i_s_metadata_param *param = (st_i_s_metadata_param *) arg;
+  THD *thd = param->thd;
+  TABLE *table = param->table;
+  DBUG_ENTER("i_s_metadata_lock_info_fill_row");
+  MDL_request mdl_request;
+  enum_mdl_duration mdl_duration;
+  MDL_context *mdl_ctx = mdl_ticket->get_ctx();
+  enum_mdl_type mdl_ticket_type = mdl_ticket->get_type();
+  MDL_key *mdl_key = mdl_ticket->get_key();
+  MDL_key::enum_mdl_namespace mdl_namespace = mdl_key->mdl_namespace();
+  mdl_request.init(mdl_key, mdl_ticket_type, MDL_STATEMENT);
+  mdl_ctx->find_ticket(&mdl_request, &mdl_duration);
+  table->field[0]->store((longlong) mdl_ctx->get_thread_id(), TRUE);
+  table->field[1]->set_notnull();
+  table->field[1]->store(
+    metadata_lock_info_lock_mode[(int) mdl_ticket_type].str,
+    metadata_lock_info_lock_mode[(int) mdl_ticket_type].length,
+    system_charset_info);
+  table->field[2]->set_notnull();
+  table->field[2]->store(
+    metadata_lock_info_duration[(int) mdl_duration].str,
+    metadata_lock_info_duration[(int) mdl_duration].length,
+    system_charset_info);
+  table->field[3]->set_notnull();
+  table->field[3]->store(
+    metadata_lock_info_lock_name[(int) mdl_namespace].str,
+    metadata_lock_info_lock_name[(int) mdl_namespace].length,
+    system_charset_info);
+  table->field[4]->set_notnull();
+  table->field[4]->store(mdl_key->db_name(),
+    mdl_key->db_name_length(), system_charset_info);
+  table->field[5]->set_notnull();
+  table->field[5]->store(mdl_key->name(),
+    mdl_key->name_length(), system_charset_info);
+  if (schema_table_store_record(thd, table))
+    DBUG_RETURN(1);
+  DBUG_RETURN(0);
 }
 
-
-static int i_s_metadata_lock_info_fill_table(THD *thd, TABLE_LIST *tables,
-                                             COND *cond)
-{
-  Ticket_info info(thd, tables->table);
-  DYNAMIC_ARRAY ids;
-  THD *tmp;
-  uint i;
+int i_s_metadata_lock_info_fill_table(
+  THD *thd,
+  TABLE_LIST *tables,
+  COND *cond
+) {
+  st_i_s_metadata_param param;
   DBUG_ENTER("i_s_metadata_lock_info_fill_table");
-
-  /* Gather thread identifiers */
-  my_init_dynamic_array(&ids, sizeof(my_thread_id), 512, 1, MYF(0));
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(*thds);
-  while ((tmp= it++))
-    if (tmp != thd && (info.error= insert_dynamic(&ids, &tmp->thread_id)))
-      break;
-  mysql_mutex_unlock(&LOCK_thread_count);
-
-  /* Let foreign threads fill info */
-  for (i= 0; i < ids.elements && info.error == 0; i++)
-    if ((info.target_thd= find_thread(*dynamic_element(&ids, i, my_thread_id*))))
-      info.target_thd->apc_target.make_apc_call(thd, &info, INT_MAX,
-                                                &info.timed_out);
-
-  delete_dynamic(&ids);
-  if (info.error == 0)
-  {
-    info.target_thd= thd;
-    info.call_in_target_thread();
-  }
-  DBUG_RETURN(info.error);
+  param.table = tables->table;
+  param.thd = thd;
+  DBUG_RETURN(mdl_iterate(i_s_metadata_lock_info_fill_row, &param));
 }
 
 static int i_s_metadata_lock_info_init(
@@ -188,16 +133,10 @@ static int i_s_metadata_lock_info_init(
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("i_s_metadata_lock_info_init");
-#ifdef _WIN32
-  thds = (I_List<THD>*)
-    GetProcAddress(GetModuleHandle(NULL), "?threads@@3V?$I_List@VTHD@@@@A");
-#else
-  thds = &threads;
-#endif
   schema->fields_info = i_s_metadata_lock_info_fields_info;
   schema->fill_table = i_s_metadata_lock_info_fill_table;
   schema->idx_field1 = 0;
-  DBUG_RETURN(thds == 0);
+  DBUG_RETURN(0);
 }
 
 static int i_s_metadata_lock_info_deinit(
