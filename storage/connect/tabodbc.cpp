@@ -681,7 +681,7 @@ bool TDBODBC::MakeCommand(PGLOBAL g)
   } else {
     sprintf(g->Message, "Cannot use this %s command",
                  (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
-    return NULL;
+    return false;
   } // endif p
 
 	Query = new(g) STRING(g, 0, stmt);

@@ -6364,7 +6364,7 @@ os_file_trim(
 		fprintf(stderr,
 			"  InnoDB: Warning: fallocate call failed with error code %d.\n"
 			"  InnoDB: start: %lu len: %lu payload: %lu\n"
-			"  InnoDB: Disabling fallocate for now.\n", errno, off, trim_len, len);
+			"  InnoDB: Disabling fallocate for now.\n", errno, (ulong) off, (ulong) trim_len, (ulong) len);
 
 		os_file_handle_error_no_exit(slot->name,
 			" fallocate(FALLOC_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE) ",

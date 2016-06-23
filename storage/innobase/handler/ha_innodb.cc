@@ -17753,7 +17753,7 @@ innodb_defragment_frequency_update(
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
 	srv_defragment_interval = ut_microseconds_to_timer(
-		1000000.0 / srv_defragment_frequency);
+		(ulonglong) (1000000.0 / srv_defragment_frequency));
 }
 
 /****************************************************************//**

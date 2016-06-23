@@ -3,9 +3,9 @@
 #
 --source include/master-slave.inc
 
---connection slave
-
 call mtr.add_suppression("Master is configured to log replication events");
+
+--connection slave
 
 
 # If everything is okay, the test will end in several seconds; maybe a minute. 

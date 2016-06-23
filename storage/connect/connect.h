@@ -57,6 +57,7 @@ class DOXDEF: public DOSDEF {
 /*  This is the DOS/UNIX Access Method base class declaration.         */
 /***********************************************************************/
 class TDBDOX: public TDBDOS {
+  TDBDOX(): TDBDOS((PGLOBAL)0,(PTDBDOS) 0) {}     /* Never called */
   friend int   MakeIndex(PGLOBAL, PTDB, PIXDEF);
   friend int   CntCloseTable(PGLOBAL, PTDB, bool, bool);
   friend int   CntIndexInit(PGLOBAL, PTDB, int, bool);

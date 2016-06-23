@@ -191,8 +191,9 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
       while ((maxbuffer= (uint) (records/(keys-1)+1)) != maxbuffer_org);
     }
 
-    if ((sort_keys=(uchar **)my_malloc(keys*(sort_length+sizeof(char*))+
-				       HA_FT_MAXBYTELEN, MYF(0))))
+    if ((sort_keys= ((uchar **)
+                     my_malloc((size_t) (keys*(sort_length+sizeof(char*))+
+                                         HA_FT_MAXBYTELEN), MYF(0)))))
     {
       if (my_init_dynamic_array(&buffpek, sizeof(BUFFPEK), maxbuffer,
                                 MY_MIN(maxbuffer/2, 1000), MYF(0)))
@@ -417,13 +418,15 @@ pthread_handler_t thr_find_all_keys(void *arg)
         }
         while ((maxbuffer= (uint) (idx/(keys-1)+1)) != maxbuffer_org);
       }
-      if ((sort_keys= (uchar**)
-           my_malloc(keys*(sort_length+sizeof(char*))+
-                     ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
-                      HA_FT_MAXBYTELEN : 0), MYF(0))))
+      if ((sort_keys= ((uchar**)
+                       my_malloc((size_t)
+                                 (keys*(sort_length+sizeof(char*))+
+                                  ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                                   HA_FT_MAXBYTELEN : 0)), MYF(0)))))
       {
         if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
-                                  maxbuffer, MY_MIN(maxbuffer/2, 1000), MYF(0)))
+                                  maxbuffer, MY_MIN(maxbuffer/2, 1000),
+                                  MYF(0)))
         {
           my_free(sort_keys);
           sort_keys= (uchar **) NULL; /* for err: label */
@@ -603,7 +606,7 @@ int thr_write_keys(MI_SORT_PARAM *sort_param)
         length=param->sort_buffer_length;
         while (length >= MIN_SORT_BUFFER)
         {
-          if ((mergebuf= my_malloc(length, MYF(0))))
+          if ((mergebuf= my_malloc((size_t) length, MYF(0))))
               break;
           length=length*3/4;
         }
@@ -695,8 +698,8 @@ static int write_keys(MI_SORT_PARAM *info, register uchar **sort_keys,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys,count,sizeof(uchar*),(qsort2_cmp) info->key_cmp,
-            info);
+  my_qsort2((uchar*) sort_keys,(size_t) count, sizeof(uchar*),
+            (qsort2_cmp) info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -741,8 +744,8 @@ static int write_keys_varlen(MI_SORT_PARAM *info,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys,count,sizeof(uchar*),(qsort2_cmp) info->key_cmp,
-            info);
+  my_qsort2((uchar*) sort_keys, (size_t) count, sizeof(uchar*),
+            (qsort2_cmp) info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -865,10 +868,12 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
   register ha_keys count;
   my_off_t length;
 
-  if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,
+                               (ha_rows) buffpek->count)))
   {
     if (my_b_pread(fromfile, (uchar*) buffpek->base,
-                   (length= sort_length * count), buffpek->file_pos))
+                   (length= (my_off_t) (sort_length * count)),
+                   buffpek->file_pos))
       return(HA_OFFSET_ERROR);
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;               /* New filepos */
@@ -933,7 +938,7 @@ static int write_merge_key(MI_SORT_PARAM *info __attribute__((unused)),
                            IO_CACHE *to_file, uchar *key,
                            uint sort_length, ha_keys count)
 {
-  return my_b_write(to_file, key, ((size_t) sort_length) * count);
+  return my_b_write(to_file, key, (size_t) (sort_length * count));
 }
 
 /*
@@ -993,7 +998,7 @@ merge_buffers(MI_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
       if (to_file)
       {
         if (info->write_key(info,to_file,(uchar*) buffpek->key,
-                            (uint) sort_length,1))
+                            sort_length, 1))
         {
           error=1; goto err; /* purecov: inspected */
         }
@@ -1016,7 +1021,7 @@ merge_buffers(MI_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
         if (!(read_length= info->read_to_buffer(from_file,buffpek,sort_length)))
         {
           uchar *base= buffpek->base;
-          uint max_keys=buffpek->max_keys;
+          ha_keys max_keys=buffpek->max_keys;
 
           queue_remove_top(&queue);
 

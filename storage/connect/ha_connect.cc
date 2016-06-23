@@ -1098,7 +1098,7 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
 /****************************************************************************/
 int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
 {
-  ulonglong opval= NO_IVAL;
+  ulonglong opval= (ulonglong) NO_IVAL;
 
   if (!options)
     return idef;

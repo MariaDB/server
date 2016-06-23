@@ -327,7 +327,8 @@ static int create_sys_files(struct languages *lang_head,
                             uint error_count)
 {
   FILE *to;
-  uint csnum= 0, length, i, row_nr;
+  uint csnum= 0, i, row_nr;
+  ulong length;
   uchar head[HEADER_LENGTH];
   char outfile[FN_REFLEN], *outfile_end;
   long start_pos;
@@ -397,8 +398,8 @@ static int create_sys_files(struct languages *lang_head,
     DBUG_ASSERT(error_count == row_nr);
 
     /* continue with header of the errmsg.sys file */
-    length= (my_ftell(to, MYF(0)) - HEADER_LENGTH -
-             (error_count + section_count) * 2);
+    length= (ulong) (my_ftell(to, MYF(0)) - HEADER_LENGTH -
+                     (error_count + section_count) * 2);
     bzero((uchar*) head, HEADER_LENGTH);
     bmove((uchar*) head, (uchar*) file_head, 4);
     head[4]= 1;

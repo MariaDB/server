@@ -433,7 +433,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   double val_real()
   {
-    return val_int();
+    return (double) val_int();
   }
 
   longlong val_int()

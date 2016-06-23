@@ -1681,13 +1681,13 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
     WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lld",
-               len, (longlong) thd->thread_id);
+               (ulong) len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
 
     cache = cache_mngr->get_binlog_cache_log(false);
     wsrep_write_cache_buf(cache, &buf, &len);
     WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lld",
-               len, (longlong) thd->thread_id);
+               (ulong) len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */

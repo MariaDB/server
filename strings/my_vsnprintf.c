@@ -495,7 +495,7 @@ start:
           char errmsg_buff[MYSYS_STRERROR_SIZE];
           *to++= ' ';
           *to++= '"';
-          my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+          my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
           to= process_str_arg(cs, to, real_end, width, errmsg_buff,
                               print_arr[i].flags);
           if (real_end > to) *to++= '"';
@@ -675,7 +675,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         char errmsg_buff[MYSYS_STRERROR_SIZE];
         *to++= ' ';
         *to++= '"';
-        my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+        my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
         to= process_str_arg(cs, to, real_end, width, errmsg_buff, print_type);
         if (real_end > to) *to++= '"';
       }

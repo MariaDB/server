@@ -559,7 +559,6 @@ C_MODE_END
 void mysql_print_status()
 {
   char current_dir[FN_REFLEN];
-  char llbuff[10][22];
   STATUS_VAR tmp;
   uint count;
 
@@ -616,6 +615,7 @@ Next alarm time: %lu\n",
   display_table_locks();
 #ifdef HAVE_MALLINFO
   struct mallinfo info= mallinfo();
+  char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\
 Number of free chunks:                   %lu\n\

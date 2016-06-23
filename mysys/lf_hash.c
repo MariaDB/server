@@ -308,7 +308,7 @@ static inline const uchar* hash_key(const LF_HASH *hash,
   @note, that the hash value is limited to 2^31, because we need one
   bit to distinguish between normal and dummy nodes.
 */
-static inline my_hash_value_type calc_hash(const CHARSET_INFO *cs,
+static inline my_hash_value_type calc_hash(CHARSET_INFO *cs,
                                            const uchar *key,
                                            size_t keylen)
 {

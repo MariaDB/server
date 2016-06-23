@@ -2402,7 +2402,7 @@ os_file_set_size(
 			fprintf(stderr, "InnoDB: Error: preallocating file "
 				"space for file \'%s\' failed.  Current size "
 				"%lu, desired size %lu\n",
-				name, current_size, size);
+				name, (ulong) current_size, (ulong) size);
 			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE, __FILE__, __LINE__);
 
 			return(FALSE);
@@ -6298,7 +6298,7 @@ os_file_trim(
 		fprintf(stderr,
 			"  InnoDB: Warning: fallocate call failed with error code %d.\n"
 			"  InnoDB: start: %lu len: %lu payload: %lu\n"
-			"  InnoDB: Disabling fallocate for now.\n", errno, off, trim_len, len);
+			"  InnoDB: Disabling fallocate for now.\n", errno, (ulong) off, (ulong) trim_len, (ulong) len);
 
 		os_file_handle_error_no_exit(slot->name,
 			" fallocate(FALLOC_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE) ",

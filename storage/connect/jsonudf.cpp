@@ -1302,7 +1302,7 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 {
 	char fn[_MAX_PATH];
   unsigned long i, k, m, n;
-	long fl, j = -1;
+	long fl= 0, j = -1;
 
   reslen = args->arg_count + 2;
 
@@ -1370,7 +1370,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
       memlen += (k + sizeof(JOBJECT) + sizeof(JPAIR));
     } else
       memlen += sizeof(JARRAY);
-                fl= 0;
 		switch (args->arg_type[i]) {
 			case STRING_RESULT:
 				if (n == 2 && args->args[i]) {

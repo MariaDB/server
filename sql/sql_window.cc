@@ -696,7 +696,7 @@ public:
     - in table->record[0]..
     - rownum parameter has the row number.
   */
-  void on_next_partition(int rownum)
+  void on_next_partition(ha_rows rownum)
   {
     /* Remember the sort key value from the new partition */
     bound_tracker.check_if_next_group();
@@ -706,7 +706,7 @@ public:
   /*
     Moves to a new row. The row is assumed to be within the current partition
   */
-  void move_to(int rownum) { tbl_cursor.move_to(rownum); }
+  void move_to(ha_rows rownum) { tbl_cursor.move_to(rownum); }
 
   /*
     This returns -1 when end of partition was reached.
@@ -796,8 +796,8 @@ public:
       - The callee may move tbl->file and tbl->record[0] to point to some other
         row.
   */
-  virtual void pre_next_partition(longlong rownum, Item_sum* item){};
-  virtual void next_partition(longlong rownum, Item_sum* item)=0;
+  virtual void pre_next_partition(ha_rows rownum, Item_sum* item){};
+  virtual void next_partition(ha_rows rownum, Item_sum* item)=0;
   
   /*
     The current row has moved one row forward.
@@ -872,13 +872,13 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
   }
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     cursor.move_to(rownum);
     walk_till_non_peer(item);
@@ -982,7 +982,7 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
@@ -991,7 +991,7 @@ public:
     end_of_partition= false;
   }
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     cursor.move_to(rownum);
     walk_till_non_peer(item);
@@ -1068,7 +1068,7 @@ public:
     peer_tracker.init(thd, order_list);
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     // Save the value of the current_row
     peer_tracker.check_if_next_group();
@@ -1080,7 +1080,7 @@ public:
     }
   }
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     walk_till_non_peer(item);
   }
@@ -1158,14 +1158,14 @@ public:
     peer_tracker.init(thd, order_list);
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     // Fetch the value from the first row
     peer_tracker.check_if_next_group();
     cursor.move_to(rownum+1);
   }
 
-  void next_partition(longlong rownum, Item_sum* item) {}
+  void next_partition(ha_rows rownum, Item_sum* item) {}
 
   void pre_next_row(Item_sum* item)
   {
@@ -1214,7 +1214,7 @@ public:
 class Frame_unbounded_preceding : public Frame_cursor
 {
 public:
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     /*
       UNBOUNDED PRECEDING frame end just stays on the first row.
@@ -1245,12 +1245,12 @@ public:
     cursor.init(thd, info, partition_list);
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     cursor.on_next_partition(rownum);
   }
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     if (!rownum)
     {
@@ -1279,9 +1279,9 @@ class Frame_unbounded_following_set_count : public Frame_unbounded_following
 public:
   // pre_next_partition is inherited
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
-    ulonglong num_rows_in_partition= 0;
+    ha_rows num_rows_in_partition= 0;
     if (!rownum)
     {
       /* Read the first row */
@@ -1330,7 +1330,7 @@ public:
     cursor.init(info);
   }
 
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
     /*
       Position our cursor to point at the first row in the new partition
@@ -1391,11 +1391,11 @@ public:
 class Frame_rows_current_row_bottom : public Frame_cursor
 {
 public:
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     item->add();
   }
-  void next_partition(longlong rownum, Item_sum* item) {}
+  void next_partition(ha_rows rownum, Item_sum* item) {}
   void pre_next_row(Item_sum* item)
   {
     /* Temp table's current row is current_row. Add it to the window func */
@@ -1456,7 +1456,7 @@ public:
     at_partition_end= false;
   }
 
-  void pre_next_partition(longlong rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum, Item_sum* item)
   {
     at_partition_end= false;
 
@@ -1476,10 +1476,10 @@ public:
   }
 
   /* Move our cursor to be n_rows ahead.  */
-  void next_partition(longlong rownum, Item_sum* item)
+  void next_partition(ha_rows rownum, Item_sum* item)
   {
-    longlong i_end= n_rows + ((rownum==0)?1:0)- is_top_bound;
-    for (longlong i= 0; i < i_end; i++)
+    ha_rows i_end= n_rows + ((rownum==0)?1:0)- is_top_bound;
+    for (ha_rows i= 0; i < i_end; i++)
     {
       if (next_row_intern(item))
         break;
@@ -1561,10 +1561,10 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
 
     if (frame->units == Window_frame::UNITS_ROWS)
     {
-      longlong n_rows= bound->offset->val_int();
+      ha_rows n_rows= bound->offset->val_int();
       /* These should be handled in the parser */
       DBUG_ASSERT(!bound->offset->null_value);
-      DBUG_ASSERT(n_rows >= 0);
+      DBUG_ASSERT((longlong) n_rows >= 0);
       if (is_preceding)
         return new Frame_n_rows_preceding(is_top_bound, n_rows);
       else
@@ -1676,7 +1676,7 @@ void get_window_func_required_cursors(
 bool compute_window_func_with_frames(Item_window_func *item_win,
                                      TABLE *tbl, READ_RECORD *info)
 {
-  THD *thd= current_thd;
+  THD *thd= tbl->in_use;
   int err= 0;
 
   Item_sum *sum_func= item_win->window_func();
@@ -1695,7 +1695,7 @@ bool compute_window_func_with_frames(Item_window_func *item_win,
   }
 
   bool is_error= false;
-  longlong rownum= 0;
+  ha_rows rownum= 0;
   uchar *rowid_buf= (uchar*) my_malloc(tbl->file->ref_length, MYF(0));
 
   while (true)

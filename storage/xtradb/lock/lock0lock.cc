@@ -2409,7 +2409,7 @@ lock_rec_add_to_queue(
 				if (wsrep_debug) {
 					fprintf(stderr,
 						"BF skipping wait: %lu\n",
-						trx->id);
+						(ulong) trx->id);
 					lock_rec_print(stderr, lock);
 				}
 		  } else
@@ -4998,7 +4998,7 @@ lock_table_other_has_incompatible(
 #ifdef WITH_WSREP
 			if(wsrep_thd_is_wsrep(trx->mysql_thd)) {
 				if (wsrep_debug) {
-					fprintf(stderr, "WSREP: trx %ld table lock abort\n",
+					fprintf(stderr, "WSREP: trx " TRX_ID_FMT " table lock abort\n",
 						trx->id);
 				}
 				trx_mutex_enter(lock->trx);
