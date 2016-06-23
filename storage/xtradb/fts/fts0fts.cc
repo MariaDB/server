@@ -1919,7 +1919,7 @@ func_exit:
 
 		trx_rollback_to_savepoint(trx, NULL);
 
-		row_drop_table_for_mysql(table->name, trx, FALSE);
+		row_drop_table_for_mysql(table->name, trx, FALSE, TRUE);
 
 		trx->error_state = DB_SUCCESS;
 	}
@@ -2071,7 +2071,7 @@ fts_create_index_tables_low(
 
 		trx_rollback_to_savepoint(trx, NULL);
 
-		row_drop_table_for_mysql(table_name, trx, FALSE);
+		row_drop_table_for_mysql(table_name, trx, FALSE, TRUE);
 
 		trx->error_state = DB_SUCCESS;
 	}
