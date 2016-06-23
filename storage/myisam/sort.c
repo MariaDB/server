@@ -84,6 +84,28 @@ static int write_merge_key_varlen(MI_SORT_PARAM *info,
 static inline int
 my_var_write(MI_SORT_PARAM *info, IO_CACHE *to_file, uchar *bufs);
 
+
+/*
+  Sets the appropriate read and write methods for the MI_SORT_PARAM
+  based on the variable length key flag.
+*/
+static void set_sort_param_read_write(MI_SORT_PARAM *sort_param)
+{
+  if (sort_param->keyinfo->flag & HA_VAR_LENGTH_KEY)
+  {
+    sort_param->write_keys=     write_keys_varlen;
+    sort_param->read_to_buffer= read_to_buffer_varlen;
+    sort_param->write_key=      write_merge_key_varlen;
+  }
+  else
+  {
+    sort_param->write_keys=     write_keys;
+    sort_param->read_to_buffer= read_to_buffer;
+    sort_param->write_key=      write_merge_key;
+  }
+}
+
+
 /*
   Creates a index of sorted keys
 
@@ -111,18 +133,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
   DBUG_ENTER("_create_index_by_sort");
   DBUG_PRINT("enter",("sort_length: %d", info->key_length));
 
-  if (info->keyinfo->flag & HA_VAR_LENGTH_KEY)
-  {
-    info->write_keys=write_keys_varlen;
-    info->read_to_buffer=read_to_buffer_varlen;
-    info->write_key= write_merge_key_varlen;
-  }
-  else
-  {
-    info->write_keys=write_keys;
-    info->read_to_buffer=read_to_buffer;
-    info->write_key=write_merge_key;
-  }
+  set_sort_param_read_write(info);
 
   my_b_clear(&tempfile);
   my_b_clear(&tempfile_for_exceptions);
@@ -179,7 +190,8 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
   }
   if (memavl < MIN_SORT_BUFFER)
   {
-    mi_check_print_error(info->sort_info->param,"MyISAM sort buffer too small"); /* purecov: tested */
+    mi_check_print_error(info->sort_info->param,
+              "MyISAM sort buffer too small"); /* purecov: tested */
     my_errno= ENOMEM;                           /* purecov: tested */
     goto err;                                   /* purecov: tested */
   }
@@ -307,189 +319,187 @@ static ha_rows find_all_keys(MI_SORT_PARAM *info, uint keys,
   DBUG_RETURN((*maxbuffer)*(keys-1)+idx);
 } /* find_all_keys */
 
+static my_bool thr_find_all_keys_exec(MI_SORT_PARAM *sort_param)
+{
+  ulonglong memavl, old_memavl;
+  uint UNINIT_VAR(keys), idx;
+  uint sort_length;
+  uint maxbuffer;
+  uchar **sort_keys= NULL;
+  int error= 0;
+  DBUG_ENTER("thr_find_all_keys");
+  DBUG_PRINT("enter", ("master: %d", sort_param->master));
+
+  if (sort_param->sort_info->got_error)
+    DBUG_RETURN(TRUE);
+
+  set_sort_param_read_write(sort_param);
+
+  my_b_clear(&sort_param->tempfile);
+  my_b_clear(&sort_param->tempfile_for_exceptions);
+  bzero((char*) &sort_param->buffpek, sizeof(sort_param->buffpek));
+  bzero((char*) &sort_param->unique,  sizeof(sort_param->unique));
+
+  memavl=        max(sort_param->sortbuff_size, MIN_SORT_BUFFER);
+  idx=           (uint) sort_param->sort_info->max_records;
+  sort_length=   sort_param->key_length;
+  maxbuffer=     1;
+
+  if ((memavl - sizeof(BUFFPEK)) / (sort_length +
+                                    sizeof(char *)) > UINT_MAX32)
+    memavl= sizeof(BUFFPEK) + UINT_MAX32 * (sort_length + sizeof(char *));
+
+  while (memavl >= MIN_SORT_BUFFER)
+  {
+    if ((my_off_t) (idx+1)*(sort_length+sizeof(char*)) <=
+        (my_off_t) memavl)
+      keys= idx+1;
+    else
+    {
+      uint skr;
+      do
+      {
+        skr= maxbuffer;
+        if (memavl < sizeof(BUFFPEK)*maxbuffer ||
+            (keys=(memavl-sizeof(BUFFPEK)*maxbuffer)/
+             (sort_length+sizeof(char*))) <= 1 ||
+            keys < (uint) maxbuffer)
+        {
+          mi_check_print_error(sort_param->sort_info->param,
+              "myisam_sort_buffer_size is too small");
+          DBUG_RETURN(TRUE);
+        }
+      }
+      while ((maxbuffer= (int) (idx/(keys-1)+1)) != skr);
+    }
+    if ((sort_keys= my_malloc(keys * (sort_length + sizeof(char *)) +
+                              ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                                 HA_FT_MAXBYTELEN : 0), MYF(0))))
+    {
+      if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
+                                maxbuffer, min(maxbuffer / 2, 1000)))
+      {
+        my_free(sort_keys);
+        sort_keys= NULL;          /* Safety against double free on error. */
+      }
+      else
+        break;
+    }
+    old_memavl= memavl;
+    if ((memavl= memavl / 4 * 3) < MIN_SORT_BUFFER &&
+        old_memavl > MIN_SORT_BUFFER)
+      memavl= MIN_SORT_BUFFER;
+  }
+  if (memavl < MIN_SORT_BUFFER)
+  {
+    /* purecov: begin inspected */
+    mi_check_print_error(sort_param->sort_info->param,
+        "myisam_sort_buffer_size is too small");
+    my_errno= ENOMEM;
+    goto err;
+    /* purecov: end inspected */
+  }
+
+  if (sort_param->sort_info->param->testflag & T_VERBOSE)
+    printf("Key %d - Allocating buffer for %llu keys\n",
+           sort_param->key + 1, (ulonglong) keys);
+  sort_param->sort_keys= sort_keys;
+
+  idx= error= 0;
+  sort_keys[0]= (uchar*) (sort_keys+keys);
+
+  DBUG_PRINT("info", ("reading keys"));
+  while (!(error= sort_param->sort_info->got_error) &&
+         !(error= (*sort_param->key_read)(sort_param, sort_keys[idx])))
+  {
+    if (sort_param->real_key_length > sort_param->key_length)
+    {
+      if (write_key(sort_param, sort_keys[idx],
+                    &sort_param->tempfile_for_exceptions))
+        goto err;
+      continue;
+    }
+
+    if (++idx == keys)
+    {
+      if (sort_param->write_keys(sort_param, sort_keys, idx - 1,
+                                 (BUFFPEK*) alloc_dynamic(&sort_param->buffpek),
+                                 &sort_param->tempfile))
+        goto err;
+      sort_keys[0]= (uchar*) (sort_keys+keys);
+      memcpy(sort_keys[0], sort_keys[idx - 1], (size_t) sort_param->key_length);
+      idx= 1;
+    }
+    sort_keys[idx]= sort_keys[idx - 1] + sort_param->key_length;
+  }
+
+  if (error > 0)
+    goto err;
+
+  if (sort_param->buffpek.elements)
+  {
+    if (sort_param->write_keys(sort_param, sort_keys, idx,
+                               (BUFFPEK*) alloc_dynamic(&sort_param->buffpek),
+                               &sort_param->tempfile))
+      goto err;
+    sort_param->keys= (sort_param->buffpek.elements - 1) * (keys - 1) + idx;
+  }
+  else
+    sort_param->keys= idx;
+
+  sort_param->sort_keys_length= keys;
+
+  DBUG_RETURN(FALSE);
+
+err:
+  DBUG_PRINT("error", ("got some error"));
+  sort_param->sort_info->got_error= 1; /* no need to protect with a mutex */
+  my_free(sort_keys);
+  sort_param->sort_keys= 0;
+  delete_dynamic(& sort_param->buffpek);
+  close_cached_file(&sort_param->tempfile);
+  close_cached_file(&sort_param->tempfile_for_exceptions);
+
+  DBUG_RETURN(TRUE);
+}
 
 /* Search after all keys and place them in a temp. file */
 
 pthread_handler_t thr_find_all_keys(void *arg)
 {
   MI_SORT_PARAM *sort_param= (MI_SORT_PARAM*) arg;
-  int error;
-  ulonglong memavl, old_memavl;
-  uint keys, sort_length;
-  uint idx, maxbuffer;
-  uchar **sort_keys=0;
+  my_bool error= FALSE;
+  /* If my_thread_init fails */
+  if (my_thread_init() || thr_find_all_keys_exec(sort_param))
+    error= TRUE;
 
-  LINT_INIT(keys);
+  /*
+     Thread must clean up after itself.
+  */
+  free_root(&sort_param->wordroot, MYF(0));
+  /*
+     Detach from the share if the writer is involved. Avoid others to
+     be blocked. This includes a flush of the write buffer. This will
+     also indicate EOF to the readers.
+     That means that a writer always gets here first and readers -
+     only when they see EOF. But if a reader finishes prematurely
+     because of an error it may reach this earlier - don't allow it
+     to detach the writer thread.
+  */
+  if (sort_param->master && sort_param->sort_info->info->rec_cache.share)
+    remove_io_thread(&sort_param->sort_info->info->rec_cache);
 
-  error=1;
+  /* Readers detach from the share if any. Avoid others to be blocked. */
+  if (sort_param->read_cache.share)
+    remove_io_thread(&sort_param->read_cache);
 
-  if (my_thread_init())
-    goto err;
+  mysql_mutex_lock(&sort_param->sort_info->mutex);
+  if (error)
+    sort_param->sort_info->got_error= 1;
 
-  { /* Add extra block since DBUG_ENTER declare variables */
-    DBUG_ENTER("thr_find_all_keys");
-    DBUG_PRINT("enter", ("master: %d", sort_param->master));
-    if (sort_param->sort_info->got_error)
-      goto err;
-
-    if (sort_param->keyinfo->flag & HA_VAR_LENGTH_KEY)
-    {
-      sort_param->write_keys=     write_keys_varlen;
-      sort_param->read_to_buffer= read_to_buffer_varlen;
-      sort_param->write_key=      write_merge_key_varlen;
-    }
-    else
-    {
-      sort_param->write_keys=     write_keys;
-      sort_param->read_to_buffer= read_to_buffer;
-      sort_param->write_key=      write_merge_key;
-    }
-
-    my_b_clear(&sort_param->tempfile);
-    my_b_clear(&sort_param->tempfile_for_exceptions);
-    bzero((char*) &sort_param->buffpek, sizeof(sort_param->buffpek));
-    bzero((char*) &sort_param->unique,  sizeof(sort_param->unique));
-    sort_keys= (uchar **) NULL;
-
-    memavl=       max(sort_param->sortbuff_size, MIN_SORT_BUFFER);
-    idx=          (uint)sort_param->sort_info->max_records;
-    sort_length=  sort_param->key_length;
-    maxbuffer=    1;
-
-    if ((memavl - sizeof(BUFFPEK)) / (sort_length +
-                                      sizeof(char *)) > UINT_MAX32)
-      memavl= sizeof(BUFFPEK) + UINT_MAX32 * (sort_length + sizeof(char *));    
-
-    while (memavl >= MIN_SORT_BUFFER)
-    {
-      if ((my_off_t) (idx+1)*(sort_length+sizeof(char*)) <=
-          (my_off_t) memavl)
-        keys= idx+1;
-      else
-      {
-        uint skr;
-        do
-        {
-          skr= maxbuffer;
-          if (memavl < sizeof(BUFFPEK)*maxbuffer ||
-              (keys=(memavl-sizeof(BUFFPEK)*maxbuffer)/
-               (sort_length+sizeof(char*))) <= 1 ||
-              keys < (uint) maxbuffer)
-          {
-            mi_check_print_error(sort_param->sort_info->param,
-                                 "myisam_sort_buffer_size is too small");
-            goto err;
-          }
-        }
-        while ((maxbuffer= (int) (idx/(keys-1)+1)) != skr);
-      }
-      if ((sort_keys= (uchar**)
-           my_malloc(keys*(sort_length+sizeof(char*))+
-                     ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
-                      HA_FT_MAXBYTELEN : 0), MYF(0))))
-      {
-        if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
-                                  maxbuffer, maxbuffer/2))
-        {
-          my_free(sort_keys);
-          sort_keys= (uchar **) NULL; /* for err: label */
-        }
-        else
-          break;
-      }
-      old_memavl= memavl;
-      if ((memavl= memavl / 4 * 3) < MIN_SORT_BUFFER &&
-          old_memavl > MIN_SORT_BUFFER)
-        memavl= MIN_SORT_BUFFER;
-    }
-    if (memavl < MIN_SORT_BUFFER)
-    {
-      mi_check_print_error(sort_param->sort_info->param,
-                           "MyISAM sort buffer too small");
-      goto err; /* purecov: tested */
-    }
-
-    if (sort_param->sort_info->param->testflag & T_VERBOSE)
-      printf("Key %d - Allocating buffer for %d keys\n",
-             sort_param->key + 1, keys);
-    sort_param->sort_keys= sort_keys;
-
-    idx= error= 0;
-    sort_keys[0]= (uchar*) (sort_keys+keys);
-
-    DBUG_PRINT("info", ("reading keys"));
-    while (!(error= sort_param->sort_info->got_error) &&
-           !(error= (*sort_param->key_read)(sort_param, sort_keys[idx])))
-    {
-      if (sort_param->real_key_length > sort_param->key_length)
-      {
-        if (write_key(sort_param, sort_keys[idx],
-                      &sort_param->tempfile_for_exceptions))
-          goto err;
-        continue;
-      }
-
-      if (++idx == keys)
-      {
-        if (sort_param->write_keys(sort_param, sort_keys, idx - 1,
-                                   (BUFFPEK*) alloc_dynamic(&sort_param->buffpek),
-                                   &sort_param->tempfile))
-          goto err;
-        sort_keys[0]= (uchar*) (sort_keys+keys);
-        memcpy(sort_keys[0], sort_keys[idx - 1], (size_t) sort_param->key_length);
-        idx= 1;
-      }
-      sort_keys[idx]= sort_keys[idx - 1] + sort_param->key_length;
-    }
-    if (error > 0)
-      goto err;
-    if (sort_param->buffpek.elements)
-    {
-      if (sort_param->write_keys(sort_param, sort_keys, idx,
-                                 (BUFFPEK*) alloc_dynamic(&sort_param->buffpek),
-                                 &sort_param->tempfile))
-        goto err;
-      sort_param->keys= (sort_param->buffpek.elements - 1) * (keys - 1) + idx;
-    }
-    else
-      sort_param->keys= idx;
-
-    sort_param->sort_keys_length= keys;
-    goto ok;
-
-err:
-    DBUG_PRINT("error", ("got some error"));
-    sort_param->sort_info->got_error= 1; /* no need to protect with a mutex */
-    my_free(sort_keys);
-    sort_param->sort_keys= 0;
-    delete_dynamic(& sort_param->buffpek);
-    close_cached_file(&sort_param->tempfile);
-    close_cached_file(&sort_param->tempfile_for_exceptions);
-
-ok:
-    free_root(&sort_param->wordroot, MYF(0));
-    /*
-      Detach from the share if the writer is involved. Avoid others to
-      be blocked. This includes a flush of the write buffer. This will
-      also indicate EOF to the readers.
-      That means that a writer always gets here first and readers -
-      only when they see EOF. But if a reader finishes prematurely
-      because of an error it may reach this earlier - don't allow it
-      to detach the writer thread.
-    */
-    if (sort_param->master && sort_param->sort_info->info->rec_cache.share)
-      remove_io_thread(&sort_param->sort_info->info->rec_cache);
-
-    /* Readers detach from the share if any. Avoid others to be blocked. */
-    if (sort_param->read_cache.share)
-      remove_io_thread(&sort_param->read_cache);
-
-    mysql_mutex_lock(&sort_param->sort_info->mutex);
-    if (!--sort_param->sort_info->threads_running)
-      mysql_cond_signal(&sort_param->sort_info->cond);
-    mysql_mutex_unlock(&sort_param->sort_info->mutex);
-    DBUG_PRINT("exit", ("======== ending thread ========"));
-  }
+  if (!--sort_param->sort_info->threads_running)
+    mysql_cond_signal(&sort_param->sort_info->cond);
+  mysql_mutex_unlock(&sort_param->sort_info->mutex);
   my_thread_end();
   return NULL;
 }
@@ -550,18 +560,9 @@ int thr_write_keys(MI_SORT_PARAM *sort_param)
   {
     if (got_error)
       continue;
-    if (sinfo->keyinfo->flag & HA_VAR_LENGTH_KEY)
-    {
-      sinfo->write_keys=write_keys_varlen;
-      sinfo->read_to_buffer=read_to_buffer_varlen;
-      sinfo->write_key=write_merge_key_varlen;
-    }
-    else
-    {
-      sinfo->write_keys=write_keys;
-      sinfo->read_to_buffer=read_to_buffer;
-      sinfo->write_key=write_merge_key;
-    }
+
+    set_sort_param_read_write(sinfo);
+
     if (sinfo->buffpek.elements)
     {
       uint maxbuffer=sinfo->buffpek.elements-1;
