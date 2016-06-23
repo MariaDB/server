@@ -2379,5 +2379,23 @@ companynr	AVG(fld1)	avg1	avg2
 37	9223372036854775805.0000	9223372036854775805	9223372036854775805
 DROP TABLE t1;
 #
+# case where aggregate resolved in the local SELECT
+# but outer ones are checked
+#
+create table t10 (a int , b int, c int);
+insert into t10 values (0,0,0),(1,1,1);
+create table t11 as select * from t10;
+create table t12 as select * from t10;
+explain extended select a from t10 where c<3 or a in (select c from t12 union select max(t10.b) from t11 group by t11.c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t10	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t12	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT UNION	t11	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1276	Field or reference 'test.t10.b' of SELECT #3 was resolved in SELECT #1
+Note	1003	select `test`.`t10`.`a` AS `a` from `test`.`t10` where ((`test`.`t10`.`c` < 3) or <expr_cache><`test`.`t10`.`a`,`test`.`t10`.`b`>(<in_optimizer>(`test`.`t10`.`a`,<exists>(select `test`.`t12`.`c` from `test`.`t12` where (<cache>(`test`.`t10`.`a`) = `test`.`t12`.`c`) union select max(`test`.`t10`.`b`) from `test`.`t11` group by `test`.`t11`.`c` having (<cache>(`test`.`t10`.`a`) = <ref_null_helper>(max(`test`.`t10`.`b`)))))))
+drop table t10,t11,t12;
+#
 # End of 10.1 tests
 #

@@ -1648,5 +1648,15 @@ SELECT companynr, AVG(fld1), AVG(fld1)<<0 AS avg1, CAST(AVG(fld1) AS UNSIGNED)<<
 DROP TABLE t1;
 
 --echo #
+--echo # case where aggregate resolved in the local SELECT
+--echo # but outer ones are checked
+--echo #
+create table t10 (a int , b int, c int);
+insert into t10 values (0,0,0),(1,1,1);
+create table t11 as select * from t10;
+create table t12 as select * from t10;
+explain extended select a from t10 where c<3 or a in (select c from t12 union select max(t10.b) from t11 group by t11.c);
+drop table t10,t11,t12;
+--echo #
 --echo # End of 10.1 tests
 --echo #
