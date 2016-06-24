@@ -799,12 +799,9 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
   if (!opt_character_set_client_handshake ||
       !(cs= get_charset(cs_number, MYF(0))))
   {
-    thd->variables.character_set_client=
-      global_system_variables.character_set_client;
-    thd->variables.collation_connection=
-      global_system_variables.collation_connection;
-    thd->variables.character_set_results=
-      global_system_variables.character_set_results;
+    thd->update_charset(global_system_variables.character_set_client,
+                        global_system_variables.collation_connection,
+                        global_system_variables.character_set_results);
   }
   else
   {
@@ -814,10 +811,8 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
                cs->csname);
       return true;
-    }    
-    thd->variables.character_set_results=
-      thd->variables.collation_connection= 
-      thd->variables.character_set_client= cs;
+    }
+    thd->update_charset(cs,cs,cs);
   }
   return false;
 }

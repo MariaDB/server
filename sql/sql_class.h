@@ -3417,6 +3417,22 @@ public:
 
   inline CHARSET_INFO *charset() { return variables.character_set_client; }
   void update_charset();
+  void update_charset(CHARSET_INFO *character_set_client,
+                      CHARSET_INFO *collation_connection)
+  {
+    variables.character_set_client= character_set_client;
+    variables.collation_connection= collation_connection;
+    update_charset();
+  }
+  void update_charset(CHARSET_INFO *character_set_client,
+                      CHARSET_INFO *collation_connection,
+                      CHARSET_INFO *character_set_results)
+  {
+    variables.character_set_client= character_set_client;
+    variables.collation_connection= collation_connection;
+    variables.character_set_results= character_set_results;
+    update_charset();
+  }
 
   inline Query_arena *activate_stmt_arena_if_needed(Query_arena *backup)
   {

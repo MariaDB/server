@@ -966,10 +966,8 @@ int set_var_collation_client::check(THD *thd)
 
 int set_var_collation_client::update(THD *thd)
 {
-  thd->variables.character_set_client= character_set_client;
-  thd->variables.character_set_results= character_set_results;
-  thd->variables.collation_connection= collation_connection;
-  thd->update_charset();
+  thd->update_charset(character_set_client, collation_connection,
+                      character_set_results);
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;

@@ -11774,7 +11774,6 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   {
     if (thd_init_client_charset(thd, uint2korr(next_field)))
       DBUG_RETURN(1);
-    thd->update_charset();
     next_field+= 2;
   }
 
@@ -11940,7 +11939,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     DBUG_PRINT("info", ("client_character_set: %d", (uint) net->read_pos[8]));
     if (thd_init_client_charset(thd, (uint) net->read_pos[8]))
       return packet_error;
-    thd->update_charset();
     end= (char*) net->read_pos+32;
   }
   else

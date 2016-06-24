@@ -1710,10 +1710,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	decrease_user_connections(thd->user_connect);
       thd->user_connect= save_user_connect;
       thd->reset_db(save_db, save_db_length);
-      thd->variables.character_set_client= save_character_set_client;
-      thd->variables.collation_connection= save_collation_connection;
-      thd->variables.character_set_results= save_character_set_results;
-      thd->update_charset();
+      thd->update_charset(save_character_set_client, save_collation_connection,
+                          save_character_set_results);
       thd->failed_com_change_user++;
       my_sleep(1000000);
     }

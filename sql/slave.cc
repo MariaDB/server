@@ -3024,13 +3024,10 @@ void set_slave_thread_default_charset(THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("set_slave_thread_default_charset");
 
-  thd->variables.character_set_client=
-    global_system_variables.character_set_client;
-  thd->variables.collation_connection=
-    global_system_variables.collation_connection;
   thd->variables.collation_server=
     global_system_variables.collation_server;
-  thd->update_charset();
+  thd->update_charset(global_system_variables.character_set_client,
+                      global_system_variables.collation_connection);
 
   thd->system_thread_info.rpl_sql_info->cached_charset_invalidate();
   DBUG_VOID_RETURN;

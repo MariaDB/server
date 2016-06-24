@@ -126,10 +126,7 @@ Default_object_creation_ctx::create_backup_ctx(THD *thd) const
 
 void Default_object_creation_ctx::change_env(THD *thd) const
 {
-  thd->variables.character_set_client= m_client_cs;
-  thd->variables.collation_connection= m_connection_cl;
-
-  thd->update_charset();
+  thd->update_charset(m_client_cs, m_connection_cl);
 }
 
 /**************************************************************************
