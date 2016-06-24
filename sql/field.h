@@ -395,6 +395,7 @@ enum Derivation
 
 /* The length of the header part for each virtual column in the .frm file */
 #define FRM_VCOL_OLD_HEADER_SIZE(b) (3 + MY_TEST(b))
+#define FRM_VCOL_NEW_BASE_SIZE 16
 #define FRM_VCOL_NEW_HEADER_SIZE 7
 
 class Count_distinct_field;
@@ -571,6 +572,7 @@ public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
   bool non_deterministic;
+  bool utf8;                                    /* Already in utf8 */
   /* The expression to compute the value of the virtual column */
   Item *expr_item;
   /* Text representation of the defining expression */
@@ -580,7 +582,7 @@ public:
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
     in_partitioning_expr(FALSE), stored_in_db(FALSE), non_deterministic(FALSE),
-    expr_item(NULL)
+    utf8(TRUE), expr_item(NULL)
   {
     expr_str.str= name.str= NULL;
     name.length= 0;

@@ -1636,9 +1636,18 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   {
     if (field->default_value)
     {
-      def_value->set(field->default_value->expr_str.str,
-                     field->default_value->expr_str.length,
-                     system_charset_info);
+      if (field->default_value->expr_item->need_parentheses_in_default())
+      {
+        def_value->set_charset(&my_charset_utf8mb4_general_ci);
+        def_value->append('(');
+        def_value->append(field->default_value->expr_str.str,
+                          field->default_value->expr_str.length);
+        def_value->append(')');
+      }
+      else
+        def_value->set(field->default_value->expr_str.str,
+                       field->default_value->expr_str.length,
+                       &my_charset_utf8mb4_general_ci);
     }
     else if (has_now_default)
     {
@@ -1892,7 +1901,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(" AS ("));
       packet->append(field->vcol_info->expr_str.str,
                      field->vcol_info->expr_str.length,
-                     system_charset_info);
+                     &my_charset_utf8mb4_general_ci);
       packet->append(STRING_WITH_LEN(")"));
       if (field->vcol_info->stored_in_db)
         packet->append(STRING_WITH_LEN(" PERSISTENT"));
@@ -1933,7 +1942,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     {
       packet->append(STRING_WITH_LEN(" CHECK ("));
       packet->append(field->check_constraint->expr_str.str,
-                     field->check_constraint->expr_str.length);
+                     field->check_constraint->expr_str.length,
+                     &my_charset_utf8mb4_general_ci);
       packet->append(STRING_WITH_LEN(")"));
     }
 
@@ -2041,7 +2051,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       }
       packet->append(STRING_WITH_LEN(" CHECK ("));
       packet->append(check->expr_str.str,
-                     check->expr_str.length);
+                     check->expr_str.length,
+                     &my_charset_utf8mb4_general_ci);
       packet->append(STRING_WITH_LEN(")"));
     }
   }

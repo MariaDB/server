@@ -197,6 +197,7 @@ public:
   virtual CHARSET_INFO *compare_collation() const { return NULL; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
+  bool need_parentheses_in_default() { return true; }
 };
 
 
@@ -1488,6 +1489,7 @@ public:
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
+  bool need_parentheses_in_default() { return true; }
 };
 
 /*

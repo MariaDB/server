@@ -1286,7 +1286,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
   {
     const char *cpp_tok_start, *m_tok_end, *tok_start;
     /*
-      To be able to handle "DEFAULT 1 NOT NULL" which classes with
+      To be able to handle "DEFAULT 1 NOT NULL" which clashes with
       "DEFAULT 1 NOT IN (..)" we must combine NOT NULL to one lex token
       NOT_NULL_SYM. We also have to ensure that NOT NULL IS are still
       separate tokens to ensure that NOT NULL IS TRUE is evaluated as

@@ -1377,6 +1377,8 @@ public:
   virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
+  /* This is to handle printing of default values */
+  virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
     set value of aggregate function in case of no rows for grouping were found

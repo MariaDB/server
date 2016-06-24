@@ -1649,7 +1649,7 @@ struct Table_scope_and_contents_source_st
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;
-  ulong expression_lengths;
+  ulong expression_length;
   ulong field_check_constraints;
   /*
     number of pages to sample during

@@ -936,7 +936,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
-Virtual_column_info *add_virtual_expression(THD *thd, char *txt,
+Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
                                            size_t size, Item *expr)
 {
   CHARSET_INFO *cs= thd->charset();
@@ -958,6 +958,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, char *txt,
    v->expr_str.str= (char* ) thd->strmake(txt, size);
    v->expr_str.length= size;
    v->expr_item= expr;
+   v->utf8= 0;  /* connection charset */
    return v;
 }
 
@@ -1854,9 +1855,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         simple_ident expr opt_expr opt_else sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr
-        table_wild simple_expr udf_expr
+        table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         expr_or_default set_expr_or_default
-        geometry_function
+        geometry_function signed_literal
         opt_escape
         sp_opt_default
         simple_ident_nospvar simple_ident_q
@@ -1957,6 +1958,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <myvar> select_outvar
 
 %type <virtual_column> opt_check_constraint check_constraint virtual_column_func
+        column_default_expr
 
 %type <NONE>
         analyze_stmt_command
@@ -2021,7 +2023,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
-        explainable_command
+        explainable_command opt_impossible_action
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -6420,6 +6422,26 @@ virtual_column_func:
           }
         ;
 
+column_default_expr:
+          '(' virtual_column_func ')'  { $$= $2; }
+        | remember_name column_default_non_parenthesized_expr opt_impossible_action remember_end
+          {
+            if (!($$= add_virtual_expression(thd, $1, (uint) ($4- $1), $2)))
+              MYSQL_YYABORT;
+          }
+        | signed_literal
+          {
+            if (!($$= add_virtual_expression(thd, "literal", 6, $1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+/* This is to force remember_end to look at next token */
+opt_impossible_action:
+        IMPOSSIBLE_ACTION {}
+        | /* empty */ {}
+
+
 field_type:
           int_type opt_field_length field_options { $$.set($1, $2); }
         | real_type opt_precision field_options   { $$.set($1, $2); }
@@ -6713,7 +6735,7 @@ opt_attribute_list:
 attribute:
           NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
         | NOT_NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
-        | DEFAULT virtual_column_func { Lex->last_field->default_value= $2; }
+        | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);
@@ -9490,34 +9512,17 @@ dyncall_create_list:
        }
    ;
 
-simple_expr:
+column_default_non_parenthesized_expr:
           simple_ident
         | function_call_keyword
         | function_call_nonkeyword
         | function_call_generic
         | function_call_conflict
-        | simple_expr COLLATE_SYM ident_or_text %prec NEG
-          {
-            Item *i1= new (thd->mem_root) Item_string(thd, $3.str,
-                                                      $3.length,
-                                                      thd->charset());
-            if (i1 == NULL)
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) Item_func_set_collation(thd, $1, i1);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | literal
         | param_marker { $$= $1; }
         | variable
         | sum_expr
         | window_func_expr
-        | simple_expr OR_OR_SYM simple_expr
-          {
-            $$= new (thd->mem_root) Item_func_concat(thd, $1, $3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | NOT_NULL_SYM
           {
             /* Replace NOT NULL with NULL */
@@ -9525,43 +9530,6 @@ simple_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
            }
-        | '+' simple_expr %prec NEG
-          {
-            $$= $2;
-          }
-        | '-' simple_expr %prec NEG
-          {
-            $$= $2->neg(thd);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | '~' simple_expr %prec NEG
-          {
-            $$= new (thd->mem_root) Item_func_bit_neg(thd, $2);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | not2 simple_expr %prec NEG
-          {
-            $$= negate_expression(thd, $2);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | '(' subselect ')'
-          { 
-            $$= new (thd->mem_root) Item_singlerow_subselect(thd, $2);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | '(' expr ')'
-          { $$= $2; }
-        | '(' expr ',' expr_list ')'
-          {
-            $4->push_front($2, thd->mem_root);
-            $$= new (thd->mem_root) Item_row(thd, *$4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | ROW_SYM '(' expr ',' expr_list ')'
           {
             $5->push_front($3, thd->mem_root);
@@ -9609,13 +9577,6 @@ simple_expr:
             Select->add_ftfunc_to_list(thd, i1);
             $$= i1;
           }
-        | BINARY simple_expr %prec NEG
-          {
-            $$= create_func_cast(thd, $2, ITEM_CAST_CHAR, NULL, NULL,
-                                 &my_charset_bin);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | CAST_SYM '(' expr AS cast_type ')'
           {
             LEX *lex= Lex;
@@ -9661,6 +9622,71 @@ simple_expr:
           {
             $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
+
+simple_expr:
+          column_default_non_parenthesized_expr
+        | simple_expr COLLATE_SYM ident_or_text %prec NEG
+          {
+            Item *i1= new (thd->mem_root) Item_string(thd, $3.str,
+                                                      $3.length,
+                                                      thd->charset());
+            if (i1 == NULL)
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_set_collation(thd, $1, i1);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | '(' subselect ')'
+          {
+            $$= new (thd->mem_root) Item_singlerow_subselect(thd, $2);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | '(' expr ')'
+          { $$= $2; }
+        | '(' expr ',' expr_list ')'
+          {
+            $4->push_front($2, thd->mem_root);
+            $$= new (thd->mem_root) Item_row(thd, *$4);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | BINARY simple_expr %prec NEG
+          {
+            $$= create_func_cast(thd, $2, ITEM_CAST_CHAR, NULL, NULL,
+                                 &my_charset_bin);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | simple_expr OR_OR_SYM simple_expr
+          {
+            $$= new (thd->mem_root) Item_func_concat(thd, $1, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | '+' simple_expr %prec NEG
+          {
+            $$= $2;
+          }
+        | '-' simple_expr %prec NEG
+          {
+            $$= $2->neg(thd);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | '~' simple_expr %prec NEG
+          {
+            $$= new (thd->mem_root) Item_func_bit_neg(thd, $2);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | not2 simple_expr %prec NEG
+          {
+            $$= negate_expression(thd, $2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -14032,6 +14058,15 @@ param_marker:
               my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES), MYF(0));
               MYSQL_YYABORT;
             }
+          }
+        ;
+
+signed_literal:
+        '+' NUM_literal { $$ = $2; }
+        | '-' NUM_literal
+          {
+            $2->max_length++;
+            $$= $2->neg(thd);
           }
         ;
 

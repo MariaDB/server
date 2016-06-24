@@ -10575,6 +10575,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
         default_value->expr_str.length= res->length();
         default_value->expr_item=
           new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
+        default_value->utf8= 0;
       }
     }
   }

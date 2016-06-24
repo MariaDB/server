@@ -42,10 +42,12 @@
 static uint pack_keys(uchar *,uint, KEY *, ulong);
 static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *info, ulong, handler *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
-static bool pack_fields(uchar **, List<Create_field> &, ulong);
+static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
+                        ulong);
 static void pack_constraints(uchar **buff, List<Virtual_column_info> *constr);
 static size_t packed_fields_length(List<Create_field> &);
-static size_t packed_constraints_length(List<Virtual_column_info> *constr);
+static size_t packed_constraints_length(THD *thd, HA_CREATE_INFO* info,
+                                        List<Virtual_column_info> *constr);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
 
 /*
@@ -108,7 +110,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   LEX_STRING str_db_type;
   uint reclength, key_info_length, i;
   ulong key_buff_length;
-  ulong filepos, data_offset, expr_length;
+  ulong filepos, data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
@@ -130,12 +132,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     DBUG_RETURN(frm);
 
   reclength= uint2korr(forminfo+266);
-  expr_length= packed_constraints_length(create_info->constraint_list);
-
-  /* Correct expression length stored by pack_header */
-  expr_length+= uint2korr(forminfo+286);
-  int2store(forminfo+286, expr_length);
-  create_info->expression_lengths= expr_length;
 
   /* Calculate extra data segment length */
   str_db_type= *hton_name(create_info->db_type);
@@ -227,9 +223,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   filepos= frm.length;
   frm.length+= FRM_FORMINFO_SIZE;               // forminfo
   frm.length+= packed_fields_length(create_fields);
-  frm.length+= expr_length;
+  frm.length+= create_info->expression_length;
 
-  if (frm.length > FRM_MAX_SIZE || expr_length > UINT_MAX32)
+  if (frm.length > FRM_MAX_SIZE ||
+      create_info->expression_length > UINT_MAX32)
   {
     my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table);
     DBUG_RETURN(frm);
@@ -336,9 +333,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   memcpy(frm_ptr + filepos, forminfo, 288);
   pos= frm_ptr + filepos + 288;
-  if (pack_fields(&pos, create_fields, data_offset))
+  if (pack_fields(&pos, create_fields, create_info, data_offset))
     goto err;
-  pack_constraints(&pos, create_info->constraint_list);
 
   {
     /* 
@@ -502,23 +498,57 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 /**
    Calculate and check length of stored expression (virtual, def, check)
 
+   Convert string to utf8, if it isn't already
+
+   @param thd		Thread handler. Used for memory allocation
    @param v_col		Virtual expression. Can be 0
+   @param CREATE INFO   For characterset
    @param length	Sum total lengths here
 
    Note to make calls easier, one can call this with v_col == 0
+
+   @return 0 ok
+   @return 1 error (out of memory or wrong characters in expression)
 */
 
-static void add_expr_length(Virtual_column_info *v_col, size_t *length)
+static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
+                            HA_CREATE_INFO *info,
+                            size_t *length)
 {
+  Virtual_column_info *v_col= *v_col_ptr;
   if (!v_col)
-    return;
+    return 0;
+
+  /*
+    Convert string to utf8 for storage.
+  */
+  if (!v_col->utf8)
+  {
+    /*
+      We have to create a new Virtual_column_info as for alter table,
+      the current one may be shared with the original tables
+    */
+    Virtual_column_info *new_vcol= new (thd->mem_root) Virtual_column_info();
+    LEX_STRING to;
+    if (thd->copy_with_error(&my_charset_utf8mb4_general_ci,
+                             &to,
+                             thd->variables.character_set_client,
+                             v_col->expr_str.str, v_col->expr_str.length))
+      return 1;
+    *new_vcol= *v_col;
+    new_vcol->expr_str= to;
+    new_vcol->utf8= 1;
+    *v_col_ptr= new_vcol;
+    v_col= new_vcol;
+  }
+
   /*
     Sum up the length of the expression string, it's optional name
     and the header.
   */
   (*length)+=  (FRM_VCOL_NEW_HEADER_SIZE + v_col->name.length +
                 v_col->expr_str.length);
-  return;
+  return 0;
 }
 
 
@@ -577,9 +607,14 @@ static bool pack_header(THD *thd, uchar *forminfo,
   totlength= 0L;
   reclength= data_offset;
   no_empty=int_count=int_parts=int_length=time_stamp_pos=null_fields=0;
-  com_length=expression_length=0;
+  com_length= 0;
   n_length=2L;
   create_info->field_check_constraints= 0;
+
+  expression_length= packed_constraints_length(thd, create_info,
+                                               create_info->constraint_list);
+  if (!expression_length && create_info->constraint_list->elements)
+    DBUG_RETURN(1);                             // Wrong characterset
 
   /* Check fields */
   List_iterator<Create_field> it(create_fields);
@@ -590,10 +625,16 @@ static bool pack_header(THD *thd, uchar *forminfo,
                                 ER_TOO_LONG_FIELD_COMMENT, field->field_name))
        DBUG_RETURN(1);
 
-    add_expr_length(field->vcol_info, &expression_length);
+    if (add_expr_length(thd, &field->vcol_info, create_info,
+                        &expression_length))
+      DBUG_RETURN(1);
     if (field->has_default_expression())
-      add_expr_length(field->default_value, &expression_length);
-    add_expr_length(field->check_constraint, &expression_length);
+      if (add_expr_length(thd, &field->default_value, create_info,
+                          &expression_length))
+	DBUG_RETURN(1);
+    if (add_expr_length(thd, &field->check_constraint, create_info,
+                        &expression_length))
+      DBUG_RETURN(1);
 
     totlength+= field->length;
     com_length+= field->comment.length;
@@ -677,6 +718,13 @@ static bool pack_header(THD *thd, uchar *forminfo,
     my_error(ER_TOO_BIG_ROWSIZE, MYF(0), static_cast<long>(file->max_record_length()));
     DBUG_RETURN(1);
   }
+
+  if (expression_length)
+  {
+    expression_length+= FRM_VCOL_NEW_BASE_SIZE;
+    create_info->expression_length= expression_length;
+  }
+
   /* Hack to avoid bugs with small static rows in MySQL */
   reclength=MY_MAX(file->min_record_length(table_options),reclength);
   if ((ulong) create_fields.elements*FCOMP+FRM_FORMINFO_SIZE+
@@ -760,10 +808,6 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
       length++;
     }
 
-    add_expr_length(field->vcol_info, &length);
-    if (field->has_default_expression())
-      add_expr_length(field->default_value, &length);
-    add_expr_length(field->check_constraint, &length);
     length+= FCOMP;
     length+= strlen(field->field_name)+1;
     length+= field->comment.length;
@@ -773,13 +817,16 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
 }
 
 
-static size_t packed_constraints_length(List<Virtual_column_info> *constr)
+static size_t packed_constraints_length(THD *thd, HA_CREATE_INFO *info,
+                                        List<Virtual_column_info> *constr)
 {
   List_iterator<Virtual_column_info> it(*constr);
   size_t length= 0;
   Virtual_column_info *check;
+
   while ((check= it++))
-    add_expr_length(check, &length);
+    if (add_expr_length(thd, it.ref(), info, &length))
+      return 0;
   return length;
 }
 
@@ -795,11 +842,11 @@ static void pack_constraints(uchar **buff, List<Virtual_column_info> *constr)
 /* Save fields, fieldnames and intervals */
 
 static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
+                        HA_CREATE_INFO *create_info,
                         ulong data_offset)
 {
   uchar *buff= *buff_arg;
   uint int_count, comment_length= 0;
-  bool has_expressions= 0;
   Create_field *field;
   DBUG_ENTER("pack_fields");
 
@@ -835,9 +882,6 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     {
       buff[11]= buff[14]= 0;			// Numerical
     }
-    if (field->vcol_info || field->has_default_expression() ||
-        field->check_constraint)
-      has_expressions= 1;
 
     int2store(buff+15, field->comment.length);
     comment_length+= field->comment.length;
@@ -922,8 +966,12 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     }
   }
 
-  if (has_expressions)
+  if (create_info->expression_length)
   {
+    /* Store header for packed fields (extra space for future) */
+    bzero(buff, FRM_VCOL_NEW_BASE_SIZE);
+    buff+= FRM_VCOL_NEW_BASE_SIZE;
+
     /* Store expressions */
     it.rewind();
     for (uint field_nr=0 ; (field= it++) ; field_nr++)
@@ -936,6 +984,7 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
       if (field->check_constraint)
         pack_expression(&buff, field->check_constraint, field_nr, 3);
     }
+    pack_constraints(&buff, create_info->constraint_list);
   }
   *buff_arg= buff;
   DBUG_RETURN(0);

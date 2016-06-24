@@ -9,7 +9,7 @@
 
 connection master;
 
-create table t1 (a int DEFAULT 1+1, b bigint default uuid_short(), u blob default user());
+create table t1 (a int DEFAULT (1+1), b bigint default uuid_short(), u blob default user());
 insert into t1 (a) values(1);
 
 let $b=query_get_value(select * from t1, b, 1);

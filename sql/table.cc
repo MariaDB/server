@@ -1653,6 +1653,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                   vcol_info_length)))
           goto err;
         vcol_info->expr_str.length= vcol_info_length;
+        vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
         share->virtual_fields++;
         vcol_info_length= 0;
@@ -1692,6 +1693,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (opt_interval_id)
           interval_nr= (uint) vcol_screen_pos[3];
         vcol_info->expr_str.length= vcol_expr_length;
+        vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length;
         share->virtual_fields++;
       }
@@ -2158,12 +2160,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Handle virtual expressions */
   if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
   {
+    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
+
+    /* Skip header */
+    vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
+
     /*
       Read virtual columns, default values and check constraints
       See pack_expression() for how data is stored
     */
-    for (uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length ;
-         vcol_screen_pos < vcol_screen_end ; )
+    while (vcol_screen_pos < vcol_screen_end)
     {
       Virtual_column_info *vcol_info;
       uint field_nr=     uint2korr(vcol_screen_pos);
@@ -2193,8 +2199,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       vcol_info->name= name;
 
       /* The following can only be true for check_constraints */
-      if (field_nr != UINT_MAX32)
+      if (field_nr != UINT_MAX16)
+      {
+        DBUG_ASSERT(field_nr < share->fields);
         reg_field= share->field[field_nr];
+      }
 
       vcol_info->expr_str.str=    expr;
       vcol_info->expr_str.length= expr_length;
@@ -2554,8 +2563,11 @@ static bool fix_vcol_expr(THD *thd,
   thd->where= "virtual column function";
 
   /* Fix fields referenced to by the virtual column function */
+  thd->in_stored_expression= 1;
   if (!func_expr->fixed)
     error= func_expr->fix_fields(thd, &vcol->expr_item);
+  thd->in_stored_expression= 0;
+
   if (unlikely(error))
   {
     DBUG_PRINT("info",
@@ -2659,7 +2671,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
 {
   char *vcol_expr_str;
   int str_len;
-  CHARSET_INFO *old_character_set_client;
+  CHARSET_INFO *save_character_set_client, *save_collation;
   Query_arena *backup_stmt_arena_ptr;
   Query_arena backup_arena;
   Query_arena *vcol_arena= 0;
@@ -2669,10 +2681,12 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   LEX_STRING *vcol_expr= &vcol->expr_str;
   LEX *old_lex= thd->lex;
   LEX lex;
+  bool error;
   DBUG_ENTER("unpack_vcol_info_from_frm");
   DBUG_ASSERT(vcol_expr);
 
-  old_character_set_client= thd->variables.character_set_client;
+  save_character_set_client= thd->variables.character_set_client;
+  save_collation= thd->variables.collation_connection;
   backup_stmt_arena_ptr= thd->stmt_arena;
 
   /* 
@@ -2730,10 +2744,17 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   /* 
     Step 3: Use the parser to build an Item object from vcol_expr_str.
   */
-  if (parse_sql(thd, &parser_state, NULL))
+  if (vcol->utf8)
   {
-    goto err;
+    thd->update_charset(&my_charset_utf8mb4_general_ci,
+                        table->s->table_charset);
   }
+  thd->in_stored_expression= 1;
+  error= parse_sql(thd, &parser_state, NULL);
+  thd->in_stored_expression= 0;
+  if (error)
+    goto err;
+
   /*
     mark if expression will be stored in the table. This is also used by
     fix_vcol_expr() to mark if we are using non deterministic functions.
@@ -2741,6 +2762,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->non_deterministic= vcol->non_deterministic;
   vcol_storage.vcol_info->name=              vcol->name;
+  vcol_storage.vcol_info->utf8=              vcol->utf8;
   /* Validate the Item tree. */
   if (!fix_vcol_expr(thd, table, field, vcol_storage.vcol_info))
   {
@@ -2756,7 +2778,8 @@ end:
   if (vcol_arena)
     thd->restore_active_arena(vcol_arena, &backup_arena);
   end_lex_with_single_table(thd, table, old_lex);
-  thd->variables.character_set_client= old_character_set_client;
+  if (vcol->utf8)
+    thd->update_charset(save_character_set_client, save_collation);
 
   DBUG_RETURN(vcol_info);
 }
@@ -3612,7 +3635,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   /* header */
   fileinfo[0]=(uchar) 254;
   fileinfo[1]= 1;
-  fileinfo[2]= (create_info->expression_lengths == 0 ? FRM_VER_TRUE_VARCHAR :
+  fileinfo[2]= (create_info->expression_length == 0 ? FRM_VER_TRUE_VARCHAR :
                 FRM_VER_EXPRESSSIONS);
 
   DBUG_ASSERT(ha_storage_engine_is_enabled(create_info->db_type));

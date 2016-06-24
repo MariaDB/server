@@ -854,6 +854,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
+  bool need_parentheses_in_default() { return true; }
 };
 
 
@@ -931,6 +932,7 @@ public:
   String *val_str(String *a);
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type);
+  bool need_parentheses_in_default() { return true; }
 };
 
 

@@ -207,7 +207,7 @@ drop table t1;
 --echo Check default expressions
 --echo
 
-create or replace table t1 (a int default 1, b int default a+1, c int default a+b) engine myisam;
+create or replace table t1 (a int default 1, b int default (a+1), c int default (a+b)) engine myisam;
 show create table t1;
 insert into t1 values ();
 insert into t1 (a) values (2);
@@ -238,16 +238,18 @@ select a > 0 from t1;
 drop table t1;
 
 create or replace table t1 (param_list int DEFAULT (1+1) NOT NULL);
+--error ER_PARSE_ERROR
 create or replace table t1 (param_list int DEFAULT 1+1 NOT NULL);
 create or replace table t1 (param_list blob DEFAULT "" NOT NULL);
+
 drop table t1;
 
 create table t1 (a int);
 insert into t1 values(-1);
-alter table t1 add b int default 1, add c int default -1, add d int default 1+1, add e timestamp;
+alter table t1 add b int default 1, add c int default -1, add d int default (1+1), add e timestamp;
 select a,b,c,d,e > 0 from t1;
 insert into t1 values(10,10,10,10,0);
-alter table t1 add f int default 1+1+1 null, add g int default 1+1+1+1 not null,add h int default (2+2+2+2);
+alter table t1 add f int default (1+1+1) null, add g int default (1+1+1+1) not null,add h int default (2+2+2+2);
 select a,b,c,d,e > 0,f,g,h from t1;
 show create table t1;
 
@@ -257,7 +259,7 @@ insert into t2 (a) values (100);
 select a,b,c,d,e > 0,f,g,h from t2;
 drop table t1,t2;
 
-create table t1 (a int default 1----1);
+create table t1 (a int default (1----1), b int default - 1, c int default +1, e int default (--1));
 show create table t1;
 insert into t1 values();
 insert into t1 values();
@@ -281,18 +283,18 @@ create or replace table t1 (a int default 1, b int default a);
 create or replace table t1 (a int default 1, b int as (a));
 create or replace table t1 (a int default b, b int default 1);
 create or replace table t1 (a int as (b), b int default 1);
-create or replace table t1 (a int as (b), b int default 1+1);
+create or replace table t1 (a int as (b), b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int default (a+1));
-create or replace table t1 (a int default 1+1, b int as (c), c int default (a+1));
+create or replace table t1 (a int default (1+1), b int as (c), c int default (a+1));
 create or replace table t1 (a VARCHAR(128) DEFAULT @@version);
 create or replace table t1 (a int not null, b int as (a));
-create or replace table t1 (a int not null, b int default a+1);
+create or replace table t1 (a int not null, b int default (a+1));
 
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default a);
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
-create or replace table t1 (a int default b, b int default 1+1);
+create or replace table t1 (a int default b, b int default (1+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
@@ -323,10 +325,16 @@ drop table t1;
 
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1 (a bigint default xxx());
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_PARSE_ERROR
 create or replace table t1 (a bigint default (select (1)));
+--error ER_PARSE_ERROR
+create or replace table t1 (a bigint default (1,2,3));
 --error ER_OPERAND_COLUMNS
-create or replace table t1 (a bigint default (1,2,3)));
+create or replace table t1 (a bigint default ((1,2,3)));
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a DIV b);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT, b INT DEFAULT -a);
 
 # Cleanup
 drop table if exists t1;
@@ -336,7 +344,7 @@ drop table if exists t1;
 --echo #
 
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a INT DEFAULT (SELECT 1));
+CREATE TABLE t1 (a INT DEFAULT ((SELECT 1)));
 
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a INT DEFAULT (EXISTS (SELECT 1)));
@@ -348,14 +356,11 @@ CREATE TABLE t1 (a INT DEFAULT (1=ANY (SELECT 1)));
 CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
 
 --error ER_OPERAND_COLUMNS
-CREATE TABLE t1 (a INT DEFAULT (1,1));
-
---error ER_OPERAND_COLUMNS
 CREATE TABLE t1 (a INT DEFAULT ((1,1)));
 
---error ER_PARSE_ERROR
+--error ER_PARSE_ERROR,2031
 CREATE TABLE t1 (a INT DEFAULT ?);
---error ER_PARSE_ERROR
+--error ER_PARSE_ERROR,2031
 CREATE TABLE t1 (a INT DEFAULT(?));
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
@@ -864,7 +869,7 @@ DROP TABLE t1;
 --echo # Check DEFAULT() function
 --echo #
 
-CREATE TABLE `t1` (`a` int(11) DEFAULT 3+3,`b` int(11) DEFAULT '1000');
+CREATE TABLE `t1` (`a` int(11) DEFAULT (3+3),`b` int(11) DEFAULT '1000');
 insert into t1 values (1,1),(2,2);
 insert into t1 values (default,default);
 select * from t1;
@@ -919,12 +924,6 @@ INSERT INTO t1 VALUES (PI(), DEFAULT, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# QQ: this sets "b" to (-1), which looks wrong
-#CREATE TABLE t1 (a VARCHAR(30), b DOUBLE DEFAULT MATCH (a) AGAINST('bbbb' IN BOOLEAN MODE));
-#INSERT INTO t1 VALUES ('aaaa bbbb cccc dddd', DEFAULT);
-#SELECT * FROM t1;
-#DROP TABLE t1;
-
 --echo #
 --echo # INT result functions
 --echo #
@@ -934,7 +933,7 @@ INSERT INTO t1 (a) VALUES (34);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a DIV b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a DIV b));
 INSERT INTO t1 (a, b) VALUES (13, 3);
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -993,6 +992,9 @@ CREATE TABLE t1 (a INT DEFAULT MASTER_POS_WAIT('test',100));
 
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a INT DEFAULT MASTER_GTID_WAIT('test'));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a VARCHAR(30), b DOUBLE DEFAULT MATCH (a) AGAINST('bbbb' IN BOOLEAN MODE));
 
 --echo #
 --echo # Temporal functions
@@ -1283,8 +1285,8 @@ INSERT INTO t1 VALUES (1, 1, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-
-CREATE TABLE t1 (a INT, b INT DEFAULT -a);
+CREATE TABLE t1 (a INT, b INT DEFAULT (-a));
+SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (10, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -1300,12 +1302,13 @@ INSERT INTO t1 VALUES (-1.5, DEFAULT, DEFAULT, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a+b, d INT DEFAULT a-b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a+b), d INT DEFAULT (a-b));
 INSERT INTO t1 VALUES (2, 1, DEFAULT, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a*b, d INT DEFAULT a/b, e INT DEFAULT a MOD b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a*b), d INT DEFAULT (a/b), e INT DEFAULT (a MOD b));
+SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (7, 3, DEFAULT, DEFAULT, DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -1362,8 +1365,9 @@ CREATE TABLE t1 (
   a VARCHAR(10) CHARACTER SET latin1,
   b VARCHAR(10) CHARACTER SET latin1 DEFAULT a COLLATE latin1_bin,
   c VARCHAR(10) CHARACTER SET utf8 DEFAULT CONVERT(a USING utf8),
-  d VARBINARY(10) DEFAULT BINARY(a)
+  d VARBINARY(10) DEFAULT (BINARY(a))
 );
+SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES ('a');
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -1377,23 +1381,24 @@ CREATE TABLE t1 (a INT, b INT DEFAULT BIT_COUNT(a));
 INSERT INTO t1 (a) VALUES (7);
 SELECT * FROM t1;
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a|b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a|b));
 INSERT INTO t1 (a,b) VALUES (1,2);
 SELECT * FROM t1;
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a&b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a&b));
 INSERT INTO t1 (a,b) VALUES (5,4);
 SELECT * FROM t1;
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a^b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a^b));
 INSERT INTO t1 (a,b) VALUES (11,3);
 SELECT * FROM t1;
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a&~b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a&~b));
 INSERT INTO t1 (a,b) VALUES (5,1);
 SELECT * FROM t1;
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a<<b, d INT DEFAULT a>>b);
+CREATE TABLE t1 (a INT, b INT, c INT DEFAULT (a<<b), d INT DEFAULT (a>>b));
+SHOW CREATE TABLE t1;
 INSERT INTO t1 (a,b) VALUES (5,1);
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -1543,71 +1548,73 @@ CREATE TABLE t1 (a VARCHAR(30), b BLOB DEFAULT LOAD_FILE(a));
 --echo # Predicates
 --echo #
 
-CREATE TABLE t1 (a INT, b INT DEFAULT NOT a);
+CREATE TABLE t1 (a INT, b INT DEFAULT (NOT a));
+SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT, x INT DEFAULT a XOR b);
+CREATE TABLE t1 (a INT, b INT, x INT DEFAULT (a XOR b));
 INSERT INTO t1 (a,b) VALUES (0,0),(0,1),(1,0),(1,1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT DEFAULT a IS TRUE, c INT DEFAULT a IS NOT TRUE);
+CREATE TABLE t1 (a INT, b INT DEFAULT (a IS TRUE), c INT DEFAULT (a IS NOT TRUE));
+SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT DEFAULT a IS FALSE, c INT DEFAULT a IS NOT FALSE);
+CREATE TABLE t1 (a INT, b INT DEFAULT (a IS FALSE), c INT DEFAULT (a IS NOT FALSE));
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT DEFAULT a IS NULL, c INT DEFAULT a IS NOT NULL);
+CREATE TABLE t1 (a INT, b INT DEFAULT (a IS NULL), c INT DEFAULT (a IS NOT NULL));
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a INT, b INT DEFAULT a IS UNKNOWN, c INT DEFAULT a IS NOT UNKNOWN);
+CREATE TABLE t1 (a INT, b INT DEFAULT (a IS UNKNOWN), c INT DEFAULT (a IS NOT UNKNOWN));
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1 (a INT,
-                 eq INT DEFAULT a=0, equal INT DEFAULT a<=>0,
-                 ne INT DEFAULT a<>0,
-                 lt INT DEFAULT a<0, le INT DEFAULT a<=0,
-                 gt INT DEFAULT a>0, ge INT DEFAULT a>=0);
+                 eq INT DEFAULT (a=0), equal INT DEFAULT (a<=>0),
+                 ne INT DEFAULT (a<>0),
+                 lt INT DEFAULT (a<0), le INT DEFAULT (a<=0),
+                 gt INT DEFAULT (a>0), ge INT DEFAULT (a>=0));
 INSERT INTO t1 (a) VALUES (NULL),(-1),(0),(1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a LIKE 'a%');
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a LIKE 'a%'));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a RLIKE 'a$');
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a RLIKE 'a$'));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a IN ('aaa','bbb'));
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a IN ('aaa','bbb')));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a NOT IN ('aaa','bbb'));
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a NOT IN ('aaa','bbb')));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a BETWEEN 'aaa' AND 'bbb');
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a BETWEEN 'aaa' AND 'bbb'));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT a NOT BETWEEN 'aaa' AND 'bbb');
+CREATE TABLE t1 (a VARCHAR(10), b INT DEFAULT (a NOT BETWEEN 'aaa' AND 'bbb'));
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -1715,4 +1722,13 @@ CREATE TABLE t1 (
 );
 INSERT INTO t1 (a) VALUES ('test');
 SELECT c FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Collations
+--echo #
+
+--error ER_BAD_DATA
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1 DEFAULT CONCAT('ö')) CHARACTER SET koi8r COLLATE koi8r_bin;
+CREATE OR REPLACE TABLE t1 (a char(2) default concat('A') COLLATE utf8mb4_unicode_ci);
 DROP TABLE t1;

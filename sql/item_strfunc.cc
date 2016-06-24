@@ -2342,6 +2342,18 @@ void Item_func_decode::crypto_transform(String *res)
   sql_crypt.decode((char*) res->ptr(),res->length());
 }
 
+Item *Item_func_sysconst::safe_charset_converter(THD *thd,
+                                                 CHARSET_INFO *tocs)
+{
+  /*
+    In default, virtual functions or constraint expressions, the value
+    of a sysconst is not constant
+  */
+  if (thd->in_stored_expression)
+    return Item_str_func::safe_charset_converter(thd, tocs);
+  return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
+}
+
 
 String *Item_func_database::val_str(String *str)
 {
@@ -2366,11 +2378,14 @@ String *Item_func_database::val_str(String *str)
 
 bool Item_func_user::init(THD *thd, const char *user, const char *host)
 {
+  DBUG_ENTER("Item_func_user::init");
   DBUG_ASSERT(fixed == 1);
 
   /* Check if we have already calculated the value for this thread */
   if (thd->query_id == last_query_id)
-    return FALSE;
+    DBUG_RETURN(FALSE);
+  DBUG_PRINT("enter", ("user: '%s'  host: '%s'", user,host));
+
   last_query_id= thd->query_id;
   null_value= 0;
 
@@ -2380,28 +2395,29 @@ bool Item_func_user::init(THD *thd, const char *user, const char *host)
     CHARSET_INFO *cs= system_charset_info;
     size_t res_length= (strlen(user)+strlen(host)+2) * cs->mbmaxlen;
 
-    if (str_value.alloc((uint) res_length))
+    if (cached_value.alloc((uint) res_length))
     {
       null_value=1;
-      return TRUE;
+      DBUG_RETURN(TRUE);
     }
 
-    str_value.set_charset(cs);
-    res_length=cs->cset->snprintf(cs, (char*)str_value.ptr(), (uint) res_length,
+    cached_value.set_charset(cs);
+    res_length=cs->cset->snprintf(cs, (char*)cached_value.ptr(),
+                                  (uint) res_length,
                                   "%s@%s", user, host);
-    str_value.length((uint) res_length);
-    str_value.mark_as_const();
+    cached_value.length((uint) res_length);
+    cached_value.mark_as_const();
   }
   else
-    str_value.set("", 0, system_charset_info);
-  return FALSE;
+    cached_value.set("", 0, system_charset_info);
+  DBUG_RETURN(FALSE);
 }
 
 String *Item_func_user::val_str(String *str)
 {
   THD *thd= current_thd;
   init(thd, thd->main_security_ctx.user, thd->main_security_ctx.host_or_ip);
-  return null_value ? 0 : &str_value;
+  return null_value ? 0 : &cached_value;
 }
 
 String *Item_func_current_user::val_str(String *str)
@@ -2410,7 +2426,7 @@ String *Item_func_current_user::val_str(String *str)
   Security_context *ctx= (context->security_ctx ?
                           context->security_ctx : thd->security_ctx);
   init(thd, ctx->priv_user, ctx->priv_host);
-  return null_value ? 0 : &str_value;
+  return null_value ? 0 : &cached_value;
 }
 
 
