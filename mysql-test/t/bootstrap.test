@@ -89,3 +89,13 @@ drop table t1;
 --replace_result .dll .so
 select * from mysql.plugin;
 truncate table mysql.plugin;
+
+
+#
+# MDEV-9969 mysql_install_db error processing ignore_db_dirs.
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql

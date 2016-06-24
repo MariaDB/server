@@ -1371,7 +1371,8 @@ static void inject_message_in_locked_node(
     ft_msg msg_with_msn(msg.kdbt(), msg.vdbt(), msg.type(), msg_msn, msg.xids());
     paranoid_invariant(msg_with_msn.msn().msn > node->max_msn_applied_to_node_on_disk.msn);
 
-    STAT64INFO_S stats_delta = {0,0};
+    STAT64INFO_S stats_delta = { 0,0 };
+    int64_t logical_rows_delta = 0;
     toku_ftnode_put_msg(
         ft->cmp,
         ft->update_fun,
@@ -1381,11 +1382,12 @@ static void inject_message_in_locked_node(
         true,
         gc_info,
         flow_deltas,
-        &stats_delta
-        );
+        &stats_delta,
+        &logical_rows_delta);
     if (stats_delta.numbytes || stats_delta.numrows) {
         toku_ft_update_stats(&ft->in_memory_stats, stats_delta);
     }
+    toku_ft_adjust_logical_row_count(ft, logical_rows_delta);
     //
     // assumption is that toku_ftnode_put_msg will
     // mark the node as dirty.
@@ -2169,6 +2171,7 @@ int toku_ft_insert_unique(FT_HANDLE ft_h, DBT *key, DBT *val, TOKUTXN txn, bool 
 
     if (r == 0) {
         ft_txn_log_insert(ft_h->ft, key, val, txn, do_logging, FT_INSERT);
+        toku_ft_adjust_logical_row_count(ft_h->ft, 1);
     }
     return r;
 }
@@ -2344,6 +2347,7 @@ void toku_ft_maybe_insert (FT_HANDLE ft_h, DBT *key, DBT *val, TOKUTXN txn, bool
         if (r != 0) {
             toku_ft_send_insert(ft_h, key, val, message_xids, type, &gc_info);
         }
+        toku_ft_adjust_logical_row_count(ft_h->ft, 1);
     }
 }
 
@@ -2513,6 +2517,7 @@ void toku_ft_maybe_delete(FT_HANDLE ft_h, DBT *key, TOKUTXN txn, bool oplsn_vali
                             oldest_referenced_xid_estimate,
                             txn != nullptr ? !txn->for_recovery : false);
         toku_ft_send_delete(ft_h, key, message_xids, &gc_info);
+        toku_ft_adjust_logical_row_count(ft_h->ft, -1);
     }
 }
 

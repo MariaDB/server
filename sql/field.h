@@ -884,11 +884,12 @@ public:
     matches collation of the field (needed only for real string types).
   */
   virtual bool match_collation_to_optimize_range() const { return false; }
-  virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
-  virtual void set_derivation(enum Derivation derivation_arg) { }
+  virtual void set_derivation(enum Derivation derivation_arg,
+                              uint repertoire_arg)
+  { }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
@@ -1132,8 +1133,10 @@ public:
 
 class Field_str :public Field {
 protected:
+  // TODO-10.2: Reuse DTCollation instead of these three members
   CHARSET_INFO *field_charset;
   enum Derivation field_derivation;
+  uint field_repertoire;
 public:
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
@@ -1144,15 +1147,15 @@ public:
   int  store(longlong nr, bool unsigned_val)=0;
   int  store_decimal(const my_decimal *);
   int  store(const char *to,uint length,CHARSET_INFO *cs)=0;
-  uint repertoire(void) const
-  {
-    return my_charset_repertoire(field_charset);
-  }
+  uint repertoire(void) const { return field_repertoire; }
   CHARSET_INFO *charset(void) const { return field_charset; }
-  void set_charset(CHARSET_INFO *charset_arg) { field_charset= charset_arg; }
   enum Derivation derivation(void) const { return field_derivation; }
-  virtual void set_derivation(enum Derivation derivation_arg)
-  { field_derivation= derivation_arg; }
+  void set_derivation(enum Derivation derivation_arg,
+                      uint repertoire_arg)
+  {
+    field_derivation= derivation_arg;
+    field_repertoire= repertoire_arg;
+  }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
@@ -2468,10 +2471,9 @@ public:
     packlength= 4;
     if (set_packlength)
     {
-      uint32 l_char_length= len_arg/cs->mbmaxlen;
-      packlength= l_char_length <= 255 ? 1 :
-                  l_char_length <= 65535 ? 2 :
-                  l_char_length <= 16777215 ? 3 : 4;
+      packlength= len_arg <= 255 ? 1 :
+                  len_arg <= 65535 ? 2 :
+                  len_arg <= 16777215 ? 3 : 4;
     }
   }
   Field_blob(uint32 packlength_arg)

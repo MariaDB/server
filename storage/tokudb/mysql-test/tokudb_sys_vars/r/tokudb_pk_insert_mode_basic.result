@@ -1,0 +1,85 @@
+SET @orig_global = @@global.tokudb_pk_insert_mode;
+SELECT @orig_global;
+@orig_global
+1
+SET @orig_session = @@session.tokudb_pk_insert_mode;
+SELECT @orig_session;
+@orig_session
+1
+SET GLOBAL tokudb_pk_insert_mode = 10;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_pk_insert_mode value: '10'
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+2
+SET GLOBAL tokudb_pk_insert_mode = 0;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode=0 is deprecated and the parameter may be removed in future releases. Only tokudb_pk_insert_mode=1|2 is allowed.Resettig the value to 1.
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+1
+SET GLOBAL tokudb_pk_insert_mode = DEFAULT;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+1
+SET GLOBAL tokudb_pk_insert_mode = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_pk_insert_mode'
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+1
+SET SESSION tokudb_pk_insert_mode = 10;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_pk_insert_mode value: '10'
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+2
+SET SESSION tokudb_pk_insert_mode = 0;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode=0 is deprecated and the parameter may be removed in future releases. Only tokudb_pk_insert_mode=1|2 is allowed.Resettig the value to 1.
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+1
+SET SESSION tokudb_pk_insert_mode = DEFAULT;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+1
+SET SESSION tokudb_pk_insert_mode = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_pk_insert_mode'
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+1
+SET GLOBAL tokudb_pk_insert_mode = 12;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_pk_insert_mode value: '12'
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SET SESSION tokudb_pk_insert_mode = 13;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_pk_insert_mode value: '13'
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+2
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+2
+SHOW VARIABLES LIKE 'tokudb_pk_insert_mode';
+Variable_name	Value
+tokudb_pk_insert_mode	2
+SET SESSION tokudb_pk_insert_mode = @orig_session;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@session.tokudb_pk_insert_mode;
+@@session.tokudb_pk_insert_mode
+1
+SET GLOBAL tokudb_pk_insert_mode = @orig_global;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
+SELECT @@global.tokudb_pk_insert_mode;
+@@global.tokudb_pk_insert_mode
+1

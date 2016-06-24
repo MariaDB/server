@@ -54,6 +54,7 @@ enum {
     TOKU_LOG_VERSION_26 = 26, // no change from 25
     TOKU_LOG_VERSION_27 = 27, // no change from 26
     TOKU_LOG_VERSION_28 = 28, // no change from 27
+    TOKU_LOG_VERSION_29 = 29, // no change from 28
     TOKU_LOG_VERSION   = FT_LAYOUT_VERSION, 
     TOKU_LOG_MIN_SUPPORTED_VERSION = FT_LAYOUT_MIN_SUPPORTED_VERSION,
 };

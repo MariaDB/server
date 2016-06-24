@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -131,7 +131,7 @@ independently of any UNIV_ debugging conditions. */
 #ifndef UNIV_INNOCHECKSUM
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 # include <stdarg.h>
-__attribute__((format (printf, 1, 2)))
+MY_ATTRIBUTE((format (printf, 1, 2)))
 /**********************************************************************//**
 Report a failure to decompress or compress.
 @return	number of characters printed */
@@ -752,8 +752,8 @@ static
 void
 page_zip_free(
 /*==========*/
-	void*	opaque __attribute__((unused)),	/*!< in: memory heap */
-	void*	address __attribute__((unused)))/*!< in: object to free */
+	void*	opaque MY_ATTRIBUTE((unused)),	/*!< in: memory heap */
+	void*	address MY_ATTRIBUTE((unused)))/*!< in: object to free */
 {
 }
 
@@ -4807,7 +4807,8 @@ page_zip_parse_compress(
 	ulint	size;
 	ulint	trailer_size;
 
-	ut_ad(ptr && end_ptr);
+	ut_ad(ptr != NULL);
+	ut_ad(end_ptr != NULL);
 	ut_ad(!page == !page_zip);
 
 	if (UNIV_UNLIKELY(ptr + (2 + 2) > end_ptr)) {
@@ -4928,10 +4929,10 @@ page_zip_verify_checksum(
 	stored = static_cast<ib_uint32_t>(mach_read_from_4(
 		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
-	ulint	page_no __attribute__((unused)) =
+	ulint	page_no MY_ATTRIBUTE((unused)) =
                 mach_read_from_4(static_cast<const unsigned char*>
                                  (data) + FIL_PAGE_OFFSET);
-	ulint	space_id __attribute__((unused)) =
+	ulint	space_id MY_ATTRIBUTE((unused)) =
                 mach_read_from_4(static_cast<const unsigned char*>
                                  (data) + FIL_PAGE_SPACE_ID);
 

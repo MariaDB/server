@@ -1,0 +1,16 @@
+2952: tokutek not_5_5
+4472 : #4521 MDL for alter table in 5.5 prohibits this test from having any chance of working
+fileops-2: tokutek not_5_5
+fileops-3: tokutek not_5_5
+fileops-4: tokutek not_5_5
+memcache_dirty: tokutek FB port
+xa-2: tokutek not_5_5
+tokudb_drop_part_table_668: upgrade from tokudb 6.6.8
+tokudb_drop_simple_table_668: upgrade from tokudb 6.6.8
+checkpoint_lock_2: test can not work when the checkpoint_safe_lock is a fair rwlock
+6053: tokudb is not the default storage engine
+1883: tokutek's auto inc singleton patch missing
+3083: no patch to find_shortest_key to prefer PK over CK
+db768 : https://tokutek.atlassian.net/browse/DB-768
+dict_leak_3518 : https://tokutek.atlassian.net/browse/DB-635
+1872 : https://tokutek.atlassian.net/browse/DB-750
