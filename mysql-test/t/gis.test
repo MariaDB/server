@@ -1525,3 +1525,35 @@ CREATE TABLE t1 (g1 GEOMETRY NOT NULL,g2 GEOMETRY NULL);
 CREATE TABLE t2 AS SELECT WITHIN(g1,g1) as w1,WITHIN(g2,g2) AS w2 FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-7563 Support CHECK constraint
+--echo #
+
+CREATE TABLE t1 (a POINT, x DOUBLE DEFAULT x(a), y DOUBLE DEFAULT y(a));
+INSERT INTO t1 (a) VALUES (Point(1,2));
+SELECT x,y FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (g GEOMETRY, area DOUBLE DEFAULT ST_AREA(g));
+INSERT INTO t1 (g) VALUES (GeomFromText('POLYGON((0 0,20 0,20 20,0 20,0 0))'));
+SELECT area FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (g GEOMETRY, length DOUBLE DEFAULT ST_LENGTH(g));
+INSERT INTO t1 (g) VALUES (GeomFromText('LINESTRING(0 0,20 0,20 20,0 20,0 0)'));
+SELECT length FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (g POINT, distance DOUBLE DEFAULT ST_DISTANCE(g, POINT(0,0)));
+INSERT INTO t1 (g) VALUES (Point(1,0));
+SELECT distance FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
