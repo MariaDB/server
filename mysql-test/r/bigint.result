@@ -385,7 +385,7 @@ def					-((9223372036854775808))	8	20	20	N	32897	0	63
 -9223372036854775808
 select -(-(9223372036854775808));
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					-(-(9223372036854775808))	246	21	19	N	32897	0	63
+def					-(-(9223372036854775808))	246	20	19	N	32897	0	63
 -(-(9223372036854775808))
 9223372036854775808
 select --9223372036854775808, ---9223372036854775808, ----9223372036854775808;
@@ -402,7 +402,7 @@ drop table t1;
 create table t1 select -9223372036854775809 bi;
 describe t1;
 Field	Type	Null	Key	Default	Extra
-bi	decimal(20,0)	NO		NULL	
+bi	decimal(19,0)	NO		NULL	
 drop table t1;
 #
 # Bug #45360: wrong results

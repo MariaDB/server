@@ -1005,8 +1005,7 @@ static int ull2dec(ulonglong from, decimal_t *to)
     error=E_DEC_OVERFLOW;
   }
   to->frac=0;
-  /* intg can't be bigger than number of digits in a ulonglong (20) */
-  to->intg= MY_MIN(intg1*DIG_PER_DEC1, 20);
+  for(to->intg= (intg1-1)*DIG_PER_DEC1; from; to->intg++, from/=10) {}
 
   for (buf=to->buf+intg1; intg1; intg1--)
   {
