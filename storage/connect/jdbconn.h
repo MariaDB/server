@@ -24,7 +24,7 @@
 //efine MAX_FNAME_LEN    256    // Max size of field names
 //efine MAX_STRING_INFO  256    // Max size of string from SQLGetInfo
 //efine MAX_DNAME_LEN    256    // Max size of Recordset names
-#define MAX_CONNECT_LEN  512    // Max size of Connect string
+//efine MAX_CONNECT_LEN  512    // Max size of Connect string
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
 #define DEFAULT_FIELD_TYPE 0    // TYPE_NULL
 
