@@ -9793,7 +9793,7 @@ bool Column_definition::check(THD *thd)
   const uint conditional_type_modifiers= AUTO_INCREMENT_FLAG;
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
-  DBUG_ENTER("Create_field::check");
+  DBUG_ENTER("Column_definition::check");
 
   /* Initialize data for a computed field */
   if (vcol_info)

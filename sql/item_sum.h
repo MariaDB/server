@@ -61,7 +61,7 @@ public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
   virtual ~Aggregator () {}                   /* Keep gcc happy */
 
-  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR }; 
+  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
 
   /**
@@ -411,8 +411,8 @@ public:
   */  
   inline bool reset_and_add() 
   { 
-    aggregator_clear(); 
-    return aggregator_add(); 
+    aggregator_clear();
+    return aggregator_add();
   };
 
   /*
@@ -458,7 +458,7 @@ public:
   */
   void make_const () 
   { 
-    used_tables_cache= 0; 
+    used_tables_cache= 0;
     const_item_cache= true;
   }
   virtual bool const_during_execution() const { return false; }

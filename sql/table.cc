@@ -358,7 +358,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     thd         thread handle
     share	Share to fill
     key		Table_cache_key, as generated from tdc_create_key.
-		must start with db name.    
+		must start with db name.
     key_length	Length of key
     table_name	Table name
     path	Path to file (possible in lower case) without .frm
@@ -540,7 +540,7 @@ inline bool is_system_table_name(const char *name, uint length)
                my_tolower(ci, name[1]) == 'n' &&
                my_tolower(ci, name[2]) == 'n' &&
                my_tolower(ci, name[3]) == 'o')) ||
-           
+
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
              my_tolower(ci, name[1]) == 'v' &&
@@ -715,8 +715,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 
     When in the future we support others schemes of extending of
     secondary keys with components of the primary key we'll have
-    to change the type of this flag for an enumeration type.                 
-  */   
+    to change the type of this flag for an enumeration type.
+  */
 
   for (i=0 ; i < keys ; i++, keyinfo++)
   {
@@ -1011,12 +1011,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
-  keyinfo= &first_keyinfo;
-  share->ext_key_parts= 0;
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
+  keyinfo= &first_keyinfo;
+  share->ext_key_parts= 0;
   thd->mem_root= &share->mem_root;
 
   if (write && write_frm_image(frm_image, frm_length))
@@ -1024,6 +1024,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
     goto err;
+
+  share->frm_version= frm_image[2];
+  /*
+    Check if .frm file created by MySQL 5.0. In this case we want to
+    display CHAR fields as CHAR and not as VARCHAR.
+    We do it this way as we want to keep the old frm version to enable
+    MySQL 4.1 to read these files.
+  */
+  if (share->frm_version == FRM_VER_TRUE_VARCHAR -1 && frm_image[33] == 5)
+    share->frm_version= FRM_VER_TRUE_VARCHAR;
 
   new_field_pack_flag= frm_image[27];
   new_frm_ver= (frm_image[2] - FRM_VER);
@@ -1113,16 +1123,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
     goto err;
 
-  share->frm_version= frm_image[2];
-  /*
-    Check if .frm file created by MySQL 5.0. In this case we want to
-    display CHAR fields as CHAR and not as VARCHAR.
-    We do it this way as we want to keep the old frm version to enable
-    MySQL 4.1 to read these files.
-  */
-  if (share->frm_version == FRM_VER_TRUE_VARCHAR -1 && frm_image[33] == 5)
-    share->frm_version= FRM_VER_TRUE_VARCHAR;
-
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (frm_image[61] && !share->default_part_plugin)
   {
@@ -1150,7 +1150,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     uint cs_new= upgrade_collation(share->mysql_version, cs_org);
     if (cs_org != cs_new)
       share->incompatible_version|= HA_CREATE_USED_CHARSET;
-    
+
     share->avg_row_length= uint4korr(frm_image+34);
     share->transactional= (ha_choice)
       enum_value_with_check(thd, share, "transactional", frm_image[39] & 3, HA_CHOICE_MAX);
@@ -1563,7 +1563,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     Field::geometry_type geom_type= Field::GEOM_GEOMETRY;
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
-    bool fld_stored_in_db= TRUE;
     uint gis_length, gis_decimals, srid= 0;
 
     if (new_frm_ver >= 3)
@@ -1620,7 +1619,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
       {
         DBUG_ASSERT(interval_nr); // Expect non-null expression
-        /* 
+        /*
+          MariaDB version 10.0 version.
           The interval_id byte in the .frm file stores the length of the
           expression statement for a virtual column.
         */
@@ -1669,11 +1669,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           Get virtual column data stored in the .frm file as follows:
           byte 1      = 1 | 2
           byte 2      = sql_type
-          byte 3      = flags (as of now, 0 - no flags, 1 - field is physically stored)
-          [byte 4]    = optional interval_id for sql_type (only if byte 1 == 2) 
+          byte 3      = flags (as of now, 0 - no flags,
+                        1 - field is physically stored)
+          [byte 4]    = optional interval_id for sql_type (if byte 1 == 2)
           next byte ...  = virtual column expression (text data)
         */
-        vcol_info= new Virtual_column_info();
+
+        vcol_info= new (&share->mem_root) Virtual_column_info();
         bool opt_interval_id= (uint)vcol_screen_pos[0] == 2;
         field_type= (enum_field_types) (uchar) vcol_screen_pos[1];
         if (opt_interval_id)
@@ -1681,7 +1683,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         else if ((uint)vcol_screen_pos[0] != 1)
           goto err;
 
-        fld_stored_in_db= (bool) (uint) vcol_screen_pos[2];
+        vcol_info->stored_in_db= (bool) (uint) vcol_screen_pos[2];
         vcol_expr_length= vcol_info_length -
                           (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
         if (!(vcol_info->expr_str.str=
@@ -1713,7 +1715,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         /*
           Try to choose the best 4.1 type:
           - for 4.0 "CHAR(N) BINARY" or "VARCHAR(N) BINARY" 
-            try to find a binary collation for character set.
+           try to find a binary collation for character set.
           - for other types (e.g. BLOB) just use my_charset_bin. 
         */
         if (!f_is_blob(pack_flag))
@@ -1741,7 +1743,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       TYPELIB *interval= share->intervals + interval_nr - 1;
       unhex_type2(interval);
     }
-    
+
 #ifndef TO_BE_DELETED_ON_PRODUCTION
     if (field_type == MYSQL_TYPE_NEWDECIMAL && !share->mysql_version)
     {
@@ -1791,14 +1793,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (!reg_field)				// Not supported field type
       goto err;
 
-
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
-    if (vcol_info)
-      reg_field->vcol_info->stored_in_db= fld_stored_in_db;
-    else
-      DBUG_ASSERT(fld_stored_in_db == true);
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -1987,7 +1984,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           keyinfo->key_part= new_key_part;
         }
       }
-    
+ 
       /* Fix fulltext keys for old .frm files */
       if (share->key_info[key].flags & HA_FULLTEXT)
 	share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
@@ -2406,7 +2403,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
   LEX_STRING db_backup= { thd->db, thd->db_length };
-
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
   /*
@@ -2517,12 +2513,9 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
   @brief 
     Perform semantic analysis of the defining expression for a virtual column
 
-  @param
-    thd           The thread object
-  @param
-    table         The table containing the virtual column
-  @param
-    vcol_field    The virtual field whose defining expression is to be analyzed
+  @param thd        The thread object
+  @param table      The table containing the virtual column
+  @param field	    Field if this is a DEFAULT or AS, otherwise NULL
   @param vcol       The Virtual_column object
 
 
@@ -2568,7 +2561,7 @@ static bool fix_vcol_expr(THD *thd,
     error= func_expr->fix_fields(thd, &vcol->expr_item);
   if (unlikely(error))
   {
-    DBUG_PRINT("info", 
+    DBUG_PRINT("info",
     ("Field in virtual column expression does not belong to the table"));
     my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
     goto end;
@@ -2631,19 +2624,13 @@ end:
   @brief
     Unpack the definition of a virtual column from its linear representation
 
-  @param
-    thd                  The thread object
-  @param
-    mem_root             The mem_root object where to allocated memory 
-  @param
-    table                The table containing the virtual column
-  @param
-    field                The field for the virtual
-  @param  
-    vcol_expr            The string representation of the defining expression
-  @param[out]
-    error_reported       The flag to inform the caller that no other error
-                         messages are to be generated
+  @param thd             The thread object
+  @param mem_root	 Where to allocate memory
+  @param table           The table containing the virtual column
+  @param vcol            The Virtual_column object
+  @param field	         Field if this is a DEFAULT or AS, otherwise NULL
+  @param[out] error_reported   Flag to inform the caller that no
+                               other error messages are to be generated
 
   @details
 
@@ -2705,16 +2692,13 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
          (char*) parse_vcol_keyword.str,
          parse_vcol_keyword.length);
   str_len= parse_vcol_keyword.length;
-  memcpy(vcol_expr_str + str_len, "(", 1);
-  str_len++;
+  vcol_expr_str[str_len++]= '(';
   memcpy(vcol_expr_str + str_len, 
          (char*) vcol_expr->str, 
          vcol_expr->length);
   str_len+= vcol_expr->length;
-  memcpy(vcol_expr_str + str_len, ")", 1);
-  str_len++;
-  memcpy(vcol_expr_str + str_len, "\0", 1);
-  str_len++;
+  vcol_expr_str[str_len++]= ')';
+  vcol_expr_str[str_len++]= 0;
 
   if (parser_state.init(thd, vcol_expr_str, str_len))
     goto err;
@@ -2732,7 +2716,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
     Query_arena expr_arena(mem_root,
                            Query_arena::STMT_CONVENTIONAL_EXECUTION);
     if (!(vcol_arena= (Query_arena *) alloc_root(mem_root,
-                                               sizeof(Query_arena))))
+                                                 sizeof(Query_arena))))
       goto err;
     *vcol_arena= expr_arena;
     table->expr_arena= vcol_arena;
@@ -2875,7 +2859,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     records++;
 
   if (!(record= (uchar*) alloc_root(&outparam->mem_root,
-                                   share->rec_buff_length * records)))
+                                    share->rec_buff_length * records)))
     goto err;                                   /* purecov: inspected */
 
   if (records == 0)
@@ -2944,7 +2928,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       key_info->key_part= key_part;
 
       key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
-			                              key_info->user_defined_key_parts) ;      
+			                              key_info->user_defined_key_parts) ;
       for ( ; key_part < key_part_end; key_part++)
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
@@ -3259,7 +3243,7 @@ partititon_err:
       if (share->db_type()->discover_table &&
           (ha_err == ENOENT || ha_err == HA_ERR_NO_SUCH_TABLE))
         error= OPEN_FRM_DISCOVER;
-          
+
       goto err;
     }
   }
@@ -4616,7 +4600,7 @@ bool TABLE_LIST::setup_underlying(THD *thd)
   if (!view || (!field_translation && merge_underlying_list))
   {
     SELECT_LEX *select= get_single_select();
-    
+
     if (create_field_translation(thd))
       DBUG_RETURN(TRUE);
 
@@ -6486,7 +6470,7 @@ bool TABLE::mark_virtual_col(Field *field)
 
 /* 
   @brief Mark virtual columns for update/insert commands
-    
+
   @param insert_fl    <-> virtual columns are marked for insert command 
 
   @details
@@ -6494,7 +6478,7 @@ bool TABLE::mark_virtual_col(Field *field)
     in the vcol_set bitmap.
     For an insert command a virtual column is always marked in write_set if
     it is a stored column.
-    If a virtual column is from  write_set it is always marked in vcol_set.
+    If a virtual column is from write_set it is always marked in vcol_set.
     If a stored virtual column is not from write_set but it is computed
     through columns from write_set it is also marked in vcol_set, and,
     besides, it is added to write_set. 
@@ -6509,16 +6493,13 @@ bool TABLE::mark_virtual_col(Field *field)
     column b will be placed into read_set.
     If column c was a virtual column, but not a stored virtual column
     then it would not be added to any of the sets. Column b would not
-    be added to read_set either.           
+    be added to read_set either.
 */
 
 void TABLE::mark_virtual_columns_for_write(bool insert_fl)
 {
   Field **vfield_ptr, *tmp_vfield;
   bool bitmap_updated= FALSE;
-
-  if (!vfield)
-    return;
 
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -6547,7 +6528,7 @@ void TABLE::mark_virtual_columns_for_write(bool insert_fl)
         mark_virtual_col(tmp_vfield);
         bitmap_updated= TRUE;
       }
-    } 
+    }
   }
   if (bitmap_updated)
     file->column_bitmaps_signal();
@@ -6961,7 +6942,7 @@ void TABLE_LIST::reinit_before_use(THD *thd)
 */
 
 Item_subselect *TABLE_LIST::containing_subselect()
-{    
+{
   return (select_lex ? select_lex->master_unit()->item : 0);
 }
 
@@ -6991,7 +6972,7 @@ Item_subselect *TABLE_LIST::containing_subselect()
     is equivalent to
         USE INDEX (i1,i2)
     and means "consider only i1 and i2".
-        
+
     Similarly
         USE INDEX () USE INDEX (i1)
     is equivalent to
@@ -7000,7 +6981,7 @@ Item_subselect *TABLE_LIST::containing_subselect()
 
     It is OK to have the same index several times, e.g. "USE INDEX (i1,i1)" is
     not an error.
-        
+
     Different kind of hints (USE/FORCE/IGNORE) are processed in the following
     order:
       1. All indexes in USE (or FORCE) INDEX are added to the mask.
@@ -7243,16 +7224,17 @@ bool is_simple_order(ORDER *order)
 
   @param  thd              Thread handle
   @param  table            The TABLE object
-  @param  vcol_update_mode Specifies what virtual column are computed   
+  @param  vcol_update_mode Specifies what virtual column are computed
   
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
     If vcol_update_mode is set to VCOL_UPDATE_ALL then all virtual column are
-    computed. Otherwise, only fields from vcol_set are computed: all of them,
-    if vcol_update_mode is set to VCOL_UPDATE_FOR_WRITE, and, only those with
-    the stored_in_db flag set to false, if vcol_update_mode is equal to
-    VCOL_UPDATE_FOR_READ.
+    computed.
+    If vcol_update_mode is set to VCOL_UPDATE_FOR_WRITE then all
+    fields that are set in vcol_set are updated.
+    If vcol_update_mode is set to VCOL_UPDATE_FOR_READ then all
+    fields that are set in vcol_set and are not stored are updated.
 
   @retval
     0    Success
@@ -7277,7 +7259,8 @@ int update_virtual_fields(THD *thd, TABLE *table,
     DBUG_ASSERT(vcol_info);
     DBUG_ASSERT(vcol_info->expr_item);
     if ((bitmap_is_set(table->vcol_set, vfield->field_index) &&
-         (vcol_update_mode == VCOL_UPDATE_FOR_WRITE || !vcol_info->stored_in_db)) ||
+         (vcol_update_mode == VCOL_UPDATE_FOR_WRITE ||
+          !vcol_info->stored_in_db)) ||
         vcol_update_mode == VCOL_UPDATE_ALL)
     {
       /* Compute the actual value of the virtual fields */
@@ -7317,34 +7300,34 @@ int update_virtual_fields(THD *thd, TABLE *table,
 int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 {
   DBUG_ENTER("update_default_fields");
-  Field **dfield_ptr, *dfield;
+  Field **field_ptr;
   int res= 0;
   DBUG_ASSERT(default_field);
 
   in_use->reset_arena_for_cached_items(expr_arena);
 
   /* Iterate over fields with default functions in the table */
-  for (dfield_ptr= default_field; *dfield_ptr ; dfield_ptr++)
+  for (field_ptr= default_field; *field_ptr ; field_ptr++)
   {
-    dfield= (*dfield_ptr);
+    Field *field= (*field_ptr);
     /*
-      If an explicit default value for a filed overrides the default,
+      If an explicit default value for a field overrides the default,
       do not update the field with its automatic default value.
     */
-    if (!dfield->has_explicit_value())
+    if (!field->has_explicit_value())
     {
       if (!update_command)
       {
-        if (dfield->default_value)
-          res|= (dfield->default_value->expr_item->save_in_field(dfield, 0) < 0);
+        if (field->default_value)
+          res|= (field->default_value->expr_item->save_in_field(field, 0) < 0);
         else
-          res|= dfield->evaluate_insert_default_function();
+          res|= field->evaluate_insert_default_function();
       }
       else
-        res|= dfield->evaluate_update_default_function();
+        res|= field->evaluate_update_default_function();
       if (!ignore_errors && res)
       {
-        my_error(ER_CALCULATING_DEFAULT_VALUE, MYF(0), dfield->field_name);
+        my_error(ER_CALCULATING_DEFAULT_VALUE, MYF(0), field->field_name);
         break;
       }
       res= 0;

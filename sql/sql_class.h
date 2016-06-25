@@ -1494,7 +1494,7 @@ public:
   ha_rows    cuted_fields, sent_row_count, examined_row_count;
   ulonglong client_capabilities;
   ulong query_plan_flags; 
-  uint in_sub_stmt;
+  uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
   SAVEPOINT *savepoints;

@@ -395,7 +395,7 @@ parse_page(
                }
                if (per_page_details) {
                  printf("index %lu page %lu leaf %u n_recs %lu data_bytes %lu"
-                        "\n", (ulong) id, page_no, is_leaf, n_recs, data_bytes);
+                        "\n", (ulong) id, (ulong) page_no, is_leaf, n_recs, data_bytes);
                }
                /* update per-index statistics */
                {

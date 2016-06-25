@@ -860,15 +860,14 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
+  table->reset_default_fields();
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
-
 
   if (table_list->prepare_where(thd, 0, TRUE) ||
       table_list->prepare_check_option(thd))
     error= 1;
 
-  table->reset_default_fields();
   switch_to_nullable_trigger_fields(fields, table);
   switch_to_nullable_trigger_fields(update_fields, table);
   switch_to_nullable_trigger_fields(update_values, table);
@@ -2411,6 +2410,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
   *copy= *table;
+
   /* We don't need to change the file handler here */
   /* Assign the pointers for the field pointers array and the record. */
   field= copy->field= (Field**) (copy + 1);

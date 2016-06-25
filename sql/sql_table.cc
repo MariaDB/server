@@ -3073,15 +3073,16 @@ CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
 
    @param column_definitions The list of column definitions, in the physical
                              order in which they appear in the table.
- */
+*/
+
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
-  List_iterator<Create_field> it(*column_definitions);
+  List_iterator_fast<Create_field> it(*column_definitions);
   Create_field *column_definition;
 
   while ((column_definition= it++) != NULL)
   {
-    if (is_timestamp_type(column_definition->sql_type) ||              // TIMESTAMP
+    if (is_timestamp_type(column_definition->sql_type) ||    // TIMESTAMP
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
@@ -3124,8 +3125,8 @@ static void check_duplicate_key(THD *thd,
   if (!key->key_create_info.check_for_duplicate_indexes || key->generated)
     return;
 
-  List_iterator<Key> key_list_iterator(*key_list);
-  List_iterator<Key_part_spec> key_column_iterator(key->columns);
+  List_iterator_fast<Key> key_list_iterator(*key_list);
+  List_iterator_fast<Key_part_spec> key_column_iterator(key->columns);
   Key *k;
 
   while ((k= key_list_iterator++))
@@ -3149,7 +3150,7 @@ static void check_duplicate_key(THD *thd,
       Check that the keys have identical columns in the same order.
     */
 
-    List_iterator<Key_part_spec> k_column_iterator(k->columns);
+    List_iterator_fast<Key_part_spec> k_column_iterator(k->columns);
 
     bool all_columns_are_identical= true;
 
@@ -3227,7 +3228,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   KEY_PART_INFO *key_part_info;
   int		field_no,dup_no;
   int		select_field_pos,auto_increment=0;
-  List_iterator<Create_field> it(alter_info->create_list);
+  List_iterator_fast<Create_field> it(alter_info->create_list);
   List_iterator<Create_field> it2(alter_info->create_list);
   uint total_uneven_bit_length= 0;
   int select_field_count= C_CREATE_SELECT(create_table_mode);
@@ -3581,7 +3582,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
    therefore mark it as unsafe.
   */
   if (select_field_count > 0 && auto_increment)
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_SELECT_AUTOINC);
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_SELECT_AUTOINC);
 
   /* Create keys */
 

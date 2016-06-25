@@ -638,7 +638,7 @@ sub command_line_setup () {
   if (! -f $glob_scriptname)
   {
     mtr_error("Can't find the location for the mysql-test-run script\n" .
-              "Go to to the mysql-test directory and execute the script " .
+              "Go to the mysql-test directory and execute the script " .
               "as follows:\n./$glob_scriptname");
   }
 

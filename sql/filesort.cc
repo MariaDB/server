@@ -747,7 +747,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
                                 &sort_form->tmp_set);
 
-
   if (quick_select)
   {
     if (select->quick->reset())

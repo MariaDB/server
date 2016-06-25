@@ -604,8 +604,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
 					   MTYP_NOEMPTY_BIT);
       no_empty++;
     }
-    /* 
-      We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE 
+    /*
+      We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE
       as auto-update field.
     */
     if (field->sql_type == MYSQL_TYPE_TIMESTAMP &&
@@ -768,8 +768,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
     length+= strlen(field->field_name)+1;
     length+= field->comment.length;
   }
-  length++;
-  length++;
+  length+= 2;
   DBUG_RETURN(length);
 }
 
@@ -818,7 +817,7 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     DBUG_ASSERT(field->unireg_check < 256);
     buff[10]= (uchar) field->unireg_check;
     buff[12]= (uchar) field->interval_id;
-    buff[13]= (uchar) field->sql_type; 
+    buff[13]= (uchar) field->sql_type;
     if (field->sql_type == MYSQL_TYPE_GEOMETRY)
     {
       buff[11]= 0;
@@ -910,7 +909,6 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
           *buff++= sep;
         }
         *buff++= 0;
-        
       }
     }
   }

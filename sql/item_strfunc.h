@@ -724,7 +724,7 @@ public:
     Item_str_func(thd, list)
   { collation.set(cs); }
   String *val_str(String *);
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   {
     max_length= arg_count * 4;
   }

@@ -4846,7 +4846,7 @@ ER_WARN_USING_OTHER_HANDLER
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
         swe "Använder handler %s för tabell '%s'"
-ER_CANT_AGGREGATE_2COLLATIONS  
+ER_CANT_AGGREGATE_2COLLATIONS
         eng "Illegal mix of collations (%s,%s) and (%s,%s) for operation '%s'"
         ger "Unerlaubte Mischung von Sortierreihenfolgen (%s, %s) und (%s, %s) für Operation '%s'"
         jpn "照合順序 (%s,%s) と (%s,%s) の混在は操作 '%s' では不正です。"
@@ -7206,8 +7206,8 @@ ER_INVALID_NTILE_ARGUMENT
 ER_EXPRESSION_IS_TOO_BIG
         eng "%s expression is too big for '%s'"
 ER_ERROR_EVALUATING_EXPRESSION
-        eng "Got an error evaluating stored expression %`.192s"
+        eng "Got an error evaluating stored expression %`s"
 ER_CALCULATING_DEFAULT_VALUE
-        eng "Got an error when calculating default value for '%s'"
+        eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
-        eng "Expression for field %`-.64s is refering to uninitialized field %`-.64s"
+        eng "Expression for field %`-.64s is refering to uninitialized field %`s"

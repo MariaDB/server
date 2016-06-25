@@ -95,8 +95,8 @@ bool compare_record(const TABLE *table)
   
   /* 
      The storage engine has read all columns, so it's safe to compare all bits
-     including those not in the write_set. This is cheaper than the field-by-field
-     comparison done above.
+     including those not in the write_set. This is cheaper than the
+     field-by-field comparison done above.
   */ 
   if (table->s->can_cmp_whole_record)
     return cmp_record(table,record[1]);
@@ -371,7 +371,7 @@ int mysql_update(THD *thd,
   switch_to_nullable_trigger_fields(fields, table);
   switch_to_nullable_trigger_fields(values, table);
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
+  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 

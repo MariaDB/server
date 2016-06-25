@@ -700,7 +700,6 @@ struct TABLE_SHARE
   */
   const File_parser *view_def;
 
-
   /*
     Cache for row-based replication table share checks that does not
     need to be repeated. Possible values are: -1 when cache value is

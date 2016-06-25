@@ -427,7 +427,7 @@ int Item::save_time_in_field(Field *field)
 int Item::save_date_in_field(Field *field)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
+  if (get_date(&ltime, sql_mode_for_dates(field->table->in_use)))
     return set_field_to_null_with_conversions(field, 0);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -889,7 +889,7 @@ bool Item_field::find_item_in_field_list_processor(uchar *arg)
 
   NOTES
     This is used by filesort to register used fields in a a temporary
-    column read set or to register used fields in a view
+    column read set or to register used fields in a view or check constraint
 */
 
 bool Item_field::register_field_in_read_map(uchar *arg)
@@ -897,9 +897,14 @@ bool Item_field::register_field_in_read_map(uchar *arg)
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
-  if (field->vcol_info && field->vcol_info->expr_item)
-    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map, 
+  if (field->vcol_info && field->vcol_info->expr_item &&
+      !bitmap_is_set(field->table->vcol_set, field->field_index))
+  {
+    /* Ensure that the virtual fields is updated on read or write */
+    bitmap_set_bit(field->table->vcol_set, field->field_index);
+    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,
                                              1, arg);
+  }
   return 0;
 }
 
@@ -1123,6 +1128,7 @@ Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   TODO: we should eventually check all other use cases of change_item_tree().
   Perhaps some more potentially dangerous substitution examples exist.
 */
+
 Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   if (!example)
@@ -1150,6 +1156,7 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   the latter returns a non-fixed Item, so val_str() crashes afterwards.
   Override Item_num method, to return a fixed item.
 */
+
 Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   /*

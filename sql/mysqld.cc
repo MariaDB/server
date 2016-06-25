@@ -4108,9 +4108,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
     thd->status_var.global_memory_used+= size;
   }
   else
-  {
     update_global_memory_status(size);
-  }
 }
 }
 

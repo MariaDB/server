@@ -49,7 +49,7 @@ public:
   Item_func_period_add(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "period_add"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
   }
@@ -76,7 +76,7 @@ public:
   Item_func_to_days(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_days"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -99,7 +99,7 @@ public:
   Item_func_to_seconds(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_seconds"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -132,7 +132,7 @@ public:
   Item_func_dayofmonth(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofmonth"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals=0; 
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -155,7 +155,7 @@ public:
   longlong val_int();
   double val_real()
   { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
-  String *val_str(String *str) 
+  String *val_str(String *str)
   {
     longlong nr= val_int();
     if (null_value)
@@ -166,7 +166,7 @@ public:
   const char *func_name() const { return "month"; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals= 0;
     fix_char_length(2);
@@ -207,7 +207,7 @@ public:
   Item_func_dayofyear(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofyear"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals= 0;
     fix_char_length(3);
@@ -291,7 +291,7 @@ public:
   Item_func_second(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "second"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -1045,7 +1045,7 @@ public:
   Item_func_microsecond(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "microsecond"; }
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   { 
     decimals=0;
     maybe_null=1;

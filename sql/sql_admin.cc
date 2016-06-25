@@ -163,7 +163,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     - Run a normal repair using the new index file and the old data file
   */
 
-  if (table->s->frm_version != FRM_VER_TRUE_VARCHAR &&
+  if (table->s->frm_version < FRM_VER_TRUE_VARCHAR &&
       table->s->varchar_fields)
   {
     error= send_check_errmsg(thd, table_list, "repair",
