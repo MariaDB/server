@@ -1217,6 +1217,35 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   return FALSE;
 }
 
+bool
+Item_sum_sp::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed == 0);
+
+  if (init_sum_func_check(thd))
+    return TRUE;
+  decimals=0;
+  maybe_null= sum_func() != COUNT_FUNC;
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    if (args[i]->fix_fields(thd, args + i) || args[i]->check_cols(1))
+      return TRUE;
+    set_if_bigger(decimals, args[i]->decimals);
+    with_subselect|= args[i]->with_subselect;
+  }
+  result_field=0;
+  max_length=float_length(decimals);
+  null_value=1;
+  fix_length_and_dec();
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+
+  memcpy (orig_args, args, sizeof (Item *) * arg_count);
+  fixed= 1;
+  return FALSE;
+}
+
 
 /**
   MIN/MAX function setup.

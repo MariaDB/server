@@ -137,6 +137,8 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
 int
 sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name);
 
+bool
+db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name,st_sp_chistics **chistics);
 
 /**
   Structure that represents element in the set of stored routines

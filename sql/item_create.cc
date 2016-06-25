@@ -3058,6 +3058,7 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   Item *func= NULL;
   LEX *lex= thd->lex;
   sp_name *qname;
+  st_sp_chistics *chistics;
 
   if (has_named_parameters(item_list))
   {
@@ -3081,11 +3082,35 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   qname->init_qname(thd);
   sp_add_used_routine(lex, thd, qname, TYPE_ENUM_FUNCTION);
 
-  if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname,
+  /* need some discussion on this   */
+
+  if(!db_get_aggregate_value(thd,TYPE_ENUM_FUNCTION,qname,&chistics))
+  {
+    if(chistics->agg_type == GROUP_AGGREGATE)
+    {
+      printf("CREATE ITEM_SUM_SP OBJECT");
+      if (arg_count > 0)
+        func= new (thd->mem_root) Item_sum_sp(thd,*item_list);
+      else
+        func= new (thd->mem_root) Item_sum_sp(thd);
+    }
+    else
+    {
+      if (arg_count > 0)
+        func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname,
                                            *item_list);
+      else
+        func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname);
+    }
+  }
   else
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname);
+  {
+    if (arg_count > 0)
+        func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname,
+                                           *item_list);
+      else
+        func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname);
+  }
 
   lex->safe_to_cache_query= 0;
   return func;

@@ -509,6 +509,72 @@ db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
   DBUG_RETURN(SP_OK);
 }
 
+bool
+db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name,st_sp_chistics **chistics)
+{
+  TABLE *table;
+  bool ret=false;
+  char *ptr;
+  bool saved_time_zone_used= thd->time_zone_used;
+  ulonglong saved_mode= thd->variables.sql_mode;
+  Open_tables_backup open_tables_state_backup;
+    
+  DBUG_ENTER("db_get_aggregate_value");
+  DBUG_PRINT("enter", ("type: %d name: %.*s",
+           type, (int) name->m_name.length, name->m_name.str));
+
+                                     // In case of errors
+  if (!(table= open_proc_table_for_read(thd, &open_tables_state_backup)))
+    DBUG_RETURN(true);
+
+  
+  if (db_find_routine_aux(thd, type, name, table) != SP_OK)
+  {
+    ret= true;  
+    goto done;
+  }
+
+  if (table->s->fields < MYSQL_PROC_FIELD_COUNT)
+  {
+    ret= true;
+    goto done;
+  }
+
+  //bzero((char *)&chistics, sizeof(chistics));
+  if ((ptr= get_field(thd->mem_root,
+          table->field[MYSQL_PROC_FIELD_AGGREGATE])) == NULL)
+  {
+    ret= true;
+    goto done;
+  }
+  switch (ptr[0]) {
+  case 'G':
+    (*chistics)->agg_type= GROUP_AGGREGATE;
+    break;
+  case 'W':
+    (*chistics)->agg_type= WINDOW_AGGREGATE;
+    break;
+  case 'N':
+    (*chistics)->agg_type= NOT_AGGREGATE;
+    break;
+  default:
+    (*chistics)->agg_type= DEFAULT_AGGREGATE;
+  }
+  
+ done:
+  /* 
+    Restore the time zone flag as the timezone usage in proc table
+    does not affect replication.
+  */  
+  thd->time_zone_used= saved_time_zone_used;
+  if (table)
+    close_system_tables(thd, &open_tables_state_backup);
+  thd->variables.sql_mode= saved_mode;
+  DBUG_RETURN(ret);
+}
+
+
+
 
 /**
   Find routine definition in mysql.proc table and create corresponding
