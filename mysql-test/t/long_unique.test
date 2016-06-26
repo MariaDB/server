@@ -28,4 +28,67 @@ insert into t1 values(1,1);
 insert into t2 values(1,'bob');
 create view v1 as select * from t2 inner join t1 using (empnum);
 select * from v1;
-
+#test on create table with column db_row_hash
+create table c_1(abc blob unique, db_row_hash_1 int unique);
+desc c_1;
+insert into c_1 values(1,1);
+--error 1022
+insert into c_1 values(1,2);
+create table c_2(abc blob unique,xyz blob unique, db_row_hash_2
+int,db_row_hash_1 int unique);
+desc c_2;
+insert into c_2 values(1,1,1,1);
+--error 1022
+insert into c_2 values(1,23,4,5);
+#alter table drop column
+--error 1091
+alter table z_1 drop db_row_hash_1;
+--error 1091
+alter table c_1 drop db_row_hash_2;
+alter table c_1 drop db_row_hash_1;
+#add column
+alter table z_1 add column  db_row_hash_1 int unique;
+show create table z_1;
+#insert should not break
+--error 1022
+insert into z_1 values('sachin',1);
+alter table c_1 add column db_row_hash_2 int;
+show create table c_1;
+#modify db_row_hash
+--error 1054
+alter table z_1 change db_row_hash_2 temp int;
+--error 1054
+alter table c_1 change db_row_hash_3 temp int;
+--error 1054
+alter table c_1 change db_row_hash_4 temp int;
+alter table c_2 change db_row_hash_1 temp int;
+# now try to index db_row_hash
+create table c_3(abc blob unique, xyz blob);
+--error 1072
+alter table c_3 add index(db_row_hash_1);
+create table i_1(x1 int );
+alter table i_1 add column x2 blob unique;
+insert into i_1 value(1,1);
+--error 1022
+insert into i_1 value(2,1);
+alter table i_1 drop index x2;
+insert into i_1 value(2,1);
+create table i_2(abc blob);
+insert into i_2 values(1);
+alter table i_2 add  unique index(abc);
+select * from i_2;
+insert into i_2 values(22);
+--error 1022
+insert into i_2 values(22);
+alter table i_2 drop key abc;
+insert into i_2 values(22);
+drop table i_2;
+create table i_2(abc blob);
+insert into i_2 values(1);
+alter table i_2 add constraint  unique(abc);
+select * from i_2;
+insert into i_2 values(22);
+--error 1022
+insert into i_2 values(22);
+alter table i_2 drop key abc;
+insert into i_2 values(22);

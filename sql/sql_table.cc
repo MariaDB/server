@@ -3232,7 +3232,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   List_iterator<Key> key_iter(alter_info->key_list);
   Key *key_iter_key;
   Key_part_spec *temp_colms;
-  char num = '1';
+  int num= 1;
   bool is_long_unique=false;
   int key_initial_elements=alter_info->key_list.elements;
   while((key_iter_key=key_iter++)&&key_initial_elements)
@@ -3241,10 +3241,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
     while((temp_colms=key_part_iter++))
     {
-      while ((sql_field=it++) && my_strcasecmp(system_charset_info,
+      while ((sql_field=it++) &&sql_field&& my_strcasecmp(system_charset_info,
                            temp_colms->field_name.str,
                            sql_field->field_name)){}
-       if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
+       if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
           sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
           sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
          &&temp_colms->length==0)
@@ -3253,6 +3253,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         /*
           One long key  unique in enough
          */
+        it.rewind();
         break;
        }
      // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
@@ -3267,16 +3268,34 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->length=cf->char_length=8;
       cf->charset=NULL;
       cf->decimals=0;
+      char temp_name[30];
+      strcpy(temp_name,"DB_ROW_HASH_");
+      char num_holder[10];    //10 is way more but i think it is ok
+      sprintf(num_holder,"%d",num);
+      strcat(temp_name,num_holder);
+      /*
+        Check for collusions
+       */
+      while((dup_field=it++))
+      {
+        if(!my_strcasecmp(system_charset_info,temp_name,dup_field->field_name))
+        {
+          temp_name[12]='\0'; //now temp_name='DB_ROW_HASH_'
+          num++;
+          sprintf(num_holder,"%d",num);
+          strcat(temp_name,num_holder);
+          it.rewind();
+        }
+      }
+      it.rewind();
       char * name = (char *)thd->alloc(30);
-      strcpy(name,"DB_ROW_HASH_");
-      strncat(name,&num,1);
-      num++;
+      strcpy(name,temp_name);
       cf->field_name=name;
       cf->stored_in_db=true;
       cf->sql_type=MYSQL_TYPE_LONGLONG;
       /* hash column should be atmost hidden */
       cf->is_row_hash=true;
-      cf->field_visibility=cf->field_visible_type::FULL_HIDDEN;
+      cf->field_visibility=FULL_HIDDEN;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
       char * hash_exp=(char *)thd->alloc(252);
@@ -3363,7 +3382,18 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
     }
-
+    if(sql_field->field_visibility==USER_DEFINED_HIDDEN)
+    {
+      if(sql_field->flags&NOT_NULL_FLAG)
+      {
+        if(sql_field->flags&!NO_DEFAULT_VALUE_FLAG)
+        {
+          //TODO add error for
+          my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
     {
@@ -3894,8 +3924,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 			   column->field_name.str,
 			   sql_field->field_name))
 	field++;
-      if (!sql_field)
-      {
+	if (!sql_field)
+	{
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
@@ -7438,6 +7468,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List_iterator<Create_field> find_it(new_create_list);
   List_iterator<Create_field> field_it(new_create_list);
   List<Key_part_spec> key_parts;
+  Create_field *new_hash_field=NULL;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
   uint used_fields;
@@ -7512,7 +7543,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((drop=drop_it++))
     {
       if (drop->type == Alter_drop::COLUMN &&
-	  !my_strcasecmp(system_charset_info,field->field_name, drop->name))
+    !my_strcasecmp(system_charset_info,field->field_name, drop->name)
+          /* we cant not drop system generated column */
+          && !(field->field_visibility==MEDIUM_HIDDEN
+               ||field->field_visibility==FULL_HIDDEN))
       {
 	/* Reset auto_increment value if it was dropped */
 	if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7536,7 +7570,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((def=def_it++))
     {
       if (def->change &&
-	  !my_strcasecmp(system_charset_info,field->field_name, def->change))
+    !my_strcasecmp(system_charset_info,field->field_name, def->change)
+          /* we cant change  system generated column */
+          && !(field->field_visibility==MEDIUM_HIDDEN
+               ||field->field_visibility==FULL_HIDDEN))
 	break;
     }
     if (def)
@@ -7577,8 +7614,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       Alter_column *alter;
       while ((alter=alter_it++))
       {
-	if (!my_strcasecmp(system_charset_info,field->field_name, alter->name))
-	  break;
+        if (!my_strcasecmp(system_charset_info,field->field_name, alter->name))
+            break;
       }
       if (alter)
       {
@@ -7604,6 +7641,49 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                table->s->table_name.str);
       goto err;
     }
+    /* Need to see whether new added column clashes with already existed
+       DB_ROW_HASH_*(is must have is_row_hash=true)
+     */
+    for (f_ptr=table->vfield ; f_ptr&&(field= *f_ptr) ; f_ptr++)
+    {
+      if (field->is_row_hash&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
+      {
+        /* got a clash  find the highest number in db_row_hash_* */
+        Field *temp_field;
+        int max=0;
+        for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr)&&
+                                   temp_field->is_row_hash ; f_temp_ptr++)
+        {
+          int temp = atoi(temp_field->field_name+12);
+          if(temp>max)
+            max=temp;
+        }
+        max++;
+
+        Create_field * old_hash_field;
+        while((old_hash_field=field_it++))
+        {
+          if(!my_strcasecmp(system_charset_info,old_hash_field->field_name,
+                           field->field_name))
+          {
+            field_it.remove();
+            break;
+          }
+        }
+        /* Give field new name which does not clash with def->feild_name */
+        new_hash_field = old_hash_field->clone(thd->mem_root);
+        char *name = (char *)thd->alloc(30);
+        strcpy(name,"DB_ROW_HASH_");
+        char num_holder[10];
+        sprintf(num_holder,"%d",max);
+        strcat(name,num_holder);
+        new_hash_field->field_name=name;
+        new_hash_field->field=field;
+        new_hash_field->change=old_hash_field->field_name;
+        new_create_list.push_front(new_hash_field,thd->mem_root);
+        field_it.rewind();
+      }
+    }
     /*
       Check that the DATE/DATETIME not null field we are going to add is
       either has a default value or the '0000-00-00' is allowed by the
@@ -7622,6 +7702,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->datetime_field= def;
         alter_ctx->error_if_not_empty= TRUE;
     }
+    /* main problem is what if added field name is db_row_hash */
+    
     if (!def->after)
       new_create_list.push_back(def, thd->mem_root);
     else
@@ -7701,6 +7783,25 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (drop)
     {
+      /* If we drop index of blob unique then we need to drop the db_row_hash col */
+      if(key_info->usable_key_parts==1&&key_info->key_part->field->is_row_hash)
+      {
+        char * name = (char *)key_info->key_part->field->field_name;
+        /*iterate over field_it and remove db_row_hash col  */
+        field_it.rewind();
+        Create_field * temp_field;
+        while ((temp_field=field_it++))
+        {
+          if(!my_strcasecmp(system_charset_info,temp_field->field_name,name))
+          {
+            field_it.remove();
+            //add flag if it not exists
+            alter_info->flags|=Alter_info::ALTER_DROP_COLUMN;
+            break;
+          }
+        }
+        field_it.rewind();
+      }
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
@@ -7858,6 +7959,48 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key->name.str);
         goto err;
       }
+      List_iterator<Key_part_spec> key_part_iter(key->columns);
+      Key_part_spec * temp_colms;
+      Create_field * sql_field;
+      field_it.rewind();
+      while((temp_colms=key_part_iter++))
+      {
+        while ((sql_field=field_it++))
+        {
+          if(!my_strcasecmp(system_charset_info,
+                           temp_colms->field_name.str,
+                           sql_field->field_name))
+          {
+            if(sql_field->field_visibility==MEDIUM_HIDDEN||sql_field->field_visibility==FULL_HIDDEN)
+            {
+              /* If we added one column (which clash with db_row_has )then this key
+              is different then added by user to make it sure we check for */
+              if(new_hash_field)
+              {
+                if(sql_field!=new_hash_field)
+                {
+                  my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), sql_field->field_name);
+                  goto err;
+                }
+              }
+              else /*this is for add index to db_row_hash which must show error  */
+              {
+                my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), sql_field->field_name);
+                goto err;
+              }
+            }
+            /* Check whether we adding index for blob or other long length column then add column flag*/
+            if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
+                sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
+                sql_field->sql_type==MYSQL_TYPE_LONG_BLOB||
+                sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
+               &&(temp_colms->length==0))
+              alter_info->flags|=Alter_info::ALTER_ADD_COLUMN;
+          }
+        }
+      }
+      field_it.rewind();
+
     }
   }
 

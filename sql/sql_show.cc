@@ -1847,11 +1847,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
+    if(field->field_visibility==MEDIUM_HIDDEN ||
+        field->field_visibility==FULL_HIDDEN)
+       continue;
     uint flags = field->flags;
-
-    if (ptr != table->field)
-      packet->append(STRING_WITH_LEN(",\n"));
-
     packet->append(STRING_WITH_LEN("  "));
     append_identifier(thd,packet,field->field_name, strlen(field->field_name));
     packet->append(' ');
@@ -1932,6 +1931,26 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     append_create_options(thd, packet, field->option_list, check_options,
                           hton->field_options);
+    //TODO need a better logic to find wheter to put comma or not
+    int i=1;
+    bool is_comma_needed=false;
+    if (*(ptr+i)!=NULL)
+    {
+      is_comma_needed=true;
+      while((*(ptr+i))->field_visibility==MEDIUM_HIDDEN ||
+            (*(ptr+i))->field_visibility==FULL_HIDDEN)
+      {
+        i++;
+        is_comma_needed=true;
+        if(!*(ptr+i))
+        {
+          is_comma_needed =false;
+          break;
+        }
+      }
+    }
+    if(is_comma_needed)
+     packet->append(STRING_WITH_LEN(",\n"));
   }
 
   key_info= table->key_info;
@@ -1946,6 +1965,18 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (uint i=0 ; i < share->keys ; i++,key_info++)
   {
     KEY_PART_INFO *key_part= key_info->key_part;
+    if(key_info->user_defined_key_parts==1 &&
+        key_part->field->field_visibility==FULL_HIDDEN)
+    {
+      char * column_names= key_part->field->vcol_info->
+                          expr_str.str+strlen("hash");
+      int length=key_part->field->vcol_info->expr_str.length;
+      length-=strlen("hash");
+      packet->append(STRING_WITH_LEN(",\n"));
+      packet->append(STRING_WITH_LEN("  UNIQUE KEY "));
+      packet->append(column_names,length);
+      continue;
+    }
     bool found_primary=0;
     packet->append(STRING_WITH_LEN(",\n  "));
 
@@ -5348,8 +5379,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
   for (; (field= *ptr) ; ptr++)
   {
-    if(field->field_visibility == Field::FULL_HIDDEN ||
-           field->field_visibility == Field::MEDIUM_HIDDEN)
+    if(field->field_visibility == FULL_HIDDEN ||
+           field->field_visibility == MEDIUM_HIDDEN)
       continue;
     uchar *pos;
     char tmp[MAX_FIELD_WIDTH];

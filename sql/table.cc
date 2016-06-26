@@ -952,7 +952,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   MEM_ROOT **root_ptr, *old_root;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
   struct visible_property{
-    Field::field_visible_type visibility;
+    field_visible_type visibility;
     bool is_row_hash;
   };
   visible_property *temp;
@@ -1040,7 +1040,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       case EXTRA2_FIELD_FLAGS:
         temp= new visible_property();
-        temp->visibility = static_cast<Field::field_visible_type>(*extra2);
+        temp->visibility = (field_visible_type)*extra2;
         temp->is_row_hash=(bool)*(extra2+1);
         v_p_list.push_back(temp);
         break;

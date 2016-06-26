@@ -6051,7 +6051,7 @@ vcol_attribute:
         | HIDDEN
           {
               LEX *lex =Lex;
-              lex->last_field->field_visibility=Create_field::USER_DEFINED_HIDDEN;
+              lex->last_field->field_visibility=USER_DEFINED_HIDDEN;
           }
         ;
 
@@ -6478,7 +6478,7 @@ attribute:
         | HIDDEN
           {
               LEX *lex =Lex;
-              lex->last_field->field_visibility=Create_field::USER_DEFINED_HIDDEN;
+              lex->last_field->field_visibility=USER_DEFINED_HIDDEN;
           }
         ;
 

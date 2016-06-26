@@ -628,9 +628,6 @@ public:
      @c NOT @c NULL field, this member is @c NULL.
   */
   uchar		*null_ptr;
-
-  enum field_visible_type{NORMAL,USER_DEFINED_HIDDEN,
-                          MEDIUM_HIDDEN,FULL_HIDDEN};
   field_visible_type field_visibility=NORMAL;
   bool is_row_hash=false;
   /*
@@ -3463,8 +3460,6 @@ public:
     max number of characters. 
   */
   ulonglong length;
-  enum field_visible_type{NORMAL,USER_DEFINED_HIDDEN,
-                          MEDIUM_HIDDEN,FULL_HIDDEN};
   field_visible_type field_visibility=NORMAL;
   bool is_row_hash=false;
   /*
@@ -3630,7 +3625,6 @@ uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-
 /*
   The following are for the interface with the .frm file
 */

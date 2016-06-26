@@ -413,6 +413,7 @@ struct Query_cache_tls
   Query_cache_tls() :first_query_block(NULL) {}
 };
 
+
 /* SIGNAL / RESIGNAL / GET DIAGNOSTICS */
 
 /**

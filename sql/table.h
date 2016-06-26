@@ -321,6 +321,17 @@ enum enum_vcol_update_mode
   VCOL_UPDATE_ALL
 };
 
+/* Field visibility enums */
+
+enum  field_visible_type{
+	NORMAL=0,
+	USER_DEFINED_HIDDEN,
+	MEDIUM_HIDDEN,
+	FULL_HIDDEN
+};
+
+
+
 class Filesort_info
 {
   /// Buffer for sorting keys.
