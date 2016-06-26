@@ -8211,8 +8211,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
 
   field_arg= (Item_field *)real_arg;
-  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG) ||
-      field_arg->field->default_value)
+  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
   {
     my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), field_arg->field->field_name);
     goto error;
@@ -8225,6 +8224,12 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
                                (def_field->table->s->default_values -
                                 def_field->table->record[0]));
   set_field(def_field);
+  if (field->default_value)
+  {
+    if (field->default_value->expr_item) // it's NULL during CREATE TABLE
+      field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
+    IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  }
   return FALSE;
 
 error:
@@ -8245,10 +8250,53 @@ void Item_default_value::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+void Item_default_value::calculate()
+{
+  if (field->default_value || field->has_insert_default_function())
+    field->set_default();
+}
+
+String *Item_default_value::val_str(String *str)
+{
+  calculate();
+  return Item_field::val_str(str);
+}
+
+double Item_default_value::val_real()
+{
+  calculate();
+  return Item_field::val_real();
+}
+
+longlong Item_default_value::val_int()
+{
+  calculate();
+  return Item_field::val_int();
+}
+
+my_decimal *Item_default_value::val_decimal(my_decimal *decimal_value)
+{
+  calculate();
+  return Item_field::val_decimal(decimal_value);
+}
+
+bool Item_default_value::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  calculate();
+  return Item_field::get_date(ltime, fuzzydate);
+}
+
+bool Item_default_value::send(Protocol *protocol, String *buffer)
+{
+  calculate();
+  return Item_field::send(protocol, buffer);
+}
 
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
-  if (!arg)
+  if (arg)
+    calculate();
+  else
   {
     TABLE *table= field_arg->table;
     THD *thd= table->in_use;

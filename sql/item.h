@@ -4877,6 +4877,7 @@ public:
 
 class Item_default_value : public Item_field
 {
+  void calculate();
 public:
   Item *arg;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
@@ -4890,7 +4891,13 @@ public:
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  String *val_str(String *str);
+  double val_real();
+  longlong val_int();
+  my_decimal *val_decimal(my_decimal *decimal_value);
+  bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
+  bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   table_map used_tables() const { return (table_map)0L; }
 

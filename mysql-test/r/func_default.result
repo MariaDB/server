@@ -21,3 +21,14 @@ INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
 SELECT s, 32 AS mi FROM t1 GROUP BY s HAVING DEFAULT(mi) IS NULL;
 ERROR HY000: Field 'mi' doesn't have a default value
 DROP TABLE t1;
+set timestamp=unix_timestamp('2001-01-01 10:20:30.123456');
+create table t1 (a int default 1, b int default (a+1),
+c varchar(100) default 'foo', d text default 'bar',
+e timestamp default now(), f timestamp(6) default now(2));
+insert t1 () values ();
+insert t1 (a) values (10);
+select default(a),default(b),default(c),default(d),default(e),default(f) from t1;
+default(a)	default(b)	default(c)	default(d)	default(e)	default(f)
+1	2	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.123456
+1	11	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.123456
+drop table t1;

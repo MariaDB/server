@@ -413,11 +413,11 @@ ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
 ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
 CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
-ERROR HY000: Field 'a' doesn't have a default value
+ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
-ERROR HY000: Field 'b' doesn't have a default value
+ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
-ERROR HY000: Field 'b' doesn't have a default value
+ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
 #
 # Allow defaults to refer to not default fields
 #
@@ -1193,7 +1193,10 @@ a	b
 2	2
 6	1000
 select default(a),b from t1;
-ERROR HY000: Field 'a' doesn't have a default value
+default(a)	b
+6	1
+6	2
+6	1000
 select a,default(b) from t1;
 a	default(b)
 1	1000

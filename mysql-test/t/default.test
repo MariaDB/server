@@ -299,11 +299,11 @@ create or replace table t1 (a int default a);
 create or replace table t1 (a int default b, b int default (1+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
---error ER_NO_DEFAULT_FOR_FIELD
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
---error ER_NO_DEFAULT_FOR_FIELD
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
---error ER_NO_DEFAULT_FOR_FIELD
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
 
 --echo #
@@ -879,7 +879,6 @@ SHOW CREATE TABLE t1;
 insert into t1 values (1,1),(2,2);
 insert into t1 values (default,default);
 select * from t1;
---error ER_NO_DEFAULT_FOR_FIELD
 select default(a),b from t1;
 select a,default(b) from t1;
 drop table t1;
