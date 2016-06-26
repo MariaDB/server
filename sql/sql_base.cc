@@ -5480,9 +5480,9 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           else
           {
             if (thd->mark_used_columns == MARK_COLUMNS_READ)
-              it->walk(&Item::register_field_in_read_map, 0, (uchar *) 0);
+              it->walk(&Item::register_field_in_read_map, 0, 0);
             else
-              it->walk(&Item::register_field_in_write_map, 0, (uchar *) 0);
+              it->walk(&Item::register_field_in_write_map, 0, 0);
           }
         }
         else
@@ -7803,7 +7803,7 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
     Item *item;
 
     while ((item= it++))
-      item->walk(&Item::switch_to_nullable_fields_processor, 1, (uchar*)field);
+      item->walk(&Item::switch_to_nullable_fields_processor, 1, field);
     table->triggers->reset_extra_null_bitmap();
   }
 }
@@ -7828,7 +7828,7 @@ void switch_to_nullable_trigger_fields(Field **info, TABLE *table)
     for (field_ptr= info; *field_ptr ; field_ptr++)
     {
       Field *field= (*field_ptr);
-      field->default_value->expr_item->walk(&Item::switch_to_nullable_fields_processor, 1, (uchar*) trigger_field);
+      field->default_value->expr_item->walk(&Item::switch_to_nullable_fields_processor, 1, trigger_field);
       *field_ptr= (trigger_field[field->field_index]);
     }
   }

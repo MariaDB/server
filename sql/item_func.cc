@@ -257,7 +257,7 @@ Item_func::quick_fix_field()
 
 
 bool
-Item_func::eval_not_null_tables(uchar *opt_arg)
+Item_func::eval_not_null_tables(void *opt_arg)
 {
   Item **arg,**arg_end;
   not_null_tables_cache= 0;
@@ -4741,7 +4741,7 @@ Item_func_set_user_var::fix_length_and_dec()
     column read set or to register used fields in a view
 */
 
-bool Item_func_set_user_var::register_field_in_read_map(uchar *arg)
+bool Item_func_set_user_var::register_field_in_read_map(void *arg)
 {
   if (result_field)
   {
@@ -4760,7 +4760,7 @@ bool Item_func_set_user_var::register_field_in_read_map(uchar *arg)
 
 */
 
-bool Item_func_set_user_var::register_field_in_bitmap(uchar *arg)
+bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 {
   MY_BITMAP *bitmap = (MY_BITMAP *) arg;
   DBUG_ASSERT(bitmap);

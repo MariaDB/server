@@ -385,7 +385,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
 }
 
 
-bool Item_sum::collect_outer_ref_processor(uchar *param)
+bool Item_sum::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
   SELECT_LEX *ds;

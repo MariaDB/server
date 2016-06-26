@@ -2598,8 +2598,7 @@ static bool fix_vcol_expr(THD *thd,
   /* Check that we are not refering to any not yet initialized fields */
   if (field)
   {
-    if (func_expr->walk(&Item::check_field_expression_processor, 0,
-                        (uchar*) field))
+    if (func_expr->walk(&Item::check_field_expression_processor, 0, field))
       goto end;
   }
 
@@ -2611,7 +2610,7 @@ static bool fix_vcol_expr(THD *thd,
   Item::vcol_func_processor_result res;
   res.errors= 0;
 
-  error= func_expr->walk(&Item::check_vcol_func_processor, 0, (uchar*) &res);
+  error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
   {
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
@@ -6127,8 +6126,7 @@ void TABLE::mark_columns_used_by_index_no_reset(uint index,
     if (key_part->field->vcol_info &&
         key_part->field->vcol_info->expr_item)
       key_part->field->vcol_info->
-               expr_item->walk(&Item::register_field_in_bitmap, 
-                               1, (uchar *) bitmap);
+               expr_item->walk(&Item::register_field_in_bitmap, 1, bitmap);
   }
 }
 
@@ -6462,7 +6460,7 @@ bool TABLE::mark_virtual_col(Field *field)
   {
     Item *vcol_item= field->vcol_info->expr_item;
     DBUG_ASSERT(vcol_item);
-    vcol_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
   }
   return res;
 }
@@ -6517,7 +6515,7 @@ void TABLE::mark_virtual_columns_for_write(bool insert_fl)
         bitmap_clear_all(&tmp_set);
         save_read_set= read_set;
         read_set= &tmp_set;
-        vcol_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+        vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
         read_set= save_read_set;
         bitmap_intersect(&tmp_set, write_set);
         mark_fl= !bitmap_is_clear_all(&tmp_set);
@@ -6552,7 +6550,7 @@ void TABLE::mark_columns_used_by_check_constraints(void)
   read_set= s->check_set;
 
   for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-    (*chk)->expr_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+    (*chk)->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
 
   read_set= save_read_set;
   s->check_set_initialized= 1;
@@ -6583,7 +6581,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
       {
         bitmap_set_bit(write_set, field->field_index);
         field->default_value->expr_item->
-          walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+          walk(&Item::register_field_in_read_map, 1, 0);
       }
     }
     else if ((is_insert && field->has_insert_default_function()) ||

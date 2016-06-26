@@ -488,7 +488,7 @@ public:
   {
     return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
   }
-  virtual bool collect_outer_ref_processor(uchar *param);
+  virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
   bool register_sum_func(THD *thd, Item **ref);
@@ -547,7 +547,7 @@ public:
   virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
@@ -1159,7 +1159,7 @@ public:
   table_map used_tables() const { return (table_map) 1L; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(name, arg, VCOL_IMPOSSIBLE);
   }
@@ -1600,7 +1600,7 @@ public:
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
   virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(uchar *cntx)
+  virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
 };
 

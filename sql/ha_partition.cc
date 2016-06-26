@@ -8467,8 +8467,7 @@ uint ha_partition::min_record_length(uint options) const
 void ha_partition::register_columns_for_write()
 {
   if (m_part_info->part_expr)
-    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1,
-                                 (uchar *) 0);
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
 }
 
 /****************************************************************************

@@ -743,7 +743,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                      0 : !select->pre_idx_push_select_cond ? 
                            select->cond : select->pre_idx_push_select_cond;
   if (sort_cond)
-    sort_cond->walk(&Item::register_field_in_read_map, 1, (uchar*) sort_form);
+    sort_cond->walk(&Item::register_field_in_read_map, 1, sort_form);
   sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
                                 &sort_form->tmp_set);
 
@@ -1253,15 +1253,14 @@ static void register_used_fields(Sort_param *param)
         if (field->vcol_info)
 	{
           Item *vcol_item= field->vcol_info->expr_item;
-          vcol_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+          vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
         }                   
         bitmap_set_bit(bitmap, field->field_index);
       }
     }
     else
     {						// Item
-      sort_field->item->walk(&Item::register_field_in_read_map, 1,
-                             (uchar *) table);
+      sort_field->item->walk(&Item::register_field_in_read_map, 1, table);
     }
   }
 

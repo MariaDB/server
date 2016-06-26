@@ -325,9 +325,9 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
        order=order->next)
   {
     (*order->item)->walk(&Item::change_context_processor, 0,
-                         (uchar*) &fake_select_lex->context);
+                         &fake_select_lex->context);
     (*order->item)->walk(&Item::set_fake_select_as_master_processor, 0,
-                         (uchar*) fake_select_lex);
+                         fake_select_lex);
   }
 }
 
@@ -560,8 +560,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       ORDER *ord;
       Item_func::Functype ft=  Item_func::FT_FUNC;
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
-        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, 
-                                (uchar *) &ft))
+        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, &ft))
         {
           my_error (ER_CANT_USE_OPTION_HERE, MYF(0), "MATCH()");
           goto err;

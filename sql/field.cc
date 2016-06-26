@@ -9765,9 +9765,8 @@ bool check_expression(Virtual_column_info *vcol, const char *type,
   */
 
   res.errors= 0;
-  ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0,
-                             (uchar*) &res);
-  vcol->non_deterministic= MY_TEST(res.errors & VCOL_NON_DETERMINISTIC);
+  ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0, &res);
+  vcol->non_deterministic= res.errors & VCOL_NON_DETERMINISTIC;
 
   if (ret ||
       (res.errors &

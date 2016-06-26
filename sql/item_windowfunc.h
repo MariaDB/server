@@ -534,7 +534,7 @@ public:
     have been computed. In that case, window function will need to read its
     temp.table field. In order to allow that, mark that field in the read_set.
   */
-  bool register_field_in_read_map(uchar *arg)
+  bool register_field_in_read_map(void *arg)
   {
     TABLE *table= (TABLE*) arg;
     if (result_field && (result_field->table == table || !table))

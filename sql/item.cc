@@ -621,7 +621,7 @@ void Item::cleanup()
   @param arg   a dummy parameter, is not used here
 */
 
-bool Item::cleanup_processor(uchar *arg)
+bool Item::cleanup_processor(void *arg)
 {
   if (fixed)
     cleanup();
@@ -782,7 +782,7 @@ void Item_ident::cleanup()
   DBUG_VOID_RETURN;
 }
 
-bool Item_ident::remove_dependence_processor(uchar * arg)
+bool Item_ident::remove_dependence_processor(void * arg)
 {
   DBUG_ENTER("Item_ident::remove_dependence_processor");
   if (get_depended_from() == (st_select_lex *) arg)
@@ -792,7 +792,7 @@ bool Item_ident::remove_dependence_processor(uchar * arg)
 }
 
 
-bool Item_ident::collect_outer_ref_processor(uchar *param)
+bool Item_ident::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
   if (depended_from &&
@@ -826,7 +826,7 @@ bool Item_ident::collect_outer_ref_processor(uchar *param)
     for the subsequent items.
 */
 
-bool Item_field::collect_item_field_processor(uchar *arg)
+bool Item_field::collect_item_field_processor(void *arg)
 {
   DBUG_ENTER("Item_field::collect_item_field_processor");
   DBUG_PRINT("info", ("%s", field->field_name ? field->field_name : "noname"));
@@ -843,7 +843,7 @@ bool Item_field::collect_item_field_processor(uchar *arg)
 }
 
 
-bool Item_field::add_field_to_set_processor(uchar *arg)
+bool Item_field::add_field_to_set_processor(void *arg)
 {
   DBUG_ENTER("Item_field::add_field_to_set_processor");
   DBUG_PRINT("info", ("%s", field->field_name ? field->field_name : "noname"));
@@ -869,7 +869,7 @@ bool Item_field::add_field_to_set_processor(uchar *arg)
     FALSE otherwise
 */
 
-bool Item_field::find_item_in_field_list_processor(uchar *arg)
+bool Item_field::find_item_in_field_list_processor(void *arg)
 {
   KEY_PART_INFO *first_non_group_part= *((KEY_PART_INFO **) arg);
   KEY_PART_INFO *last_part= *(((KEY_PART_INFO **) arg) + 1);
@@ -892,7 +892,7 @@ bool Item_field::find_item_in_field_list_processor(uchar *arg)
     column read set or to register used fields in a view or check constraint
 */
 
-bool Item_field::register_field_in_read_map(uchar *arg)
+bool Item_field::register_field_in_read_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
@@ -913,7 +913,7 @@ bool Item_field::register_field_in_read_map(uchar *arg)
   Mark field in bitmap supplied as *arg
 */
 
-bool Item_field::register_field_in_bitmap(uchar *arg)
+bool Item_field::register_field_in_bitmap(void *arg)
 {
   MY_BITMAP *bitmap= (MY_BITMAP *) arg;
   DBUG_ASSERT(bitmap);
@@ -929,7 +929,7 @@ bool Item_field::register_field_in_bitmap(uchar *arg)
     This is used by UPDATE to register underlying fields of used view fields.
 */
 
-bool Item_field::register_field_in_write_map(uchar *arg)
+bool Item_field::register_field_in_write_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
@@ -956,7 +956,7 @@ bool Item_field::register_field_in_write_map(uchar *arg)
   as the upper level will ensure that all these will be given a value.
 */
 
-bool Item_field::check_field_expression_processor(uchar *arg)
+bool Item_field::check_field_expression_processor(void *arg)
 {
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
@@ -1409,7 +1409,7 @@ void mark_unsupported_func(const char *where, const char *processor_name)
 #define mark_unsupported_func(X,Y) {}
 #endif
 
-bool mark_unsupported_function(const char *where, uchar *store, uint result)
+bool mark_unsupported_function(const char *where, void *store, uint result)
 {
   Item::vcol_func_processor_result *res=
     (Item::vcol_func_processor_result*) store;
@@ -2452,14 +2452,14 @@ void Item_field::reset_field(Field *f)
 }
 
 
-bool Item_field::enumerate_field_refs_processor(uchar *arg)
+bool Item_field::enumerate_field_refs_processor(void *arg)
 {
   Field_enumerator *fe= (Field_enumerator*)arg;
   fe->visit_field(this);
   return FALSE;
 }
 
-bool Item_field::update_table_bitmaps_processor(uchar *arg)
+bool Item_field::update_table_bitmaps_processor(void *arg)
 {
   update_table_bitmaps();
   return FALSE;
@@ -2475,7 +2475,7 @@ static inline void set_field_to_new_field(Field **field, Field **new_field)
   }
 }
 
-bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
+bool Item_field::switch_to_nullable_fields_processor(void *arg)
 {
   Field **new_fields= (Field **)arg;
   set_field_to_new_field(&field, new_fields);
@@ -5273,7 +5273,7 @@ error:
   Mark virtual columns as used in a partitioning expression 
 */
 
-bool Item_field::vcol_in_partition_func_processor(uchar *int_arg)
+bool Item_field::vcol_in_partition_func_processor(void *int_arg)
 {
   DBUG_ASSERT(fixed);
   if (field->vcol_info)
@@ -6616,7 +6616,7 @@ Item* Item::cache_const_expr_transformer(THD *thd, uchar *arg)
 /**
   Find Item by reference in the expression
 */
-bool Item::find_item_processor(uchar *arg)
+bool Item::find_item_processor(void *arg)
 {
   return (this == ((Item *) arg));
 }
@@ -7051,8 +7051,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
     Dependency_marker dep_marker;
     dep_marker.current_select= current_sel;
     dep_marker.thd= thd;
-    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE,
-                 (uchar*)&dep_marker);
+    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE, &dep_marker);
   }
 
   DBUG_ASSERT(*ref);
@@ -8034,7 +8033,7 @@ void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr)
     FALSE always
 */
 
-bool Item_outer_ref::check_inner_refs_processor(uchar *arg)
+bool Item_outer_ref::check_inner_refs_processor(void *arg)
 {
   List_iterator_fast<Item_outer_ref> *it=
     ((List_iterator_fast<Item_outer_ref> *) arg);

@@ -336,13 +336,13 @@ public:
   void keep_top_level_cache();
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual Item *expr_cache_insert_transformer(THD *thd, uchar *unused);
-  bool is_expensive_processor(uchar *arg);
+  bool is_expensive_processor(void *arg);
   bool is_expensive();
   void set_join_tab_idx(uint join_tab_idx_arg)
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
   virtual void get_cache_parameters(List<Item> &parameters);
   bool is_top_level_item();
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
@@ -365,7 +365,7 @@ public:
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
-  bool count_sargable_conds(uchar *arg);
+  bool count_sargable_conds(void *arg);
   /*
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
@@ -824,9 +824,9 @@ public:
   const char *func_name() const { return "between"; }
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
-  bool count_sargable_conds(uchar *arg);
+  bool count_sargable_conds(void *arg);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
@@ -980,7 +980,7 @@ public:
     return Item_func_case_abbreviation2::decimal_precision2(args + 1);
   }
   const char *func_name() const { return "if"; }
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
 private:
   void cache_type_info(Item *source);
@@ -1583,9 +1583,9 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
-  bool count_sargable_conds(uchar *arg);
+  bool count_sargable_conds(void *arg);
 };
 
 class cmp_item_row :public cmp_item
@@ -1645,7 +1645,7 @@ public:
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
-  bool count_sargable_conds(uchar *arg);
+  bool count_sargable_conds(void *arg);
 };
 
 
@@ -1863,7 +1863,7 @@ public:
   }
   void cleanup();
 
-  bool find_selective_predicates_list_processor(uchar *arg);
+  bool find_selective_predicates_list_processor(void *arg);
 };
 
 
@@ -2064,7 +2064,7 @@ public:
   void top_level_item() { abort_on_null=1; }
   bool top_level() { return abort_on_null; }
   void copy_andor_arguments(THD *thd, Item_cond *item);
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
@@ -2072,7 +2072,7 @@ public:
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -2237,7 +2237,7 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   Item_result compare_type() const { return m_compare_type; }
@@ -2246,7 +2246,7 @@ public:
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
   friend class Item_equal_fields_iterator;
-  bool count_sargable_conds(uchar *arg);
+  bool count_sargable_conds(void *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(THD *thd, COND *cond,
@@ -2383,7 +2383,6 @@ public:
   Item *neg_transformer(THD *thd);
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
   virtual uint exists2in_reserved_items() { return list.elements; };
-  bool walk_top_and(Item_processor processor, uchar *arg);
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);

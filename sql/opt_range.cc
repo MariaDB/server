@@ -3122,8 +3122,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       DBUG_RETURN(TRUE);
     dt->list.empty();
     dt->table= table;
-    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0,
-                      (uchar*) dt))
+    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0, dt))
       DBUG_RETURN(TRUE);
     if (dt->list.elements > 0)
     {
@@ -12400,7 +12399,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
         /* Check if cur_part is referenced in the WHERE clause. */
         if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
-                              (uchar*) key_part_range))
+                              key_part_range))
           goto next_index;
       }
     }

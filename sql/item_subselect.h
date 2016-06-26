@@ -215,12 +215,12 @@ public:
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
-  bool mark_as_eliminated_processor(uchar *arg);
-  bool eliminate_subselect_processor(uchar *arg);
-  bool set_fake_select_as_master_processor(uchar *arg);
-  bool enumerate_field_refs_processor(uchar *arg);
-  bool check_vcol_func_processor(uchar *arg) 
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool mark_as_eliminated_processor(void *arg);
+  bool eliminate_subselect_processor(void *arg);
+  bool set_fake_select_as_master_processor(void *arg);
+  bool enumerate_field_refs_processor(void *arg);
+  bool check_vcol_func_processor(void *arg) 
   {
     return mark_unsupported_function("subselect", arg, VCOL_IMPOSSIBLE);
   }
@@ -233,7 +233,7 @@ public:
     @retval TRUE  if the predicate is expensive
     @retval FALSE otherwise
   */
-  bool is_expensive_processor(uchar *arg) { return is_expensive(); }
+  bool is_expensive_processor(void *arg) { return is_expensive(); }
 
   /**
     Get the SELECT_LEX structure associated with this Item.
@@ -242,9 +242,9 @@ public:
   st_select_lex* get_select_lex();
   virtual bool expr_cache_is_needed(THD *);
   virtual void get_cache_parameters(List<Item> &parameters);
-  virtual bool is_subquery_processor (uchar *opt_arg) { return 1; }
-  bool exists2in_processor(uchar *opt_arg) { return 0; }
-  bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
+  virtual bool is_subquery_processor (void *opt_arg) { return 1; }
+  bool exists2in_processor(void *opt_arg) { return 0; }
+  bool limit_index_condition_pushdown_processor(void *opt_arg) 
   {
     return TRUE;
   }
@@ -393,7 +393,7 @@ public:
   bool select_transformer(JOIN *join);
   void top_level_item() { abort_on_null=1; }
   inline bool is_top_level_item() { return abort_on_null; }
-  bool exists2in_processor(uchar *opt_arg);
+  bool exists2in_processor(void *opt_arg);
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
@@ -699,7 +699,7 @@ public:
     in_strategy= (SUBS_STRATEGY_CHOSEN | strategy);
     DBUG_VOID_RETURN;
   }
-  bool exists2in_processor(uchar *opt_arg __attribute__((unused)))
+  bool exists2in_processor(void *opt_arg __attribute__((unused)))
   {
     return 0;
   };

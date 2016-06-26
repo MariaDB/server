@@ -1218,7 +1218,7 @@ void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 }
 
 
-bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
+bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
 {
   not_null_tables_cache= 0;
   if (is_top_level_item())
@@ -1287,8 +1287,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     for (uint i= 0; i < n; i++)
     {
       /* Check that the expression (part of row) do not contain a subquery */
-      if (args[0]->element_index(i)->walk(&Item::is_subquery_processor,
-                                          FALSE, NULL))
+      if (args[0]->element_index(i)->walk(&Item::is_subquery_processor, 0, 0))
       {
         my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                  "SUBQUERY in ROW in left expression of IN/ALL/ANY");
@@ -1717,7 +1716,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 }
 
 
-bool Item_in_optimizer::is_expensive_processor(uchar *arg)
+bool Item_in_optimizer::is_expensive_processor(void *arg)
 {
   return args[0]->is_expensive_processor(arg) ||
          args[1]->is_expensive_processor(arg);
@@ -2013,7 +2012,7 @@ longlong Item_func_interval::val_int()
 */
 
 
-bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
+bool Item_func_between::eval_not_null_tables(void *opt_arg)
 {
   if (Item_func_opt_neg::eval_not_null_tables(NULL))
     return 1;
@@ -2030,7 +2029,7 @@ bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
 }  
 
 
-bool Item_func_between::count_sargable_conds(uchar *arg)
+bool Item_func_between::count_sargable_conds(void *arg)
 {
   SELECT_LEX *sel= (SELECT_LEX *) arg;
   sel->cond_count++;
@@ -2376,7 +2375,7 @@ Item_func_if::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_func_if::eval_not_null_tables(uchar *opt_arg)
+Item_func_if::eval_not_null_tables(void *opt_arg)
 {
   if (Item_func::eval_not_null_tables(NULL))
     return 1;
@@ -3983,7 +3982,7 @@ cmp_item *cmp_item_datetime::make_same()
 }
 
 
-bool Item_func_in::count_sargable_conds(uchar *arg)
+bool Item_func_in::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
@@ -4042,7 +4041,7 @@ Item_func_in::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_func_in::eval_not_null_tables(uchar *opt_arg)
+Item_func_in::eval_not_null_tables(void *opt_arg)
 {
   Item **arg, **arg_end;
 
@@ -4546,7 +4545,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_cond::eval_not_null_tables(uchar *opt_arg)
+Item_cond::eval_not_null_tables(void *opt_arg)
 {
   Item *item;
   List_iterator<Item> li(list);
@@ -4617,7 +4616,7 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, uchar *arg)
+bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
@@ -4626,17 +4625,6 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, uchar *arg)
       return 1;
   return Item_func::walk(processor, walk_subquery, arg);
 }
-
-bool Item_cond_and::walk_top_and(Item_processor processor, uchar *arg)
-{
-  List_iterator_fast<Item> li(list);
-  Item *item;
-  while ((item= li++))
-    if (item->walk_top_and(processor, arg))
-      return 1;
-  return Item_cond::walk_top_and(processor, arg);
-}
-
 
 /**
   Transform an Item_cond object with a transformer callback function.
@@ -4962,7 +4950,7 @@ Item *and_expressions(THD *thd, Item *a, Item *b, Item **org_item)
 }
 
 
-bool Item_func_null_predicate::count_sargable_conds(uchar *arg)
+bool Item_func_null_predicate::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
@@ -5021,7 +5009,7 @@ void Item_func_isnotnull::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_bool_func2::count_sargable_conds(uchar *arg)
+bool Item_bool_func2::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
@@ -5195,7 +5183,7 @@ void Item_func_like::cleanup()
 }
 
 
-bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
+bool Item_func_like::find_selective_predicates_list_processor(void *arg)
 {
   find_selective_predicates_list_processor_data *data=
     (find_selective_predicates_list_processor_data *) arg;
@@ -6425,7 +6413,7 @@ void Item_equal::update_used_tables()
 }
 
 
-bool Item_equal::count_sargable_conds(uchar *arg)
+bool Item_equal::count_sargable_conds(void *arg)
 {
   SELECT_LEX *sel= (SELECT_LEX *) arg;
   uint m= equal_items.elements;
@@ -6491,7 +6479,7 @@ void Item_equal::fix_length_and_dec()
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, uchar *arg)
+bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);

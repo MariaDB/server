@@ -53,7 +53,7 @@ public:
     init_make_field(tmp_field,field_type());
   }
   unsigned int size_of() { return sizeof(*this);}
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }

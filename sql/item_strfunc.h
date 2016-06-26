@@ -517,7 +517,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec() { maybe_null=1; max_length = 13; }
   const char *func_name() const { return "encrypt"; }
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return FALSE;
   }
@@ -569,7 +569,7 @@ public:
     call
   */
   virtual const char *fully_qualified_func_name() const = 0;
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(fully_qualified_func_name(), arg,
                                      VCOL_NON_DETERMINISTIC);
@@ -625,7 +625,7 @@ public:
   const char *func_name() const { return "current_user"; }
   const char *fully_qualified_func_name() const { return "current_user()"; }
   /* This is because of the stored Name_resolution_context */
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(fully_qualified_func_name(), arg,
                                      VCOL_IMPOSSIBLE);
@@ -652,7 +652,7 @@ public:
   const char *fully_qualified_func_name() const { return "current_role()"; }
   String *val_str(String *);
   /* This is because of the stored Name_resolution_context */
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(fully_qualified_func_name(), arg,
                                      VCOL_IMPOSSIBLE);
@@ -761,7 +761,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "binlog_gtid_pos"; }
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
@@ -921,7 +921,7 @@ public:
     maybe_null=1;
     max_length=MAX_BLOB_WIDTH;
   }
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
@@ -1189,7 +1189,7 @@ public:
   }
   const char *func_name() const{ return "uuid"; }
   String *val_str(String *);
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_NON_DETERMINISTIC);
   }
