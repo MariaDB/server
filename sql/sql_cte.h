@@ -39,6 +39,7 @@ private:
   table_map work_dep_map;  // dependency map used for work
   /* Dependency map of with elements mutually recursive with this with element */
   table_map mutually_recursive; 
+  With_element *next_mutually_recursive;
   /* 
     Total number of references to this element in the FROM lists of
     the queries that are in the scope of the element (including
@@ -87,17 +88,21 @@ public:
   select_union_recursive *rec_result;
 
   TABLE *result_table;
+ 
+  TABLE *first_rec_table_to_update;
 
 
   With_element(LEX_STRING *name,
                List <LEX_STRING> list,
                st_select_lex_unit *unit)
     : next_elem(NULL), base_dep_map(0), derived_dep_map(0),
-      sq_dep_map(0), work_dep_map(0), mutually_recursive(0), 
+      sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
+      next_mutually_recursive(NULL), 
       references(0), table(NULL),
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
-      level(0), rec_result(NULL), result_table(NULL)
+    level(0), rec_result(NULL), result_table(NULL),
+    first_rec_table_to_update(NULL)
   {}
 
   bool check_dependencies_in_spec(THD *thd);
@@ -146,6 +151,9 @@ public:
 
   table_map get_mutually_recursive() { return mutually_recursive; }
 
+  With_element *get_next_mutually_recursive()
+  { return next_mutually_recursive; }
+
   void set_table(TABLE *tab) { table= tab; }
 
   TABLE *get_table() { return table; }
@@ -165,22 +173,6 @@ public:
   void mark_as_cleaned();
 
   void reset_for_exec();
-
-  bool no_driving_recursive_is_set();
-
-  void set_as_driving_recursive();
-
-  bool is_driving_recursive();
-
-  void cleanup_driving_recursive();
-
-  void cleanup_incr_ready();
-
-  void set_as_incr_ready();
-
-  bool is_incr_ready();
-
-  bool all_incr_are_ready();
 
   void cleanup_stabilized();
 
@@ -228,8 +220,6 @@ private:
   table_map unrestricted;
   table_map with_prepared_anchor;
   table_map cleaned;
-  table_map driving_recursive;
-  table_map incr_ready;
   table_map stabilized;
 
 public:
@@ -241,7 +231,7 @@ public:
       embedding_with_clause(emb_with_clause), next_with_clause(NULL),
       dependencies_are_checked(false),
       unrestricted(0), with_prepared_anchor(0), cleaned(0),
-      driving_recursive(0), incr_ready(0), stabilized(0),
+      stabilized(0),
       with_recursive(recursive_fl)
   { last_next= &first_elem; }
 
@@ -331,65 +321,8 @@ void With_element::reset_for_exec()
   level= 0;
   owner->with_prepared_anchor&= ~mutually_recursive;
   owner->cleaned&= ~get_elem_map();
-  owner->driving_recursive&= ~get_elem_map();
-  cleanup_incr_ready();
+  first_rec_table_to_update= NULL;
   cleanup_stabilized();
-}
-
-
-inline
-bool With_element::no_driving_recursive_is_set()
-{
-  return !(owner->driving_recursive & mutually_recursive);
-}
-
-
-inline
-void With_element::set_as_driving_recursive()
-{
-  owner->driving_recursive|= get_elem_map();
-}
-
-
-inline
-bool With_element::is_driving_recursive()
-{
-  return owner->driving_recursive & get_elem_map();
-}
-
-
-inline
-void With_element::cleanup_driving_recursive()
-{
-  owner->driving_recursive&= ~mutually_recursive;
-}
-
-
-inline
-void With_element::cleanup_incr_ready()
-{
-  owner->incr_ready&= ~mutually_recursive;
-}
-
-
-inline
-void With_element::set_as_incr_ready()
-{
-  owner->incr_ready|= get_elem_map();
-}
-
-
-inline
-bool With_element::is_incr_ready()
-{
-  return owner->incr_ready & get_elem_map();
-}
-
-
-inline
-bool With_element::all_incr_are_ready()
-{
-  return (owner->incr_ready & mutually_recursive) == mutually_recursive;
 }
 
 

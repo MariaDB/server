@@ -248,22 +248,32 @@ bool With_clause::check_anchors()
     if (!with_elem->is_recursive)
       continue;
 
-    table_map with_elem_dep= with_elem->derived_dep_map;
-    table_map with_elem_map= with_elem->get_elem_map();
-    for (With_element *elem= with_elem;
-         elem != NULL;
-	 elem= elem->next_elem)
+    if (!with_elem->next_mutually_recursive)
     {
-      if (!elem->is_recursive)
-        continue;
+      With_element *last_mutually_recursive= with_elem;
+      table_map with_elem_dep= with_elem->derived_dep_map;
+      table_map with_elem_map= with_elem->get_elem_map();
+      for (With_element *elem= with_elem;
+           elem != NULL;
+	   elem= elem->next_elem)
+      {
+        if (!elem->is_recursive)
+          continue;
 
-      if (elem == with_elem ||
-	  ((elem->derived_dep_map & with_elem_map) &&
-	   (with_elem_dep & elem->get_elem_map())))
-	{
+        if (elem == with_elem ||
+	    ((elem->derived_dep_map & with_elem_map) &&
+	     (with_elem_dep & elem->get_elem_map())))
+	{        
+          elem->next_mutually_recursive= with_elem;
+          last_mutually_recursive->next_mutually_recursive= elem;
+          last_mutually_recursive= elem;
 	  with_elem->mutually_recursive|= elem->get_elem_map();
-	  elem->mutually_recursive|= with_elem_map;
 	}
+      }
+      for (With_element *elem= with_elem->next_mutually_recursive;
+           elem != with_elem; 
+           elem=  elem->next_mutually_recursive)
+	elem->mutually_recursive= with_elem->mutually_recursive;
     }
  
     for (st_select_lex *sl= with_elem->spec->first_select();

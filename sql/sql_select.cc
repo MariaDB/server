@@ -11606,11 +11606,7 @@ bool JOIN_TAB::preread_init()
 
   /* Materialize derived table/view. */
   if ((!derived->get_unit()->executed  ||
-       (derived->is_recursive_with_table() &&
-        (!derived->is_with_table_recursive_reference() ||
-         (!derived->with->is_driving_recursive() &&
-          !derived->with->is_incr_ready()) &&
-	 !derived->with->all_are_stabilized()))) &&
+       derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
@@ -18241,8 +18237,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     flush_dups_table->sj_weedout_delete_rows();
   }
 
-  if ((!join_tab->preread_init_done || join_tab->table->is_rec_table) &&
-      join_tab->preread_init())
+  if (!join_tab->preread_init_done && join_tab->preread_init())
     DBUG_RETURN(NESTED_LOOP_ERROR);
 
   join->return_tab= join_tab;
@@ -19195,8 +19190,7 @@ int join_init_read_record(JOIN_TAB *tab)
     report_error(tab->table, error);
     return 1;
   }
-  if ((!tab->preread_init_done || tab->table->is_rec_table) &&
-      tab->preread_init())
+  if (!tab->preread_init_done  && tab->preread_init())
     return 1;
   if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
                        tab->select, tab->filesort_result, 1,1, FALSE))
@@ -19429,8 +19423,6 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
   if (!end_of_records)
   {
-#if 0    
-#endif
     if (join->table_count &&
         join->join_tab->is_using_loose_index_scan())
     {

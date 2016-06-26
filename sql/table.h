@@ -1244,7 +1244,6 @@ public:
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   bool m_needs_reopen;
-  bool is_rec_table;
 private:
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:
@@ -2234,6 +2233,7 @@ struct TABLE_LIST
   bool is_with_table();
   bool is_recursive_with_table();
   bool is_with_table_recursive_reference();
+  bool fill_recursive(THD *thd);
 
   inline void set_view()
   {

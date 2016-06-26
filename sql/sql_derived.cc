@@ -663,7 +663,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       if (derived->is_with_table_recursive_reference())
       {
         unit->with_element->rec_result->rec_tables.push_back(derived->table);
-        derived->table->is_rec_table= true;
       }
     }
     DBUG_ASSERT(derived->table || res);
@@ -921,6 +920,28 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+bool TABLE_LIST::fill_recursive(THD *thd)
+{
+  bool rc= false;
+  st_select_lex_unit *unit= get_unit();
+  if (is_with_table_recursive_reference())
+    rc= unit->exec_recursive(false);
+  else
+  {
+    while(!with->all_are_stabilized() && !rc)
+    {
+      rc= unit->exec_recursive(true);
+    }
+    if (!rc)
+    {
+      TABLE *src= with->rec_result->table;
+      rc =src->insert_all_rows_into(thd, table, true);
+    } 
+  }
+  return rc;
+}
+
+
 /*
   Execute subquery of a materialized derived table/view and fill the result
   table.
@@ -944,20 +965,13 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
   @return TRUE   Error
 */
 
+
 bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_fill");
   SELECT_LEX_UNIT *unit= derived->get_unit();
   bool derived_is_recursive= derived->is_recursive_with_table();
   bool res= FALSE;
-
-  if (derived_is_recursive && derived->with->all_are_stabilized())
-  {
-    TABLE *src= unit->with_element->rec_result->table;
-    TABLE *dest= derived->table;
-    res= src->insert_all_rows_into(thd, dest, true);
-    DBUG_RETURN(res);
-  }
 
   if (unit->executed && !unit->uncacheable && !unit->describe &&
       !derived_is_recursive)
@@ -967,11 +981,14 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX *first_select= unit->first_select();
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
-  if (unit->is_union() || derived_is_recursive)
+  
+  if (derived_is_recursive)
+  {
+    res= derived->fill_recursive(thd);
+  }
+  else if (unit->is_union())
   {
     // execute union without clean up
-    if (derived_is_recursive)
-      unit->with_element->set_result_table(derived->table);
     res= unit->exec();
   }
   else
@@ -995,15 +1012,13 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived_result, unit, first_select);
   }
 
-  if (!res)
+  if (!res && !derived_is_recursive)
   {
     if (derived_result->flush())
       res= TRUE;
     unit->executed= TRUE;
   }
-  if (res ||
-      (!lex->describe &&
-       !(unit->with_element && unit->with_element->is_recursive))) 
+  if (res || (!lex->describe && !derived_is_recursive)) 
     unit->cleanup();
   lex->current_select= save_current_select;
 
