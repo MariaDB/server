@@ -1,6 +1,5 @@
 #
 # Testing of constraints
-# Currently MySQL only ignores the syntax.
 #
 --disable_warnings
 drop table if exists t1;

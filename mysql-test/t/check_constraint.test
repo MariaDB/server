@@ -52,3 +52,19 @@ alter table t2 drop constraint min;
 show create table t2;
 
 drop table t1,t2;
+
+#
+# check constraint name auto-generation:
+#
+create or replace table t1 (a int, b int, constraint check (a>b));
+show create table t1;
+create or replace table t1 (a int, b int,
+  constraint CONSTRAINT_1 check (a>1),
+  constraint check (b>1));
+show create table t1;
+create or replace table t1 (a int, b int,
+  constraint CONSTRAINT_1 check (a>1),
+  constraint check (b>1),
+  constraint CONSTRAINT_2 check (a>b));
+show create table t1;
+drop table t1;

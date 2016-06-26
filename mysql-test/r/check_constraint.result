@@ -95,3 +95,36 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2;
+create or replace table t1 (a int, b int, constraint check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (a>b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a int, b int,
+constraint CONSTRAINT_1 check (a>1),
+constraint check (b>1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (a>1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (b>1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a int, b int,
+constraint CONSTRAINT_1 check (a>1),
+constraint check (b>1),
+constraint CONSTRAINT_2 check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (a>1),
+  CONSTRAINT `CONSTRAINT_3` CHECK (b>1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (a>b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
