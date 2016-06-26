@@ -1,14 +1,19 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE TABLE t1(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO t1 VALUES (1),(2),(3),(4);
 DROP TABLE t1;
 CREATE TABLE t2(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO t2 VALUES (1),(2);
+connection slave;
+connection master;
 INSERT INTO t2 VALUES (3),(4);
 DROP TABLE t2;
+connection slave;
 include/stop_slave.inc
 RESET SLAVE;
+connection slave;
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=master_pos_drop_t1
 include/wait_for_slave_sql_to_stop.inc
 SELECT * FROM t1;
@@ -36,6 +41,8 @@ n
 include/check_slave_param.inc [Exec_Master_Log_Pos]
 START SLAVE;
 include/wait_for_slave_to_start.inc
+connection master;
+connection slave;
 include/stop_slave.inc
 START SLAVE SQL_THREAD UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=master_pos_create_t2
 include/wait_for_slave_param.inc [Until_Log_Pos]
