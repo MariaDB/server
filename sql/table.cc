@@ -4973,26 +4973,6 @@ void TABLE_LIST::cleanup_items()
 }
 
 
-static int check_constraint_error(THD *thd, const char *db_name,
-                                  const char *table_name,
-                                  const LEX_STRING *constraint_name,
-                                  bool ignore_failure)
-{
-  if (ignore_failure)
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_CONSTRAINT_FAILED,
-                        ER_THD(thd, ER_CONSTRAINT_FAILED),
-                        constraint_name->str ? constraint_name->str : "",
-                        db_name, table_name);
-    return(VIEW_CHECK_SKIP);
-  }
-  my_error(ER_CONSTRAINT_FAILED, MYF(0),
-           constraint_name->str ? constraint_name->str : "",
-           db_name, table_name);
-  return VIEW_CHECK_ERROR;
-}
-
 /*
   check CHECK OPTION condition both for view and underlying table
 
@@ -5019,8 +4999,9 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
                           main_view->db);
     const char *name_table= (main_view->view ? main_view->view_name.str :
                              main_view->table_name);
-    return check_constraint_error(thd, name_db, name_table, &view_check_name,
-                                  ignore_failure);
+    my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
+             name_db, name_table);
+    return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
   }
   return table->verify_constraints(ignore_failure);
 }
@@ -5036,11 +5017,10 @@ int TABLE::verify_constraints(bool ignore_failure)
     {
       if ((*chk)->expr_item->val_int() == 0)
       {
-        return check_constraint_error(in_use,
-                                      s->db.str,
-                                      s->table_name.str,
-                                      &(*chk)->name,
-                                      ignore_failure);
+        my_error(ER_CONSTRAINT_FAILED,
+                 MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
+                 s->db.str, s->table_name.str);
+        return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
       }
     }
   }

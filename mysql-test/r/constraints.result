@@ -7,7 +7,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1);
 insert into t1 values (0);
-ERROR HY000: CONSTRAINT 'a' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 drop table t1;
 create table t1 (a int, b int, check (a>b));
 show create table t1;
@@ -19,7 +19,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,0);
 insert into t1 values (0,1);
-ERROR HY000: CONSTRAINT 'CONSTRAINT_1' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
 create table t1 (a int ,b int, constraint abc check (a>b));
 show create table t1;
@@ -31,7 +31,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,0);
 insert into t1 values (0,1);
-ERROR HY000: CONSTRAINT 'abc' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `abc` failed for `test`.`t1`
 drop table t1;
 create table t1 (a int null);
 show create table t1;

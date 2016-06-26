@@ -10,15 +10,15 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (100,100);
 insert into t1 values (1,1);
-ERROR HY000: CONSTRAINT 'a' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 insert into t1 values (20,1);
-ERROR HY000: CONSTRAINT 'b' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `b` failed for `test`.`t1`
 insert into t1 values (20,30);
-ERROR HY000: CONSTRAINT 'min' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `min` failed for `test`.`t1`
 insert into t1 values (500,500);
-ERROR HY000: CONSTRAINT 'max' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
 insert into t1 values (101,101),(102,102),(600,600),(103,103);
-ERROR HY000: CONSTRAINT 'max' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
 select * from t1;
 a	b
 100	100
@@ -27,7 +27,7 @@ a	b
 truncate table t1;
 insert ignore into t1 values (101,101),(102,102),(600,600),(103,103);
 Warnings:
-Warning	1369	CONSTRAINT 'max' failed for 'test.t1'
+Warning	4016	CONSTRAINT `max` failed for `test`.`t1`
 select * from t1;
 a	b
 101	101
@@ -44,7 +44,7 @@ a	b
 103	103
 set check_constraint_checks=@save_check_constraint;
 alter table t1 add c int default 0 check (c < 10);
-ERROR HY000: CONSTRAINT 'max' failed for table
+ERROR 23000: CONSTRAINT `max` failed for table
 set check_constraint_checks=0;
 alter table t1 add c int default 0 check (c < 10);
 alter table t1 add check (a+b+c < 500);
@@ -60,9 +60,9 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values(105,105,105);
-ERROR HY000: CONSTRAINT 'c' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `c` failed for `test`.`t1`
 insert into t1 values(249,249,9);
-ERROR HY000: CONSTRAINT 'CONSTRAINT_1' failed for 'test.t1'
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 insert into t1 values(105,105,9);
 select * from t1;
 a	b	c
@@ -83,7 +83,7 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t2 drop constraint c;
-ERROR 42000: Can't DROP 'c'; check that constraint/column/key exists
+ERROR 42000: Can't DROP `c`; check that it exists
 alter table t2 drop constraint min;
 show create table t2;
 Table	Create Table
