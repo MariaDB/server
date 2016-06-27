@@ -586,5 +586,9 @@ SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 
 
 --echo #
---echo # End of 10.0 tests
+--echo # Start of 10.2 tests
 --echo #
+
+--echo # Test zero
+select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
+

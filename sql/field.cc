@@ -9769,12 +9769,6 @@ bool Column_definition::check(THD *thd)
     }
   }
 
-  if (length > MAX_FIELD_BLOBLENGTH)
-  {
-    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name, MAX_FIELD_BLOBLENGTH);
-    DBUG_RETURN(TRUE);
-  }
-
   if (def)
   {
     /*
@@ -10080,6 +10074,12 @@ bool Column_definition::check(THD *thd)
               field_name, max_field_charlength); /* purecov: inspected */
     DBUG_RETURN(TRUE);
   }
+  else if (length > MAX_FIELD_BLOBLENGTH)
+  {
+    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name, MAX_FIELD_BLOBLENGTH);
+    DBUG_RETURN(1);
+  }
+
   if ((~allowed_type_modifier) & flags & conditional_type_modifiers)
   {
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name);

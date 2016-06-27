@@ -9461,7 +9461,7 @@ simple_expr:
           }
         | '-' simple_expr %prec NEG
           {
-            $$= new (thd->mem_root) Item_func_neg(thd, $2);
+            $$= $2->neg(thd);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

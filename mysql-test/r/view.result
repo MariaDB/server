@@ -4404,7 +4404,7 @@ SELECT * FROM v1 WHERE a > -1 OR a > 6 AND a = 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > <cache>(-(1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > -1)
 SELECT * FROM v1 WHERE a > -1 OR a AND a = 0;
 a
 2
@@ -4419,7 +4419,7 @@ SELECT * FROM v1 WHERE a > -1 OR a AND a = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > <cache>(-(1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > -1)
 CREATE VIEW v2 AS SELECT * FROM v1;
 SELECT * FROM v2 WHERE a > -1 OR a AND a = 0;
 a
@@ -4435,7 +4435,7 @@ SELECT * FROM v2 WHERE a > -1 OR a AND a = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > <cache>(-(1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > -1)
 DROP VIEW v1,v2;
 DROP TABLE t1;
 CREATE TABLE t1 (a varchar(10), KEY (a)) ;

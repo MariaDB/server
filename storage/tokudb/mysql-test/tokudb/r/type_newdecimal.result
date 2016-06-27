@@ -177,7 +177,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `round(15.4,-1)` decimal(3,0) NOT NULL,
   `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL,
-  `abs(-1.1)` decimal(3,1) NOT NULL,
+  `abs(-1.1)` decimal(2,1) NOT NULL,
   `-(-1.1)` decimal(2,1) NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;

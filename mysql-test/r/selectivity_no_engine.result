@@ -83,7 +83,7 @@ explain extended select * from t1 where a=-1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.52	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = <cache>(-(1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = -1)
 drop table t0, t1;
 #
 # MDEV-4362: Selectivity estimates for IN (...) do not depend on whether the values are in range
@@ -110,12 +110,12 @@ explain extended select * from t1 where col1 in (-1,-2,-3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	5.94	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`col1` in (<cache>(-(1)),<cache>(-(2)),<cache>(-(3))))
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`col1` in (-1,-2,-3))
 explain extended select * from t1 where col1<=-1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	1.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`col1` <= <cache>(-(1)))
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`col1` <= -1)
 drop table t1, t2;
 # 
 # MDEV-5984: EITS: Incorrect filtered% value for single-table select with range access
