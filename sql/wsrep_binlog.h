@@ -38,10 +38,10 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   @param len  total amount of data written
   @return     wsrep error status
  */
-int wsrep_write_cache (wsrep_t*  wsrep,
-                       THD*      thd,
-                       IO_CACHE* cache,
-                       size_t*   len);
+int wsrep_write_cache (wsrep_t*  const wsrep,
+                       THD*      const thd,
+                       IO_CACHE* const cache,
+                       size_t*   const len);
 
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);
