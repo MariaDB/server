@@ -44,6 +44,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
  *   For each nonleaf node:  All the messages have keys that are between the associated pivot keys ( left_pivot_key < message <= right_pivot_key)
  */
 
+#include <my_global.h>
 #include "ft/serialize/block_table.h"
 #include "ft/ft.h"
 #include "ft/ft-cachetable-wrappers.h"
