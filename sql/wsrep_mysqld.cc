@@ -561,8 +561,6 @@ int wsrep_init()
 
   wsrep_sst_auth_init(wsrep_sst_auth);
 
-  wsrep_causal_reads_update(&global_system_variables);
-
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
 

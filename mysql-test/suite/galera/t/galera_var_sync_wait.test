@@ -5,6 +5,13 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--echo #
+--echo # MDEV-10161: wsrep_sync_wait not enabled when set to 1 in config file
+--echo #
+# galera_2nodes.cnf sets wsrep_sync_wait to 7
+SELECT @@global.wsrep_sync_wait;
+SELECT @@global.wsrep_causal_reads;
+
 --let $wsrep_sync_wait_orig = `SELECT @@wsrep_sync_wait`
 
 --connection node_1
