@@ -29,7 +29,6 @@ push @::global_suppressions,
      qr(WSREP: option --wsrep-causal-reads is deprecated),
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0),
      qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
-     qr(InnoDB: Some resources were not cleaned up in shutdown.*),
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";
