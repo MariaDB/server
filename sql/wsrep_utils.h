@@ -155,6 +155,7 @@ private:
   }
 
   bool parse_port(const char *port) {
+    errno= 0;                                   /* Reset the errno */
     m_port= strtol(port, NULL, 10);
     if (errno == EINVAL || errno == ERANGE)
     {
