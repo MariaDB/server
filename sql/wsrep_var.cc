@@ -348,7 +348,16 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  bool wsrep_on_saved= thd->variables.wsrep_on;
+  bool wsrep_on_saved;
+
+  /* Do not proceed if wsrep provider is not loaded. */
+  if (!wsrep)
+  {
+    WSREP_INFO("wsrep provider is not loaded, can't re(start) replication.");
+    return false;
+  }
+
+  wsrep_on_saved= thd->variables.wsrep_on;
   thd->variables.wsrep_on= false;
 
   /* stop replication is heavy operation, and includes closing all client 

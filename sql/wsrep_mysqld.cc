@@ -881,6 +881,9 @@ bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
 
+  /* wsrep provider must be loaded. */
+  DBUG_ASSERT(wsrep);
+
   /*
     if provider is trivial, don't even try to connect,
     but resume local node operation
