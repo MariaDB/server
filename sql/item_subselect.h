@@ -222,7 +222,7 @@ public:
   bool enumerate_field_refs_processor(void *arg);
   bool check_vcol_func_processor(void *arg) 
   {
-    return mark_unsupported_function("subselect", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function("select ...", arg, VCOL_IMPOSSIBLE);
   }
   /**
     Callback to test if an IN predicate is expensive.

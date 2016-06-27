@@ -62,6 +62,9 @@ char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
 
 bool mark_unsupported_function(const char *where, void *store, uint result);
 
+/* convenience helper for mark_unsupported_function() above */
+bool mark_unsupported_function(const char *w1, const char *w2,
+                               void *store, uint result);
 
 /* Bits for the split_sum_func() function */
 #define SPLIT_SUM_SKIP_REGISTERED 1     /* Skip registered funcs */
@@ -2032,6 +2035,10 @@ public:
   
   inline int save_in_field(Field *field, bool no_conversions);
   inline bool send(Protocol *protocol, String *str);
+  bool check_vcol_func_processor(void *arg) 
+  {
+    return mark_unsupported_function(m_name.str, arg, VCOL_IMPOSSIBLE);
+  }
 }; 
 
 /*****************************************************************************
@@ -2239,7 +2246,7 @@ public:
   }
   bool check_vcol_func_processor(void *arg) 
   {
-    return mark_unsupported_function("name_const", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function("name_const()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -4936,7 +4943,7 @@ public:
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function("values", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function("values()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -5023,10 +5030,7 @@ private:
   */
   bool read_only;
 public:
-  bool check_vcol_func_processor(void *arg)
-  {
-    return mark_unsupported_function("trigger", arg, VCOL_IMPOSSIBLE);
-  }
+  bool check_vcol_func_processor(void *arg);
 };
 
 

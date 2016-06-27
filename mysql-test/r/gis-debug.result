@@ -301,7 +301,7 @@ POLYGON((9 9,5 2,4 5,9 9))
 # MDEV-10134 Add full support for DEFAULT
 #
 CREATE TABLE t1 (a INT DEFAULT ST_GIS_DEBUG(1));
-ERROR HY000: Function or expression 'st_gis_debug' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'st_gis_debug()' cannot be used in the DEFAULT clause of `a`
 #
 # End of 10.2 tests
 #

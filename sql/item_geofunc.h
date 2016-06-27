@@ -618,7 +618,7 @@ class Item_func_gis_debug: public Item_int_func
     longlong val_int();
     bool check_vcol_func_processor(void *arg)
     {
-      return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+      return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
     }
 };
 #endif

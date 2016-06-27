@@ -117,7 +117,7 @@ public:
   }
   const char*func_name() const
   {
-    return "row_number";
+    return "row_number(";
   }
   
 };

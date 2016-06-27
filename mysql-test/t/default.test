@@ -288,7 +288,7 @@ create or replace table t1 (a int as (b), b int default 1);
 create or replace table t1 (a int as (b), b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int default (a+1));
 create or replace table t1 (a int default (1+1), b int as (c), c int default (a+1));
-create or replace table t1 (a VARCHAR(128) DEFAULT @@version);
+create or replace table t1 (a varchar(128) default @@version);
 create or replace table t1 (a int not null, b int as (a));
 create or replace table t1 (a int not null, b int default (a+1));
 

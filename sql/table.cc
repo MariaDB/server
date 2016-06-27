@@ -2614,7 +2614,7 @@ static bool fix_vcol_expr(THD *thd,
   if (error || (res.errors & VCOL_IMPOSSIBLE))
   {
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             field_name);
+             "???", field_name);
     goto end;
   }
 #endif

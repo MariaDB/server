@@ -403,7 +403,7 @@ create or replace table t1 (a int as (b), b int default 1);
 create or replace table t1 (a int as (b), b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int default (a+1));
 create or replace table t1 (a int default (1+1), b int as (c), c int default (a+1));
-create or replace table t1 (a VARCHAR(128) DEFAULT @@version);
+create or replace table t1 (a varchar(128) default @@version);
 create or replace table t1 (a int not null, b int as (a));
 create or replace table t1 (a int not null, b int default (a+1));
 create or replace table t1 (a int default a);
@@ -441,9 +441,9 @@ drop table t1;
 # Error handling
 #
 create or replace table t1 (a bigint default xxx());
-ERROR HY000: Function or expression '`xxx`' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression '`xxx`()' cannot be used in the DEFAULT clause of `a`
 create or replace table t1 (a bigint default (select (1)));
-ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `a`
 create or replace table t1 (a bigint default (1,2,3));
 ERROR 21000: Operand should contain 1 column(s)
 create or replace table t1 (a bigint default ((1,2,3)));
@@ -456,11 +456,11 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 # Invalid DEFAULT expressions
 #
 CREATE TABLE t1 (a INT DEFAULT ((SELECT 1)));
-ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT (EXISTS (SELECT 1)));
-ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT (1=ANY (SELECT 1)));
-ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
 ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (a INT DEFAULT (1,1));
@@ -474,29 +474,29 @@ Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
 ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT @v);
-ERROR HY000: Function or expression 'user_var' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT @v:=1);
-ERROR HY000: Function or expression 'user_var' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
-ERROR HY000: Function or expression 'name_const' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'name_const()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(*));
-ERROR HY000: Function or expression 'count(' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'count()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(1));
-ERROR HY000: Function or expression 'count(' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'count()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT AVG(1));
-ERROR HY000: Function or expression 'avg(' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'avg()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT MIN(1));
-ERROR HY000: Function or expression 'min(' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'min()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT GROUP_CONCAT(1));
-ERROR HY000: Function or expression 'group_concat' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'group_concat()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT ROW_NUMBER() OVER ());
-ERROR HY000: Function or expression 'row_number' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'row_number()' cannot be used in the DEFAULT clause of `a`
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
 CREATE TABLE t1 (a INT DEFAULT f1());
-ERROR HY000: Function or expression '`f1`' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression '`f1`()' cannot be used in the DEFAULT clause of `a`
 DROP FUNCTION f1;
 CREATE PROCEDURE p1(par INT) CREATE TABLE t1 (a INT DEFAULT par);
-ERROR HY000: Function or expression '???' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'par' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT par);
 ERROR 42S22: Unknown column 'par' in 'virtual column function'
 CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
@@ -504,12 +504,12 @@ CALL p1;
 ERROR 42S22: Unknown column 'par' in 'virtual column function'
 DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT DEFAULT VALUES(a));
-ERROR HY000: Function or expression 'values' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'values()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TABLE t2 (a INT DEFAULT NEW.a);
-ERROR HY000: Function or expression 'trigger' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'NEW.a' cannot be used in the DEFAULT clause of `a`
 CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TEMPORARY TABLE t2 (a INT DEFAULT NEW.a);
-ERROR HY000: Function or expression 'trigger' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'NEW.a' cannot be used in the DEFAULT clause of `a`
 DROP TABLE t1;
 #
 # Prepared statements
@@ -1152,9 +1152,9 @@ DROP TABLE t1;
 # Miscelaneous SQL standard <default option> variants
 #
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
-ERROR HY000: Function or expression 'current_user()' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'current_user()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
-ERROR HY000: Function or expression 'current_role()' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'current_role()' cannot be used in the DEFAULT clause of `a`
 #
 # Other Item_func_sysconst derived functions
 #
@@ -1401,27 +1401,27 @@ a>0
 1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT BENCHMARK(1,1));
-ERROR HY000: Function or expression 'benchmark' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'benchmark()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT GET_LOCK('a',1));
-ERROR HY000: Function or expression 'get_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'get_lock()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT RELEASE_LOCK('a'));
-ERROR HY000: Function or expression 'release_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'release_lock()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT IS_USED_LOCK('a'));
-ERROR HY000: Function or expression 'is_used_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'is_used_lock()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT IS_FREE_LOCK('a'));
-ERROR HY000: Function or expression 'is_free_lock' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'is_free_lock()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT SLEEP(1));
-ERROR HY000: Function or expression 'sleep' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'sleep()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT ROW_COUNT());
-ERROR HY000: Function or expression 'row_count' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'row_count()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT FOUND_ROWS());
-ERROR HY000: Function or expression 'found_rows' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'found_rows()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT MASTER_POS_WAIT('test',100));
-ERROR HY000: Function or expression 'master_pos_wait' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'master_pos_wait()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT MASTER_GTID_WAIT('test'));
-ERROR HY000: Function or expression 'master_gtid_wait' is not allowed for 'DEFAULT' of column/constraint 'a'
+ERROR HY000: Function or expression 'master_gtid_wait()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a VARCHAR(30), b DOUBLE DEFAULT MATCH (a) AGAINST('bbbb' IN BOOLEAN MODE));
-ERROR HY000: Function or expression 'match' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'match ... against()' cannot be used in the DEFAULT clause of `b`
 #
 # Temporal functions
 #
@@ -1466,7 +1466,7 @@ a	b	c
 01,5,2013	%d,%m,%Y	2013-05-01
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(30), b VARCHAR(30) DEFAULT DATE_FORMAT(a,'%W %M %Y'));
-ERROR HY000: Function or expression 'date_format' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'date_format()' cannot be used in the DEFAULT clause of `b`
 # Item_datefunc
 SET time_zone='-10:00';
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 23:59:59');
@@ -1901,9 +1901,9 @@ a	b
 2008-04-01	2
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT DAYNAME(a));
-ERROR HY000: Function or expression 'dayname' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'dayname()' cannot be used in the DEFAULT clause of `b`
 CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT MONTHNAME(a));
-ERROR HY000: Function or expression 'monthname' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'monthname()' cannot be used in the DEFAULT clause of `b`
 CREATE TABLE t1 (a DATE, b INT DEFAULT EXTRACT(YEAR FROM a));
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -2702,7 +2702,7 @@ bits	v_on	v_off	v_separator	number_of_bits	x
 327686	Y	N		64	NYYNNNNNNNNNNNNNYNYNNNNNNNNNNN
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(30), b BLOB DEFAULT LOAD_FILE(a));
-ERROR HY000: Function or expression 'load_file' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'load_file()' cannot be used in the DEFAULT clause of `b`
 #
 # Predicates
 #
@@ -2992,7 +2992,7 @@ CREATE TABLE t1
 id SERIAL PRIMARY KEY,
 b INT DEFAULT LAST_INSERT_ID()
 );
-ERROR HY000: Function or expression 'last_insert_id' is not allowed for 'DEFAULT' of column/constraint 'b'
+ERROR HY000: Function or expression 'last_insert_id()' cannot be used in the DEFAULT clause of `b`
 CREATE TABLE t1 (a INT DEFAULT CONNECTION_ID());
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -9798,7 +9798,7 @@ bool Column_definition::check(THD *thd)
   if (vcol_info)
   {
     vcol_info->set_field_type(sql_type);
-    if (check_expression(vcol_info, "VIRTUAL", field_name,
+    if (check_expression(vcol_info, "GENERATED ALWAYS AS", field_name,
                          vcol_info->stored_in_db))
       DBUG_RETURN(TRUE);
   }

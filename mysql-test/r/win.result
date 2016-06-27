@@ -456,7 +456,7 @@ pk, c,
 row_number() over (partition by c order by pk 
 range between unbounded preceding and current row) as r 
 from t1;
-ERROR HY000: Window frame is not allowed with 'row_number'
+ERROR HY000: Window frame is not allowed with 'row_number('
 select 
 pk, c, 
 rank() over w1 as r

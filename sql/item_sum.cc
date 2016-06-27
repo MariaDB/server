@@ -579,6 +579,12 @@ Item *Item_sum::result_item(THD *thd, Field *field)
   return new (thd->mem_root) Item_field(thd, field);
 }
 
+bool Item_sum::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function(func_name(), ")", arg, VCOL_IMPOSSIBLE);
+}
+
+
 /**
   Compare keys consisting of single field that cannot be compared as binary.
  

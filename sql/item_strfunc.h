@@ -763,7 +763,7 @@ public:
   const char *func_name() const { return "binlog_gtid_pos"; }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -923,7 +923,7 @@ public:
   }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -1191,7 +1191,7 @@ public:
   String *val_str(String *);
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_NON_DETERMINISTIC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
 };
 

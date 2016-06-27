@@ -196,7 +196,7 @@ public:
   }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -411,7 +411,7 @@ class Item_func_dayname :public Item_func_weekday
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -464,7 +464,7 @@ public:
   {
     if (arg_count)
       return FALSE;
-    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
   longlong int_op();
   my_decimal *decimal_op(my_decimal* buf);
@@ -614,7 +614,7 @@ public:
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -649,7 +649,7 @@ public:
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg,
+    return mark_unsupported_function(func_name(), "()", arg,
                                                           VCOL_TIME_FUNC);
   }
 };
@@ -691,7 +691,7 @@ public:
       NOW is safe for replication as slaves will run with same time as
       master
     */
-    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -715,7 +715,7 @@ public:
   virtual enum Functype functype() const { return NOW_UTC_FUNC; }
   virtual bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg,
+    return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_TIME_FUNC | VCOL_NON_DETERMINISTIC);
   }
 
@@ -737,7 +737,7 @@ public:
   table_map used_tables() const { return RAND_TABLE_BIT; }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg,
+    return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_TIME_FUNC | VCOL_NON_DETERMINISTIC);
   }
   virtual enum Functype functype() const { return SYSDATE_FUNC; }
@@ -776,7 +776,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 

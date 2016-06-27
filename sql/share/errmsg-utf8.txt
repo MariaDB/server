@@ -6970,7 +6970,7 @@ start-error-number 1900
 ER_VCOL_BASED_ON_VCOL
   eng "A computed column cannot be based on a computed column"
 ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-  eng "Function or expression '%s' is not allowed for '%s' of column/constraint '%s'"
+  eng "Function or expression '%s' cannot be used in the %s clause of %`s"
 ER_DATA_CONVERSION_ERROR_FOR_VIRTUAL_COLUMN
   eng "Generated value for computed column '%s' cannot be converted to type '%s'"
 ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN
@@ -7209,7 +7209,7 @@ ER_CONSTRAINT_FAILED 23000
         rus "проверка CONSTRAINT %`s для %`-.192s.%`-.192s провалилась"
         ukr "Перевірка CONSTRAINT %`s для %`-.192s.%`-.192s не пройшла"
 ER_EXPRESSION_IS_TOO_BIG
-        eng "%s expression is too big for '%s'"
+        eng "%s expression in the %s clause is too big"
 ER_ERROR_EVALUATING_EXPRESSION
         eng "Got an error evaluating stored expression %`s"
 ER_CALCULATING_DEFAULT_VALUE

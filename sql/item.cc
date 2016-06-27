@@ -1422,6 +1422,16 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
   return false;
 }
 
+/* convenience helper for mark_unsupported_function() above */
+bool mark_unsupported_function(const char *w1, const char *w2,
+                               void *store, uint result)
+{
+  char *ptr= (char*)current_thd->alloc(strlen(w1) + strlen(w2) + 1);
+  if (ptr)
+    strxmov(ptr, w1, w2, NullS);
+  return mark_unsupported_function(ptr, store, result);
+}
+
 /*****************************************************************************
   Item_sp_variable methods
 *****************************************************************************/
@@ -8580,6 +8590,13 @@ void Item_trigger_field::print(String *str, enum_query_type query_type)
   str->append((row_version == NEW_ROW) ? "NEW" : "OLD", 3);
   str->append('.');
   str->append(field_name);
+}
+
+
+bool Item_trigger_field::check_vcol_func_processor(void *arg)
+{
+  const char *ver= row_version == NEW_ROW ? "NEW." : "OLD.";
+  return mark_unsupported_function(ver, field_name, arg, VCOL_IMPOSSIBLE);
 }
 
 
