@@ -54,6 +54,7 @@ $opt_user          = "root";
 $opt_version       = 0;
 $opt_silent        = 0;
 $opt_verbose       = 0;
+$opt_wsrep_new_cluster = 0;
 
 my $my_print_defaults_exists= 1;
 my $logdir= undef();
@@ -126,7 +127,7 @@ sub main
   # We've already handled --no-defaults, --defaults-file, etc.
   if (!GetOptions("help", "example", "version", "mysqld=s", "mysqladmin=s",
                   "user=s", "password=s", "log=s", "no-log",
-                  "tcp-ip",  "silent", "verbose"))
+                  "tcp-ip",  "silent", "verbose", "wsrep-new-cluster"))
   {
     $flag_exit= 1;
   }
@@ -378,6 +379,11 @@ sub start_mysqlds()
       $info_sent= 1;
     }
     $com.= $tmp;
+
+    if ($opt_wsrep_new_cluster) {
+      $com.= " --wsrep-new-cluster";
+    }
+
     $com.= " >> $opt_log 2>&1" if (!$opt_no_log);
     $com.= " &";
     if (!$mysqld_found)
@@ -848,6 +854,7 @@ Using:  @{[join ' ', @defaults_options]}
 --user=...         mysqladmin user. Using: $opt_user
 --verbose          Be more verbose.
 --version          Print the version number and exit.
+--wsrep-new-cluster  Bootstrap a cluster.
 EOF
   exit(0);
 }
