@@ -190,4 +190,5 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
 extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
                               plugin_foreach_func *func, void *arg);
 
+extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 #endif
