@@ -2995,65 +2995,77 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Reuse the same loop both for virtual, default and check fields */
     for (field_ptr= outparam->field; *field_ptr; field_ptr++)
     {
-      if ((*field_ptr)->vcol_info)
+      Field *field= *field_ptr;
+      if (field->vcol_info)
       {
         Virtual_column_info *vcol;
-        (*field_ptr)->vcol_info->name.str= (char*) (*field_ptr)->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd,
-                                              &outparam->mem_root,
-                                              outparam,
-                                              *field_ptr,
-                                              (*field_ptr)->vcol_info,
+        field->vcol_info->name.str= (char*) field->field_name;
+        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
+                                              outparam, *field_ptr,
+                                              field->vcol_info,
                                               &error_reported)))
         {
           error= OPEN_FRM_CORRUPTED;
           goto err;
         }
-        (*field_ptr)->vcol_info= vcol;
+        field->vcol_info= vcol;
         *(vfield_ptr++)= *field_ptr;
       }
 
-      if ((*field_ptr)->check_constraint)
+      if (field->check_constraint)
       {
         Virtual_column_info *vcol;
-        (*field_ptr)->check_constraint->name.str=
-          (char*) (*field_ptr)->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd,
-                                              &outparam->mem_root,
-                                              outparam,
-                                              0,
-                                              (*field_ptr)->check_constraint,
+        field->check_constraint->name.str=
+          (char*) field->field_name;
+        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
+                                              outparam, 0,
+                                              field->check_constraint,
                                               &error_reported)))
         {
           error= OPEN_FRM_CORRUPTED;
           goto err;
         }
-        (*field_ptr)->check_constraint= vcol;
+        field->check_constraint= vcol;
         *(check_constraint_ptr++)= vcol;
       }
 
-      if ((*field_ptr)->default_value)
+      if (field->default_value)
       {
         Virtual_column_info *vcol;
-        (*field_ptr)->default_value->name.str=
-          (char*) (*field_ptr)->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd,
-                                              &outparam->mem_root,
-                                              outparam,
-                                              *field_ptr,
-                                              (*field_ptr)->default_value,
+        field->default_value->name.str=
+          (char*) field->field_name;
+        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
+                                              outparam, *field_ptr,
+                                              field->default_value,
                                               &error_reported)))
         {
           error= OPEN_FRM_CORRUPTED;
           goto err;
         }
-        (*field_ptr)->default_value= vcol;
+        field->default_value= vcol;
+        if (is_create_table && vcol->expr_item->const_item() &&
+            !(vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC)))
+        {
+          enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
+          thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
+          my_ptrdiff_t off= share->default_values - outparam->record[0];
+          field->move_field_offset(off);
+          int res= vcol->expr_item->save_in_field(field, 1);
+          field->move_field_offset(-off);
+          thd->count_cuted_fields= old_count_cuted_fields;
+          if (res != 0 && res != 3)
+          {
+            my_error(ER_INVALID_DEFAULT, MYF(0), field->field_name);
+            error= OPEN_FRM_CORRUPTED;
+            goto err;
+          }
+        }
         *(dfield_ptr++)= *field_ptr;
       }
-
-      if (((*field_ptr)->has_insert_default_function() ||
-           (*field_ptr)->has_update_default_function()))
-        *(dfield_ptr++)= *field_ptr;
+      else
+        if ((field->has_insert_default_function() ||
+             field->has_update_default_function()))
+          *(dfield_ptr++)= *field_ptr;
 
     }
     *vfield_ptr= 0;                            // End marker

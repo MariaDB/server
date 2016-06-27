@@ -732,57 +732,20 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT 'x');
 ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a INT DEFAULT CONCAT('x'));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT CONCAT('x')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1366	Incorrect integer value: 'x' for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a INT DEFAULT COALESCE('x'));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT COALESCE('x')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1366	Incorrect integer value: 'x' for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a INT DEFAULT (((((COALESCE('x')))))));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT ((((COALESCE('x')))))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 #
 # INT: string expressions with numbers + garbage
 #
 CREATE TABLE t1 (a INT DEFAULT '1x');
 ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a INT DEFAULT COALESCE('1x'));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT COALESCE('1x')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a INT DEFAULT CONCAT('1x'));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT CONCAT('1x')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 #
 # INT: string expressions with numbers + trailing space
 #
@@ -800,6 +763,8 @@ a
 1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT CONCAT('1 '));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -813,6 +778,8 @@ a
 1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT COALESCE('1 '));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -910,55 +877,23 @@ DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xxx' NOT NULL);
 ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xxx') NOT NULL);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT CONCAT('xxx')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 #
 # VARCHAR: Too long default with non-important data
 #
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xx ' NOT NULL);
 ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xx ') NOT NULL);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT CONCAT('xx ')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Note	1265	Data truncated for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 #
 # VARCHAR: conversion failures
 #
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT _utf8 X'D18F' NOT NULL);
 ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 X'D18F') NOT NULL);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT CONCAT(_utf8 X'D18F')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1366	Incorrect string value: '\xD1\x8F' for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 0xD18F) NOT NULL);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT CONCAT(_utf8 0xD18F)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values();
-Warnings:
-Warning	1366	Incorrect string value: '\xD1\x8F' for column 'a' at row 1
-DROP TABLE t1;
+ERROR 42000: Invalid default value for 'a'
 #
 # Field as a default value
 #

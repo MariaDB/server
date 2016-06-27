@@ -580,24 +580,12 @@ DROP TABLE t1;
 --echo #
 --error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT 'x');
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT CONCAT('x'));
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT COALESCE('x'));
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
-
-# QQ: shouldn't extra parentheses be removed:
-# so SHOW CREATE TABLE reports DEFAULT COALESCE('x')
-# rather than DEFAULT ((((COALESCE('x'))))?
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT (((((COALESCE('x')))))));
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
 
 --echo #
 --echo # INT: string expressions with numbers + garbage
@@ -605,17 +593,10 @@ DROP TABLE t1;
 
 --error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT '1x');
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT COALESCE('1x'));
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a INT DEFAULT CONCAT('1x'));
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
-
 
 --echo #
 --echo # INT: string expressions with numbers + trailing space
@@ -696,21 +677,16 @@ DROP TABLE t1;
 --echo #
 --error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xxx' NOT NULL);
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xxx') NOT NULL);
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
 
 --echo #
 --echo # VARCHAR: Too long default with non-important data
 --echo #
 --error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xx ' NOT NULL);
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xx ') NOT NULL);
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
 
 --echo #
 --echo # VARCHAR: conversion failures
@@ -719,16 +695,10 @@ DROP TABLE t1;
 # DEFAULT with a Cyrillic letter for a Latin1 column
 --error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT _utf8 X'D18F' NOT NULL);
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 X'D18F') NOT NULL);
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
-
+--error ER_INVALID_DEFAULT
 CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 0xD18F) NOT NULL);
-SHOW CREATE TABLE t1;
-insert into t1 values();
-DROP TABLE t1;
 
 --echo #
 --echo # Field as a default value
