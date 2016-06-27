@@ -1471,6 +1471,10 @@ protected:
 
 class Field_num :public Field {
 protected:
+  int check_edom_and_important_data_truncation(const char *type, bool edom,
+                                               CHARSET_INFO *cs,
+                                               const char *str, uint length,
+                                               const char *end_of_num);
   int check_edom_and_truncation(const char *type, bool edom,
                                 CHARSET_INFO *cs,
                                 const char *str, uint length,
@@ -1708,6 +1712,7 @@ public:
   Item_result result_type () const { return DECIMAL_RESULT; }
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
+  bool store_value(const my_decimal *decimal_value, int *native_error);
   void set_value_on_overflow(my_decimal *decimal_value, bool sign);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
