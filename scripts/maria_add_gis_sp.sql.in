@@ -23,12 +23,12 @@ SET sql_mode='';
 DROP PROCEDURE IF EXISTS AddGeometryColumn;
 DROP PROCEDURE IF EXISTS DropGeometryColumn;
 
-CREATE PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE DEFINER=`root`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64), t_srid int)
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end @ADD_GIS_SP_EOL@
 
-CREATE PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE DEFINER=`root`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64))
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end @ADD_GIS_SP_EOL@
