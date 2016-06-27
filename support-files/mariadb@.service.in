@@ -64,11 +64,15 @@ PermissionsStartOnly=true
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 
-ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf
+# Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
+
+ExecStart=/usr/sbin/mysqld --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf \
+  $_WSREP_NEW_CLUSTER $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
-# ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS --defaults-group-suffix=%I
+# ExecStart=/usr/sbin/mysqld --defaults-group-suffix=%I \
+# $_WSREP_NEW_CLUSTER $MYSQLD_OPTS
 
 KillMode=process
 KillSignal=SIGTERM
