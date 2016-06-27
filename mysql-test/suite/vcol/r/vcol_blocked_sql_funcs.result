@@ -238,7 +238,7 @@ create or replace table t1 (a varchar(1024), b varchar(1024) as (UpdateXML(a,'/a
 #
 create or replace table t1 (a int);
 create or replace table t2 (a int, b int as (select count(*) from t1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select count(*) from t1))' at line 1
+ERROR HY000: Function or expression 'subselect' is not allowed for 'VIRTUAL' of column/constraint 'b'
 drop table t1;
 create or replace table t1 (a int, b int as ((select 1)));
 ERROR HY000: Function or expression 'subselect' is not allowed for 'VIRTUAL' of column/constraint 'b'

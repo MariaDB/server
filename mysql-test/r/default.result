@@ -443,9 +443,9 @@ drop table t1;
 create or replace table t1 (a bigint default xxx());
 ERROR HY000: Function or expression '`xxx`' is not allowed for 'DEFAULT' of column/constraint 'a'
 create or replace table t1 (a bigint default (select (1)));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select (1)))' at line 1
+ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
 create or replace table t1 (a bigint default (1,2,3));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2,3))' at line 1
+ERROR 21000: Operand should contain 1 column(s)
 create or replace table t1 (a bigint default ((1,2,3)));
 ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (a INT, b INT, c INT DEFAULT a DIV b);
@@ -464,7 +464,7 @@ ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of 
 CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
 ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (a INT DEFAULT (1,1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1))' at line 1
+ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (a INT DEFAULT ((1,1)));
 ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (a INT DEFAULT ?);

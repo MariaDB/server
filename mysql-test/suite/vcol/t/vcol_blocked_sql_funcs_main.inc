@@ -336,7 +336,7 @@ create or replace table t1 (a varchar(1024), b varchar(1024) as (UpdateXML(a,'/a
 --echo #
 
 create or replace table t1 (a int);
--- error ER_PARSE_ERROR
+-- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t2 (a int, b int as (select count(*) from t1));
 drop table t1;
 

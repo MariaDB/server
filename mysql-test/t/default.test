@@ -324,9 +324,9 @@ drop table t1;
 
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1 (a bigint default xxx());
---error ER_PARSE_ERROR
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1 (a bigint default (select (1)));
---error ER_PARSE_ERROR
+--error ER_OPERAND_COLUMNS
 create or replace table t1 (a bigint default (1,2,3));
 --error ER_OPERAND_COLUMNS
 create or replace table t1 (a bigint default ((1,2,3)));
@@ -351,7 +351,7 @@ CREATE TABLE t1 (a INT DEFAULT (1=ANY (SELECT 1)));
 --error ER_OPERAND_COLUMNS
 CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
 
---error ER_PARSE_ERROR
+--error ER_OPERAND_COLUMNS
 CREATE TABLE t1 (a INT DEFAULT (1,1));
 
 --error ER_OPERAND_COLUMNS

@@ -1057,10 +1057,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 103 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 103
 
 /*
    Comments for TOKENS.
@@ -1854,7 +1854,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         literal text_literal insert_ident order_ident temporal_literal
         simple_ident expr opt_expr opt_else sum_expr in_sum_expr
         variable variable_aux bool_pri
-        predicate bit_expr
+        predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         expr_or_default set_expr_or_default
         geometry_function signed_literal
@@ -6336,9 +6336,8 @@ field_spec:
 
 field_def:
           opt_attribute
-        | opt_generated_always AS
-          '(' virtual_column_func ')'
-         {  Lex->last_field->vcol_info= $4; }
+        | opt_generated_always AS virtual_column_func
+         {  Lex->last_field->vcol_info= $3; }
           vcol_opt_specifier vcol_opt_attribute
         ;
 
@@ -6393,7 +6392,7 @@ vcol_attribute:
         ;
 
 parse_vcol_expr:
-          PARSE_VCOL_EXPR_SYM '(' virtual_column_func ')'
+          PARSE_VCOL_EXPR_SYM virtual_column_func
           {
             /*
               "PARSE_VCOL_EXPR" can only be used by the SQL server
@@ -6405,15 +6404,32 @@ parse_vcol_expr:
               my_message(ER_SYNTAX_ERROR, ER_THD(thd, ER_SYNTAX_ERROR), MYF(0));
               MYSQL_YYABORT;
             }
-            Lex->last_field->vcol_info= $3;
+            Lex->last_field->vcol_info= $2;
           }
         ;
 
+parenthesized_expr:
+          subselect
+          {
+            $$= new (thd->mem_root) Item_singlerow_subselect(thd, $1);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | expr
+        | expr ',' expr_list
+          {
+            $3->push_front($1, thd->mem_root);
+            $$= new (thd->mem_root) Item_row(thd, *$3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+          ;
+
 virtual_column_func:
-          remember_cur_pos expr remember_end
+          '(' remember_cur_pos parenthesized_expr remember_end ')'
           {
             Virtual_column_info *v=
-              add_virtual_expression(thd, $1, (uint)($3 - $1), $2);
+              add_virtual_expression(thd, $2, (uint)($4 - $2), $3);
             if (!v)
             {
               MYSQL_YYABORT;
@@ -6423,7 +6439,7 @@ virtual_column_func:
         ;
 
 column_default_expr:
-          '(' virtual_column_func ')'  { $$= $2; }
+          virtual_column_func
         | remember_name column_default_non_parenthesized_expr opt_impossible_action remember_end
           {
             if (!($$= add_virtual_expression(thd, $1, (uint) ($4- $1), $2)))
@@ -7858,7 +7874,7 @@ alter_list_item:
             lex->alter_info.keys_onoff= Alter_info::ENABLE;
             lex->alter_info.flags|= Alter_info::ALTER_KEYS_ONOFF;
           }
-        | ALTER opt_column field_ident SET DEFAULT virtual_column_func
+        | ALTER opt_column field_ident SET DEFAULT column_default_expr
           {
             LEX *lex=Lex;
             Alter_column *ac= new (thd->mem_root) Alter_column($3.str,$6);
@@ -9668,21 +9684,7 @@ simple_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | '(' subselect ')'
-          {
-            $$= new (thd->mem_root) Item_singlerow_subselect(thd, $2);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | '(' expr ')'
-          { $$= $2; }
-        | '(' expr ',' expr_list ')'
-          {
-            $4->push_front($2, thd->mem_root);
-            $$= new (thd->mem_root) Item_row(thd, *$4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
+        | '(' parenthesized_expr ')' { $$= $2; }
         | BINARY simple_expr %prec NEG
           {
             $$= create_func_cast(thd, $2, ITEM_CAST_CHAR, NULL, NULL,
