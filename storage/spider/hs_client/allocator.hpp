@@ -29,15 +29,29 @@ extern "C" {
 #define DENA_DELETE(x) (delete [] x)
 #endif
 
+/*
+ * #if 1
+ * #define DENA_ALLOCA_ALLOCATE(typ, len) \
+ *	static_cast<typ *>(alloca((len) * sizeof(typ)))
+ * #define DENA_ALLOCA_FREE(x)
+ *  #else
+ *  #define DENA_ALLOCA_ALLOCATE(typ, len) \
+ *	static_cast<typ *>(malloc((len) * sizeof(typ)))
+ *  #define DENA_ALLOCA_FREE(x) free(x)
+ * #endif
+ */
+
+// AIX
 #if 1
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
-	static_cast<typ *>(alloca((len) * sizeof(typ)))
+        static_cast<typ *>((void*)alloca((len) * sizeof(typ)))
 #define DENA_ALLOCA_FREE(x)
 #else
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
-	static_cast<typ *>(malloc((len) * sizeof(typ)))
+        static_cast<typ *>((void*)malloc((len) * sizeof(typ)))
 #define DENA_ALLOCA_FREE(x) free(x)
 #endif
+
 
 #endif
 

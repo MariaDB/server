@@ -502,7 +502,7 @@ struct wsrep_stats_var
     const char*      name;     //!< variable name
     wsrep_var_type_t type;     //!< variable value type
     union {
-        int64_t     _int64;
+        int64_t     _iint64;
         double      _double;
         const char* _string;
     } value;                   //!< variable value

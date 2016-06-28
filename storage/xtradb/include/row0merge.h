@@ -194,7 +194,8 @@ UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
 UNIV_INTERN
 int
 row_merge_file_create_low(
-	const char*	path)
+const char*	path)
+/*===========================*/
 	__attribute__((warn_unused_result));
 /*********************************************************************//**
 Destroy a merge file. And de-register the file from Performance Schema
@@ -372,17 +373,15 @@ row_merge_buf_empty(
 /*================*/
 	row_merge_buf_t*	buf)	/*!< in,own: sort buffer */
 	__attribute__((warn_unused_result, nonnull));
-
-/** Create a merge file in the given location.
-@param[out]	merge_file	merge file structure
-@param[in]	path		location for creating temporary file
+/*********************************************************************//**
+Create a merge file.
 @return file descriptor, or -1 on failure */
 UNIV_INTERN
 int
 row_merge_file_create(
-	merge_file_t*	merge_file,
-	const char*	path);
-
+/*==================*/
+merge_file_t*	merge_file,
+const char*	path);
 /*********************************************************************//**
 Merge disk files.
 @return DB_SUCCESS or error code */

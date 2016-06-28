@@ -16,7 +16,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#if defined(__i386__) || defined(_MSC_VER) || defined(__x86_64__)   \
+#if defined(_AIX)
+# include "gcc_builtins.h"
+#elif defined(__i386__) || defined(_MSC_VER) || defined(__x86_64__)   \
     || defined(HAVE_GCC_ATOMIC_BUILTINS) \
     || defined(HAVE_SOLARIS_ATOMIC)
 
