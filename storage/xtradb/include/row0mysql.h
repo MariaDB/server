@@ -491,6 +491,9 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: dictionary transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
+	ibool		create_failed,/*!<in: TRUE=create table failed
+				       because e.g. foreign key column
+				       type mismatch. */
 	bool		nonatomic = true)
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */

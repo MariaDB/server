@@ -148,6 +148,21 @@ help 'impossible_category_1';
 source_category_name	name	is_it_category
 impossible_category_1	impossible_function_1	N
 impossible_category_1	impossible_function_2	N
+# MDEV-9524 Cannot load from mysql.event when sql_mode is set to PAD_CHAR_TO_FULL_LENGTH
+help 'impossible_function_1';
+name	description	example
+impossible_function_1	description of 
+ impossible_function1
+	example of 
+ impossible_function1
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+help 'impossible_function_1';
+name	description	example
+impossible_function_1	description of 
+ impossible_function1
+	example of 
+ impossible_function1
+SET sql_mode=DEFAULT;
 set sql_mode="";
 alter table mysql.help_relation engine=innodb;
 alter table mysql.help_keyword engine=innodb;

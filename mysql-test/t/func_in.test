@@ -607,6 +607,28 @@ DROP TABLE t1;
 
 --echo # End of 5.3 tests
 
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-10020 InnoDB NOT IN Query Crash When One Item Is NULL
+--echo #
+CREATE TABLE t1
+(
+  a INT(11),
+  b VARCHAR(10),
+  KEY (b)
+);
+INSERT INTO t1 VALUES (1,'x'),(2,'y'),(3,'z');
+SELECT * FROM t1 WHERE b NOT IN (NULL, '', 'A');
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
 --echo #
 --echo # MDEV-8755 Equal field propagation is not performed any longer for the IN list when multiple comparison types
 --echo #

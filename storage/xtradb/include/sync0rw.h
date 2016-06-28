@@ -734,8 +734,8 @@ struct rw_lock_t {
 				/*!< Thread id of writer thread. Is only
 				guaranteed to have sane and non-stale
 				value iff recursive flag is set. */
-	os_event_t	event;	/*!< Used by sync0arr.cc for thread queueing */
-	os_event_t	wait_ex_event;
+	struct os_event	event;	/*!< Used by sync0arr.cc for thread queueing */
+	struct os_event	wait_ex_event;
 				/*!< Event for next-writer to wait on. A thread
 				must decrement lock_word before waiting. */
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
@@ -788,12 +788,12 @@ struct prio_rw_lock_t {
 	volatile ulint		high_priority_s_waiters;
 						/* Number of high priority S
 						waiters */
-	os_event_t		high_priority_s_event; /* High priority wait
+	struct os_event		high_priority_s_event; /* High priority wait
 						array event for S waiters */
 	volatile ulint		high_priority_x_waiters;
 						/* Number of high priority X
 						waiters */
-	os_event_t		high_priority_x_event;
+	struct os_event		high_priority_x_event;
 						/* High priority wait arraay
 						event for X waiters */
 	volatile ulint		high_priority_wait_ex_waiter;

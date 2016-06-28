@@ -100010,5 +100010,7 @@ insert into t (id,a) values (999,98);
 insert into t (id,a) values (999,99);
 delete from t where id=404;
 set tokudb_pk_insert_mode=2;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
 replace into t values (404,0,0,0);
 drop table t;

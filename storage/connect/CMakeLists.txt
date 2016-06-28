@@ -240,14 +240,21 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   # TODO: detect Java SDK and the presence of JDBC connectors
+  # TODO: Find how to compile and install the java wrapper class
   # Find required libraries and include directories
-  # Find how to compile and install the JdbcInterface.java class
 
-  IF(JDBC_OK)
-    INCLUDE_DIRECTORIES(${JDBC_INCLUDE_DIR})
+  FIND_PACKAGE(Java 1.6)
+  FIND_PACKAGE(JNI)
+  IF (JAVA_FOUND AND JNI_FOUND)
+    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
+    INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
+    # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY})
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+		JdbcInterface.java JdbcInterface.class  
+		JdbcDSInterface.java JdbcDSInterface.class  
+		JdbcApacheInterface.java JdbcApacheInterface.class  
+		jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h)
     add_definitions(-DJDBC_SUPPORT)
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-      JdbcInterface.java tabjdbc.cpp jdbconn.cpp jdbccat.h jdbconn.h tabjdbc.h)
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()

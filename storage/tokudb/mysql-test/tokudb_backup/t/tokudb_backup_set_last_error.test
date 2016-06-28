@@ -1,0 +1,32 @@
+# This test validates that the plugin will not crash if a user sets
+# tokudb_backup_last_error_string after performing a backup.
+source include/have_tokudb_backup.inc;
+
+disable_query_log;
+
+set @old_backup_last_error_string = @@session.tokudb_backup_last_error_string;
+
+enable_query_log;
+
+create table t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+
+# this should fail and set the error string since the dummy directory
+# doesn't exist
+--error ER_WRONG_VALUE_FOR_VAR
+--eval set session tokudb_backup_dir='/aint/no/way/this/exists/here'
+
+select @@session.tokudb_backup_last_error;
+select @@session.tokudb_backup_last_error_string;
+
+set session tokudb_backup_last_error_string='this should not crash the server';
+select @@session.tokudb_backup_last_error_string;
+
+# this should fail again and set the error string since the dummy directory
+# doesn't exist
+--error ER_WRONG_VALUE_FOR_VAR
+--eval set session tokudb_backup_dir='/aint/no/way/this/exists/here'
+select @@session.tokudb_backup_last_error_string;
+
+set session tokudb_backup_last_error_string = @old_backup_last_error_string;
+
+drop table t1;

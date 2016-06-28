@@ -15899,7 +15899,8 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
   case STRING_RESULT:
     DBUG_ASSERT(item->collation.collation);
     new_field= item->make_string_field(table);
-    new_field->set_derivation(item->collation.derivation);
+    new_field->set_derivation(item->collation.derivation,
+                              item->collation.repertoire);
     break;
   case DECIMAL_RESULT:
     new_field= Field_new_decimal::create_from_item(mem_root, item);
@@ -16132,7 +16133,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                        modify_item);
   case Item::TYPE_HOLDER:  
     result= ((Item_type_holder *)item)->make_field_by_type(table);
-    result->set_derivation(item->collation.derivation);
+    result->set_derivation(item->collation.derivation,
+                           item->collation.repertoire);
     return result;
   default:					// Dosen't have to be stored
     return 0;

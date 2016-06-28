@@ -602,7 +602,7 @@ rw_lock_s_unlock_func(
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
-		os_event_set(lock->wait_ex_event);
+		os_event_set(&lock->wait_ex_event);
 		sync_array_object_signalled();
 
 	}
@@ -642,7 +642,7 @@ rw_lock_s_unlock_func(
 
 		/* A waiting next-writer exists, either high priority or
 		regular, sharing the same wait event.  */
-		os_event_set(lock->base_lock.wait_ex_event);
+		os_event_set(&lock->base_lock.wait_ex_event);
 		sync_array_object_signalled();
 
 	} else if (lock_word == X_LOCK_DECR) {
@@ -653,7 +653,7 @@ rw_lock_s_unlock_func(
 		if (lock->base_lock.waiters) {
 
 			rw_lock_reset_waiter_flag(&lock->base_lock);
-			os_event_set(lock->base_lock.event);
+			os_event_set(&lock->base_lock.event);
 			sync_array_object_signalled();
 		}
 	}
@@ -735,7 +735,7 @@ rw_lock_x_unlock_func(
 
 		if (lock->waiters) {
 			rw_lock_reset_waiter_flag(lock);
-			os_event_set(lock->event);
+			os_event_set(&lock->event);
 			sync_array_object_signalled();
 		}
 	}
@@ -778,16 +778,16 @@ rw_lock_x_unlock_func(
 
 		if (lock->high_priority_x_waiters) {
 
-			os_event_set(lock->high_priority_x_event);
+			os_event_set(&lock->high_priority_x_event);
 			sync_array_object_signalled();
 		} else if (lock->high_priority_s_waiters) {
 
-			os_event_set(lock->high_priority_s_event);
+			os_event_set(&lock->high_priority_s_event);
 			sync_array_object_signalled();
 		} else if (lock->base_lock.waiters) {
 
 			rw_lock_reset_waiter_flag(&lock->base_lock);
-			os_event_set(lock->base_lock.event);
+			os_event_set(&lock->base_lock.event);
 			sync_array_object_signalled();
 		}
 	}

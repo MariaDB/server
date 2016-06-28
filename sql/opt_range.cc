@@ -7114,7 +7114,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         DBUG_RETURN(NULL);
       }
       SEL_TREE *tree2;
-      for (; i < array->count; i++)
+      for (; i < array->used_count; i++)
       {
         if (array->compare_elems(i, i-1))
         {
