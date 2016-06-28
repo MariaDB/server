@@ -12199,6 +12199,9 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         return 1;
       }
     }
+    if (!acl_user->x509_issuer && !acl_user->x509_subject)
+      return 0; // all done
+
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
