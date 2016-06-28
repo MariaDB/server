@@ -52,6 +52,16 @@ Group=mysql
 # To allow memlock to be used as non-root user if set in configuration
 CapabilityBoundingSet=CAP_IPC_LOCK
 
+# Prevent writes to /usr, /boot, and /etc
+ProtectSystem=full
+
+NoNewPrivileges=true
+
+PrivateDevices=true
+
+# Prevent accessing /home, /root and /run/user
+ProtectHome=true
+
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
