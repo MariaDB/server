@@ -129,7 +129,8 @@
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
-#include "jdbccat.h"
+#include "tabjdbc.h"
+#include "jdbconn.h"
 #endif   // JDBC_SUPPORT
 #include "xtable.h"
 #include "tabmysql.h"
@@ -5163,7 +5164,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 	PJPARM      sjp= NULL;
-	char       *jpath= NULL;
 	char       *driver= NULL;
 	char       *url= NULL;
 	char       *tabtyp = NULL;
@@ -5230,9 +5230,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
 #if defined(JDBC_SUPPORT)
-		jpath= GetListOption(g, "Jpath", topt->oplist, NULL);
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
-		url= GetListOption(g, "URL", topt->oplist, NULL);
+//	url= GetListOption(g, "URL", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 #endif   // JDBC_SUPPORT
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
@@ -5333,18 +5332,31 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	case TAB_JDBC:
 		if (fnc & FNC_DRIVER) {
 			ok= true;
-		} else if (!url) {
-				strcpy(g->Message, "Missing URL");
+		} else if (!(url= strz(g, create_info->connect_string))) {
+			strcpy(g->Message, "Missing URL");
 		} else {
-			// Store ODBC additional parameters
+			// Store JDBC additional parameters
+			int      rc;
+			PJDBCDEF jdef= new(g) JDBCDEF();
+
+			jdef->SetName(create_info->alias);
 			sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 			sjp->Driver= driver;
-			sjp->Url= url;
-			sjp->User= (char*)user;
-			sjp->Pwd= (char*)pwd;
 			sjp->Fsize= 0;
 			sjp->Scrollable= false;
-			ok= true;
+
+			if ((rc = jdef->ParseURL(g, url, false)) == RC_OK) {
+				sjp->Url= url;
+				sjp->User= (char*)user;
+				sjp->Pwd= (char*)pwd;
+				ok= true;
+			} else if (rc == RC_NF) {
+				if (jdef->GetTabname())
+					tab= jdef->GetTabname();
+
+				ok= jdef->SetParms(sjp);
+			} // endif rc
+
 		} // endif's
 
 		supfnc |= (FNC_DRIVER | FNC_TABLE);
@@ -5496,7 +5508,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, true, sop);
+            qrp= ODBCTables(g, dsn, shm, tab, NULL, mxr, true, sop);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);
@@ -5517,15 +5529,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case FNC_NO:
 				case FNC_COL:
 					if (src) {
-						qrp= JDBCSrcCols(g, jpath, (char*)src, sjp);
+						qrp= JDBCSrcCols(g, (char*)src, sjp);
 						src= NULL;     // for next tests
 					} else
-						qrp= JDBCColumns(g, jpath, shm, tab, NULL,
-														 mxr, fnc == FNC_COL, sjp);
+						qrp= JDBCColumns(g, shm, tab, NULL, mxr, fnc == FNC_COL, sjp);
 
 					break;
 				case FNC_TABLE:
-					qrp= JDBCTables(g, dsn, shm, tab, tabtyp, mxr, true, sjp);
+					qrp= JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
 					break;
 #if 0
 				case FNC_DSN:
@@ -5533,7 +5544,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #endif // 0
 				case FNC_DRIVER:
-					qrp= JDBCDrivers(g, jpath, mxr, true);
+					qrp= JDBCDrivers(g, mxr, true);
 					break;
 				default:
 					sprintf(g->Message, "invalid catfunc %s", fncn);
@@ -5784,11 +5795,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						switch (typ) {
 						case TYPE_DOUBLE:
+						case TYPE_DECIM:
 							// Some data sources do not count dec in length (prec)
 							prec += (dec + 2);        // To be safe
-							break;
-						case TYPE_DECIM:
-							prec= len;
 							break;
 						default:
 							dec= 0;

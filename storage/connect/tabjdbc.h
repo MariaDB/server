@@ -7,6 +7,7 @@
 /***********************************************************************/
 #include "colblk.h"
 #include "resource.h"
+#include "jdbccat.h"
 
 typedef class JDBCDEF *PJDBCDEF;
 typedef class TDBJDBC *PTDBJDBC;
@@ -25,13 +26,13 @@ class DllExport JDBCDEF : public TABDEF { /* Logical table description */
 	friend class TDBXJDC;
 	friend class TDBJDRV;
 	friend class TDBJTB;
+	friend class TDBJDBCL;
 public:
 	// Constructor
 	JDBCDEF(void);
 
 	// Implementation
 	virtual const char *GetType(void) { return "JDBC"; }
-	PSZ  GetJpath(void) { return Jpath; }
 	PSZ  GetTabname(void) { return Tabname; }
 	PSZ  GetTabschema(void) { return Tabschema; }
 	PSZ  GetTabcat(void) { return Tabcat; }
@@ -45,10 +46,11 @@ public:
 	virtual int  Indexable(void) { return 2; }
 	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
 	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	int  ParseURL(PGLOBAL g, char *url, bool b = true);
+	bool SetParms(PJPARM sjp);
 
 protected:
 	// Members
-	PSZ     Jpath;              /* Java class path                       */
 	PSZ     Driver;             /* JDBC driver                           */
 	PSZ     Url;                /* JDBC driver URL                       */
 	PSZ     Tabname;            /* External table name                   */
@@ -57,6 +59,7 @@ protected:
 	PSZ     Password;           /* Password connect info                 */
 	PSZ     Tabcat;             /* External table catalog                */
 	PSZ     Tabtype;            /* External table type                   */
+	PSZ     Colpat;             /* Catalog column pattern                */
 	PSZ     Srcdef;             /* The source table SQL definition       */
 	PSZ     Qchar;              /* Identifier quoting character          */
 	PSZ     Qrystr;             /* The original query                    */
@@ -73,7 +76,7 @@ protected:
 }; // end of JDBCDEF
 
 #if !defined(NJDBC)
-#include "JDBConn.h"
+#include "jdbconn.h"
 
 /***********************************************************************/
 /*  This is the JDBC Access Method class declaration for files from    */
@@ -130,7 +133,6 @@ protected:
 	JDBCCOL *Cnp;               // Points to count(*) column
 	JDBCPARM Ops;               // Additional parameters
 	PSTRG    Query;             // Constructed SQL query
-	char    *Jpath;             // Java class path
 	char    *TableName;         // Points to JDBC table name
 	char    *Schema;            // Points to JDBC table Schema
 	char    *User;              // User connect info
@@ -282,7 +284,7 @@ protected:
 class TDBJDRV : public TDBCAT {
 public:
 	// Constructor
-	TDBJDRV(PJDBCDEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres; Jpath = tdp->Jpath;}
+	TDBJDRV(PJDBCDEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres;}
 
 protected:
 	// Specific routines
@@ -290,7 +292,6 @@ protected:
 
 	// Members
 	int      Maxres;            // Returned lines limit
-	char    *Jpath;             // Java class path
 }; // end of class TDBJDRV
 
 /***********************************************************************/
@@ -306,7 +307,6 @@ protected:
 	virtual PQRYRES GetResult(PGLOBAL g);
 
 	// Members
-	char    *Jpath;             // Points to Java classpath
 	char    *Schema;            // Points to schema name or NULL
 	char    *Tab;               // Points to JDBC table name or pattern
 	char    *Tabtype;           // Points to JDBC table type
@@ -319,14 +319,15 @@ protected:
 class TDBJDBCL : public TDBJTB {
 public:
 	// Constructor
-	TDBJDBCL(PJDBCDEF tdp) : TDBJTB(tdp) {}
+	TDBJDBCL(PJDBCDEF tdp);
 
 protected:
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
-	// No additional Members
-}; // end of class TDBJCL
+	// Members
+	char    *Colpat;            // Points to catalog column pattern
+}; // end of class TDBJDBCL
 
 #if 0
 /***********************************************************************/
