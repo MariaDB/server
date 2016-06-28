@@ -5050,7 +5050,7 @@ public:
   bool basic_const_item() const
   { return MY_TEST(example && example->basic_const_item()); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
-  bool is_null() { return null_value; }
+  bool is_null() { return !has_value(); }
   virtual bool is_expensive()
   {
     if (value_cached)
