@@ -27,7 +27,7 @@ a	b
 truncate table t1;
 insert ignore into t1 values (101,101),(102,102),(600,600),(103,103);
 Warnings:
-Warning	4016	CONSTRAINT `max` failed for `test`.`t1`
+Warning	4022	CONSTRAINT `max` failed for `test`.`t1`
 select * from t1;
 a	b
 101	101
