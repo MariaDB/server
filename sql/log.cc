@@ -3687,7 +3687,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     new_xid_list_entry->binlog_id= current_binlog_id;
     /* Remove any initial entries with no pending XIDs.  */
     while ((b= binlog_xid_count_list.head()) && b->xid_count == 0)
+    {
       my_free(binlog_xid_count_list.get());
+    }
+    mysql_cond_broadcast(&COND_xid_list);
     binlog_xid_count_list.push_back(new_xid_list_entry);
     mysql_mutex_unlock(&LOCK_xid_list);
 
@@ -4208,6 +4211,7 @@ err:
       DBUG_ASSERT(b->xid_count == 0);
       my_free(binlog_xid_count_list.get());
     }
+    mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
@@ -4215,6 +4219,26 @@ err:
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
+{
+  mysql_mutex_lock(&LOCK_xid_list);
+  for (;;)
+  {
+    if (binlog_xid_count_list.is_last(binlog_xid_count_list.head()))
+      break;
+    mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
+  }
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  /*
+    LOCK_xid_list and LOCK_log are chained, so the LOCK_log will only be
+    obtained after mark_xid_done() has written the last checkpoint event.
+  */
+  mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_unlock(&LOCK_log);
 }
 
 
@@ -9260,7 +9284,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   */
   if (unlikely(reset_master_pending))
   {
-    mysql_cond_signal(&COND_xid_list);
+    mysql_cond_broadcast(&COND_xid_list);
     mysql_mutex_unlock(&LOCK_xid_list);
     DBUG_VOID_RETURN;
   }
@@ -9298,8 +9322,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_xid_list);
   --mark_xid_done_waiting;
-  if (unlikely(reset_master_pending))
-    mysql_cond_signal(&COND_xid_list);
+  mysql_cond_broadcast(&COND_xid_list);
   /* We need to reload current_binlog_id due to release/re-take of lock. */
   current= current_binlog_id;
 

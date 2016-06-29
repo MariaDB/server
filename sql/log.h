@@ -774,6 +774,7 @@ public:
                         bool need_mutex);
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len);
+  void wait_for_last_checkpoint_event();
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 
