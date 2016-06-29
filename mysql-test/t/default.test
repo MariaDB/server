@@ -1840,3 +1840,12 @@ CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1 DEFAULT CONCAT('ö')) CHARACT
 CREATE OR REPLACE TABLE t1 (a char(2) default concat('A') COLLATE utf8mb4_unicode_ci);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+#
+# Order of evaluation:
+#
+create table t1 (a int default 1, b int default (1+1), c int);
+insert t1 (c) values (a);
+insert t1 (c) values (b);
+select * from t1;
+drop table t1;

@@ -942,6 +942,7 @@ bool Item_field::register_field_in_write_map(void *arg)
 
   Fields are initialized in this order:
   - All fields that have default value as a constant are initialized first.
+  - Then user-specified values from the INSERT list
   - Then all fields that has a default expression, in field_index order.
   - Last all virtual fields, in field_index order.
 
@@ -949,6 +950,8 @@ bool Item_field::register_field_in_write_map(void *arg)
   - For default fields we can't access the same field or a field after
     itself that doesn't have a non-constant default value.
   - A virtual fields can't access itself or a virtual field after itself.
+  - user-specified values will not see virtual fields or default expressions,
+    as in INSERT t1 (a) VALUES (b);
 
   This is used by fix_vcol_expr() when a table is opened
 

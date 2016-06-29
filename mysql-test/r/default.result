@@ -3068,3 +3068,11 @@ t1	CREATE TABLE `t1` (
   `a` char(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT concat('A')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+create table t1 (a int default 1, b int default (1+1), c int);
+insert t1 (c) values (a);
+insert t1 (c) values (b);
+select * from t1;
+a	b	c
+1	2	1
+1	2	NULL
+drop table t1;
