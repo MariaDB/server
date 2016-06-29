@@ -330,7 +330,16 @@ enum  field_visible_type{
 	FULL_HIDDEN
 };
 
-
+/* hash type*/
+enum field_hash_type{
+	/* normal column */
+	NOT_HASH=0,
+	/* hash for defination index(A,...) in this case no duplicate will be checked */
+	INDEX_HASH,
+	/* hash for defination unique(A,...) in this duplicate will be checked in ha_write_row and
+		 update */
+	UNIQUE_HASH
+};
 
 class Filesort_info
 {

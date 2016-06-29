@@ -74,7 +74,7 @@ z_1	CREATE TABLE `z_1` (
   `abc` blob,
   `db_row_hash_1` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
-  UNIQUE KEY (abc)
+  UNIQUE KEY `abc`(`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into z_1 values('sachin',1);
 ERROR 23000: Can't write; duplicate key in table 'z_1'
@@ -84,7 +84,7 @@ Table	Create Table
 c_1	CREATE TABLE `c_1` (
   `abc` blob,
   `db_row_hash_2` int(11) DEFAULT NULL,
-  UNIQUE KEY (abc)
+  UNIQUE KEY `abc`(`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table z_1 change db_row_hash_2 temp int;
 ERROR 42S22: Unknown column 'db_row_hash_2' in 'z_1'
@@ -126,3 +126,31 @@ insert into i_2 values(22);
 ERROR 23000: Can't write; duplicate key in table 'i_2'
 alter table i_2 drop key abc;
 insert into i_2 values(22);
+create table di_1(abc blob , xyz int , index(abc,xyz));
+show create table di_1;
+Table	Create Table
+di_1	CREATE TABLE `di_1` (
+  `abc` blob,
+  `xyz` int(11) DEFAULT NULL,
+  INDEX `abc_xyz`(`abc`,`xyz`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into di_1 values(1,1);
+insert into di_1 values(1,1);
+insert into di_1 values(2,1);
+create table di_2 (abc blob);
+insert into di_2 values(1);
+insert into di_2 values(1);
+alter table di_2 add index(abc);
+show create table di_2;
+Table	Create Table
+di_2	CREATE TABLE `di_2` (
+  `abc` blob,
+  INDEX `abc`(`abc`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into di_2 values(1);
+alter table di_2 drop index abc;
+show create table di_2;
+Table	Create Table
+di_2	CREATE TABLE `di_2` (
+  `abc` blob
+) ENGINE=MyISAM DEFAULT CHARSET=latin1

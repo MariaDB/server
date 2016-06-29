@@ -1966,14 +1966,20 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   {
     KEY_PART_INFO *key_part= key_info->key_part;
     if(key_info->user_defined_key_parts==1 &&
-        key_part->field->field_visibility==FULL_HIDDEN)
+        key_part->field->field_visibility==FULL_HIDDEN &&
+        key_part->field->is_hash)
     {
       char * column_names= key_part->field->vcol_info->
                           expr_str.str+strlen("hash");
       int length=key_part->field->vcol_info->expr_str.length;
       length-=strlen("hash");
       packet->append(STRING_WITH_LEN(",\n"));
-      packet->append(STRING_WITH_LEN("  UNIQUE KEY "));
+//      if(key_part->field->is_hash==INDEX_HASH)
+//        packet->append(STRING_WITH_LEN("  INDEX `"));
+//      else
+//        packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
+      packet->append(key_info->name,strlen(key_info->name));
+      packet->append(STRING_WITH_LEN("`"));
       packet->append(column_names,length);
       continue;
     }
@@ -5449,6 +5455,22 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
       else
         table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
+    }
+    /*hidden can coexist with auto_increment and virtual */
+    if(field->field_visibility==USER_DEFINED_HIDDEN)
+    {
+      table->field[17]->store(STRING_WITH_LEN("HIDDEN"), cs);
+      if (field->unireg_check == Field::NEXT_NUMBER)
+        table->field[17]->store(STRING_WITH_LEN("auto_increment , HIDDEN"), cs);
+      if (print_on_update_clause(field, &type, true))
+        table->field[17]->store(type.ptr(), type.length(), cs);
+      if (field->vcol_info)
+      {
+        if (field->stored_in_db)
+          table->field[17]->store(STRING_WITH_LEN("PERSISTENT, HIDDEN"), cs);
+        else
+          table->field[17]->store(STRING_WITH_LEN("VIRTUAL, HIDDEN"), cs);
+      }
     }
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))

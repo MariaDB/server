@@ -3294,17 +3294,28 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->stored_in_db=true;
       cf->sql_type=MYSQL_TYPE_LONGLONG;
       /* hash column should be atmost hidden */
-      cf->is_row_hash=true;
       cf->field_visibility=FULL_HIDDEN;
+//      if(key_iter_key->type==Key::UNIQUE)
+//        cf->is_hash=UNIQUE_HASH;
+//      else
+//         cf->is_hash=INDEX_HASH;
+      cf->is_hash=true;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
       char * hash_exp=(char *)thd->alloc(252);
-      strcpy(hash_exp,"hash(");
+      char * key_name=(char *)thd->alloc(252);
+      strcpy(hash_exp,"hash(`");
       temp_colms=key_part_iter++;
       strcat(hash_exp,temp_colms->field_name.str);
+      strcpy(key_name,temp_colms->field_name.str);
+      strcat(hash_exp,"`");
       while((temp_colms=key_part_iter++)){
         strcat(hash_exp,(const char * )",");
+        strcat(key_name,"_");
+        strcat(hash_exp,"`");
         strcat(hash_exp,temp_colms->field_name.str);
+        strcat(key_name,temp_colms->field_name.str);
+        strcat(hash_exp,"`");
       }
       strcat(hash_exp,(const char * )")");
       v->expr_str.str= hash_exp;
@@ -3322,10 +3333,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       LEX_STRING  *ls =(LEX_STRING *)thd->alloc(sizeof(LEX_STRING)) ;
       ls->str=(char *)sql_field->field_name;
       ls->length =strlen(sql_field->field_name);
-      key_iter_key->name=*ls;
-      key_iter_key->columns.push_back(new (thd->mem_root)
-                                      Key_part_spec(name,
-                                                    strlen(name), 0),thd->mem_root);
+      if(key_iter_key->name.length==0)
+      {
+        LEX_STRING  *ls_name =(LEX_STRING *)thd->alloc(sizeof(LEX_STRING)) ;
+        ls_name->str=key_name;
+        ls_name->length=strlen(key_name);
+        key_iter_key->name= *ls_name;
+      }
+      key_iter_key->columns.push_back(new (thd->mem_root) Key_part_spec(name,
+                                                  strlen(name), 0),thd->mem_root);
 
     }
     is_long_unique=false;
@@ -3386,10 +3402,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     {
       if(sql_field->flags&NOT_NULL_FLAG)
       {
-        if(sql_field->flags&!NO_DEFAULT_VALUE_FLAG)
+        if(sql_field->flags&NO_DEFAULT_VALUE_FLAG)
         {
-          //TODO add error for
-          my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+          my_error(ER_HIDDEN_NOT_NULL_WOUT_DEFAULT, MYF(0), sql_field->field_name);
           DBUG_RETURN(TRUE);
         }
       }
@@ -7642,21 +7657,23 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       goto err;
     }
     /* Need to see whether new added column clashes with already existed
-       DB_ROW_HASH_*(is must have is_row_hash=true)
+       DB_ROW_HASH_*(is must have is_hash==tru)
      */
     for (f_ptr=table->vfield ; f_ptr&&(field= *f_ptr) ; f_ptr++)
     {
-      if (field->is_row_hash&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
+      if ((field->is_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
       {
         /* got a clash  find the highest number in db_row_hash_* */
         Field *temp_field;
         int max=0;
-        for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr)&&
-                                   temp_field->is_row_hash ; f_temp_ptr++)
+        for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr); f_temp_ptr++)
         {
-          int temp = atoi(temp_field->field_name+12);
-          if(temp>max)
-            max=temp;
+          if(temp_field->is_hash)
+          {
+            int temp = atoi(temp_field->field_name+12);
+            if(temp>max)
+              max=temp;
+          }
         }
         max++;
 
@@ -7784,7 +7801,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (drop)
     {
       /* If we drop index of blob unique then we need to drop the db_row_hash col */
-      if(key_info->usable_key_parts==1&&key_info->key_part->field->is_row_hash)
+      if(key_info->usable_key_parts==1&&key_info->key_part->field->is_hash)
       {
         char * name = (char *)key_info->key_part->field->field_name;
         /*iterate over field_it and remove db_row_hash col  */

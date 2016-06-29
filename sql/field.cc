@@ -10525,7 +10525,7 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;
   field_visibility= old_field->field_visibility;
-  is_row_hash= old_field->is_row_hash;
+  is_hash= old_field->is_hash;
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:
     switch (pack_length - portable_sizeof_char_ptr) {

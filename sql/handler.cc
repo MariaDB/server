@@ -5899,7 +5899,7 @@ int handler::ha_write_row(uchar *buf)
   for(uint i=0;i<table->s->keys;i++)
   {
     if(table->key_info[i].user_defined_key_parts==1 &&
-        (table->key_info[i].key_part->field)->is_row_hash)
+        (table->key_info[i].key_part->field)->is_hash)
     {
       /*
         We need to add the null bit
@@ -5962,7 +5962,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   for(uint i=0;i<table->s->keys;i++)
   {
     if(table->key_info[i].user_defined_key_parts==1 &&
-       (table->key_info[i].key_part->field)->is_row_hash)
+       (table->key_info[i].key_part->field)->is_hash)
     {
       /*
         We need to add the null bit

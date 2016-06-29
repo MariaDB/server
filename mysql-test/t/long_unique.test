@@ -92,3 +92,18 @@ insert into i_2 values(22);
 insert into i_2 values(22);
 alter table i_2 drop key abc;
 insert into i_2 values(22);
+# now some indexes on blob these should allow 
+# duplicates these will be used in where clause
+create table di_1(abc blob , xyz int , index(abc,xyz));
+show create table di_1;
+insert into di_1 values(1,1);
+insert into di_1 values(1,1);
+insert into di_1 values(2,1);
+create table di_2 (abc blob);
+insert into di_2 values(1);
+insert into di_2 values(1);
+alter table di_2 add index(abc);
+show create table di_2;
+insert into di_2 values(1);
+alter table di_2 drop index abc;
+show create table di_2;

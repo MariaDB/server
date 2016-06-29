@@ -730,7 +730,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
     for(uint i=0;i<table_list->table->s->fields;i++)
     {
-      if((*f)->is_row_hash)
+      if((*f)->is_hash ||(*f)->field_visibility==USER_DEFINED_HIDDEN)
       {
         i_list->push_front(new (thd->mem_root)
         Item_default_value(thd,context),thd->mem_root);

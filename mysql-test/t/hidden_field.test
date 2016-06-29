@@ -2,5 +2,34 @@ create table h_1(abc int primary key, xyz int hidden);
 create table h_2(a1 int hidden);
 --error 1064
 create table h_3(a1 blob,hidden(a1));
+--error 1981 
 create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
 int not null hidden unique);
+--error 1981 
+create table h_5(abc int not null hidden);
+#
+create table t1(abc int hidden);
+#should automatically add null
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+--error 1096
+select * from t1;
+select abc from t1;
+
+create table t2(abc int primary key);
+insert into t2 values();
+select * from t2;
+--error 1064
+create table sdsdsd(a int , b int, hidden(a,b));
+
+create table hid_4(a int,abc int as (a mod 3) virtual hidden);
+desc hid_4;
+create table ht_5(abc int primary key hidden auto_increment, a int);
+desc ht_5;
+insert into ht_5 values(1);
+insert into ht_5 values(2);
+insert into ht_5 values(3);
+select * from ht_5;
+select abc,a from ht_5;

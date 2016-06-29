@@ -92,7 +92,7 @@ static uchar *extra2_write_field(uchar *pos,Create_field * cf)
    */
   *pos++=2;
   *pos++=cf->field_visibility;
-  *pos++=cf->is_row_hash;
+  *pos++=cf->is_hash;
   return pos;
 }
 /**

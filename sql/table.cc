@@ -953,7 +953,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
   struct visible_property{
     field_visible_type visibility;
-    bool is_row_hash;
+    bool is_hash;
   };
   visible_property *temp;
   List<visible_property > v_p_list;
@@ -1041,7 +1041,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       case EXTRA2_FIELD_FLAGS:
         temp= new visible_property();
         temp->visibility = (field_visible_type)*extra2;
-        temp->is_row_hash=(bool)*(extra2+1);
+        temp->is_hash=(bool)*(extra2+1);
         v_p_list.push_back(temp);
         break;
       default:
@@ -1689,7 +1689,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       DBUG_ASSERT(v_p_list.elements==share->fields);
       vp=v_p_iter++;
       reg_field->field_visibility=vp->visibility;
-      reg_field->is_row_hash=vp->is_row_hash;
+      reg_field->is_hash=vp->is_hash;
     }
     reg_field->field_index= i;
     reg_field->comment=comment;
@@ -2004,7 +2004,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((keyinfo->flags & HA_NOSAME) ||
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
-      if(keyinfo->user_defined_key_parts==1 &&(keyinfo->key_part->field)->is_row_hash)
+      if(keyinfo->user_defined_key_parts==1 &&(keyinfo->key_part->field)->is_hash)
       {
         keyinfo->ext_key_parts=1;
       }

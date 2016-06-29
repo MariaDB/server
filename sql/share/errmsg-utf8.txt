@@ -7139,3 +7139,5 @@ ER_KILL_QUERY_DENIED_ERROR
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
+ER_HIDDEN_NOT_NULL_WOUT_DEFAULT
+        eng "Hidden column '%s' either allow null values or it must have default value"
