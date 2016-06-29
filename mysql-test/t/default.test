@@ -1849,3 +1849,15 @@ insert t1 (c) values (a);
 insert t1 (c) values (b);
 select * from t1;
 drop table t1;
+
+#
+# ALTER ... SET DEFAULT
+#
+create table t1 (a int default 1, b int default (1+1), c int);
+show create table t1;
+alter table t1 alter a set default (2+3), alter b set default 4,
+               alter c set default (-a);
+--error ER_PARSE_ERROR
+alter table t1 alter a set default 1+2;
+show create table t1;
+drop table t1;
