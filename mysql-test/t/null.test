@@ -22,6 +22,7 @@ SELECT (NULL OR NULL) IS NULL;
 select NULL AND 0, 0 and NULL;
 select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."),inet_aton("");
 explain extended select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."),inet_aton("");
+select not null is true, not null or true, not null and false, not null <=> null;
 
 create table t1 (x int);
 insert into t1 values (null);

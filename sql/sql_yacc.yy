@@ -1452,7 +1452,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NO_SYM                        /* SQL-2003-R */
 %token  NO_WAIT_SYM
 %token  NO_WRITE_TO_BINLOG
-%token  NOT_NULL_SYM
 %token  NTILE_SYM
 %token  NULL_SYM                      /* SQL-2003-R */
 %token  NUM
@@ -6743,7 +6742,7 @@ opt_attribute_list:
 
 attribute:
           NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
-        | NOT_NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
+        | not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
@@ -9185,12 +9184,6 @@ bool_pri:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | bool_pri IS NOT_NULL_SYM %prec IS
-          {
-            $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | bool_pri EQUAL_SYM predicate %prec EQUAL_SYM
           {
             $$= new (thd->mem_root) Item_func_equal(thd, $1, $3);
@@ -9560,13 +9553,6 @@ column_default_non_parenthesized_expr:
         | variable
         | sum_expr
         | window_func_expr
-        | NOT_NULL_SYM
-          {
-            /* Replace NOT NULL with NULL */
-            $$= new (thd->mem_root) Item_null(thd);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-           }
         | ROW_SYM '(' expr ',' expr_list ')'
           {
             $5->push_front($3, thd->mem_root);

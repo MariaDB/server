@@ -2179,12 +2179,10 @@ public:
     or -1, if no token was parsed in advance.
     Note: 0 is a legal token, and represents YYEOF.
   */
-  int lookahead_token, lookahead_token2;
+  int lookahead_token;
 
-  /** LALR(3) resolution, value of the look ahead token.*/
+  /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
-  LEX_YYSTYPE lookahead_yylval2;
-  const char *lookahead_cpp_start, *lookahead_cpp_end;
 
   bool get_text(LEX_STRING *to, uint sep, int pre_skip, int post_skip);
 
@@ -2312,7 +2310,6 @@ public:
     Current statement digest instrumentation. 
   */
   sql_digest_state* m_digest;
-  friend int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 };
 
 /**
