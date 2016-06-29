@@ -665,6 +665,8 @@ protected:
                                          bool set_blob_packlength);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
+  void push_note_converted_to_negative_complement(THD *thd);
+  void push_note_converted_to_positive_complement(THD *thd);
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -875,6 +877,20 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual longlong val_int()=0;
+  /**
+    Get a value for CAST(x AS SIGNED).
+    Too large positive unsigned integer values are converted
+    to negative complements.
+    Values of non-integer data types are adjusted to the SIGNED range.
+  */
+  virtual longlong val_int_signed_typecast();
+  /**
+    Get a value for CAST(x AS UNSIGNED).
+    Negative signed integer values are converted
+    to positive complements.
+    Values of non-integer data types are adjusted to the UNSIGNED range.
+  */
+  virtual longlong val_int_unsigned_typecast();
   /*
     This is just a shortcut to avoid the cast. You should still use
     unsigned_flag to check the sign of the item.
@@ -1042,6 +1058,7 @@ public:
   longlong val_int_from_decimal();
   longlong val_int_from_date();
   longlong val_int_from_real();
+  longlong val_int_from_str(int *error);
   double val_real_from_decimal();
   double val_real_from_date();
 

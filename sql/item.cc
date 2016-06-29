@@ -72,6 +72,22 @@ void item_init(void)
 }
 
 
+void Item::push_note_converted_to_negative_complement(THD *thd)
+{
+  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+               "Cast to signed converted positive out-of-range integer to "
+               "it's negative complement");
+}
+
+
+void Item::push_note_converted_to_positive_complement(THD *thd)
+{
+  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+               "Cast to unsigned converted negative integer to it's "
+               "positive complement");
+}
+
+
 /**
   @todo
     Make this functions class dependent

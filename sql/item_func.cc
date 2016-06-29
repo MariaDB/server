@@ -1073,7 +1073,7 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_signed::val_int_from_str(int *error)
+longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin), *res;
@@ -1083,13 +1083,11 @@ longlong Item_func_signed::val_int_from_str(int *error)
     to a longlong
   */
 
-  if (!(res= args[0]->val_str(&tmp)))
+  if (!(res= val_str(&tmp)))
   {
-    null_value= 1;
     *error= 0;
     return 0;
   }
-  null_value= 0;
   Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
                                     res->charset(), res->ptr(), res->length());
   *error= cnv.error();
@@ -1097,37 +1095,15 @@ longlong Item_func_signed::val_int_from_str(int *error)
 }
 
 
-longlong Item_func_signed::val_int()
+longlong Item::val_int_signed_typecast()
 {
-  longlong value;
+  if (cast_to_int_type() != STRING_RESULT)
+    return val_int();
+
   int error;
-
-  if (args[0]->cast_to_int_type() != STRING_RESULT)
-  {
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    return value;
-  }
-  else if (args[0]->dynamic_result())
-  {
-    /* We come here when argument has an unknown type */
-    args[0]->unsigned_flag= 0;   // Mark that we want to have a signed value
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag && value < 0)
-      goto err;                                 // Warn about overflow
-    return value;
-  }
-
-  value= val_int_from_str(&error);
-  if (value < 0 && error == 0)
-    goto err;
-  return value;
-
-err:
-  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-               "Cast to signed converted positive out-of-range integer to "
-               "it's negative complement");
+  longlong value= val_int_from_str(&error);
+  if (!null_value && value < 0 && error == 0)
+    push_note_converted_to_negative_complement(current_thd);
   return value;
 }
 
@@ -1141,49 +1117,30 @@ void Item_func_unsigned::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_unsigned::val_int()
+longlong Item::val_int_unsigned_typecast()
 {
-  longlong value;
-  int error;
-
-  if (args[0]->cast_to_int_type() == DECIMAL_RESULT)
+  if (cast_to_int_type() == DECIMAL_RESULT)
   {
-    my_decimal tmp, *dec= args[0]->val_decimal(&tmp);
-    if (!(null_value= args[0]->null_value))
+    longlong value;
+    my_decimal tmp, *dec= val_decimal(&tmp);
+    if (!null_value)
       my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &value);
     else
       value= 0;
     return value;
   }
-  else if (args[0]->dynamic_result())
+  else if (cast_to_int_type() != STRING_RESULT)
   {
-    /* We come here when argument has an unknown type */
-    args[0]->unsigned_flag= 1;   // Mark that we want to have an unsigned value
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag == 0 && value < 0)
-      goto err;                                 // Warn about overflow
-    return value;
-  }
-  else if (args[0]->cast_to_int_type() != STRING_RESULT)
-  {
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag == 0 && value < 0)
-      goto err;                                 // Warn about overflow
+    longlong value= val_int();
+    if (!null_value && unsigned_flag == 0 && value < 0)
+      push_note_converted_to_positive_complement(current_thd);
     return value;
   }
 
-  value= val_int_from_str(&error);
-  if (error < 0)
-    goto err;
-
-  return value;
-
-err:
-  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-               "Cast to unsigned converted negative integer to it's "
-               "positive complement");
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && error < 0)
+    push_note_converted_to_positive_complement(current_thd);
   return value;
 }
 

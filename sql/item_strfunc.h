@@ -1254,6 +1254,22 @@ public:
   const char *func_name() const { return "column_get"; }
   String *val_str(String *);
   longlong val_int();
+  longlong val_int_signed_typecast()
+  {
+    unsigned_flag= false;   // Mark that we want to have a signed value
+    longlong value= val_int(); // val_int() can change unsigned_flag
+    if (!null_value && unsigned_flag && value < 0)
+      push_note_converted_to_negative_complement(current_thd);
+    return value;
+  }
+  longlong val_int_unsigned_typecast()
+  {
+    unsigned_flag= true; // Mark that we want to have an unsigned value
+    longlong value= val_int(); // val_int() can change unsigned_flag
+    if (!null_value && unsigned_flag == 0 && value < 0)
+      push_note_converted_to_positive_complement(current_thd);
+    return value;
+  }
   double val_real();
   my_decimal *val_decimal(my_decimal *);
   bool get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val, String *tmp);

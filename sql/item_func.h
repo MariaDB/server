@@ -624,8 +624,12 @@ public:
     unsigned_flag= 0;
   }
   const char *func_name() const { return "cast_as_signed"; }
-  longlong val_int();
-  longlong val_int_from_str(int *error);
+  longlong val_int()
+  {
+    longlong value= args[0]->val_int_signed_typecast();
+    null_value= args[0]->null_value;
+    return value;
+  }
   void fix_length_and_dec()
   {
     fix_char_length(MY_MIN(args[0]->max_char_length(),
@@ -644,7 +648,12 @@ public:
     unsigned_flag= 1;
   }
   const char *func_name() const { return "cast_as_unsigned"; }
-  longlong val_int();
+  longlong val_int()
+  {
+    longlong value= args[0]->val_int_unsigned_typecast();
+    null_value= args[0]->null_value;
+    return value;
+  }
   virtual void print(String *str, enum_query_type query_type);
 };
 
