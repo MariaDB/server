@@ -59,6 +59,7 @@
    fun:_dl_map_object_from_fd
 }
 
+{
    pthread pthread_key_create
    Memcheck:Leak
    fun:malloc
