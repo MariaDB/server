@@ -32,13 +32,6 @@ C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
 
-/* Bits for type of vcol expression */
-#define VCOL_DETERMINISTIC     0                /* Normal (no bit set) */
-#define VCOL_UNKNOWN           1  /* UDF used; Need fix_fields() to know */
-#define VCOL_NON_DETERMINISTIC 2
-#define VCOL_TIME_FUNC         4
-#define VCOL_IMPOSSIBLE        8
-
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */

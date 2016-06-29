@@ -2208,7 +2208,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       vcol_info->expr_str.str=    expr;
       vcol_info->expr_str.length= expr_length;
       vcol_screen_pos+=           expr_length;
-      vcol_info->non_deterministic= flags & 1;
+      vcol_info->flags=           flags;
       vcol_info->stored_in_db= 0;
 
       switch (type) {
@@ -2578,15 +2578,6 @@ static bool fix_vcol_expr(THD *thd,
   /* fix_fields could change the expression */
   func_expr= vcol->expr_item;
 
-  /*
-    Mark what kind of default / virtual fields the table has
-    Here we assume that things has not changed since table was created.
-    If we decide to not trust functions, we could instead call
-    expr_item->walk(&Item::check_vcol_func_processor)
-  */
-  if (vcol->stored_in_db && vcol->non_deterministic)
-    table->s->non_determinstic_insert= 1;
-
   /* Number of columns will be checked later */
   thd->where= save_where;
   if (unlikely(func_expr->result_type() == ROW_RESULT))
@@ -2602,10 +2593,9 @@ static bool fix_vcol_expr(THD *thd,
       goto end;
   }
 
-#ifdef PARANOID
   /*
     Walk through the Item tree checking if all items are valid
-   to be part of the virtual column
+    to be part of the virtual column
   */
   Item::vcol_func_processor_result res;
   res.errors= 0;
@@ -2614,10 +2604,17 @@ static bool fix_vcol_expr(THD *thd,
   if (error || (res.errors & VCOL_IMPOSSIBLE))
   {
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", field_name);
+             "???", field->field_name);
     goto end;
   }
-#endif
+  vcol->flags= res.errors;
+
+  /*
+    Mark what kind of default / virtual fields the table has
+  */
+  if (vcol->stored_in_db && vcol->flags & VCOL_NON_DETERMINISTIC)
+    table->s->non_determinstic_insert= 1;
+
   result= FALSE;
 
 end:
@@ -2759,7 +2756,6 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
     fix_vcol_expr() to mark if we are using non deterministic functions.
   */
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
-  vcol_storage.vcol_info->non_deterministic= vcol->non_deterministic;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
   /* Validate the Item tree. */

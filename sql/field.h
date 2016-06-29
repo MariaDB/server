@@ -546,6 +546,12 @@ inline bool is_temporal_type_with_time(enum_field_types type)
   }
 }
 
+/* Bits for type of vcol expression */
+#define VCOL_DETERMINISTIC     0                /* Normal (no bit set) */
+#define VCOL_UNKNOWN           1  /* UDF used; Need fix_fields() to know */
+#define VCOL_NON_DETERMINISTIC 2
+#define VCOL_TIME_FUNC         4
+#define VCOL_IMPOSSIBLE        8
 
 /*
   Virtual_column_info is the class to contain additional
@@ -571,18 +577,18 @@ private:
 public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
-  bool non_deterministic;
   bool utf8;                                    /* Already in utf8 */
   /* The expression to compute the value of the virtual column */
   Item *expr_item;
   /* Text representation of the defining expression */
   LEX_STRING expr_str;
   LEX_STRING name;                              /* Name of constraint */
+  uint flags;
 
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
-    in_partitioning_expr(FALSE), stored_in_db(FALSE), non_deterministic(FALSE),
-    utf8(TRUE), expr_item(NULL)
+    in_partitioning_expr(FALSE), stored_in_db(FALSE),
+    utf8(TRUE), expr_item(NULL), flags(0)
   {
     expr_str.str= name.str= NULL;
     name.length= 0;

@@ -576,7 +576,7 @@ static void pack_expression(uchar **buff, Virtual_column_info *vcol,
   int2store((*buff)+2, vcol->expr_str.length);
   (*buff)[4]= (uchar) type;
   (*buff)[5]= vcol->name.length;
-  (*buff)[6]= vcol->non_deterministic;          // 1 bit used for now
+  (*buff)[6]= vcol->flags;
   (*buff)+= FRM_VCOL_NEW_HEADER_SIZE;
   memcpy((*buff), vcol->name.str, vcol->name.length);
   (*buff)+= vcol->name.length;
