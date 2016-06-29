@@ -42,9 +42,9 @@
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
-  --stored-program-cache=# 
-  The soft upper limit for number of cached stored routines
-  for one connection.
+  --standards-compliant-cte 
+  Allow only standards compiant CTE
+  (Defaults to on; use --skip-standards-compliant-cte to disable.)
 @@ -1070,25 +1078,11 @@
   --thread-cache-size=# 
   How many threads we should keep in a cache for reuse.
