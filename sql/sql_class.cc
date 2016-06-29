@@ -854,6 +854,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
+   bulk_param(0),
    table_map_for_update(0),
    m_examined_row_count(0),
    accessed_rows_and_keys(0),
@@ -5701,6 +5702,17 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
+
+    if (is_bulk_op())
+    {
+      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
+      {
+        my_error(ER_BINLOG_NON_SUPPORTED_BULK, MYF(0));
+        DBUG_PRINT("info",
+                   ("decision: no logging since an error was generated"));
+        DBUG_RETURN(-1);
+      }
+    }
     /*
       Compute one bit field with the union of all the engine
       capabilities, and one with the intersection of all the engine
@@ -5959,7 +5971,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if (wsrep_binlog_format() == BINLOG_FORMAT_ROW &&
+      else if ((wsrep_binlog_format() == BINLOG_FORMAT_ROW || is_bulk_op()) &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -6032,7 +6044,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       else
       {
         if (lex->is_stmt_unsafe() || lex->is_stmt_row_injection()
-            || (flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0)
+            || (flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0 ||
+            is_bulk_op())
         {
           /* log in row format! */
           set_current_stmt_binlog_format_row_if_mixed();

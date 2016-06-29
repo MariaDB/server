@@ -77,6 +77,7 @@
 #include "transaction.h"
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
+#include "sql_prepare.h"
 
 #include "debug_sync.h"
 
@@ -661,7 +662,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   bool using_bulk_insert= 0;
   uint value_count;
   ulong counter = 1;
+  ulong iteration= 0;
   ulonglong id;
+  ulong bulk_iterations= bulk_parameters_iterations(thd);
   COPY_INFO info;
   TABLE *table= 0;
   List_iterator_fast<List_item> its(values_list);
@@ -725,8 +728,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   THD_STAGE_INFO(thd, stage_init);
   thd->lex->used_tables=0;
   values= its++;
+  if (bulk_parameters_set(thd))
+    DBUG_RETURN(TRUE);
   value_count= values->elements;
 
+  DBUG_ASSERT(bulk_iterations > 0);
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
 			   update_fields, update_values, duplic, &unused_conds,
                            FALSE,
@@ -885,106 +891,114 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       goto values_loop_end;
     }
   }
-
-  while ((values= its++))
+  do
   {
-    if (fields.elements || !value_count)
-    {
-      /*
-        There are possibly some default values:
-        INSERT INTO t1 (fields) VALUES ...
-        INSERT INTO t1 VALUES ()
-      */
-      restore_record(table,s->default_values);	// Get empty record
-      table->reset_default_fields();
-      if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
-                                               TRG_EVENT_INSERT))
-      {
-	if (values_list.elements != 1 && ! thd->is_error())
-	{
-	  info.records++;
-	  continue;
-	}
-	/*
-	  TODO: set thd->abort_on_warning if values_list.elements == 1
-	  and check that all items return warning in case of problem with
-	  storing field.
-        */
-	error=1;
-	break;
-      }
-    }
-    else
-    {
-      /*
-        No field list, all fields are set explicitly:
-        INSERT INTO t1 VALUES (values)
-      */
-      if (thd->lex->used_tables)		      // Column used in values()
-	restore_record(table,s->default_values);	// Get empty record
-      else
-      {
-        TABLE_SHARE *share= table->s;
+    if (iteration && bulk_parameters_set(thd))
+      goto abort;
 
+    while ((values= its++))
+    {
+      if (fields.elements || !value_count)
+      {
         /*
-          Fix delete marker. No need to restore rest of record since it will
-          be overwritten by fill_record() anyway (and fill_record() does not
-          use default values in this case).
+          There are possibly some default values:
+          INSERT INTO t1 (fields) VALUES ...
+          INSERT INTO t1 VALUES ()
         */
-#ifdef HAVE_valgrind
-        if (table->file->ha_table_flags() && HA_RECORD_MUST_BE_CLEAN_ON_WRITE)
-          restore_record(table,s->default_values);	// Get empty record
-        else
-#endif
-          table->record[0][0]= share->default_values[0];
-
-        /* Fix undefined null_bits. */
-        if (share->null_bytes > 1 && share->last_null_bit_pos)
+        restore_record(table,s->default_values);	// Get empty record
+        table->reset_default_fields();
+        if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
+                                                 TRG_EVENT_INSERT))
         {
-          table->record[0][share->null_bytes - 1]= 
-            share->default_values[share->null_bytes - 1];
+          if (values_list.elements != 1 && ! thd->is_error())
+          {
+            info.records++;
+            continue;
+          }
+          /*
+            TODO: set thd->abort_on_warning if values_list.elements == 1
+	    and check that all items return warning in case of problem with
+	    storing field.
+          */
+	  error=1;
+	  break;
         }
       }
-      if (fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
-                                               *values, 0, TRG_EVENT_INSERT))
+      else
       {
-	if (values_list.elements != 1 && ! thd->is_error())
-	{
-	  info.records++;
-	  continue;
-	}
-	error=1;
-	break;
-      }
-    }
+        /*
+          No field list, all fields are set explicitly:
+          INSERT INTO t1 VALUES (values)
+        */
+        if (thd->lex->used_tables)		      // Column used in values()
+	  restore_record(table,s->default_values);	// Get empty record
+        else
+        {
+          TABLE_SHARE *share= table->s;
 
-    if ((res= table_list->view_check_option(thd,
-					    (values_list.elements == 1 ?
-					     0 :
-					     ignore))) ==
-        VIEW_CHECK_SKIP)
-      continue;
-    else if (res == VIEW_CHECK_ERROR)
-    {
-      error= 1;
-      break;
-    }
-#ifndef EMBEDDED_LIBRARY
-    if (lock_type == TL_WRITE_DELAYED)
-    {
-      LEX_STRING const st_query = { query, thd->query_length() };
-      DEBUG_SYNC(thd, "before_write_delayed");
-      error=write_delayed(thd, table, duplic, st_query, ignore, log_on);
-      DEBUG_SYNC(thd, "after_write_delayed");
-      query=0;
-    }
-    else
+          /*
+            Fix delete marker. No need to restore rest of record since it will
+            be overwritten by fill_record() anyway (and fill_record() does not
+            use default values in this case).
+          */
+#ifdef HAVE_valgrind
+          if (table->file->ha_table_flags() && HA_RECORD_MUST_BE_CLEAN_ON_WRITE)
+            restore_record(table,s->default_values);	// Get empty record
+          else
 #endif
-      error=write_record(thd, table ,&info);
-    if (error)
-      break;
-    thd->get_stmt_da()->inc_current_row_for_warning();
-  }
+            table->record[0][0]= share->default_values[0];
+
+          /* Fix undefined null_bits. */
+          if (share->null_bytes > 1 && share->last_null_bit_pos)
+          {
+            table->record[0][share->null_bytes - 1]=
+              share->default_values[share->null_bytes - 1];
+          }
+        }
+        if (fill_record_n_invoke_before_triggers(thd, table,
+                                                 table->field_to_fill(),
+                                                 *values, 0, TRG_EVENT_INSERT))
+        {
+          if (values_list.elements != 1 && ! thd->is_error())
+	  {
+	    info.records++;
+	    continue;
+	  }
+	  error=1;
+	  break;
+        }
+      }
+
+      if ((res= table_list->view_check_option(thd,
+                                              (values_list.elements == 1 ?
+                                               0 :
+                                               ignore))) ==
+          VIEW_CHECK_SKIP)
+        continue;
+      else if (res == VIEW_CHECK_ERROR)
+      {
+        error= 1;
+        break;
+      }
+#ifndef EMBEDDED_LIBRARY
+      if (lock_type == TL_WRITE_DELAYED)
+      {
+        LEX_STRING const st_query = { query, thd->query_length() };
+        DEBUG_SYNC(thd, "before_write_delayed");
+        error=write_delayed(thd, table, duplic, st_query, ignore, log_on);
+        DEBUG_SYNC(thd, "after_write_delayed");
+        query=0;
+      }
+      else
+#endif
+        error=write_record(thd, table ,&info);
+      if (error)
+        break;
+      thd->get_stmt_da()->inc_current_row_for_warning();
+    }
+    its.rewind();
+    iteration++;
+  } while (iteration < bulk_iterations);
 
 values_loop_end:
   free_underlaid_joins(thd, &thd->lex->select_lex);
@@ -1131,7 +1145,7 @@ values_loop_end:
     retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
-  if (values_list.elements == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
+  if ((bulk_iterations * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
     my_ok(thd, info.copied + info.deleted +

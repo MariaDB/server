@@ -2463,6 +2463,8 @@ public:
   */
   Query_arena *stmt_arena;
 
+  void *bulk_param;
+
   /*
     map for tables that will be updated for a multi-table update query
     statement, for other query statements, this will be zero.
@@ -3438,6 +3440,12 @@ public:
     To raise this flag, use my_error().
   */
   inline bool is_error() const { return m_stmt_da->is_error(); }
+  void set_bulk_execution(void *bulk)
+  {
+    bulk_param= bulk;
+    m_stmt_da->set_bulk_execution(MY_TEST(bulk));
+  }
+  bool is_bulk_op() const { return MY_TEST(bulk_param); }
 
   /// Returns Diagnostics-area for the current statement.
   Diagnostics_area *get_stmt_da()
@@ -5509,6 +5517,15 @@ public:
   Statement that updates existing rows (UPDATE, multi-update)
 */
 #define CF_UPDATES_DATA (1U << 18)
+
+/**
+  SP Bulk execution safe
+*/
+#define CF_SP_BULK_SAFE (1U << 19)
+/**
+  SP Bulk execution optimized
+*/
+#define CF_SP_BULK_OPTIMIZED (1U << 20)
 
 /* Bits in server_command_flags */
 

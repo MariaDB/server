@@ -3236,6 +3236,7 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
   Rewritable_query_parameter(pos_in_query_arg, 1),
   Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   state(NO_VALUE),
+  indicators(0), indicator(STMT_INDICATOR_NONE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
   set_param_func(default_set_param_func),
@@ -3600,6 +3601,10 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
                         str_value.charset());
   case NULL_VALUE:
     return set_field_to_null_with_conversions(field, no_conversions);
+  case DEFAULT_VALUE:
+    return field->save_in_field_default_value(field->table->pos_in_table_list->
+                                              top_table() !=
+                                              field->table->pos_in_table_list);
   case NO_VALUE:
   default:
     DBUG_ASSERT(0);
@@ -3645,6 +3650,9 @@ double Item_param::val_real()
     return TIME_to_double(&value.time);
   case NULL_VALUE:
     return 0.0;
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   default:
     DBUG_ASSERT(0);
   }
@@ -3672,6 +3680,9 @@ longlong Item_param::val_int()
     }
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return 0; 
   default:
@@ -3699,6 +3710,9 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
   {
     return TIME_to_my_decimal(&value.time, dec);
   }
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return 0; 
   default:
@@ -3734,6 +3748,9 @@ String *Item_param::val_str(String* str)
     str->set_charset(&my_charset_bin);
     return str;
   }
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return NULL; 
   default:
@@ -3812,6 +3829,9 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       break;
     }
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return &my_null_string;
   default:
@@ -3862,6 +3882,9 @@ Item_param::clone_item(THD *thd)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   switch (state) {
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return new (mem_root) Item_null(thd, name);
   case INT_VALUE:
@@ -3894,6 +3917,9 @@ Item_param::eq(const Item *item, bool binary_cmp) const
     return FALSE;
 
   switch (state) {
+  case DEFAULT_VALUE:
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
   case NULL_VALUE:
     return null_eq(item);
   case INT_VALUE:
@@ -3916,6 +3942,10 @@ void Item_param::print(String *str, enum_query_type query_type)
   if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
   {
     str->append('?');
+  }
+  else if (state == DEFAULT_VALUE)
+  {
+    str->append("default");
   }
   else
   {
@@ -3967,6 +3997,11 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   str_value_ptr.swap(src->str_value_ptr);
 }
 
+
+void Item_param::set_default()
+{
+  state= DEFAULT_VALUE;
+}
 
 /**
   This operation is intended to store some item value in Item_param to be
@@ -8579,42 +8614,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     calculate();
   else
   {
-    TABLE *table= field_arg->table;
-    THD *thd= table->in_use;
-
-    if (field_arg->flags & NO_DEFAULT_VALUE_FLAG &&
-        field_arg->real_type() != MYSQL_TYPE_ENUM)
-    {
-      if (field_arg->reset())
-      {
-        my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
-                   ER_THD(thd, ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
-        return -1;
-      }
-
-      if (context->error_processor == &view_error_processor)
-      {
-        TABLE_LIST *view= table->pos_in_table_list->top_table();
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_NO_DEFAULT_FOR_VIEW_FIELD,
-                            ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
-                            view->view_db.str,
-                            view->view_name.str);
-      }
-      else
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_NO_DEFAULT_FOR_FIELD,
-                            ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
-                            field_arg->field_name);
-      }
-      return 1;
-    }
-    field_arg->set_default();
-    return
-      !field_arg->is_null() &&
-       field_arg->validate_value_in_record_with_warn(thd, table->record[0]) &&
-       thd->is_error() ? -1 : 0;
+    return field_arg->save_in_field_default_value(context->error_processor ==
+                                                  &view_error_processor);
   }
   return Item_field::save_in_field(field_arg, no_conversions);
 }

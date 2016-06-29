@@ -2798,7 +2798,7 @@ public:
   {
     NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
-    DECIMAL_VALUE
+    DECIMAL_VALUE, DEFAULT_VALUE
   } state;
 
   struct CONVERSION_INFO
@@ -2843,6 +2843,13 @@ public:
   };
 
   /*
+    Used for bulk protocol. Indicates if we should expect
+    indicators byte before value of the parameter
+  */
+  my_bool indicators;
+  enum enum_indicator_type indicator;
+
+  /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
     modification. I. e. in some cases Item_func_concat can append it's
@@ -2882,6 +2889,7 @@ public:
   bool get_date(MYSQL_TIME *tm, ulonglong fuzzydate);
   int  save_in_field(Field *field, bool no_conversions);
 
+  void set_default();
   void set_null();
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
@@ -5102,6 +5110,10 @@ public:
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
      arg(a) {}
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
+                (const char *)NULL),
+     arg(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);

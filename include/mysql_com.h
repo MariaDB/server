@@ -114,12 +114,23 @@ enum enum_server_command
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
   COM_MDB_GAP_END=250,
-  COM_SLAVE_WORKER,
-  COM_SLAVE_IO,
-  COM_SLAVE_SQL,
-  COM_MULTI,
+  COM_SLAVE_WORKER=251,
+  COM_SLAVE_IO=252,
+  COM_SLAVE_SQL=253,
+  COM_MULTI=254,
   /* Must be last */
-  COM_END
+  COM_END=255
+};
+
+
+/*
+  Bulk PS protocol indicator value:
+*/
+enum enum_indicator_type
+{
+  STMT_INDICATOR_NONE= 0,
+  STMT_INDICATOR_NULL,
+  STMT_INDICATOR_DEFAULT
 };
 
 /* sql type stored in .frm files for virtual fields */
@@ -256,6 +267,8 @@ enum enum_server_command
 #define MARIADB_CLIENT_PROGRESS (1ULL << 32)
 /* support COM_MULTI */
 #define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
+/* support of array binding */
+#define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1UL << 34)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
@@ -295,7 +308,8 @@ enum enum_server_command
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI)
+                           MARIADB_CLIENT_COM_MULTI |\
+                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
 
 /*
   To be added later:
