@@ -17,10 +17,13 @@ drop table t1;
 #
 # MDEV-438 Microseconds: Precision is ignored in CURRENT_TIMESTAMP(N) when it is given as a default column value 
 #
-create table t1 (a timestamp(5) default current_timestamp); drop table t1;
+create table t1 (a timestamp(5) default current_timestamp);
+show create table t1;
+drop table t1;
 create table t1 (a timestamp(5) default current_timestamp()); drop table t1;
---error ER_INVALID_DEFAULT
 create table t1 (a timestamp(5) default current_timestamp(2));
+show create table t1;
+drop table t1;
 create table t1 (a timestamp(5) default current_timestamp(5)); drop table t1;
 create table t1 (a timestamp(5) default current_timestamp(6)); drop table t1;
 create table t1 (a timestamp(5) on update current_timestamp); drop table t1;

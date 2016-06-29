@@ -3695,6 +3695,12 @@ static Sys_var_bit Sys_unique_checks(
        REVERSE(OPTION_RELAXED_UNIQUE_CHECKS),
        DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
 
+static Sys_var_bit Sys_no_check_constraint(
+       "check_constraint_checks", "check_constraint_checks",
+       SESSION_VAR(option_bits), NO_CMD_LINE,
+       REVERSE(OPTION_NO_CHECK_CONSTRAINT_CHECKS),
+       DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
+
 #ifdef ENABLED_PROFILING
 static bool update_profiling(sys_var *self, THD *thd, enum_var_type type)
 {

@@ -32,26 +32,12 @@ C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
 
-#ifndef DBUG_OFF
-static inline
-bool trace_unsupported_func(const char *where, const char *processor_name)
-{
-  char buff[64];                                                         
-  sprintf(buff, "%s::%s", where, processor_name);
-  DBUG_ENTER(buff);
-  sprintf(buff, "%s returns TRUE: unsupported function", processor_name);
-  DBUG_PRINT("info", ("%s", buff));
-  DBUG_RETURN(TRUE);
-}
-#else
-#define trace_unsupported_func(X,Y) TRUE
-#endif
-
-static inline
-bool trace_unsupported_by_check_vcol_func_processor(const char *where)
-{
-  return trace_unsupported_func(where, "check_vcol_func_processor");
-}
+/* Bits for type of vcol expression */
+#define VCOL_DETERMINISTIC     0                /* Normal (no bit set) */
+#define VCOL_NON_DETERMINISTIC 1
+#define VCOL_TIME_FUNC         2
+#define VCOL_IMPOSSIBLE        4
+#define VCOL_UNKNOWN	       8  /* UDF used; Need fix_fields() to know */
 
 class Protocol;
 struct TABLE_LIST;
@@ -73,6 +59,8 @@ char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
    ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
    return (tmp > UINT_MAX32) ? (uint32) UINT_MAX32 : (uint32) tmp;
 }
+
+bool mark_unsupported_function(const char *where, uchar *store, uint result);
 
 
 /* Bits for the split_sum_func() function */
@@ -1606,10 +1594,17 @@ public:
     @retval 
       TRUE     otherwise
   */
+  struct vcol_func_processor_result
+  {
+    uint errors;                                /* Bits of possible errors */
+    const char *name;                           /* Not supported function */
+  };
   virtual bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(full_name());
+    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+
+  virtual bool check_field_expression_processor(uchar *arg) { return FALSE; }
 
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
@@ -1987,6 +1982,7 @@ public:
   Item_basic_constant(THD *thd): Item_basic_value(thd), used_table_map(0) {};
   void set_used_tables(table_map map) { used_table_map= map; }
   table_map used_tables() const { return used_table_map; }
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   /* to prevent drop fixed flag (no need parent cleanup call) */
   void cleanup()
   {
@@ -2255,7 +2251,7 @@ public:
   }
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("name_const");
+    return mark_unsupported_function("name_const", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -2265,7 +2261,6 @@ public:
   Item_num(THD *thd): Item_basic_constant(thd) { collation.set_numeric(); }
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool check_partition_func_processor(uchar *int_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 #define NO_CACHED_FIELD_INDEX ((uint)(-1))
@@ -2524,6 +2519,7 @@ public:
   bool register_field_in_bitmap(uchar *arg);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool vcol_in_partition_func_processor(uchar *bool_arg);
+  bool check_field_expression_processor(uchar *arg);
   bool enumerate_field_refs_processor(uchar *arg);
   bool update_table_bitmaps_processor(uchar *arg);
   bool switch_to_nullable_fields_processor(uchar *arg);
@@ -2630,7 +2626,6 @@ public:
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 class Item_null_result :public Item_null
@@ -2646,7 +2641,7 @@ public:
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
   bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(full_name());
+    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -2791,7 +2786,7 @@ public:
   { return this; }
 
   bool append_for_log(THD *thd, String *str);
-
+  bool check_vcol_func_processor(uchar *int_arg) {return FALSE;}
 private:
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
@@ -2840,8 +2835,6 @@ public:
   { return (uint) (max_length - MY_TEST(value < 0)); }
   bool eq(const Item *item, bool binary_cmp) const
   { return int_eq(value, item); }
-  bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 
@@ -2904,8 +2897,6 @@ public:
   uint decimal_precision() const { return decimal_value.precision(); }
   bool eq(const Item *, bool binary_cmp) const;
   void set_decimal_value(my_decimal *value_par);
-  bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 
@@ -3087,7 +3078,6 @@ public:
   }
   virtual void print(String *str, enum_query_type query_type);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 
   /**
     Return TRUE if character-set-introducer was explicitly specified in the
@@ -3221,7 +3211,7 @@ public:
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name);
+    return mark_unsupported_function(func_name, arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -3236,7 +3226,7 @@ public:
   {}
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("safe_string");
+    return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -3324,7 +3314,6 @@ public:
     return const_charset_converter(thd, tocs, true);
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool basic_const_item() const { return 1; }
   bool eq(const Item *item, bool binary_cmp) const
   {
@@ -3453,7 +3442,6 @@ public:
   Item_result cmp_type() const { return TIME_RESULT; }
 
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 
   bool is_null()
   { return is_null_from_temporal(); }
@@ -4061,7 +4049,7 @@ public:
   }
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("ref");
+    return mark_unsupported_function("ref", arg, VCOL_IMPOSSIBLE);
   }
   bool basic_const_item() const { return ref && (*ref)->basic_const_item(); }
   bool is_outer_field() const
@@ -4279,7 +4267,7 @@ public:
   { return orig_item->is_expensive_processor(arg); }
   bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("cache");
+    return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -4660,7 +4648,7 @@ public:
   bool is_null() { return null_value; }
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("copy");
+    return mark_unsupported_function("copy", arg, VCOL_IMPOSSIBLE);
   }
 
   /*  
@@ -4951,9 +4939,9 @@ public:
 	    (this->*processor)(args);
   }
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *arg_arg)
+  bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("values");
+    return mark_unsupported_function("values", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -5042,7 +5030,7 @@ private:
 public:
   bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("trigger");
+    return mark_unsupported_function("trigger", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -5129,7 +5117,7 @@ public:
   }
   bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("cache");
+    return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
   /**
      Check if saved item has a non-NULL value.

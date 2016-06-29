@@ -7681,11 +7681,14 @@ err_no_arena:
   @param fields        Item_fields list to be filled
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
+  @param update        TRUE if update query
 
   @details
     fill_record() may set table->auto_increment_field_not_null and a
     caller should make sure that it is reset after their last call to this
     function.
+    default functions are executed for inserts.
+    virtual fields are always updated
 
   @return Status
   @retval true An error occurred.
@@ -7694,7 +7697,7 @@ err_no_arena:
 
 bool
 fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
-            bool ignore_errors)
+            bool ignore_errors, bool update)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
@@ -7760,12 +7763,16 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     DBUG_ASSERT(vcol_table == 0 || vcol_table == table);
     vcol_table= table;
   }
-  /* Update virtual fields*/
+
+  if (!update && table_arg->default_field &&
+      table_arg->update_default_fields(0, ignore_errors))
+    goto err;
+  /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (vcol_table && vcol_table->vfield &&
       update_virtual_fields(thd, vcol_table,
                             vcol_table->triggers ? VCOL_UPDATE_ALL :
-                                                   VCOL_UPDATE_FOR_WRITE))
+                            VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
@@ -7797,6 +7804,32 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
     while ((item= it++))
       item->walk(&Item::switch_to_nullable_fields_processor, 1, (uchar*)field);
     table->triggers->reset_extra_null_bitmap();
+  }
+}
+
+
+/**
+  Prepare Virtual fields and field with default expressions to use
+  trigger fields
+
+  This means redirecting from table->field to
+  table->field_to_fill(), if needed.
+*/
+
+void switch_to_nullable_trigger_fields(Field **info, TABLE *table)
+{
+  Field **trigger_field= table->field_to_fill();
+
+ /* True if we have virtual fields and non_null fields and before triggers */
+  if (info && trigger_field != table->field)
+  {
+    Field **field_ptr;
+    for (field_ptr= info; *field_ptr ; field_ptr++)
+    {
+      Field *field= (*field_ptr);
+      field->default_value->expr_item->walk(&Item::switch_to_nullable_fields_processor, 1, (uchar*) trigger_field);
+      *field_ptr= (trigger_field[field->field_index]);
+    }
   }
 }
 
@@ -7862,7 +7895,8 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
   bool result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, fields, values, ignore_errors);
+  result= fill_record(thd, table, fields, values, ignore_errors,
+                      event == TRG_EVENT_UPDATE);
 
   if (!result && triggers)
     result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||

@@ -4034,6 +4034,8 @@ void Query_log_event::print_query_header(IO_CACHE* file,
                        "@@session.unique_checks", &need_comma);
       print_set_option(file, tmp, OPTION_NOT_AUTOCOMMIT, ~flags2,
                        "@@session.autocommit", &need_comma);
+      print_set_option(file, tmp, OPTION_NO_CHECK_CONSTRAINT_CHECKS, ~flags2,
+                       "@@session.check_constraint_checks", &need_comma);
       my_b_printf(file,"%s\n", print_event_info->delimiter);
       print_event_info->flags2= flags2;
     }
@@ -9336,9 +9338,11 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
               (!tbl_arg && !cols && tid == ~0UL));
 
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
-      set_flags(NO_FOREIGN_KEY_CHECKS_F);
+    set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
-      set_flags(RELAXED_UNIQUE_CHECKS_F);
+    set_flags(RELAXED_UNIQUE_CHECKS_F);
+  if (thd_arg->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS)
+    set_flags(NO_CHECK_CONSTRAINT_CHECKS_F);
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
@@ -9762,6 +9766,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         thd->variables.option_bits|= OPTION_RELAXED_UNIQUE_CHECKS;
     else
         thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+    if (get_flags(NO_CHECK_CONSTRAINT_CHECKS_F))
+      thd->variables.option_bits|= OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+    else
+      thd->variables.option_bits&= ~OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 

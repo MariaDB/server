@@ -53,9 +53,9 @@ public:
     init_make_field(tmp_field,field_type());
   }
   unsigned int size_of() { return sizeof(*this);}
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("proc"); 
+    return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
 };
 

@@ -5675,6 +5675,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool has_write_table_auto_increment_not_first_in_pk= FALSE;
     bool has_auto_increment_write_tables_not_first= FALSE;
     bool found_first_not_own_table= FALSE;
+    bool has_write_tables_with_unsafe_statements= FALSE;
 
     /*
       A pointer to a previous table that was changed.
@@ -5775,11 +5776,14 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
       {
+        bool trans;
         if (prev_write_table && prev_write_table->file->ht !=
             table->table->file->ht)
           multi_write_engine= TRUE;
+        if (table->table->s->non_determinstic_insert)
+          has_write_tables_with_unsafe_statements= true;
 
-        my_bool trans= table->table->file->has_transactions();
+        trans= table->table->file->has_transactions();
 
         if (table->table->s->tmp_table)
           lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
@@ -5830,6 +5834,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       if (has_write_table_auto_increment_not_first_in_pk)
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
+
+      if (has_write_tables_with_unsafe_statements)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+
       /*
         A query that modifies autoinc column in sub-statement can make the
         master and slave inconsistent.

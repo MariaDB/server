@@ -1936,7 +1936,7 @@ create table t1(id int);
 create table t2(id int);
 create table t3(flag int);
 select (select * from t3 where id not null) from t1, t2;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'null) from t1, t2' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not null) from t1, t2' at line 1
 drop table t1,t2,t3;
 CREATE TABLE t1 (id INT);
 CREATE TABLE t2 (id INT);
@@ -5003,7 +5003,7 @@ CREATE VIEW v2 (a,b) AS
 SELECT t2.id, t2.c AS c FROM t1, t2
 WHERE t1.id=t2.id AND 1 IN (SELECT id FROM t1) WITH CHECK OPTION;
 INSERT INTO v2(a,b) VALUES (2,2);
-ERROR HY000: CHECK OPTION failed 'test.v2'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v2'
 SELECT * FROM v1;
 c
 1

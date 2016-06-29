@@ -65,6 +65,9 @@ const char *primary_key_name="PRIMARY";
 static bool check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
                                   KEY *end);
+static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
+                                        List<Virtual_column_info> *vcol,
+                                        uint *nr);
 static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     List<Create_field> &create, bool ignore,
 				    uint order_num, ORDER *order,
@@ -3082,7 +3085,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
-          column_definition->def == NULL &&            // no constant default,
+          column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL)
       {
@@ -3255,32 +3258,30 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     /*
       Convert the default value from client character
       set into the column character set if necessary.
+      We can only do this for constants as we have not yet run fix_fields.
     */
-    if (sql_field->def && 
-        save_cs != sql_field->def->collation.collation &&
+    if (sql_field->default_value &&
+        sql_field->default_value->expr_item->basic_const_item() &&
+        save_cs != sql_field->default_value->expr_item->collation.collation &&
         (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
          sql_field->sql_type == MYSQL_TYPE_STRING ||
          sql_field->sql_type == MYSQL_TYPE_SET ||
+         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_BLOB ||
          sql_field->sql_type == MYSQL_TYPE_ENUM))
     {
-      /*
-        Starting from 5.1 we work here with a copy of Create_field
-        created by the caller, not with the instance that was
-        originally created during parsing. It's OK to create
-        a temporary item and initialize with it a member of the
-        copy -- this item will be thrown away along with the copy
-        at the end of execution, and thus not introduce a dangling
-        pointer in the parsed tree of a prepared statement or a
-        stored procedure statement.
-      */
-      sql_field->def= sql_field->def->safe_charset_converter(thd, save_cs);
-
-      if (sql_field->def == NULL)
+      Item *item;
+      if (!(item= sql_field->default_value->expr_item->
+            safe_charset_converter(thd, save_cs)))
       {
         /* Could not convert */
         my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
         DBUG_RETURN(TRUE);
       }
+      /* Fix for prepare statement */
+      thd->change_item_tree(&sql_field->default_value->expr_item, item);
     }
 
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
@@ -3348,12 +3349,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (sql_field->sql_type == MYSQL_TYPE_SET)
       {
         uint32 field_length;
-        if (sql_field->def != NULL)
+        if (sql_field->default_value &&
+            sql_field->default_value->expr_item->basic_const_item())
         {
           char *not_used;
           uint not_used2;
           bool not_found= 0;
-          String str, *def= sql_field->def->val_str(&str);
+          String str, *def= sql_field->default_value->expr_item->val_str(&str);
           if (def == NULL) /* SQL "NULL" maps to NULL */
           {
             if ((sql_field->flags & NOT_NULL_FLAG) != 0)
@@ -3385,9 +3387,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         uint32 field_length;
         DBUG_ASSERT(sql_field->sql_type == MYSQL_TYPE_ENUM);
-        if (sql_field->def != NULL)
+        if (sql_field->default_value &&
+            sql_field->default_value->expr_item->basic_const_item())
         {
-          String str, *def= sql_field->def->val_str(&str);
+          String str, *def= sql_field->default_value->expr_item->val_str(&str);
           if (def == NULL) /* SQL "NULL" maps to NULL */
           {
             if ((sql_field->flags & NOT_NULL_FLAG) != 0)
@@ -3464,7 +3467,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               file->ha_table_flags() & HA_CAN_BIT_FIELD)
             total_uneven_bit_length-= sql_field->length & 7;
 
-	  sql_field->def=		dup_field->def;
+	  sql_field->default_value=	dup_field->default_value;
 	  sql_field->sql_type=		dup_field->sql_type;
 
           /*
@@ -4129,7 +4132,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
       updated trough a NOW() function.
     */
-    if (!sql_field->def &&
+    if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         !is_timestamp_type(sql_field->sql_type))
@@ -4139,7 +4142,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
-        !sql_field->def &&
+        !sql_field->default_value &&
         is_timestamp_type(sql_field->sql_type) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
@@ -4160,6 +4163,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
       my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
       DBUG_RETURN(TRUE);
+    }
+  }
+
+  /* Check table level constraints */
+  create_info->constraint_list= &alter_info->constraint_list;
+  {
+    uint nr= 1;
+    List_iterator_fast<Virtual_column_info> c_it(alter_info->constraint_list);
+    Virtual_column_info *check;
+    while ((check= c_it++))
+    {
+      if (!check->name.length)
+        make_unique_constraint_name(thd, &check->name,
+                                    &alter_info->constraint_list,
+                                    &nr);
+
+      if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
+                                   system_charset_info, 1))
+      {
+        my_error(ER_TOO_LONG_IDENT, MYF(0), key->name.str);
+        DBUG_RETURN(TRUE);
+      }
+      if (check_expression(check, "CONSTRAINT CHECK",
+                           check->name.str ? check->name.str : "", 0))
+        DBUG_RETURN(TRUE);
     }
   }
 
@@ -4278,7 +4306,7 @@ static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
     /* Convert long VARCHAR columns to TEXT or BLOB */
     char warn_buff[MYSQL_ERRMSG_SIZE];
 
-    if (sql_field->def || thd->is_strict_mode())
+    if (thd->is_strict_mode())
     {
       my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), sql_field->field_name,
                static_cast<ulong>(MAX_FIELD_VARCHARLENGTH /
@@ -4357,7 +4385,7 @@ void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
                           FIELDFLAG_TREAT_BIT_AS_CHAR;
   }
   sql_field->create_length_to_internal_length();
-  DBUG_ASSERT(sql_field->def == 0);
+  DBUG_ASSERT(sql_field->default_value == 0);
   /* Can't go wrong as sql_field->def is not defined */
   (void) prepare_blob_field(thd, sql_field);
 }
@@ -5120,6 +5148,38 @@ make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
       return thd->strdup(buff);
   }
   return (char*) "not_specified";		// Should never happen
+}
+
+/**
+   Make an unique name for constraints without a name
+*/
+
+static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
+                                        List<Virtual_column_info> *vcol,
+                                        uint *nr)
+{
+  char buff[MAX_FIELD_NAME], *end;
+  List_iterator_fast<Virtual_column_info> it(*vcol);
+
+  end=strmov(buff, "CONSTRAINT_");
+  for (;;)
+  {
+    Virtual_column_info *check;
+    char *real_end= int10_to_str((*nr)++, end, 10);
+    it.rewind();
+    while ((check= it++))
+    {
+      if (check->name.str &&
+          !my_strcasecmp(system_charset_info, buff, check->name.str))
+        break;
+    }
+    if (!check)                                 // Found unique name
+    {
+      name->length= (size_t) (real_end - buff);
+      name->str= thd->strmake(buff, name->length);
+      return;
+    }
+  }
 }
 
 
@@ -6176,6 +6236,10 @@ static bool fill_alter_inplace_info(THD *thd,
   /* Check for: ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE. */
   if (alter_info->flags & Alter_info::ALTER_RECREATE)
     ha_alter_info->handler_flags|= Alter_inplace_info::RECREATE_TABLE;
+  if (alter_info->flags & Alter_info::ALTER_ADD_CONSTRAINT)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CONSTRAINT;
+  if (alter_info->flags & Alter_info::ALTER_DROP_CONSTRAINT)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CONSTRAINT;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically
@@ -6923,6 +6987,14 @@ static bool is_inplace_alter_impossible(TABLE *table,
   if (!table->s->mysql_version)
     DBUG_RETURN(true);
 
+  /*
+    If we are using a MySQL 5.7 table with virtual fields, ALTER TABLE must
+    recreate the table as we need to rewrite generated fields
+  */
+  if (table->s->mysql_version > 50700 && table->s->mysql_version < 100000 &&
+      table->s->virtual_fields)
+    DBUG_RETURN(TRUE);
+
   DBUG_RETURN(false);
 }
 
@@ -7333,6 +7405,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List_iterator<Create_field> find_it(new_create_list);
   List_iterator<Create_field> field_it(new_create_list);
   List<Key_part_spec> key_parts;
+  List<Virtual_column_info> new_constraint_list;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
   uint used_fields;
@@ -7477,12 +7550,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (alter)
       {
-	if (def->sql_type == MYSQL_TYPE_BLOB)
-	{
-	  my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0), def->change);
-          goto err;
-	}
-	if ((def->def=alter->def))              // Use new default
+	if ((def->default_value= alter->default_value))
           def->flags&= ~NO_DEFAULT_VALUE_FLAG;
         else
           def->flags|= NO_DEFAULT_VALUE_FLAG;
@@ -7756,6 +7824,33 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
+  /* Add all table level constraints which are not in the drop list */
+  if (table->s->table_check_constraints)
+  {
+    TABLE_SHARE *share= table->s;
+
+    for (uint i= share->field_check_constraints;
+         i < share->table_check_constraints ; i++)
+    {
+      Virtual_column_info *check= table->check_constraints[i];
+      Alter_drop *drop;
+      drop_it.rewind();
+      while ((drop=drop_it++))
+      {
+        if (drop->type == Alter_drop::CONSTRAINT_CHECK &&
+            !my_strcasecmp(system_charset_info, check->name.str, drop->name))
+        {
+          drop_it.remove();
+          break;
+        }
+      }
+      if (!drop)
+        new_constraint_list.push_back(check, thd->mem_root);
+    }
+  }
+  /* Add new constraints */
+  new_constraint_list.append(&alter_info->constraint_list);
+
   if (alter_info->drop_list.elements)
   {
     Alter_drop *drop;
@@ -7764,8 +7859,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       switch (drop->type) {
       case Alter_drop::KEY:
       case Alter_drop::COLUMN:
-        my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
-                 alter_info->drop_list.head()->name);
+      case Alter_drop::CONSTRAINT_CHECK:
+        if (drop->drop_if_exists)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_CANT_DROP_FIELD_OR_KEY,
+                              ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
+                              drop->name);
+        else
+          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
+                   alter_info->drop_list.head()->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
@@ -7811,6 +7913,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   rc= FALSE;
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
+  alter_info->constraint_list.swap(new_constraint_list);
 err:
   DBUG_RETURN(rc);
 }
@@ -8848,13 +8951,21 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     altered_table->column_bitmaps_set_no_signal(&altered_table->s->all_set,
                                                 &altered_table->s->all_set);
     restore_record(altered_table, s->default_values); // Create empty record
-    if (altered_table->default_field && altered_table->update_default_fields())
+    /* Check that we can call default functions with default field values */
+    altered_table->reset_default_fields();
+    if (altered_table->default_field &&
+        altered_table->update_default_fields(0, 1))
       goto err_new_table_cleanup;
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
-      table->file->check_if_supported_inplace_alter(altered_table,
-                                                    &ha_alter_info);
+      HA_ALTER_INPLACE_NOT_SUPPORTED;
+    if (!(ha_alter_info.handler_flags &
+          Alter_inplace_info::ALTER_ADD_CONSTRAINT) ||
+        (thd->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS))
+      inplace_supported=
+        table->file->check_if_supported_inplace_alter(altered_table,
+                                                      &ha_alter_info);
 
     switch (inplace_supported) {
     case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
@@ -9435,7 +9546,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         Old fields keep their current values, and therefore should not be
         present in the set of autoupdate fields.
       */
-      if ((*ptr)->has_insert_default_function())
+      if ((*ptr)->default_value ||
+          ((*ptr)->has_insert_default_function()))
       {
         *(dfield_ptr++)= *ptr;
         ++to->s->default_fields;
@@ -9482,7 +9594,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
-  to->mark_virtual_columns_for_write(TRUE);
+  /* Add virtual columns to vcol_set to ensure they are updated */
+  if (to->vfield)
+    to->mark_virtual_columns_for_write(TRUE);
   if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, file_sort, 1, 1,
                        FALSE))
     goto err;
@@ -9492,8 +9606,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   thd->get_stmt_da()->reset_current_row_for_warning();
   restore_record(to, s->default_values);        // Create empty record
-  if (to->default_field && to->update_default_fields())
-    goto err;
+  to->reset_default_fields();
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
@@ -9534,8 +9647,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       copy_ptr->do_copy(copy_ptr);
     }
     prev_insert_id= to->file->next_insert_id;
+    if (to->default_field)
+      to->update_default_fields(0, ignore);
     if (to->vfield)
       update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
+
+    /* This will set thd->is_error() if fatal failure */
+    if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)
+      continue;
     if (thd->is_error())
     {
       error= 1;

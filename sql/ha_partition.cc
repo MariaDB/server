@@ -8459,6 +8459,17 @@ uint ha_partition::min_record_length(uint options) const
   return max;
 }
 
+/*
+  Register that we want to read partition columns. This is needed to ensure
+  that virtual columns are properly updated before we access them.
+*/
+
+void ha_partition::register_columns_for_write()
+{
+  if (m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1,
+                                 (uchar *) 0);
+}
 
 /****************************************************************************
                 MODULE compare records

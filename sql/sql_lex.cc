@@ -279,8 +279,8 @@ Lex_input_stream::reset(char *buffer, unsigned int length)
 {
   yylineno= 1;
   yylval= NULL;
-  lookahead_token= -1;
-  lookahead_yylval= NULL;
+  lookahead_token= lookahead_token2= -1;
+  lookahead_yylval= lookahead_yylval2= NULL;
   m_ptr= buffer;
   m_tok_start= NULL;
   m_tok_end= NULL;
@@ -1241,14 +1241,18 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return it.
     */
     token= lip->lookahead_token;
-    lip->lookahead_token= -1;
     *yylval= *(lip->lookahead_yylval);
-    lip->lookahead_yylval= NULL;
-    lip->add_digest_token(token, yylval);
+    lip->lookahead_token=  lip->lookahead_token2;
+    lip->lookahead_yylval= lip->lookahead_yylval2;
+    lip->m_cpp_tok_start=  lip->lookahead_cpp_start;
+    lip->m_cpp_tok_end=    lip->lookahead_cpp_end;
+    lip->lookahead_token2= -1;
+    lip->lookahead_yylval2= NULL;
     return token;
   }
 
   token= lex_one_token(yylval, thd);
+  lip->add_digest_token(token, yylval);
 
   switch(token) {
   case WITH:
@@ -1260,12 +1264,11 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       which sql_yacc.yy can process.
     */
     token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
     switch(token) {
     case CUBE_SYM:
-      lip->add_digest_token(WITH_CUBE_SYM, yylval);
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
-      lip->add_digest_token(WITH_ROLLUP_SYM, yylval);
       return WITH_ROLLUP_SYM;
     default:
       /*
@@ -1274,15 +1277,73 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->lookahead_yylval= lip->yylval;
       lip->yylval= NULL;
       lip->lookahead_token= token;
-      lip->add_digest_token(WITH, yylval);
+      lip->lookahead_cpp_start= lip->get_cpp_tok_start();
+      lip->lookahead_cpp_end=   lip->get_cpp_tok_end();
       return WITH;
     }
     break;
+  case NOT_SYM:
+  {
+    const char *cpp_tok_start, *m_tok_end, *tok_start;
+    /*
+      To be able to handle "DEFAULT 1 NOT NULL" which classes with
+      "DEFAULT 1 NOT IN (..)" we must combine NOT NULL to one lex token
+      NOT_NULL_SYM. We also have to ensure that NOT NULL IS are still
+      separate tokens to ensure that NOT NULL IS TRUE is evaluated as
+      NOT (NULL IS TRUE)
+    */
+    cpp_tok_start= lip->get_cpp_tok_start();      // Save position of NOT
+    tok_start=     lip->get_tok_start();          // For errors
+    m_tok_end=     lip->get_cpp_tok_end();
+
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+
+    if (token == NULL_SYM)
+    {
+      /* Check that next is not 'IS' */
+      token= lex_one_token(yylval, thd);
+      lip->add_digest_token(token, yylval);
+      if (token != IS)
+      {
+        /* Save the token following 'NOT NULL' */
+        lip->lookahead_token=     token;
+        lip->lookahead_yylval=    lip->yylval;
+        lip->lookahead_cpp_start= lip->get_cpp_tok_start();
+        lip->lookahead_cpp_end=   lip->get_cpp_tok_end();
+        token= NOT_NULL_SYM;
+      }
+      else
+      {
+        /* Save NULL and IS and return NOT */
+        lip->lookahead_token2=  IS;
+        lip->lookahead_token=   NULL_SYM;
+        lip->lookahead_yylval2= lip->yylval;
+        lip->lookahead_yylval=  lip->yylval;
+        lip->lookahead_cpp_start= cpp_tok_start;
+        lip->lookahead_cpp_end= lip->get_cpp_tok_end();
+        token= NOT_SYM;
+      }
+    }
+    else
+    {
+      /* Save the token following 'NOT' */
+      lip->lookahead_token= token;
+      lip->lookahead_yylval= lip->yylval;
+      lip->lookahead_cpp_start= lip->get_cpp_tok_start();
+      lip->lookahead_cpp_end=   lip->get_cpp_tok_end();
+      token= NOT_SYM;
+    }
+    lip->yylval= NULL;
+    /* Restore parser position for the current token */
+    lip->m_cpp_tok_start= cpp_tok_start;
+    lip->m_cpp_tok_end= m_tok_end;
+    lip->m_tok_start=   tok_start;
+    break;
+  }
   default:
     break;
   }
-
-  lip->add_digest_token(token, yylval);
   return token;
 }
 

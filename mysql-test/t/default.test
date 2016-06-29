@@ -183,3 +183,680 @@ DROP TABLE IF EXISTS t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo
+--echo Check that CURRENT_TIMESTAMP works as before
+--echo
+
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(2) ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT SYSDATE(2) ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+
+drop table t1;
+
+--echo
+--echo Check default expressions
+--echo
+
+create or replace table t1 (a int default 1, b int default a+1, c int default a+b) engine myisam;
+show create table t1;
+insert into t1 values ();
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,20);
+insert into t1 (a,b,c) values (100,200,300);
+select * from t1;
+truncate table t1;
+insert delayed into t1 values ();
+insert delayed into t1 (a) values (2);
+insert delayed into t1 (a,b) values (10,20);
+insert delayed into t1 (a,b,c) values (100,200,300);
+flush tables t1;
+select * from t1;
+
+create or replace table t1 (a int, b blob default (1), c blob default ("hello"), t text default (concat(a,b,c))) engine=myisam;
+show create table t1;
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,"test1");
+insert into t1 (a,b,c) values (10,"test2","test3");
+insert delayed into t1 (a,b) values (10,"test4");
+flush tables t1;
+select * from t1;
+drop table t1;
+
+create or replace table t1 (a bigint default uuid_short());
+insert into t1 values();
+select a > 0 from t1;
+drop table t1;
+
+create or replace table t1 (param_list int DEFAULT (1+1) NOT NULL);
+create or replace table t1 (param_list int DEFAULT 1+1 NOT NULL);
+create or replace table t1 (param_list blob DEFAULT "" NOT NULL);
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values(-1);
+alter table t1 add b int default 1, add c int default -1, add d int default 1+1, add e timestamp;
+select a,b,c,d,e > 0 from t1;
+insert into t1 values(10,10,10,10,0);
+alter table t1 add f int default 1+1+1 null, add g int default 1+1+1+1 not null,add h int default (2+2+2+2);
+select a,b,c,d,e > 0,f,g,h from t1;
+show create table t1;
+
+create table t2 like t1;
+show create table t2;
+insert into t2 (a) values (100);
+select a,b,c,d,e > 0,f,g,h from t2;
+drop table t1,t2;
+
+create table t1 (a int default 1----1);
+show create table t1;
+insert into t1 values();
+insert into t1 values();
+select * from t1;
+drop table t1;
+
+--echo
+--echo create or replace can delete a table on error
+--echo
+create table t1 (a int);
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create or replace table t1 (a int default b, b int default a);
+--error ER_NO_SUCH_TABLE
+show create table t1;
+
+--echo
+--echo Refering to other columns
+--echo
+
+create or replace table t1 (a int default 1, b int default a);
+create or replace table t1 (a int default 1, b int as (a));
+create or replace table t1 (a int default b, b int default 1);
+create or replace table t1 (a int as (b), b int default 1);
+create or replace table t1 (a int as (b), b int default 1+1);
+create or replace table t1 (a int default 1, b int as (c), c int default (a+1));
+create or replace table t1 (a int default 1+1, b int as (c), c int default (a+1));
+create or replace table t1 (a VARCHAR(128) DEFAULT @@version);
+create or replace table t1 (a int not null, b int as (a));
+create or replace table t1 (a int not null, b int default a+1);
+
+
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create or replace table t1 (a int default a);
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create or replace table t1 (a int default b, b int default 1+1);
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+CREATE TABLE t1 (a INT DEFAULT a);
+--error ER_NO_DEFAULT_FOR_FIELD
+CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
+--error ER_NO_DEFAULT_FOR_FIELD
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
+--error ER_NO_DEFAULT_FOR_FIELD
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
+drop table if exists t1;
+
+--echo
+--echo Allow defaults to refer to not default fields
+--echo
+
+create or replace table t1 (a int as (b), b int not null);
+insert into t1 values();
+insert into t1 (a) values(1);
+insert into t1 (b) values(2);
+insert into t1 (a,b) values(3,4);
+select * from t1;
+drop table t1;
+
+--echo
+--echo Error handling
+--echo
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (a bigint default xxx());
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (a bigint default (select (1)));
+--error ER_OPERAND_COLUMNS
+create or replace table t1 (a bigint default (1,2,3)));
+
+# Cleanup
+drop table if exists t1;
+
+--echo #
+--echo # Invalid DEFAULT expressions
+--echo #
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT (SELECT 1));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT (EXISTS (SELECT 1)));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT (1=ANY (SELECT 1)));
+
+--error ER_OPERAND_COLUMNS
+CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
+
+--error ER_OPERAND_COLUMNS
+CREATE TABLE t1 (a INT DEFAULT (1,1));
+
+--error ER_OPERAND_COLUMNS
+CREATE TABLE t1 (a INT DEFAULT ((1,1)));
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT DEFAULT ?);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a INT DEFAULT(?));
+
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT @v);
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT @v:=1);
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT COUNT(*));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT COUNT(1));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT AVG(1));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT MIN(1));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT GROUP_CONCAT(1));
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT ROW_NUMBER() OVER ());
+
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT f1());
+DROP FUNCTION f1;
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE PROCEDURE p1(par INT) CREATE TABLE t1 (a INT DEFAULT par);
+
+--error ER_BAD_FIELD_ERROR
+CREATE TABLE t1 (a INT DEFAULT par);
+
+CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
+--error ER_BAD_FIELD_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT VALUES(a));
+
+
+CREATE TABLE t1 (a INT);
+# "Explicit or implicit commit is not allowed in stored function or trigger
+# because the entire CREATE TABLE is actually not allowed in triggers!
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TABLE t2 (a INT DEFAULT NEW.a);
+# This is OK to return Function or expression is not allowed for 'DEFAULT'
+# because CREATE TEMPORARY TABLE is allowed in triggers
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TEMPORARY TABLE t2 (a INT DEFAULT NEW.a);
+DROP TABLE t1;
+
+--echo #
+--echo # Prepared statements
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?))';
+set @a=1;
+execute stmt using @a;
+show create table t1;
+drop table t1;
+set @a=-1;
+execute stmt using @a;
+show create table t1;
+drop table t1;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?), b INT DEFAULT(?))';
+set @a=1, @b=2;
+execute stmt using @a,@b;
+show create table t1;
+drop table t1;
+DEALLOCATE PREPARE stmt;
+
+#
+# We can't have an expression for prepared statements
+#
+
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?+?))';
+set @a=1;
+--error ER_PARSE_ERROR
+execute stmt using @a,@a;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Parenthesized Item_basic_constant
+--echo #
+
+
+# It would be better if SHOW would display PI() rather than '3.141592653589793'
+# The problem is that PI() is declared as a basic constant item and it
+# could cause some problems changing it.
+
+CREATE TABLE t1 (
+  i01 INT DEFAULT (((1))),
+  i02 INT DEFAULT (((0x3939))),
+  i03 INT DEFAULT (((1.0))),
+  i04 INT DEFAULT (((1e0))),
+  i05 INT DEFAULT (((NULL))),
+
+  f01 DOUBLE DEFAULT (((PI()))),
+
+  s01 VARCHAR(10) DEFAULT (((_latin1'test'))),
+  s02 VARCHAR(10) DEFAULT ((('test'))),
+  s03 VARCHAR(10) DEFAULT (((0x40))),
+  s04 VARCHAR(10) DEFAULT (((X'40'))),
+  s05 VARCHAR(10) DEFAULT (((B'1000000'))),
+
+  d01 TIME DEFAULT (((TIME'10:20:30'))),
+  d02 DATE DEFAULT (((DATE'2001-01-01'))),
+  d03 DATETIME DEFAULT (((TIMESTAMP'2001-01-01 10:20:30')))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+--vertical_results
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+
+
+--echo #
+--echo # COALESCE(Item_basic_constant)
+--echo #
+
+# i02 INT DEFAULT 0x3939           -- gives 14649 (see the previous query),
+#                                     because it treats as a number
+# i02 INT DEFAULT COALESCE(0x3939) -- gives 99, because it converts to string
+#
+# should be at least documented
+
+CREATE TABLE t1 (
+  i01 INT DEFAULT COALESCE(1),
+  i02 INT DEFAULT COALESCE(0x3939),
+  i03 INT DEFAULT COALESCE(1.0),
+  i04 INT DEFAULT COALESCE(1e0),
+  i05 INT DEFAULT COALESCE(NULL),
+
+  f01 DOUBLE DEFAULT COALESCE(PI()),
+
+  s01 VARCHAR(10) DEFAULT COALESCE(_latin1'test'),
+  s02 VARCHAR(10) DEFAULT COALESCE('test'),
+  s03 VARCHAR(10) DEFAULT COALESCE(0x40),
+  s04 VARCHAR(10) DEFAULT COALESCE(X'40'),
+  s05 VARCHAR(10) DEFAULT COALESCE(B'1000000'),
+
+  d01 TIME DEFAULT COALESCE(TIME'10:20:30'),
+  d02 DATE DEFAULT COALESCE(DATE'2001-01-01'),
+  d03 DATETIME DEFAULT COALESCE(TIMESTAMP'2001-01-01 10:20:30')
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+--vertical_results
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+
+
+--echo #
+--echo # TINYINT: out of range
+--echo #
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a TINYINT DEFAULT 300 NOT NULL);
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a TINYINT DEFAULT 128 NOT NULL);
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a TINYINT DEFAULT -500 NOT NULL);
+
+--echo #
+--echo # INT: simple numeric expressions
+--echo #
+CREATE TABLE t1 (a INT DEFAULT 1 NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT COALESCE(1) NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # INT: simple string expressions 
+--echo #
+
+CREATE TABLE t1 (a INT DEFAULT '1' NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1') NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1') NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # INT: string expressions with garbage
+--echo #
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a INT DEFAULT 'x');
+
+CREATE TABLE t1 (a INT DEFAULT CONCAT('x'));
+insert into t1 values();
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT COALESCE('x'));
+insert into t1 values();
+DROP TABLE t1;
+
+
+--echo #
+--echo # INT: string expressions with numbers + garbage
+--echo #
+
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a INT DEFAULT '1x');
+
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1x'));
+insert into t1 values();
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1x'));
+insert into t1 values();
+DROP TABLE t1;
+
+
+--echo #
+--echo # INT: string expressions with numbers + trailing space
+--echo #
+
+CREATE TABLE t1 (a INT DEFAULT '1 ');
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# unlike constant, this preserve trailing spaces
+# and sends a note on INSERT. Perhaps CREATE should be rejected
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1 '));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# unlike constant, this preserve trailing spaces
+# and sends a note on INSERT
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1 '));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # INT: a HEX value
+--echo #
+CREATE TABLE t1 (a INT DEFAULT 0x61 NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # VARCHAR: good defaults
+--echo #
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT 'xxx' NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 0x41 NOT NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT COALESCE(0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 X'41') NOT NULL);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # VARCHAR: Too long default
+--echo #
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xxx' NOT NULL);
+
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xxx') NOT NULL);
+insert into t1 values();
+DROP TABLE t1;
+
+--echo #
+--echo # VARCHAR: Too long default with non-important data
+--echo #
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xx ' NOT NULL);
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xx ') NOT NULL);
+insert into t1 values();
+DROP TABLE t1;
+
+--echo #
+--echo # VARCHAR: conversion failures
+--echo #
+
+# DEFAULT with a Cyrillic letter for a Latin1 column
+--error ER_INVALID_DEFAULT
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT _utf8 X'D18F' NOT NULL);
+
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 X'D18F') NOT NULL);
+insert into t1 values();
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 0xD18F) NOT NULL);
+insert into t1 values();
+DROP TABLE t1;
+
+--echo #
+--echo # Field as a default value
+--echo #
+
+CREATE TABLE t1 (a INT, b INT DEFAULT (a));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+INSERT INTO t1 VALUES (1, DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT, 1);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Function DEFAULT(field)
+--echo #
+
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT 1);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT DEFAULT 1, b INT DEFAULT(DEFAULT(a)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # SQL Standard <datetime value function> as a <default option>
+--echo #
+
+CREATE TABLE t1 (a DATETIME DEFAULT CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME DEFAULT CURRENT_TIME);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATE DEFAULT CURRENT_DATE);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # DECIMAL + CURRENT_TIMESTAMP, no truncation
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT CURRENT_TIMESTAMP(6));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_TIMESTAMP(6)));
+SHOW CREATE TABLE t1;
+# Same as insert into t1 values ("2016-06-05 12:54:52.342095");
+INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
+SET sql_mode = 'STRICT_ALL_TABLES';
+--error WARN_DATA_TRUNCATED
+INSERT INTO t1 VALUES();
+SET sql_mode = DEFAULT;
+DROP TABLE t1;
+
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # DECIMAL + CURRENT_TIME, no truncation
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_TIME(6)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES();
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # DECIMAL + CURRENT_DATE, no truncation
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_DATE));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES();
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # COALESCE for SQL Standard <datetime value function>
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATE DEFAULT COALESCE(CURRENT_DATE));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME DEFAULT COALESCE(CURRENT_TIME));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (
+  a TIMESTAMP DEFAULT CURRENT_TIMESTAMP(6),
+  b TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+SELECT CURRENT_TIMESTAMP(6);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (
+  a DECIMAL(30,0) DEFAULT CURRENT_TIMESTAMP(6),
+  b DECIMAL(30,0) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Miscelaneous SQL standard <default option> variants
+--echo #
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
+
+--echo #
+--echo # Check DEFAULT() function
+--echo #
+
+CREATE TABLE `t1` (`a` int(11) DEFAULT 3+3,`b` int(11) DEFAULT '1000');
+insert into t1 values (1,1),(2,2);
+insert into t1 values (default,default);
+select * from t1;
+--error ER_NO_DEFAULT_FOR_FIELD
+select default(a),b from t1;
+select a,default(b) from t1;
+drop table t1;

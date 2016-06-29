@@ -2074,7 +2074,7 @@ ER_CANT_DROP_FIELD_OR_KEY 42000
         cze "Nemohu zrušit '%-.192s' (provést DROP). Zkontrolujte, zda neexistují záznamy/klíče"
         dan "Kan ikke udføre DROP '%-.192s'. Undersøg om feltet/nøglen eksisterer."
         nla "Kan '%-.192s' niet weggooien. Controleer of het veld of de zoeksleutel daadwerkelijk bestaat."
-        eng "Can't DROP '%-.192s'; check that column/key exists"
+        eng "Can't DROP '%-.192s'; check that constraint/column/key exists"
         est "Ei suuda kustutada '%-.192s'. Kontrolli kas tulp/võti eksisteerib"
         fre "Ne peut effacer (DROP) '%-.192s'. Vérifiez s'il existe"
         ger "Kann '%-.192s' nicht löschen. Existiert die Spalte oder der Schlüssel?"
@@ -2092,7 +2092,7 @@ ER_CANT_DROP_FIELD_OR_KEY 42000
         serbian "Ne mogu da izvršim komandu drop 'DROP' na '%-.192s'. Proverite da li ta kolona (odnosno ključ) postoji"
         slo "Nemôžem zrušiť (DROP) '%-.192s'. Skontrolujte, či neexistujú záznamy/kľúče"
         spa "No puedo ELIMINAR '%-.192s'. compuebe que el campo/clave existe"
-        swe "Kan inte ta bort '%-.192s'. Kontrollera att fältet/nyckel finns"
+        swe "Kan inte ta bort '%-.192s'. Kontrollera att begränsningen/fältet/nyckel finns"
         ukr "Не можу DROP '%-.192s'. Перевірте, чи цей стовбець/ключ існує"
 ER_INSERT_INFO  
         cze "Záznamů: %ld  Zdvojených: %ld  Varování: %ld"
@@ -5290,11 +5290,11 @@ ER_VIEW_NONUPD_CHECK
         ger "CHECK OPTION auf nicht-aktualisierbarem View '%-.192s.%-.192s'"
         rus "CHECK OPTION для необновляемого VIEW '%-.192s.%-.192s'"
         ukr "CHECK OPTION для VIEW '%-.192s.%-.192s' що не може бути оновленним"
-ER_VIEW_CHECK_FAILED  
-        eng "CHECK OPTION failed '%-.192s.%-.192s'"
-        ger "CHECK OPTION fehlgeschlagen: '%-.192s.%-.192s'"
-        rus "проверка CHECK OPTION для VIEW '%-.192s.%-.192s' провалилась"
-        ukr "Перевірка CHECK OPTION для VIEW '%-.192s.%-.192s' не пройшла"
+ER_CONSTRAINT_FAILED
+        eng "CONSTRAINT '%s' failed for '%-.192s.%-.192s'"
+        ger "CONSTRAINT '%s' fehlgeschlagen: '%-.192s.%-.192s'"
+        rus "проверка CONSTRAINT '%s' для '%-.192s.%-.192s' провалилась"
+        ukr "Перевірка CONSTRAINT '%s' для '%-.192s.%-.192s' не пройшла"
 ER_PROCACCESS_DENIED_ERROR 42000 
         eng "%-.32s command denied to user '%s'@'%s' for routine '%-.192s'"
         ger "Befehl %-.32s nicht zulässig für Benutzer '%s'@'%s' in Routine '%-.192s'"
@@ -6970,7 +6970,7 @@ start-error-number 1900
 ER_VCOL_BASED_ON_VCOL
   eng "A computed column cannot be based on a computed column"
 ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-  eng "Function or expression is not allowed for column '%s'"
+  eng "Function or expression '%s' is not allowed for '%s' of column/constraint '%s'"
 ER_DATA_CONVERSION_ERROR_FOR_VIRTUAL_COLUMN
   eng "Generated value for computed column '%s' cannot be converted to type '%s'"
 ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN
@@ -7203,3 +7203,11 @@ ER_WINDOW_FUNCTION_DONT_HAVE_FRAME
         eng "This window function may not have a window frame"
 ER_INVALID_NTILE_ARGUMENT
         eng "Argument of NTILE must be greater than 0"
+ER_EXPRESSION_IS_TOO_BIG
+        eng "%s expression is too big for '%s'"
+ER_ERROR_EVALUATING_EXPRESSION
+        eng "Got an error evaluating stored expression %`.192s"
+ER_CALCULATING_DEFAULT_VALUE
+        eng "Got an error when calculating default value for '%s'"
+ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
+        eng "Expression for field %`-.64s is refering to uninitialized field %`-.64s"

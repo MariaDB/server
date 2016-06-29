@@ -643,7 +643,7 @@ c1	c3	hex(c4)	c5	c6
 ************
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1091]
-Last_SQL_Error = 'Error 'Can't DROP 'c7'; check that column/key exists' on query. Default database: 'test'. Query: 'ALTER TABLE t14 DROP COLUMN c7''
+Last_SQL_Error = 'Error 'Can't DROP 'c7'; check that constraint/column/key exists' on query. Default database: 'test'. Query: 'ALTER TABLE t14 DROP COLUMN c7''
 STOP SLAVE;
 RESET SLAVE;
 

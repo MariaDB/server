@@ -936,6 +936,31 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
+Virtual_column_info *add_virtual_expression(THD *thd, char *txt,
+                                           size_t size, Item *expr)
+{
+  CHARSET_INFO *cs= thd->charset();
+  Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+  if (!v)
+  {
+     mem_alloc_error(sizeof(Virtual_column_info));
+     return 0;
+   }
+   /*
+     We have to remove white space as remember_cur_pos may have pointed to end
+     of previous expression.
+   */
+   while (cs->state_map[*(uchar*)txt] == MY_LEX_SKIP)
+   {
+     txt++;
+     size--;
+   }
+   v->expr_str.str= (char* ) thd->strmake(txt, size);
+   v->expr_str.length= size;
+   v->expr_item= expr;
+   return v;
+}
+
 %}
 %union {
   int  num;
@@ -985,6 +1010,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   class sp_name *spname;
   class sp_variable *spvar;
   class With_clause *with_clause;
+  class Virtual_column_info *virtual_column;
 
   handlerton *db_type;
   st_select_lex *select_lex;
@@ -1425,6 +1451,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NO_SYM                        /* SQL-2003-R */
 %token  NO_WAIT_SYM
 %token  NO_WRITE_TO_BINLOG
+%token  NOT_NULL_SYM
 %token  NTILE_SYM
 %token  NULL_SYM                      /* SQL-2003-R */
 %token  NUM
@@ -1605,6 +1632,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  STD_SYM
 %token  STOP_SYM
 %token  STORAGE_SYM
+%token  STORED_SYM
 %token  STRAIGHT_JOIN
 %token  STRING_SYM
 %token  SUBCLASS_ORIGIN_SYM           /* SQL-2003-N */
@@ -1750,7 +1778,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db remember_tok_start
+        remember_name remember_end opt_db remember_tok_start remember_cur_pos
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
 
@@ -1829,7 +1857,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_wild simple_expr udf_expr
         expr_or_default set_expr_or_default
         geometry_function
-        signed_literal now_or_signed_literal opt_escape
+        opt_escape
         sp_opt_default
         simple_ident_nospvar simple_ident_q
         field_or_var limit_option
@@ -1928,6 +1956,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <myvar> select_outvar
 
+%type <virtual_column> opt_check_constraint check_constraint virtual_column_func
+
 %type <NONE>
         analyze_stmt_command
         query verb_clause create change select do drop insert replace insert2
@@ -1941,7 +1971,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         persistent_column_stat_spec persistent_index_stat_spec
         table_column_list table_index_list table_index_name
         check start checksum
-        field_list field_list_item kill key_def
+        field_list field_list_item kill key_def constraint_def
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
         preload_list preload_list_or_parts preload_keys preload_keys_parts
@@ -5076,7 +5106,9 @@ partition_entry:
         ;
 
 partition:
-          BY part_type_def opt_num_parts opt_sub_part part_defs
+          BY
+	  { Lex->safe_to_cache_query= 1; }
+	   part_type_def opt_num_parts opt_sub_part part_defs
         ;
 
 part_type_def:
@@ -5242,11 +5274,7 @@ sub_part_field_item:
 part_func_expr:
           bit_expr
           {
-            LEX *lex= Lex;
-            bool not_corr_func;
-            not_corr_func= !lex->safe_to_cache_query;
-            lex->safe_to_cache_query= 1;
-            if (not_corr_func)
+            if (!Lex->safe_to_cache_query)
             {
               my_parse_error(thd, ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR);
               MYSQL_YYABORT;
@@ -6139,11 +6167,14 @@ field_list:
 field_list_item:
           column_def { }
         | key_def
+        | constraint_def
         ;
 
 column_def:
-          field_spec opt_check_constraint { $$= $1; }
-        | field_spec references           { $$= $1; }
+          field_spec opt_check_constraint
+          { $$= $1;  Lex->last_field->check_constraint= $2; }
+        | field_spec references
+          { $$= $1; }
         ;
 
 key_def:
@@ -6227,16 +6258,31 @@ key_def:
             /* Only used for ALTER TABLE. Ignored otherwise. */
             lex->alter_info.flags|= Alter_info::ADD_FOREIGN_KEY;
           }
-        | opt_constraint check_constraint { }
-        ;
+	;
+
+constraint_def:
+         opt_constraint check_constraint
+         {
+           Lex->add_constraint(&$1, $2);
+         }
+       ;
 
 opt_check_constraint:
-          /* empty */
-        | check_constraint
+          /* empty */      { $$= (Virtual_column_info*) 0; }
+        | check_constraint { $$= $1;}
         ;
 
 check_constraint:
-          CHECK_SYM '(' expr ')'
+          CHECK_SYM '(' remember_name expr remember_end ')'
+          {
+            Virtual_column_info *v=
+              add_virtual_expression(thd, $3+1, (uint)($5 - $3) - 1, $4);
+            if (!v)
+            {
+              MYSQL_YYABORT;
+            }
+            $$= v;
+          }
         ;
 
 opt_constraint:
@@ -6290,6 +6336,7 @@ field_def:
           opt_attribute
         | opt_generated_always AS
           '(' virtual_column_func ')'
+         {  Lex->last_field->vcol_info= $4; }
           vcol_opt_specifier vcol_opt_attribute
         ;
 
@@ -6308,6 +6355,10 @@ vcol_opt_specifier:
             Lex->last_field->vcol_info->set_stored_in_db_flag(FALSE);
           }
         | PERSISTENT_SYM
+          {
+            Lex->last_field->vcol_info->set_stored_in_db_flag(TRUE);
+          }
+        | STORED_SYM
           {
             Lex->last_field->vcol_info->set_stored_in_db_flag(TRUE);
           }
@@ -6352,23 +6403,20 @@ parse_vcol_expr:
               my_message(ER_SYNTAX_ERROR, ER_THD(thd, ER_SYNTAX_ERROR), MYF(0));
               MYSQL_YYABORT;
             }
+            Lex->last_field->vcol_info= $3;
           }
         ;
 
 virtual_column_func:
-          remember_name expr remember_end
+          remember_cur_pos expr remember_end
           {
-            Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+            Virtual_column_info *v=
+              add_virtual_expression(thd, $1, (uint)($3 - $1), $2);
             if (!v)
             {
-              mem_alloc_error(sizeof(Virtual_column_info));
               MYSQL_YYABORT;
             }
-            uint expr_len= (uint)($3 - $1) - 1;
-            v->expr_str.str= (char* ) thd->memdup($1 + 1, expr_len);
-            v->expr_str.length= expr_len;
-            v->expr_item= $2;
-            Lex->last_field->vcol_info= v;
+            $$= v;
           }
         ;
 
@@ -6664,8 +6712,8 @@ opt_attribute_list:
 
 attribute:
           NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
-        | not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
-        | DEFAULT now_or_signed_literal { Lex->last_field->def= $2; }
+        | NOT_NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
+        | DEFAULT virtual_column_func { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);
@@ -6750,18 +6798,6 @@ type_with_opt_collate:
           }
           Lex->set_last_field_type($1);
         }
-        ;
-
-
-now_or_signed_literal:
-          NOW_SYM opt_default_time_precision
-          {
-            $$= new (thd->mem_root) Item_func_now_local(thd, $2);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | signed_literal
-          { $$=$1; }
         ;
 
 charset:
@@ -7716,6 +7752,10 @@ alter_list_item:
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN |
                                     Alter_info::ALTER_ADD_INDEX;
           }
+        | ADD constraint_def
+          {
+            Lex->alter_info.flags|= Alter_info::ALTER_ADD_CONSTRAINT;
+	  }
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {
@@ -7741,6 +7781,17 @@ alter_list_item:
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_DROP_COLUMN;
+          }
+	| DROP CONSTRAINT opt_if_exists_table_element field_ident
+          {
+            LEX *lex=Lex;
+            Alter_drop *ad= (new (thd->mem_root)
+                             Alter_drop(Alter_drop::CONSTRAINT_CHECK,
+                                        $4.str, $3));
+            if (ad == NULL)
+              MYSQL_YYABORT;
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
+            lex->alter_info.flags|= Alter_info::ALTER_DROP_CONSTRAINT;
           }
         | DROP FOREIGN KEY_SYM opt_if_exists_table_element field_ident
           {
@@ -7785,7 +7836,7 @@ alter_list_item:
             lex->alter_info.keys_onoff= Alter_info::ENABLE;
             lex->alter_info.flags|= Alter_info::ALTER_KEYS_ONOFF;
           }
-        | ALTER opt_column field_ident SET DEFAULT signed_literal
+        | ALTER opt_column field_ident SET DEFAULT virtual_column_func
           {
             LEX *lex=Lex;
             Alter_column *ac= new (thd->mem_root) Alter_column($3.str,$6);
@@ -7798,7 +7849,7 @@ alter_list_item:
           {
             LEX *lex=Lex;
             Alter_column *ac= (new (thd->mem_root)
-                               Alter_column($3.str, (Item*) 0));
+                               Alter_column($3.str, (Virtual_column_info*) 0));
             if (ac == NULL)
               MYSQL_YYABORT;
             lex->alter_info.alter_list.push_back(ac, thd->mem_root);
@@ -8899,6 +8950,12 @@ remember_tok_start:
           }
         ;
 
+remember_cur_pos:
+          {
+            $$= (char*) YYLIP->get_cpp_ptr();
+          }
+        ;
+
 remember_name:
           {
             $$= (char*) YYLIP->get_cpp_tok_start();
@@ -9092,6 +9149,12 @@ bool_pri:
               MYSQL_YYABORT;
           }
         | bool_pri IS not NULL_SYM %prec IS
+          {
+            $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | bool_pri IS NOT_NULL_SYM %prec IS
           {
             $$= new (thd->mem_root) Item_func_isnotnull(thd, $1);
             if ($$ == NULL)
@@ -9455,6 +9518,13 @@ simple_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | NOT_NULL_SYM
+          {
+            /* Replace NOT NULL with NULL */
+            $$= new (thd->mem_root) Item_null(thd);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+           }
         | '+' simple_expr %prec NEG
           {
             $$= $2;
@@ -13965,16 +14035,6 @@ param_marker:
           }
         ;
 
-signed_literal:
-          literal { $$ = $1; }
-        | '+' NUM_literal { $$ = $2; }
-        | '-' NUM_literal
-          {
-            $2->max_length++;
-            $$= $2->neg(thd);
-          }
-        ;
-
 literal:
           text_literal { $$ = $1; }
         | NUM_literal { $$ = $1; }
@@ -14736,6 +14796,7 @@ keyword:
         | SONAME_SYM            {}
         | START_SYM             {}
         | STOP_SYM              {}
+        | STORED_SYM            {}
         | TRUNCATE_SYM          {}
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}

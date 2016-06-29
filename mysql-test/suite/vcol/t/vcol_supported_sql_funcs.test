@@ -3,7 +3,7 @@
 #                                                                              #
 # Purpose:                                                                     #
 #  Test SQL functions allowed for virtual columns                              #
-#        InnoDB branch                                                         #
+#        MyISAM branch                                                         #
 #                                                                              #
 #------------------------------------------------------------------------------#
 # Original Author: Andrey Zhakov                                               #
@@ -32,15 +32,14 @@
 
 ##### Storage engine to be tested
 # Set the session storage engine
---source include/have_innodb.inc
-SET @@session.storage_engine = 'InnoDB';
+eval SET @@session.storage_engine = 'MyISAM';
 
 ##### Workarounds for known open engine specific bugs
 #     none
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
---source suite/vcol/inc/vcol_supported_sql_funcs_main.inc
+--source vcol_supported_sql_funcs_main.inc
 
 #------------------------------------------------------------------------------#
 # Execute storage engine specific tests

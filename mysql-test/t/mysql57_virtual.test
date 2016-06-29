@@ -1,0 +1,29 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Test that we can use tables created in MySQL 5.7
+--echo #
+
+--copy_file std_data/mysql57_virtual.frm $MYSQLD_DATADIR/test/mysql57_virtual.frm
+--copy_file std_data/mysql57_virtual.MYD $MYSQLD_DATADIR/test/mysql57_virtual.MYD
+--copy_file std_data/mysql57_virtual.MYI $MYSQLD_DATADIR/test/mysql57_virtual.MYI
+
+SHOW CREATE TABLE mysql57_virtual;
+insert into mysql57_virtual (a) values (1),(2);
+select * from mysql57_virtual;
+
+# We can't do online changes, as the MariaDB storage is incompatible with MySQL
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter online table mysql57_virtual comment "I am now a MariaDB table";
+
+alter table mysql57_virtual comment "I am now a MariaDB table";
+SHOW CREATE TABLE mysql57_virtual;
+DROP TABLE mysql57_virtual;
+
+--echo #
+--echo # Check MySQL 5.7 syntax
+--echo #
+
+create table t1 (a int, b int generated always as (a+1) STORED, c int generated always as (a+2) VIRTUAL);
+show create table t1;
+drop table t1;

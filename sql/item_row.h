@@ -119,7 +119,7 @@ public:
   bool check_cols(uint c);
   bool null_inside() { return with_null; };
   void bring_value();
-  bool check_vcol_func_processor(uchar *int_arg) {return FALSE; } 
+  bool check_vcol_func_processor(uchar *arg) {return FALSE; }
 };
 
 #endif /* ITEM_ROW_INCLUDED */

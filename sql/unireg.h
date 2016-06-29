@@ -211,7 +211,7 @@ static inline bool is_binary_frm_header(uchar *head)
   return head[0] == 254
       && head[1] == 1
       && head[2] >= FRM_VER
-      && head[2] <= FRM_VER+4;
+      && head[2] <= FRM_VER_CURRENT;
 }
 
 #endif

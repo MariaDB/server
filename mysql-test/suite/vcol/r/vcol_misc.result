@@ -34,7 +34,7 @@ CREATE TABLE t1 (
 a int NOT NULL DEFAULT '0',
 v double AS ((1, a)) VIRTUAL
 );
-ERROR HY000: Expression for computed column cannot return a row
+ERROR 21000: Operand should contain 1 column(s)
 CREATE TABLE t1 (
 a CHAR(255) BINARY NOT NULL DEFAULT 0,
 b CHAR(255) BINARY NOT NULL DEFAULT 0,
@@ -187,11 +187,7 @@ ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 tsv TIMESTAMP AS (ADDDATE(ts, INTERVAL 1 DAY)) VIRTUAL
 ) ENGINE=MyISAM;
 INSERT INTO t1 (tsv) VALUES (DEFAULT);
-Warnings:
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
 INSERT DELAYED INTO t1 (tsv) VALUES (DEFAULT);
-Warnings:
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
 FLUSH TABLES;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -320,7 +316,9 @@ drop table t1;
 # MDEV-5611: self-referencing virtual column
 #
 create table t1 (a int, b int as (b is null) virtual);
-ERROR HY000: A computed column cannot be based on a computed column
+ERROR 01000: Expression for field `b` is refering to uninitialized field `b`
+create table t1 (a int as (1+1), b int as (a is null) virtual);
+drop table t1;
 # end of 5.3 tests
 create table t1 (v1 varchar(255) as (c1) persistent, c1 varchar(50)) collate=latin1_general_ci;
 show create table t1;

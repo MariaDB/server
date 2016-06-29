@@ -8001,7 +8001,7 @@ Drop view if exists test.v1 ;
 CREATE VIEW test.v1 AS SELECT f59,f60
 FROM test.tb2 where f59 = 195 WITH CHECK OPTION ;
 UPDATE test.v1 SET f59 = 198 where f59=195 ;
-ERROR HY000: CHECK OPTION failed 'test.v1'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v1'
 SELECT * FROM test.v1 order by f59 ;
 f59	f60
 195	87
@@ -8015,7 +8015,7 @@ CREATE VIEW test.v1 AS SELECT f59,f60
 FROM test.tb2 where F59 = 0987 WITH LOCAL CHECK OPTION ;
 CREATE VIEW test.v2 as SELECT * FROM test.v1 ;
 UPDATE test.v1 SET F59 = 919 where f59 = 0987 ;
-ERROR HY000: CHECK OPTION failed 'test.v1'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v1'
 SELECT * FROM test.v1 order by f59 ;
 f59	f60
 987	41
@@ -8050,9 +8050,9 @@ f1	f2
 A	2
 B	2
 UPDATE v1 SET f2 = 4;
-ERROR HY000: CHECK OPTION failed 'test.v1'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v1'
 INSERT INTO v1 VALUES('B',3);
-ERROR HY000: CHECK OPTION failed 'test.v1'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v1'
 SELECT * FROM v1 order by f1, f2;
 f1	f2
 A	2
@@ -8166,7 +8166,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8200,7 +8200,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -8278,21 +8278,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8306,11 +8306,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -8386,21 +8386,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8414,11 +8414,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -8611,7 +8611,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8645,7 +8645,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -8723,21 +8723,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8751,11 +8751,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -8831,21 +8831,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -8859,11 +8859,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9056,7 +9056,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9090,7 +9090,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9168,21 +9168,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9196,11 +9196,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9276,21 +9276,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9304,11 +9304,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9501,7 +9501,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9535,7 +9535,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9613,21 +9613,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9641,11 +9641,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9721,21 +9721,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9749,11 +9749,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -9949,7 +9949,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -9983,7 +9983,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10061,21 +10061,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10089,11 +10089,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10169,21 +10169,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10197,11 +10197,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10394,7 +10394,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10428,7 +10428,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10506,21 +10506,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10534,11 +10534,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10614,21 +10614,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10642,11 +10642,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10839,7 +10839,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10873,7 +10873,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -10951,21 +10951,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -10979,11 +10979,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11059,21 +11059,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11087,11 +11087,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11284,7 +11284,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11318,7 +11318,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11396,21 +11396,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11424,11 +11424,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11504,21 +11504,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11532,11 +11532,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11732,7 +11732,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11766,7 +11766,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11844,21 +11844,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11872,11 +11872,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -11952,21 +11952,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -11980,11 +11980,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12177,7 +12177,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12211,7 +12211,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12289,21 +12289,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12317,11 +12317,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12397,21 +12397,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12425,11 +12425,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12622,7 +12622,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12656,7 +12656,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12734,21 +12734,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12762,11 +12762,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -12842,21 +12842,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -12870,11 +12870,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13067,7 +13067,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13101,7 +13101,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13179,21 +13179,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13207,11 +13207,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13287,21 +13287,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13315,11 +13315,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13515,7 +13515,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13549,7 +13549,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13627,21 +13627,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13655,11 +13655,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13735,21 +13735,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13763,11 +13763,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -13960,7 +13960,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -13994,7 +13994,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14072,21 +14072,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14100,11 +14100,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14180,21 +14180,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14208,11 +14208,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14405,7 +14405,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14439,7 +14439,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14517,21 +14517,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14545,11 +14545,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14625,21 +14625,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14653,11 +14653,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14850,7 +14850,7 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14884,7 +14884,7 @@ affected rows: 1
 INSERT INTO v3 VALUES(0, 'zero');
 affected rows: 1
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -14962,21 +14962,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -14990,11 +14990,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;
@@ -15070,21 +15070,21 @@ f1	f2
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 7 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 0 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
 DELETE FROM t1;
 INSERT INTO t1 VALUES(8, 'eight');
 UPDATE v3 SET my_col1 = 16 WHERE my_col1 = 8;
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 SELECT * FROM t1;
 f1	f2
 8	eight
@@ -15098,11 +15098,11 @@ f1	f2
 10	eight
 DELETE FROM t1;
 INSERT INTO v3 VALUES(16, 'sixteen');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(0, 'zero');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(7, 'seven');
-ERROR HY000: CHECK OPTION failed 'test.v3'
+ERROR HY000: CONSTRAINT 'WITH CHECK OPTION' failed for 'test.v3'
 INSERT INTO v3 VALUES(8, 'eight');
 affected rows: 1
 SELECT * FROM t1;

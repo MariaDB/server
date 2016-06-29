@@ -483,11 +483,12 @@ bool partition_info::set_used_partition(List<Item> &fields,
 
   if (fields.elements || !values.elements)
   {
-    if (fill_record(thd, table, fields, values, false))
+    if (fill_record(thd, table, fields, values, false, !copy_default_values))
       goto err;
   }
   else
   {
+    /* All fields has a value */
     if (fill_record(thd, table, table->field, values, false, false))
       goto err;
   }

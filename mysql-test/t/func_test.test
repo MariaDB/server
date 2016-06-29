@@ -179,6 +179,8 @@ explain extended select not (a+0) from t1;
 select * from t1 where not (a+0);
 explain extended select * from t1 where not (a+0);
 
+select not 1, not null, not not null, 1 is not null;
+
 drop table t1;
 
 --echo #

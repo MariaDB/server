@@ -85,7 +85,7 @@ public:
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -139,7 +139,7 @@ public:
     maybe_null=1; 
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -173,7 +173,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -190,10 +190,13 @@ public:
   String *val_str(String *str);
   void fix_length_and_dec();
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *int_arg) {return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
+  }
+  bool check_vcol_func_processor(uchar *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -211,7 +214,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -232,7 +235,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_time_args();
@@ -253,7 +256,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_time_args();
@@ -274,7 +277,7 @@ public:
      maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -295,7 +298,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_time_args();
@@ -330,7 +333,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -353,7 +356,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -388,7 +391,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_date_args();
@@ -406,7 +409,10 @@ class Item_func_dayname :public Item_func_weekday
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   void fix_length_and_dec();
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -454,13 +460,11 @@ public:
   {
     return !has_timestamp_args();
   }
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(uchar *arg)
   {
-    /*
-      TODO: Allow UNIX_TIMESTAMP called with an argument to be a part
-      of the expression for a virtual column
-    */
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    if (arg_count)
+      return FALSE;
+    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
   }
   longlong int_op();
   my_decimal *decimal_op(my_decimal* buf);
@@ -476,7 +480,7 @@ public:
     Item_func_seconds_hybrid(thd, item) {}
   const char *func_name() const { return "time_to_sec"; }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_time_args();
@@ -596,25 +600,21 @@ public:
 class Item_func_curtime :public Item_timefunc
 {
   MYSQL_TIME ltime;
+  query_id_t last_query_id;
 public:
-  Item_func_curtime(THD *thd, uint dec): Item_timefunc(thd) { decimals= dec; }
+  Item_func_curtime(THD *thd, uint dec): Item_timefunc(thd), last_query_id(0)
+  { decimals= dec; }
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec()
-  {
-    store_now_in_TIME(&ltime);
-    Item_timefunc::fix_length_and_dec();
-    maybe_null= false;
-  }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   /* 
     Abstract method that defines which time zone is used for conversion.
     Converts time current time in my_time_t representation to broken-down
     MYSQL_TIME representation using UTC-SYSTEM or per-thread time zone.
   */
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time)=0;
-  bool check_vcol_func_processor(uchar *int_arg) 
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
+  bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -624,7 +624,7 @@ class Item_func_curtime_local :public Item_func_curtime
 public:
   Item_func_curtime_local(THD *thd, uint dec): Item_func_curtime(thd, dec) {}
   const char *func_name() const { return "curtime"; }
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time);
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
 };
 
 
@@ -633,7 +633,7 @@ class Item_func_curtime_utc :public Item_func_curtime
 public:
   Item_func_curtime_utc(THD *thd, uint dec): Item_func_curtime(thd, dec) {}
   const char *func_name() const { return "utc_time"; }
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time);
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
 };
 
 
@@ -641,15 +641,16 @@ public:
 
 class Item_func_curdate :public Item_datefunc
 {
+  query_id_t last_query_id;
   MYSQL_TIME ltime;
 public:
-  Item_func_curdate(THD *thd): Item_datefunc(thd) {}
-  void fix_length_and_dec();
+  Item_func_curdate(THD *thd): Item_datefunc(thd), last_query_id(0) {}
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time)=0;
-  bool check_vcol_func_processor(uchar *int_arg) 
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
+  bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), arg,
+                                                          VCOL_TIME_FUNC);
   }
 };
 
@@ -659,7 +660,7 @@ class Item_func_curdate_local :public Item_func_curdate
 public:
   Item_func_curdate_local(THD *thd): Item_func_curdate(thd) {}
   const char *func_name() const { return "curdate"; }
-  void store_now_in_TIME(MYSQL_TIME *now_time);
+  void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
 };
 
 
@@ -668,30 +669,29 @@ class Item_func_curdate_utc :public Item_func_curdate
 public:
   Item_func_curdate_utc(THD *thd): Item_func_curdate(thd) {}
   const char *func_name() const { return "utc_date"; }
-  void store_now_in_TIME(MYSQL_TIME *now_time);
+  void store_now_in_TIME(THD* thd, MYSQL_TIME *now_time);
 };
 
 
 /* Abstract CURRENT_TIMESTAMP function. See also Item_func_curtime */
 
-
 class Item_func_now :public Item_datetimefunc
 {
   MYSQL_TIME ltime;
+  query_id_t last_query_id;
 public:
-  Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd) { decimals= dec; }
+  Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd), last_query_id(0)
+  { decimals= dec; }
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec()
-  {
-    store_now_in_TIME(&ltime);
-    Item_temporal_func::fix_length_and_dec();
-    maybe_null= false;
-  }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time)=0;
-  bool check_vcol_func_processor(uchar *int_arg) 
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
+  bool check_vcol_func_processor(uchar *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    /*
+      NOW is safe for replication as slaves will run with same time as
+      master
+    */
+    return mark_unsupported_function(func_name(), arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -701,7 +701,7 @@ class Item_func_now_local :public Item_func_now
 public:
   Item_func_now_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
   const char *func_name() const { return "now"; }
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time);
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   virtual enum Functype functype() const { return NOW_FUNC; }
 };
 
@@ -711,7 +711,14 @@ class Item_func_now_utc :public Item_func_now
 public:
   Item_func_now_utc(THD *thd, uint dec): Item_func_now(thd, dec) {}
   const char *func_name() const { return "utc_timestamp"; }
-  virtual void store_now_in_TIME(MYSQL_TIME *now_time);
+  virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
+  virtual enum Functype functype() const { return NOW_UTC_FUNC; }
+  virtual bool check_vcol_func_processor(uchar *arg)
+  {
+    return mark_unsupported_function(func_name(), arg,
+                                     VCOL_TIME_FUNC | VCOL_NON_DETERMINISTIC);
+  }
+
 };
 
 
@@ -725,14 +732,15 @@ public:
   Item_func_sysdate_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
   bool const_item() const { return 0; }
   const char *func_name() const { return "sysdate"; }
-  void store_now_in_TIME(MYSQL_TIME *now_time);
+  void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  void update_used_tables()
+  table_map used_tables() const { return RAND_TABLE_BIT; }
+  bool check_vcol_func_processor(uchar *arg)
   {
-    Item_func_now::update_used_tables();
-    maybe_null= 0;
-    used_tables_cache|= RAND_TABLE_BIT;
+    return mark_unsupported_function(func_name(), arg,
+                                     VCOL_TIME_FUNC | VCOL_NON_DETERMINISTIC);
   }
+  virtual enum Functype functype() const { return SYSDATE_FUNC; }
 };
 
 
@@ -743,7 +751,7 @@ public:
   const char *func_name() const { return "from_days"; }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return has_date_args() || has_time_args();
@@ -766,6 +774,10 @@ public:
   void fix_length_and_dec();
   uint format_length(const String *format);
   bool eq(const Item *item, bool binary_cmp) const;
+  bool check_vcol_func_processor(uchar *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -859,7 +871,7 @@ class Item_extract :public Item_int_func
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     switch (int_type) {
@@ -1039,7 +1051,7 @@ public:
     maybe_null=1;
   }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool check_valid_arguments_processor(uchar *int_arg)
   {
     return !has_time_args();

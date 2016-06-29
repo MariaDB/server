@@ -68,12 +68,12 @@ INSERT INTO v1 VALUES (30);
 eval $get_handler_status_counts;
 --echo # 4 locks (1 table, 1 partition lock/unlock)
 FLUSH STATUS;
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 INSERT INTO v1 VALUES (31);
 eval $get_handler_status_counts;
 --echo # 2 locks (1 table, all partitions pruned)
 FLUSH STATUS;
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 INSERT INTO v1 VALUES (32);
 eval $get_handler_status_counts;
 --echo # 4 locks (1 table, 1 partition lock/unlock)

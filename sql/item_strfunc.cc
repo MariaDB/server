@@ -2363,14 +2363,21 @@ String *Item_func_database::val_str(String *str)
   BUG#28086) binlog_format=MIXED, but is incorrectly replicated to ''
   if binlog_format=STATEMENT.
 */
-bool Item_func_user::init(const char *user, const char *host)
+
+bool Item_func_user::init(THD *thd, const char *user, const char *host)
 {
   DBUG_ASSERT(fixed == 1);
+
+  /* Check if we have already calculated the value for this thread */
+  if (thd->query_id == last_query_id)
+    return FALSE;
+  last_query_id= thd->query_id;
+  null_value= 0;
 
   // For system threads (e.g. replication SQL thread) user may be empty
   if (user)
   {
-    CHARSET_INFO *cs= str_value.charset();
+    CHARSET_INFO *cs= system_charset_info;
     size_t res_length= (strlen(user)+strlen(host)+2) * cs->mbmaxlen;
 
     if (str_value.alloc((uint) res_length))
@@ -2379,38 +2386,41 @@ bool Item_func_user::init(const char *user, const char *host)
       return TRUE;
     }
 
+    str_value.set_charset(cs);
     res_length=cs->cset->snprintf(cs, (char*)str_value.ptr(), (uint) res_length,
                                   "%s@%s", user, host);
     str_value.length((uint) res_length);
     str_value.mark_as_const();
   }
+  else
+    str_value.set("", 0, system_charset_info);
   return FALSE;
 }
 
-
-bool Item_func_user::fix_fields(THD *thd, Item **ref)
+String *Item_func_user::val_str(String *str)
 {
-  return (Item_func_sysconst::fix_fields(thd, ref) ||
-          init(thd->main_security_ctx.user,
-               thd->main_security_ctx.host_or_ip));
+  THD *thd= current_thd;
+  init(thd, thd->main_security_ctx.user, thd->main_security_ctx.host_or_ip);
+  return null_value ? 0 : &str_value;
 }
 
-
-bool Item_func_current_user::fix_fields(THD *thd, Item **ref)
+String *Item_func_current_user::val_str(String *str)
 {
-  if (Item_func_sysconst::fix_fields(thd, ref))
-    return TRUE;
-
-  Security_context *ctx= context->security_ctx
-                          ? context->security_ctx : thd->security_ctx;
-  return init(ctx->priv_user, ctx->priv_host);
+  THD *thd= current_thd;
+  Security_context *ctx= (context->security_ctx ?
+                          context->security_ctx : thd->security_ctx);
+  init(thd, ctx->priv_user, ctx->priv_host);
+  return null_value ? 0 : &str_value;
 }
+
 
 bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
 {
-  if (Item_func_sysconst::fix_fields(thd, ref))
-    return 1;
+  return Item_func_sysconst::fix_fields(thd,ref) || init(thd);
+}
 
+bool Item_func_current_role::init(THD *thd)
+{
   Security_context *ctx= context->security_ctx
                           ? context->security_ctx : thd->security_ctx;
 
@@ -2420,13 +2430,21 @@ bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
                        system_charset_info))
       return 1;
 
-    str_value.mark_as_const();
     return 0;
   }
-  null_value= maybe_null= 1;
+  null_value= 1;
   return 0;
 }
 
+String *Item_func_current_role::val_str(String *)
+{
+  return (null_value ? 0 : &str_value);
+}
+
+int Item_func_current_role::save_in_field(Field *field, bool no_conversions)
+{
+  return save_str_value_in_field(field, &str_value);
+}
 
 void Item_func_soundex::fix_length_and_dec()
 {

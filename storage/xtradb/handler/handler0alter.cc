@@ -452,7 +452,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			we must use "Copy" method. */
 			if (is_timestamp_type(def->sql_type)) {
 				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
-					(def->def != NULL || // constant default ?
+					(def->default_value != NULL || // constant default ?
 					 def->unireg_check != Field::NONE)) { // function default
 					ha_alter_info->unsupported_reason = innobase_get_err_msg(
 						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);

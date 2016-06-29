@@ -252,6 +252,9 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
   else
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
 
+  /* With galera we assume that the master has done the constraint checks */
+  thd->variables.option_bits|= OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+
   if (flags & WSREP_FLAG_ISOLATION)
   {
     thd->wsrep_apply_toi= true;

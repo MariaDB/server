@@ -162,50 +162,42 @@ grad_degree	CREATE TABLE `grad_degree` (
   `plan` varchar(10) NOT NULL,
   `admit_term` char(4) NOT NULL,
   `wdraw_rsn` varchar(4) NOT NULL DEFAULT '',
-  `ofis_deg_status` varchar(15) AS (
-CASE
+  `ofis_deg_status` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed'
       ELSE 'Not Completed'
     END) VIRTUAL,
-  `ofis_deg_status2` varchar(15) AS (
-CASE
+  `ofis_deg_status2` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress2'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed2'
       ELSE 'Not Completed2'
     END) VIRTUAL,
-  `ofis_deg_status3` varchar(15) AS (
-CASE
+  `ofis_deg_status3` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress3'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed3'
       ELSE 'Not Completed3'
     END) VIRTUAL,
-  `ofis_deg_status4` varchar(15) AS (
-CASE
+  `ofis_deg_status4` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress4'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed4'
       ELSE 'Not Completed4'
     END) VIRTUAL,
-  `ofis_deg_status5` varchar(15) AS (
-CASE
+  `ofis_deg_status5` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress5'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed5'
       ELSE 'Not Completed5'
     END) VIRTUAL,
-  `ofis_deg_status6` varchar(15) AS (
-CASE
+  `ofis_deg_status6` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress6'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed6'
       ELSE 'Not Completed6'
     END) VIRTUAL,
-  `ofis_deg_status7` varchar(15) AS (
-CASE
+  `ofis_deg_status7` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress7'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed7'
       ELSE 'Not Completed7'
     END) VIRTUAL,
-  `ofis_deg_status8` varchar(15) AS (
-CASE
+  `ofis_deg_status8` varchar(15) AS (CASE
 WHEN wdraw_rsn = '' THEN 'In progress8'
       WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed8'
       ELSE 'Not Completed8'

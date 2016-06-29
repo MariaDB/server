@@ -1,0 +1,268 @@
+SET @@session.storage_engine = 'MyISAM';
+# RAND()
+create or replace table t1 (b double as (rand()));
+create or replace table t1 (b double as (rand()) PERSISTENT);
+ERROR HY000: Function or expression 'rand' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# LOAD_FILE()
+create or replace table t1 (a varchar(64), b varchar(1024) as (load_file(a)));
+ERROR HY000: Function or expression 'load_file' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# CURDATE()
+create or replace table t1 (a datetime as (curdate()) PERSISTENT);
+ERROR HY000: Function or expression 'curdate' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# CURRENT_DATE(), CURRENT_DATE
+create or replace table t1 (a datetime as (current_date) PERSISTENT);
+ERROR HY000: Function or expression 'curdate' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a datetime as (current_date()) PERSISTENT);
+ERROR HY000: Function or expression 'curdate' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# CURRENT_TIME(), CURRENT_TIME
+create or replace table t1 (a datetime as (current_time) PERSISTENT);
+ERROR HY000: Function or expression 'curtime' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a datetime as (current_time()) PERSISTENT);
+ERROR HY000: Function or expression 'curtime' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP
+create or replace table t1 (a datetime as (current_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a datetime as (current_timestamp) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# CURTIME()
+create or replace table t1 (a datetime as (curtime()) PERSISTENT);
+ERROR HY000: Function or expression 'curtime' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# LOCALTIME(), LOCALTIME
+create or replace table t1 (a datetime, b varchar(10) as (localtime()) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a datetime, b varchar(10) as (localtime) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# LOCALTIMESTAMP, LOCALTIMESTAMP()(v4.0.6)
+create or replace table t1 (a datetime, b varchar(10) as (localtimestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a datetime, b varchar(10) as (localtimestamp) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# NOW()
+create or replace table t1 (a datetime, b varchar(10) as (now()) PERSISTENT);
+ERROR HY000: Function or expression 'now' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# SYSDATE()
+create or replace table t1 (a int, b varchar(10) as (sysdate()) PERSISTENT);
+ERROR HY000: Function or expression 'sysdate' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# UNIX_TIMESTAMP()
+create or replace table t1 (a datetime, b datetime as (unix_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'unix_timestamp' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# UTC_DATE()
+create or replace table t1 (a datetime, b datetime as (utc_date()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_date' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# UTC_TIME()
+create or replace table t1 (a datetime, b datetime as (utc_time()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_time' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# UTC_TIMESTAMP()
+create or replace table t1 (a datetime, b datetime as (utc_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_timestamp' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# WEEK() - one argument version
+create or replace table t1 (a datetime, b datetime as (week(a)) PERSISTENT);
+ERROR HY000: Function or expression 'get_system_var' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# MATCH()
+create or replace table t1 (a varchar(32), b bool as (match a against ('sample text')) PERSISTENT);
+ERROR HY000: Function or expression 'match' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# BENCHMARK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (benchmark(a,3)));
+ERROR HY000: Function or expression 'benchmark' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# CHARSET()
+create or replace table t1 (a varchar(64), b varchar(64) as (charset(a)) PERSISTENT);
+# COERCIBILITY()
+create or replace table t1 (a varchar(64), b int as (coercibility(a)) PERSISTENT);
+# COLLATION()
+create or replace table t1 (a varchar(64), b varchar(64) as (collation(a)) PERSISTENT);
+# CONNECTION_ID()
+create or replace table t1 (a int as (connection_id()));
+create or replace table t1 (a int as (connection_id()) PERSISTENT);
+ERROR HY000: Function or expression 'connection_id' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# CURRENT_USER(), CURRENT_USER
+create or replace table t1 (a varchar(32) as (current_user()));
+ERROR HY000: Function or expression 'current_user()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a varchar(32) as (current_user()) PERSISTENT);
+ERROR HY000: Function or expression 'current_user()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a varchar(32) as (current_user) PERSISTENT);
+ERROR HY000: Function or expression 'current_user()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# DATABASE()
+create or replace table t1 (a varchar(32) as (database()));
+create or replace table t1 (a varchar(1024), b varchar(1024) as (database()) PERSISTENT);
+ERROR HY000: Function or expression 'database()' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# FOUND_ROWS()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (found_rows()));
+ERROR HY000: Function or expression 'found_rows' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# GET_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (get_lock(a,10)));
+ERROR HY000: Function or expression 'get_lock' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# IS_FREE_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (is_free_lock(a)));
+ERROR HY000: Function or expression 'is_free_lock' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# IS_USED_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (is_used_lock(a)));
+ERROR HY000: Function or expression 'is_used_lock' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# LAST_INSERT_ID()
+create or replace table t1 (a int as (last_insert_id()));
+ERROR HY000: Function or expression 'last_insert_id' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# MASTER_POS_WAIT()
+create or replace table t1 (a varchar(32), b int as (master_pos_wait(a,0,2)));
+ERROR HY000: Function or expression 'master_pos_wait' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# NAME_CONST()
+create or replace table t1 (a varchar(32) as (name_const('test',1)));
+ERROR HY000: Function or expression 'name_const' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# RELEASE_LOCK()
+create or replace table t1 (a varchar(32), b int as (release_lock(a)));
+ERROR HY000: Function or expression 'release_lock' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# ROW_COUNT()
+create or replace table t1 (a int as (row_count()));
+ERROR HY000: Function or expression 'row_count' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# SCHEMA()
+create or replace table t1 (a varchar(32) as (schema()) PERSISTENT);
+ERROR HY000: Function or expression 'database()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# SESSION_USER()
+create or replace table t1 (a varchar(32) as (session_user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# SLEEP()
+create or replace table t1 (a int, b int as (sleep(a)));
+ERROR HY000: Function or expression 'sleep' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# SYSTEM_USER()
+create or replace table t1 (a varchar(32) as (system_user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# USER()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# UUID_SHORT()
+create or replace table t1 (a varchar(1024) as (uuid_short()) PERSISTENT);
+ERROR HY000: Function or expression 'uuid_short' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# UUID()
+create or replace table t1 (a varchar(1024) as (uuid()) PERSISTENT);
+ERROR HY000: Function or expression 'uuid' is not allowed for 'VIRTUAL' of column/constraint 'a'
+# VALUES()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (values(a)));
+ERROR HY000: Function or expression 'values' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# VERSION()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (version()) PERSISTENT);
+ERROR HY000: Function or expression 'version()' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# ENCRYPT()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (encrypt(a)) PERSISTENT);
+# DATE_FORMAT()
+create or replace table t1 (a datetime, b varchar(64) as (date_format(a,'%W %M %D'));
+ERROR HY000: Function or expression 'date_format' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# Stored procedures
+create procedure p1()
+begin
+select current_user();
+end //
+create function f1()
+returns int
+begin
+return 1;
+end //
+create or replace table t1 (a int as (p1()) PERSISTENT);
+ERROR HY000: Function or expression '`p1`' is not allowed for 'VIRTUAL' of column/constraint 'a'
+create or replace table t1 (a int as (f1()) PERSISTENT);
+ERROR HY000: Function or expression '`f1`' is not allowed for 'VIRTUAL' of column/constraint 'a'
+drop procedure p1;
+drop function f1;
+# Unknown functions
+create or replace table t1 (a int as (f1()) PERSISTENT);
+ERROR HY000: Function or expression '`f1`' is not allowed for 'VIRTUAL' of column/constraint 'a'
+#
+# GROUP BY FUNCTIONS
+#
+# AVG()
+create or replace table t1 (a int, b int as (avg(a)));
+ERROR HY000: Function or expression 'avg(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# BIT_AND()
+create or replace table t1 (a int, b int as (bit_and(a)));
+ERROR HY000: Function or expression 'bit_and(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# BIT_OR()
+create or replace table t1 (a int, b int as (bit_or(a)));
+ERROR HY000: Function or expression 'bit_or(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# BIT_XOR()
+create or replace table t1 (a int, b int as (bit_xor(a)));
+ERROR HY000: Function or expression 'bit_xor(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# COUNT(DISTINCT)
+create or replace table t1 (a int, b int as (count(distinct a)));
+ERROR HY000: Function or expression 'count(distinct ' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# COUNT()
+create or replace table t1 (a int, b int as (count(a)));
+ERROR HY000: Function or expression 'count(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# GROUP_CONCAT()
+create or replace table t1 (a varchar(32), b int as (group_concat(a,'')));
+ERROR HY000: Function or expression 'group_concat' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# MAX()
+create or replace table t1 (a int, b int as (max(a)));
+ERROR HY000: Function or expression 'max(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# MIN()
+create or replace table t1 (a int, b int as (min(a)));
+ERROR HY000: Function or expression 'min(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# STD()
+create or replace table t1 (a int, b int as (std(a)));
+ERROR HY000: Function or expression 'std(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# STDDEV_POP()
+create or replace table t1 (a int, b int as (stddev_pop(a)));
+ERROR HY000: Function or expression 'std(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# STDDEV_SAMP()
+create or replace table t1 (a int, b int as (stddev_samp(a)));
+ERROR HY000: Function or expression 'std(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# STDDEV()
+create or replace table t1 (a int, b int as (stddev(a)));
+ERROR HY000: Function or expression 'std(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# SUM()
+create or replace table t1 (a int, b int as (sum(a)));
+ERROR HY000: Function or expression 'sum(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# VAR_POP()
+create or replace table t1 (a int, b int as (var_pop(a)));
+ERROR HY000: Function or expression 'variance(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# VAR_SAMP()
+create or replace table t1 (a int, b int as (var_samp(a)));
+ERROR HY000: Function or expression 'var_samp(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# VARIANCE()
+create or replace table t1 (a int, b int as (variance(a)));
+ERROR HY000: Function or expression 'variance(' is not allowed for 'VIRTUAL' of column/constraint 'b'
+# DAYNAME()
+create or replace table t1 (a int, b varchar(10) as (dayname(a)));
+ERROR HY000: Function or expression 'dayname' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a int, b varchar(10) as (monthname(a)));
+ERROR HY000: Function or expression 'monthname' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a int, b varchar(10) as (date_format("1963-01-01","%d.%m.%Y")));
+ERROR HY000: Function or expression 'date_format' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a int, b varchar(10) as (time_format(now(),"%d.%m.%Y")));
+ERROR HY000: Function or expression 'time_format' is not allowed for 'VIRTUAL' of column/constraint 'b'
+#
+# XML FUNCTIONS
+#
+# ExtractValue()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (ExtractValue(a,'//b[$@j]')) PERSISTENT);
+# UpdateXML()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (UpdateXML(a,'/a','<e>fff</e>')) PERSISTENT);
+#
+# Sub-selects
+#
+create or replace table t1 (a int);
+create or replace table t2 (a int, b int as (select count(*) from t1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select count(*) from t1))' at line 1
+drop table t1;
+create or replace table t1 (a int, b int as ((select 1)));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'VIRTUAL' of column/constraint 'b'
+create or replace table t1 (a int, b int as (a+(select 1)));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'VIRTUAL' of column/constraint 'b'
+#
+# SP functions
+#
+drop function if exists sub1;
+create function sub1(i int) returns int deterministic
+return i+1;
+select sub1(1);
+sub1(1)
+2
+create or replace table t1 (a int, b int as (a+sub3(1)));
+ERROR HY000: Function or expression '`sub3`' is not allowed for 'VIRTUAL' of column/constraint 'b'
+drop function sub1;
+#
+# Long expression
+create or replace table t1 (a int, b varchar(300) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
+drop table t1;
+create or replace table t1 (a int, b varchar(16384) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
+ERROR HY000: Too many columns
+#
+# Constant expression
+create or replace table t1 (a int as (PI()) PERSISTENT);
+drop table if exists t1;

@@ -42,6 +42,7 @@
 #include <mysql/psi/mysql_table.h>
 
 class Alter_info;
+class Virtual_column_info;
 
 // the following is for checking tables
 
@@ -1632,6 +1633,7 @@ struct Schema_specification_st
      - LIKE another_table_name ... // Copy structure from another table
      - [AS] SELECT ...             // Copy structure from a subquery
 */
+
 struct Table_scope_and_contents_source_st
 {
   CHARSET_INFO *table_charset;
@@ -1647,6 +1649,8 @@ struct Table_scope_and_contents_source_st
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;
+  ulong expression_lengths;
+  ulong field_check_constraints;
   /*
     number of pages to sample during
     stats estimation, if used, otherwise 0.
@@ -1679,6 +1683,7 @@ struct Table_scope_and_contents_source_st
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
   ha_index_option_struct **indexes_option_struct;  ///< array of index option structures
+  List<Virtual_column_info>     *constraint_list;
 
   /* The following is used to remember the old state for CREATE OR REPLACE */
   TABLE *table;
@@ -1823,7 +1828,7 @@ public:
      attribute has really changed we might choose to set flag
      pessimistically, for example, relying on parser output only.
   */
-  typedef ulong HA_ALTER_FLAGS;
+  typedef ulonglong HA_ALTER_FLAGS;
 
   // Add non-unique, non-primary index
   static const HA_ALTER_FLAGS ADD_INDEX                  = 1L << 0;
@@ -1931,6 +1936,10 @@ public:
 
   // ALTER TABLE for a partitioned table
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
+
+  static const HA_ALTER_FLAGS ALTER_ADD_CONSTRAINT       = 1LL << 32;
+
+  static const HA_ALTER_FLAGS ALTER_DROP_CONSTRAINT      = 1LL << 33;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2856,6 +2865,7 @@ public:
                            size_t pack_frm_len);
   int ha_drop_partitions(const char *path);
   int ha_rename_partitions(const char *path);
+  virtual void register_columns_for_write() {}
 
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
   int update_auto_increment();

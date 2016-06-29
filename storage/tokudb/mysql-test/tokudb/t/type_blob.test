@@ -37,9 +37,7 @@ drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 --error 1074
 CREATE TABLE t2 (a char(256));
---error 1074
 CREATE TABLE t1 (a varchar(70000) default "hello");
---error 1101
 CREATE TABLE t2 (a blob default "hello");
 
 # Safety to be able to continue with other tests if above fails
@@ -439,8 +437,8 @@ insert into t1 values (default);
 select * from t1;
 drop table t1;
 set @@sql_mode='TRADITIONAL';
---error ER_BLOB_CANT_HAVE_DEFAULT
 create table t1 (a text default '');
+drop table t1;
 set @@sql_mode='';
 
 #
@@ -541,7 +539,7 @@ CREATE TABLE b15776 (a year(-2));
 
 
 # We've already tested the case, but this should visually show that 
-# widths that are too large to be interpreted cause DISPLAYWIDTH errors.
+# widths that are too large to be interpreted cause errors.
 --error ER_TOO_BIG_DISPLAYWIDTH
 CREATE TABLE b15776 (a int(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 --error ER_TOO_BIG_FIELDLENGTH

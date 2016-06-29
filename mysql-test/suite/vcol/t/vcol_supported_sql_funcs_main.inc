@@ -842,12 +842,6 @@ let $values1 = '2008-08-31',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
---echo # DATE_FORMAT()
-let $cols = a datetime, b varchar(64) as (date_format(a,'%W %M %D'));
-let $values1 = '2008-08-31',default;
-let $rows = 1;
---source suite/vcol/inc/vcol_supported_sql_funcs.inc
-
 --echo # DATE_SUB()
 let $cols = a datetime, b datetime as (date_sub(a,interval 1 month));
 let $values1 = '2008-08-31',default;
@@ -868,12 +862,6 @@ let $rows = 1;
 
 --echo # DAY()
 let $cols = a datetime, b int as (day(a));
-let $values1 = '2008-08-31',default;
-let $rows = 1;
---source suite/vcol/inc/vcol_supported_sql_funcs.inc
-
---echo # DAYNAME()
-let $cols = a datetime, b varchar(10) as (dayname(a));
 let $values1 = '2008-08-31',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
@@ -913,12 +901,6 @@ let $cols = a long, b datetime as (from_unixtime(a));
 let $values1 = 1196440219,default;
 let $rows = 1;
 set time_zone='UTC';
---source suite/vcol/inc/vcol_supported_sql_funcs.inc
-
---echo # GET_FORMAT()
-let $cols = a datetime, b varchar(32) as (date_format(a,get_format(DATE,'EUR')));
-let $values1 = '2008-08-31',default;
-let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
 --echo # HOUR()
@@ -961,12 +943,6 @@ let $rows = 1;
 
 --echo # MONTH()
 let $cols = a datetime, b int as (month(a));
-let $values1 = '2009-12-31 23:59:59.000010',default;
-let $rows = 1;
---source suite/vcol/inc/vcol_supported_sql_funcs.inc
-
---echo # MONTHNAME()
-let $cols = a datetime, b varchar(16) as (monthname(a));
 let $values1 = '2009-12-31 23:59:59.000010',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
@@ -1016,12 +992,6 @@ let $rows = 1;
 --echo # SUBTIME()
 let $cols = a datetime, b datetime as (subtime(a,'02:00:00'));
 let $values1 = '2008-08-31',default;
-let $rows = 1;
---source suite/vcol/inc/vcol_supported_sql_funcs.inc
-
---echo # TIME_FORMAT()
-let $cols = a datetime, b varchar(32) as (time_format(a,'%r'));
-let $values1 = '2008-08-31 02:03:04',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 

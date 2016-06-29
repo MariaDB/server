@@ -1812,8 +1812,9 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   /*
     Cleanup for the flags that have been set at do_apply_event.
   */
-  thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
-  thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+  thd->variables.option_bits&= ~(OPTION_NO_FOREIGN_KEY_CHECKS |
+                                 OPTION_RELAXED_UNIQUE_CHECKS |
+                                 OPTION_NO_CHECK_CONSTRAINT_CHECKS);
 
   /*
     Reset state related to long_find_row notes in the error log:

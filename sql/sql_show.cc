@@ -1625,15 +1625,22 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   */
   has_now_default= field->has_insert_default_function();
 
-  has_default= (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
-                field->unireg_check != Field::NEXT_NUMBER &&
-                !((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
-                  && has_now_default));
+  has_default= (field->default_value ||
+                (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+                 field->unireg_check != Field::NEXT_NUMBER &&
+                 !((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
+                   && has_now_default)));
 
   def_value->length(0);
   if (has_default)
   {
-    if (has_now_default)
+    if (field->default_value)
+    {
+      def_value->set(field->default_value->expr_str.str,
+                     field->default_value->expr_str.length,
+                     system_charset_info);
+    }
+    else if (has_now_default)
     {
       def_value->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
       if (field->decimals() > 0)
@@ -1922,6 +1929,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
           !(sql_mode & MODE_NO_FIELD_OPTIONS))
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
     }
+    if (field->check_constraint)
+    {
+      packet->append(STRING_WITH_LEN(" CHECK ("));
+      packet->append(field->check_constraint->expr_str.str,
+                     field->check_constraint->expr_str.length);
+      packet->append(STRING_WITH_LEN(")"));
+    }
 
     if (field->comment.length)
     {
@@ -2009,6 +2023,27 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   {
     packet->append(for_str, strlen(for_str));
     file->free_foreign_key_create_info(for_str);
+  }
+
+  /* Add table level check constraints */
+  if (share->table_check_constraints)
+  {
+    for (uint i= share->field_check_constraints;
+         i < share->table_check_constraints ; i++)
+    {
+      Virtual_column_info *check= table->check_constraints[i];
+
+      packet->append(STRING_WITH_LEN(",\n  "));
+      if (check->name.length)
+      {
+        packet->append(STRING_WITH_LEN("CONSTRAINT "));
+        append_identifier(thd, packet, check->name.str, check->name.length);
+      }
+      packet->append(STRING_WITH_LEN(" CHECK ("));
+      packet->append(check->expr_str.str,
+                     check->expr_str.length);
+      packet->append(STRING_WITH_LEN(")"));
+    }
   }
 
   packet->append(STRING_WITH_LEN("\n)"));

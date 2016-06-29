@@ -51,6 +51,8 @@ class Field;
 class Table_statistics;
 class With_element;
 struct TDC_element;
+class Virtual_column_info;
+class Table_triggers_list;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -328,8 +330,6 @@ enum enum_vcol_update_mode
   VCOL_UPDATE_ALL
 };
 
-class Field_blob;
-class Table_triggers_list;
 
 /**
   Category of table found in the table share.
@@ -567,6 +567,7 @@ struct TABLE_SHARE
   TYPELIB *intervals;			/* pointer to interval info */
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
+  MY_BITMAP     *check_set;             /* Fields used by check constrant */
 
   TDC_element *tdc;
 
@@ -579,6 +580,7 @@ struct TABLE_SHARE
   Field **field;
   Field **found_next_number_field;
   KEY  *key_info;			/* data of keys in database */
+  Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
 
   TABLE_STATISTICS_CB stats_cb;
@@ -666,7 +668,9 @@ struct TABLE_SHARE
   uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
-  uint vfields;                         /* Number of computed (virtual) fields */
+  uint virtual_fields;
+  uint default_expressions;
+  uint table_check_constraints, field_check_constraints;
   uint default_fields;                  /* Number of default fields */
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
@@ -676,6 +680,11 @@ struct TABLE_SHARE
   bool is_view;
   bool can_cmp_whole_record;
   bool table_creation_was_logged;
+  bool non_determinstic_insert;
+  bool virtual_stored_fields;
+  bool check_set_initialized;
+  bool has_update_default_function;
+  bool has_insert_default_function;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -1055,6 +1064,7 @@ public:
   Field **vfield;                       /* Pointer to virtual fields*/
   /* Fields that are updated automatically on INSERT or UPDATE. */
   Field **default_field;
+  Virtual_column_info **check_constraints;
 
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
@@ -1078,6 +1088,7 @@ public:
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* Set if using virtual fields */
   MY_BITMAP     *vcol_set, *def_vcol_set;
+  MY_BITMAP	*has_value_set;
 
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1295,8 +1306,22 @@ public:
   void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
-  void mark_default_fields_for_write();
-  bool has_default_function(bool is_update);
+  void mark_default_fields_for_write(bool insert_fl);
+  void mark_columns_used_by_check_constraints(void);
+  void mark_check_constraint_columns_for_read(void);
+  int verify_constraints(bool ignore_failure);
+  /**
+     Check if a table has a default function either for INSERT or UPDATE-like
+     operation
+     @retval true  there is a default function
+     @retval false there is no default function
+  */
+  inline bool has_default_function(bool is_update)
+  {
+    return (is_update ?
+            s->has_update_default_function :
+            s->has_insert_default_function);
+  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1406,7 +1431,7 @@ public:
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
-  int update_default_fields();
+  int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
@@ -2606,9 +2631,11 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const char *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table);
-bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
-                               TABLE *table, Field *field,
-                               LEX_STRING *vcol_expr, bool *error_reported);
+Virtual_column_info *unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
+                                               TABLE *table,
+                                               Field *field,
+                                               Virtual_column_info *vcol,
+                                               bool *error_reported);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,

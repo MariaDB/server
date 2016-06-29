@@ -1674,7 +1674,8 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   part_of_key_not_clustered(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
-  read_stats(NULL), collected_stats(0), vcol_info(0)
+  read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
+  default_value(0)
 {
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
@@ -2288,6 +2289,13 @@ Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
     tmp->move_field_offset(diff);
   }
   return tmp;
+}
+
+void Field::set_default_expression()
+{
+  table->in_use->reset_arena_for_cached_items(table->expr_arena);
+  (void) default_value->expr_item->save_in_field(this, 0);
+  table->in_use->reset_arena_for_cached_items(0);
 }
 
 
@@ -9739,9 +9747,44 @@ void Column_definition::create_length_to_internal_length(void)
 }
 
 
-static inline bool is_item_func(Item* x)
+bool check_expression(Virtual_column_info *vcol, const char *type,
+                      const char *name, bool must_be_determinstic)
 {
-  return x != NULL && x->type() == Item::FUNC_ITEM;
+  bool ret;
+  Item::vcol_func_processor_result res;
+  /* We use 2 bytes to store the expression length */
+  if (vcol->expr_str.length > UINT_MAX32)
+  {
+    my_error(ER_EXPRESSION_IS_TOO_BIG, MYF(0), type, name);
+    return TRUE;
+  }
+
+  /*
+    Walk through the Item tree checking if all items are valid
+    to be part of the virtual column
+  */
+
+  res.errors= 0;
+  ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0,
+                             (uchar*) &res);
+  vcol->non_deterministic= MY_TEST(res.errors & VCOL_NON_DETERMINISTIC);
+
+  if (ret ||
+      (res.errors &
+       (VCOL_IMPOSSIBLE |
+        (must_be_determinstic ? VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC: 0))))
+  {
+    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+             type, name);
+    return TRUE;
+  }
+  /*
+    Safe to call before fix_fields as long as vcol's don't include sub
+    queries (which is now checked in check_vcol_func_processor)
+  */
+  if (vcol->expr_item->check_cols(1))
+    return TRUE;
+  return FALSE;
 }
 
 
@@ -9755,65 +9798,76 @@ bool Column_definition::check(THD *thd)
   /* Initialize data for a computed field */
   if (vcol_info)
   {
-    DBUG_ASSERT(vcol_info->expr_item);
-
     vcol_info->set_field_type(sql_type);
-    /*
-      Walk through the Item tree checking if all items are valid
-      to be part of the virtual column
-    */
-    if (vcol_info->expr_item->walk(&Item::check_vcol_func_processor, 0, NULL))
-    {
-      my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), field_name);
+    if (check_expression(vcol_info, "VIRTUAL", field_name,
+                         vcol_info->stored_in_db))
       DBUG_RETURN(TRUE);
-    }
   }
 
-  if (def)
-  {
-    /*
-      Default value should be literal => basic constants =>
-      no need fix_fields()
+  if (check_constraint &&
+      check_expression(check_constraint, "CHECK", field_name, 0))
+    DBUG_RETURN(1);
 
-      We allow only one function as part of default value -
-      NOW() as default for TIMESTAMP and DATETIME type.
-    */
-    if (def->type() == Item::FUNC_ITEM &&
-        (static_cast<Item_func*>(def)->functype() != Item_func::NOW_FUNC ||
-         (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME) ||
-         def->decimals < length))
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+  if (default_value)
+  {
+    Item *def_expr= default_value->expr_item;
+
+    if (check_expression(default_value, "DEFAULT", field_name, 0))
       DBUG_RETURN(TRUE);
-    }
-    else if (def->type() == Item::NULL_ITEM)
+
+    /* Constant's are stored in the 'empty_record', except for blobs */
+    if (def_expr->basic_const_item())
     {
-      def= 0;
-      if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
+      if (def_expr->type() == Item::NULL_ITEM)
       {
-	my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
-	DBUG_RETURN(1);
+        default_value= 0;
+        if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
+        {
+          my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+          DBUG_RETURN(1);
+        }
       }
     }
-    else if (flags & AUTO_INCREMENT_FLAG)
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
-      DBUG_RETURN(TRUE);
-    }
+  }
+  if (default_value && (flags & AUTO_INCREMENT_FLAG))
+  {
+    my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+    DBUG_RETURN(1);
   }
 
-  if (is_item_func(def))
+  if (default_value && !default_value->expr_item->basic_const_item())
   {
-    /* There is a function default for insertions. */
-    def= NULL;
-    unireg_check= (is_item_func(on_update) ?
-                   Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
-                   Field::TIMESTAMP_DN_FIELD);   // only for insertions.
+    Item *def_expr= default_value->expr_item;
+
+    unireg_check= Field::NONE;
+    /*
+      NOW() for TIMESTAMP and DATETIME fields are handled as in MariaDB 10.1
+      by marking them in unireg_check.
+    */
+    if (def_expr->type() == Item::FUNC_ITEM &&
+        (static_cast<Item_func*>(def_expr)->functype() ==
+         Item_func::NOW_FUNC &&
+         (mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME)))
+    {
+      /*
+        We are not checking the number of decimals for timestamps
+        to allow one to write (for historical reasons)
+        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        Instead we are going to use the number of decimals specifed by the
+        column.
+      */
+      default_value= 0;
+      unireg_check= (on_update ?
+                     Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
+                     Field::TIMESTAMP_DN_FIELD);   // only for insertions.
+    }
+    else if (on_update)
+      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
   }
   else
   {
     /* No function default for insertions. Either NULL or a constant. */
-    if (is_item_func(on_update))
+    if (on_update)
       unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
     else
       unireg_check= ((flags & AUTO_INCREMENT_FLAG) ?
@@ -9897,33 +9951,6 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_GEOMETRY:
-    if (def)
-    {
-      /* Allow empty as default value. */
-      String str,*res;
-      res= def->val_str(&str);
-      /*
-        A default other than '' is always an error, and any non-NULL
-        specified default is an error in strict mode.
-      */
-      if (res->length() || thd->is_strict_mode())
-      {
-        my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0),
-                 field_name); /* purecov: inspected */
-        DBUG_RETURN(TRUE);
-      }
-      else
-      {
-        /*
-          Otherwise a default of '' is just a warning.
-        */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_BLOB_CANT_HAVE_DEFAULT,
-                            ER_THD(thd, ER_BLOB_CANT_HAVE_DEFAULT),
-                            field_name);
-      }
-      def= 0;
-    }
     flags|= BLOB_FLAG;
     break;
   case MYSQL_TYPE_YEAR:
@@ -10045,7 +10072,7 @@ bool Column_definition::check(THD *thd)
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!def && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
   {
     /*
       TIMESTAMP columns get implicit DEFAULT value when
@@ -10060,7 +10087,7 @@ bool Column_definition::check(THD *thd)
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&
-        (sql_type != MYSQL_TYPE_VARCHAR || def)) ||
+        sql_type != MYSQL_TYPE_VARCHAR) ||
        (length == 0 &&
         sql_type != MYSQL_TYPE_ENUM && sql_type != MYSQL_TYPE_SET &&
         sql_type != MYSQL_TYPE_STRING && sql_type != MYSQL_TYPE_VARCHAR &&
@@ -10437,6 +10464,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
+  default_value=    old_field->default_value;
+  check_constraint= old_field->check_constraint;
   option_list= old_field->option_list;
 
   switch (sql_type) {
@@ -10497,7 +10526,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     interval= ((Field_enum*) old_field)->typelib;
   else
     interval=0;
-  def=0;
   char_length= length;
 
   /*
@@ -10506,14 +10534,18 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
 
     - The column allows a default.
 
-    - The column type is not a BLOB type.
+    - The column type is not a BLOB type (as BLOB's doesn't have constant
+      defaults)
 
     - The original column (old_field) was properly initialized with a record
       buffer pointer.
+
+    - The column didn't have a default expression
   */
   if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
       old_field->ptr != NULL &&
-      orig_field != NULL)
+      orig_field != NULL &&
+      !default_value)
   {
     bool default_now= false;
     if (real_type_with_now_as_default(sql_type))
@@ -10538,7 +10570,11 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
         char *pos= (char*) thd->strmake(res->ptr(), res->length());
-        def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
+        default_value= new (thd->mem_root) Virtual_column_info();
+        default_value->expr_str.str= pos;
+        default_value->expr_str.length= res->length();
+        default_value->expr_item=
+          new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
     }
   }
@@ -10590,6 +10626,20 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
   return res;
 }
 
+/**
+   Return true if default is an expression that must be saved explicitely
+
+   This is:
+     - Not basic constants
+     - If field is a BLOB (Which doesn't support normal DEFAULT)
+*/
+
+bool Column_definition::has_default_expression()
+{
+  return (unlikely(default_value) &&
+          (!default_value->expr_item->basic_const_item() ||
+           (flags & BLOB_FLAG)));
+}
 
 /**
   maximum possible display length for blob.

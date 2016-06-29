@@ -1838,7 +1838,7 @@ Drop view if exists test.v1 ;
 CREATE VIEW test.v1 AS SELECT f59,f60
 FROM test.tb2 where f59 = 195 WITH CHECK OPTION ;
 
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 UPDATE test.v1 SET f59 = 198 where f59=195 ;
 SELECT * FROM test.v1 order by f59 ;
 
@@ -1863,7 +1863,7 @@ FROM test.tb2 where F59 = 0987 WITH LOCAL CHECK OPTION ;
 CREATE VIEW test.v2 as SELECT * FROM test.v1 ;
 
 # This UPDATE violates the definition of VIEW test.v1.
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 UPDATE test.v1 SET F59 = 919 where f59 = 0987 ;
 SELECT * FROM test.v1 order by f59 ;
 
@@ -1909,9 +1909,9 @@ INSERT INTO v1 VALUES('B',2);
 SELECT * FROM v1 order by f1, f2;
 # negative cases
 --enable_info
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 UPDATE v1 SET f2 = 4;
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 INSERT INTO v1 VALUES('B',3);
 --disable_info
 # Bug#11771: View over InnoDB table, wrong result SELECT on VIEW,
@@ -2292,7 +2292,7 @@ WHERE v3_to_v1_options LIKE 'WITH %' AND v3_to_v1_options NOT LIKE 'WITH LOCAL %
   AND v3_to_v1_violation NOT LIKE '  _  _  ' AND errno = 0
 ORDER BY v3_to_v1_options;
 # 5. There must be NO failing INSERT/UPDATE getting a
-#    sql_errno <> 1369 (ER_VIEW_CHECK_FAILED).
+#    sql_errno <> 1369 (ER_CONSTRAINT_FAILED).
 SELECT * FROM t1_results
 WHERE errno <> 0 AND errno <> 1369
 ORDER BY v3_to_v1_options;

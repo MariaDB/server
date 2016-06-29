@@ -4,51 +4,43 @@ SET TIME_ZONE = "+00:00";
 --echo # Test of errors for column data types that dont support function
 --echo # defaults.
 --echo #
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a BIT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a TINYINT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a SMALLINT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a MEDIUMINT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a INT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a BIGINT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a FLOAT DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a DECIMAL DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a DATE DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a TIME DEFAULT $current_timestamp );
---error ER_INVALID_DEFAULT
-eval CREATE TABLE t1( a YEAR DEFAULT $current_timestamp );
+
+eval CREATE OR REPLACE TABLE t1( a BIT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a TINYINT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a SMALLINT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a MEDIUMINT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a INT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a BIGINT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a FLOAT DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a DECIMAL DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a DATE DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a TIME DEFAULT $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a YEAR DEFAULT $current_timestamp );
 
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a BIT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a BIT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a TINYINT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a TINYINT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a SMALLINT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a SMALLINT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a MEDIUMINT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a MEDIUMINT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a INT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a INT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a BIGINT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a BIGINT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a FLOAT ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a FLOAT ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a DECIMAL ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a DECIMAL ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a DATE ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a DATE ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a TIME ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a TIME ON UPDATE $current_timestamp );
 --error ER_INVALID_ON_UPDATE
-eval CREATE TABLE t1( a YEAR ON UPDATE $current_timestamp );
+eval CREATE OR REPLACE TABLE t1( a YEAR ON UPDATE $current_timestamp );
+
+drop table if exists t1;
 
 --echo #
 --echo # Test that the default clause behaves like NOW() regarding time zones.
@@ -1066,7 +1058,7 @@ SELECT * FROM v1;
 --echo # 1970-01-01 03:33:20
 SET TIMESTAMP = 2000.000234;
 
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 UPDATE v1 SET a = 2;
 SELECT * FROM t1;
 
@@ -1091,7 +1083,7 @@ SELECT * FROM v1;
 
 SET TIMESTAMP = 1.126789;
 
---error ER_VIEW_CHECK_FAILED
+--error ER_CONSTRAINT_FAILED
 INSERT INTO v1 ( c ) VALUES ( 1 ) ON DUPLICATE KEY UPDATE c = 2;
 
 SELECT * FROM v1;

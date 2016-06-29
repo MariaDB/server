@@ -34,6 +34,7 @@ PARTITION BY RANGE( b ) (
 insert into t1 values ('2006-01-01',default);
 insert into t1 values ('2007-01-01',default);
 insert into t1 values ('2005-01-01',default);
+insert into t1 (a) values ('2007-01-02');
 select * from t1;
 
 select partition_name,table_rows,data_length from information_schema.partitions where table_name = 't1';

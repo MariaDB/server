@@ -353,8 +353,6 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  if (table->default_field)
-    table->mark_default_fields_for_write();
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
@@ -394,14 +392,6 @@ int mysql_update(THD *thd,
     }
   }
 
-  /*
-    If a timestamp field settable on UPDATE is present then to avoid wrong
-    update force the table handler to retrieve write-only fields to be able
-    to compare records and detect data change.
-  */
-  if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-      table->default_field && table->has_default_function(true))
-    bitmap_union(table->read_set, table->write_set);
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
 
@@ -763,7 +753,7 @@ int mysql_update(THD *thd,
 
       if (!can_compare_record || compare_record(table))
       {
-        if (table->default_field && table->update_default_fields())
+        if (table->default_field && table->update_default_fields(1, ignore))
         {
           error= 1;
           break;
@@ -1716,17 +1706,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
-      /*
-        If a timestamp field settable on UPDATE is present then to avoid wrong
-        update force the table handler to retrieve write-only fields to be able
-        to compare records and detect data change.
-        */
-      if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-          table->default_field && table->has_default_function(true))
-        bitmap_union(table->read_set, table->write_set);
     }
   }
-  
   if (error)
     DBUG_RETURN(1);    
 
@@ -2117,11 +2098,11 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
-      if (fill_record_n_invoke_before_triggers(thd, table, *fields_for_table[offset],
+      if (fill_record_n_invoke_before_triggers(thd, table,
+                                               *fields_for_table[offset],
                                                *values_for_table[offset], 0,
                                                TRG_EVENT_UPDATE))
 	DBUG_RETURN(1);
-
       /*
         Reset the table->auto_increment_field_not_null as it is valid for
         only one row.
@@ -2132,7 +2113,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field && table->update_default_fields())
+        if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
@@ -2422,7 +2403,8 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
-        if (table->default_field && (error= table->update_default_fields()))
+        if (table->default_field &&
+            (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
             update_virtual_fields(thd, table,

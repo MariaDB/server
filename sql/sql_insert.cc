@@ -282,12 +282,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), thd->dup_field->field_name);
       DBUG_RETURN(-1);
     }
-    if (table->default_field)
-      table->mark_default_fields_for_write();
   }
-  /* Mark virtual columns used in the insert statement */
-  if (table->vfield)
-    table->mark_virtual_columns_for_write(TRUE);
   // For the values we need select_priv
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
@@ -359,7 +354,7 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
     return -1;
 
   if (table->default_field)
-    table->mark_default_fields_for_write();
+    table->mark_default_fields_for_write(FALSE);
 
   if (table->found_next_number_field)
   {
@@ -801,6 +796,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   info.update_fields= &update_fields;
   info.update_values= &update_values;
   info.view= (table_list->view ? table_list : 0);
+  info.table_list= table_list;
 
   /*
     Count warnings for all inserts.
@@ -901,6 +897,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         INSERT INTO t1 VALUES ()
       */
       restore_record(table,s->default_values);	// Get empty record
+      table->reset_default_fields();
       if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
                                                TRG_EVENT_INSERT))
       {
@@ -960,11 +957,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 	error=1;
 	break;
       }
-    }
-    if (table->default_field && table->update_default_fields())
-    {
-      error= 1;
-      break;
     }
 
     if ((res= table_list->view_check_option(thd,
@@ -1504,18 +1496,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
   if (!table)
     table= table_list->table;
-
-  if (!fields.elements && table->vfield)
-  {
-    for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
-    {
-      if ((*vfield_ptr)->vcol_info->stored_in_db)
-      {
-        thd->lex->unit.insert_table_with_stored_vcol= table;
-        break;
-      }
-    }
-  }
+  if (table->s->virtual_stored_fields)
+    thd->lex->unit.insert_table_with_stored_vcol= table;
 
   if (!select_insert)
   {
@@ -1702,16 +1684,17 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	DBUG_ASSERT(table->insert_values != NULL);
         store_record(table,insert_values);
         restore_record(table,record[1]);
+        table->reset_default_fields();
 
         /*
           in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
           change per row. Thus, we have to do reset_default_fields() per row.
           Twice (before insert and before update).
         */
-        table->reset_default_fields();
         DBUG_ASSERT(info->update_fields->elements ==
                     info->update_values->elements);
-        if (fill_record_n_invoke_before_triggers(thd, table, *info->update_fields,
+        if (fill_record_n_invoke_before_triggers(thd, table,
+                                                 *info->update_fields,
                                                  *info->update_values,
                                                  info->ignore,
                                                  TRG_EVENT_UPDATE))
@@ -1728,20 +1711,13 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         */
         if (different_records && table->default_field)
         {
-          bool res;
-          enum_sql_command cmd= thd->lex->sql_command;
-          thd->lex->sql_command= SQLCOM_UPDATE;
-          res= table->update_default_fields();
-          thd->lex->sql_command= cmd;
-          if (res)
+          if (table->update_default_fields(1, info->ignore))
             goto err;
         }
-        table->reset_default_fields();
 
         /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
-        if (info->view &&
-            (res= info->view->view_check_option(current_thd, info->ignore)) ==
-            VIEW_CHECK_SKIP)
+        res= info->table_list->view_check_option(table->in_use, info->ignore);
+        if (res == VIEW_CHECK_SKIP)
           goto ok_or_after_trg_err;
         if (res == VIEW_CHECK_ERROR)
           goto before_trg_err;
@@ -2361,11 +2337,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 {
   my_ptrdiff_t adjust_ptrs;
   Field **field,**org_field, *found_next_number_field;
-  Field **UNINIT_VAR(vfield), **UNINIT_VAR(dfield_ptr);
+  Field **vfield= 0, **dfield_ptr= 0;
   TABLE *copy;
   TABLE_SHARE *share;
   uchar *bitmap;
   char *copy_tmp;
+  uint bitmaps_used;
   DBUG_ENTER("Delayed_insert::get_local_table");
 
   /* First request insert thread to get a lock */
@@ -2419,13 +2396,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy_tmp= (char*) client_thd->alloc(sizeof(*copy)+
                                       (share->fields+1)*sizeof(Field**)+
                                       share->reclength +
-                                      share->column_bitmap_size*3);
+                                      share->column_bitmap_size*4);
   if (!copy_tmp)
     goto error;
 
-  if (share->vfields)
+  if (share->virtual_fields)
   {
-    vfield= (Field **) client_thd->alloc((share->vfields+1)*sizeof(Field*));
+    vfield= (Field **) client_thd->alloc((share->virtual_fields+1)*
+                                         sizeof(Field*));
     if (!vfield)
       goto error;
   }
@@ -2437,12 +2415,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   /* Assign the pointers for the field pointers array and the record. */
   field= copy->field= (Field**) (copy + 1);
   bitmap= (uchar*) (field + share->fields + 1);
-  copy->record[0]= (bitmap + share->column_bitmap_size*3);
+  copy->record[0]= (bitmap + share->column_bitmap_size*4);
   memcpy((char*) copy->record[0], (char*) table->record[0], share->reclength);
-  if (share->default_fields)
+  if (share->default_fields || share->default_expressions)
   {
-    copy->default_field= (Field**) client_thd->alloc((share->default_fields+1)*
-                                                     sizeof(Field**));
+    copy->default_field= (Field**)
+      client_thd->alloc((share->default_fields +
+                         share->default_expressions + 1)*
+                        sizeof(Field*));
     if (!copy->default_field)
       goto error;
     dfield_ptr= copy->default_field;
@@ -2465,48 +2445,61 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy,
                                                1)))
       goto error;
+    (*field)->unireg_check= (*org_field)->unireg_check;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
-    if (share->default_fields &&
-        ((*org_field)->has_insert_default_function() ||
-         (*org_field)->has_update_default_function()))
-    {
-      /* Put the newly copied field into the set of default fields. */
-      *dfield_ptr= *field;
-      (*dfield_ptr)->unireg_check= (*org_field)->unireg_check;
-      dfield_ptr++;
-    }
   }
   *field=0;
 
-  if (share->vfields)
+  if (share->virtual_fields || share->default_expressions ||
+      share->default_fields)
   {
+    bool error_reported= FALSE;
     if (!(copy->def_vcol_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
                                                       sizeof(MY_BITMAP))))
       goto error;
     copy->vfield= vfield;
     for (field= copy->field; *field; field++)
     {
+      Virtual_column_info *vcol;
       if ((*field)->vcol_info)
       {
-        bool error_reported= FALSE;
-        if (unpack_vcol_info_from_frm(client_thd,
-                                      client_thd->mem_root,
-                                      copy,
-                                      *field,
-                                      &(*field)->vcol_info->expr_str,
-                                      &error_reported))
+        if (!(vcol= unpack_vcol_info_from_frm(client_thd,
+                                              client_thd->mem_root,
+                                              copy,
+                                              0,
+                                              (*field)->vcol_info,
+                                              &error_reported)))
           goto error;
+        (*field)->vcol_info= vcol;
         *vfield++= *field;
       }
+      if ((*field)->default_value)
+      {
+        if (!(vcol= unpack_vcol_info_from_frm(client_thd,
+                                              client_thd->mem_root,
+                                              copy,
+                                              0,
+                                              (*field)->default_value,
+                                              &error_reported)))
+          goto error;
+        (*field)->default_value= vcol;
+        *dfield_ptr++= *field;
+      }
+      if ((*field)->has_insert_default_function() ||
+          (*field)->has_update_default_function())
+        *dfield_ptr++= *field;
     }
-    *vfield= 0; 
+    if (vfield)
+      *vfield= 0;
+    if (dfield_ptr)
+      *dfield_ptr= 0;
   }
 
-  if (share->default_fields)
-    *dfield_ptr= NULL;
+  switch_to_nullable_trigger_fields(copy->vfield, copy);
+  switch_to_nullable_trigger_fields(copy->default_field, copy);
 
   /* Adjust in_use for pointing to client thread */
   copy->in_use= client_thd;
@@ -2518,15 +2511,28 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy->def_read_set.bitmap= (my_bitmap_map*) bitmap;
   copy->def_write_set.bitmap= ((my_bitmap_map*)
                                (bitmap + share->column_bitmap_size));
-  if (share->vfields)
+  bitmaps_used= 2;
+  if (share->virtual_fields)
   {
     my_bitmap_init(copy->def_vcol_set,
-                   (my_bitmap_map*) (bitmap + 2*share->column_bitmap_size),
+                   (my_bitmap_map*) (bitmap +
+                                     bitmaps_used*share->column_bitmap_size),
                    share->fields, FALSE);
+    bitmaps_used++;
     copy->vcol_set= copy->def_vcol_set;
   }
+  if (share->default_fields)
+  {
+    if (!(copy->has_value_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
+                                                       sizeof(MY_BITMAP))))
+      goto error;
+    my_bitmap_init(copy->has_value_set,
+                   (my_bitmap_map*) (bitmap +
+                                     bitmaps_used*share->column_bitmap_size),
+                   share->fields, FALSE);
+  }
   copy->tmp_set.bitmap= 0;                      // To catch errors
-  bzero((char*) bitmap, share->column_bitmap_size * (share->vfields ? 3 : 2));
+  bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;
   copy->write_set= &copy->def_write_set;
 
@@ -2793,11 +2799,11 @@ bool Delayed_insert::open_and_lock_table()
     return TRUE;
   }
 
-  if (table->triggers)
+  if (table->triggers || table->check_constraints)
   {
     /*
-      Table has triggers. This is not an error, but we do
-      not support triggers with delayed insert. Terminate the delayed
+      Table has triggers or check constraints. This is not an error, but we do
+      not support these with delayed insert. Terminate the delayed
       thread without an error and thus request lock upgrade.
     */
     return TRUE;
@@ -3425,8 +3431,8 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   info.ignore= ignore_check_option_errors;
   info.update_fields= update_fields;
   info.update_values= update_values;
-  if (table_list_par)
-    info.view= (table_list_par->view ? table_list_par : 0);
+  info.view= (table_list_par->view ? table_list_par : 0);
+  info.table_list= table_list_par;
 }
 
 
@@ -3657,7 +3663,7 @@ int select_insert::send_data(List<Item> &values)
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
   store_values(values);
-  if (table->default_field && table->update_default_fields())
+  if (table->default_field && table->update_default_fields(0, info.ignore))
     DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
   if (thd->is_error())

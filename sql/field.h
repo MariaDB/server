@@ -394,7 +394,8 @@ enum Derivation
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 /* The length of the header part for each virtual column in the .frm file */
-#define FRM_VCOL_HEADER_SIZE(b) (3 + MY_TEST(b))
+#define FRM_VCOL_OLD_HEADER_SIZE(b) (3 + MY_TEST(b))
+#define FRM_VCOL_NEW_HEADER_SIZE 7
 
 class Count_distinct_field;
 
@@ -569,18 +570,20 @@ private:
 public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
+  bool non_deterministic;
   /* The expression to compute the value of the virtual column */
   Item *expr_item;
   /* Text representation of the defining expression */
   LEX_STRING expr_str;
+  LEX_STRING name;                              /* Name of constraint */
 
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
-    in_partitioning_expr(FALSE), stored_in_db(FALSE),
+    in_partitioning_expr(FALSE), stored_in_db(FALSE), non_deterministic(FALSE),
     expr_item(NULL)
   {
-    expr_str.str= NULL;
-    expr_str.length= 0;
+    expr_str.str= name.str= NULL;
+    name.length= 0;
   };
   ~Virtual_column_info() {}
   enum_field_types get_real_type()
@@ -735,11 +738,12 @@ public:
   Column_statistics_collected *collected_stats;
 
   /* 
-    This is additional data provided for any computed(virtual) field.
-    In particular it includes a pointer to the item by  which this field
+    This is additional data provided for any computed(virtual) field,
+    default function or check constraint.
+    In particular it includes a pointer to the item by which this field
     can be computed from other fields.
   */
-  Virtual_column_info *vcol_info;
+  Virtual_column_info *vcol_info, *check_constraint, *default_value;
 
   Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
         uchar null_bit_arg, utype unireg_check_arg,
@@ -879,8 +883,15 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
+  void set_default_expression();
   virtual void set_default()
   {
+    if (default_value)
+    {
+      set_default_expression();
+      return;
+    }
+    /* Copy constant value stored in s->default_values */
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
 					  table->record[0]);
     memcpy(ptr, ptr + l_offset, pack_length());
@@ -891,14 +902,14 @@ public:
 
   bool has_insert_default_function() const
   {
-    return unireg_check == TIMESTAMP_DN_FIELD ||
-      unireg_check == TIMESTAMP_DNUN_FIELD;
+    return (unireg_check == TIMESTAMP_DN_FIELD ||
+            unireg_check == TIMESTAMP_DNUN_FIELD);
   }
 
   bool has_update_default_function() const
   {
-    return unireg_check == TIMESTAMP_UN_FIELD ||
-      unireg_check == TIMESTAMP_DNUN_FIELD;
+    return (unireg_check == TIMESTAMP_UN_FIELD ||
+            unireg_check == TIMESTAMP_DNUN_FIELD);
   }
 
   /*
@@ -907,9 +918,15 @@ public:
   */
   void set_has_explicit_value()
   {
-    flags|= HAS_EXPLICIT_VALUE;
+    if (table->has_value_set)             /* If we have default functions */
+      bitmap_set_bit(table->has_value_set, field_index);
   }
-
+  bool has_explicit_value()
+  {
+    /* This function is only called when we have default functions */
+    DBUG_ASSERT(table->has_value_set);
+    return bitmap_is_set(table->has_value_set, field_index);
+  }
   virtual void set_explicit_default(Item *value);
 
   /**
@@ -3690,7 +3707,7 @@ class Column_definition: public Sql_alloc
 public:
   const char *field_name;
   LEX_STRING comment;			// Comment for field
-  Item *def, *on_update;                // Default value
+  Item *on_update;		        // ON UPDATE NOW()
   enum	enum_field_types sql_type;
   /*
     At various stages in execution this can be length of field in bytes or
@@ -3713,20 +3730,23 @@ public:
 
   uint pack_flag;
 
-  /* 
+  /*
     This is additinal data provided for any computed(virtual) field.
     In particular it includes a pointer to the item by  which this field
     can be computed from other fields.
   */
-  Virtual_column_info *vcol_info;
+  Virtual_column_info
+    *vcol_info,                      // Virtual field
+    *default_value,                  // Default value
+    *check_constraint;               // Check constraint
 
   Column_definition():
     comment(null_lex_str),
-    def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
-    flags(0), pack_length(0), key_length(0), interval(0),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
+    on_update(0), sql_type(MYSQL_TYPE_NULL),
+    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
+    interval(0), srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
-    vcol_info(0)
+    vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
   }
@@ -3748,11 +3768,6 @@ public:
   {
     return (column_format_type)
       ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
-  }
-
-  uint virtual_col_expr_maxlen()
-  {
-    return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
 
   bool has_default_function() const
@@ -3779,6 +3794,8 @@ public:
     return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
                       field_name_arg);
   }
+  /* Return true if default is an expression that must be saved explicitely */
+  bool has_default_expression();
 };
 
 
@@ -3875,6 +3892,8 @@ uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
+bool check_expression(Virtual_column_info *vcol, const char *type,
+                      const char *name, bool must_be_deterministic);
 
 /*
   The following are for the interface with the .frm file

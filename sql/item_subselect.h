@@ -220,9 +220,9 @@ public:
   bool eliminate_subselect_processor(uchar *arg);
   bool set_fake_select_as_master_processor(uchar *arg);
   bool enumerate_field_refs_processor(uchar *arg);
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(uchar *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("subselect");
+    return mark_unsupported_function("subselect", arg, VCOL_IMPOSSIBLE);
   }
   /**
     Callback to test if an IN predicate is expensive.

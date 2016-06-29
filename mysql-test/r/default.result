@@ -236,3 +236,903 @@ DROP TABLE IF EXISTS t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+
+Check that CURRENT_TIMESTAMP works as before
+
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(2) ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE or replace TABLE t1 (event_time TIMESTAMP(6) NOT NULL DEFAULT SYSDATE(2) ON UPDATE CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `event_time` timestamp(6) NOT NULL DEFAULT SYSDATE(2) ON UPDATE CURRENT_TIMESTAMP(6)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+
+Check default expressions
+
+create or replace table t1 (a int default 1, b int default a+1, c int default a+b) engine myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '1',
+  `b` int(11) DEFAULT a+1,
+  `c` int(11) DEFAULT a+b
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values ();
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,20);
+insert into t1 (a,b,c) values (100,200,300);
+select * from t1;
+a	b	c
+1	2	3
+2	3	5
+10	20	30
+100	200	300
+truncate table t1;
+insert delayed into t1 values ();
+insert delayed into t1 (a) values (2);
+insert delayed into t1 (a,b) values (10,20);
+insert delayed into t1 (a,b,c) values (100,200,300);
+flush tables t1;
+select * from t1;
+a	b	c
+1	2	3
+2	3	5
+10	20	30
+100	200	300
+create or replace table t1 (a int, b blob default (1), c blob default ("hello"), t text default (concat(a,b,c))) engine=myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` blob DEFAULT (1),
+  `c` blob DEFAULT ("hello"),
+  `t` text DEFAULT (concat(a,b,c))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,"test1");
+insert into t1 (a,b,c) values (10,"test2","test3");
+insert delayed into t1 (a,b) values (10,"test4");
+flush tables t1;
+select * from t1;
+a	b	c	t
+2	1	hello	21hello
+10	test1	hello	10test1hello
+10	test2	test3	10test2test3
+10	test4	hello	10test4hello
+drop table t1;
+create or replace table t1 (a bigint default uuid_short());
+insert into t1 values();
+select a > 0 from t1;
+a > 0
+1
+drop table t1;
+create or replace table t1 (param_list int DEFAULT (1+1) NOT NULL);
+create or replace table t1 (param_list int DEFAULT 1+1 NOT NULL);
+create or replace table t1 (param_list blob DEFAULT "" NOT NULL);
+drop table t1;
+create table t1 (a int);
+insert into t1 values(-1);
+alter table t1 add b int default 1, add c int default -1, add d int default 1+1, add e timestamp;
+select a,b,c,d,e > 0 from t1;
+a	b	c	d	e > 0
+-1	1	-1	2	1
+insert into t1 values(10,10,10,10,0);
+alter table t1 add f int default 1+1+1 null, add g int default 1+1+1+1 not null,add h int default (2+2+2+2);
+select a,b,c,d,e > 0,f,g,h from t1;
+a	b	c	d	e > 0	f	g	h
+-1	1	-1	2	1	3	4	8
+10	10	10	10	0	3	4	8
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT '1',
+  `c` int(11) DEFAULT '-1',
+  `d` int(11) DEFAULT 1+1,
+  `e` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `f` int(11) DEFAULT 1+1+1,
+  `g` int(11) NOT NULL DEFAULT 1+1+1+1,
+  `h` int(11) DEFAULT (2+2+2+2)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT '1',
+  `c` int(11) DEFAULT '-1',
+  `d` int(11) DEFAULT 1+1,
+  `e` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `f` int(11) DEFAULT 1+1+1,
+  `g` int(11) NOT NULL DEFAULT 1+1+1+1,
+  `h` int(11) DEFAULT (2+2+2+2)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t2 (a) values (100);
+select a,b,c,d,e > 0,f,g,h from t2;
+a	b	c	d	e > 0	f	g	h
+100	1	-1	2	1	3	4	8
+drop table t1,t2;
+create table t1 (a int default 1----1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT 1----1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values();
+insert into t1 values();
+select * from t1;
+a
+2
+2
+drop table t1;
+
+create or replace can delete a table on error
+
+create table t1 (a int);
+create or replace table t1 (a int default b, b int default a);
+ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+show create table t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+
+Refering to other columns
+
+create or replace table t1 (a int default 1, b int default a);
+create or replace table t1 (a int default 1, b int as (a));
+create or replace table t1 (a int default b, b int default 1);
+create or replace table t1 (a int as (b), b int default 1);
+create or replace table t1 (a int as (b), b int default 1+1);
+create or replace table t1 (a int default 1, b int as (c), c int default (a+1));
+create or replace table t1 (a int default 1+1, b int as (c), c int default (a+1));
+create or replace table t1 (a VARCHAR(128) DEFAULT @@version);
+create or replace table t1 (a int not null, b int as (a));
+create or replace table t1 (a int not null, b int default a+1);
+create or replace table t1 (a int default a);
+ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+create or replace table t1 (a int default b, b int default 1+1);
+ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
+ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
+CREATE TABLE t1 (a INT DEFAULT a);
+ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
+ERROR HY000: Field 'a' doesn't have a default value
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
+ERROR HY000: Field 'b' doesn't have a default value
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
+ERROR HY000: Field 'b' doesn't have a default value
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+
+Allow defaults to refer to not default fields
+
+create or replace table t1 (a int as (b), b int not null);
+insert into t1 values();
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+insert into t1 (a) values(1);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+Warning	1906	The value specified for computed column 'a' in table 't1' ignored
+insert into t1 (b) values(2);
+insert into t1 (a,b) values(3,4);
+Warnings:
+Warning	1906	The value specified for computed column 'a' in table 't1' ignored
+select * from t1;
+a	b
+0	0
+0	0
+2	2
+4	4
+drop table t1;
+
+Error handling
+
+create or replace table t1 (a bigint default xxx());
+ERROR HY000: Function or expression '`xxx`' is not allowed for 'DEFAULT' of column/constraint 'a'
+create or replace table t1 (a bigint default (select (1)));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+create or replace table t1 (a bigint default (1,2,3)));
+ERROR 21000: Operand should contain 1 column(s)
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+#
+# Invalid DEFAULT expressions
+#
+CREATE TABLE t1 (a INT DEFAULT (SELECT 1));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT (EXISTS (SELECT 1)));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT (1=ANY (SELECT 1)));
+ERROR HY000: Function or expression 'subselect' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT ROW(1,1));
+ERROR 21000: Operand should contain 1 column(s)
+CREATE TABLE t1 (a INT DEFAULT (1,1));
+ERROR 21000: Operand should contain 1 column(s)
+CREATE TABLE t1 (a INT DEFAULT ((1,1)));
+ERROR 21000: Operand should contain 1 column(s)
+CREATE TABLE t1 (a INT DEFAULT ?);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '?)' at line 1
+CREATE TABLE t1 (a INT DEFAULT(?));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '?))' at line 1
+CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
+ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+CREATE TABLE t1 (a INT DEFAULT @v);
+ERROR HY000: Function or expression 'user_var' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT @v:=1);
+ERROR HY000: Function or expression 'user_var' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
+ERROR HY000: Function or expression 'name_const' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT COUNT(*));
+ERROR HY000: Function or expression 'count(' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT COUNT(1));
+ERROR HY000: Function or expression 'count(' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT AVG(1));
+ERROR HY000: Function or expression 'avg(' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT MIN(1));
+ERROR HY000: Function or expression 'min(' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT GROUP_CONCAT(1));
+ERROR HY000: Function or expression 'group_concat' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT ROW_NUMBER() OVER ());
+ERROR HY000: Function or expression 'row_number' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE TABLE t1 (a INT DEFAULT f1());
+ERROR HY000: Function or expression '`f1`' is not allowed for 'DEFAULT' of column/constraint 'a'
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(par INT) CREATE TABLE t1 (a INT DEFAULT par);
+ERROR HY000: Function or expression '???' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT DEFAULT par);
+ERROR 42S22: Unknown column 'par' in 'virtual column function'
+CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
+CALL p1;
+ERROR 42S22: Unknown column 'par' in 'virtual column function'
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT DEFAULT VALUES(a));
+ERROR HY000: Function or expression 'values' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TABLE t2 (a INT DEFAULT NEW.a);
+ERROR HY000: Function or expression 'trigger' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TEMPORARY TABLE t2 (a INT DEFAULT NEW.a);
+ERROR HY000: Function or expression 'trigger' is not allowed for 'DEFAULT' of column/constraint 'a'
+DROP TABLE t1;
+#
+# Prepared statements
+#
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?))';
+set @a=1;
+execute stmt using @a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+set @a=-1;
+execute stmt using @a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '-1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?), b INT DEFAULT(?))';
+set @a=1, @b=2;
+execute stmt using @a,@b;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '1',
+  `b` int(11) DEFAULT '2'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?+?))';
+set @a=1;
+execute stmt using @a,@a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '?+?))' at line 1
+DEALLOCATE PREPARE stmt;
+#
+# Parenthesized Item_basic_constant
+#
+CREATE TABLE t1 (
+i01 INT DEFAULT (((1))),
+i02 INT DEFAULT (((0x3939))),
+i03 INT DEFAULT (((1.0))),
+i04 INT DEFAULT (((1e0))),
+i05 INT DEFAULT (((NULL))),
+f01 DOUBLE DEFAULT (((PI()))),
+s01 VARCHAR(10) DEFAULT (((_latin1'test'))),
+s02 VARCHAR(10) DEFAULT ((('test'))),
+s03 VARCHAR(10) DEFAULT (((0x40))),
+s04 VARCHAR(10) DEFAULT (((X'40'))),
+s05 VARCHAR(10) DEFAULT (((B'1000000'))),
+d01 TIME DEFAULT (((TIME'10:20:30'))),
+d02 DATE DEFAULT (((DATE'2001-01-01'))),
+d03 DATETIME DEFAULT (((TIMESTAMP'2001-01-01 10:20:30')))
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i01` int(11) DEFAULT '1',
+  `i02` int(11) DEFAULT '14649',
+  `i03` int(11) DEFAULT '1',
+  `i04` int(11) DEFAULT '1',
+  `i05` int(11) DEFAULT NULL,
+  `f01` double DEFAULT '3.141592653589793',
+  `s01` varchar(10) DEFAULT 'test',
+  `s02` varchar(10) DEFAULT 'test',
+  `s03` varchar(10) DEFAULT '@',
+  `s04` varchar(10) DEFAULT '@',
+  `s05` varchar(10) DEFAULT '@',
+  `d01` time DEFAULT '10:20:30',
+  `d02` date DEFAULT '2001-01-01',
+  `d03` datetime DEFAULT '2001-01-01 10:20:30'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+i01	1
+i02	14649
+i03	1
+i04	1
+i05	NULL
+f01	3.141592653589793
+s01	test
+s02	test
+s03	@
+s04	@
+s05	@
+d01	10:20:30
+d02	2001-01-01
+d03	2001-01-01 10:20:30
+DROP TABLE t1;
+#
+# COALESCE(Item_basic_constant)
+#
+CREATE TABLE t1 (
+i01 INT DEFAULT COALESCE(1),
+i02 INT DEFAULT COALESCE(0x3939),
+i03 INT DEFAULT COALESCE(1.0),
+i04 INT DEFAULT COALESCE(1e0),
+i05 INT DEFAULT COALESCE(NULL),
+f01 DOUBLE DEFAULT COALESCE(PI()),
+s01 VARCHAR(10) DEFAULT COALESCE(_latin1'test'),
+s02 VARCHAR(10) DEFAULT COALESCE('test'),
+s03 VARCHAR(10) DEFAULT COALESCE(0x40),
+s04 VARCHAR(10) DEFAULT COALESCE(X'40'),
+s05 VARCHAR(10) DEFAULT COALESCE(B'1000000'),
+d01 TIME DEFAULT COALESCE(TIME'10:20:30'),
+d02 DATE DEFAULT COALESCE(DATE'2001-01-01'),
+d03 DATETIME DEFAULT COALESCE(TIMESTAMP'2001-01-01 10:20:30')
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i01` int(11) DEFAULT COALESCE(1),
+  `i02` int(11) DEFAULT COALESCE(0x3939),
+  `i03` int(11) DEFAULT COALESCE(1.0),
+  `i04` int(11) DEFAULT COALESCE(1e0),
+  `i05` int(11) DEFAULT COALESCE(NULL),
+  `f01` double DEFAULT COALESCE(PI()),
+  `s01` varchar(10) DEFAULT COALESCE(_latin1'test'),
+  `s02` varchar(10) DEFAULT COALESCE('test'),
+  `s03` varchar(10) DEFAULT COALESCE(0x40),
+  `s04` varchar(10) DEFAULT COALESCE(X'40'),
+  `s05` varchar(10) DEFAULT COALESCE(B'1000000'),
+  `d01` time DEFAULT COALESCE(TIME'10:20:30'),
+  `d02` date DEFAULT COALESCE(DATE'2001-01-01'),
+  `d03` datetime DEFAULT COALESCE(TIMESTAMP'2001-01-01 10:20:30')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+i01	1
+i02	99
+i03	1
+i04	1
+i05	NULL
+f01	3.141592653589793
+s01	test
+s02	test
+s03	@
+s04	@
+s05	@
+d01	10:20:30
+d02	2001-01-01
+d03	2001-01-01 10:20:30
+DROP TABLE t1;
+#
+# TINYINT: out of range
+#
+CREATE TABLE t1 (a TINYINT DEFAULT 300 NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a TINYINT DEFAULT 128 NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a TINYINT DEFAULT -500 NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+#
+# INT: simple numeric expressions
+#
+CREATE TABLE t1 (a INT DEFAULT 1 NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT COALESCE(1) NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT COALESCE(1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+#
+# INT: simple string expressions 
+#
+CREATE TABLE t1 (a INT DEFAULT '1' NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1') NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT CONCAT('1')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1') NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT COALESCE('1')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+#
+# INT: string expressions with garbage
+#
+CREATE TABLE t1 (a INT DEFAULT 'x');
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a INT DEFAULT CONCAT('x'));
+insert into t1 values();
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT COALESCE('x'));
+insert into t1 values();
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column 'a' at row 1
+DROP TABLE t1;
+#
+# INT: string expressions with numbers + garbage
+#
+CREATE TABLE t1 (a INT DEFAULT '1x');
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1x'));
+insert into t1 values();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1x'));
+insert into t1 values();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+#
+# INT: string expressions with numbers + trailing space
+#
+CREATE TABLE t1 (a INT DEFAULT '1 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT CONCAT('1 '));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT CONCAT('1 ')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT COALESCE('1 '));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT COALESCE('1 ')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+#
+# INT: a HEX value
+#
+CREATE TABLE t1 (a INT DEFAULT 0x61 NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL DEFAULT '97'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+97
+DROP TABLE t1;
+#
+# VARCHAR: good defaults
+#
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT 'xxx' NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) NOT NULL DEFAULT 'xxx'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+xxx
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 0x41 NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) NOT NULL DEFAULT 'A'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) NOT NULL DEFAULT CONCAT(0x41)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+A
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT COALESCE(0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) NOT NULL DEFAULT COALESCE(0x41)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+A
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 0x41) NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) NOT NULL DEFAULT CONCAT(_utf8 0x41)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+A
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 X'41') NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) NOT NULL DEFAULT CONCAT(_utf8 X'41')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT * FROM t1;
+a
+A
+DROP TABLE t1;
+#
+# VARCHAR: Too long default
+#
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xxx' NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xxx') NOT NULL);
+insert into t1 values();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+#
+# VARCHAR: Too long default with non-important data
+#
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT 'xx ' NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT('xx ') NOT NULL);
+insert into t1 values();
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+#
+# VARCHAR: conversion failures
+#
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT _utf8 X'D18F' NOT NULL);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 X'D18F') NOT NULL);
+insert into t1 values();
+Warnings:
+Warning	1366	Incorrect string value: '\xD1\x8F' for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET latin1 DEFAULT CONCAT(_utf8 0xD18F) NOT NULL);
+insert into t1 values();
+Warnings:
+Warning	1366	Incorrect string value: '\xD1\x8F' for column 'a' at row 1
+DROP TABLE t1;
+#
+# Field as a default value
+#
+CREATE TABLE t1 (a INT, b INT DEFAULT (a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT (a)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+INSERT INTO t1 VALUES (1, DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT, 1);
+SELECT * FROM t1;
+a	b
+1	1
+NULL	NULL
+1	1
+NULL	1
+DROP TABLE t1;
+#
+# Function DEFAULT(field)
+#
+CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT 1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT (DEFAULT(b)),
+  `b` int(11) DEFAULT '1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+SELECT * FROM t1;
+a	b
+1	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT 1, b INT DEFAULT(DEFAULT(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT '1',
+  `b` int(11) DEFAULT (DEFAULT(a))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT, DEFAULT);
+SELECT * FROM t1;
+a	b
+1	1
+DROP TABLE t1;
+#
+# SQL Standard <datetime value function> as a <default option>
+#
+CREATE TABLE t1 (a DATETIME DEFAULT CURRENT_TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME DEFAULT CURRENT_TIME);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` time DEFAULT CURRENT_TIME
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DATE DEFAULT CURRENT_DATE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT CURRENT_DATE
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# DECIMAL + CURRENT_TIMESTAMP, no truncation
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT CURRENT_TIMESTAMP(6));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(30,6) DEFAULT CURRENT_TIMESTAMP(6)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+a
+20010101102030.123456
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_TIMESTAMP(6)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(30,6) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+INSERT IGNORE INTO t1 VALUES();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SET sql_mode = 'STRICT_ALL_TABLES';
+INSERT INTO t1 VALUES();
+ERROR 01000: Data truncated for column 'a' at row 1
+SET sql_mode = DEFAULT;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# DECIMAL + CURRENT_TIME, no truncation
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_TIME(6)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(30,6) DEFAULT COALESCE(CURRENT_TIME(6))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# DECIMAL + CURRENT_DATE, no truncation
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_DATE));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(30,6) DEFAULT COALESCE(CURRENT_DATE)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES();
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# COALESCE for SQL Standard <datetime value function>
+#
+CREATE TABLE t1 (a TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT COALESCE(CURRENT_TIMESTAMP)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DATE DEFAULT COALESCE(CURRENT_DATE));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT COALESCE(CURRENT_DATE)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME DEFAULT COALESCE(CURRENT_TIME));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` time DEFAULT COALESCE(CURRENT_TIME)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (
+a TIMESTAMP DEFAULT CURRENT_TIMESTAMP(6),
+b TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `b` timestamp NOT NULL DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+SELECT CURRENT_TIMESTAMP(6);
+CURRENT_TIMESTAMP(6)
+2001-01-01 10:20:30.123456
+SELECT * FROM t1;
+a	b
+2001-01-01 10:20:30	2001-01-01 10:20:30
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (
+a DECIMAL(30,0) DEFAULT CURRENT_TIMESTAMP(6),
+b DECIMAL(30,0) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(30,0) DEFAULT CURRENT_TIMESTAMP(6),
+  `b` decimal(30,0) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'b' at row 1
+SELECT * FROM t1;
+a	b
+20010101102030	2001
+DROP TABLE t1;
+#
+# Miscelaneous SQL standard <default option> variants
+#
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
+ERROR HY000: Function or expression 'current_user()' is not allowed for 'DEFAULT' of column/constraint 'a'
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
+ERROR HY000: Function or expression 'current_role()' is not allowed for 'DEFAULT' of column/constraint 'a'
+#
+# Check DEFAULT() function
+#
+CREATE TABLE `t1` (`a` int(11) DEFAULT 3+3,`b` int(11) DEFAULT '1000');
+insert into t1 values (1,1),(2,2);
+insert into t1 values (default,default);
+select * from t1;
+a	b
+1	1
+2	2
+6	1000
+select default(a),b from t1;
+ERROR HY000: Field 'a' doesn't have a default value
+select a,default(b) from t1;
+a	default(b)
+1	1000
+2	1000
+6	1000
+drop table t1;

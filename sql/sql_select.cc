@@ -16016,7 +16016,7 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
 {
   uint bitmap_size= bitmap_buffer_size(field_count);
 
-  DBUG_ASSERT(table->s->vfields == 0 && table->def_vcol_set == 0);
+  DBUG_ASSERT(table->s->virtual_fields == 0 && table->def_vcol_set == 0);
 
   my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
               FALSE);

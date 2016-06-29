@@ -33,15 +33,12 @@ drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 --error 1074
 CREATE TABLE t2 (a char(256));
---error 1074
 CREATE TABLE t1 (a varchar(70000) default "hello");
---error 1101
+SHOW CREATE TABLE t1;
 CREATE TABLE t2 (a blob default "hello");
+SHOW CREATE TABLE t2;
 
-# Safety to be able to continue with other tests if above fails
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+drop table t1,t2;
 
 #
 # test of full join with blob
@@ -432,8 +429,9 @@ insert into t1 values (default);
 select * from t1;
 drop table t1;
 set @@sql_mode='TRADITIONAL';
---error ER_BLOB_CANT_HAVE_DEFAULT
 create table t1 (a text default '');
+show create table t1;
+drop table t1;
 set @@sql_mode='';
 
 #
@@ -523,6 +521,7 @@ CREATE TABLE b15776 (a char(4294967296));
 ## For year, widths not "2" or "4" are silently rewritten to "4".  But
 ## When we complain about it, we say that the max is 255.  We may be 
 ## talking about different things.  It's confusing.
+--replace_result 4294967295 ? 0 ? 
 CREATE TABLE b15776 (a year(4294967295));
 INSERT INTO b15776 VALUES (42);
 SELECT * FROM b15776;

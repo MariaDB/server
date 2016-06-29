@@ -226,6 +226,7 @@ typedef struct st_copy_info {
   List<Item> *update_values;
   /* for VIEW ... WITH CHECK OPTION */
   TABLE_LIST *view;
+  TABLE_LIST *table_list;                       /* Normal table */
 } COPY_INFO;
 
 
@@ -256,7 +257,7 @@ public:
 
 class Alter_drop :public Sql_alloc {
 public:
-  enum drop_type {KEY, COLUMN, FOREIGN_KEY };
+  enum drop_type {KEY, COLUMN, FOREIGN_KEY, CONSTRAINT_CHECK };
   const char *name;
   enum drop_type type;
   bool drop_if_exists;
@@ -277,9 +278,9 @@ public:
 class Alter_column :public Sql_alloc {
 public:
   const char *name;
-  Item *def;
-  Alter_column(const char *par_name,Item *literal)
-    :name(par_name), def(literal) {}
+  Virtual_column_info *default_value;
+  Alter_column(const char *par_name, Virtual_column_info *literal)
+    :name(par_name), default_value(literal) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -4628,7 +4629,8 @@ public:
                 Alter_info *alter_info_arg,
                 List<Item> &select_fields,enum_duplicates duplic, bool ignore,
                 TABLE_LIST *select_tables_arg):
-    select_insert(thd_arg, NULL, NULL, &select_fields, 0, 0, duplic, ignore),
+    select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
+                  ignore),
     create_table(table_arg),
     create_info(create_info_par),
     select_tables(select_tables_arg),

@@ -2028,21 +2028,6 @@ a	b
 2008-08-31 00:00:00	2008-09-30 00:00:00
 drop table t1;
 set sql_warnings = 0;
-# DATE_FORMAT()
-set sql_warnings = 1;
-create table t1 (a datetime, b varchar(64) as (date_format(a,'%W %M %D')));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` datetime DEFAULT NULL,
-  `b` varchar(64) AS (date_format(a,'%W %M %D')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values ('2008-08-31',default);
-select * from t1;
-a	b
-2008-08-31 00:00:00	Sunday August 31st
-drop table t1;
-set sql_warnings = 0;
 # DATE_SUB()
 set sql_warnings = 1;
 create table t1 (a datetime, b datetime as (date_sub(a,interval 1 month)));
@@ -2101,21 +2086,6 @@ insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
 2008-08-31 00:00:00	31
-drop table t1;
-set sql_warnings = 0;
-# DAYNAME()
-set sql_warnings = 1;
-create table t1 (a datetime, b varchar(10) as (dayname(a)));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` datetime DEFAULT NULL,
-  `b` varchar(10) AS (dayname(a)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values ('2008-08-31',default);
-select * from t1;
-a	b
-2008-08-31 00:00:00	Sunday
 drop table t1;
 set sql_warnings = 0;
 # DAYOFMONTH()
@@ -2207,21 +2177,6 @@ insert into t1 values (1196440219,default);
 select * from t1;
 a	b
 1196440219	2007-11-30 16:30:19
-drop table t1;
-set sql_warnings = 0;
-# GET_FORMAT()
-set sql_warnings = 1;
-create table t1 (a datetime, b varchar(32) as (date_format(a,get_format(DATE,'EUR'))));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` datetime DEFAULT NULL,
-  `b` varchar(32) AS (date_format(a,get_format(DATE,'EUR'))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values ('2008-08-31',default);
-select * from t1;
-a	b
-2008-08-31 00:00:00	31.08.2008
 drop table t1;
 set sql_warnings = 0;
 # HOUR()
@@ -2333,21 +2288,6 @@ insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
 2009-12-31 23:59:59	12
-drop table t1;
-set sql_warnings = 0;
-# MONTHNAME()
-set sql_warnings = 1;
-create table t1 (a datetime, b varchar(16) as (monthname(a)));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` datetime DEFAULT NULL,
-  `b` varchar(16) AS (monthname(a)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values ('2009-12-31 23:59:59.000010',default);
-select * from t1;
-a	b
-2009-12-31 23:59:59	December
 drop table t1;
 set sql_warnings = 0;
 # PERIOD_ADD()
@@ -2469,21 +2409,6 @@ insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
 2008-08-31 00:00:00	2008-08-30 22:00:00
-drop table t1;
-set sql_warnings = 0;
-# TIME_FORMAT()
-set sql_warnings = 1;
-create table t1 (a datetime, b varchar(32) as (time_format(a,'%r')));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` datetime DEFAULT NULL,
-  `b` varchar(32) AS (time_format(a,'%r')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values ('2008-08-31 02:03:04',default);
-select * from t1;
-a	b
-2008-08-31 02:03:04	02:03:04 AM
 drop table t1;
 set sql_warnings = 0;
 # TIME_TO_SEC()
