@@ -7,7 +7,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`time`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (time, title) VALUES ("2012-01-29 21:51:01", "clear day");

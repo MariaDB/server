@@ -2184,7 +2184,7 @@ create table t1 (a long, b datetime as (from_days(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext,
+  `a` mediumtext DEFAULT NULL,
   `b` datetime AS (from_days(a)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values (730669,default);
@@ -2200,7 +2200,7 @@ create table t1 (a long, b datetime as (from_unixtime(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext,
+  `a` mediumtext DEFAULT NULL,
   `b` datetime AS (from_unixtime(a)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values (1196440219,default);
@@ -2402,7 +2402,7 @@ create table t1 (a long, b time as (sec_to_time(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext,
+  `a` mediumtext DEFAULT NULL,
   `b` time AS (sec_to_time(a)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values (2378,default);

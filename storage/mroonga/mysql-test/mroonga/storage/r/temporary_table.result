@@ -7,7 +7,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TEMPORARY TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title) VALUES ("clear day");

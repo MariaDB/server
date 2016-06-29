@@ -8,7 +8,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` char(1) NOT NULL,
   `f2` int(11) NOT NULL,
-  `f3` blob,
+  `f3` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values ('a', 0, repeat('b',8102));

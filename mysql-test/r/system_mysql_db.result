@@ -219,7 +219,7 @@ proc	CREATE TABLE `proc` (
   `character_set_client` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `collation_connection` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `db_collation` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `body_utf8` longblob,
+  `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`,`type`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Stored Procedures'
 show create table event;
@@ -246,7 +246,7 @@ event	CREATE TABLE `event` (
   `character_set_client` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `collation_connection` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `db_collation` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `body_utf8` longblob,
+  `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Events'
 show create table general_log;

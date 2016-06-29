@@ -2276,7 +2276,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `clipid` int(11) NOT NULL,
   `mos` tinyint(4) DEFAULT '0',
-  `Tape` tinytext,
+  `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
@@ -3109,7 +3109,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET utf8
+  `c1` text CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -3715,7 +3715,7 @@ create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8
+  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(period_add(200902, 2)));

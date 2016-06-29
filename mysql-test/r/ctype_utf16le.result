@@ -1541,7 +1541,7 @@ Note	1246	Converting column 'a' from VARCHAR to TEXT
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext CHARACTER SET utf16le
+  `a` mediumtext CHARACTER SET utf16le DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #

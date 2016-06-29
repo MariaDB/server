@@ -9,7 +9,7 @@ show create table diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `content` (`content`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'

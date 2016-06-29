@@ -906,22 +906,22 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_text,  1)` longtext,
-  `NULLIF(c_text,  c_smallint)` longtext,
-  `NULLIF(c_text,  c_tinyint)` longtext,
-  `NULLIF(c_text,  c_int)` longtext,
-  `NULLIF(c_text,  c_bigint)` longtext,
-  `NULLIF(c_text,  c_float)` longtext,
-  `NULLIF(c_text,  c_double)` longtext,
-  `NULLIF(c_text,  c_decimal103)` longtext,
-  `NULLIF(c_text,  c_varchar10)` longtext,
-  `NULLIF(c_text,  c_text)` longtext,
-  `NULLIF(c_text,  c_blob)` longtext,
-  `NULLIF(c_text,  c_enum)` longtext,
-  `NULLIF(c_text,  c_datetime3)` longtext,
-  `NULLIF(c_text,  c_timestamp3)` longtext,
-  `NULLIF(c_text,  c_date)` longtext,
-  `NULLIF(c_text,  c_time)` longtext
+  `NULLIF(c_text,  1)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_smallint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_tinyint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_int)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_bigint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_float)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_double)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_decimal103)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_varchar10)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_text)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_blob)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_enum)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_datetime3)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_timestamp3)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_date)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_time)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
@@ -945,22 +945,22 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_blob,  1)` longblob,
-  `NULLIF(c_blob,  c_smallint)` longblob,
-  `NULLIF(c_blob,  c_tinyint)` longblob,
-  `NULLIF(c_blob,  c_int)` longblob,
-  `NULLIF(c_blob,  c_bigint)` longblob,
-  `NULLIF(c_blob,  c_float)` longblob,
-  `NULLIF(c_blob,  c_double)` longblob,
-  `NULLIF(c_blob,  c_decimal103)` longblob,
-  `NULLIF(c_blob,  c_varchar10)` longblob,
-  `NULLIF(c_blob,  c_text)` longblob,
-  `NULLIF(c_blob,  c_blob)` longblob,
-  `NULLIF(c_blob,  c_enum)` longblob,
-  `NULLIF(c_blob,  c_datetime3)` longblob,
-  `NULLIF(c_blob,  c_timestamp3)` longblob,
-  `NULLIF(c_blob,  c_date)` longblob,
-  `NULLIF(c_blob,  c_time)` longblob
+  `NULLIF(c_blob,  1)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_smallint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_tinyint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_int)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_bigint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_float)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_double)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_decimal103)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_varchar10)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_text)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_blob)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_enum)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_datetime3)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_timestamp3)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_date)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_time)` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT

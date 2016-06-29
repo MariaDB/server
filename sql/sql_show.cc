@@ -1625,8 +1625,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   */
   has_now_default= field->has_insert_default_function();
 
-  has_default= (field_type != FIELD_TYPE_BLOB &&
-                !(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+  has_default= (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
                 field->unireg_check != Field::NEXT_NUMBER &&
                 !((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
                   && has_now_default));

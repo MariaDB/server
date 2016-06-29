@@ -108,7 +108,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -129,7 +129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -287,7 +287,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -305,7 +305,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -453,7 +453,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -469,7 +469,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -698,7 +698,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',
@@ -715,7 +715,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL,
   `b1` bit(8) DEFAULT NULL,
-  `vc` text,
+  `vc` text DEFAULT NULL,
   `bc` char(255) DEFAULT NULL,
   `d` decimal(10,4) DEFAULT '0.0000',
   `f` float DEFAULT '0',

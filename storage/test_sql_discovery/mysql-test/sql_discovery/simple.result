@@ -124,7 +124,7 @@ Table	Create Table
 t1	CREATE TABLE t1 (
   a int(11) NOT NULL DEFAULT '5',
   b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  c tinyblob,
+  c tinyblob DEFAULT NULL,
   d decimal(5,2) DEFAULT NULL,
   e varchar(30) CHARACTER SET ascii DEFAULT NULL,
   f geometry NOT NULL,

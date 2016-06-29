@@ -349,10 +349,10 @@ t1	CREATE TABLE `t1` (
   `type_year` year(4) DEFAULT NULL,
   `type_enum` enum('red','green','blue') DEFAULT NULL,
   `type_set` enum('red','green','blue') DEFAULT NULL,
-  `type_tinyblob` tinyblob,
-  `type_blob` blob,
-  `type_medium_blob` mediumblob,
-  `type_long_blob` longblob,
+  `type_tinyblob` tinyblob DEFAULT NULL,
+  `type_blob` blob DEFAULT NULL,
+  `type_medium_blob` mediumblob DEFAULT NULL,
+  `type_long_blob` longblob DEFAULT NULL,
   PRIMARY KEY (`type_tiny`),
   KEY `type_short` (`type_short`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 MIN_ROWS=10 MAX_ROWS=100 AVG_ROW_LENGTH=10 PACK_KEYS=1 CHECKSUM=1 DELAY_KEY_WRITE=1 ROW_FORMAT=FIXED COMMENT='test'
@@ -1269,13 +1269,13 @@ PRIMARY KEY  (Codigo)
 show create table t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					Table	253	64	2	N	1	39	7
-def					Create Table	253	1024	445	N	1	39	7
+def					Create Table	253	1024	458	N	1	39	7
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Codigo` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `Nombre` varchar(255) DEFAULT NULL,
   `Telefono` varchar(255) DEFAULT NULL,
-  `Observaciones` longtext,
+  `Observaciones` longtext DEFAULT NULL,
   `Direccion` varchar(255) DEFAULT NULL,
   `Dni` varchar(255) DEFAULT NULL,
   `CP` int(11) DEFAULT NULL,

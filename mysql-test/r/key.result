@@ -243,7 +243,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` varchar(30) CHARACTER SET utf8 DEFAULT NULL,
-  `t` text CHARACTER SET utf8,
+  `t` text CHARACTER SET utf8 DEFAULT NULL,
   UNIQUE KEY `c` (`c`(2)),
   UNIQUE KEY `t` (`t`(3))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

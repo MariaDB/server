@@ -9,8 +9,8 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` text DEFAULT NULL,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `body` (`body`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
@@ -39,8 +39,8 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` text DEFAULT NULL,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `body` (`body`)
 ) ENGINE=Mroonga AUTO_INCREMENT=3 DEFAULT CHARSET=utf8

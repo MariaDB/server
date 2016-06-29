@@ -96,7 +96,7 @@ SHOW CREATE TABLE t5;
 Table	Create Table
 t5	CREATE TABLE `t5` (
   `id` int(11) NOT NULL,
-  `a` text,
+  `a` text DEFAULT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `b` (`b`),
@@ -106,7 +106,7 @@ SHOW CREATE TABLE t6;
 Table	Create Table
 t6	CREATE TABLE `t6` (
   `id` int(11) DEFAULT NULL,
-  `a` text,
+  `a` text DEFAULT NULL,
   `b` varchar(255) DEFAULT NULL,
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `a` (`a`)

@@ -7,7 +7,7 @@ SHOW CREATE TABLE running_records;
 Table	Create Table
 running_records	CREATE TABLE `running_records` (
   `time` time NOT NULL,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`time`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO running_records (time, title)

@@ -1140,7 +1140,7 @@ t1	CREATE TABLE `t1` (
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
   `TIME` int(7) NOT NULL DEFAULT '0',
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
+  `INFO` longtext DEFAULT NULL,
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
@@ -1148,7 +1148,7 @@ t1	CREATE TABLE `t1` (
   `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
+  `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
@@ -1163,7 +1163,7 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
   `TIME` int(7) NOT NULL DEFAULT '0',
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
+  `INFO` longtext DEFAULT NULL,
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
@@ -1171,7 +1171,7 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
+  `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
@@ -1870,7 +1870,7 @@ t1	CREATE TABLE `t1` (
   `cl` char(32) AS (COLUMN_GET(COLUMN_ADD(COLUMN_CREATE(1 , 'blue' as char), 2, 'ttt'), i as char)) PERSISTENT,
   `item_name` varchar(32) NOT NULL,
   `i` int(11) DEFAULT NULL,
-  `dynamic_cols` blob,
+  `dynamic_cols` blob DEFAULT NULL,
   PRIMARY KEY (`item_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

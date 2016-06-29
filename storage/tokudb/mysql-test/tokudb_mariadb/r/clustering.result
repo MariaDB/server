@@ -4,7 +4,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` text,
+  `c` text DEFAULT NULL,
   KEY `a` (`a`) `clustering`=yes,
   KEY `b` (`b`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1

@@ -8,7 +8,7 @@ SHOW CREATE TABLE aniversary_memos;
 Table	Create Table
 aniversary_memos	CREATE TABLE `aniversary_memos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` text DEFAULT NULL,
   `party_year` year(4) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

@@ -12,8 +12,8 @@ SHOW CREATE TABLE ft;
 Table	Create Table
 ft	CREATE TABLE `ft` (
   `a` int(11) NOT NULL,
-  `b` text,
-  `c` text,
+  `b` text DEFAULT NULL,
+  `c` text DEFAULT NULL,
   PRIMARY KEY (`a`),
   FULLTEXT KEY `ftx1` (`b`),
   FULLTEXT KEY `ftx2` (`c`)

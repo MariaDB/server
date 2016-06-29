@@ -16,7 +16,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `a` varchar(200) DEFAULT NULL,
-  `b` text,
+  `b` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`a`,`b`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
@@ -563,7 +563,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `a` varchar(200) DEFAULT NULL,
-  `b` text,
+  `b` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`a`,`b`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
@@ -969,7 +969,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `a` varchar(200) DEFAULT NULL,
-  `b` text,
+  `b` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`a`,`b`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1

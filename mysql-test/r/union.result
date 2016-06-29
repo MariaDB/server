@@ -796,7 +796,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `dt` blob
+  `dt` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT sv from t2 UNION select b from t2;
@@ -807,7 +807,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `sv` blob
+  `sv` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT i from t2 UNION select d from t2 UNION select b from t2;
@@ -819,7 +819,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` blob
+  `i` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT sv from t2 UNION select tx from t2;
@@ -830,7 +830,7 @@ teeeeeeeeeeeest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `sv` text
+  `sv` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT b from t2 UNION select tx from t2;
@@ -841,7 +841,7 @@ teeeeeeeeeeeest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `b` blob
+  `b` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2;
 create table t1 select 1 union select -1;
@@ -1354,7 +1354,7 @@ create table t3 SELECT left(a,100000000) FROM t1 UNION  SELECT b FROM t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `left(a,100000000)` mediumtext
+  `left(a,100000000)` mediumtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
 CREATE TABLE t1 (a longtext);
@@ -1368,7 +1368,7 @@ create table t3 SELECT left(a,100000000) FROM t1 UNION  SELECT b FROM t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `left(a,100000000)` longtext
+  `left(a,100000000)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
 SELECT @tmp_max:= @@global.max_allowed_packet;
@@ -1385,7 +1385,7 @@ CREATE TABLE t3 SELECT REPEAT(a,20000000) AS a FROM t1 UNION SELECT b FROM t2;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` longtext
+  `a` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinytext);
@@ -1403,7 +1403,7 @@ CREATE TABLE t3 SELECT REPEAT(a,2) AS a FROM t1 UNION SELECT b FROM t2;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` longtext
+  `a` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinyblob);
@@ -1448,8 +1448,8 @@ t2	CREATE TABLE `t2` (
   `f4` binary(5) DEFAULT NULL,
   `f5` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `f6` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
-  `f7` text,
-  `f8` mediumtext CHARACTER SET utf8
+  `f7` text DEFAULT NULL,
+  `f8` mediumtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2;
 (select avg(1)) union (select avg(1)) union (select avg(1)) union

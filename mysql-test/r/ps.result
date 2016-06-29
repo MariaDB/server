@@ -3397,7 +3397,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = '2007-11-18 15:01:02';
 @a	@a = '2007-11-18 15:01:02'
@@ -3415,7 +3415,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = '1234-11-12 12:34:59';
 @a	@a = '1234-11-12 12:34:59'
@@ -3433,7 +3433,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = '123:45:01';
 @a	@a = '123:45:01'
@@ -3451,7 +3451,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = '1234-11-12';
 @a	@a = '1234-11-12'
@@ -3541,7 +3541,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('a', 16);
 @a	@a = REPEAT('a', 16)
@@ -3559,7 +3559,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('b', 16);
 @a	@a = REPEAT('b', 16)
@@ -3577,7 +3577,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('c', 16);
 @a	@a = REPEAT('c', 16)
@@ -3595,7 +3595,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('d', 16);
 @a	@a = REPEAT('d', 16)
@@ -3613,7 +3613,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('e', 16);
 @a	@a = REPEAT('e', 16)
@@ -3631,7 +3631,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('f', 16);
 @a	@a = REPEAT('f', 16)
@@ -3649,7 +3649,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('g', 32);
 @a	@a = REPEAT('g', 32)
@@ -3667,7 +3667,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('h', 16);
 @a	@a = REPEAT('h', 16)
@@ -3685,7 +3685,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('i', 16);
 @a	@a = REPEAT('i', 16)
@@ -3703,7 +3703,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('j', 16);
 @a	@a = REPEAT('j', 16)
@@ -3721,7 +3721,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('k', 16);
 @a	@a = REPEAT('k', 16)
@@ -3739,7 +3739,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('l', 16);
 @a	@a = REPEAT('l', 16)
@@ -3757,7 +3757,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
@@ -3775,7 +3775,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'

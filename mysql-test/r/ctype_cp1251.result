@@ -1067,7 +1067,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET cp1251
+  `c1` text CHARACTER SET cp1251 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -1673,7 +1673,7 @@ create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET cp1251
+  `c1` longtext CHARACTER SET cp1251 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(period_add(200902, 2)));

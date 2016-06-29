@@ -24,8 +24,8 @@ create table t3 (a long, b long byte);
 show create TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` mediumtext,
-  `b` mediumblob
+  `a` mediumtext DEFAULT NULL,
+  `b` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 show create TABLE t4;
 Table	Create Table
@@ -363,7 +363,7 @@ create table t1 (a text, key (a(2100)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` text,
+  `a` text DEFAULT NULL,
   KEY `a` (`a`(2100))
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
@@ -781,7 +781,7 @@ Warning	1101	BLOB/TEXT column 'a' can't have a default value
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` text
+  `a` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 insert into t1 values (default);
 select * from t1;

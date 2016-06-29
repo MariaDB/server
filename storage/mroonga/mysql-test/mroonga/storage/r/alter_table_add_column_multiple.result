@@ -7,7 +7,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title) VALUES ("survey");
@@ -34,10 +34,10 @@ started groonga.	3	0	groonga (2)	2014-02-09 12:19:00
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
-  `body` text,
+  `body` text DEFAULT NULL,
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `published` tinyint(1) DEFAULT NULL,
-  `title` text,
+  `title` text DEFAULT NULL,
   `created_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8
