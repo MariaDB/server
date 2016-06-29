@@ -955,10 +955,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     field_visible_type visibility;
     bool is_hash;
   };
-  visible_property *temp;
-  List<visible_property > v_p_list;
-  List_iterator<visible_property >  v_p_iter(v_p_list);
-  visible_property * vp;
+  const uchar * field_properties;
   root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
   old_root= *root_ptr;
   *root_ptr= &share->mem_root;
@@ -993,7 +990,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (length < 256)
           goto err;
       }
-      if (type!=EXTRA2_FIELD_FLAGS && extra2 + length > e2end)
+      if ( extra2 + length > e2end)
         goto err;
       switch (type) {
       case EXTRA2_TABLEDEF_VERSION:
@@ -1039,10 +1036,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif /*HAVE_SPATIAL*/
         break;
       case EXTRA2_FIELD_FLAGS:
-        temp= new visible_property();
-        temp->visibility = (field_visible_type)*extra2;
-        temp->is_hash=(bool)*(extra2+1);
-        v_p_list.push_back(temp);
+         field_properties = extra2;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1054,7 +1048,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (extra2 != e2end)
       goto err;
   }
-  v_p_iter.rewind();
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
     goto err;
@@ -1684,13 +1677,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
-    if(v_p_list.elements!=0)
-    {
-      DBUG_ASSERT(v_p_list.elements==share->fields);
-      vp=v_p_iter++;
-      reg_field->field_visibility=vp->visibility;
-      reg_field->is_hash=vp->is_hash;
-    }
+
+    reg_field->field_visibility=(field_visible_type)*field_properties++;
+    reg_field->is_hash=(bool)*field_properties++;
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;

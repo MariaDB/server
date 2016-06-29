@@ -331,7 +331,7 @@ enum  field_visible_type{
 };
 
 /* hash type*/
-enum field_hash_type{
+enum key_hash_type{
 	/* normal column */
 	NOT_HASH=0,
 	/* hash for defination index(A,...) in this case no duplicate will be checked */

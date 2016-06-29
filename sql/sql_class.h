@@ -292,6 +292,7 @@ class Key :public Sql_alloc, public DDL_options {
 public:
   enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY};
   enum Keytype type;
+  key_hash_type hash_type=NOT_HASH;
   KEY_CREATE_INFO key_create_info;
   List<Key_part_spec> columns;
   LEX_STRING name;

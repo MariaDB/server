@@ -83,16 +83,21 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
-static uchar *extra2_write_field(uchar *pos,Create_field * cf)
+static uchar *extra2_write_field(uchar *pos,int number_of_fields,List_iterator<Create_field> * it)
 {
   *pos++=EXTRA2_FIELD_FLAGS;
   /*
    always 2  first for field visibility
    second for is this column represent long unique hash
    */
-  *pos++=2;
-  *pos++=cf->field_visibility;
-  *pos++=cf->is_hash;
+  int len = 2*number_of_fields;
+  pos= extra2_write_len(pos,len);
+  Create_field *cf;
+  while((cf=(*it)++))
+  {
+    *pos++=cf->field_visibility;
+    *pos++=cf->is_hash;
+  }
   return pos;
 }
 /**
@@ -217,7 +222,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
-  extra2_size+=4*create_fields.elements;
+  extra2_size+=1 + ( 2*create_fields.elements > 255 ? 3 : 1) +
+       2*create_fields.elements;// first one for type next 2  for length
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -272,10 +278,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   }
 #endif /*HAVE_SPATIAL*/
 
-  while((field=it++))
-  {
-    pos=extra2_write_field(pos,field);
-  }
+  pos=extra2_write_field(pos,create_fields.elements,&it);
   it.rewind();
 
   int4store(pos, filepos); // end of the extra2 segment
