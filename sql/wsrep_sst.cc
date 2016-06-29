@@ -1120,6 +1120,16 @@ wait_signal:
         if (!err)
         {
           sst_disallow_writes (thd.ptr, true);
+          /*
+            Lets also keep statements that modify binary logs (like RESET LOGS,
+            RESET MASTER) from proceeding until the files have been transferred
+            to the joiner node.
+          */
+          if (mysql_bin_log.is_open())
+          {
+            mysql_mutex_lock(mysql_bin_log.get_log_lock());
+          }
+
           locked= true;
           goto wait_signal;
         }
@@ -1128,6 +1138,11 @@ wait_signal:
       {
         if (locked)
         {
+          if (mysql_bin_log.is_open())
+          {
+            mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+          }
           sst_disallow_writes (thd.ptr, false);
           thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
           locked= false;
@@ -1160,6 +1175,11 @@ wait_signal:
 
   if (locked) // don't forget to unlock server before return
   {
+    if (mysql_bin_log.is_open())
+    {
+      mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+      mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+    }
     sst_disallow_writes (thd.ptr, false);
     thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
   }
