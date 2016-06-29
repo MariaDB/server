@@ -2422,6 +2422,7 @@ public:
   Item_func_dyncol_check(THD *thd, Item *str): Item_bool_func(thd, str) {}
   longlong val_int();
   const char *func_name() const { return "column_check"; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 class Item_func_dyncol_exists :public Item_bool_func
@@ -2431,6 +2432,7 @@ public:
     Item_bool_func(thd, str, num) {}
   longlong val_int();
   const char *func_name() const { return "column_exists"; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 inline bool is_cond_or(Item *item)

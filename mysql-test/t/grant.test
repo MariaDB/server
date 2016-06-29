@@ -2183,6 +2183,7 @@ set GLOBAL sql_mode=default;
 
 
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
+SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
 connect (conn1,localhost,dummy,pwd,test);

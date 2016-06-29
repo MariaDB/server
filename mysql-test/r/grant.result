@@ -2672,6 +2672,11 @@ set GLOBAL sql_mode=default;
 # MDEV-10134 Add full support for DEFAULT
 #
 CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) DEFAULT USER()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
 connect  conn1,localhost,dummy,pwd,test;

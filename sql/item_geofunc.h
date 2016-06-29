@@ -299,6 +299,7 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
+  bool need_parentheses_in_default() { return false; }
 };
 
 
@@ -339,6 +340,7 @@ public:
   { }
   longlong val_int();
   const char *func_name() const { return "st_relate"; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 
@@ -429,6 +431,7 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 class Item_func_issimple: public Item_int_func
