@@ -2172,11 +2172,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     while (vcol_screen_pos < vcol_screen_end)
     {
       Virtual_column_info *vcol_info;
-      uint field_nr=     uint2korr(vcol_screen_pos);
-      uint expr_length=  uint2korr(vcol_screen_pos+2);
-      uint type=         (uint) vcol_screen_pos[4];
-      uint name_length=  (uint) vcol_screen_pos[5];
-      uint flags=        (uint) vcol_screen_pos[6];
+      uint flags=        (uint) vcol_screen_pos[0];
+      uint field_nr=     uint2korr(vcol_screen_pos+1);
+      uint expr_length=  uint2korr(vcol_screen_pos+3);
+      uint type=         (uint) vcol_screen_pos[5];
+      uint name_length=  (uint) vcol_screen_pos[6];
       LEX_STRING name;
       char *expr;
 
