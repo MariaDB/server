@@ -40,15 +40,17 @@
 #define ALLOCA_THRESHOLD       2048
 
 static uint pack_keys(uchar *,uint, KEY *, ulong);
-static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *info, ulong, handler *);
+static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *,
+                        ulong, handler *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
                         ulong);
 static void pack_constraints(uchar **buff, List<Virtual_column_info> *constr);
 static size_t packed_fields_length(List<Create_field> &);
-static size_t packed_constraints_length(THD *thd, HA_CREATE_INFO* info,
-                                        List<Virtual_column_info> *constr);
-static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
+static size_t packed_constraints_length(THD *, HA_CREATE_INFO*,
+                                        List<Virtual_column_info> *);
+static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
+                           ulong);
 
 /*
   write the length as
@@ -512,7 +514,6 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 */
 
 static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
-                            HA_CREATE_INFO *info,
                             size_t *length)
 {
   Virtual_column_info *v_col= *v_col_ptr;
@@ -525,8 +526,11 @@ static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
   if (!v_col->utf8)
   {
     /*
+      This v_col comes from the parser (e.g. CREATE TABLE) or
+      from old (before 10.2.1) frm.
+
       We have to create a new Virtual_column_info as for alter table,
-      the current one may be shared with the original tables
+      the current one may be shared with the original table.
     */
     Virtual_column_info *new_vcol= new (thd->mem_root) Virtual_column_info();
     LEX_STRING to;
@@ -611,10 +615,15 @@ static bool pack_header(THD *thd, uchar *forminfo,
   n_length=2L;
   create_info->field_check_constraints= 0;
 
-  expression_length= packed_constraints_length(thd, create_info,
-                                               create_info->constraint_list);
-  if (!expression_length && create_info->constraint_list->elements)
-    DBUG_RETURN(1);                             // Wrong characterset
+  if (create_info->check_constraint_list->elements)
+  {
+    expression_length= packed_constraints_length(thd, create_info,
+                                        create_info->check_constraint_list);
+    if (!expression_length)
+      DBUG_RETURN(1);                             // Wrong characterset
+  }
+  else
+    expression_length= 0;
 
   /* Check fields */
   List_iterator<Create_field> it(create_fields);
@@ -625,15 +634,12 @@ static bool pack_header(THD *thd, uchar *forminfo,
                                 ER_TOO_LONG_FIELD_COMMENT, field->field_name))
        DBUG_RETURN(1);
 
-    if (add_expr_length(thd, &field->vcol_info, create_info,
-                        &expression_length))
+    if (add_expr_length(thd, &field->vcol_info, &expression_length))
       DBUG_RETURN(1);
     if (field->has_default_expression())
-      if (add_expr_length(thd, &field->default_value, create_info,
-                          &expression_length))
+      if (add_expr_length(thd, &field->default_value, &expression_length))
 	DBUG_RETURN(1);
-    if (add_expr_length(thd, &field->check_constraint, create_info,
-                        &expression_length))
+    if (add_expr_length(thd, &field->check_constraint, &expression_length))
       DBUG_RETURN(1);
 
     totlength+= field->length;
@@ -825,7 +831,7 @@ static size_t packed_constraints_length(THD *thd, HA_CREATE_INFO *info,
   Virtual_column_info *check;
 
   while ((check= it++))
-    if (add_expr_length(thd, it.ref(), info, &length))
+    if (add_expr_length(thd, it.ref(), &length))
       return 0;
   return length;
 }
@@ -984,7 +990,7 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
       if (field->check_constraint)
         pack_expression(&buff, field->check_constraint, field_nr, 3);
     }
-    pack_constraints(&buff, create_info->constraint_list);
+    pack_constraints(&buff, create_info->check_constraint_list);
   }
   *buff_arg= buff;
   DBUG_RETURN(0);

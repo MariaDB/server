@@ -567,7 +567,6 @@ struct TABLE_SHARE
   TYPELIB *intervals;			/* pointer to interval info */
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
-  MY_BITMAP     *check_set;             /* Fields used by check constrant */
 
   TDC_element *tdc;
 
@@ -589,6 +588,7 @@ struct TABLE_SHARE
   LEX_STRING comment;			/* Comment about table */
   CHARSET_INFO *table_charset;		/* Default charset of string fields */
 
+  MY_BITMAP *check_set;                 /* Fields used by check constrant */
   MY_BITMAP all_set;
   /*
     Key which is used for looking-up table in table cache and in the list
@@ -1087,6 +1087,7 @@ public:
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* Set if using virtual fields */
   MY_BITMAP     *vcol_set, *def_vcol_set;
+  /* On INSERT: fields that the user specified a value for */
   MY_BITMAP	*has_value_set;
 
   /*

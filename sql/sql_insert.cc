@@ -2498,8 +2498,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       *dfield_ptr= 0;
   }
 
-  switch_to_nullable_trigger_fields(copy->vfield, copy);
-  switch_to_nullable_trigger_fields(copy->default_field, copy);
+  switch_defaults_to_nullable_trigger_fields(copy);
 
   /* Adjust in_use for pointing to client thread */
   copy->in_use= client_thd;

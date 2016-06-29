@@ -2991,7 +2991,7 @@ public:
   bool add_constraint(LEX_STRING *name, Virtual_column_info *constr)
   {
     constr->name= *name;
-    alter_info.constraint_list.push_back(constr);
+    alter_info.check_constraint_list.push_back(constr);
     return false;
   }
   void set_command(enum_sql_command command,

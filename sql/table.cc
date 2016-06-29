@@ -930,7 +930,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
 
     if ((strpos[10] & MYSQL57_GENERATED_FIELD))
     {
-      /* Skip virtual not stored field */
+      /* Skip virtual (not stored) generated field */
       bool stored_in_db= (bool) (uint) (vcol_screen_pos[3]);
       vcol_screen_pos+= (uint2korr(vcol_screen_pos + 1) +
                          MYSQL57_GCOL_HEADER_SIZE);
@@ -980,14 +980,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
-  uint com_length, null_bit_pos, mysql_vcol_null_bit_pos, bitmap_count;
+  uint com_length, null_bit_pos, mysql57_vcol_null_bit_pos, bitmap_count;
   uint extra_rec_buf_length;
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
   const uchar *forminfo, *extra2;
   const uchar *frm_image_end = frm_image + frm_length;
-  uchar *record, *null_flags, *null_pos, *mysql_vcol_null_pos;
+  uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos;
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset; 
   ulong rec_buff_length;
@@ -1542,10 +1542,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       Calculate the position for them.
     */
     mysql57_null_bits= 1;
-    mysql_vcol_null_pos= null_pos;
-    mysql_vcol_null_bit_pos= null_bit_pos;
-    mysql57_calculate_null_position(share, &mysql_vcol_null_pos,
-                                    &mysql_vcol_null_bit_pos,
+    mysql57_vcol_null_pos= null_pos;
+    mysql57_vcol_null_bit_pos= null_bit_pos;
+    mysql57_calculate_null_position(share, &mysql57_vcol_null_pos,
+                                    &mysql57_vcol_null_bit_pos,
                                     strpos,
                                     vcol_screen_pos);
   }
@@ -1693,7 +1693,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (opt_interval_id)
           interval_nr= (uint) vcol_screen_pos[3];
         vcol_info->expr_str.length= vcol_expr_length;
-        vcol_info->utf8= 0;
+        vcol_info->utf8= 0; // before 10.2.1 the charset was unknown
         vcol_screen_pos+= vcol_info_length;
         share->virtual_fields++;
       }
@@ -1772,8 +1772,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (mysql57_null_bits && vcol_info && !vcol_info->stored_in_db)
     {
-      swap_variables(uchar*, null_pos, mysql_vcol_null_pos);
-      swap_variables(uint, null_bit_pos, mysql_vcol_null_bit_pos);
+      swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
+      swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     }
 
     *field_ptr= reg_field=
@@ -1813,8 +1813,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (mysql57_null_bits && vcol_info && !vcol_info->stored_in_db)
     {
       /* MySQL 5.7 has null bits last */
-      swap_variables(uchar*, null_pos, mysql_vcol_null_pos);
-      swap_variables(uint, null_bit_pos, mysql_vcol_null_bit_pos);
+      swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
+      swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     }
 
     if (f_no_default(pack_flag))
@@ -1847,8 +1847,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (mysql57_null_bits)
   {
     /* We want to store the value for the last bits */
-    swap_variables(uchar*, null_pos, mysql_vcol_null_pos);
-    swap_variables(uint, null_bit_pos, mysql_vcol_null_bit_pos);
+    swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
+    swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
   }
 
@@ -2212,7 +2212,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       vcol_info->stored_in_db= 0;
 
       switch (type) {
-      case 0:                                   // Virtual computed field
+      case 0:                                   // Generated virtual field
       {
         uint recpos;
         reg_field->vcol_info= vcol_info;
@@ -2224,7 +2224,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           share->stored_rec_length= recpos-1;
         break;
       }
-      case 1:                                   // Virtual stored field
+      case 1:                                   // Generated stored field
         vcol_info->stored_in_db= 1;
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
@@ -2542,9 +2542,7 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
     FALSE          Otherwise
 */
 
-static bool fix_vcol_expr(THD *thd,
-                          TABLE *table,
-                          Field *field,
+static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
                           Virtual_column_info *vcol)
 {
   Item* func_expr= vcol->expr_item;
@@ -2575,7 +2573,7 @@ static bool fix_vcol_expr(THD *thd,
     my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
     goto end;
   }
-  /* fix_fields could change the expression */
+  /* fix_fields could've changed the expression */
   func_expr= vcol->expr_item;
 
   /* Number of columns will be checked later */
@@ -2649,8 +2647,8 @@ end:
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
 
   @note
-    Before passing 'vcol_expr" to the parser the function embraces it in 
-    parenthesis and prepands it a special keyword.
+    Before passing 'vcol_expr' to the parser the function wraps it in
+    parentheses and prepends a special keyword.
   
    @retval
      Virtual_column_info*   If a success
@@ -3072,8 +3070,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     *dfield_ptr= 0;                            // End marker
 
     /* Update to use trigger fields */
-    switch_to_nullable_trigger_fields(outparam->vfield, outparam);
-    switch_to_nullable_trigger_fields(outparam->default_field, outparam);
+    switch_defaults_to_nullable_trigger_fields(outparam);
 
     /* Copy table level constraints to check_constraint_ptr */
     for (i= 0 ;
@@ -3695,7 +3692,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   fileinfo[41]= (uchar) (csid >> 8);
   int2store(fileinfo+42, create_info->stats_sample_pages & 0xffff);
   fileinfo[44]= (uchar)  create_info->stats_auto_recalc;
-  int2store(fileinfo+45, (create_info->constraint_list->elements+
+  int2store(fileinfo+45, (create_info->check_constraint_list->elements+
                           create_info->field_check_constraints));
   int4store(fileinfo+47, key_length);
   tmp= MYSQL_VERSION_ID;          // Store to avoid warning from int4store
@@ -6269,7 +6266,6 @@ void TABLE::mark_columns_needed_for_update()
       file->column_bitmaps_signal();
     }
   }
-  file->register_columns_for_write();
   if (default_field)
     mark_default_fields_for_write(FALSE);
   /* Mark all virtual columns needed for update */
@@ -6320,7 +6316,6 @@ void TABLE::mark_columns_needed_for_insert()
   /* Mark virtual columns for insert */
   if (vfield)
     mark_virtual_columns_for_write(TRUE);
-  file->register_columns_for_write();
   if (check_constraints)
     mark_check_constraint_columns_for_read();
   DBUG_VOID_RETURN;

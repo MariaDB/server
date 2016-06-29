@@ -104,46 +104,21 @@ static const char *end_paren_str= ")";
 static const char *begin_paren_str= "(";
 static const char *comma_str= ",";
 
-int get_partition_id_list_col(partition_info *part_info,
-                              uint32 *part_id,
-                              longlong *func_value);
-int get_partition_id_list(partition_info *part_info,
-                          uint32 *part_id,
-                          longlong *func_value);
-int get_partition_id_range_col(partition_info *part_info,
-                               uint32 *part_id,
-                               longlong *func_value);
-int get_partition_id_range(partition_info *part_info,
-                           uint32 *part_id,
-                           longlong *func_value);
-static int get_part_id_charset_func_part(partition_info *part_info,
-                                         uint32 *part_id,
-                                         longlong *func_value);
-static int get_part_id_charset_func_subpart(partition_info *part_info,
-                                            uint32 *part_id);
-int get_partition_id_hash_nosub(partition_info *part_info,
-                                uint32 *part_id,
-                                longlong *func_value);
-int get_partition_id_key_nosub(partition_info *part_info,
-                               uint32 *part_id,
-                               longlong *func_value);
-int get_partition_id_linear_hash_nosub(partition_info *part_info,
-                                       uint32 *part_id,
-                                       longlong *func_value);
-int get_partition_id_linear_key_nosub(partition_info *part_info,
-                                      uint32 *part_id,
-                                      longlong *func_value);
-int get_partition_id_with_sub(partition_info *part_info,
-                              uint32 *part_id,
-                              longlong *func_value);
-int get_partition_id_hash_sub(partition_info *part_info,
-                              uint32 *part_id); 
-int get_partition_id_key_sub(partition_info *part_info,
-                             uint32 *part_id); 
-int get_partition_id_linear_hash_sub(partition_info *part_info,
-                                     uint32 *part_id); 
-int get_partition_id_linear_key_sub(partition_info *part_info,
-                                    uint32 *part_id); 
+static int get_partition_id_list_col(partition_info *, uint32 *, longlong *);
+static int get_partition_id_list(partition_info *, uint32 *, longlong *);
+static int get_partition_id_range_col(partition_info *, uint32 *, longlong *);
+static int get_partition_id_range(partition_info *, uint32 *, longlong *);
+static int get_part_id_charset_func_part(partition_info *, uint32 *, longlong *);
+static int get_part_id_charset_func_subpart(partition_info *, uint32 *);
+static int get_partition_id_hash_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_key_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_linear_hash_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_linear_key_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_with_sub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_hash_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_key_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_linear_hash_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_linear_key_sub(partition_info *part_info, uint32 *part_id);
 static uint32 get_next_partition_via_walking(PARTITION_ITERATOR*);
 static void set_up_range_analysis_info(partition_info *part_info);
 static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR*);

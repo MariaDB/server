@@ -55,6 +55,7 @@ public:
   unsigned int size_of() { return sizeof(*this);}
   bool check_vcol_func_processor(void *arg)
   {
+    DBUG_ASSERT(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
 };

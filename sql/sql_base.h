@@ -139,7 +139,7 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                const char *table_name);
 void close_thread_tables(THD *thd);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
-void switch_to_nullable_trigger_fields(Field **info, TABLE *table);
+void switch_defaults_to_nullable_trigger_fields(TABLE *table);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           List<Item> &fields,
                                           List<Item> &values,

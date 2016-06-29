@@ -7817,15 +7817,17 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
   table->field_to_fill(), if needed.
 */
 
-void switch_to_nullable_trigger_fields(Field **info, TABLE *table)
+void switch_defaults_to_nullable_trigger_fields(TABLE *table)
 {
+  if (!table->default_field)
+    return; // no defaults
+
   Field **trigger_field= table->field_to_fill();
 
- /* True if we have virtual fields and non_null fields and before triggers */
-  if (info && trigger_field != table->field)
+ /* True if we have NOT NULL fields and BEFORE triggers */
+  if (trigger_field != table->field)
   {
-    Field **field_ptr;
-    for (field_ptr= info; *field_ptr ; field_ptr++)
+    for (Field **field_ptr= table->default_field; *field_ptr ; field_ptr++)
     {
       Field *field= (*field_ptr);
       field->default_value->expr_item->walk(&Item::switch_to_nullable_fields_processor, 1, trigger_field);

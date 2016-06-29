@@ -257,7 +257,7 @@ public:
 
 class Alter_drop :public Sql_alloc {
 public:
-  enum drop_type {KEY, COLUMN, FOREIGN_KEY, CONSTRAINT_CHECK };
+  enum drop_type {KEY, COLUMN, FOREIGN_KEY, CHECK_CONSTRAINT };
   const char *name;
   enum drop_type type;
   bool drop_if_exists;
@@ -279,8 +279,8 @@ class Alter_column :public Sql_alloc {
 public:
   const char *name;
   Virtual_column_info *default_value;
-  Alter_column(const char *par_name, Virtual_column_info *literal)
-    :name(par_name), default_value(literal) {}
+  Alter_column(const char *par_name, Virtual_column_info *expr)
+    :name(par_name), default_value(expr) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone

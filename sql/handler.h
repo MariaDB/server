@@ -1679,11 +1679,12 @@ struct Table_scope_and_contents_source_st
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
 
+  List<Virtual_column_info> *check_constraint_list;
+
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
   ha_index_option_struct **indexes_option_struct;  ///< array of index option structures
-  List<Virtual_column_info>     *constraint_list;
 
   /* The following is used to remember the old state for CREATE OR REPLACE */
   TABLE *table;
@@ -1937,9 +1938,9 @@ public:
   // ALTER TABLE for a partitioned table
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
 
-  static const HA_ALTER_FLAGS ALTER_ADD_CONSTRAINT       = 1LL << 32;
+  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1LL << 32;
 
-  static const HA_ALTER_FLAGS ALTER_DROP_CONSTRAINT      = 1LL << 33;
+  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1LL << 33;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2865,7 +2866,6 @@ public:
                            size_t pack_frm_len);
   int ha_drop_partitions(const char *path);
   int ha_rename_partitions(const char *path);
-  virtual void register_columns_for_write() {}
 
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
   int update_auto_increment();

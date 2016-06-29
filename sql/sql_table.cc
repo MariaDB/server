@@ -4168,16 +4168,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   /* Check table level constraints */
-  create_info->constraint_list= &alter_info->constraint_list;
+  create_info->check_constraint_list= &alter_info->check_constraint_list;
   {
     uint nr= 1;
-    List_iterator_fast<Virtual_column_info> c_it(alter_info->constraint_list);
+    List_iterator_fast<Virtual_column_info> c_it(alter_info->check_constraint_list);
     Virtual_column_info *check;
     while ((check= c_it++))
     {
       if (!check->name.length)
         make_unique_constraint_name(thd, &check->name,
-                                    &alter_info->constraint_list,
+                                    &alter_info->check_constraint_list,
                                     &nr);
 
       if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
@@ -5861,7 +5861,19 @@ drop_create_field:
           }
         }
       }
-      else /* Alter_drop::KEY */
+      else if (drop->type == Alter_drop::CHECK_CONSTRAINT)
+      {
+        for (uint i=0; i < table->s->table_check_constraints; i++)
+        {
+          if (my_strcasecmp(system_charset_info, drop->name,
+                            table->check_constraints[i]->name.str) == 0)
+          {
+            remove_drop= FALSE;
+            break;
+          }
+        }
+      }
+      else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
       {
         uint n_key;
         if (drop->type != Alter_drop::FOREIGN_KEY)
@@ -6237,10 +6249,10 @@ static bool fill_alter_inplace_info(THD *thd,
   /* Check for: ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE. */
   if (alter_info->flags & Alter_info::ALTER_RECREATE)
     ha_alter_info->handler_flags|= Alter_inplace_info::RECREATE_TABLE;
-  if (alter_info->flags & Alter_info::ALTER_ADD_CONSTRAINT)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CONSTRAINT;
-  if (alter_info->flags & Alter_info::ALTER_DROP_CONSTRAINT)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CONSTRAINT;
+  if (alter_info->flags & Alter_info::ALTER_ADD_CHECK_CONSTRAINT)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
+  if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically
@@ -7838,7 +7850,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       drop_it.rewind();
       while ((drop=drop_it++))
       {
-        if (drop->type == Alter_drop::CONSTRAINT_CHECK &&
+        if (drop->type == Alter_drop::CHECK_CONSTRAINT &&
             !my_strcasecmp(system_charset_info, check->name.str, drop->name))
         {
           drop_it.remove();
@@ -7850,7 +7862,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
   /* Add new constraints */
-  new_constraint_list.append(&alter_info->constraint_list);
+  new_constraint_list.append(&alter_info->check_constraint_list);
 
   if (alter_info->drop_list.elements)
   {
@@ -7860,13 +7872,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       switch (drop->type) {
       case Alter_drop::KEY:
       case Alter_drop::COLUMN:
-      case Alter_drop::CONSTRAINT_CHECK:
-        if (drop->drop_if_exists)
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_CANT_DROP_FIELD_OR_KEY,
-                              ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
-                              drop->name);
-        else
+      case Alter_drop::CHECK_CONSTRAINT:
           my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
                    alter_info->drop_list.head()->name);
         goto err;
@@ -7914,7 +7920,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   rc= FALSE;
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
-  alter_info->constraint_list.swap(new_constraint_list);
+  alter_info->check_constraint_list.swap(new_constraint_list);
 err:
   DBUG_RETURN(rc);
 }
@@ -8960,13 +8966,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
-      HA_ALTER_INPLACE_NOT_SUPPORTED;
-    if (!(ha_alter_info.handler_flags &
-          Alter_inplace_info::ALTER_ADD_CONSTRAINT) ||
-        (thd->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS))
-      inplace_supported=
-        table->file->check_if_supported_inplace_alter(altered_table,
-                                                      &ha_alter_info);
+      table->file->check_if_supported_inplace_alter(altered_table,
+                                                    &ha_alter_info);
 
     switch (inplace_supported) {
     case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:

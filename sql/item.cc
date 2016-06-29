@@ -897,7 +897,7 @@ bool Item_field::register_field_in_read_map(void *arg)
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
-  if (field->vcol_info && field->vcol_info->expr_item &&
+  if (field->vcol_info &&
       !bitmap_is_set(field->table->vcol_set, field->field_index))
   {
     /* Ensure that the virtual fields is updated on read or write */
@@ -1417,7 +1417,7 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
   mark_unsupported_func(where, "check_vcol_func_processor");
   res->errors|= result;  /* Store type of expression */
   /* Store the name to the highest violation (normally VCOL_IMPOSSIBLE) */
-  if (res->errors > old_errors)
+  if (result > old_errors)
     res->name= where ? where : "";
   return false;
 }

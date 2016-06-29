@@ -2291,11 +2291,22 @@ Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
   return tmp;
 }
 
-void Field::set_default_expression()
+void Field::set_default()
 {
-  table->in_use->reset_arena_for_cached_items(table->expr_arena);
-  (void) default_value->expr_item->save_in_field(this, 0);
-  table->in_use->reset_arena_for_cached_items(0);
+  if (default_value)
+  {
+    table->in_use->reset_arena_for_cached_items(table->expr_arena);
+    (void) default_value->expr_item->save_in_field(this, 0);
+    table->in_use->reset_arena_for_cached_items(0);
+    return;
+  }
+  /* Copy constant value stored in s->default_values */
+  my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
+                                        table->record[0]);
+  memcpy(ptr, ptr + l_offset, pack_length());
+  if (maybe_null_in_table())
+    *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
+                (null_ptr[l_offset] & null_bit));
 }
 
 
@@ -9797,6 +9808,7 @@ bool Column_definition::check(THD *thd)
   /* Initialize data for a computed field */
   if (vcol_info)
   {
+    DBUG_ASSERT(vcol_info->expr_item);
     vcol_info->set_field_type(sql_type);
     if (check_expression(vcol_info, "GENERATED ALWAYS AS", field_name,
                          vcol_info->stored_in_db))
@@ -10636,7 +10648,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 
 bool Column_definition::has_default_expression()
 {
-  return (unlikely(default_value) &&
+  return (default_value &&
           (!default_value->expr_item->basic_const_item() ||
            (flags & BLOB_FLAG)));
 }

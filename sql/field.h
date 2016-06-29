@@ -891,22 +891,7 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
-  void set_default_expression();
-  virtual void set_default()
-  {
-    if (default_value)
-    {
-      set_default_expression();
-      return;
-    }
-    /* Copy constant value stored in s->default_values */
-    my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
-					  table->record[0]);
-    memcpy(ptr, ptr + l_offset, pack_length());
-    if (maybe_null_in_table())
-      *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
-		  (null_ptr[l_offset] & null_bit));
-  }
+  virtual void set_default();
 
   bool has_insert_default_function() const
   {

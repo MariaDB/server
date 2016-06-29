@@ -1857,7 +1857,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         expr_or_default set_expr_or_default
-        geometry_function signed_literal
+        geometry_function signed_literal expr_or_literal
         opt_escape
         sp_opt_default
         simple_ident_nospvar simple_ident_q
@@ -6174,7 +6174,7 @@ field_list_item:
 
 column_def:
           field_spec opt_check_constraint
-          { $$= $1;  Lex->last_field->check_constraint= $2; }
+          { $$= $1;  $$->check_constraint= $2; }
         | field_spec references
           { $$= $1; }
         ;
@@ -6399,11 +6399,7 @@ parse_vcol_expr:
               when reading a '*.frm' file.
               Prevent the end user from invoking this command.
             */
-            if (!Lex->parse_vcol_expr)
-            {
-              my_message(ER_SYNTAX_ERROR, ER_THD(thd, ER_SYNTAX_ERROR), MYF(0));
-              MYSQL_YYABORT;
-            }
+            MYSQL_YYABORT_UNLESS(Lex->parse_vcol_expr);
             Lex->last_field->vcol_info= $2;
           }
         ;
@@ -6438,16 +6434,13 @@ virtual_column_func:
           }
         ;
 
+expr_or_literal: column_default_non_parenthesized_expr | signed_literal ;
+
 column_default_expr:
           virtual_column_func
-        | remember_name column_default_non_parenthesized_expr opt_impossible_action remember_end
+        | remember_name expr_or_literal opt_impossible_action remember_end
           {
             if (!($$= add_virtual_expression(thd, $1, (uint) ($4- $1), $2)))
-              MYSQL_YYABORT;
-          }
-        | signed_literal
-          {
-            if (!($$= add_virtual_expression(thd, "literal", 6, $1)))
               MYSQL_YYABORT;
           }
         ;
@@ -7792,7 +7785,7 @@ alter_list_item:
           }
         | ADD constraint_def
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_ADD_CONSTRAINT;
+            Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
 	  }
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
@@ -7824,12 +7817,12 @@ alter_list_item:
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
-                             Alter_drop(Alter_drop::CONSTRAINT_CHECK,
+                             Alter_drop(Alter_drop::CHECK_CONSTRAINT,
                                         $4.str, $3));
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_DROP_CONSTRAINT;
+            lex->alter_info.flags|= Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
           }
         | DROP FOREIGN KEY_SYM opt_if_exists_table_element field_ident
           {
