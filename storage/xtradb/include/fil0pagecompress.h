@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015 MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2016 MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -117,8 +117,12 @@ fil_decompress_page(
 	byte*	buf,		/*!< out: buffer from which to read; in aio
 				this must be appropriately aligned */
 	ulong	len,		/*!< in: length of output buffer.*/
-	ulint*	write_size);	/*!< in/out: Actual payload size of
+	ulint*	write_size,	/*!< in/out: Actual payload size of
 				the compressed data. */
+	bool	return_error=false);
+				/*!< in: true if only an error should
+				be produced when decompression fails.
+				By default this parameter is false. */
 
 /****************************************************************//**
 Get space id from fil node

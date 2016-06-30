@@ -1028,6 +1028,7 @@ public:
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
   uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
@@ -1039,13 +1040,21 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.compare_collation());
+    const Item *old0= args[0];
     args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[0]);
     args[1]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[1]);
-    args[2]->propagate_equal_fields_and_change_item_tree(thd,
-                                                         Context_identity(),
-                                                         cond, &args[2]);
+    /*
+      MDEV-9712 Performance degradation of nested NULLIF
+      ANY_SUBST is more relaxed than IDENTITY_SUBST.
+      If ANY_SUBST did not change args[0],
+      then we can skip propagation for args[2].
+    */
+    if (old0 != args[0])
+      args[2]->propagate_equal_fields_and_change_item_tree(thd,
+                                                           Context_identity(),
+                                                           cond, &args[2]);
     return this;
   }
 };

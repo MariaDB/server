@@ -37,33 +37,36 @@ CHECK_CXX_SOURCE_COMPILES(
 int main() { return 0; }
 " OQGRAPH_OK)
 ENDIF()
-
-IF(OQGRAPH_OK)
-  ADD_DEFINITIONS(-DHAVE_OQGRAPH)
-  IF(MSVC)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc" PARENT_SCOPE)
-    # Fix problem with judy not finding inttypes.h on Windows:
-    ADD_DEFINITIONS(-DJU_WIN)
-  ELSE(MSVC)
-    # Fix lp bug 1221555 with -fpermissive, so that errors in gcc 4.7 become warnings for the time being
-    STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-    STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive" PARENT_SCOPE)
-  ENDIF(MSVC)
-
-  ADD_DEFINITIONS(-DBOOST_NO_RTTI=1 -DBOOST_NO_TYPEID=1 -DBOOST_DISABLE_ASSERTS=1)
-  MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc graphcore-graph.cc
-                   oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
-                   STORAGE_ENGINE
-                   MODULE_ONLY
-                   RECOMPILE_FOR_EMBEDDED
-                   COMPONENT oqgraph-engine
-                   LINK_LIBRARIES ${Judy_LIBRARIES})
-ELSE(OQGRAPH_OK)
-  MESSAGE(STATUS "Requisites for OQGraph not met. OQGraph will not be compiled")
-ENDIF(OQGRAPH_OK)
 ENDFUNCTION()
 
 IF(NOT DEFINED OQGRAPH_OK)
   CHECK_OQGRAPH()
+  IF (NOT OQGRAPH_OK)
+    MESSAGE(STATUS "Requisites for OQGraph not met. OQGraph will not be compiled")
+  ENDIF()
 ENDIF()
+
+IF(NOT OQGRAPH_OK)
+  RETURN()
+ENDIF()
+
+ADD_DEFINITIONS(-DHAVE_OQGRAPH)
+IF(MSVC)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+  # Fix problem with judy not finding inttypes.h on Windows:
+  ADD_DEFINITIONS(-DJU_WIN)
+ELSE(MSVC)
+  # Fix lp bug 1221555 with -fpermissive, so that errors in gcc 4.7 become warnings for the time being
+  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+  STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive")
+ENDIF(MSVC)
+
+ADD_DEFINITIONS(-DBOOST_NO_RTTI=1 -DBOOST_NO_TYPEID=1 -DBOOST_DISABLE_ASSERTS=1)
+MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc graphcore-graph.cc
+                 oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
+                 STORAGE_ENGINE
+                 MODULE_ONLY
+                 RECOMPILE_FOR_EMBEDDED
+                 COMPONENT oqgraph-engine
+                 LINK_LIBRARIES ${Judy_LIBRARIES})

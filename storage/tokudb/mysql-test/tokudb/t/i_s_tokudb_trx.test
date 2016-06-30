@@ -8,34 +8,31 @@ drop table if exists t;
 enable_warnings;
 
 # should be empty
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 
 # should have my txn
-let $default_id=`select connection_id()`;
 set autocommit=0;
 create table t (id int primary key);
 insert into t values (1);
-replace_column 1 TXN_ID_DEFAULT 2 CLIENT_ID_DEFAULT;
-eval select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 
 # should be empty
 commit;
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 
 connect(conn_a,localhost,root,,);
-let a_id=`select connection_id()`;
 set autocommit=0;
 insert into t values (2);
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 
 connection default;
-replace_column 1 TXN_ID_A 2 CLIENT_ID_A;
-eval select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 connection conn_a;
 commit;
 connection default;
 
 # should be empty
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 
 disconnect conn_a;
 

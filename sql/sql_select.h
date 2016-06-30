@@ -1939,8 +1939,6 @@ bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
-SORT_FIELD * make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
-                                  SORT_FIELD *sortorder);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List <Item> &all_fields, ORDER *order,
                 bool search_in_all_fields= true);

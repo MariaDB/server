@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB Corporation
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1358,6 +1358,10 @@ bool is_network_error(uint errorno)
       errorno == ER_NET_READ_INTERRUPTED ||
       errorno == ER_SERVER_SHUTDOWN)
     return TRUE;
+#ifdef WITH_WSREP
+  if (errorno == ER_UNKNOWN_COM_ERROR)
+    return TRUE;
+#endif
 
   return FALSE;   
 }
@@ -4345,7 +4349,8 @@ int check_temp_dir(char* tmp_file)
   mysql_mutex_lock(&LOCK_start_thread);
   if (check_temp_dir_run)
   {
-    result= check_temp_dir_result;
+    if ((result= check_temp_dir_result))
+      my_message(result, tmp_file, MYF(0));
     goto end;
   }
   check_temp_dir_run= 1;
@@ -4380,7 +4385,6 @@ int check_temp_dir(char* tmp_file)
   mysql_file_delete(key_file_misc, tmp_file, MYF(0));
 
 end:
-  check_temp_dir_result= result;
   mysql_mutex_unlock(&LOCK_start_thread);
   DBUG_RETURN(result);
 }
@@ -4660,11 +4664,14 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   if (check_temp_dir(rli->slave_patternload_file))
   {
+    check_temp_dir_result= thd->get_stmt_da()->sql_errno();
     rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), NULL,
                 "Unable to use slave's temporary directory %s - %s", 
                 slave_load_tmpdir, thd->get_stmt_da()->message());
     goto err;
   }
+  else
+    check_temp_dir_result= 0;
 
   /* Load the set of seen GTIDs, if we did not already. */
   if (rpl_load_gtid_slave_state(thd))

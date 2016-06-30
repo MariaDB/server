@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -202,9 +202,6 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
 */
 String *Item::val_str_ascii(String *str)
 {
-  if (!(collation.collation->state & MY_CS_NONASCII))
-    return val_str(str);
-  
   DBUG_ASSERT(str != &str_value);
   
   uint errors;
@@ -212,11 +209,15 @@ String *Item::val_str_ascii(String *str)
   if (!res)
     return 0;
   
-  if ((null_value= str->copy(res->ptr(), res->length(),
-                             collation.collation, &my_charset_latin1,
-                             &errors)))
-    return 0;
-  
+  if (!(res->charset()->state & MY_CS_NONASCII))
+    str= res;
+  else
+  {
+    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                               &my_charset_latin1, &errors)))
+      return 0;
+  }
+
   return str;
 }
 
@@ -1246,8 +1247,8 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
     to it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
-    SET @@arg= 1;
-    EXECUTE stms USING @arg;
+    SET @arg= 1;
+    EXECUTE stmt USING @arg;
 
     In the above example result_type is STRING_RESULT at prepare time,
     and INT_RESULT at execution time.
@@ -3783,7 +3784,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE)
+  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
   {
     str->append('?');
   }
@@ -6716,7 +6717,8 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table)
+  if (field && field->table->const_table &&
+      !(query_type & QT_NO_DATA_EXPANSION))
   {
     print_value(str);
     return;

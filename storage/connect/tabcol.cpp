@@ -50,7 +50,7 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   Qualifier = tp->Qualifier;
 
   if (trace)
-    htrc(" making copy TABLE %s %s\n", Name, Srcdef);
+    htrc(" making copy TABLE %s %s\n", Name, SVP(Srcdef));
 
   } // end of XTAB constructor
 

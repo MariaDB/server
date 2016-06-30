@@ -1,5 +1,5 @@
-/* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -639,6 +639,10 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
+#ifdef WITH_WSREP
+  OPT_WSREP_CAUSAL_READS,
+  OPT_WSREP_SYNC_WAIT,
+#endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_which_is_always_the_last
@@ -686,7 +690,12 @@ enum enum_query_type
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
   /// here, as it would give better readable results
-  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET,
+
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
 };
 
 

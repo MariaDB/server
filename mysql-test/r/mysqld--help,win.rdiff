@@ -126,7 +126,7 @@
  table-definition-cache 400
 -table-open-cache 431
 +table-open-cache 2000
- tc-heuristic-recover COMMIT
+ tc-heuristic-recover OFF
  thread-cache-size 151
 -thread-pool-idle-timeout 60
  thread-pool-max-threads 1000

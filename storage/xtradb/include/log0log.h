@@ -352,17 +352,6 @@ log_archive_do(
 	ulint*	n_bytes);/*!< out: archive log buffer size, 0 if nothing to
 			archive */
 /****************************************************************//**
-Writes the log contents to the archive up to the lsn when this function was
-called, and stops the archiving. When archiving is started again, the archived
-log file numbers start from a number one higher, so that the archiving will
-not write again to the archived log files which exist when this function
-returns.
-@return	DB_SUCCESS or DB_ERROR */
-UNIV_INTERN
-ulint
-log_archive_stop(void);
-/*==================*/
-/****************************************************************//**
 Starts again archiving which has been stopped.
 @return	DB_SUCCESS or DB_ERROR */
 UNIV_INTERN
@@ -624,25 +613,14 @@ log_mem_free(void);
 /*==============*/
 
 /****************************************************************//**
-Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
-if available, otherwise this field is protected with the log system
-mutex.  The writer counterpart function is log_set_tracked_lsn() in
-log0online.c.
+Safely reads the log_sys->tracked_lsn value.  The writer counterpart function
+is log_set_tracked_lsn() in log0online.c.
 
 @return log_sys->tracked_lsn value. */
 UNIV_INLINE
 lsn_t
 log_get_tracked_lsn(void);
 /*=====================*/
-/****************************************************************//**
-Unsafely reads the log_sys->tracked_lsn value.  Uses atomic operations
-if available, or use dirty read. Use for printing only.
-
-@return log_sys->tracked_lsn value. */
-UNIV_INLINE
-lsn_t
-log_get_tracked_lsn_peek(void);
-/*==========================*/
 
 extern log_t*	log_sys;
 
@@ -951,7 +929,7 @@ struct log_t{
 					pending flushes or writes */
 	/* NOTE on the 'flush' in names of the fields below: starting from
 	4.0.14, we separate the write of the log file and the actual fsync()
-	or other method to flush it to disk. The names below shhould really
+	or other method to flush it to disk. The names below should really
 	be 'flush_or_write'! */
 	os_event_t	no_flush_event;	/*!< this event is in the reset state
 					when a flush or a write is running;

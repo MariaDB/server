@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates
-Copyright (c) 2013, 2015, MariaDB Corporation
+Copyright (c) 1995, 2016, Oracle and/or its affiliates
+Copyright (c) 2013, 2016, MariaDB Corporation
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2285,7 +2285,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 /*==========================================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {

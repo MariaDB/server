@@ -23,6 +23,10 @@
 
 #include "plugin.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MYSQL_AUDIT_CLASS_MASK_SIZE 1
 
 #define MYSQL_AUDIT_INTERFACE_VERSION 0x0302
@@ -174,5 +178,9 @@ struct st_mysql_audit
   unsigned long class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
 };
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

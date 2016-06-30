@@ -47,26 +47,13 @@ struct os_mutex_t{
 				do not assume that the OS mutex
 				supports recursive locking, though
 				NT seems to do that */
-	UT_LIST_NODE_T(os_mutex_t) os_mutex_list;
-				/* list of all 'slow' OS mutexes created */
 };
 
-/** Mutex protecting counts and the lists of OS mutexes and events */
-UNIV_INTERN os_ib_mutex_t	os_sync_mutex;
-/** TRUE if os_sync_mutex has been initialized */
-static ibool		os_sync_mutex_inited	= FALSE;
-/** TRUE when os_sync_free() is being executed */
-static ibool		os_sync_free_called	= FALSE;
+// All the os_*_count variables are accessed atomically
 
 /** This is incremented by 1 in os_thread_create and decremented by 1 in
-os_thread_exit */
+os_thread_exit. */
 UNIV_INTERN ulint	os_thread_count		= 0;
-
-/** The list of all events created */
-static UT_LIST_BASE_NODE_T(os_event)		os_event_list;
-
-/** The list of all OS 'slow' mutexes */
-static UT_LIST_BASE_NODE_T(os_mutex_t)		os_mutex_list;
 
 UNIV_INTERN ulint	os_event_count		= 0;
 UNIV_INTERN ulint	os_mutex_count		= 0;
@@ -79,12 +66,6 @@ static const ulint MICROSECS_IN_A_SECOND = 1000000;
 UNIV_INTERN mysql_pfs_key_t	event_os_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	os_mutex_key;
 #endif
-
-/* Because a mutex is embedded inside an event and there is an
-event embedded inside a mutex, on free, this generates a recursive call.
-This version of the free event function doesn't acquire the global lock */
-static void os_event_free_internal(os_event_t	event);
-
 
 /*********************************************************//**
 Initialitze condition variable */
@@ -226,52 +207,27 @@ void
 os_sync_init(void)
 /*==============*/
 {
-	UT_LIST_INIT(os_event_list);
-	UT_LIST_INIT(os_mutex_list);
-
-	os_sync_mutex = NULL;
-	os_sync_mutex_inited = FALSE;
-
-	os_sync_mutex = os_mutex_create();
-
-	os_sync_mutex_inited = TRUE;
 }
 
-/*********************************************************//**
-Frees created events and OS 'slow' mutexes. */
+/** Create an event semaphore, i.e., a semaphore which may just have two
+states: signaled and nonsignaled. The created event is manual reset: it must be
+reset explicitly by calling sync_os_reset_event.
+@param[in,out]	event	memory block where to create the event */
 UNIV_INTERN
 void
-os_sync_free(void)
-/*==============*/
+os_event_create(os_event_t event)
 {
-	os_event_t	event;
-	os_ib_mutex_t	mutex;
+#ifndef PFS_SKIP_EVENT_MUTEX
+	os_fast_mutex_init(event_os_mutex_key, &event->os_mutex);
+#else
+	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &event->os_mutex);
+#endif
 
-	os_sync_free_called = TRUE;
-	event = UT_LIST_GET_FIRST(os_event_list);
+	os_cond_init(&(event->cond_var));
 
-	while (event) {
+		event->init_count_and_set();
 
-		os_event_free(event);
-
-		event = UT_LIST_GET_FIRST(os_event_list);
-	}
-
-	mutex = UT_LIST_GET_FIRST(os_mutex_list);
-
-	while (mutex) {
-		if (mutex == os_sync_mutex) {
-			/* Set the flag to FALSE so that we do not try to
-			reserve os_sync_mutex any more in remaining freeing
-			operations in shutdown */
-			os_sync_mutex_inited = FALSE;
-		}
-
-		os_mutex_free(mutex);
-
-		mutex = UT_LIST_GET_FIRST(os_mutex_list);
-	}
-	os_sync_free_called = FALSE;
+	os_atomic_increment_ulint(&os_event_count, 1);
 }
 
 /*********************************************************//**
@@ -284,43 +240,9 @@ os_event_t
 os_event_create(void)
 /*==================*/
 {
-  os_event_t	event;
+	os_event_t event = static_cast<os_event_t>(ut_malloc(sizeof(*event)));;
 
-	event = static_cast<os_event_t>(ut_malloc(sizeof *event));
-
-#ifndef PFS_SKIP_EVENT_MUTEX
-	os_fast_mutex_init(event_os_mutex_key, &event->os_mutex);
-#else
-	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &event->os_mutex);
-#endif
-
-	os_cond_init(&(event->cond_var));
-
-	event->is_set = FALSE;
-
-	/* We return this value in os_event_reset(), which can then be
-	be used to pass to the os_event_wait_low(). The value of zero
-	is reserved in os_event_wait_low() for the case when the
-	caller does not want to pass any signal_count value. To
-	distinguish between the two cases we initialize signal_count
-	to 1 here. */
-	event->signal_count = 1;
-
-	/* The os_sync_mutex can be NULL because during startup an event
-	can be created [ because it's embedded in the mutex/rwlock ] before
-	this module has been initialized */
-	if (os_sync_mutex != NULL) {
-		os_mutex_enter(os_sync_mutex);
-	}
-
-	/* Put to the list of events */
-	UT_LIST_ADD_FIRST(os_event_list, os_event_list, event);
-
-	os_event_count++;
-
-	if (os_sync_mutex != NULL) {
-		os_mutex_exit(os_sync_mutex);
-	}
+	os_event_create(event);
 
 	return(event);
 }
@@ -338,11 +260,11 @@ os_event_set(
 
 	os_fast_mutex_lock(&(event->os_mutex));
 
-	if (event->is_set) {
+	if (UNIV_UNLIKELY(event->is_set())) {
 		/* Do nothing */
 	} else {
-		event->is_set = TRUE;
-		event->signal_count += 1;
+		event->set();
+		event->inc_signal_count();
 		os_cond_broadcast(&(event->cond_var));
 	}
 
@@ -369,39 +291,15 @@ os_event_reset(
 
 	os_fast_mutex_lock(&(event->os_mutex));
 
-	if (!event->is_set) {
+	if (UNIV_UNLIKELY(!event->is_set())) {
 		/* Do nothing */
 	} else {
-		event->is_set = FALSE;
+		event->reset();
 	}
-	ret = event->signal_count;
+	ret = event->signal_count();
 
 	os_fast_mutex_unlock(&(event->os_mutex));
 	return(ret);
-}
-
-/**********************************************************//**
-Frees an event object, without acquiring the global lock. */
-static
-void
-os_event_free_internal(
-/*===================*/
-	os_event_t	event)	/*!< in: event to free */
-{
-
-	ut_a(event);
-
-	/* This is to avoid freeing the mutex twice */
-	os_fast_mutex_free(&(event->os_mutex));
-
-  os_cond_destroy(&(event->cond_var));
-
-	/* Remove from the list of events */
-	UT_LIST_REMOVE(os_event_list, os_event_list, event);
-
-	os_event_count--;
-
-	ut_free(event);
 }
 
 /**********************************************************//**
@@ -410,7 +308,9 @@ UNIV_INTERN
 void
 os_event_free(
 /*==========*/
-	os_event_t	event)	/*!< in: event to free */
+	os_event_t	event,	/*!< in: event to free */
+	bool		free_memory)/*!< in: if true, deallocate the event
+				    memory block too */
 
 {
 	ut_a(event);
@@ -419,16 +319,10 @@ os_event_free(
 
 	os_cond_destroy(&(event->cond_var));
 
-	/* Remove from the list of events */
-	os_mutex_enter(os_sync_mutex);
+	os_atomic_decrement_ulint(&os_event_count, 1);
 
-	UT_LIST_REMOVE(os_event_list, os_event_list, event);
-
-	os_event_count--;
-
-	os_mutex_exit(os_sync_mutex);
-
-	ut_free(event);
+	if (free_memory)
+		ut_free(event);
 }
 
 /**********************************************************//**
@@ -461,10 +355,10 @@ os_event_wait_low(
 	os_fast_mutex_lock(&event->os_mutex);
 
 	if (!reset_sig_count) {
-		reset_sig_count = event->signal_count;
+		reset_sig_count = event->signal_count();
 	}
 
-	while (!event->is_set && event->signal_count == reset_sig_count) {
+	while (!event->is_set() && event->signal_count() == reset_sig_count) {
 		os_cond_wait(&(event->cond_var), &(event->os_mutex));
 
 		/* Solaris manual said that spurious wakeups may occur: we
@@ -536,11 +430,12 @@ os_event_wait_time_low(
 	os_fast_mutex_lock(&event->os_mutex);
 
 	if (!reset_sig_count) {
-		reset_sig_count = event->signal_count;
+		reset_sig_count = event->signal_count();
 	}
 
 	do {
-		if (event->is_set || event->signal_count != reset_sig_count) {
+		if (event->is_set()
+		    || event->signal_count() != reset_sig_count) {
 
 			break;
 		}
@@ -584,18 +479,7 @@ os_mutex_create(void)
 	mutex_str->count = 0;
 	mutex_str->event = os_event_create();
 
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		/* When creating os_sync_mutex itself we cannot reserve it */
-		os_mutex_enter(os_sync_mutex);
-	}
-
-	UT_LIST_ADD_FIRST(os_mutex_list, os_mutex_list, mutex_str);
-
-	os_mutex_count++;
-
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		os_mutex_exit(os_sync_mutex);
-	}
+	os_atomic_increment_ulint(&os_mutex_count, 1);
 
 	return(mutex_str);
 }
@@ -641,21 +525,9 @@ os_mutex_free(
 {
 	ut_a(mutex);
 
-	if (UNIV_LIKELY(!os_sync_free_called)) {
-		os_event_free_internal(mutex->event);
-	}
+	os_event_free(mutex->event);
 
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		os_mutex_enter(os_sync_mutex);
-	}
-
-	UT_LIST_REMOVE(os_mutex_list, os_mutex_list, mutex);
-
-	os_mutex_count--;
-
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		os_mutex_exit(os_sync_mutex);
-	}
+	os_atomic_decrement_ulint(&os_mutex_count, 1);
 
 	os_fast_mutex_free(static_cast<os_fast_mutex_t*>(mutex->handle));
 	ut_free(mutex->handle);
@@ -677,18 +549,7 @@ os_fast_mutex_init_func(
 #else
 	ut_a(0 == pthread_mutex_init(fast_mutex, MY_MUTEX_INIT_FAST));
 #endif
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		/* When creating os_sync_mutex itself (in Unix) we cannot
-		reserve it */
-
-		os_mutex_enter(os_sync_mutex);
-	}
-
-	os_fast_mutex_count++;
-
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		os_mutex_exit(os_sync_mutex);
-	}
+	os_atomic_increment_ulint(&os_fast_mutex_count, 1);
 }
 
 /**********************************************************//**
@@ -769,17 +630,6 @@ os_fast_mutex_free_func(
 		putc('\n', stderr);
 	}
 #endif
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		/* When freeing the last mutexes, we have
-		already freed os_sync_mutex */
 
-		os_mutex_enter(os_sync_mutex);
-	}
-
-	ut_ad(os_fast_mutex_count > 0);
-	os_fast_mutex_count--;
-
-	if (UNIV_LIKELY(os_sync_mutex_inited)) {
-		os_mutex_exit(os_sync_mutex);
-	}
+	os_atomic_decrement_ulint(&os_fast_mutex_count, 1);
 }

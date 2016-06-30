@@ -212,10 +212,7 @@ UNIV_INTERN mysql_pfs_key_t	sync_thread_mutex_key;
 /** Global list of database mutexes (not OS mutexes) created. */
 UNIV_INTERN ut_list_base_node_t  mutex_list;
 
-/** Global list of priority mutexes. A subset of mutex_list */
-UNIV_INTERN UT_LIST_BASE_NODE_T(ib_prio_mutex_t)  prio_mutex_list;
-
-/** Mutex protecting the mutex_list and prio_mutex_list variables */
+/** Mutex protecting the mutex_list variable */
 UNIV_INTERN ib_mutex_t mutex_list_mutex;
 
 #ifdef UNIV_PFS_MUTEX
@@ -280,7 +277,7 @@ mutex_create_func(
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &mutex->os_fast_mutex);
 	mutex->lock_word = 0;
 #endif
-	mutex->event = os_event_create();
+	os_event_create(&mutex->event);
 	mutex_set_waiters(mutex, 0);
 #ifdef UNIV_DEBUG
 	mutex->magic_n = MUTEX_MAGIC_N;
@@ -349,11 +346,7 @@ mutex_create_func(
 			  cline,
 			  cmutex_name);
 	mutex->high_priority_waiters = 0;
-	mutex->high_priority_event = os_event_create();
-
-	mutex_enter(&mutex_list_mutex);
-	UT_LIST_ADD_FIRST(list, prio_mutex_list, mutex);
-	mutex_exit(&mutex_list_mutex);
+	os_event_create(&mutex->high_priority_event);
 }
 
 /******************************************************************//**
@@ -400,7 +393,7 @@ mutex_free_func(
 		mutex_exit(&mutex_list_mutex);
 	}
 
-	os_event_free(mutex->event);
+	os_event_free(&mutex->event, false);
 #ifdef UNIV_MEM_DEBUG
 func_exit:
 #endif /* UNIV_MEM_DEBUG */
@@ -427,12 +420,8 @@ mutex_free_func(
 /*============*/
 	ib_prio_mutex_t*	mutex)	/*!< in: mutex */
 {
-	mutex_enter(&mutex_list_mutex);
-	UT_LIST_REMOVE(list, prio_mutex_list, mutex);
-	mutex_exit(&mutex_list_mutex);
-
 	ut_a(mutex->high_priority_waiters == 0);
-	os_event_free(mutex->high_priority_event);
+	os_event_free(&mutex->high_priority_event, false);
 	mutex_free_func(&mutex->base_mutex);
 }
 
@@ -722,7 +711,7 @@ mutex_signal_object(
 
 	/* The memory order of resetting the waiters field and
 	signaling the object is important. See LEMMA 1 above. */
-	os_event_set(mutex->event);
+	os_event_set(&mutex->event);
 	sync_array_object_signalled();
 }
 
@@ -1555,7 +1544,6 @@ sync_init(void)
 	/* Init the mutex list and create the mutex to protect it. */
 
 	UT_LIST_INIT(mutex_list);
-	UT_LIST_INIT(prio_mutex_list);
 	mutex_create(mutex_list_mutex_key, &mutex_list_mutex,
 		     SYNC_NO_ORDER_CHECK);
 #ifdef UNIV_SYNC_DEBUG
@@ -1602,22 +1590,17 @@ sync_thread_level_arrays_free(void)
 #endif /* UNIV_SYNC_DEBUG */
 
 /******************************************************************//**
-Frees the resources in InnoDB's own synchronization data structures. Use
-os_sync_free() after calling this. */
+Frees the resources in InnoDB's own synchronization data structures. */
 UNIV_INTERN
 void
 sync_close(void)
 /*===========*/
 {
 	ib_mutex_t*		mutex;
-	ib_prio_mutex_t*	prio_mutex;
 
 	sync_array_close();
 
-	for (prio_mutex = UT_LIST_GET_FIRST(prio_mutex_list); prio_mutex;) {
-		mutex_free(prio_mutex);
-		prio_mutex = UT_LIST_GET_FIRST(prio_mutex_list);
-	}
+	mutex_free(&rw_lock_list_mutex);
 
 	for (mutex = UT_LIST_GET_FIRST(mutex_list);
 	     mutex != NULL;
@@ -1635,7 +1618,6 @@ sync_close(void)
 		mutex = UT_LIST_GET_FIRST(mutex_list);
 	}
 
-	mutex_free(&mutex_list_mutex);
 #ifdef UNIV_SYNC_DEBUG
 	mutex_free(&sync_thread_mutex);
 
@@ -1645,6 +1627,8 @@ sync_close(void)
 	sync_thread_level_arrays_free();
 	os_fast_mutex_free(&rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
+
+	mutex_free(&mutex_list_mutex);
 
 	sync_initialized = FALSE;
 }

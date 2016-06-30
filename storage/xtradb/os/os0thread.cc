@@ -145,9 +145,7 @@ os_thread_create_func(
 	os_thread_t	thread;
 	DWORD		win_thread_id;
 
-	os_mutex_enter(os_sync_mutex);
-	os_thread_count++;
-	os_mutex_exit(os_sync_mutex);
+	os_atomic_increment_ulint(&os_thread_count, 1);
 
 	thread = CreateThread(NULL,	/* no security attributes */
 			      0,	/* default size stack */
@@ -186,9 +184,8 @@ os_thread_create_func(
 		exit(1);
 	}
 #endif
-	os_mutex_enter(os_sync_mutex);
-	os_thread_count++;
-	os_mutex_exit(os_sync_mutex);
+	ulint new_count = os_atomic_increment_ulint(&os_thread_count, 1);
+	ut_a(new_count <= OS_THREAD_MAX_N);
 
 #ifdef UNIV_HPUX10
 	ret = pthread_create(&pthread, pthread_attr_default, func, arg);
@@ -204,8 +201,6 @@ os_thread_create_func(
 #ifndef UNIV_HPUX10
 	pthread_attr_destroy(&attr);
 #endif
-
-	ut_a(os_thread_count <= OS_THREAD_MAX_N);
 
 	if (thread_id) {
 		*thread_id = pthread;
@@ -233,9 +228,7 @@ os_thread_exit(
 	pfs_delete_thread();
 #endif
 
-	os_mutex_enter(os_sync_mutex);
-	os_thread_count--;
-	os_mutex_exit(os_sync_mutex);
+	os_atomic_decrement_ulint(&os_thread_count, 1);
 
 #ifdef __WIN__
 	ExitThread((DWORD) exit_value);

@@ -313,7 +313,7 @@ indexer_undo_do_provisional(DB_INDEXER *indexer, DB *hotdb, struct ule_prov_info
             break;
 
         if (outermost_xid_state != TOKUTXN_LIVE && xrindex > num_committed) {
-            // if the outermost is not live, then the inner state must be retired.  that's the way that the txn API works.
+            // If the outermost is not live, then the inner state must be retired.  That's the way that the txn API works.
             assert(this_xid_state == TOKUTXN_RETIRED);
         }
 

@@ -27,6 +27,10 @@
 
 #include <mysql/plugin.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MariaDB_ENCRYPTION_INTERFACE_VERSION 0x0300
 
 /**
@@ -114,5 +118,9 @@ struct st_mariadb_encryption
   */
   unsigned int (*encrypted_length)(unsigned int slen, unsigned int key_id, unsigned int key_version);
 };
+
+#ifdef __cplusplus
+}
+#endif
 #endif
 

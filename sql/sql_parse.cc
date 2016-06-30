@@ -5335,27 +5335,21 @@ end_with_restore_list:
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_CREATE_USER:
-  case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
-    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
-        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
-      grant_user->user= current_user;
+    res = mysql_show_create_user(thd, grant_user);
+    break;
+  }
+  case SQLCOM_SHOW_GRANTS:
+  {
+    LEX_USER *grant_user= lex->grant_user;
+    if (!grant_user)
+      goto error;
 
-    if (grant_user->user.str == current_user.str ||
-        grant_user->user.str == current_role.str ||
-        grant_user->user.str == current_user_and_current_role.str ||
-        !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
-    {
-      if (lex->sql_command == SQLCOM_SHOW_GRANTS)
-        res = mysql_show_grants(thd, grant_user);
-      else
-        res = mysql_show_create_user(thd, grant_user);
-    }
+    res = mysql_show_grants(thd, grant_user);
     break;
   }
 #endif
@@ -7063,6 +7057,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
                                 temporary table flag)
   @param alter_info    [in]     Initial list of columns and indexes for the
                                 table to be created
+  @param create_db     [in]     Database of the created table
 
   @retval
    false  ok.
@@ -7071,7 +7066,8 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 */
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
-                                  Alter_info *alter_info)
+                                  Alter_info *alter_info,
+                                  const char* create_db)
 {
   Key *key;
   List_iterator<Key> key_iterator(alter_info->key_list);
@@ -7111,10 +7107,28 @@ bool check_fk_parent_table_access(THD *thd,
           return true;
         }
       }
-      else if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
-        return true;
       else
-        is_qualified_table_name= false;
+      {
+        if (!thd->db)
+        {
+          db_name.str= (char *) thd->memdup(create_db, strlen(create_db)+1);
+          db_name.length= strlen(create_db);
+          is_qualified_table_name= true;
+
+          if(create_db && check_db_name(&db_name))
+          {
+            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+            return true;
+          }
+        }
+        else
+        {
+          if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
+            return true;
+          else
+           is_qualified_table_name= false;
+        }
+      }
 
       // if lower_case_table_names is set then convert tablename to lower case.
       if (lower_case_table_names)
@@ -9327,7 +9341,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
 
-  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info))
+  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
 
   /*

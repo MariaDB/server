@@ -1,6 +1,6 @@
-source include/master-slave.inc;
 let collation=utf8_unicode_ci;
---source include/have_collation.inc
+source include/have_collation.inc;
+source include/master-slave.inc;
 
 call mtr.add_suppression("Can't find record in 't.'");
 call mtr.add_suppression("Can't find record in 'user'");
@@ -179,6 +179,7 @@ SELECT HEX(word) FROM t5;
 SELECT * FROM tmptbl504451f4258$1;
 connection master;
 DROP TABLE t5;
+flush privileges;
 sync_slave_with_master;
 
 --source include/rpl_end.inc

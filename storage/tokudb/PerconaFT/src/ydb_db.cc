@@ -1016,6 +1016,25 @@ toku_db_verify_with_progress(DB *db, int (*progress_callback)(void *extra, float
     return r;
 }
 
+
+static int
+toku_db_recount_rows(DB* db, int (*progress_callback)(uint64_t count,
+                                                      uint64_t deleted,
+                                                      void* progress_extra),
+                     void* progress_extra) {
+
+    HANDLE_PANICKED_DB(db);
+    int r = 0;
+    r =
+        toku_ft_recount_rows(
+            db->i->ft_handle,
+            progress_callback,
+            progress_extra);
+
+    return r;
+}
+
+
 int toku_setup_db_internal (DB **dbp, DB_ENV *env, uint32_t flags, FT_HANDLE ft_handle, bool is_open) {
     if (flags || env == NULL) 
         return EINVAL;
@@ -1099,6 +1118,7 @@ toku_db_create(DB ** db, DB_ENV * env, uint32_t flags) {
     USDB(dbt_pos_infty);
     USDB(dbt_neg_infty);
     USDB(get_fragmentation);
+    USDB(recount_rows);
 #undef USDB
     result->get_indexer = db_get_indexer;
     result->del = autotxn_db_del;

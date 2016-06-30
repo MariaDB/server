@@ -1,3 +1,12 @@
+#
+# MDEV-10161: wsrep_sync_wait not enabled when set to 1 in config file
+#
+SELECT @@global.wsrep_sync_wait;
+@@global.wsrep_sync_wait
+7
+SELECT @@global.wsrep_causal_reads;
+@@global.wsrep_causal_reads
+1
 connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 connection node_2;

@@ -323,6 +323,13 @@ int deserialize_ft_versioned(int fd, struct rbuf *rb, FT *ftp, uint32_t version)
         fanout = rbuf_int(rb);
     }
 
+    uint64_t on_disk_logical_rows;
+    on_disk_logical_rows = (uint64_t)-1;
+    if (ft->layout_version_read_from_disk >= FT_LAYOUT_VERSION_29) {
+        on_disk_logical_rows = rbuf_ulonglong(rb);
+    }
+    ft->in_memory_logical_rows = on_disk_logical_rows;
+
     (void) rbuf_int(rb); //Read in checksum and ignore (already verified).
     if (rb->ndone != rb->size) {
         fprintf(stderr, "Header size did not match contents.\n");
@@ -357,7 +364,8 @@ int deserialize_ft_versioned(int fd, struct rbuf *rb, FT *ftp, uint32_t version)
             .count_of_optimize_in_progress = count_of_optimize_in_progress,
             .count_of_optimize_in_progress_read_from_disk = count_of_optimize_in_progress,
             .msn_at_start_of_last_completed_optimize = msn_at_start_of_last_completed_optimize,
-            .on_disk_stats = on_disk_stats
+            .on_disk_stats = on_disk_stats,
+            .on_disk_logical_rows = on_disk_logical_rows
         };
         XMEMDUP(ft->h, &h);
     }
@@ -408,6 +416,8 @@ serialize_ft_min_size (uint32_t version) {
     size_t size = 0;
 
     switch(version) {
+    case FT_LAYOUT_VERSION_29:
+        size += sizeof(uint64_t); // logrows in ft
     case FT_LAYOUT_VERSION_28:
         size += sizeof(uint32_t); // fanout in ft
     case FT_LAYOUT_VERSION_27:
@@ -754,6 +764,7 @@ void toku_serialize_ft_to_wbuf (
     wbuf_MSN(wbuf, h->highest_unused_msn_for_upgrade);
     wbuf_MSN(wbuf, h->max_msn_in_ft);
     wbuf_int(wbuf, h->fanout);
+    wbuf_ulonglong(wbuf, h->on_disk_logical_rows);
     uint32_t checksum = toku_x1764_finish(&wbuf->checksum);
     wbuf_int(wbuf, checksum);
     lazy_assert(wbuf->ndone == wbuf->size);

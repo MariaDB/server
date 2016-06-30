@@ -290,7 +290,7 @@ const char *show_comp_option_name[]= {"YES", "NO", "DISABLED"};
 
 static const char *tc_heuristic_recover_names[]=
 {
-  "COMMIT", "ROLLBACK", NullS
+  "OFF", "COMMIT", "ROLLBACK", NullS
 };
 static TYPELIB tc_heuristic_recover_typelib=
 {
@@ -4270,14 +4270,6 @@ static int init_common_variables()
   }
   else
     opt_log_basename= glob_hostname;
-
-#ifdef WITH_WSREP
-  if (wsrep_node_name == 0 || wsrep_node_name[0] == 0)
-  {
-    my_free((void *)wsrep_node_name);
-    wsrep_node_name= my_strdup(glob_hostname, MYF(MY_WME));
-  }
-#endif /* WITH_WSREP */
 
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
   strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
@@ -9214,6 +9206,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       log_error_file_ptr= const_cast<char*>("");
     break;
   case OPT_IGNORE_DB_DIRECTORY:
+    opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
     if (*argument == 0)
       ignore_db_dirs_reset();
     else
@@ -9307,6 +9300,16 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 #endif
     break;
   }
+#ifdef WITH_WSREP
+  case OPT_WSREP_CAUSAL_READS:
+    wsrep_causal_reads_update(&global_system_variables);
+    break;
+  case OPT_WSREP_SYNC_WAIT:
+    global_system_variables.wsrep_causal_reads=
+      MY_TEST(global_system_variables.wsrep_sync_wait &
+              WSREP_SYNC_WAIT_BEFORE_READ);
+    break;
+#endif /* WITH_WSREP */
   }
   return 0;
 }

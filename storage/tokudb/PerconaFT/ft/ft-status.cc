@@ -129,24 +129,24 @@ void CACHETABLE_STATUS_S::init() {
     CT_STATUS_INIT(CT_LONG_WAIT_PRESSURE_COUNT, CACHETABLE_LONG_WAIT_PRESSURE_COUNT,    UINT64, "number of long waits on cache pressure");
     CT_STATUS_INIT(CT_LONG_WAIT_PRESSURE_TIME,  CACHETABLE_LONG_WAIT_PRESSURE_TIME,     UINT64, "long time waiting on cache pressure");
     
-    CT_STATUS_INIT(CT_POOL_CLIENT_NUM_THREADS,                  CACHETABLE_POOL_CLIENT_NUM_THREADS,                 UINT64, "number of threads in pool");
-    CT_STATUS_INIT(CT_POOL_CLIENT_NUM_THREADS_ACTIVE,           CACHETABLE_POOL_CLIENT_NUM_THREADS_ACTIVE,          UINT64, "number of currently active threads in pool");
-    CT_STATUS_INIT(CT_POOL_CLIENT_QUEUE_SIZE,                   CACHETABLE_POOL_CLIENT_QUEUE_SIZE,                  UINT64, "number of currently queued work items");
-    CT_STATUS_INIT(CT_POOL_CLIENT_MAX_QUEUE_SIZE,               CACHETABLE_POOL_CLIENT_MAX_QUEUE_SIZE,              UINT64, "largest number of queued work items");
-    CT_STATUS_INIT(CT_POOL_CLIENT_TOTAL_ITEMS_PROCESSED,        CACHETABLE_POOL_CLIENT_TOTAL_ITEMS_PROCESSED,       UINT64, "total number of work items processed");
-    CT_STATUS_INIT(CT_POOL_CLIENT_TOTAL_EXECUTION_TIME,         CACHETABLE_POOL_CLIENT_TOTAL_EXECUTION_TIME,        UINT64, "total execution time of processing work items");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_NUM_THREADS,              CACHETABLE_POOL_CACHETABLE_NUM_THREADS,             UINT64, "number of threads in pool");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_NUM_THREADS_ACTIVE,       CACHETABLE_POOL_CACHETABLE_NUM_THREADS_ACTIVE,      UINT64, "number of currently active threads in pool");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_QUEUE_SIZE,               CACHETABLE_POOL_CACHETABLE_QUEUE_SIZE,              UINT64, "number of currently queued work items");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_MAX_QUEUE_SIZE,           CACHETABLE_POOL_CACHETABLE_MAX_QUEUE_SIZE,          UINT64, "largest number of queued work items");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_TOTAL_ITEMS_PROCESSED,    CACHETABLE_POOL_CACHETABLE_TOTAL_ITEMS_PROCESSED,   UINT64, "total number of work items processed");
-    CT_STATUS_INIT(CT_POOL_CACHETABLE_TOTAL_EXECUTION_TIME,     CACHETABLE_POOL_CACHETABLE_TOTAL_EXECUTION_TIME,    UINT64, "total execution time of processing work items");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_NUM_THREADS,              CACHETABLE_POOL_CHECKPOINT_NUM_THREADS,             UINT64, "number of threads in pool");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_NUM_THREADS_ACTIVE,       CACHETABLE_POOL_CHECKPOINT_NUM_THREADS_ACTIVE,      UINT64, "number of currently active threads in pool");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_QUEUE_SIZE,               CACHETABLE_POOL_CHECKPOINT_QUEUE_SIZE,              UINT64, "number of currently queued work items");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_MAX_QUEUE_SIZE,           CACHETABLE_POOL_CHECKPOINT_MAX_QUEUE_SIZE,          UINT64, "largest number of queued work items");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_TOTAL_ITEMS_PROCESSED,    CACHETABLE_POOL_CHECKPOINT_TOTAL_ITEMS_PROCESSED,   UINT64, "total number of work items processed");
-    CT_STATUS_INIT(CT_POOL_CHECKPOINT_TOTAL_EXECUTION_TIME,     CACHETABLE_POOL_CHECKPOINT_TOTAL_EXECUTION_TIME,    UINT64, "total execution time of processing work items");
+    CT_STATUS_INIT(CT_POOL_CLIENT_NUM_THREADS,                  CACHETABLE_POOL_CLIENT_NUM_THREADS,                 UINT64, "client pool: number of threads in pool");
+    CT_STATUS_INIT(CT_POOL_CLIENT_NUM_THREADS_ACTIVE,           CACHETABLE_POOL_CLIENT_NUM_THREADS_ACTIVE,          UINT64, "client pool: number of currently active threads in pool");
+    CT_STATUS_INIT(CT_POOL_CLIENT_QUEUE_SIZE,                   CACHETABLE_POOL_CLIENT_QUEUE_SIZE,                  UINT64, "client pool: number of currently queued work items");
+    CT_STATUS_INIT(CT_POOL_CLIENT_MAX_QUEUE_SIZE,               CACHETABLE_POOL_CLIENT_MAX_QUEUE_SIZE,              UINT64, "client pool: largest number of queued work items");
+    CT_STATUS_INIT(CT_POOL_CLIENT_TOTAL_ITEMS_PROCESSED,        CACHETABLE_POOL_CLIENT_TOTAL_ITEMS_PROCESSED,       UINT64, "client pool: total number of work items processed");
+    CT_STATUS_INIT(CT_POOL_CLIENT_TOTAL_EXECUTION_TIME,         CACHETABLE_POOL_CLIENT_TOTAL_EXECUTION_TIME,        UINT64, "client pool: total execution time of processing work items");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_NUM_THREADS,              CACHETABLE_POOL_CACHETABLE_NUM_THREADS,             UINT64, "cachetable pool: number of threads in pool");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_NUM_THREADS_ACTIVE,       CACHETABLE_POOL_CACHETABLE_NUM_THREADS_ACTIVE,      UINT64, "cachetable pool: number of currently active threads in pool");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_QUEUE_SIZE,               CACHETABLE_POOL_CACHETABLE_QUEUE_SIZE,              UINT64, "cachetable pool: number of currently queued work items");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_MAX_QUEUE_SIZE,           CACHETABLE_POOL_CACHETABLE_MAX_QUEUE_SIZE,          UINT64, "cachetable pool: largest number of queued work items");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_TOTAL_ITEMS_PROCESSED,    CACHETABLE_POOL_CACHETABLE_TOTAL_ITEMS_PROCESSED,   UINT64, "cachetable pool: total number of work items processed");
+    CT_STATUS_INIT(CT_POOL_CACHETABLE_TOTAL_EXECUTION_TIME,     CACHETABLE_POOL_CACHETABLE_TOTAL_EXECUTION_TIME,    UINT64, "cachetable pool: total execution time of processing work items");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_NUM_THREADS,              CACHETABLE_POOL_CHECKPOINT_NUM_THREADS,             UINT64, "checkpoint pool: number of threads in pool");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_NUM_THREADS_ACTIVE,       CACHETABLE_POOL_CHECKPOINT_NUM_THREADS_ACTIVE,      UINT64, "checkpoint pool: number of currently active threads in pool");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_QUEUE_SIZE,               CACHETABLE_POOL_CHECKPOINT_QUEUE_SIZE,              UINT64, "checkpoint pool: number of currently queued work items");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_MAX_QUEUE_SIZE,           CACHETABLE_POOL_CHECKPOINT_MAX_QUEUE_SIZE,          UINT64, "checkpoint pool: largest number of queued work items");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_TOTAL_ITEMS_PROCESSED,    CACHETABLE_POOL_CHECKPOINT_TOTAL_ITEMS_PROCESSED,   UINT64, "checkpoint pool: total number of work items processed");
+    CT_STATUS_INIT(CT_POOL_CHECKPOINT_TOTAL_EXECUTION_TIME,     CACHETABLE_POOL_CHECKPOINT_TOTAL_EXECUTION_TIME,    UINT64, "checkpoint pool: total execution time of processing work items");
 
     m_initialized = true;
 #undef CT_STATUS_INIT

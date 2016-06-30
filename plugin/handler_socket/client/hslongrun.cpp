@@ -39,7 +39,7 @@ struct auto_mysql : private noncopyable {
       mysql_close(db);
     }
     if ((db = mysql_init(0)) == 0) {
-      fatal_exit("failed to initialize mysql client");
+      fatal_abort("failed to initialize mysql client");
     }
   }
   operator MYSQL *() const { return db; }
@@ -870,7 +870,7 @@ mysql_do(MYSQL *db, const char *query)
 {
   if (mysql_real_query(db, query, strlen(query)) != 0) {
     fprintf(stderr, "mysql: e=[%s] q=[%s]\n", mysql_error(db), query);
-    fatal_exit("mysql_do");
+    fatal_abort("mysql_do");
   }
 }
 
@@ -886,7 +886,7 @@ hs_longrun_init_table(const config& conf, int num_prepare,
   if (!mysql_real_connect(db, mysql_host.c_str(), mysql_user.c_str(),
     mysql_passwd.c_str(), mysql_dbname.c_str(), mysql_port, 0, 0)) {
     fprintf(stderr, "mysql: error=[%s]\n", mysql_error(db));
-    fatal_exit("hs_longrun_init_table");
+    fatal_abort("hs_longrun_init_table");
   }
   mysql_do(db, "drop database if exists hstestdb");
   mysql_do(db, "create database hstestdb");

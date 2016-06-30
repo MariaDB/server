@@ -1,5 +1,5 @@
 call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format.*");
-call mtr.add_suppression("WSREP: cannot get fake InnoDB transaction ID");
+call mtr.add_suppression("WSREP: Cannot get fake transaction ID from storage engine.");
 #
 # MDEV-4227: Galera server should stop crashing on setting binlog_format STATEMENT
 #

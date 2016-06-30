@@ -79,6 +79,7 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )

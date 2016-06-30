@@ -2313,11 +2313,42 @@ static struct leaf_buf *start_leaf (struct dbout *out, const DESCRIPTOR UU(desc)
     return lbuf;
 }
 
-static void finish_leafnode (struct dbout *out, struct leaf_buf *lbuf, int progress_allocation, FTLOADER bl, uint32_t target_basementnodesize, enum toku_compression_method target_compression_method);
-static int write_nonleaves (FTLOADER bl, FIDX pivots_fidx, struct dbout *out, struct subtrees_info *sts, const DESCRIPTOR descriptor, uint32_t target_nodesize, uint32_t target_basementnodesize, enum toku_compression_method target_compression_method);
-static void add_pair_to_leafnode (struct leaf_buf *lbuf, unsigned char *key, int keylen, unsigned char *val, int vallen, int this_leafentry_size, STAT64INFO stats_to_update);
-static int write_translation_table (struct dbout *out, long long *off_of_translation_p);
-static int write_header (struct dbout *out, long long translation_location_on_disk, long long translation_size_on_disk);
+static void finish_leafnode(
+    struct dbout* out,
+    struct leaf_buf* lbuf,
+    int progress_allocation,
+    FTLOADER bl,
+    uint32_t target_basementnodesize,
+    enum toku_compression_method target_compression_method);
+
+static int write_nonleaves(
+    FTLOADER bl,
+    FIDX pivots_fidx,
+    struct dbout* out,
+    struct subtrees_info* sts,
+    const DESCRIPTOR descriptor,
+    uint32_t target_nodesize,
+    uint32_t target_basementnodesize,
+    enum toku_compression_method target_compression_method);
+
+static void add_pair_to_leafnode(
+    struct leaf_buf* lbuf,
+    unsigned char* key,
+    int keylen,
+    unsigned char* val,
+    int vallen,
+    int this_leafentry_size,
+    STAT64INFO stats_to_update,
+    int64_t* logical_rows_delta);
+
+static int write_translation_table(
+    struct dbout* out,
+    long long* off_of_translation_p);
+
+static int write_header(
+    struct dbout* out,
+    long long translation_location_on_disk,
+    long long translation_size_on_disk);
 
 static void drain_writer_q(QUEUE q) {
     void *item;
@@ -2449,6 +2480,12 @@ static int toku_loader_write_ft_from_q (FTLOADER bl,
     DBT maxkey = make_dbt(0, 0); // keep track of the max key of the current node
 
     STAT64INFO_S deltas = ZEROSTATS;
+    // This is just a placeholder and not used in the loader, the real/accurate
+    // stats will come out of 'deltas' because this loader is not pushing
+    // messages down into the top of a fractal tree where the logical row count
+    // is done, it is directly creating leaf entries so it must also take on
+    // performing the logical row counting on its own
+    int64_t logical_rows_delta = 0;
     while (result == 0) {
         void *item;
         {
@@ -2507,7 +2544,15 @@ static int toku_loader_write_ft_from_q (FTLOADER bl,
                 lbuf = start_leaf(&out, descriptor, lblock, le_xid, target_nodesize);
             }
 
-            add_pair_to_leafnode(lbuf, (unsigned char *) key.data, key.size, (unsigned char *) val.data, val.size, this_leafentry_size, &deltas);
+            add_pair_to_leafnode(
+                lbuf,
+                (unsigned char*)key.data,
+                key.size,
+                (unsigned char*)val.data,
+                val.size,
+                this_leafentry_size,
+                &deltas,
+                &logical_rows_delta);
             n_rows_remaining--;
 
             update_maxkey(&maxkey, &key); // set the new maxkey to the current key
@@ -2526,6 +2571,13 @@ static int toku_loader_write_ft_from_q (FTLOADER bl,
     if (deltas.numrows || deltas.numbytes) {
         toku_ft_update_stats(&ft.in_memory_stats, deltas);
     }
+
+    // As noted above, the loader directly creates a tree structure without
+    // going through the higher level ft API and tus bypasses the logical row
+    // counting performed at that level. So, we must manually update the logical
+    // row count with the info we have from the physical delta that comes out of
+    // add_pair_to_leafnode.
+    toku_ft_adjust_logical_row_count(&ft, deltas.numrows);
 
     cleanup_maxkey(&maxkey);
 
@@ -2879,7 +2931,16 @@ int toku_ft_loader_get_error(FTLOADER bl, int *error) {
     return 0;
 }
 
-static void add_pair_to_leafnode (struct leaf_buf *lbuf, unsigned char *key, int keylen, unsigned char *val, int vallen, int this_leafentry_size, STAT64INFO stats_to_update) {
+static void add_pair_to_leafnode(
+    struct leaf_buf* lbuf,
+    unsigned char* key,
+    int keylen,
+    unsigned char* val,
+    int vallen,
+    int this_leafentry_size,
+    STAT64INFO stats_to_update,
+    int64_t* logical_rows_delta) {
+
     lbuf->nkeys++;
     lbuf->ndata++;
     lbuf->dsize += keylen + vallen;
@@ -2891,11 +2952,25 @@ static void add_pair_to_leafnode (struct leaf_buf *lbuf, unsigned char *key, int
     FTNODE leafnode = lbuf->node;
     uint32_t idx = BLB_DATA(leafnode, 0)->num_klpairs();
     DBT kdbt, vdbt;
-    ft_msg msg(toku_fill_dbt(&kdbt, key, keylen), toku_fill_dbt(&vdbt, val, vallen), FT_INSERT, ZERO_MSN, lbuf->xids);
+    ft_msg msg(
+        toku_fill_dbt(&kdbt, key, keylen),
+        toku_fill_dbt(&vdbt, val, vallen),
+        FT_INSERT,
+        ZERO_MSN,
+        lbuf->xids);
     uint64_t workdone = 0;
     // there's no mvcc garbage in a bulk-loaded FT, so there's no need to pass useful gc info
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, true);
-    toku_ft_bn_apply_msg_once(BLB(leafnode,0), msg, idx, keylen, NULL, &gc_info, &workdone, stats_to_update);
+    toku_ft_bn_apply_msg_once(
+        BLB(leafnode, 0),
+        msg,
+        idx,
+        keylen,
+        NULL,
+        &gc_info,
+        &workdone,
+        stats_to_update,
+        logical_rows_delta);
 }
 
 static int write_literal(struct dbout *out, void*data,  size_t len) {
@@ -2906,7 +2981,14 @@ static int write_literal(struct dbout *out, void*data,  size_t len) {
     return result;
 }
 
-static void finish_leafnode (struct dbout *out, struct leaf_buf *lbuf, int progress_allocation, FTLOADER bl, uint32_t target_basementnodesize, enum toku_compression_method target_compression_method) {
+static void finish_leafnode(
+    struct dbout* out,
+    struct leaf_buf* lbuf,
+    int progress_allocation,
+    FTLOADER bl,
+    uint32_t target_basementnodesize,
+    enum toku_compression_method target_compression_method) {
+
     int result = 0;
 
     // serialize leaf to buffer
@@ -2914,7 +2996,16 @@ static void finish_leafnode (struct dbout *out, struct leaf_buf *lbuf, int progr
     size_t uncompressed_serialized_leaf_size = 0;
     char *serialized_leaf = NULL;
     FTNODE_DISK_DATA ndd = NULL;
-    result = toku_serialize_ftnode_to_memory(lbuf->node, &ndd, target_basementnodesize, target_compression_method, true, true, &serialized_leaf_size, &uncompressed_serialized_leaf_size, &serialized_leaf);
+    result = toku_serialize_ftnode_to_memory(
+        lbuf->node,
+        &ndd,
+        target_basementnodesize,
+        target_compression_method,
+        true,
+        true,
+        &serialized_leaf_size,
+        &uncompressed_serialized_leaf_size,
+        &serialized_leaf);
 
     // write it out
     if (result == 0) {
@@ -2980,8 +3071,11 @@ static int write_translation_table (struct dbout *out, long long *off_of_transla
     return result;
 }
 
-static int
-write_header (struct dbout *out, long long translation_location_on_disk, long long translation_size_on_disk) {
+static int write_header(
+    struct dbout* out,
+    long long translation_location_on_disk,
+    long long translation_size_on_disk) {
+
     int result = 0;
     size_t size = toku_serialize_ft_size(out->ft->h);
     size_t alloced_size = roundup_to_multiple(512, size);
@@ -2992,6 +3086,7 @@ write_header (struct dbout *out, long long translation_location_on_disk, long lo
     } else {
         wbuf_init(&wbuf, buf, size);
         out->ft->h->on_disk_stats = out->ft->in_memory_stats;
+        out->ft->h->on_disk_logical_rows = out->ft->in_memory_logical_rows;
         toku_serialize_ft_to_wbuf(&wbuf, out->ft->h, translation_location_on_disk, translation_size_on_disk);
         for (size_t i=size; i<alloced_size; i++) buf[i]=0; // initialize all those unused spots to zero
         if (wbuf.ndone != size)

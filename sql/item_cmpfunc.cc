@@ -120,10 +120,11 @@ static int cmp_row_type(Item* item1, Item* item2)
 
 static int agg_cmp_type(Item_result *type, Item **items, uint nitems)
 {
-  uint i;
+  uint unsigned_count= items[0]->unsigned_flag;
   type[0]= items[0]->cmp_type();
-  for (i= 1 ; i < nitems ; i++)
+  for (uint i= 1 ; i < nitems ; i++)
   {
+    unsigned_count+= items[i]->unsigned_flag;
     type[0]= item_cmp_type(type[0], items[i]);
     /*
       When aggregating types of two row expressions we have to check
@@ -135,6 +136,12 @@ static int agg_cmp_type(Item_result *type, Item **items, uint nitems)
     if (type[0] == ROW_RESULT && cmp_row_type(items[0], items[i]))
       return 1;     // error found: invalid usage of rows
   }
+  /**
+    If all arguments are of INT type but have different unsigned_flag values,
+    switch to DECIMAL_RESULT.
+  */
+  if (type[0] == INT_RESULT && unsigned_count != nitems && unsigned_count != 0)
+    type[0]= DECIMAL_RESULT;
   return 0;
 }
 
@@ -2328,10 +2335,7 @@ bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, uint fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!args[0]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
     return (null_value= false);
-  if (!args[1]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
-    return (null_value= false);
-  bzero((char*) ltime,sizeof(*ltime));
-  return null_value= !(fuzzydate & TIME_FUZZY_DATES);
+  return (null_value= args[1]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES));
 }
 
 
@@ -2497,6 +2501,23 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 
+bool Item_func_nullif::walk(Item_processor processor,
+                            bool walk_subquery, void *arg)
+{
+  /*
+    No needs to iterate through args[2] when it's just a copy of args[0].
+    See MDEV-9712 Performance degradation of nested NULLIF
+  */
+  uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
+  for (uint i= 0; i < tmp_count; i++)
+  {
+    if (args[i]->walk(processor, walk_subquery, arg))
+      return true;
+  }
+  return (this->*processor)(arg);
+}
+
+
 void Item_func_nullif::update_used_tables()
 {
   if (m_cache)
@@ -2507,7 +2528,14 @@ void Item_func_nullif::update_used_tables()
   }
   else
   {
-    Item_func::update_used_tables();
+    /*
+      MDEV-9712 Performance degradation of nested NULLIF
+      No needs to iterate through args[2] when it's just a copy of args[0].
+    */
+    DBUG_ASSERT(arg_count == 3);
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(args[0] == args[2] ? 2 : 3,
+                                                args);
   }
 }
 
@@ -3361,16 +3389,12 @@ double Item_func_coalesce::real_op()
 bool Item_func_coalesce::date_op(MYSQL_TIME *ltime,uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  null_value= 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    bool res= args[i]->get_date_with_conversion(ltime,
-                                                fuzzydate & ~TIME_FUZZY_DATES);
-    if (!args[i]->null_value)
-      return res;
+    if (!args[i]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+      return (null_value= false);
   }
-  bzero((char*) ltime,sizeof(*ltime));
-  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
+  return (null_value= true);
 }
 
 

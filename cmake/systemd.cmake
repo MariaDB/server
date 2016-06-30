@@ -55,9 +55,10 @@ MACRO(CHECK_SYSTEMD)
       IF(HAVE_SYSTEMD AND HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
          AND HAVE_SYSTEMD_SD_NOTIFY AND HAVE_SYSTEMD_SD_NOTIFYF)
         ADD_DEFINITIONS(-DHAVE_SYSTEMD)
-        SET(SYSTEMD_SCRIPTS mariadb-service-convert galera_new_cluster)
+        SET(SYSTEMD_SCRIPTS mariadb-service-convert galera_new_cluster galera_recovery)
         SET(SYSTEMD_DEB_FILES "usr/bin/mariadb-service-convert
                                usr/bin/galera_new_cluster
+                               usr/bin/galera_recovery
                                ${INSTALL_SYSTEMD_UNITDIR}/mariadb.service
                                ${INSTALL_SYSTEMD_UNITDIR}/mariadb@.service
                                ${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d/use_galera_new_cluster.conf")

@@ -7741,7 +7741,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     value=v++;
     Field *rfield= field->field;
     TABLE* table= rfield->table;
-    if (rfield == table->next_number_field)
+    if (table->next_number_field &&
+        rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     if (rfield->vcol_info && 
         value->type() != Item::DEFAULT_VALUE_ITEM && 

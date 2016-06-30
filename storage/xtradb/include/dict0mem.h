@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1025,6 +1025,18 @@ if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
 the table, DML from memcached will be blocked. */
 #define DICT_TABLE_IN_DDL -1
 
+/** These are used when MySQL FRM and InnoDB data dictionary are
+in inconsistent state. */
+typedef enum {
+	DICT_FRM_CONSISTENT = 0,	/*!< Consistent state */
+	DICT_FRM_NO_PK = 1,		/*!< MySQL has no primary key
+					but InnoDB dictionary has
+					non-generated one. */
+	DICT_NO_PK_FRM_HAS = 2,		/*!< MySQL has primary key but
+					InnoDB dictionary has not. */
+	DICT_FRM_INCONSISTENT_KEYS = 3	/*!< Key count mismatch */
+} dict_frm_t;
+
 /** Data structure for a database table.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_table_create(). */
 struct dict_table_t{
@@ -1085,6 +1097,10 @@ struct dict_table_t{
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
 				performance_schema) */
+	dict_frm_t	dict_frm_mismatch;
+				/*!< !DICT_FRM_CONSISTENT==0 if data
+				dictionary information and
+				MySQL FRM information mismatch. */
 #ifndef UNIV_HOTBACKUP
 	hash_node_t	name_hash; /*!< hash chain node */
 	hash_node_t	id_hash; /*!< hash chain node */

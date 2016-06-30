@@ -1783,9 +1783,12 @@ sub set_build_thread_ports($) {
   if ( lc($opt_build_thread) eq 'auto' ) {
     my $found_free = 0;
     $build_thread = 300;	# Start attempts from here
+    my $build_thread_upper = $build_thread + ($opt_parallel > 1500
+                                              ? 3000
+                                              : 2 * $opt_parallel) + 300;
     while (! $found_free)
     {
-      $build_thread= mtr_get_unique_id($build_thread, 349);
+      $build_thread= mtr_get_unique_id($build_thread, $build_thread_upper);
       if ( !defined $build_thread ) {
         mtr_error("Could not get a unique build thread id");
       }
@@ -3228,7 +3231,7 @@ sub mysql_install_db {
 
   # Create mtr database
   mtr_tofile($bootstrap_sql_file,
-	     "CREATE DATABASE mtr;\n");
+	     "CREATE DATABASE mtr CHARSET=latin1;\n");
 
   # Add help tables and data for warning detection and supression
   mtr_tofile($bootstrap_sql_file,

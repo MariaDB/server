@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -46,9 +46,9 @@
 #else     // !__WIN__
 #include <unistd.h>
 #include <fcntl.h>
-#if defined(THREAD)
+//#if defined(THREAD)
 #include <pthread.h>
-#endif   // THREAD
+//#endif   // THREAD
 #include <stdarg.h>
 #define BIGMEM      2147483647            // Max int value
 #endif    // !__WIN__
@@ -70,17 +70,6 @@
 #include "rcmsg.h"
 
 /***********************************************************************/
-/*  Macro or external routine definition                               */
-/***********************************************************************/
-#if defined(THREAD)
-#if defined(__WIN__)
-extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !__WIN__
-extern pthread_mutex_t parmut;
-#endif  // !__WIN__
-#endif  //  THREAD
-
-/***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
 bool  Initdone = false;
@@ -89,6 +78,12 @@ bool  plugin = false;  // True when called by the XDB plugin handler
 extern "C" {
 extern char version[];
 } // extern "C"
+
+#if defined(__WIN__)
+extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
+#else   // !__WIN__
+extern pthread_mutex_t parmut;
+#endif  // !__WIN__
 
 // The debug trace used by the main thread
        FILE *pfile = NULL;
@@ -702,21 +697,21 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
   /* Call the FLEX generated parser. In multi-threading mode the next  */
   /* instruction is included in an Enter/LeaveCriticalSection bracket. */
   /*********************************************************************/
-#if defined(THREAD)
+	//#if defined(THREAD)
 #if defined(__WIN__)
   EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   pthread_mutex_lock(&parmut);
 #endif  // !__WIN__
-#endif  //  THREAD
+//#endif  //  THREAD
   rc = fmdflex(pdp);
-#if defined(THREAD)
+//#if defined(THREAD)
 #if defined(__WIN__)
   LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   pthread_mutex_unlock(&parmut);
 #endif  // !__WIN__
-#endif  //  THREAD
+//#endif  //  THREAD
 
   if (trace)
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
@@ -1102,7 +1097,8 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
     case TYPE_AM_DOM:   strcpy(amn, "DOM");   break;
     case TYPE_AM_DIR:   strcpy(amn, "DIR");   break;
     case TYPE_AM_ODBC:  strcpy(amn, "ODBC");  break;
-    case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
+		case TYPE_AM_JDBC:  strcpy(amn, "JDBC");  break;
+		case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
     case TYPE_AM_OEM:   strcpy(amn, "OEM");   break;
     case TYPE_AM_OUT:   strcpy(amn, "OUT");   break;
     default:           sprintf(amn, "OEM(%d)", am);

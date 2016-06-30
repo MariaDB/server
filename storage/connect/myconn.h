@@ -80,7 +80,7 @@ class DllItem MYSQLC {
   int     Fetch(PGLOBAL g, int pos);
   char   *GetCharField(int i);
   int     GetFieldLength(int i);
-  void    Rewind(void);
+  int     Rewind(PGLOBAL g, PSZ sql);
   void    FreeResult(void);
   void    Close(void);
 
@@ -90,8 +90,10 @@ class DllItem MYSQLC {
 
   // Members
   MYSQL      *m_DB;         // The return from MySQL connection
-  MYSQL_STMT *m_Stmt;       // Prepared statement handle
-  MYSQL_RES  *m_Res;        // Points to MySQL Result
+#if defined (MYSQL_PREPARED_STATEMENTS)
+	MYSQL_STMT *m_Stmt;       // Prepared statement handle
+#endif    // MYSQL_PREPARED_STATEMENTS
+	MYSQL_RES  *m_Res;        // Points to MySQL Result
   MYSQL_ROW   m_Row;        // Point to current row
   int         m_Rows;       // The number of rows of the result
   int         N;

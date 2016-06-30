@@ -477,8 +477,6 @@ extern ulong	srv_innodb_stats_method;
 
 #ifdef UNIV_LOG_ARCHIVE
 extern ibool		srv_log_archive_on;
-extern ibool		srv_archive_recovery;
-extern ib_uint64_t	srv_archive_recovery_limit_lsn;
 #endif /* UNIV_LOG_ARCHIVE */
 
 extern char*	srv_file_flush_method_str;
@@ -951,19 +949,29 @@ ulint
 srv_get_activity_count(void);
 /*========================*/
 /*******************************************************************//**
-Check if there has been any activity.
+Check if there has been any activity. Considers background change buffer
+merge as regular server activity unless a non-default
+old_ibuf_merge_activity_count value is passed, in which case the merge will be
+treated as keeping server idle.
 @return FALSE if no change in activity counter. */
 UNIV_INTERN
 ibool
 srv_check_activity(
 /*===============*/
-	ulint		old_activity_count);	/*!< old activity count */
+	ulint		old_activity_count,	/*!< old activity count */
+						/*!< old change buffer merge
+						activity count, or
+						ULINT_UNDEFINED */
+	ulint		old_ibuf_merge_activity_count = ULINT_UNDEFINED);
 /******************************************************************//**
 Increment the server activity counter. */
 UNIV_INTERN
 void
-srv_inc_activity_count(void);
-/*=========================*/
+srv_inc_activity_count(
+/*===================*/
+	bool ibuf_merge_activity = false);	/*!< whether this activity bump
+						is caused by the background
+						change buffer merge */
 
 /**********************************************************************//**
 Enqueues a task to server task queue and releases a worker thread, if there

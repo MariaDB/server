@@ -3,6 +3,10 @@ include/master-slave.inc
 connection master;
 drop table if exists t;
 connection slave;
+show variables like 'tokudb_rpl_unique_checks%';
+Variable_name	Value
+tokudb_rpl_unique_checks	OFF
+tokudb_rpl_unique_checks_delay	5000
 connection master;
 create table t (a bigint not null, primary key(a)) engine=tokudb;
 select unix_timestamp() into @tstart;

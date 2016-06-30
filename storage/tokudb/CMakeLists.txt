@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.26-74.0)
+SET(TOKUDB_VERSION 5.6.30-76.3)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -16,7 +16,12 @@ IF(NOT TOKUDB_OK)
   RETURN()
 ENDIF()
 
-SET(TOKUDB_SOURCES ha_tokudb.cc)
+SET(TOKUDB_SOURCES
+    ha_tokudb.cc
+    tokudb_background.cc
+    tokudb_information_schema.cc
+    tokudb_sysvars.cc
+    tokudb_thread.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY)
 
 IF(NOT TARGET tokudb)
@@ -27,7 +32,6 @@ IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
 ENDIF()
 
-MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 
 ############################################
@@ -47,9 +51,15 @@ MARK_AS_ADVANCED(gcc_ar)
 MARK_AS_ADVANCED(gcc_ranlib)
 ############################################
 
+# pick language dialect
+MY_CHECK_AND_SET_COMPILER_FLAG(-std=c++11)
+
 SET(BUILD_TESTING OFF CACHE BOOL "")
 SET(USE_VALGRIND OFF CACHE BOOL "")
 SET(TOKU_DEBUG_PARANOID OFF CACHE BOOL "")
+
+# Enable TokuDB's TOKUDB_DEBUG in debug builds
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTOKUDB_DEBUG")
 
 IF(NOT DEFINED TOKUDB_VERSION)
     IF(DEFINED ENV{TOKUDB_VERSION})
@@ -72,10 +82,6 @@ ENDIF()
 IF(DEFINED TOKUDB_CHECK_JEMALLOC)
     ADD_DEFINITIONS("-DTOKUDB_CHECK_JEMALLOC=${TOKUDB_CHECK_JEMALLOC}")
 ENDIF()
-
-## adds a compiler flag if the compiler supports it
-include(CheckCCompilerFlag)
-include(CheckCXXCompilerFlag)
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-field-initializers)
 

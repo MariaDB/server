@@ -108,3 +108,13 @@ static inline uint64_t toku_current_time_microsec(void) {
     gettimeofday(&t, NULL);
     return t.tv_sec * (1UL * 1000 * 1000) + t.tv_usec;
 }
+
+// sleep microseconds
+static inline void toku_sleep_microsec(uint64_t ms) {
+    struct timeval  t;
+
+    t.tv_sec = ms / 1000000;
+    t.tv_usec = ms % 1000000;
+
+    select(0, NULL, NULL, NULL, &t);
+}

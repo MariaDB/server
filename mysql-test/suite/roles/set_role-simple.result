@@ -45,3 +45,12 @@ delete from mysql.user where user='test_role1';
 delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;
 drop user 'test_user'@'localhost';
+create user user1;
+select current_user;
+current_user
+user1@%
+show grants;
+Grants for user1@%
+GRANT USAGE ON *.* TO 'user1'@'%'
+set role none;
+drop user user1;

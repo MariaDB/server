@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -164,7 +164,7 @@ row_merge_decrypt_buf(
 #ifdef UNIV_DEBUG
 /******************************************************//**
 Display a merge tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_tuple_print(
 /*==================*/
@@ -199,7 +199,7 @@ row_merge_tuple_print(
 
 /******************************************************//**
 Encode an index record. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_buf_encode(
 /*=================*/
@@ -236,7 +236,7 @@ row_merge_buf_encode(
 /******************************************************//**
 Allocate a sort buffer.
 @return	own: sort buffer */
-static __attribute__((malloc, nonnull))
+static MY_ATTRIBUTE((malloc, nonnull))
 row_merge_buf_t*
 row_merge_buf_create_low(
 /*=====================*/
@@ -736,7 +736,7 @@ row_merge_dup_report(
 /*************************************************************//**
 Compare two tuples.
 @return	1, 0, -1 if a is greater, equal, less, respectively, than b */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tuple_cmp(
 /*================*/
@@ -815,7 +815,7 @@ UT_SORT_FUNCTION_BODY().
 
 /**********************************************************************//**
 Merge sort the tuple buffer in main memory. */
-static __attribute__((nonnull(4,5)))
+static MY_ATTRIBUTE((nonnull(4,5)))
 void
 row_merge_tuple_sort(
 /*=================*/
@@ -1391,7 +1391,7 @@ row_merge_write_eof(
 @param[in,out]	tmpfd	temporary file handle
 @param[in]	path	path to create temporary file
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tmpfile_if_needed(
 	int*		tmpfd,
@@ -1410,7 +1410,7 @@ row_merge_tmpfile_if_needed(
 @param[in]	nrec	number of records in the file
 @param[in]	path	path to create temporary files
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_file_create_if_needed(
 	merge_file_t*	file,
@@ -1459,7 +1459,7 @@ containing the index entries for the indexes to be built.
 @param[in]	crypt_data	crypt data or NULL
 @param[in,out]	crypt_block	crypted file buffer
 return	DB_SUCCESS or error */
-static __attribute__((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
 dberr_t
 row_merge_read_clustered_index(
 	trx_t*			trx,
@@ -2169,7 +2169,8 @@ wait_again:
 	if (max_doc_id && err == DB_SUCCESS) {
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
-		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
+		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
+				     false, true);
 
 		if (err == DB_SUCCESS) {
 			fts_update_next_doc_id(
@@ -2624,10 +2625,16 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
+	/* These thd_progress* calls will crash on sol10-64 when innodb_plugin
+	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
+	sol10-64 in buildbot.
+	*/
+#ifndef UNIV_SOLARIS
 	/* Progress report only for "normal" indexes. */
 	if (!(dup->index->type & DICT_FTS)) {
 		thd_progress_init(trx->mysql_thd, 1);
 	}
+#endif /* UNIV_SOLARIS */
 
 	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
 
@@ -2636,9 +2643,11 @@ row_merge_sort(
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
 		/* Progress report only for "normal" indexes. */
+#ifndef UNIV_SOLARIS
 		if (!(dup->index->type & DICT_FTS)) {
 			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
 		}
+#endif /* UNIV_SOLARIS */
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset,
@@ -2663,16 +2672,18 @@ row_merge_sort(
 	mem_free(run_offset);
 
 	/* Progress report only for "normal" indexes. */
+#ifndef UNIV_SOLARIS
 	if (!(dup->index->type & DICT_FTS)) {
 		thd_progress_end(trx->mysql_thd);
 	}
+#endif /* UNIV_SOLARIS */
 
 	DBUG_RETURN(error);
 }
 
 /*************************************************************//**
 Copy externally stored columns to the data tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_copy_blobs(
 /*=================*/
@@ -3754,7 +3765,7 @@ row_merge_rename_tables_dict(
 /*********************************************************************//**
 Create and execute a query graph for creating an index.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_merge_create_index_graph(
 /*=========================*/
@@ -3906,7 +3917,7 @@ row_merge_drop_table(
 	/* There must be no open transactions on the table. */
 	ut_a(table->n_ref_count == 0);
 
-	return(row_drop_table_for_mysql(table->name, trx, false, false));
+	return(row_drop_table_for_mysql(table->name, trx, false, false, false));
 }
 
 /*********************************************************************//**

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -37,8 +37,7 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "records.h"             // init_read_record, end_read_record
 #include "filesort.h"            // filesort_free_buffers
-#include "sql_select.h"                // setup_order,
-                                       // make_unireg_sortorder
+#include "sql_select.h"                // setup_order
 #include "sql_handler.h"               // mysql_ha_rm_tables
 #include "discover.h"                  // readfrm
 #include "my_pthread.h"                // pthread_mutex_t
@@ -5488,6 +5487,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   /*
     We have to write the query before we unlock the tables.
   */
+  if (thd->is_current_stmt_binlog_disabled())
+    goto err;
+
   if (thd->is_current_stmt_binlog_format_row())
   {
     /*
@@ -5558,6 +5560,21 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         */
         if (!table->view)
         {
+          /*
+            After opening a MERGE table add the children to the query list of
+            tables, so that children tables info can be used on "CREATE TABLE"
+            statement generation by the binary log.
+            Note that placeholders don't have the handler open.
+          */
+          if (table->table->file->extra(HA_EXTRA_ADD_CHILDREN_LIST))
+            goto err;
+
+          /*
+            As the reference table is temporary and may not exist on slave, we must
+            force the ENGINE to be present into CREATE TABLE.
+          */
+          create_info->used_fields|= HA_CREATE_USED_ENGINE;
+
           int result __attribute__((unused))=
             show_create_table(thd, table, &query, create_info, WITH_DB_NAME);
 
@@ -8599,7 +8616,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
    till this point for the alter operation.
   */
   if ((alter_info->flags & Alter_info::ADD_FOREIGN_KEY) &&
-      check_fk_parent_table_access(thd, create_info, alter_info))
+      check_fk_parent_table_access(thd, create_info, alter_info, new_db))
     DBUG_RETURN(true);
 
   /*

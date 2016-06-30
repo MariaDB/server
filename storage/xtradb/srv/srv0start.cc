@@ -1975,7 +1975,7 @@ innobase_start_or_create_for_mysql(void)
 			}
 		} else {
 			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile();
+			srv_monitor_file = os_file_create_tmpfile(NULL);
 
 			if (!srv_monitor_file) {
 				return(DB_ERROR);
@@ -1985,7 +1985,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_dict_tmpfile_mutex_key,
 			     &srv_dict_tmpfile_mutex, SYNC_DICT_OPERATION);
 
-		srv_dict_tmpfile = os_file_create_tmpfile();
+		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_dict_tmpfile) {
 			return(DB_ERROR);
@@ -1994,7 +1994,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(srv_misc_tmpfile_mutex_key,
 			     &srv_misc_tmpfile_mutex, SYNC_ANY_LATCH);
 
-		srv_misc_tmpfile = os_file_create_tmpfile();
+		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_misc_tmpfile) {
 			return(DB_ERROR);
@@ -2458,40 +2458,6 @@ files_checked:
 
 		create_log_files_rename(logfilename, dirnamelen,
 					max_flushed_lsn, logfile0);
-#ifdef UNIV_LOG_ARCHIVE
-	} else if (srv_archive_recovery) {
-
-		ib_logf(IB_LOG_LEVEL_INFO,
-			" Starting archive recovery from a backup...");
-
-		err = recv_recovery_from_archive_start(
-			min_flushed_lsn, srv_archive_recovery_limit_lsn,
-			min_arch_log_no);
-		if (err != DB_SUCCESS) {
-
-			return(DB_ERROR);
-		}
-		/* Since ibuf init is in dict_boot, and ibuf is needed
-		in any disk i/o, first call dict_boot */
-
-		err = dict_boot();
-
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
-
-		ib_bh = trx_sys_init_at_db_start();
-		n_recovered_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, ib_bh);
-
-		srv_startup_is_before_trx_rollback_phase = FALSE;
-
-		recv_recovery_from_archive_finish();
-#endif /* UNIV_LOG_ARCHIVE */
 	} else {
 
 		/* Check if we support the max format that is stamped
@@ -3188,15 +3154,13 @@ innobase_shutdown_for_mysql(void)
 		logs_empty_and_mark_files_at_shutdown() and should have
 		already quit or is quitting right now. */
 
-
 		if (srv_use_mtflush) {
 			/* g. Exit the multi threaded flush threads */
 
 			buf_mtflu_io_thread_exit();
 		}
 
-		os_mutex_enter(os_sync_mutex);
-
+		os_rmb;
 		if (os_thread_count == 0) {
 			/* All the threads have exited or are just exiting;
 			NOTE that the threads may not have completed their
@@ -3206,14 +3170,10 @@ innobase_shutdown_for_mysql(void)
 			os_thread_exit().  Now we just sleep 0.1
 			seconds and hope that is enough! */
 
-			os_mutex_exit(os_sync_mutex);
-
 			os_thread_sleep(100000);
 
 			break;
 		}
-
-		os_mutex_exit(os_sync_mutex);
 
 		os_thread_sleep(100000);
 	}
@@ -3323,26 +3283,23 @@ innobase_shutdown_for_mysql(void)
 	que_close();
 	row_mysql_close();
 	srv_mon_free();
-	sync_close();
 	srv_free();
 	fil_close();
 
-	/* 4. Free the os_conc_mutex and all os_events and os_mutexes */
-
-	os_sync_free();
-
-	/* 5. Free all allocated memory */
+	/* 4. Free all allocated memory */
 
 	pars_lexer_close();
 	log_mem_free();
 	buf_pool_free(srv_buf_pool_instances);
 	mem_close();
+	sync_close();
 
 	/* ut_free_all_mem() frees all allocated memory not freed yet
 	in shutdown, and it will also free the ut_list_mutex, so it
 	should be the last one for all operation */
 	ut_free_all_mem();
 
+	os_rmb;
 	if (os_thread_count != 0
 	    || os_event_count != 0
 	    || os_mutex_count != 0

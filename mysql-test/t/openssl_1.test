@@ -134,7 +134,7 @@ drop table t1;
 # verification of servers certificate by setting both ca certificate
 # and ca path to NULL
 #
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-SHA
 --exec $MYSQL --ssl --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem -e "SHOW STATUS LIKE 'ssl_Cipher'" 2>&1
 --echo End of 5.0 tests
 
@@ -259,7 +259,7 @@ select 'is still running; no cipher request crashed the server' as result from d
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
 connect(con1,localhost,bug42158,,,,,SSL);
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Ssl_cipher';
 disconnect con1;
 connection default;
@@ -267,6 +267,13 @@ DROP USER bug42158@localhost;
 
 set global sql_mode=default;
 --echo End of 5.1 tests
+
+#
+# MDEV-9605 mysqlbinlog does not accept ssl-ca option as expected.
+#
+
+--error 1
+--exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

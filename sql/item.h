@@ -2590,7 +2590,7 @@ public:
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(cs, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
@@ -5126,7 +5126,7 @@ public:
   bool basic_const_item() const
   { return MY_TEST(example && example->basic_const_item()); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
-  bool is_null() { return null_value; }
+  bool is_null() { return !has_value(); }
   virtual bool is_expensive()
   {
     if (value_cached)

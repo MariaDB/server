@@ -611,6 +611,14 @@ DEALLOCATE PREPARE stmt1;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-9374 having '2015-01-01 01:00:00.000001' > coalesce(NULL) returns true
+--echo #
+CREATE TABLE t1 (c1 DATETIME(0));
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1 HAVING '2015-01-01 01:00:00.000001' > COALESCE(c1);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

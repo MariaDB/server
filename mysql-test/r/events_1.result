@@ -475,6 +475,26 @@ DROP EVENT ev1;
 
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+#
+# MDEV-9524 Cannot load from mysql.event when sql_mode is set to PAD_CHAR_TO_FULL_LENGTH
+#
+CREATE TABLE t1 (a INT);
+CREATE EVENT ev1 ON SCHEDULE EVERY 5 SECOND DO DELETE FROM t1;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT ev1;
+CREATE EVENT ev1 ON SCHEDULE EVERY 5 SECOND DO DELETE FROM t1;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT ev1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
 
 # 
 # End of tests

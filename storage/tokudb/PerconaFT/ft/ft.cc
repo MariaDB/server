@@ -199,6 +199,8 @@ static void ft_checkpoint (CACHEFILE cf, int fd, void *header_v) {
         ch->time_of_last_modification = now;
         ch->checkpoint_count++;
         ft_hack_highest_unused_msn_for_upgrade_for_checkpoint(ft);
+        ch->on_disk_logical_rows =
+            ft->h->on_disk_logical_rows = ft->in_memory_logical_rows;
                                                              
         // write translation and header to disk (or at least to OS internal buffer)
         toku_serialize_ft_to(fd, ch, &ft->blocktable, ft->cf);
@@ -384,7 +386,8 @@ ft_header_create(FT_OPTIONS options, BLOCKNUM root_blocknum, TXNID root_xid_that
         .count_of_optimize_in_progress = 0,
         .count_of_optimize_in_progress_read_from_disk = 0,
         .msn_at_start_of_last_completed_optimize = ZERO_MSN,
-        .on_disk_stats = ZEROSTATS
+        .on_disk_stats = ZEROSTATS,
+        .on_disk_logical_rows = 0
     };
     return (FT_HEADER) toku_xmemdup(&h, sizeof h);
 }
@@ -803,7 +806,14 @@ toku_ft_stat64 (FT ft, struct ftstat64_s *s) {
     s->fsize = toku_cachefile_size(ft->cf);
     // just use the in memory stats from the header
     // prevent appearance of negative numbers for numrows, numbytes
-    int64_t n = ft->in_memory_stats.numrows;
+    // if the logical count was never properly re-counted on an upgrade,
+    // return the existing physical count instead.
+    int64_t n;
+    if (ft->in_memory_logical_rows == (uint64_t)-1) {
+        n = ft->in_memory_stats.numrows;
+    } else {
+        n = ft->in_memory_logical_rows;
+    }
     if (n < 0) {
         n = 0;
     }
@@ -872,20 +882,38 @@ DESCRIPTOR toku_ft_get_cmp_descriptor(FT_HANDLE ft_handle) {
     return &ft_handle->ft->cmp_descriptor;
 }
 
-void
-toku_ft_update_stats(STAT64INFO headerstats, STAT64INFO_S delta) {
+void toku_ft_update_stats(STAT64INFO headerstats, STAT64INFO_S delta) {
     (void) toku_sync_fetch_and_add(&(headerstats->numrows),  delta.numrows);
     (void) toku_sync_fetch_and_add(&(headerstats->numbytes), delta.numbytes);
 }
 
-void
-toku_ft_decrease_stats(STAT64INFO headerstats, STAT64INFO_S delta) {
+void toku_ft_decrease_stats(STAT64INFO headerstats, STAT64INFO_S delta) {
     (void) toku_sync_fetch_and_sub(&(headerstats->numrows),  delta.numrows);
     (void) toku_sync_fetch_and_sub(&(headerstats->numbytes), delta.numbytes);
 }
 
-void
-toku_ft_remove_reference(FT ft, bool oplsn_valid, LSN oplsn, remove_ft_ref_callback remove_ref, void *extra) {
+void toku_ft_adjust_logical_row_count(FT ft, int64_t delta) {
+    // In order to make sure that the correct count is returned from
+    // toku_ft_stat64, the ft->(in_memory|on_disk)_logical_rows _MUST_NOT_ be
+    // modified from anywhere else from here with the exceptions of
+    // serializing in a header, initializing a new header and analyzing
+    // an index for a logical_row count.
+    // The gist is that on an index upgrade, all logical_rows values
+    // in the ft header are set to -1 until an analyze can reset it to an
+    // accurate value. Until then, the physical count from in_memory_stats
+    // must be returned in toku_ft_stat64.
+    if (delta != 0 && ft->in_memory_logical_rows != (uint64_t)-1) {
+        toku_sync_fetch_and_add(&(ft->in_memory_logical_rows), delta);
+    }
+}
+
+void toku_ft_remove_reference(
+    FT ft,
+    bool oplsn_valid,
+    LSN oplsn,
+    remove_ft_ref_callback remove_ref,
+    void *extra) {
+
     toku_ft_grab_reflock(ft);
     if (toku_ft_has_one_reference_unlocked(ft)) {
         toku_ft_release_reflock(ft);

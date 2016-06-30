@@ -2247,7 +2247,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
-        memcpy(sjm->positions, join->best_positions + join->const_tables, 
+        memcpy((uchar*) sjm->positions,
+               (uchar*) (join->best_positions + join->const_tables),
                sizeof(POSITION) * n_tables);
 
         /*
@@ -3349,7 +3350,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       SJ_MATERIALIZATION_INFO *sjm= s->emb_sj_nest->sj_mat_info;
       sjm->is_used= TRUE;
       sjm->is_sj_scan= FALSE;
-      memcpy(pos - sjm->tables + 1, sjm->positions, 
+      memcpy((uchar*) (pos - sjm->tables + 1), (uchar*) sjm->positions,
              sizeof(POSITION) * sjm->tables);
       recalculate_prefix_record_count(join, tablenr - sjm->tables + 1,
                                       tablenr);
@@ -3365,8 +3366,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       sjm->is_used= TRUE;
       sjm->is_sj_scan= TRUE;
       first= pos->sjmat_picker.sjm_scan_last_inner - sjm->tables + 1;
-      memcpy(join->best_positions + first, 
-             sjm->positions, sizeof(POSITION) * sjm->tables);
+      memcpy((uchar*) (join->best_positions + first),
+             (uchar*) sjm->positions, sizeof(POSITION) * sjm->tables);
       recalculate_prefix_record_count(join, first, first + sjm->tables);
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE_SCAN;
       join->best_positions[first].n_sj_tables= sjm->tables;

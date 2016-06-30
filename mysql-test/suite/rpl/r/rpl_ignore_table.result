@@ -157,5 +157,6 @@ SELECT * FROM tmptbl504451f4258$1;
 ERROR 42S02: Table 'test.tmptbl504451f4258$1' doesn't exist
 connection master;
 DROP TABLE t5;
+flush privileges;
 connection slave;
 include/rpl_end.inc

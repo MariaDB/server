@@ -2383,7 +2383,9 @@ export const char *optimizer_switch_names[]=
   "table_elimination",
   "extended_keys",
   "exists_to_in",
-  "default", NullS
+  "orderby_uses_equalities",
+  "default", 
+  NullS
 };
 static bool fix_optimizer_switch(sys_var *self, THD *thd,
                                  enum_var_type type)
@@ -4725,7 +4727,7 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
 static Sys_var_charptr Sys_wsrep_node_name (
        "wsrep_node_name", "Node name",
        PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
-       IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       IN_SYSTEM_CHARSET, DEFAULT(glob_hostname), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        wsrep_node_name_check, wsrep_node_name_update);
 
 static Sys_var_charptr Sys_wsrep_node_address (
@@ -4867,7 +4869,8 @@ static bool fix_wsrep_causal_reads(sys_var *self, THD* thd, enum_var_type var_ty
 static Sys_var_mybool Sys_wsrep_causal_reads(
        "wsrep_causal_reads", "Setting this variable is equivalent "
        "to setting wsrep_sync_wait READ flag",
-       SESSION_VAR(wsrep_causal_reads), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       SESSION_VAR(wsrep_causal_reads),
+       CMD_LINE(OPT_ARG, OPT_WSREP_CAUSAL_READS), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_wsrep_causal_reads),
        DEPRECATED("'@@wsrep_sync_wait=1'"));
@@ -4877,7 +4880,7 @@ static Sys_var_uint Sys_wsrep_sync_wait(
        "an operation of the type specified by bitmask: 1 - READ(includes "
        "SELECT, SHOW and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - "
        "INSERT and REPLACE",
-       SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG),
+       SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG, OPT_WSREP_SYNC_WAIT),
        VALID_RANGE(WSREP_SYNC_WAIT_NONE, WSREP_SYNC_WAIT_MAX),
        DEFAULT(WSREP_SYNC_WAIT_NONE), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),

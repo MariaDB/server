@@ -606,7 +606,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                   int maxres, bool info, POPARM sop)
+                   char *tabtyp, int maxres, bool info, POPARM sop)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -668,7 +668,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
   if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
     return NULL;
 
-//cap->Pat = (PUCHAR)tabtyp;
+	cap->Pat = (PUCHAR)tabtyp;
 
   if (trace)
     htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
@@ -1458,7 +1458,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
         n++;
 
     // n can be 0 for query such as Select count(*) from table
-    if (n && n != (UWORD)ncol)
+    if (n && n > (UWORD)ncol)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     // Now bind the column buffers

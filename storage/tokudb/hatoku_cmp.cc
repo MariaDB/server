@@ -104,8 +104,7 @@ static void get_var_field_info(
         data_end_offset = uint2korr(var_field_offset_ptr + 2*var_field_index);
         break;
     default:
-        assert(false);
-        break;
+        assert_unreachable();
     }
     
     if (var_field_index) {
@@ -117,8 +116,7 @@ static void get_var_field_info(
             data_start_offset = uint2korr(var_field_offset_ptr + 2*(var_field_index-1));
             break;
         default:
-            assert(false);
-            break;
+            assert_unreachable();
         }
     }
     else {
@@ -126,7 +124,7 @@ static void get_var_field_info(
     }
 
     *start_offset = data_start_offset;
-    assert(data_end_offset >= data_start_offset);
+    assert_always(data_end_offset >= data_start_offset);
     *field_len = data_end_offset - data_start_offset;
 }
 
@@ -153,8 +151,7 @@ static void get_blob_field_info(
             data_end_offset = uint2korr(var_field_data_ptr - 2);
             break;
         default:
-            assert(false);
-            break;
+            assert_unreachable();
         }
     }
     else {
@@ -245,7 +242,7 @@ static TOKU_TYPE mysql_to_toku_type (Field* field) {
     case MYSQL_TYPE_DECIMAL:
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_NULL:
-        assert(false);
+        assert_unreachable();
     }
 exit:
     return ret_val;
@@ -312,7 +309,7 @@ static inline uchar* pack_toku_int (uchar* to_tokudb, uchar* from_mysql, uint32_
         memcpy(to_tokudb, from_mysql, 8);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
     return to_tokudb+num_bytes;
 }
@@ -338,7 +335,7 @@ static inline uchar* unpack_toku_int(uchar* to_mysql, uchar* from_tokudb, uint32
         memcpy(to_mysql, from_tokudb, 8);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
     return from_tokudb+num_bytes;
 }
@@ -390,7 +387,7 @@ static inline int cmp_toku_int (uchar* a_buf, uchar* b_buf, bool is_unsigned, ui
             ret_val = 0;
             goto exit;
         default:
-            assert(false);
+            assert_unreachable();
         }
     }
     //
@@ -438,13 +435,13 @@ static inline int cmp_toku_int (uchar* a_buf, uchar* b_buf, bool is_unsigned, ui
             ret_val = 0;
             goto exit;
         default:
-            assert(false);
+            assert_unreachable();
         }
     }
     //
     // if this is hit, indicates bug in writing of this function
     //
-    assert(false);
+    assert_unreachable();
 exit:
     return ret_val;    
 }
@@ -653,7 +650,7 @@ static inline uchar* unpack_toku_varbinary(
         int4store(to_mysql, length);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
     //
     // copy the binary data
@@ -779,7 +776,7 @@ static inline uchar* unpack_toku_blob(
         int4store(to_mysql, length);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
     //
     // copy the binary data
@@ -956,7 +953,9 @@ static inline int tokudb_compare_two_hidden_keys(
     const void*  saved_key_data,
     const uint32_t saved_key_size
     ) {
-    assert( (new_key_size >= TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH) && (saved_key_size >= TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH) );
+    assert_always(
+        (new_key_size >= TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH) &&
+        (saved_key_size >= TOKUDB_HIDDEN_PRIMARY_KEY_LENGTH));
     ulonglong a = hpk_char_to_num((uchar *) new_key_data);
     ulonglong b = hpk_char_to_num((uchar *) saved_key_data);
     return a < b ? -1 : (a > b ? 1 : 0);
@@ -996,8 +995,7 @@ static uint32_t skip_field_in_descriptor(uchar* row_desc) {
         row_desc_pos += sizeof(uint32_t);
         break;
     default:
-        assert(false);
-        break;
+        assert_unreachable();
     }
     return (uint32_t)(row_desc_pos - row_desc);
 }
@@ -1011,7 +1009,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
     uchar* pos = buf;
     uint32_t num_bytes_in_field = 0;
     uint32_t charset_num = 0;
-    for (uint i = 0; i < get_key_parts(key); i++){
+    for (uint i = 0; i < key->user_defined_key_parts; i++) {
         Field* field = key->key_part[i].field;
         //
         // The first byte states if there is a null byte
@@ -1025,7 +1023,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
         // The second byte for each field is the type
         //
         TOKU_TYPE type = mysql_to_toku_type(field);
-        assert (type < 256);
+        assert_always((int)type < 256);
         *pos = (uchar)(type & 255);
         pos++;
 
@@ -1040,7 +1038,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
         //
         case (toku_type_int):
             num_bytes_in_field = field->pack_length();
-            assert (num_bytes_in_field < 256);
+            assert_always (num_bytes_in_field < 256);
             *pos = (uchar)(num_bytes_in_field & 255);
             pos++;
             *pos = (field->flags & UNSIGNED_FLAG) ? 1 : 0;
@@ -1058,7 +1056,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
         case (toku_type_fixbinary):
             num_bytes_in_field = field->pack_length();
             set_if_smaller(num_bytes_in_field, key->key_part[i].length);
-            assert(num_bytes_in_field < 256);
+            assert_always(num_bytes_in_field < 256);
             pos[0] = (uchar)(num_bytes_in_field & 255);
             pos++;
             break;
@@ -1086,8 +1084,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
             pos += 4;
             break;
         default:
-            assert(false);
-            
+            assert_unreachable();
         }
     }
     return pos - buf;
@@ -1276,8 +1273,7 @@ static inline int compare_toku_field(
         *read_string = true;
         break;
     default:
-        assert(false);
-        break;
+        assert_unreachable();
     }
     
     *row_desc_bytes_read = row_desc_pos - row_desc;
@@ -1300,7 +1296,7 @@ static uchar* pack_toku_key_field(
     TOKU_TYPE toku_type = mysql_to_toku_type(field);
     switch(toku_type) {
     case (toku_type_int):
-        assert(key_part_length == field->pack_length());
+        assert_always(key_part_length == field->pack_length());
         new_pos = pack_toku_int(
             to_tokudb, 
             from_mysql,
@@ -1308,13 +1304,13 @@ static uchar* pack_toku_key_field(
             );
         goto exit; 
     case (toku_type_double):
-        assert(field->pack_length() == sizeof(double));
-        assert(key_part_length == sizeof(double));
+        assert_always(field->pack_length() == sizeof(double));
+        assert_always(key_part_length == sizeof(double));
         new_pos = pack_toku_double(to_tokudb, from_mysql);
         goto exit;
     case (toku_type_float):
-        assert(field->pack_length() == sizeof(float));
-        assert(key_part_length == sizeof(float));
+        assert_always(field->pack_length() == sizeof(float));
+        assert_always(key_part_length == sizeof(float));
         new_pos = pack_toku_float(to_tokudb, from_mysql);
         goto exit;
     case (toku_type_fixbinary):
@@ -1367,9 +1363,9 @@ static uchar* pack_toku_key_field(
             );
         goto exit;
     default:
-        assert(false);
+        assert_unreachable();
     }
-    assert(false);
+    assert_unreachable();
 exit:
     return new_pos;
 }
@@ -1418,10 +1414,10 @@ static uchar* pack_key_toku_key_field(
             );
         goto exit;
     default:
-        assert(false);
+        assert_unreachable();
     }
 
-    assert(false);
+    assert_unreachable();
 exit:
     return new_pos;
 }
@@ -1431,16 +1427,15 @@ uchar* unpack_toku_key_field(
     uchar* to_mysql,
     uchar* from_tokudb,
     Field* field,
-    uint32_t key_part_length
-    )
-{
+    uint32_t key_part_length) {
+
     uchar* new_pos = NULL;
     uint32_t num_bytes = 0;
     uint32_t num_bytes_copied;
     TOKU_TYPE toku_type = mysql_to_toku_type(field);
     switch(toku_type) {
     case (toku_type_int):
-        assert(key_part_length == field->pack_length());
+        assert_always(key_part_length == field->pack_length());
         new_pos = unpack_toku_int(
             to_mysql,
             from_tokudb,
@@ -1448,13 +1443,13 @@ uchar* unpack_toku_key_field(
             );
         goto exit;    
     case (toku_type_double):
-        assert(field->pack_length() == sizeof(double));
-        assert(key_part_length == sizeof(double));
+        assert_always(field->pack_length() == sizeof(double));
+        assert_always(key_part_length == sizeof(double));
         new_pos = unpack_toku_double(to_mysql, from_tokudb);
         goto exit;
     case (toku_type_float):
-        assert(field->pack_length() == sizeof(float));
-        assert(key_part_length == sizeof(float));
+        assert_always(field->pack_length() == sizeof(float));
+        assert_always(key_part_length == sizeof(float));
         new_pos = unpack_toku_float(to_mysql, from_tokudb);
         goto exit;
     case (toku_type_fixbinary):
@@ -1463,8 +1458,7 @@ uchar* unpack_toku_key_field(
         new_pos = unpack_toku_binary(
             to_mysql,
             from_tokudb,
-            num_bytes
-            );
+            num_bytes);
         goto exit;
     case (toku_type_fixstring):
         num_bytes = field->pack_length();
@@ -1472,11 +1466,15 @@ uchar* unpack_toku_key_field(
             to_mysql,
             from_tokudb,
             get_length_bytes_from_max(key_part_length),
-            0
-            );
-        num_bytes_copied = new_pos - (from_tokudb + get_length_bytes_from_max(key_part_length));
-        assert(num_bytes_copied <= num_bytes);
-        memset(to_mysql+num_bytes_copied, field->charset()->pad_char, num_bytes - num_bytes_copied);
+            0);
+        num_bytes_copied =
+            new_pos -
+            (from_tokudb + get_length_bytes_from_max(key_part_length));
+        assert_always(num_bytes_copied <= num_bytes);
+        memset(
+            to_mysql + num_bytes_copied,
+            field->charset()->pad_char,
+            num_bytes - num_bytes_copied);
         goto exit;
     case (toku_type_varbinary):
     case (toku_type_varstring):
@@ -1484,21 +1482,20 @@ uchar* unpack_toku_key_field(
             to_mysql,
             from_tokudb,
             get_length_bytes_from_max(key_part_length),
-            ((Field_varstring *)field)->length_bytes
-            );
+            ((Field_varstring*)field)->length_bytes);
         goto exit;
     case (toku_type_blob):
         new_pos = unpack_toku_blob(
             to_mysql,
             from_tokudb,
             get_length_bytes_from_max(key_part_length),
-            ((Field_blob *)field)->row_pack_length() //only calling this because packlength is returned
-            );
+            //only calling this because packlength is returned
+            ((Field_blob *)field)->row_pack_length());
         goto exit;
     default:
-        assert(false);
+        assert_unreachable();
     }
-    assert(false);
+    assert_unreachable();
 exit:
     return new_pos;
 }
@@ -1512,9 +1509,8 @@ static int tokudb_compare_two_keys(
     const void*  row_desc,
     const uint32_t row_desc_size,
     bool cmp_prefix,
-    bool* read_string
-    )
-{
+    bool* read_string) {
+
     int ret_val = 0;
     int8_t new_key_inf_val = COL_NEG_INF;
     int8_t saved_key_inf_val = COL_NEG_INF;
@@ -1537,11 +1533,9 @@ static int tokudb_compare_two_keys(
     }
     row_desc_ptr++;
 
-    while ( (uint32_t)(new_key_ptr - (uchar *)new_key_data) < new_key_size &&
-            (uint32_t)(saved_key_ptr - (uchar *)saved_key_data) < saved_key_size &&
-            (uint32_t)(row_desc_ptr - (uchar *)row_desc) < row_desc_size
-            )
-    {
+    while ((uint32_t)(new_key_ptr - (uchar*)new_key_data) < new_key_size &&
+           (uint32_t)(saved_key_ptr - (uchar*)saved_key_data) < saved_key_size &&
+           (uint32_t)(row_desc_ptr - (uchar*)row_desc) < row_desc_size) {
         uint32_t new_key_field_length;
         uint32_t saved_key_field_length;
         uint32_t row_desc_field_length;
@@ -1582,8 +1576,7 @@ static int tokudb_compare_two_keys(
             &new_key_field_length, 
             &saved_key_field_length,
             &row_desc_field_length,
-            read_string
-            );
+            read_string);
         new_key_ptr += new_key_field_length;
         saved_key_ptr += saved_key_field_length;
         row_desc_ptr += row_desc_field_length;
@@ -1591,35 +1584,30 @@ static int tokudb_compare_two_keys(
             goto exit;
         }
 
-        assert((uint32_t)(new_key_ptr - (uchar *)new_key_data) <= new_key_size);
-        assert((uint32_t)(saved_key_ptr - (uchar *)saved_key_data) <= saved_key_size);
-        assert((uint32_t)(row_desc_ptr - (uchar *)row_desc) <= row_desc_size);
+        assert_always(
+            (uint32_t)(new_key_ptr - (uchar*)new_key_data) <= new_key_size);
+        assert_always(
+            (uint32_t)(saved_key_ptr - (uchar*)saved_key_data) <= saved_key_size);
+        assert_always(
+            (uint32_t)(row_desc_ptr - (uchar*)row_desc) <= row_desc_size);
     }
-    new_key_bytes_left = new_key_size - ((uint32_t)(new_key_ptr - (uchar *)new_key_data));
-    saved_key_bytes_left = saved_key_size - ((uint32_t)(saved_key_ptr - (uchar *)saved_key_data));
+    new_key_bytes_left =
+        new_key_size - ((uint32_t)(new_key_ptr - (uchar*)new_key_data));
+    saved_key_bytes_left =
+        saved_key_size - ((uint32_t)(saved_key_ptr - (uchar*)saved_key_data));
     if (cmp_prefix) {
         ret_val = 0;
-    }
-    //
-    // in this case, read both keys to completion, now read infinity byte
-    //
-    else if (new_key_bytes_left== 0 && saved_key_bytes_left== 0) {
+    } else if (new_key_bytes_left== 0 && saved_key_bytes_left== 0) {
+        // in this case, read both keys to completion, now read infinity byte
         ret_val = new_key_inf_val - saved_key_inf_val;
-    }
-    //
-    // at this point, one SHOULD be 0
-    //
-    else if (new_key_bytes_left == 0 && saved_key_bytes_left > 0) {
+    } else if (new_key_bytes_left == 0 && saved_key_bytes_left > 0) {
+        // at this point, one SHOULD be 0
         ret_val = (new_key_inf_val == COL_POS_INF ) ? 1 : -1; 
-    }
-    else if (new_key_bytes_left > 0 && saved_key_bytes_left == 0) {
+    } else if (new_key_bytes_left > 0 && saved_key_bytes_left == 0) {
         ret_val = (saved_key_inf_val == COL_POS_INF ) ? -1 : 1; 
-    }
-    //
-    // this should never happen, perhaps we should assert(false)
-    //
-    else {
-        assert(false);
+    } else {
+        // this should never happen, perhaps we should assert(false)
+        assert_unreachable();
         ret_val = new_key_bytes_left - saved_key_bytes_left;
     }
 exit:
@@ -1764,9 +1752,9 @@ static int tokudb_compare_two_key_parts(
             goto exit;
         }
 
-        assert((uint32_t)(new_key_ptr - (uchar *)new_key_data) <= new_key_size);
-        assert((uint32_t)(saved_key_ptr - (uchar *)saved_key_data) <= saved_key_size);
-        assert((uint32_t)(row_desc_ptr - (uchar *)row_desc) <= row_desc_size);
+        assert_always((uint32_t)(new_key_ptr - (uchar *)new_key_data) <= new_key_size);
+        assert_always((uint32_t)(saved_key_ptr - (uchar *)saved_key_data) <= saved_key_size);
+        assert_always((uint32_t)(row_desc_ptr - (uchar *)row_desc) <= row_desc_size);
     }
 
     ret_val = 0;
@@ -1775,7 +1763,7 @@ exit:
 }
 
 static int tokudb_cmp_dbt_key_parts(DB *file, const DBT *keya, const DBT *keyb, uint max_parts) {
-    assert(file->cmp_descriptor->dbt.size);
+    assert_always(file->cmp_descriptor->dbt.size);
     return tokudb_compare_two_key_parts(
             keya->data, 
             keya->size, 
@@ -1846,7 +1834,7 @@ static uint32_t pack_desc_pk_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE_S
     case (toku_type_float):
         pos[0] = COL_FIX_FIELD;
         pos++;
-        assert(kc_info->field_lengths[field_index] < 256);
+        assert_always(kc_info->field_lengths[field_index] < 256);
         pos[0] = kc_info->field_lengths[field_index];
         pos++;
         break;
@@ -1855,7 +1843,7 @@ static uint32_t pack_desc_pk_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE_S
         pos++;
         field_length = field->pack_length();
         set_if_smaller(key_part_length, field_length);
-        assert(key_part_length < 256);
+        assert_always(key_part_length < 256);
         pos[0] = (uchar)key_part_length;
         pos++;
         break;
@@ -1870,7 +1858,7 @@ static uint32_t pack_desc_pk_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE_S
         pos++;
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
 
     return pos - buf;
@@ -1892,7 +1880,7 @@ static uint32_t pack_desc_pk_offset_info(
 
     bool is_constant_offset = true;
     uint32_t offset = 0;
-    for (uint i = 0; i < get_key_parts(prim_key); i++) {
+    for (uint i = 0; i < prim_key->user_defined_key_parts; i++) {
         KEY_PART_INFO curr = prim_key->key_part[i];
         uint16 curr_field_index = curr.field->field_index;
 
@@ -1907,7 +1895,7 @@ static uint32_t pack_desc_pk_offset_info(
         }
         offset += pk_info[2*i + 1];
     }
-    assert(found_col_in_pk);
+    assert_always(found_col_in_pk);
     if (is_constant_offset) {
         pos[0] = COL_FIX_PK_OFFSET;
         pos++;
@@ -1965,10 +1953,10 @@ static uint32_t pack_desc_offset_info(uchar* buf, KEY_AND_COL_INFO* kc_info, uin
                 break;
             }
         }
-        assert(found_index);
+        assert_always(found_index);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
 
     return pos - buf;
@@ -2003,7 +1991,7 @@ static uint32_t pack_desc_key_length_info(uchar* buf, KEY_AND_COL_INFO* kc_info,
         pos += sizeof(key_part_length);
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
 
     return pos - buf;
@@ -2040,7 +2028,7 @@ static uint32_t pack_desc_char_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE
         pos += 4;
         break;
     default:
-        assert(false);
+        assert_unreachable();
     }
 
     return pos - buf;
@@ -2150,7 +2138,7 @@ static uint32_t create_toku_clustering_val_pack_descriptor (
         bool col_filtered = bitmap_is_set(&kc_info->key_filters[keynr],i);
         bool col_filtered_in_pk = bitmap_is_set(&kc_info->key_filters[pk_index],i);
         if (col_filtered_in_pk) {
-            assert(col_filtered);
+            assert_always(col_filtered);
         }
     }
 
@@ -2320,7 +2308,7 @@ static uint32_t pack_clustering_val_from_desc(
         memcpy(&end, desc_pos, sizeof(end));
         desc_pos += sizeof(end);
         
-        assert (start <= end);
+        assert_always (start <= end);
 
         if (curr == CK_FIX_RANGE) {
             length = end - start;
@@ -2366,24 +2354,21 @@ static uint32_t pack_clustering_val_from_desc(
             offset_diffs = (end_data_offset + end_data_size) - (uint32_t)(var_dest_data_ptr - orig_var_dest_data_ptr);
             for (uint32_t i = start; i <= end; i++) {
                 if ( num_offset_bytes == 1 ) {
-                    assert(offset_diffs < 256);
+                    assert_always(offset_diffs < 256);
                     var_dest_offset_ptr[0] = var_src_offset_ptr[i] - (uchar)offset_diffs;
                     var_dest_offset_ptr++;
-                }
-                else if ( num_offset_bytes == 2 ) {
+                } else if ( num_offset_bytes == 2 ) {
                     uint32_t tmp = uint2korr(var_src_offset_ptr + 2*i);
                     uint32_t new_offset = tmp - offset_diffs;
-                    assert(new_offset < 1<<16);
+                    assert_always(new_offset < 1<<16);
                     int2store(var_dest_offset_ptr,new_offset);
                     var_dest_offset_ptr += 2;
-                }
-                else {
-                    assert(false);
+                } else {
+                    assert_unreachable();
                 }
             }
-        }
-        else {
-            assert(false);
+        } else {
+            assert_unreachable();
         }
     }
     //
@@ -2517,8 +2502,8 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         // store number of parts
         //
-        assert(get_key_parts(prim_key) < 128);
-        pos[0] = 2 * get_key_parts(prim_key);
+        assert_always(prim_key->user_defined_key_parts < 128);
+        pos[0] = 2 * prim_key->user_defined_key_parts;
         pos++;
         //
         // for each part, store if it is a fixed field or var field
@@ -2528,7 +2513,7 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         pk_info = pos;
         uchar* tmp = pos;
-        for (uint i = 0; i < get_key_parts(prim_key); i++) {
+        for (uint i = 0; i < prim_key->user_defined_key_parts; i++) {
             tmp += pack_desc_pk_info(
                 tmp,
                 kc_info,
@@ -2539,18 +2524,18 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
         //
         // asserting that we moved forward as much as we think we have
         //
-        assert(tmp - pos == (2 * get_key_parts(prim_key)));
+        assert_always(tmp - pos == (2 * prim_key->user_defined_key_parts));
         pos = tmp;
     }
 
-    for (uint i = 0; i < get_key_parts(key_info); i++) {
+    for (uint i = 0; i < key_info->user_defined_key_parts; i++) {
         KEY_PART_INFO curr_kpi = key_info->key_part[i];
         uint16 field_index = curr_kpi.field->field_index;
         Field* field = table_share->field[field_index];
         bool is_col_in_pk = false;
 
         if (bitmap_is_set(&kc_info->key_filters[pk_index],field_index)) {
-            assert(!has_hpk && prim_key != NULL);
+            assert_always(!has_hpk && prim_key != NULL);
             is_col_in_pk = true;
         }
         else {
@@ -2565,7 +2550,7 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
             // assert that columns in pk do not have a null bit
             // because in MySQL, pk columns cannot be null
             //
-            assert(!field->null_bit);
+            assert_always(!field->null_bit);
         }
 
         if (field->null_bit) {
@@ -2667,7 +2652,7 @@ static uint32_t max_key_size_from_desc(
     // skip byte that states if main dictionary
     bool is_main_dictionary = desc_pos[0];
     desc_pos++;
-    assert(!is_main_dictionary);
+    assert_always(!is_main_dictionary);
     
     // skip hpk byte
     desc_pos++;
@@ -2730,7 +2715,7 @@ static uint32_t max_key_size_from_desc(
             desc_pos += sizeof(charset_num);
         }
         else {
-            assert(has_charset == COL_HAS_NO_CHARSET);
+            assert_always(has_charset == COL_HAS_NO_CHARSET);
         }        
     }
     return max_size;
@@ -2741,9 +2726,8 @@ static uint32_t pack_key_from_desc(
     void* row_desc,
     uint32_t row_desc_size,
     const DBT* pk_key,
-    const DBT* pk_val
-    ) 
-{
+    const DBT* pk_val) {
+
     MULTI_COL_PACK_INFO mcp_info;
     uint32_t num_null_bytes;
     uint32_t num_blobs;
@@ -2761,7 +2745,7 @@ static uint32_t pack_key_from_desc(
 
     bool is_main_dictionary = desc_pos[0];
     desc_pos++;
-    assert(!is_main_dictionary);
+    assert_always(!is_main_dictionary);
 
     //
     // get the constant info out of descriptor
@@ -2809,7 +2793,7 @@ static uint32_t pack_key_from_desc(
     fixed_field_ptr = null_bytes_ptr + num_null_bytes;
     var_field_offset_ptr = fixed_field_ptr + mcp_info.fixed_field_size;
     var_field_data_ptr = var_field_offset_ptr + mcp_info.len_of_offsets;
-    while ( (uint32_t)(desc_pos - (uchar *)row_desc) < row_desc_size) {
+    while ((uint32_t)(desc_pos - (uchar*)row_desc) < row_desc_size) {
         uchar col_fix_val;
         uchar has_charset;
         uint32_t col_pack_val = 0;
@@ -2833,8 +2817,7 @@ static uint32_t pack_key_from_desc(
                 packed_key_pos++;
                 desc_pos += skip_key_in_desc(desc_pos);
                 continue;
-            }
-            else {
+            } else {
                 packed_key_pos[0] = NONNULL_COL_VAL;
                 packed_key_pos++;
             }
@@ -2858,42 +2841,46 @@ static uint32_t pack_key_from_desc(
         if (has_charset == COL_HAS_CHARSET) {
             memcpy(&charset_num, desc_pos, sizeof(charset_num));
             desc_pos += sizeof(charset_num);
-        }
-        else {
-            assert(has_charset == COL_HAS_NO_CHARSET);
+        } else {
+            assert_always(has_charset == COL_HAS_NO_CHARSET);
         }
         //
         // case where column is in pk val
         //
-        if (col_fix_val == COL_FIX_FIELD || col_fix_val == COL_VAR_FIELD || col_fix_val == COL_BLOB_FIELD) {
-            if (col_fix_val == COL_FIX_FIELD && has_charset == COL_HAS_NO_CHARSET) {
-                memcpy(packed_key_pos, &fixed_field_ptr[col_pack_val], key_length);
+        if (col_fix_val == COL_FIX_FIELD ||
+            col_fix_val == COL_VAR_FIELD ||
+            col_fix_val == COL_BLOB_FIELD) {
+            if (col_fix_val == COL_FIX_FIELD &&
+                has_charset == COL_HAS_NO_CHARSET) {
+                memcpy(
+                    packed_key_pos,
+                    &fixed_field_ptr[col_pack_val],
+                    key_length);
                 packed_key_pos += key_length;
-            }
-            else if (col_fix_val == COL_VAR_FIELD && has_charset == COL_HAS_NO_CHARSET) {
+            } else if (col_fix_val == COL_VAR_FIELD &&
+                       has_charset == COL_HAS_NO_CHARSET) {
                 uint32_t data_start_offset = 0;
 
                 uint32_t data_size = 0;
                 get_var_field_info(
-                    &data_size, 
-                    &data_start_offset, 
-                    col_pack_val, 
-                    var_field_offset_ptr, 
-                    num_offset_bytes
-                    );
+                    &data_size,
+                    &data_start_offset,
+                    col_pack_val,
+                    var_field_offset_ptr,
+                    num_offset_bytes);
 
                 //
                 // length of this field in this row is data_size
                 // data is located beginning at var_field_data_ptr + data_start_offset
                 //
                 packed_key_pos = pack_toku_varbinary_from_desc(
-                    packed_key_pos, 
-                    var_field_data_ptr + data_start_offset, 
-                    key_length, //number of bytes to use to encode the length in to_tokudb
-                    data_size //length of field
-                    );
-            }
-            else {
+                    packed_key_pos,
+                    var_field_data_ptr + data_start_offset,
+                    //number of bytes to use to encode the length in to_tokudb
+                    key_length,
+                    //length of field
+                    data_size);
+            } else {
                 const uchar* data_start = NULL;
                 uint32_t data_start_offset = 0;
                 uint32_t data_size = 0;
@@ -2902,76 +2889,59 @@ static uint32_t pack_key_from_desc(
                     data_start_offset = col_pack_val;
                     data_size = key_length;
                     data_start = fixed_field_ptr + data_start_offset;
-                }
-                else if (col_fix_val == COL_VAR_FIELD){
+                } else if (col_fix_val == COL_VAR_FIELD){
                     get_var_field_info(
-                        &data_size, 
-                        &data_start_offset, 
-                        col_pack_val, 
-                        var_field_offset_ptr, 
-                        num_offset_bytes
-                        );
+                        &data_size,
+                        &data_start_offset,
+                        col_pack_val,
+                        var_field_offset_ptr,
+                        num_offset_bytes);
                     data_start = var_field_data_ptr + data_start_offset;
-                }
-                else if (col_fix_val == COL_BLOB_FIELD) {
+                } else if (col_fix_val == COL_BLOB_FIELD) {
                     uint32_t blob_index = col_pack_val;
                     uint32_t blob_offset;
                     const uchar* blob_ptr = NULL;
                     uint32_t field_len;
                     uint32_t field_len_bytes = blob_lengths[blob_index];
                     get_blob_field_info(
-                        &blob_offset, 
+                        &blob_offset,
                         mcp_info.len_of_offsets,
-                        var_field_data_ptr, 
-                        num_offset_bytes
-                        );
+                        var_field_data_ptr,
+                        num_offset_bytes);
                     blob_ptr = var_field_data_ptr + blob_offset;
-                    assert(num_blobs > 0);
-                    //
-                    // skip over other blobs to get to the one we want to make a key out of
-                    //
+                    assert_always(num_blobs > 0);
+
+                    // skip over other blobs to get to the one we want to
+                    // make a key out of
                     for (uint32_t i = 0; i < blob_index; i++) {
                         blob_ptr = unpack_toku_field_blob(
                             NULL,
                             blob_ptr,
                             blob_lengths[i],
-                            true
-                            );
+                            true);
                     }
-                    //
-                    // at this point, blob_ptr is pointing to the blob we want to make a key from
-                    //
+                    // at this point, blob_ptr is pointing to the blob we
+                    // want to make a key from
                     field_len = get_blob_field_len(blob_ptr, field_len_bytes);
-                    //
                     // now we set the variables to make the key
-                    //
                     data_start = blob_ptr + field_len_bytes;
                     data_size = field_len;
-                    
-                    
-                }
-                else {
-                    assert(false);
+                } else {
+                    assert_unreachable();
                 }
 
-                packed_key_pos = pack_toku_varstring_from_desc(
-                    packed_key_pos,
+                packed_key_pos = pack_toku_varstring_from_desc(packed_key_pos,
                     data_start,
                     key_length,
                     data_size,
-                    charset_num
-                    );
+                    charset_num);
             }
-        }
-        //
-        // case where column is in pk key
-        //
-        else {
+        } else {
+            // case where column is in pk key
             if (col_fix_val == COL_FIX_PK_OFFSET) {
                 memcpy(packed_key_pos, &pk_data_ptr[col_pack_val], key_length);
                 packed_key_pos += key_length;
-            }
-            else if (col_fix_val == COL_VAR_PK_OFFSET) {
+            } else if (col_fix_val == COL_VAR_PK_OFFSET) {
                 uchar* tmp_pk_data_ptr = pk_data_ptr;
                 uint32_t index_in_pk = col_pack_val;
                 //
@@ -2980,25 +2950,21 @@ static uint32_t pack_key_from_desc(
                 for (uint32_t i = 0; i < index_in_pk; i++) {
                     if (pk_info[2*i] == COL_FIX_FIELD) {
                         tmp_pk_data_ptr += pk_info[2*i + 1];
-                    }
-                    else if (pk_info[2*i] == COL_VAR_FIELD) {
+                    } else if (pk_info[2*i] == COL_VAR_FIELD) {
                         uint32_t len_bytes = pk_info[2*i + 1];
                         uint32_t len;
                         if (len_bytes == 1) {
                             len = tmp_pk_data_ptr[0];
                             tmp_pk_data_ptr++;
-                        }
-                        else if (len_bytes == 2) {
+                        } else if (len_bytes == 2) {
                             len = uint2korr(tmp_pk_data_ptr);
                             tmp_pk_data_ptr += 2;
-                        }
-                        else {
-                            assert(false);
+                        } else {
+                            assert_unreachable();
                         }
                         tmp_pk_data_ptr += len;
-                    }
-                    else {
-                        assert(false);
+                    } else {
+                        assert_unreachable();
                     }
                 }
                 //
@@ -3008,21 +2974,18 @@ static uint32_t pack_key_from_desc(
                 if (is_fix_field == COL_FIX_FIELD) {
                     memcpy(packed_key_pos, tmp_pk_data_ptr, key_length);
                     packed_key_pos += key_length;
-                }
-                else if (is_fix_field == COL_VAR_FIELD) {
+                } else if (is_fix_field == COL_VAR_FIELD) {
                     const uchar* data_start = NULL;
                     uint32_t data_size = 0;
                     uint32_t len_bytes = pk_info[2*index_in_pk + 1];
                     if (len_bytes == 1) {
                         data_size = tmp_pk_data_ptr[0];
                         tmp_pk_data_ptr++;
-                    }
-                    else if (len_bytes == 2) {
+                    } else if (len_bytes == 2) {
                         data_size = uint2korr(tmp_pk_data_ptr);
                         tmp_pk_data_ptr += 2;
-                    }
-                    else {
-                        assert(false);
+                    } else {
+                        assert_unreachable();
                     }
                     data_start = tmp_pk_data_ptr;
 
@@ -3032,32 +2995,26 @@ static uint32_t pack_key_from_desc(
                             data_start,
                             key_length,
                             data_size,
-                            charset_num
-                            );
-                    }
-                    else if (has_charset == COL_HAS_NO_CHARSET) {
+                            charset_num);
+                    } else if (has_charset == COL_HAS_NO_CHARSET) {
                         packed_key_pos = pack_toku_varbinary_from_desc(
-                            packed_key_pos, 
-                            data_start, 
+                            packed_key_pos,
+                            data_start,
                             key_length,
-                            data_size //length of field
-                            );
+                            data_size);
+                    } else {
+                        assert_unreachable();
                     }
-                    else {
-                        assert(false);
-                    }
+                } else {
+                    assert_unreachable();
                 }
-                else {
-                    assert(false);
-                }
-            }
-            else {
-                assert(false);
+            } else {
+                assert_unreachable();
             }
         }
         
     }
-    assert( (uint32_t)(desc_pos - (uchar *)row_desc) == row_desc_size);
+    assert_always( (uint32_t)(desc_pos - (uchar *)row_desc) == row_desc_size);
 
     //
     // now append the primary key to the end of the key
@@ -3065,13 +3022,12 @@ static uint32_t pack_key_from_desc(
     if (hpk) {
         memcpy(packed_key_pos, pk_key->data, pk_key->size);
         packed_key_pos += pk_key->size;
-    }
-    else {
+    } else {
         memcpy(packed_key_pos, (uchar *)pk_key->data + 1, pk_key->size - 1);
         packed_key_pos += (pk_key->size - 1);
     }
 
-    return (uint32_t)(packed_key_pos - buf); // 
+    return (uint32_t)(packed_key_pos - buf);
 }
 
 static bool fields_have_same_name(Field* a, Field* b) {
@@ -3248,7 +3204,7 @@ static bool fields_are_same_type(Field* a, Field* b) {
     case MYSQL_TYPE_DECIMAL:
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_NULL:
-        assert(false);
+        assert_unreachable();
     }
 
 cleanup:

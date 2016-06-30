@@ -1,58 +1,123 @@
 SET NAMES utf8;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Bad connection string';
-ERROR HY000: SQLDriverConnect: [unixODBC][Driver Manager]Data source name not found, and no default driver specified
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Name` varchar(256) NOT NULL,
-  `Description` varchar(256) NOT NULL
+  `Description` varchar(256) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
 SELECT * FROM t1;
 Name	Description
-Firebird	Firebird
+dBASE Files	Microsoft Access dBASE Driver (*.dbf, *.ndx, *.mdx)
+PLUGDB_DEBUG	PLUGODBC_Driver
+PLUGDB_ODBC	PLUGODBC_Driver
+SafeDB_ODBC	SDB_ODBC_Driver
+Firebird	Firebird/InterBase(r) driver
+ConnectEngineXLS	Microsoft Excel Driver (*.xls)
+Excel Files	Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)
+MariaODBC	MySQL ODBC 5.2a Driver
+MariaODBCbeta	MariaDB ODBC 1.0 Driver
+MyODBC	MySQL ODBC 5.2a Driver
+MS Access Database	Microsoft Access Driver (*.mdb, *.accdb)
+MS Access Db1	Microsoft Access Driver (*.mdb)
+MySQL-ANSI	MySQL ODBC 5.3 ANSI Driver
+MySQL-Unicode	MySQL ODBC 5.3 Unicode Driver
+Xtreme Sample Database 2008	Microsoft Access Driver (*.mdb)
+PlugDB test	PLUGODBC_Driver
+SQLite3 Datasource	SQLite3 ODBC Driver
+SQLite Datasource	SQLite ODBC Driver
+SQLite UTF-8 Datasource	SQLite ODBC (UTF-8) Driver
+ORACLE_TEST	Oracle in XE
+ConnectEnginePostgresql	PostgreSQL ODBC Driver(ANSI)
+ConnectEngineOracle	Oracle in XE
+ConnectEngineSQLServer	SQL Server
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Description` char(128) NOT NULL,
-  `Attributes` varchar(256) NOT NULL
+  `Attributes` varchar(256) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
 SELECT * FROM t1;
 Description	Attributes
-Firebird	Description=Firebird ODBC Driver in usr;Driver=/usr/local/lib/libOdbcFb.so;Setup=/usr/local/lib/libOdbcFb.so;FileUsage=1;
+SQL Server	UsageCount=1;SQLLevel=1;FileUsage=0;DriverODBCVer=03.50;ConnectFunctions=YYY;APILevel=2;CPTimeout=60;
+Microsoft ODBC for Oracle	UsageCount=1;SQLLevel=1;FileUsage=0;DriverODBCVer=02.50;ConnectFunctions=YYY;APILevel=1;CPTimeout=120;
+Microsoft Access Driver (*.mdb)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=2;FileExtns=*.mdb;SQLLevel=0;
+Microsoft Access-Treiber (*.mdb)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=2;FileExtns=*.mdb;SQLLevel=0;
+Driver do Microsoft Access (*.mdb)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=2;FileExtns=*.mdb;SQLLevel=0;
+Microsoft dBase Driver (*.dbf)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.ndx,*.mdx;SQLLevel=0;
+Microsoft dBase-Treiber (*.dbf)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.ndx,*.mdx;SQLLevel=0;
+Driver do Microsoft dBase (*.dbf)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.ndx,*.mdx;SQLLevel=0;
+Microsoft Excel Driver (*.xls)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.xls;SQLLevel=0;
+Microsoft Excel-Treiber (*.xls)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.xls;SQLLevel=0;
+Driver do Microsoft Excel(*.xls)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.xls;SQLLevel=0;
+Microsoft Paradox Driver (*.db )	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.db;SQLLevel=0;
+Microsoft Paradox-Treiber (*.db )	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.db;SQLLevel=0;
+Driver do Microsoft Paradox (*.db )	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.db;SQLLevel=0;
+Microsoft Text Driver (*.txt; *.csv)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.,*.asc,*.csv,*.tab,*.txt,*.csv;SQLLevel=0;
+Microsoft Text-Treiber (*.txt; *.csv)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.,*.asc,*.csv,*.tab,*.txt,*.csv;SQLLevel=0;
+Driver da Microsoft para arquivos texto (*.txt; *.csv)	UsageCount=1;APILevel=1;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.,*.asc,*.csv,*.tab,*.txt,*.csv;SQLLevel=0;
+Microsoft Visual FoxPro Driver	UsageCount=1;APILevel=0;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.cdx,*.idx,*.fpt;SQLLevel=0;
+Microsoft FoxPro VFP Driver (*.dbf)	UsageCount=1;APILevel=0;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.cdx,*.idx,*.fpt;SQLLevel=0;
+Microsoft dBase VFP Driver (*.dbf)	UsageCount=1;APILevel=0;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.cdx,*.idx,*.fpt;SQLLevel=0;
+Microsoft Visual FoxPro-Treiber	UsageCount=1;APILevel=0;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.cdx,*.idx,*.fpt;SQLLevel=0;
+Driver para o Microsoft Visual FoxPro	UsageCount=1;APILevel=0;ConnectFunctions=YYN;DriverODBCVer=02.50;FileUsage=1;FileExtns=*.dbf,*.cdx,*.idx,*.fpt;SQLLevel=0;
+SQL Native Client	UsageCount=1;APILevel=2;ConnectFunctions=YYY;CPTimeout=60;DriverODBCVer=09.00;FileUsage=0;SQLLevel=1;
+CR Sybase Wire Protocol ODBC Driver 6.0	UsageCount=1;APILevel=1;ConnectFunctions=YYY;DriverODBCVer=3.52;FileUsage=0;SQLLevel=0;CPTimeout=60;HelpRootDirectory=C:\Program Files\SAP BusinessObjects\SAP BusinessObjects Enterprise XI 4.0\win32_x86\odbc\help;
+CR SQL Server Native Wire Protocol ODBC Driver 6.0	UsageCount=1;APILevel=1;ConnectFunctions=YYY;DriverODBCVer=3.52;FileUsage=0;SQLLevel=1;CPTimeout=60;HelpRootDirectory=C:\Program Files\SAP BusinessObjects\SAP BusinessObjects Enterprise XI 4.0\win32_x86\odbc\help;
+CR SQL Server Classic Wire Protocol ODBC Driver 6.0	UsageCount=1;APILevel=1;ConnectFunctions=YYY;DriverODBCVer=3.52;FileUsage=0;SQLLevel=1;CPTimeout=60;HelpRootDirectory=C:\Program Files\SAP BusinessObjects\SAP BusinessObjects Enterprise XI 4.0\win32_x86\odbc\help;
+CR TextFile ODBC Driver 6.0	UsageCount=1;APILevel=1;ConnectFunctions=YYY;DriverODBCVer=3.52;FileUsage=1;FileExtns=*.*;SQLLevel=0;CPTimeout=60;HelpRootDirectory=C:\Program Files\SAP BusinessObjects\SAP BusinessObjects Enterprise XI 4.0\win32_x86\odbc\help;
+PLUGODBC_Driver	UsageCount=1;
+SDB_ODBC_Driver	UsageCount=2;
+Microsoft Access Text Driver (*.txt, *.csv)	SQLLevel=0;FileExtns=*.txt, *.csv;FileUsage=2;DriverODBCVer=02.50;ConnectFunctions=YYN;APILevel=1;UsageCount=3;
+Microsoft Access dBASE Driver (*.dbf, *.ndx, *.mdx)	SQLLevel=0;FileExtns=*.dbf, *.ndx, *.mdx;FileUsage=2;DriverODBCVer=02.50;ConnectFunctions=YYN;APILevel=1;UsageCount=3;
+Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)	SQLLevel=0;FileExtns=*.xls,*.xlsx, *.xlsb;FileUsage=2;DriverODBCVer=02.50;ConnectFunctions=YYN;APILevel=1;UsageCount=3;
+Microsoft Access Driver (*.mdb, *.accdb)	SQLLevel=0;FileExtns=*.mdb,*.accdb;FileUsage=2;DriverODBCVer=02.50;ConnectFunctions=YYN;APILevel=1;UsageCount=3;
+SQLite3 ODBC Driver	UsageCount=1;
+SQLite ODBC Driver	UsageCount=1;
+SQLite ODBC (UTF-8) Driver	UsageCount=1;
+Oracle in XE	ConnectionFunctions=YYY;DriverODBCVer=03.51;CPTimeout=60;FileUsage=0;APILevel=1;SQLLevel=1;
+Oracle in instantclient_12_1	APILevel=1;ConnectionFunctions=YYY;CPTimeout=60;DriverODBCVer=03.51;FileUsage=0;SQLLevel=1;
+PostgreSQL ODBC Driver(ANSI)	APILevel=1;ConnectFunctions=YYN;DriverODBCVer=09.02.0100;FileUsage=0;SQLLevel=1;
+PostgreSQL ODBC Driver(UNICODE)	APILevel=1;ConnectFunctions=YYN;DriverODBCVer=09.02.0100;FileUsage=0;SQLLevel=1;
+SQL Server Native Client 11.0	UsageCount=1;APILevel=2;ConnectFunctions=YYY;CPTimeout=60;DriverODBCVer=03.80;FileUsage=0;SQLLevel=1;
+MariaDB ODBC 1.0 Driver	UsageCount=1;
+Firebird/InterBase(r) driver	UsageCount=1;FileExtns=*.fdb,*.gdb;APILevel=1;ConnectFunctions=YYY;FileUsage=0;DriverODBCVer=03.51;SQLLevel=1;
+MySQL ODBC 5.3 ANSI Driver	UsageCount=1;
+MySQL ODBC 5.3 Unicode Driver	UsageCount=1;
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Tables CONNECTION='Not important';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `Table_Cat` char(128) NOT NULL,
-  `Table_Schema` char(128) NOT NULL,
+  `Table_Cat` char(128) DEFAULT NULL,
+  `Table_Schema` char(128) DEFAULT NULL,
   `Table_Name` char(128) NOT NULL,
   `Table_Type` char(16) NOT NULL,
-  `Remark` char(255) NOT NULL
+  `Remark` char(255) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='Not important' `TABLE_TYPE`='ODBC' `CATFUNC`='Tables'
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Columns CONNECTION='Not important';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `Table_Cat` char(128) NOT NULL,
-  `Table_Schema` char(128) NOT NULL,
+  `Table_Cat` char(128) DEFAULT NULL,
+  `Table_Schema` char(128) DEFAULT NULL,
   `Table_Name` char(128) NOT NULL,
   `Column_Name` char(128) NOT NULL,
   `Data_Type` smallint(6) NOT NULL,
   `Type_Name` char(30) NOT NULL,
   `Column_Size` int(10) NOT NULL,
   `Buffer_Length` int(10) NOT NULL,
-  `Decimal_Digits` smallint(6) NOT NULL,
-  `Radix` smallint(6) NOT NULL,
+  `Decimal_Digits` smallint(6) DEFAULT NULL,
+  `Radix` smallint(6) DEFAULT NULL,
   `Nullable` smallint(6) NOT NULL,
-  `Remarks` char(255) NOT NULL
+  `Remarks` char(255) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='Not important' `TABLE_TYPE`='ODBC' `CATFUNC`='Columns'
 DROP TABLE t1;
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC TABNAME='EMPLOYEE' CONNECTION='DSN=Firebird;UID=SYSDBA;PWD=manager';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC TABNAME='EMPLOYEE' CONNECTION='DSN=Firebird;UID=SYSDBA;PWD=masterkey';
 SELECT * FROM t1;
 EMP_NO	FIRST_NAME	LAST_NAME	PHONE_EXT	HIRE_DATE	DEPT_NO	JOB_CODE	JOB_GRADE	JOB_COUNTRY	SALARY	FULL_NAME
 2	Robert	Nelson	250	1988-12-28 00:00:00	600	VP	2	USA	105900.00	Nelson, Robert
