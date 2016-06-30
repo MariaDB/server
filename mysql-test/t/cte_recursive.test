@@ -4,7 +4,24 @@ insert into t1 values
 insert into t1 values
 (3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
 
---ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
+with recursive
+t as 
+(
+  select * from t1 where t1.b >= 'c'
+  union
+  select * from r
+),
+r as
+(
+  select * from t
+  union
+  select t1.* from t1,r where r.a+1 = t1.a
+)
+select * from r;
+
+
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
 with recursive
 a1(a,b) as
 (select * from t1 where t1.a>3

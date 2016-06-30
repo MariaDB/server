@@ -292,43 +292,50 @@ bool With_clause::check_anchors()
        with_elem != NULL;
        with_elem= with_elem->next_elem)
   {
-    if (!with_elem->is_recursive || with_elem->with_anchor)
+    if (!with_elem->is_recursive)
       continue;
-
-    table_map anchored= 0;
-    for (With_element *elem= with_elem;
-	 elem != NULL;
-	 elem= elem->next_elem)
+    
+    if (!with_elem->with_anchor)
     {
-      if (elem->mutually_recursive && elem->with_anchor)
-	  anchored |= elem->get_elem_map();
+      With_element *elem= with_elem;
+      while ((elem= elem->get_next_mutually_recursive()) != with_elem)
+      {
+        if (elem->with_anchor)
+          break;
+      }
+      if (elem == with_elem)
+      {
+        my_error(ER_RECURSIVE_WITHOUT_ANCHORS, MYF(0),
+        with_elem->query_name->str);
+        return true;
+      }
     }
-    table_map non_anchored= with_elem->mutually_recursive & ~anchored;
-    with_elem->work_dep_map= non_anchored & with_elem->base_dep_map;
-  }
-
-  /*Building transitive clousure on work_dep_map*/
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
-  {
-    table_map with_elem_map= with_elem->get_elem_map();
-    for (With_element *elem= first_elem; elem != NULL; elem= elem->next_elem)
+    else
     {
-      if (elem->work_dep_map & with_elem_map)
-	elem->work_dep_map|= with_elem->work_dep_map;
-    }
-  }
-
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
-  {
-    if (with_elem->work_dep_map & with_elem->get_elem_map())
-    {
-      my_error(ER_RECURSIVE_WITHOUT_ANCHORS, MYF(0),
-      with_elem->query_name->str);
-      return true;
+      With_element *elem= with_elem;
+      while ((elem= elem->get_next_mutually_recursive()) != with_elem)
+	elem->work_dep_map= elem->base_dep_map & elem->mutually_recursive;
+      elem= with_elem;
+      while ((elem= elem->get_next_mutually_recursive()) != with_elem)
+      {
+        table_map elem_map= elem->get_elem_map();
+        With_element *el= with_elem;
+        while ((el= el->get_next_mutually_recursive()) != with_elem)
+	{
+          if (el->work_dep_map & elem_map)
+	    el->work_dep_map|= elem->work_dep_map;          
+        }
+      }
+      elem= with_elem;
+      while ((elem= elem->get_next_mutually_recursive()) != with_elem)
+      {
+        if (elem->work_dep_map & elem->get_elem_map())
+	{
+          my_error(ER_UNACCEPTABLE_MUTUAL_RECURSION, MYF(0),
+          with_elem->query_name->str);
+          return true;
+	}
+      }
     }
   }
 
