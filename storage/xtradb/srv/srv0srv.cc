@@ -1209,12 +1209,13 @@ srv_free(void)
 		os_event_free(srv_buf_dump_event);
 		os_event_free(srv_checkpoint_completed_event);
 		os_event_free(srv_redo_log_tracked_event);
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		os_event_free(srv_allow_writes_event);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 		mutex_free(&srv_sys->mutex);
 		mutex_free(&srv_sys->tasks_mutex);
 	}
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_free(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifndef HAVE_ATOMIC_BUILTINS
 	mutex_free(&server_mutex);
