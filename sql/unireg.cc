@@ -83,7 +83,8 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
-static uchar *extra2_write_field(uchar *pos,int number_of_fields,List_iterator<Create_field> * it)
+static uchar *extra2_write_field_visibility_hash_info(uchar *pos,
+                   int number_of_fields,List_iterator<Create_field> * it)
 {
   *pos++=EXTRA2_FIELD_FLAGS;
   /*
@@ -100,6 +101,7 @@ static uchar *extra2_write_field(uchar *pos,int number_of_fields,List_iterator<C
   }
   return pos;
 }
+
 /**
   Create a frm (table definition) file
 
@@ -223,8 +225,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
   extra2_size+=1 + ( 2*create_fields.elements > 255 ? 3 : 1) +
-       2*create_fields.elements;// first one for type next 2  for length
-
+       2*create_fields.elements;// first one for type(extra2_field_flags) next 2  for length
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -278,7 +279,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   }
 #endif /*HAVE_SPATIAL*/
 
-  pos=extra2_write_field(pos,create_fields.elements,&it);
+  pos=extra2_write_field_visibility_hash_info(pos,create_fields.elements,&it);
   it.rewind();
 
   int4store(pos, filepos); // end of the extra2 segment

@@ -330,7 +330,6 @@ enum  field_visible_type{
 	FULL_HIDDEN
 };
 
-/* hash type*/
 enum key_hash_type{
 	/* normal column */
 	NOT_HASH=0,
@@ -340,7 +339,6 @@ enum key_hash_type{
 		 update */
 	UNIQUE_HASH
 };
-
 class Filesort_info
 {
   /// Buffer for sorting keys.

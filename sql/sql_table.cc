@@ -3175,7 +3175,6 @@ static void check_duplicate_key(THD *thd,
   }
 }
 
-
 /*
   Preparation for table creation
 
@@ -3234,6 +3233,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   Key_part_spec *temp_colms;
   int num= 1;
   bool is_long_unique=false;
+  bool is_nullable=false;
   int key_initial_elements=alter_info->key_list.elements;
   while((key_iter_key=key_iter++)&&key_initial_elements)
   {
@@ -3242,21 +3242,23 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     while((temp_colms=key_part_iter++))
     {
       while ((sql_field=it++) &&sql_field&& my_strcasecmp(system_charset_info,
-                           temp_colms->field_name.str,
-                           sql_field->field_name)){}
-       if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
-          sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
-          sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
+                                                          temp_colms->field_name.str,
+                                                          sql_field->field_name)){}
+      if(sql_field->flags&NOT_NULL_FLAG)
+        is_nullable=true;
+      if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
+                       sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
+                       sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
          &&temp_colms->length==0)
-       {
+      {
         is_long_unique=true;
         /*
           One long key  unique in enough
          */
         it.rewind();
         break;
-       }
-     // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
+      }
+      // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
       it.rewind();
     }
     if(is_long_unique)
@@ -3268,6 +3270,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->length=cf->char_length=8;
       cf->charset=NULL;
       cf->decimals=0;
+      if(!is_nullable)
+        cf->flags|=NOT_NULL_FLAG;
       char temp_name[30];
       strcpy(temp_name,"DB_ROW_HASH_");
       char num_holder[10];    //10 is way more but i think it is ok
@@ -3295,10 +3299,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->sql_type=MYSQL_TYPE_LONGLONG;
       /* hash column should be atmost hidden */
       cf->field_visibility=FULL_HIDDEN;
-//      if(key_iter_key->type==Key::UNIQUE)
-//        cf->is_hash=UNIQUE_HASH;
-//      else
-//         cf->is_hash=INDEX_HASH;
+      if(key_iter_key->type==Key::UNIQUE)
+        key_iter_key->hash_type=UNIQUE_HASH;
+      else
+        key_iter_key->hash_type=INDEX_HASH;
       cf->is_hash=true;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
@@ -3345,6 +3349,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     }
     is_long_unique=false;
+    is_nullable=false;
   }
   it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;
@@ -3859,6 +3864,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->key_part=key_part_info;
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
+    if(key->hash_type==UNIQUE_HASH)
+      key_info->flags|=HA_UNIQUE_HASH;
+    if(key->hash_type==INDEX_HASH)
+      key_info->flags|=HA_INDEX_HASH;
     key_info->option_list= key->option_list;
     if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
                           &key_info->option_list,
@@ -4008,13 +4017,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
               Field::GEOM_POINT)
             column->length= MAX_LEN_GEOM_POINT_FIELD;
-	  if (!column->length)//change
+    if (!column->length)
 	  {
-        /*
-	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-	    DBUG_RETURN(TRUE);
-        */
-         
+				DBUG_ASSERT(0);
 	  }
 	}
 #ifdef HAVE_SPATIAL

@@ -250,6 +250,8 @@ enum ha_base_keytype {
 
 #define HA_NOSAME		 1	/* Set if not dupplicated records */
 #define HA_PACK_KEY		 2	/* Pack string key to previous key */
+#define HA_INDEX_HASH  4  /* */
+#define HA_UNIQUE_HASH 8
 #define HA_AUTO_KEY		 16
 #define HA_BINARY_PACK_KEY	 32	/* Packing of all keys to prev key */
 #define HA_FULLTEXT		128     /* For full-text search */
