@@ -616,7 +616,7 @@ PQRYRES JDBCPrimaryKeys(PGLOBAL g, JDBConn *op, char *dsn, char *table)
 } // end of JDBCPrimaryKeys
 #endif // 0
 
-/***********************************************************************/
+/************************************************Wrapper***********************/
 /*  JDBConn construction/destruction.                                  */
 /***********************************************************************/
 JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
@@ -634,6 +634,14 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
 	Msg = NULL;
+	m_Wrap = (tdbp && tdbp->WrapName) ? tdbp->WrapName : Wrapper;
+
+	if (!strchr(m_Wrap, '/')) {
+		// Add the wrapper package name
+		char *wn = (char*)PlugSubAlloc(g, NULL, strlen(m_Wrap) + 10);
+		m_Wrap = strcat(strcpy(wn, "wrappers/"), m_Wrap);
+	} // endif m_Wrap
+
 	m_Driver = NULL;
 	m_Url = NULL;
 	m_User = NULL;
@@ -890,7 +898,9 @@ bool JDBConn::GetJVM(PGLOBAL g)
 /***********************************************************************/
 int JDBConn::Open(PJPARM sop)
 {
+
 	bool		 err = false;
+	jboolean jt = (trace > 0);
 	PGLOBAL& g = m_G;
 
 	// Link or check whether jvm library was linked
@@ -1000,19 +1010,16 @@ int JDBConn::Open(PJPARM sop)
 			return RC_FX;
 		} // endswitch rc
 
+		//=============== Display JVM version ===============
+		jint ver = env->GetVersion();
+		printf("JVM Version %d.%d\n", ((ver>>16)&0x0f), (ver&0x0f));
 	} // endif rc
 
-	//=============== Display JVM version =======================================
-#if defined(_DEBUG)
-  jint ver = env->GetVersion();
-  printf("JVM Version %d.%d\n", ((ver>>16)&0x0f), (ver&0x0f));
-#endif   //_DEBUG
-
 	// try to find the java wrapper class
-	jdi = env->FindClass(Wrapper);
+	jdi = env->FindClass(m_Wrap);
 
 	if (jdi == nullptr) {
-		sprintf(g->Message, "ERROR: class %s not found!", Wrapper);
+		sprintf(g->Message, "ERROR: class %s not found!", m_Wrap);
 		return RC_FX;
 	} // endif jdi
 
@@ -1055,19 +1062,19 @@ int JDBConn::Open(PJPARM sop)
 #endif // 0
 
 	// if class found, continue
-	jmethodID ctor = env->GetMethodID(jdi, "<init>", "()V");
+	jmethodID ctor = env->GetMethodID(jdi, "<init>", "(Z)V");
 
 	if (ctor == nullptr) {
-		sprintf(g->Message, "ERROR: %s constructor not found!", Wrapper);
+		sprintf(g->Message, "ERROR: %s constructor not found!", m_Wrap);
 		return RC_FX;
 	} else
-		job = env->NewObject(jdi, ctor);
+		job = env->NewObject(jdi, ctor, jt);
 
 	// If the object is successfully constructed, 
 	// we can then search for the method we want to call, 
 	// and invoke it for the object:
 	if (job == nullptr) {
-		sprintf(g->Message, "%s class object not constructed!", Wrapper);
+		sprintf(g->Message, "%s class object not constructed!", m_Wrap);
 		return RC_FX;
 	} // endif job
 

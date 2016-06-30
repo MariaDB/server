@@ -1,12 +1,17 @@
+package wrappers;
+
 import java.math.*;
 import java.sql.*;
-//import java.util.Arrays;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.List;
-//import java.io.File;
-//import java.lang.reflect.Field;
+
+import javax.sql.DataSource;
 
 public class JdbcInterface {
+	// This is used by DS classes
+    static Hashtable<String,DataSource> dst = null;
+    
 	boolean           DEBUG = false;
 	String            Errmsg = "No error";
 	Connection        conn = null;
@@ -25,7 +30,7 @@ public class JdbcInterface {
     	DEBUG = b;
     } // end of constructor
     
-    private void SetErrmsg(Exception e) {
+    protected void SetErrmsg(Exception e) {
         if (DEBUG)
     		System.out.println(e.getMessage());
       	
@@ -74,27 +79,7 @@ public class JdbcInterface {
 	    dbmd = conn.getMetaData();
 	    
 	    // Get a statement from the connection
-	    if (scrollable)
-		  stmt = conn.createStatement(java.sql.ResultSet.TYPE_SCROLL_INSENSITIVE, java.sql.ResultSet.CONCUR_READ_ONLY);
-	    else
-		  stmt = conn.createStatement(java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
-
-		if (DEBUG)
-		  System.out.println("Statement type = " + stmt.getResultSetType()
-			                 + " concurrency = " + stmt.getResultSetConcurrency());
-		  
-        if (DEBUG)   // Get the fetch size of a statement
-		  System.out.println("Default fetch size = " + stmt.getFetchSize());
-
-        if (fsize != 0) {
-	      // Set the fetch size
-	      stmt.setFetchSize(fsize);
-	      
-		  if (DEBUG)
-			System.out.println("New fetch size = " + stmt.getFetchSize());
-			      
-        } // endif fsize
-	      
+	    stmt = GetStmt(fsize, scrollable);
 	  } catch(ClassNotFoundException e) {
 		SetErrmsg(e);
 	    rc = -1; 
@@ -108,6 +93,34 @@ public class JdbcInterface {
       
       return rc;
     } // end of JdbcConnect
+    
+    protected Statement GetStmt(int fsize, boolean scrollable) throws SQLException, Exception {
+    	Statement stmt = null;
+    	
+    	if (scrollable)
+    		stmt = conn.createStatement(java.sql.ResultSet.TYPE_SCROLL_INSENSITIVE, java.sql.ResultSet.CONCUR_READ_ONLY);
+    	else
+    		stmt = conn.createStatement(java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
+
+    	if (DEBUG)
+    		System.out.println("Statement type = " + stmt.getResultSetType()
+   							   + " concurrency = " + stmt.getResultSetConcurrency());
+    			  
+   	    if (DEBUG)   // Get the fetch size of a statement
+   	    	System.out.println("Default fetch size = " + stmt.getFetchSize());
+
+   	    if (fsize != 0) {
+   	    	// Set the fetch size
+   		    stmt.setFetchSize(fsize);
+    		      
+   			if (DEBUG)
+   				System.out.println("New fetch size = " + stmt.getFetchSize());
+    				      
+   	    } // endif fsize
+
+        return stmt;
+    } // end of GetStmt
+    
     
     public int CreatePrepStmt(String sql) {
     	int rc = 0;
@@ -227,7 +240,9 @@ public class JdbcInterface {
       // Cancel pending statement
 	  if (stmt != null)
 		try {
-		  System.out.println("Cancelling statement");
+		  if (DEBUG)
+		    System.out.println("Cancelling statement");
+		  
 		  stmt.cancel();
 		} catch(SQLException se) {
 		  SetErrmsg(se);
@@ -710,3 +725,4 @@ public class JdbcInterface {
     */   
 	    
 } // end of class JdbcInterface
+

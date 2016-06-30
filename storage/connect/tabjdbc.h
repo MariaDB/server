@@ -54,6 +54,7 @@ protected:
 	PSZ     Driver;             /* JDBC driver                           */
 	PSZ     Url;                /* JDBC driver URL                       */
 	PSZ     Tabname;            /* External table name                   */
+	PSZ     Wrapname;           /* Java wrapper name                     */
 	PSZ     Tabschema;          /* External table schema                 */
 	PSZ     Username;           /* User connect name                     */
 	PSZ     Password;           /* Password connect info                 */
@@ -133,6 +134,7 @@ protected:
 	JDBCCOL *Cnp;               // Points to count(*) column
 	JDBCPARM Ops;               // Additional parameters
 	PSTRG    Query;             // Constructed SQL query
+	char    *WrapName;          // Points to Java wrapper name
 	char    *TableName;         // Points to JDBC table name
 	char    *Schema;            // Points to JDBC table Schema
 	char    *User;              // User connect info

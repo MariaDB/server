@@ -6880,7 +6880,7 @@ static MYSQL_SYSVAR_STR(java_wrapper, Wrapper,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Java wrapper class",
 	//     check_class_path, update_class_path,
-	NULL, NULL, "JdbcInterface");
+	NULL, NULL, "wrappers/JdbcInterface");
 #endif   // JDBC_SUPPORT
 
 

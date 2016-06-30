@@ -175,6 +175,7 @@ protected:
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;
 	char     *Msg;
+	char     *m_Wrap;
 	char      m_IDQuoteChar[2];
 	PSZ       m_Driver;
 	PSZ       m_Url;
