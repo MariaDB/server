@@ -951,7 +951,7 @@ public:
     maybe_null= args[1]->maybe_null;
   }
   const char *func_name() const { return "ifnull"; }
-  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table, false, false); }
 
   table_map not_null_tables() const { return 0; }
