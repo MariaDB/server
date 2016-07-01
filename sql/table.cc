@@ -3041,8 +3041,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
           goto err;
         }
         field->default_value= vcol;
-        if (is_create_table && vcol->expr_item->const_item() &&
-            !(vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC)))
+        if (is_create_table &&
+            !(vcol->flags & (VCOL_UNKNOWN | VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC)))
         {
           enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
           thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values

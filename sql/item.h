@@ -2511,6 +2511,10 @@ public:
   bool enumerate_field_refs_processor(void *arg);
   bool update_table_bitmaps_processor(void *arg);
   bool switch_to_nullable_fields_processor(void *arg);
+  bool check_vcol_func_processor(void *arg)
+  { // may be, a special flag VCOL_FIELD ?
+    return mark_unsupported_function(field_name, arg, VCOL_UNKNOWN);
+  }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
