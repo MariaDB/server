@@ -396,7 +396,7 @@ enum Derivation
 /* The length of the header part for each virtual column in the .frm file */
 #define FRM_VCOL_OLD_HEADER_SIZE(b) (3 + MY_TEST(b))
 #define FRM_VCOL_NEW_BASE_SIZE 16
-#define FRM_VCOL_NEW_HEADER_SIZE 7
+#define FRM_VCOL_NEW_HEADER_SIZE 6
 
 class Count_distinct_field;
 

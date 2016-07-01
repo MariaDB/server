@@ -560,10 +560,9 @@ static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
   pack_expression
 
   The data is stored as:
-  1 byte      flags;  VCOL_NON_DETERMINISTIC, etc
+  1 byte      type  (0 virtual, 1 virtual stored, 2 def, 3 check)
   2 bytes     field_number
   2 bytes     length of expression
-  1 byte      type  (0 virtual, 1 virtual stored, 2 def, 3 check)
   1 byte      length of name
   name
   next bytes  column expression (text data)
@@ -572,15 +571,14 @@ static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
 static void pack_expression(uchar **buff, Virtual_column_info *vcol,
                             uint offset, uint type)
 {
-  (*buff)[0]= vcol->flags;
+  (*buff)[0]= (uchar) type;
   int2store((*buff)+1,   offset);
   /*
     expr_str.length < 64K as we have checked that the total size of the
     frm file is  < 64K
   */
   int2store((*buff)+3, vcol->expr_str.length);
-  (*buff)[5]= (uchar) type;
-  (*buff)[6]= vcol->name.length;
+  (*buff)[5]= vcol->name.length;
   (*buff)+= FRM_VCOL_NEW_HEADER_SIZE;
   memcpy((*buff), vcol->name.str, vcol->name.length);
   (*buff)+= vcol->name.length;

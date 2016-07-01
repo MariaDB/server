@@ -2172,11 +2172,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     while (vcol_screen_pos < vcol_screen_end)
     {
       Virtual_column_info *vcol_info;
-      uint flags=        (uint) vcol_screen_pos[0];
+      uint type=         (uint) vcol_screen_pos[0];
       uint field_nr=     uint2korr(vcol_screen_pos+1);
       uint expr_length=  uint2korr(vcol_screen_pos+3);
-      uint type=         (uint) vcol_screen_pos[5];
-      uint name_length=  (uint) vcol_screen_pos[6];
+      uint name_length=  (uint) vcol_screen_pos[5];
       LEX_STRING name;
       char *expr;
 
@@ -2208,8 +2207,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       vcol_info->expr_str.str=    expr;
       vcol_info->expr_str.length= expr_length;
       vcol_screen_pos+=           expr_length;
-      vcol_info->flags=           flags;
-      vcol_info->stored_in_db= 0;
 
       switch (type) {
       case 0:                                   // Generated virtual field
