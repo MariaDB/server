@@ -1993,7 +1993,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((keyinfo->flags & HA_NOSAME) ||
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
-      if(keyinfo->user_defined_key_parts==1 &&(keyinfo->key_part->field)->is_hash)
+      if(keyinfo->flags&HA_UNIQUE_HASH||keyinfo->flags&HA_INDEX_HASH)
       {
         keyinfo->ext_key_parts=1;
       }

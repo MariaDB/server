@@ -5900,24 +5900,20 @@ int handler::ha_write_row(uchar *buf)
   {
     if(table->key_info[i].flags&HA_UNIQUE_HASH)
     {
-      /*
-        We need to add the null bit
-        If the column can be NULL, then in the first byte we put 1 if the
-        field value is NULL, 0 otherwise.
-       */
       field_iter=table->key_info[i].key_part->field;
-      uchar  ptr[9];
-			if(field_iter->is_null())
-			{
-				goto write_row;
-			}
-			key_copy(ptr,buf,&table->key_info[i],9,false);
-			result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
-														HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-			if(!result)
-			{
-				if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
-          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);          
+      int len =table->key_info[i].key_length;
+      uchar  ptr[len];
+      if(field_iter->is_null())
+      {
+        goto write_row;
+      }
+      key_copy(ptr,buf,&table->key_info[i],len,false);
+      result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
+          HA_WHOLE_KEY,HA_READ_KEY_EXACT);
+      if(!result)
+      {
+        if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
+          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
       }
     }
   }

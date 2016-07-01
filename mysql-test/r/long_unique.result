@@ -62,6 +62,10 @@ db_row_hash_1	int(11)	YES	UNI	NULL
 insert into c_2 values(1,1,1,1);
 insert into c_2 values(1,23,4,5);
 ERROR 23000: Can't write; duplicate key in table 'c_2'
+create table u_1(abc int primary key , xyz blob unique);
+insert into u_1 values(1,2);
+insert into u_1 values(2,3);
+update u_1 set xyz=2 where abc=1;
 alter table z_1 drop db_row_hash_1;
 ERROR 42000: Can't DROP 'db_row_hash_1'; check that column/key exists
 alter table c_1 drop db_row_hash_2;

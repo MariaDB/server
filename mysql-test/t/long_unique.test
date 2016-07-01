@@ -40,6 +40,11 @@ desc c_2;
 insert into c_2 values(1,1,1,1);
 --error 1022
 insert into c_2 values(1,23,4,5);
+#update table
+create table u_1(abc int primary key , xyz blob unique);
+insert into u_1 values(1,2);
+insert into u_1 values(2,3);
+update u_1 set xyz=2 where abc=1;
 #alter table drop column
 --error 1091
 alter table z_1 drop db_row_hash_1;

@@ -3012,8 +3012,8 @@ int prepare_create_field(Create_field *sql_field,
                           (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
     break;
   }
-  if (!(sql_field->flags & NOT_NULL_FLAG) )
-     /* (sql_field->vcol_info))   Make virtual columns allow NULL values */
+  if (!(sql_field->flags & NOT_NULL_FLAG) ||
+      (sql_field->vcol_info))
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -3233,7 +3233,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   Key_part_spec *temp_colms;
   int num= 1;
   bool is_long_unique=false;
-  bool is_nullable=false;
   int key_initial_elements=alter_info->key_list.elements;
   while((key_iter_key=key_iter++)&&key_initial_elements)
   {
@@ -3244,8 +3243,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       while ((sql_field=it++) &&sql_field&& my_strcasecmp(system_charset_info,
                                                           temp_colms->field_name.str,
                                                           sql_field->field_name)){}
-      if(sql_field->flags&NOT_NULL_FLAG)
-        is_nullable=true;
       if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
                        sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
                        sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
@@ -3270,8 +3267,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->length=cf->char_length=8;
       cf->charset=NULL;
       cf->decimals=0;
-      if(!is_nullable)
-        cf->flags|=NOT_NULL_FLAG;
       char temp_name[30];
       strcpy(temp_name,"DB_ROW_HASH_");
       char num_holder[10];    //10 is way more but i think it is ok
@@ -3349,7 +3344,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     }
     is_long_unique=false;
-    is_nullable=false;
   }
   it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;
@@ -7664,7 +7658,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     /* Need to see whether new added column clashes with already existed
        DB_ROW_HASH_*(is must have is_hash==tru)
      */
-    for (f_ptr=table->vfield ; f_ptr&&(field= *f_ptr) ; f_ptr++)
+    for (f_ptr=table->vfield ;f_ptr&&(field= *f_ptr) ; f_ptr++)
     {
       if ((field->is_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
       {
@@ -7806,7 +7800,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (drop)
     {
       /* If we drop index of blob unique then we need to drop the db_row_hash col */
-      if(key_info->usable_key_parts==1&&key_info->key_part->field->is_hash)
+      if(key_info->flags&HA_UNIQUE_HASH||key_info->flags&HA_INDEX_HASH)
       {
         char * name = (char *)key_info->key_part->field->field_name;
         /*iterate over field_it and remove db_row_hash col  */
@@ -7964,6 +7958,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
+      if(key_info->flags&HA_INDEX_HASH)
+        key->hash_type=INDEX_HASH;
+      if(key_info->flags&HA_UNIQUE_HASH)
+        key->hash_type=UNIQUE_HASH;
       new_key_list.push_back(key, thd->mem_root);
     }
   }

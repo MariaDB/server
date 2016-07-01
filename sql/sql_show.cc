@@ -1965,19 +1965,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (uint i=0 ; i < share->keys ; i++,key_info++)
   {
     KEY_PART_INFO *key_part= key_info->key_part;
-    if(key_info->user_defined_key_parts==1 &&
-        key_part->field->field_visibility==FULL_HIDDEN &&
-        key_part->field->is_hash)
+    if(key_info->flags&HA_UNIQUE_HASH||key_info->flags&HA_INDEX_HASH)
     {
       char * column_names= key_part->field->vcol_info->
                           expr_str.str+strlen("hash");
       int length=key_part->field->vcol_info->expr_str.length;
       length-=strlen("hash");
       packet->append(STRING_WITH_LEN(",\n"));
-//      if(key_part->field->is_hash==INDEX_HASH)
-//        packet->append(STRING_WITH_LEN("  INDEX `"));
-//      else
-//        packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
+      if(key_info->flags&HA_INDEX_HASH)
+        packet->append(STRING_WITH_LEN("  INDEX `"));
+      else
+        packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
       packet->append(key_info->name,strlen(key_info->name));
       packet->append(STRING_WITH_LEN("`"));
       packet->append(column_names,length);

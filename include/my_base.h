@@ -261,7 +261,8 @@ enum ha_base_keytype {
 #define HA_GENERATED_KEY	8192	/* Automaticly generated key */
 
         /* The combination of the above can be used for key type comparison. */
-#define HA_KEYFLAG_MASK (HA_NOSAME | HA_PACK_KEY | HA_AUTO_KEY | \
+#define HA_KEYFLAG_MASK (HA_NOSAME | HA_PACK_KEY | \
+                         HA_INDEX_HASH| HA_UNIQUE_HASH |HA_AUTO_KEY | \
                          HA_BINARY_PACK_KEY | HA_FULLTEXT | HA_UNIQUE_CHECK | \
                          HA_SPATIAL | HA_NULL_ARE_EQUAL | HA_GENERATED_KEY)
 
