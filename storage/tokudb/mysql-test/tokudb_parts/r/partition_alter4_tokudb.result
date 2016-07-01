@@ -11,8 +11,8 @@ SELECT @max_row DIV 4 INTO @max_row_div4;
 SET @max_int_4 = 2147483647;
 DROP TABLE IF EXISTS t0_template;
 CREATE TABLE t0_template (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) ,
@@ -27,8 +27,8 @@ file_list      VARBINARY(10000),
 PRIMARY KEY (state)
 ) ENGINE = MEMORY;
 DROP TABLE IF EXISTS t0_aux;
-CREATE TABLE t0_aux ( f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t0_aux ( f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -47,8 +47,8 @@ SET @@session.sql_mode= '';
 #  1.1 ALTER ... ANALYZE PARTITION part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -69,8 +69,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -506,8 +506,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -528,8 +528,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -968,8 +968,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -998,8 +998,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1441,8 +1441,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1469,8 +1469,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1908,8 +1908,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1934,8 +1934,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -2375,8 +2375,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -2405,8 +2405,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -2851,8 +2851,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -2881,8 +2881,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -3329,8 +3329,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -3355,8 +3355,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -3797,8 +3797,8 @@ DROP TABLE t1;
 #  1.2 ALTER ... ANALYZE PARTITION part_1,part_2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -3819,8 +3819,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -4256,8 +4256,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -4278,8 +4278,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -4718,8 +4718,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -4748,8 +4748,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -5191,8 +5191,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -5219,8 +5219,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -5658,8 +5658,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -5684,8 +5684,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -6125,8 +6125,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -6155,8 +6155,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -6601,8 +6601,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -6631,8 +6631,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -7079,8 +7079,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -7105,8 +7105,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -7547,8 +7547,8 @@ DROP TABLE t1;
 #  1.3 ALTER ... ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -7570,8 +7570,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -8007,8 +8007,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -8030,8 +8030,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -8470,8 +8470,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -8501,8 +8501,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -8944,8 +8944,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -8973,8 +8973,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -9412,8 +9412,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -9439,8 +9439,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -9880,8 +9880,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -9911,8 +9911,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -10357,8 +10357,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -10388,8 +10388,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -10836,8 +10836,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -10863,8 +10863,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -11305,8 +11305,8 @@ DROP TABLE t1;
 #  1.4 ALTER ... ANALYZE PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -11328,8 +11328,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -11765,8 +11765,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -11788,8 +11788,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -12228,8 +12228,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -12259,8 +12259,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -12702,8 +12702,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -12731,8 +12731,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -13170,8 +13170,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -13197,8 +13197,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -13638,8 +13638,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -13669,8 +13669,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -14115,8 +14115,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -14146,8 +14146,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -14594,8 +14594,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -14621,8 +14621,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -15063,8 +15063,8 @@ DROP TABLE t1;
 #  1.5 ALTER ... ANALYZE PARTITION ALL;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -15085,8 +15085,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -15522,8 +15522,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -15544,8 +15544,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -15984,8 +15984,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -16014,8 +16014,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -16457,8 +16457,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -16485,8 +16485,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -16924,8 +16924,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -16950,8 +16950,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -17391,8 +17391,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -17421,8 +17421,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -17867,8 +17867,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -17897,8 +17897,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -18345,8 +18345,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -18371,8 +18371,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -18816,8 +18816,8 @@ DROP TABLE t1;
 #  2.1 ALTER ... CHECK PARTITION part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -18838,8 +18838,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -19275,8 +19275,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -19297,8 +19297,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -19737,8 +19737,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -19767,8 +19767,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -20210,8 +20210,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -20238,8 +20238,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -20677,8 +20677,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -20703,8 +20703,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -21144,8 +21144,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -21174,8 +21174,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -21620,8 +21620,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -21650,8 +21650,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -22098,8 +22098,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -22124,8 +22124,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -22566,8 +22566,8 @@ DROP TABLE t1;
 #  2.2 ALTER ... CHECK PARTITION part_1,part_2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -22588,8 +22588,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -23025,8 +23025,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -23047,8 +23047,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -23487,8 +23487,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -23517,8 +23517,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -23960,8 +23960,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -23988,8 +23988,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -24427,8 +24427,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -24453,8 +24453,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -24894,8 +24894,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -24924,8 +24924,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -25370,8 +25370,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -25400,8 +25400,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -25848,8 +25848,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -25874,8 +25874,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -26316,8 +26316,8 @@ DROP TABLE t1;
 #  2.3 ALTER ... CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -26339,8 +26339,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -26776,8 +26776,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -26799,8 +26799,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -27239,8 +27239,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -27270,8 +27270,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -27713,8 +27713,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -27742,8 +27742,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -28181,8 +28181,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -28208,8 +28208,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -28649,8 +28649,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -28680,8 +28680,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -29126,8 +29126,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -29157,8 +29157,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -29605,8 +29605,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -29632,8 +29632,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -30074,8 +30074,8 @@ DROP TABLE t1;
 #  2.4 ALTER ... CHECK PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -30097,8 +30097,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -30534,8 +30534,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -30557,8 +30557,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -30997,8 +30997,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -31028,8 +31028,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -31471,8 +31471,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -31500,8 +31500,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -31939,8 +31939,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -31966,8 +31966,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -32407,8 +32407,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -32438,8 +32438,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -32884,8 +32884,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -32915,8 +32915,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -33363,8 +33363,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -33390,8 +33390,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -33832,8 +33832,8 @@ DROP TABLE t1;
 #  2.5 ALTER ... CHECK PARTITION ALL;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -33854,8 +33854,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -34291,8 +34291,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -34313,8 +34313,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -34753,8 +34753,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -34783,8 +34783,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -35226,8 +35226,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -35254,8 +35254,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -35693,8 +35693,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -35719,8 +35719,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -36160,8 +36160,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -36190,8 +36190,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -36636,8 +36636,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -36666,8 +36666,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -37114,8 +37114,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -37140,8 +37140,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -37585,8 +37585,8 @@ DROP TABLE t1;
 #  3.1 ALTER ... OPTIMIZE PARTITION part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -37608,8 +37608,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -38045,8 +38045,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -38068,8 +38068,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -38508,8 +38508,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -38539,8 +38539,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -38982,8 +38982,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -39011,8 +39011,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -39450,8 +39450,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -39477,8 +39477,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -39918,8 +39918,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -39949,8 +39949,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -40395,8 +40395,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -40426,8 +40426,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -40874,8 +40874,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -40901,8 +40901,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -41343,8 +41343,8 @@ DROP TABLE t1;
 #  3.2 ALTER ... OPTIMIZE PARTITION part_1,part_2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -41366,8 +41366,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -41803,8 +41803,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -41826,8 +41826,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -42266,8 +42266,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -42297,8 +42297,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -42740,8 +42740,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -42769,8 +42769,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -43208,8 +43208,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -43235,8 +43235,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -43676,8 +43676,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -43707,8 +43707,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -44153,8 +44153,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -44184,8 +44184,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -44632,8 +44632,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -44659,8 +44659,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -45101,8 +45101,8 @@ DROP TABLE t1;
 #  3.3 ALTER ... OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -45124,8 +45124,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -45561,8 +45561,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -45584,8 +45584,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -46024,8 +46024,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -46055,8 +46055,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -46498,8 +46498,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -46527,8 +46527,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -46966,8 +46966,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -46993,8 +46993,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -47434,8 +47434,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -47465,8 +47465,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -47911,8 +47911,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -47942,8 +47942,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -48390,8 +48390,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -48417,8 +48417,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -48859,8 +48859,8 @@ DROP TABLE t1;
 #  3.4 ALTER ... OPTIMIZE PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -48882,8 +48882,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -49319,8 +49319,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -49342,8 +49342,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -49782,8 +49782,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -49813,8 +49813,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -50256,8 +50256,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -50285,8 +50285,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -50724,8 +50724,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -50751,8 +50751,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -51192,8 +51192,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -51223,8 +51223,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -51669,8 +51669,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -51700,8 +51700,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -52148,8 +52148,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -52175,8 +52175,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -52617,8 +52617,8 @@ DROP TABLE t1;
 #  3.5 ALTER ... OPTIMIZE PARTITION ALL;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -52640,8 +52640,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -53077,8 +53077,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -53100,8 +53100,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -53540,8 +53540,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -53571,8 +53571,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -54014,8 +54014,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -54043,8 +54043,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -54482,8 +54482,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -54509,8 +54509,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -54950,8 +54950,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -54981,8 +54981,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -55427,8 +55427,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -55458,8 +55458,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -55906,8 +55906,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -55933,8 +55933,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -56378,8 +56378,8 @@ DROP TABLE t1;
 #  4.1 ALTER ... REBUILD PARTITION part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -56398,8 +56398,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -56835,8 +56835,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -56855,8 +56855,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -57295,8 +57295,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -57323,8 +57323,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -57766,8 +57766,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -57792,8 +57792,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -58231,8 +58231,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -58255,8 +58255,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -58696,8 +58696,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -58724,8 +58724,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -59170,8 +59170,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -59198,8 +59198,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -59646,8 +59646,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -59670,8 +59670,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -60112,8 +60112,8 @@ DROP TABLE t1;
 #  4.2 ALTER ... REBUILD PARTITION part_1,part_2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -60132,8 +60132,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -60569,8 +60569,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -60589,8 +60589,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -61029,8 +61029,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -61057,8 +61057,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -61500,8 +61500,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -61526,8 +61526,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -61965,8 +61965,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -61989,8 +61989,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -62430,8 +62430,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -62458,8 +62458,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -62904,8 +62904,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -62932,8 +62932,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -63380,8 +63380,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63404,8 +63404,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -63846,8 +63846,8 @@ DROP TABLE t1;
 #  4.3 ALTER ... REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63861,8 +63861,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63876,8 +63876,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63899,8 +63899,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63920,8 +63920,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63939,8 +63939,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63962,8 +63962,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -63985,8 +63985,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64006,8 +64006,8 @@ DROP TABLE t1;
 #  4.4 ALTER ... REBUILD PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64021,8 +64021,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64036,8 +64036,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64059,8 +64059,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64080,8 +64080,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64099,8 +64099,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64122,8 +64122,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64145,8 +64145,8 @@ ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
 ERROR HY000: Error in list of partitions to REBUILD
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64166,8 +64166,8 @@ DROP TABLE t1;
 #  4.5 ALTER ... REBUILD PARTITION ALL;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64186,8 +64186,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -64623,8 +64623,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -64643,8 +64643,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -65083,8 +65083,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -65111,8 +65111,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -65554,8 +65554,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -65580,8 +65580,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -66019,8 +66019,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -66043,8 +66043,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -66484,8 +66484,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -66512,8 +66512,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -66958,8 +66958,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -66986,8 +66986,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -67434,8 +67434,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -67458,8 +67458,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -67903,8 +67903,8 @@ DROP TABLE t1;
 #  5.1 ALTER ... REPAIR PARTITION part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -67925,8 +67925,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -68362,8 +68362,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -68384,8 +68384,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -68824,8 +68824,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -68854,8 +68854,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -69297,8 +69297,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -69325,8 +69325,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -69764,8 +69764,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -69790,8 +69790,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -70231,8 +70231,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -70261,8 +70261,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -70707,8 +70707,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -70737,8 +70737,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -71185,8 +71185,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -71211,8 +71211,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -71653,8 +71653,8 @@ DROP TABLE t1;
 #  5.2 ALTER ... REPAIR PARTITION part_1,part_2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -71675,8 +71675,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -72112,8 +72112,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -72134,8 +72134,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -72574,8 +72574,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -72604,8 +72604,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -73047,8 +73047,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -73075,8 +73075,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -73514,8 +73514,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -73540,8 +73540,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -73981,8 +73981,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -74011,8 +74011,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -74457,8 +74457,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -74487,8 +74487,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -74935,8 +74935,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -74961,8 +74961,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -75403,8 +75403,8 @@ DROP TABLE t1;
 #  5.3 ALTER ... REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -75426,8 +75426,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -75863,8 +75863,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -75886,8 +75886,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -76326,8 +76326,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -76357,8 +76357,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -76800,8 +76800,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -76829,8 +76829,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -77268,8 +77268,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -77295,8 +77295,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -77736,8 +77736,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -77767,8 +77767,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -78213,8 +78213,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -78244,8 +78244,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -78692,8 +78692,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -78719,8 +78719,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -79161,8 +79161,8 @@ DROP TABLE t1;
 #  5.4 ALTER ... REPAIR PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -79184,8 +79184,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -79621,8 +79621,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -79644,8 +79644,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -80084,8 +80084,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -80115,8 +80115,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -80558,8 +80558,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -80587,8 +80587,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -81026,8 +81026,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -81053,8 +81053,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -81494,8 +81494,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -81525,8 +81525,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -81971,8 +81971,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -82002,8 +82002,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -82450,8 +82450,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -82477,8 +82477,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -82919,8 +82919,8 @@ DROP TABLE t1;
 #  5.5 ALTER ... REPAIR PARTITION ALL;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -82941,8 +82941,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -83378,8 +83378,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -83400,8 +83400,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -83840,8 +83840,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -83870,8 +83870,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -84313,8 +84313,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -84341,8 +84341,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -84780,8 +84780,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -84806,8 +84806,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -85247,8 +85247,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -85277,8 +85277,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -85723,8 +85723,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -85753,8 +85753,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -86201,8 +86201,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -86227,8 +86227,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -86672,8 +86672,8 @@ DROP TABLE t1;
 #  6.1 ALTER ... REMOVE PARTITIONING;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -86692,8 +86692,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -87126,8 +87126,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -87146,8 +87146,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -87580,8 +87580,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -87608,8 +87608,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -88042,8 +88042,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -88068,8 +88068,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -88502,8 +88502,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -88526,8 +88526,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -88960,8 +88960,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -88988,8 +88988,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -89422,8 +89422,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -89450,8 +89450,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -89884,8 +89884,8 @@ TRUNCATE t1;
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -89908,8 +89908,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
