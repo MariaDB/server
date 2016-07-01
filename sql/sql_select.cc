@@ -21427,7 +21427,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 
   if (table->s->tmp_table)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
-  file_sort= filesort(thd, table, fsort, fsort->tracker);
+  file_sort= filesort(thd, table, fsort, fsort->tracker, join, tab->table->map);
   DBUG_ASSERT(tab->filesort_result == 0);
   tab->filesort_result= file_sort;
   tab->records= 0;
