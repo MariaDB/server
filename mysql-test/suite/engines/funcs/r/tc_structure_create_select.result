@@ -587,7 +587,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` tinyblob,
+  `c2` tinyblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -603,7 +603,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` tinyblob,
+  `c2` tinyblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -621,7 +621,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` blob,
+  `c2` blob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -637,7 +637,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` blob,
+  `c2` blob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -655,7 +655,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` mediumblob,
+  `c2` mediumblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -671,7 +671,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` mediumblob,
+  `c2` mediumblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -689,7 +689,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` longblob,
+  `c2` longblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -705,7 +705,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` longblob,
+  `c2` longblob DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -723,7 +723,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` tinytext,
+  `c2` tinytext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -739,7 +739,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` tinytext,
+  `c2` tinytext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -757,7 +757,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` text,
+  `c2` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -773,7 +773,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` text,
+  `c2` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -791,7 +791,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` mediumtext,
+  `c2` mediumtext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -807,7 +807,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` mediumtext,
+  `c2` mediumtext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -825,7 +825,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` longtext,
+  `c2` longtext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE dst;
@@ -841,7 +841,7 @@ SHOW CREATE TABLE dst;
 Table	Create Table
 dst	CREATE TABLE `dst` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` longtext,
+  `c2` longtext DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE dst;
