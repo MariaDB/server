@@ -5947,7 +5947,7 @@ drop_create_field:
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_CANT_DROP_FIELD_OR_KEY,
                             ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
-                            drop->name);
+                            drop->type_name(), drop->name);
         drop_it.remove();
         if (alter_info->drop_list.is_empty())
           alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
@@ -7890,7 +7890,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::KEY:
       case Alter_drop::COLUMN:
       case Alter_drop::CHECK_CONSTRAINT:
-          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
+          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
                    alter_info->drop_list.head()->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
@@ -7898,12 +7898,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         break;
       }
     }
-  }
-  if (alter_info->alter_list.elements)
-  {
-    my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
-             alter_info->alter_list.head()->name);
-    goto err;
   }
 
   if (!create_info->comment.str)

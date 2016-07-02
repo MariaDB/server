@@ -3803,7 +3803,7 @@ check_if_ok_to_rename:
 			}
 
 			my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
-				 drop->name);
+				 drop->type_name(), drop->name);
 			goto err_exit;
 found_fk:
 			continue;

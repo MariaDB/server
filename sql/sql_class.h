@@ -272,6 +272,12 @@ public:
   */
   Alter_drop *clone(MEM_ROOT *mem_root) const
     { return new (mem_root) Alter_drop(*this); }
+  const char *type_name()
+  {
+    return type == COLUMN ? "COLUMN" :
+           type == CHECK_CONSTRAINT ? "CONSTRAINT" :
+           type == KEY ? "INDEX" : "FOREIGN KEY";
+  }
 };
 
 
