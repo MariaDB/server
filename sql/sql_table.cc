@@ -5880,7 +5880,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::CHECK_CONSTRAINT)
       {
-        for (uint i=0; i < table->s->table_check_constraints; i++)
+        for (uint i=table->s->field_check_constraints; i < table->s->table_check_constraints; i++)
         {
           if (my_strcasecmp(system_charset_info, drop->name,
                             table->check_constraints[i]->name.str) == 0)

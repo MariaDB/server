@@ -84,6 +84,9 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t2 drop constraint c;
 ERROR 42000: Can't DROP CONSTRAINT `c`; check that it exists
+alter table t2 drop constraint if exists c;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `c`; check that it exists
 alter table t2 drop constraint min;
 show create table t2;
 Table	Create Table
