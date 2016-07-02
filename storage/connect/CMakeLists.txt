@@ -251,10 +251,13 @@ IF(CONNECT_WITH_JDBC)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
     # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-    JdbcInterface.java JdbcInterface.class
-    JdbcDSInterface.java JdbcDSInterface.class
-    JdbcApacheInterface.java JdbcApacheInterface.class
-    jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h)
+    jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
+    JdbcInterface.java wrappers/JdbcInterface.class
+    ApacheInterface.java wrappers/ApacheInterface.class
+    MariadbInterface.java wrappers/MariadbInterface.class
+    MysqlInterface.java wrappers/MysqlInterface.class
+    OracleInterface.java wrappers/OracleInterface.class
+    PostgresqlInterface.java wrappers/PostgresqlInterface.class)
     # SET (JAVA_SOURCES JdbcInterface.java)
     # add_jar(JdbcInterface ${JAVA_SOURCES})
     add_definitions(-DJDBC_SUPPORT)
