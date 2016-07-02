@@ -336,6 +336,9 @@ public:
 
   bool
   execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
+  
+  bool
+  execute_aggregate_function(THD *thd, Item **args, uint argcount, Field *return_fld,sp_rcontext *nctx);
 
   bool
   execute_procedure(THD *thd, List<Item> *args);
@@ -524,7 +527,6 @@ public:
 private:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
-  MEM_ROOT callee_mem_root;
   THD *m_thd;			///< Set if we have reset mem_root
 
   sp_pcontext *m_pcont;		///< Parse context

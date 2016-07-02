@@ -1702,22 +1702,20 @@ bool
 sp_head::execute_function(THD *thd, Item **argp, uint argcount,
                           Field *return_value_fld)
 {
-  int i=0;
   ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
-  sp_rcontext *nctx = m_rcont;
+  sp_rcontext *nctx = NULL;
   char buf[STRING_BUFFER_USUAL_SIZE];
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
-  Query_arena call_arena(&callee_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
-  if(!nctx)
-  init_sql_alloc(&callee_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  MEM_ROOT call_mem_root;
+  Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
-  //init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   /*
     Check that the function is called with all specified arguments.
@@ -1749,7 +1747,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  if (!nctx && !(nctx= sp_rcontext::create(thd, m_pcont, return_value_fld)))
+  if (!(nctx= sp_rcontext::create(thd, m_pcont, return_value_fld)))
   {
     thd->restore_active_arena(&call_arena, &backup_arena);
     err_status= TRUE;
@@ -1772,25 +1770,12 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   
   for (arg_no= 0; arg_no < argcount; arg_no++)
   {
-    /* Arguments must be fixed in Item_func_sp::fix_fields */
+    // Arguments must be fixed in Item_func_sp::fix_fields 
     DBUG_ASSERT(argp[arg_no]->fixed);
 
     if ((err_status= nctx->set_variable(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
   }
-  /*}
-  else
-  {
-   for (arg_no= 0; arg_no < argcount; arg_no++)
-   {
-   
-    DBUG_ASSERT(argp[arg_no]->fixed);
-
-    if ((err_status= nctx->set_variable(thd, (arg_no+1)%2, &(argp[arg_no]))))
-      goto err_with_cleanup;
-   }
-
-  }*/
 
   /*
     If row-based binlogging, we don't need to binlog the function's call, let
@@ -1920,10 +1905,9 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 
 
 err_with_cleanup:
-  //delete nctx;
-  //call_arena.free_items();
-  //free_root(&call_mem_root, MYF(0));
-  m_rcont = nctx;
+  delete nctx;
+  call_arena.free_items();
+  free_root(&call_mem_root, MYF(0));
   thd->spcont= octx;
 
   /*
@@ -1935,6 +1919,14 @@ err_with_cleanup:
     thd->issue_unsafe_warnings();
 
   DBUG_RETURN(err_status);
+}
+
+
+
+bool
+sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount, Field *return_fld,sp_rcontext *nctx)
+{
+  return FALSE;
 }
 
 
@@ -3906,16 +3898,21 @@ int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
   printf("EXECUTION ENTERS HERE");
-  /*sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
-  Query_arena backup_arena;
-  DBUG_ENTER("sp_instr_cfetch::execute");
+  if(m_cursor)
+  {
+    sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+    Query_arena backup_arena;
+    DBUG_ENTER("sp_instr_cfetch::execute");
+    res= c ? c->fetch(thd, &m_varlist) : -1;
+  }
+  else
+  {
 
-  res= c ? c->fetch(thd, &m_varlist) : -1;
-*/
+
+  }
   *nextp= m_ip+1;
-//  DBUG_RETURN(res);*/
-  return 0;
+  return res;
 }
 
 

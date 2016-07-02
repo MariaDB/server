@@ -3090,9 +3090,10 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
     {
       printf("CREATE ITEM_SUM_SP OBJECT");
       if (arg_count > 0)
-        func= new (thd->mem_root) Item_sum_sp(thd,*item_list);
+        func= new (thd->mem_root) Item_sum_sp(thd, lex->current_context(), qname,
+                                           *item_list);
       else
-        func= new (thd->mem_root) Item_sum_sp(thd);
+        func= new (thd->mem_root) Item_sum_sp(thd, lex->current_context(), qname);
     }
     else
     {

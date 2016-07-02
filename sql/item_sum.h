@@ -26,6 +26,7 @@
 #include <my_tree.h>
 #include "sql_udf.h"                            /* udf_handler */
 
+
 class Item_sum;
 class Aggregator_distinct;
 class Aggregator_simple;
@@ -1065,42 +1066,102 @@ class Item_sum_xor :public Item_sum_bit
   Item *copy_or_same(THD* thd);
 };
 
+class sp_head;
+class sp_name;
+class Query_arena;
+struct st_sp_security_context;
+
+
 class Item_sum_sp :public Item_sum
 {
 
-protected:
-  /* hold type of result */
+private:
   Item_result hybrid_type;
-  longlong y;
-  double x;
-  String *str;
-  my_decimal *v;
-  
+  Name_resolution_context *context;
+  sp_name *m_name;
+  mutable sp_head *m_sp;
+  TABLE *dummy_table;
+  uchar result_buf[64];
+  sp_rcontext *func_ctx;
+  MEM_ROOT call_mem_root; // no initilisation done in the contructor, I dont think it is required
+  Query_arena *call_arena;
+  Query_arena *backup_arena;
+  /*
+     The result field of the stored function.
+  */
+  Field *sp_result_field;
+
+  bool execute();
+  bool execute_impl(THD *thd);
+  bool init_result_field(THD *thd);
+   
 
 public:  
-  /* no parameters */
-  Item_sum_sp(THD *thd): Item_sum(thd){}
-  /*list of parameters */
-  Item_sum_sp(THD *thd, List<Item> &list): Item_sum(thd,list){x=0;}
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
+
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
+               sp_name *name, List<Item> &list);
   
   enum Sumfunctype sum_func () const 
   { 
     return SP_AGGREGATE_FUNC; // a new type is added  
   }
-  const char *func_name() const { return "sp aggregate";}
-  enum Item_result result_type () const { return hybrid_type; }
   
+  bool fix_fields(THD *thd, Item **ref);
+  const char *func_name() const { return "sp aggregate";}
+  enum Item_result result_type () const { return hybrid_type; }  
   void clear(){return;}
-  bool add(){x++;return false;}
-  double val_real(){return x;}
-  longlong val_int(){return y;}
-  String *val_str(String*str){ return val_string_from_real(str);}
-  my_decimal *val_decimal(my_decimal *){ return v;}  
+  bool add();
+  bool sp_check_access(THD *thd);
+  
+  longlong val_int()
+  {
+    if (execute())
+      return (longlong) 0;
+    return sp_result_field->val_int();
+  }
+
+  double val_real()
+  {
+    if (execute())
+      return 0.0;
+    return sp_result_field->val_real();
+  }
+
+  my_decimal *val_decimal(my_decimal *dec_buf)
+  {
+    if (execute())
+      return NULL;
+    return sp_result_field->val_decimal(dec_buf);
+  }
+
+  String *val_str(String *str)
+  {
+    String buf;
+    char buff[20];
+    buf.set(buff, 20, str->charset());
+    buf.length(0);
+    if (execute())
+      return NULL;
+    /*
+      result_field will set buf pointing to internal buffer
+      of the resul_field. Due to this it will change any time
+      when SP is executed. In order to prevent occasional
+      corruption of returned value, we make here a copy.
+    */
+    sp_result_field->val_str(&buf);
+    str->copy(buf);
+    return str;
+  }
+
   void reset_field(){return ;}
   void update_field(){return ;}  
-  void cleanup(){return ;}  
-  bool fix_fields(THD *thd, Item **ref);
-};
+  void cleanup()
+  {
+    // clean call_mem_root;
+    return ;
+  }    
+ };
 
 
 /* Items to get the value of a stored sum function */
