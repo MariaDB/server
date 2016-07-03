@@ -175,7 +175,7 @@ public:
   friend class udf_handler;
   Field *tmp_table_field() { return result_field; }
   Field *tmp_table_field(TABLE *t_arg);
-  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
            tmp_table_field(table) :
@@ -1762,7 +1762,7 @@ public:
   bool update();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
            tmp_table_field(table) :

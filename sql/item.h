@@ -1023,7 +1023,7 @@ public:
   virtual Field *get_tmp_table_field() { return 0; }
   /* This is also used to create fields in CREATE ... SELECT: */
   virtual Field *tmp_table_field(TABLE *t_arg) { return 0; }
-  virtual Field *create_field_for_create_select(THD *thd, TABLE *table);
+  virtual Field *create_field_for_create_select(TABLE *table);
   virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name ? name : "???"; }
   const char *field_name_or_null()
