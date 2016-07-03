@@ -3927,8 +3927,8 @@ void select_insert::abort_result_set() {
 Field *Item::create_field_for_create_select(TABLE *table)
 {
   Field *def_field, *tmp_field;
-  return create_tmp_field(table->in_use, table, this, type(),
-                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
+  return ::create_tmp_field(table->in_use, table, this, type(),
+                            (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
 }
 
 

@@ -15837,6 +15837,60 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
   return new_field;
 }
 
+
+Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
+{
+  Field *UNINIT_VAR(new_field);
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
+  switch (cmp_type()) {
+  case REAL_RESULT:
+    new_field= new (mem_root)
+      Field_double(max_length, maybe_null, name, decimals, TRUE);
+    break;
+  case INT_RESULT:
+    /*
+      Select an integer type with the minimal fit precision.
+      convert_int_length is sign inclusive, don't consider the sign.
+    */
+    if (max_char_length() > convert_int_length)
+      new_field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name, unsigned_flag);
+    else
+      new_field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name, unsigned_flag);
+    break;
+  case TIME_RESULT:
+    new_field= tmp_table_field_from_field_type(table, true, false);
+    break;
+  case STRING_RESULT:
+    DBUG_ASSERT(collation.collation);
+    /*
+      GEOMETRY fields have STRING_RESULT result type.
+      To preserve type they needed to be handled separately.
+    */
+    if (field_type() == MYSQL_TYPE_GEOMETRY)
+      new_field= tmp_table_field_from_field_type(table, true, false);
+    else
+      new_field= make_string_field(table);
+    new_field->set_derivation(collation.derivation, collation.repertoire);
+    break;
+  case DECIMAL_RESULT:
+    new_field= Field_new_decimal::create_from_item(mem_root, this);
+    break;
+  case ROW_RESULT:
+    // This case should never be choosen
+    DBUG_ASSERT(0);
+    new_field= 0;
+    break;
+  }
+  if (new_field)
+    new_field->init(table);
+  return new_field;
+}
+
+
+
 /**
   Create field for temporary table using type of given item.
 
@@ -15862,58 +15916,9 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
 static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
                                          Item ***copy_func, bool modify_item)
 {
-  bool maybe_null= item->maybe_null;
   Field *UNINIT_VAR(new_field);
-  MEM_ROOT *mem_root= thd->mem_root;
-
-  /*
-    To preserve type or DATE/TIME and GEOMETRY fields,
-    they need to be handled separately.
-  */
-  if (item->cmp_type() == TIME_RESULT ||
-      item->field_type() == MYSQL_TYPE_GEOMETRY)
-    new_field= item->tmp_table_field_from_field_type(table, true, false);
-  else
-  switch (item->result_type()) {
-  case REAL_RESULT:
-    new_field= new (mem_root)
-      Field_double(item->max_length, maybe_null,
-                   item->name, item->decimals, TRUE);
-    break;
-  case INT_RESULT:
-    /* 
-      Select an integer type with the minimal fit precision.
-      MY_INT32_NUM_DECIMAL_DIGITS is sign inclusive, don't consider the sign.
-      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into 
-      Field_long : make them Field_longlong.  
-    */
-    if (item->max_length >= (MY_INT32_NUM_DECIMAL_DIGITS - 1))
-      new_field=new (mem_root)
-        Field_longlong(item->max_length, maybe_null,
-                       item->name, item->unsigned_flag);
-    else
-      new_field=new (mem_root)
-        Field_long(item->max_length, maybe_null, item->name,
-                   item->unsigned_flag);
-    break;
-  case STRING_RESULT:
-    DBUG_ASSERT(item->collation.collation);
-    new_field= item->make_string_field(table);
-    new_field->set_derivation(item->collation.derivation,
-                              item->collation.repertoire);
-    break;
-  case DECIMAL_RESULT:
-    new_field= Field_new_decimal::create_from_item(mem_root, item);
-    break;
-  case ROW_RESULT:
-  default:
-    // This case should never be choosen
-    DBUG_ASSERT(0);
-    new_field= 0;
-    break;
-  }
-  if (new_field)
-    new_field->init(table);
+  DBUG_ASSERT(thd == table->in_use);
+  new_field= item->Item::create_tmp_field(false, table);
     
   if (copy_func && item->real_item()->is_result_field())
     *((*copy_func)++) = item;			// Save for copy_funcs
@@ -16005,8 +16010,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   switch (type) {
   case Item::SUM_FUNC_ITEM:
   {
-    Item_sum *item_sum=(Item_sum*) item;
-    result= item_sum->create_tmp_field(group, table);
+    result= item->create_tmp_field(group, table);
     if (!result)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     return result;

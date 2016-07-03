@@ -40,7 +40,7 @@
 #include "opt_range.h"
 
 
-Field *Item_geometry_func::tmp_table_field(TABLE *t_arg)
+Field *Item_geometry_func::create_field_for_create_select(TABLE *t_arg)
 {
   Field *result;
   if ((result= new Field_geom(max_length, maybe_null, name, t_arg->s,
