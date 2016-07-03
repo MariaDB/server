@@ -601,8 +601,8 @@ double_val	cast_val
 -1e30	-9223372036854775808
 1e30	9223372036854775807
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1e30'
-Warning	1292	Truncated incorrect INTEGER value: '1e30'
+Warning	1916	Got overflow when converting '-1e30' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1e30' to INT. Value truncated.
 DROP TABLE t1;
 select isnull(date(NULL)), isnull(cast(NULL as DATE));
 isnull(date(NULL))	isnull(cast(NULL as DATE))

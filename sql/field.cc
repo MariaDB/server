@@ -4288,16 +4288,13 @@ int Field_longlong::store(const char *from,uint len,CHARSET_INFO *cs)
 int Field_longlong::store(double nr)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
-  bool error;
-  longlong res;
+  Converter_double_to_longlong conv(nr, unsigned_flag);
 
-  res= double_to_longlong(nr, unsigned_flag, &error);
-
-  if (error)
+  if (conv.error())
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
 
-  int8store(ptr,res);
-  return error;
+  int8store(ptr, conv.result());
+  return conv.error();
 }
 
 
@@ -4698,53 +4695,61 @@ int truncate_double(double *nr, uint field_length, uint dec,
 
 /*
   Convert double to longlong / ulonglong.
-  If double is outside of range, adjust return value and set error.
+  If double is outside of the supported range,
+  adjust m_result and set m_error.
 
-  SYNOPSIS
-  double_to_longlong()
-  nr	  	 Number to convert
-  unsigned_flag  1 if result is unsigned
-  error		 Will be set to 1 in case of overflow.
+  @param nr             Number to convert
+  @param unsigned_flag  true if result is unsigned
 */
 
-longlong double_to_longlong(double nr, bool unsigned_flag, bool *error)
+Value_source::
+Converter_double_to_longlong::Converter_double_to_longlong(double nr,
+                                                           bool unsigned_flag)
+  :m_error(false)
 {
-  longlong res;
-
-  *error= 0;
-
   nr= rint(nr);
   if (unsigned_flag)
   {
     if (nr < 0)
     {
-      res= 0;
-      *error= 1;
+      m_result= 0;
+      m_error= true;
     }
     else if (nr >= (double) ULONGLONG_MAX)
     {
-      res= ~(longlong) 0;
-      *error= 1;
+      m_result= ~(longlong) 0;
+      m_error= true;
     }
     else
-      res= (longlong) double2ulonglong(nr);
+      m_result= (longlong) double2ulonglong(nr);
   }
   else
   {
     if (nr <= (double) LONGLONG_MIN)
     {
-      res= LONGLONG_MIN;
-      *error= (nr < (double) LONGLONG_MIN);
+      m_result= LONGLONG_MIN;
+      m_error= (nr < (double) LONGLONG_MIN);
     }
     else if (nr >= (double) (ulonglong) LONGLONG_MAX)
     {
-      res= LONGLONG_MAX;
-      *error= (nr > (double) LONGLONG_MAX);
+      m_result= LONGLONG_MAX;
+      m_error= (nr > (double) LONGLONG_MAX);
     }
     else
-      res= (longlong) nr;
+      m_result= (longlong) nr;
   }
-  return res;
+}
+
+
+void Value_source::
+Converter_double_to_longlong::push_warning(THD *thd,
+                                           double nr,
+                                           bool unsigned_flag)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
+                      ErrConvDouble(nr).ptr(),
+                      unsigned_flag ? "UNSIGNED INT" : "INT");
 }
 
 
@@ -4767,27 +4772,6 @@ double Field_double::val_real(void)
   double j;
   float8get(j,ptr);
   return j;
-}
-
-longlong Field_double::val_int(void)
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  double j;
-  longlong res;
-  bool error;
-  float8get(j,ptr);
-
-  res= double_to_longlong(j, 0, &error);
-  if (error)
-  {
-    THD *thd= get_thd();
-    ErrConvDouble err(j);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err.ptr());
-  }
-  return res;
 }
 
 

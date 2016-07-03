@@ -374,14 +374,6 @@ longlong Item::val_int_from_date()
 }
 
 
-longlong Item::val_int_from_real()
-{
-  DBUG_ASSERT(fixed == 1);
-  bool error;
-  return double_to_longlong(val_real(), false /*unsigned_flag*/, &error);
-}
-
-
 double Item::val_real_from_date()
 {
   DBUG_ASSERT(fixed == 1);
