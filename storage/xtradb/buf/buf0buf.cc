@@ -4694,10 +4694,20 @@ buf_all_freed_instance(
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
 		if (UNIV_LIKELY_NULL(block)) {
-			fprintf(stderr,
-				"Page %lu %lu still fixed or dirty\n",
+			fil_space_t* space = fil_space_get(block->page.space);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page %lu %lu still fixed or dirty.",
 				(ulong) block->page.space,
 				(ulong) block->page.offset);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page oldest_modification %lu fix_count %d io_fix %d.",
+				block->page.oldest_modification,
+				block->page.buf_fix_count,
+				buf_page_get_io_fix(&block->page));
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page space_id %lu name %s.",
+				(ulong)block->page.space,
+				(space && space->name) ? space->name : "NULL");
 			ut_error;
 		}
 	}
