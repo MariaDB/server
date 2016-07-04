@@ -1308,8 +1308,8 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 
 Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name_arg, List<Item> &list):
-  Item_sum(thd, list), context(context_arg), m_name(name_arg), m_sp(NULL),call_arena(NULL),backup_arena(NULL),
-  sp_result_field(NULL)
+  Item_sum(thd, list), context(context_arg), m_name(name_arg), m_sp(NULL),
+  func_ctx(NULL), call_arena(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
   m_name->init_qname(thd);
@@ -1319,7 +1319,8 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
 
 Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name):
-  Item_sum(thd), context(context_arg), m_name(name), m_sp(NULL),call_arena(NULL),backup_arena(NULL),sp_result_field(NULL)
+  Item_sum(thd), context(context_arg), m_name(name), m_sp(NULL),
+  func_ctx(NULL),call_arena(NULL),sp_result_field(NULL)
 {
   maybe_null= 1;
   m_name->init_qname(thd);
@@ -1402,8 +1403,6 @@ bool
 Item_sum_sp::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
-  Query_arena temp_call_arena,temp_backup_arena;
-
   if (init_sum_func_check(thd))
     return TRUE;
   decimals=0;
@@ -1430,26 +1429,10 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   memcpy (orig_args, args, sizeof (Item *) * arg_count);
-  fixed= 1;
+  fixed= 1; 
   
-  
-  temp_call_arena =Query_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
-  call_arena= &temp_call_arena;
-  
-  backup_arena = &temp_backup_arena;
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
-  
-  thd->set_n_backup_active_arena(call_arena,backup_arena);
-
-  if (!(func_ctx= sp_rcontext::create(thd, m_sp->get_parse_context(), sp_result_field)))
-  {
-    thd->restore_active_arena(call_arena, backup_arena);
-    return TRUE;
-  }   
-
-  thd->restore_active_arena(call_arena, backup_arena);
-
-  return FALSE;
+ return FALSE;
 }
 
 bool
@@ -1467,23 +1450,14 @@ Item_sum_sp::sp_check_access(THD *thd)
 bool
 Item_sum_sp::execute()
 {
-  THD *thd= current_thd;
-  
-  /* Execute function and store the return value in the field. */
-
-  if (execute_impl(thd))
-  {
-    return TRUE;
-  }
-  /* Check that the field (the value) is not NULL. */
-  null_value= sp_result_field->is_null();
-  return null_value;
+  return FALSE;
 }
 
 bool
 Item_sum_sp::execute_impl(THD *thd)
 {
   bool err_status= TRUE;
+  sp_rcontext *octx= thd->spcont;
   Sub_statement_state statement_state;
   Security_context *save_security_ctx= thd->security_ctx;
   enum enum_sp_data_access access=
@@ -1518,30 +1492,45 @@ Item_sum_sp::execute_impl(THD *thd)
     Disable the binlogging if this is not a SELECT statement. If this is a
     SELECT, leave binlogging on, so execute_function() code writes the
     function call into binlog.
-  */
+  */  
   thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
-  
-  //thd->set_n_backup_active_arena(call_arena, backup_arena);
-  
-  err_status= m_sp->execute_function(thd, args,arg_count,sp_result_field);
-  
-  //thd->restore_active_arena(call_arena, backup_arena);
-  
+  err_status= m_sp->execute_aggregate_function(thd, args, arg_count,
+                                               sp_result_field,func_ctx,
+                                               &call_mem_root);
+  func_ctx= thd->spcont;
+  thd->spcont= octx;
   thd->restore_sub_statement_state(&statement_state);
-
 
 error:
   thd->security_ctx= save_security_ctx;
-
   DBUG_RETURN(err_status);
 }
 
 bool
 Item_sum_sp::add()
 {
-  if(execute())
+  THD *thd= current_thd;
+  
+  if (execute_impl(thd))
+  {
     return TRUE;
+  }
   return FALSE;
+}
+bool
+Item_sum_sp::set_arguments(THD *thd)
+{
+  uint arg_no;
+  bool err_status= FALSE;
+  for (arg_no= 0; arg_no < arg_count; arg_no++)
+  {
+    // Arguments must be fixed in Item_func_sp::fix_fields 
+    DBUG_ASSERT(args[arg_no]->fixed);
+
+    if ((err_status= func_ctx->set_variable(thd, arg_no, &(args[arg_no]))))
+      return err_status;
+  }
+  return err_status;
 }
 /***********************************************************************
 ** reset and add of sum_func

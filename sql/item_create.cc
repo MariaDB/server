@@ -3058,7 +3058,7 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   Item *func= NULL;
   LEX *lex= thd->lex;
   sp_name *qname;
-  st_sp_chistics *chistics;
+  st_sp_chistics chistics;
 
   if (has_named_parameters(item_list))
   {
@@ -3084,9 +3084,9 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
 
   /* need some discussion on this   */
 
-  if(!db_get_aggregate_value(thd,TYPE_ENUM_FUNCTION,qname,&chistics))
+  if(!db_get_aggregate_value(thd, TYPE_ENUM_FUNCTION, qname, &chistics))
   {
-    if(chistics->agg_type == GROUP_AGGREGATE)
+    if(chistics.agg_type == GROUP_AGGREGATE)
     {
       printf("CREATE ITEM_SUM_SP OBJECT");
       if (arg_count > 0)

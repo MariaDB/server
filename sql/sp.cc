@@ -510,7 +510,7 @@ db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
 }
 
 bool
-db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name,st_sp_chistics **chistics)
+db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_sp_chistics *chistics)
 {
   TABLE *table;
   bool ret=false;
@@ -540,7 +540,6 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name,st_sp
     goto done;
   }
 
-  //bzero((char *)&chistics, sizeof(chistics));
   if ((ptr= get_field(thd->mem_root,
           table->field[MYSQL_PROC_FIELD_AGGREGATE])) == NULL)
   {
@@ -549,16 +548,16 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name,st_sp
   }
   switch (ptr[0]) {
   case 'G':
-    (*chistics)->agg_type= GROUP_AGGREGATE;
+    chistics->agg_type= GROUP_AGGREGATE;
     break;
   case 'W':
-    (*chistics)->agg_type= WINDOW_AGGREGATE;
+    chistics->agg_type= WINDOW_AGGREGATE;
     break;
   case 'N':
-    (*chistics)->agg_type= NOT_AGGREGATE;
+    chistics->agg_type= NOT_AGGREGATE;
     break;
   default:
-    (*chistics)->agg_type= DEFAULT_AGGREGATE;
+    chistics->agg_type= DEFAULT_AGGREGATE;
   }
   
  done:

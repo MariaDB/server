@@ -301,6 +301,9 @@ public:
     being opened is probably enough).
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
+  uint instr_ptr;
+  bool pause_state;
+  bool quit_func;
 
   static void *
   operator new(size_t size) throw ();
@@ -338,7 +341,9 @@ public:
   execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
   
   bool
-  execute_aggregate_function(THD *thd, Item **args, uint argcount, Field *return_fld,sp_rcontext *nctx);
+  execute_aggregate_function(THD *thd, Item **args, uint argcount,
+                             Field *return_fld, sp_rcontext *nctx,
+                             MEM_ROOT *caller_mem_root);
 
   bool
   execute_procedure(THD *thd, List<Item> *args);
@@ -564,6 +569,9 @@ private:
 
   bool
   execute(THD *thd, bool merge_da_on_success);
+
+  bool
+  execute_agg(THD *thd, bool merge_da_on_success);
 
   /**
     Perform a forward flow analysis in the generated code.
@@ -1294,9 +1302,10 @@ class sp_instr_cfetch : public sp_instr
 
 public:
 
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c)
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool flag)
     : sp_instr(ip, ctx), m_cursor(c)
   {
+    normal_cursor_fetch= flag;
     m_varlist.empty();
   }
 
@@ -1313,7 +1322,8 @@ public:
   }
 
 private:
-
+  
+  bool normal_cursor_fetch;
   uint m_cursor;
   List<sp_variable> m_varlist;
 

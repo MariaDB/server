@@ -1083,9 +1083,8 @@ private:
   TABLE *dummy_table;
   uchar result_buf[64];
   sp_rcontext *func_ctx;
-  MEM_ROOT call_mem_root; // no initilisation done in the contructor, I dont think it is required
+  MEM_ROOT call_mem_root;
   Query_arena *call_arena;
-  Query_arena *backup_arena;
   /*
      The result field of the stored function.
   */
@@ -1104,45 +1103,38 @@ public:
   
   enum Sumfunctype sum_func () const 
   { 
-    return SP_AGGREGATE_FUNC; // a new type is added  
+    return SP_AGGREGATE_FUNC;
   }
   
   bool fix_fields(THD *thd, Item **ref);
   const char *func_name() const { return "sp aggregate";}
-  enum Item_result result_type () const { return hybrid_type; }  
+  enum Item_result result_type () const { return hybrid_type;}  
   void clear(){return;}
   bool add();
   bool sp_check_access(THD *thd);
   
   longlong val_int()
   {
-    if (execute())
-      return (longlong) 0;
-    return sp_result_field->val_int();
+    return 0;
   }
 
   double val_real()
   {
-    if (execute())
-      return 0.0;
-    return sp_result_field->val_real();
+    return 0.0;
   }
 
   my_decimal *val_decimal(my_decimal *dec_buf)
   {
-    if (execute())
-      return NULL;
-    return sp_result_field->val_decimal(dec_buf);
+    return NULL;
   }
 
   String *val_str(String *str)
   {
-    String buf;
+     String buf;
     char buff[20];
     buf.set(buff, 20, str->charset());
     buf.length(0);
-    if (execute())
-      return NULL;
+    
     /*
       result_field will set buf pointing to internal buffer
       of the resul_field. Due to this it will change any time
@@ -1160,8 +1152,9 @@ public:
   {
     // clean call_mem_root;
     return ;
-  }    
- };
+  }
+  bool set_arguments(THD *thd);
+};
 
 
 /* Items to get the value of a stored sum function */

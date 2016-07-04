@@ -3831,7 +3831,8 @@ sp_proc_stmt_fetch:
             if (! lex->spcont->find_cursor($3, &offset, false))
               my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $3.str));
             i= new (thd->mem_root)
-              sp_instr_cfetch(sp->instructions(), lex->spcont, offset);
+              sp_instr_cfetch(sp->instructions(), lex->spcont,
+                              offset,TRUE);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3841,12 +3842,11 @@ sp_proc_stmt_fetch:
           | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM 
           {
             LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset=0;
+            sp_head *sp= lex->sphead;            
             sp_instr_cfetch *i;
 
             i= new (thd->mem_root)
-              sp_instr_cfetch(sp->instructions(), lex->spcont, offset);
+              sp_instr_cfetch(sp->instructions(), lex->spcont, 0,FALSE);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
