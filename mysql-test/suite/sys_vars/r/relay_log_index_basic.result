@@ -21,6 +21,7 @@ set global relay_log_index=1;
 ERROR HY000: Variable 'relay_log_index' is a read only variable
 set session relay_log_index=1;
 ERROR HY000: Variable 'relay_log_index' is a read only variable
+connection slave;
 select @@global.relay_log_index;
 @@global.relay_log_index
 REPLACED

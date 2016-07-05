@@ -10,10 +10,13 @@ a
 select * from t2;
 a
 1
+connection slave;
 select * from t1;
 a
 select * from t2;
 a
 1
+connection master;
 drop table t1,t2;
+connection slave;
 include/rpl_end.inc

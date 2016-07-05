@@ -1,6 +1,6 @@
---- suite/rpl/r/rpl_insert_delayed.result	2012-09-18 01:37:45.317521958 +0300
-+++ suite/rpl/r/rpl_insert_delayed,stmt.reject	2012-09-18 01:36:16.637514667 +0300
-@@ -15,17 +15,17 @@
+--- suite/rpl/r/rpl_insert_delayed.result	2016-03-25 19:44:43.408210896 +0400
++++ suite/rpl/r/rpl_insert_delayed,stmt.reject	2016-03-25 23:55:18.396360848 +0400
+@@ -18,19 +18,19 @@
  insert delayed into t1 values(10, "my name");
  flush table t1;
  insert delayed into t1 values(10, "is Bond"), (20, "James Bond");
@@ -10,21 +10,25 @@
  id	name
  10	my name
 -20	James Bond
+ connection slave;
  select * from t1;
  id	name
  10	my name
 -20	James Bond
+ connection master;
  delete from t1 where id!=10;
  insert delayed into t1 values(20, "is Bond"), (10, "James Bond");
 +ERROR 23000: Duplicate entry '10' for key 'PRIMARY'
  flush table t1;
  select * from t1;
  id	name
-@@ -38,17 +38,31 @@
- USE test;
- DROP SCHEMA mysqlslap;
+@@ -47,21 +47,38 @@
+ connection slave;
  use test;
+ connection master;
++connection slave;
 +FLUSH LOGS;
++connection master;
 +FLUSH LOGS;
  CREATE TABLE t1(a int, UNIQUE(a));
  INSERT DELAYED IGNORE INTO t1 VALUES(1);
@@ -35,6 +39,7 @@
  select * from t1;
  a
  1
+ connection slave;
  On slave
 +include/show_binlog_events.inc
 +Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -47,8 +52,12 @@
  select * from t1;
  a
  1
+ connection master;
  drop table t1;
+ connection slave;
 +FLUSH LOGS;
++connection master;
 +FLUSH LOGS;
+ connection master;
  End of 5.0 tests
  include/rpl_end.inc

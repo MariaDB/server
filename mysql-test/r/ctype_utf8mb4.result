@@ -2388,7 +2388,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `clipid` int(11) NOT NULL,
   `mos` tinyint(4) DEFAULT '0',
-  `Tape` tinytext,
+  `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(250))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
@@ -2824,6 +2824,40 @@ SELECT OCTET_LENGTH(a),a FROM t1;
 OCTET_LENGTH(a)	a
 252	😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎
 DROP TABLE t1;
+#
+# MDEV-8402 Bug#77473 Bug#21317406 TRUNCATED DATA WITH SUBQUERY & UTF8
+#
+#
+SET NAMES utf8mb4;
+SELECT length(repeat(_utf8mb4 0xE29883, 21844)) AS data;
+data
+65532
+SELECT length(data) AS len
+FROM ( SELECT repeat(_utf8mb4 0xE29883, 21844) AS data ) AS sub;
+len
+65532
+SELECT length(repeat(_utf8mb4 0xE29883, 21846)) AS data;
+data
+65538
+SELECT length(data) AS len
+FROM ( SELECT repeat(_utf8mb4 0xE29883, 21846) AS data ) AS sub;
+len
+65538
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21844) AS data ) AS sub;
+len
+65532
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21845) AS data ) AS sub;
+len
+65535
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21846) AS data ) AS sub;
+len
+65538
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65535) AS data ) AS sub;
+len
+196605
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65536) AS data ) AS sub;
+len
+196608
 #
 # End of 5.5 tests
 #
@@ -3397,4 +3431,31 @@ RETURN CONCAT('?','x?','?y','x?y')
 DROP FUNCTION f1;
 #
 # End of 10.1 tests
+#
+#
+# End of 10.2 tests
+#
+#
+# MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8mb4 IGNORE 4 LINES;
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+SELECT HEX(a) FROM t1;
+HEX(a)
+3F
+78787831
+3F3F
+78787832
+3F3F3F
+78787833
+F09F988E
+3F3F3F
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #

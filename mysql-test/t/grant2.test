@@ -744,8 +744,6 @@ CREATE TABLE mysqltest_db2.t2_1(a INT);
 --echo # sql_command enum).
 --echo ###########################################################################
 
---echo
---echo # -- connect con1, mysqltest_u1@localhost, mysqltest_db1
 --connect (con1,localhost,mysqltest_u1,,mysqltest_db1)
 
 --echo #
@@ -931,8 +929,6 @@ DROP TEMPORARY TABLE t1;
 --echo #   table once it is created.
 --echo ###########################################################################
 
---echo
---echo # -- connect con2, mysqltest_u2@localhost, mysqltest_db1
 --connect (con2,localhost,mysqltest_u2,,mysqltest_db1)
 
 --error ER_DBACCESS_DENIED_ERROR
@@ -957,8 +953,6 @@ DROP TEMPORARY TABLE t4;
 --echo #   context, even by user without any privileges on tables.
 --echo ###########################################################################
 
---echo
---echo # -- connect con3, mysqltest_u4@localhost, mysqltest_db1
 --connect (con3,localhost,mysqltest_u4,,mysqltest_db1)
 
 CALL p1();
@@ -975,8 +969,6 @@ DROP TEMPORARY TABLE t4;
 --echo #     a temporary table into the underlying-table-list.
 --echo ###########################################################################
 
---echo
---echo # -- connect con4, mysqltest_u5@localhost, mysqltest_db1
 --connect (con4,localhost,mysqltest_u5,,mysqltest_db1)
 
 CREATE TEMPORARY TABLE t7(a INT);
@@ -1004,21 +996,12 @@ DROP TEMPORARY TABLE t9;
 --echo # That's all. Cleanup.
 --echo ###########################################################################
 
---echo
---echo # -- connection: default
 --connection default
 
---echo # -- disconnect con1
 --echo # All remaining temporary tables are automatically dropped.
 --disconnect con1
-
---echo # -- disconnect con2
 --disconnect con2
-
---echo # -- disconnect con3
 --disconnect con3
-
---echo # -- disconnect con4
 --disconnect con4
 
 SET GLOBAL keycache1.key_buffer_size = 0;

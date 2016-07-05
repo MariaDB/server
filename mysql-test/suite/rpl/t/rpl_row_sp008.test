@@ -34,13 +34,9 @@ BEGIN
 END|
 delimiter ;|
 
-let $message=< ---- Master selects-- >;
---source include/show_msg.inc
 CALL test.p1();
 SELECT * FROM test.t2;
 
-let $message=< ---- Slave selects-- >;
---source include/show_msg.inc
 sync_slave_with_master;
 SELECT * FROM test.t2;
 

@@ -63,7 +63,6 @@ sync_slave_with_master;
 
 --echo
 --echo ---> Preparing environment...
---echo ---> connection: master
 --connection master
 
 --disable_warnings
@@ -77,7 +76,6 @@ DROP VIEW IF EXISTS v1;
 --sync_slave_with_master
 
 --echo
---echo ---> connection: master
 --connection master
 
 # Test.
@@ -104,17 +102,10 @@ SELECT * FROM t1;
 
 --sync_slave_with_master
 
---echo ---> connection: master
-
---echo
---echo ---> Checking on slave...
-
 SELECT * FROM t1;
 
 # Cleanup.
 
---echo
---echo ---> connection: master
 --connection master
 
 --echo

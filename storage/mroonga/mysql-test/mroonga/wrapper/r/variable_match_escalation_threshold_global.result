@@ -9,8 +9,8 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `tags` text,
+  `title` text DEFAULT NULL,
+  `tags` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `tags_index` (`tags`) COMMENT 'parser "TokenDelimit"'
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
@@ -20,8 +20,11 @@ SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
 id	title	tags
 1	Hello groonga!	groonga install
 SET GLOBAL mroonga_match_escalation_threshold = -1;
+CONNECT search_connection, localhost, root;
 USE test;
 SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
 id	title	tags
+disconnect search_connection;
+connection default;
 SET GLOBAL mroonga_match_escalation_threshold = DEFAULT;
 DROP TABLE diaries;

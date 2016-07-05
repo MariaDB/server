@@ -3,7 +3,10 @@
 #
 --source include/master-slave.inc
 
+call mtr.add_suppression("Master is configured to log replication events");
+
 --connection slave
+
 
 # If everything is okay, the test will end in several seconds; maybe a minute. 
 # If the problem shows up, it will hang until testcase timeout is exceeded.
@@ -16,4 +19,3 @@ start slave;
 
 --connection master
 --source include/rpl_end.inc
-

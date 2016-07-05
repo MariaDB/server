@@ -112,7 +112,7 @@ DESCRIPTION
 
        The  absolute  value  of the active memory usage limit can be seen near
        the bottom of the output of --long-help.   The  default  limit  can  be
-       overriden with --memory=limit.
+       overridden with --memory=limit.
 
 OPTIONS
    Integer suffixes and special values

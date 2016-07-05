@@ -154,7 +154,7 @@ void udf_init()
   mysql_rwlock_init(key_rwlock_THR_LOCK_udf, &THR_LOCK_udf);
 
   init_sql_alloc(&mem, UDF_ALLOC_BLOCK_SIZE, 0, MYF(0));
-  THD *new_thd = new THD;
+  THD *new_thd = new THD(0);
   if (!new_thd ||
       my_hash_init(&udf_hash,system_charset_info,32,0,0,get_hash_key, NULL, 0))
   {
@@ -180,7 +180,8 @@ void udf_init()
   }
 
   table= tables.table;
-  if (init_read_record(&read_record_info, new_thd, table, NULL,1,0,FALSE))
+  if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
+                       FALSE))
   {
     sql_print_error("Could not initialize init_read_record; udf's not "
                     "loaded");

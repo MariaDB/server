@@ -32,9 +32,7 @@ SET @session_character_set_server = @@session.character_set_server;
 SET @global_character_set_server = @@global.character_set_server;
 
 SET @@global.character_set_database = utf8;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.character_set_database;
 SELECT @@session.character_set_database;
@@ -45,7 +43,6 @@ disconnect con1;
 # Begin the functionality Testing of character_set_database #
 #############################################################
 
---echo 'connection default'
 connection default;
 
 --disable_warnings

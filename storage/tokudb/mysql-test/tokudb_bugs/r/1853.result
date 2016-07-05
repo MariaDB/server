@@ -1,6 +1,8 @@
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
 SET DEFAULT_STORAGE_ENGINE = 'tokudb';
 DROP TABLE IF EXISTS foo;
+connection conn1;
 set session transaction isolation level serializable;
 create table foo ( a double, b double, c double, primary key (a,b));
 insert into foo values (4,4,4),(4,5,5),(4,6,6),(5,4,4),(5,5,5),(5,6,6),(6,4,4),(6,5,5),(6,6,6);
@@ -10,10 +12,12 @@ a	b	c
 6	4	4
 6	5	5
 6	6	6
+connection default;
 set session transaction isolation level serializable;
 insert into foo values (5,10,10);
 insert into foo values (5.0001,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 5;
@@ -25,9 +29,11 @@ a	b	c
 6	4	4
 6	5	5
 6	6	6
+connection default;
 insert into foo values (5,1,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (4.999,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a < 5;
@@ -36,9 +42,11 @@ a	b	c
 4	5	5
 4	6	6
 4.999	10	10
+connection default;
 insert into foo values (5,0.1,10);
 insert into foo values (4.9999,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 begin;
 select * from foo where a <= 5;
@@ -52,9 +60,11 @@ a	b	c
 5	5	5
 5	6	6
 5	10	10
+connection default;
 insert into foo values (5,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.001,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a = 5;
@@ -64,10 +74,12 @@ a	b	c
 5	5	5
 5	6	6
 5	10	10
+connection default;
 insert into foo values (5,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.0001,10,10);
 insert into foo values (4.99999,1,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a > 4 and a < 6;
@@ -81,12 +93,14 @@ a	b	c
 5	10	10
 5.0001	10	10
 5.001	10	10
+connection default;
 insert into foo values (4.1,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.9,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,10,10);
 insert into foo values (4,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 4 and a < 6;
@@ -104,12 +118,14 @@ a	b	c
 5	10	10
 5.0001	10	10
 5.001	10	10
+connection default;
 insert into foo values (4,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.9,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,1.1,10);
 insert into foo values (3.99,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a > 4 and a <= 6;
@@ -128,12 +144,14 @@ a	b	c
 6	5	5
 6	6	6
 6	10	10
+connection default;
 insert into foo values (4.0001,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,1110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6.001,1.1,10);
 insert into foo values (4,1110,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 4 and a <= 6;
@@ -157,12 +175,14 @@ a	b	c
 6	5	5
 6	6	6
 6	10	10
+connection default;
 insert into foo values (4,0.001,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,11110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6.0001,1.1,10);
 insert into foo values (3.99,10110,10);
+connection conn1;
 commit;
 delete from foo;
 insert into foo values (4,4,4),(4,5,5),(4,6,6),(5,4,4),(5,5,5),(5,6,6),(6,4,4),(6,5,5),(6,6,6);
@@ -172,9 +192,11 @@ a	b	c
 6	6	6
 6	5	5
 6	4	4
+connection default;
 insert into foo values (5,10,10);
 insert into foo values (5.0001,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 5 order by a desc;
@@ -186,9 +208,11 @@ a	b	c
 5	6	6
 5	5	5
 5	4	4
+connection default;
 insert into foo values (5,1,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (4.999,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a < 5 order by a desc;
@@ -197,9 +221,11 @@ a	b	c
 4	6	6
 4	5	5
 4	4	4
+connection default;
 insert into foo values (5,0.1,10);
 insert into foo values (4.9999,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 begin;
 select * from foo where a <= 5 order by a desc;
@@ -213,9 +239,11 @@ a	b	c
 4	6	6
 4	5	5
 4	4	4
+connection default;
 insert into foo values (5,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.001,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a = 5 order by a desc;
@@ -225,10 +253,12 @@ a	b	c
 5	5	5
 5	6	6
 5	10	10
+connection default;
 insert into foo values (5,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.0001,10,10);
 insert into foo values (4.99999,1,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a > 4 and a < 6 order by a desc;
@@ -242,12 +272,14 @@ a	b	c
 5	0.1	10
 4.99999	1	10
 4.999	10	10
+connection default;
 insert into foo values (4.1,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.9,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,10,10);
 insert into foo values (4,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 4 and a < 6 order by a desc;
@@ -265,12 +297,14 @@ a	b	c
 4	6	6
 4	5	5
 4	4	4
+connection default;
 insert into foo values (4,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (5.9,10,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,1.1,10);
 insert into foo values (3.99,10,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a > 4 and a <= 6 order by a desc;
@@ -289,12 +323,14 @@ a	b	c
 5	0.1	10
 4.99999	1	10
 4.999	10	10
+connection default;
 insert into foo values (4.0001,0.01,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,1110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6.001,1.1,10);
 insert into foo values (4,1110,10);
+connection conn1;
 commit;
 begin;
 select * from foo where a >= 4 and a <= 6 order by a desc;
@@ -318,21 +354,25 @@ a	b	c
 4	6	6
 4	5	5
 4	4	4
+connection default;
 insert into foo values (4,0.001,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6,11110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (6.0001,1.1,10);
 insert into foo values (3.99,10110,10);
+connection conn1;
 commit;
 begin;
 select count(*) from foo;
 count(*)
 23
+connection default;
 insert into foo values (0,0.001,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (9999999,11110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 begin;
 select * from foo order by a desc;
@@ -360,10 +400,12 @@ a	b	c
 4	1110	10
 3.99	10110	10
 3.99	10	10
+connection default;
 insert into foo values (0,0.001,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (9999999,11110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
 alter table foo drop primary key;
 begin;
@@ -392,9 +434,13 @@ a	b	c
 6	10	10
 6.0001	1.1	10
 6.001	1.1	10
+connection default;
 insert into foo values (0,0.001,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into foo values (9999999,11110,10);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection conn1;
 commit;
+disconnect conn1;
+connection default;
 DROP TABLE foo;

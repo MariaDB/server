@@ -7,13 +7,11 @@ source include/have_binlog_format_mixed.inc;
 source include/master-slave.inc;
 source include/have_innodb.inc;
 
---echo **** On Slave ****
 connection slave;
 source include/have_innodb.inc;
 STOP SLAVE;
 --source include/wait_for_slave_to_stop.inc
 
---echo **** On Master ****
 connection master;
 SET SESSION BINLOG_FORMAT=ROW;
 
@@ -29,7 +27,6 @@ source include/show_binlog_events.inc;
 SELECT * FROM t1;
 SELECT * FROM t2;
 save_master_pos;
---echo **** On Slave ****
 connection slave;
 
 # Stop when reaching the the first table map event.
@@ -78,7 +75,6 @@ START SLAVE;
 --source include/wait_for_slave_to_start.inc
 sync_with_master;
 
---echo **** On Master ****
 connection master;
 DROP TABLE t1, t2;
 sync_slave_with_master;
@@ -119,11 +115,9 @@ END|
 
 DELIMITER ;|
 
---echo **** On Slave ****
 sync_slave_with_master;
 source include/stop_slave.inc;
 
---echo **** On Master ****
 connection master;
 UPDATE t1 SET a = 2, b = 'master only' WHERE a = 1;
 DROP TRIGGER tr1;
@@ -139,7 +133,6 @@ SELECT * FROM t3 ORDER BY a;
 
 save_master_pos;
 
---echo *** On Slave ***
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 source include/start_slave.inc;
@@ -158,17 +151,14 @@ sync_slave_with_master;
 # Create the transaction and try to skip some
 # queries from one.
 
---echo *** On Master ***
 connection master;
 CREATE TABLE t4 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t5 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t6 (a INT, b VARCHAR(20)) ENGINE=innodb;
 
---echo **** On Slave ****
 sync_slave_with_master;
 source include/stop_slave.inc;
 
---echo *** On Master ***
 connection master;
 BEGIN;
 INSERT INTO t4 VALUES (2, 'master only');
@@ -188,7 +178,6 @@ SELECT * FROM t6 ORDER BY a;
 
 save_master_pos;
 
---echo *** On Slave ***
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 source include/start_slave.inc;
@@ -200,11 +189,9 @@ SELECT * FROM t6 ORDER BY a;
 
 # Test skipping two groups
 
---echo **** On Slave ****
 connection slave;
 source include/stop_slave.inc;
 
---echo *** On Master ***
 connection master;
 BEGIN;
 INSERT INTO t4 VALUES (6, 'master only');
@@ -224,7 +211,6 @@ SELECT * FROM t6 ORDER BY a;
 
 save_master_pos;
 
---echo *** On Slave ***
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=10;
 source include/start_slave.inc;
@@ -259,7 +245,6 @@ SELECT * FROM t6 ORDER BY a;
 
 save_master_pos;
 
---echo *** On Slave ***
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 source include/start_slave.inc;
@@ -278,15 +263,12 @@ sync_slave_with_master;
 # LOAD DATA creates two events in binary log for statement binlog format.
 # Try to skip the first.
 
---echo *** On Master ***
 connection master;
 CREATE TABLE t10 (a INT, b VARCHAR(20)) ENGINE=myisam;
 
---echo *** On Slave ***
 sync_slave_with_master;
 source include/stop_slave.inc;
 
---echo *** On Master ***
 connection master;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 
@@ -297,7 +279,6 @@ SELECT * FROM t10 ORDER BY a;
 
 save_master_pos;
 
---echo *** On Slave ***
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 source include/start_slave.inc;

@@ -42,6 +42,7 @@
 #include <mysql/psi/mysql_table.h>
 
 class Alter_info;
+class Virtual_column_info;
 
 // the following is for checking tables
 
@@ -574,9 +575,9 @@ struct xid_t {
 
   xid_t() {}                                /* Remove gcc warning */  
   bool eq(struct xid_t *xid)
-  { return eq(xid->gtrid_length, xid->bqual_length, xid->data); }
+  { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d)
-  { return g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
+  { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
   void set(struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }
   void set(long f, const char *g, long gl, const char *b, long bl)
@@ -1643,6 +1644,7 @@ struct Schema_specification_st
      - LIKE another_table_name ... // Copy structure from another table
      - [AS] SELECT ...             // Copy structure from a subquery
 */
+
 struct Table_scope_and_contents_source_st
 {
   CHARSET_INFO *table_charset;
@@ -1658,6 +1660,8 @@ struct Table_scope_and_contents_source_st
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;
+  ulong expression_length;
+  ulong field_check_constraints;
   /*
     number of pages to sample during
     stats estimation, if used, otherwise 0.
@@ -1685,6 +1689,8 @@ struct Table_scope_and_contents_source_st
   engine_option_value *option_list;     ///< list of table create options
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
+
+  List<Virtual_column_info> *check_constraint_list;
 
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
@@ -1834,7 +1840,7 @@ public:
      attribute has really changed we might choose to set flag
      pessimistically, for example, relying on parser output only.
   */
-  typedef ulong HA_ALTER_FLAGS;
+  typedef ulonglong HA_ALTER_FLAGS;
 
   // Add non-unique, non-primary index
   static const HA_ALTER_FLAGS ADD_INDEX                  = 1L << 0;
@@ -1945,6 +1951,10 @@ public:
     online alter of all partitions atomically (using group_commit_ctx)
   */
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
+
+  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1LL << 32;
+
+  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1LL << 33;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2595,11 +2605,6 @@ public:
   RANGE_SEQ_IF mrr_funcs;  /* Range sequence traversal functions */
   HANDLER_BUFFER *multi_range_buffer; /* MRR buffer info */
   uint ranges_in_seq; /* Total number of ranges in the traversed sequence */
-  /* TRUE <=> source MRR ranges and the output are ordered */
-  bool mrr_is_output_sorted;
-
-  /** TRUE <=> we're currently traversing a range in mrr_cur_range. */
-  bool mrr_have_range;
   /** Current range (the one we're now returning rows from) */
   KEY_MULTI_RANGE mrr_cur_range;
 
@@ -2607,23 +2612,32 @@ public:
   key_range save_end_range, *end_range;
   KEY_PART_INFO *range_key_part;
   int key_compare_result_on_equal;
-  bool eq_range;
-  bool internal_tmp_table;                      /* If internal tmp table */
 
-  uint errkey;				/* Last dup key */
-  uint key_used_on_scan;
-  uint active_index;
+  /* TRUE <=> source MRR ranges and the output are ordered */
+  bool mrr_is_output_sorted;
+  /** TRUE <=> we're currently traversing a range in mrr_cur_range. */
+  bool mrr_have_range;
+  bool eq_range;
+  bool internal_tmp_table;                 /* If internal tmp table */
+  bool implicit_emptied;                   /* Can be !=0 only if HEAP */
+  bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
+  bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
+  bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
   /* 
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
   */
   bool in_range_check_pushed_down;
 
+  uint errkey;                             /* Last dup key */
+  uint key_used_on_scan;
+  uint active_index;
+
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
   enum {NONE=0, INDEX, RND} inited;
-  bool implicit_emptied;                /* Can be !=0 only if HEAP */
+
   const COND *pushed_cond;
   /**
     next_insert_id is the next value which should be inserted into the
@@ -2707,11 +2721,16 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0), ht(ht_arg),
-    ref(0), end_range(NULL), key_used_on_scan(MAX_KEY), active_index(MAX_KEY),
+    ref(0), end_range(NULL),
+    implicit_emptied(0),
+    mark_trx_read_write_done(0),
+    check_table_binlog_row_based_done(0),
+    check_table_binlog_row_based_result(0),
     in_range_check_pushed_down(FALSE),
+    key_used_on_scan(MAX_KEY),
+    active_index(MAX_KEY),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
-    implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     tracker(NULL),
     pushed_idx_cond(NULL),
@@ -3892,10 +3911,22 @@ protected:
   */
   virtual int delete_table(const char *name);
 
+public:
+  inline bool check_table_binlog_row_based(bool binlog_row);
 private:
+  /* Cache result to avoid extra calls */
+  inline void mark_trx_read_write()
+  {
+    if (unlikely(!mark_trx_read_write_done))
+    {
+      mark_trx_read_write_done= 1;
+      mark_trx_read_write_internal();
+    }
+  }
+  void mark_trx_read_write_internal();
+  bool check_table_binlog_row_based_internal(bool binlog_row);
+
   /* Private helpers */
-  inline void mark_trx_read_write();
-private:
   inline void increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
@@ -4286,4 +4317,7 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
+
+int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
+int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
 #endif /* HANDLER_INCLUDED */

@@ -427,7 +427,7 @@ bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
 bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate, const char *field_name)
 {
-  const ErrConvInteger str(neg ? -value : value, !neg);
+  const ErrConvInteger str(neg ? - (longlong) value : (longlong) value, !neg);
   return number_to_time_with_warn(neg, value, 0, ltime,
                                   fuzzydate, &str, field_name);
 }

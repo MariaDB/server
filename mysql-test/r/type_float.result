@@ -638,3 +638,139 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-4102 Limitation on DOUBLE or REAL length is ignored with INSERT .. SELECT
+#
+CREATE TABLE t1 (d1 DOUBLE(5,2), d2 DOUBLE(10,2));
+INSERT INTO t1 VALUES (10000000.55, 10000000.55);
+Warnings:
+Warning	1264	Out of range value for column 'd1' at row 1
+INSERT INTO t1 SELECT d2, d2 FROM t1;
+Warnings:
+Warning	1264	Out of range value for column 'd1' at row 1
+SELECT * FROM t1;
+d1	d2
+999.99	10000000.55
+999.99	10000000.55
+DROP TABLE t1;
+#
+# MDEV-9709 Unexpected modification of value and warning about out of range value upon ALTER
+#
+CREATE TABLE t1 (
+f FLOAT,
+d10_10 DOUBLE PRECISION (10,10),
+d53_10 DOUBLE(53,10)
+);
+INSERT INTO t1 (f,d10_10,d53_10) VALUES (
+-9999999999999999999999999999999999999999999.9999999999,
+-9999999999999999999999999999999999999999999.9999999999,
+-9999999999999999999999999999999999999999999.9999999999
+);
+Warnings:
+Warning	1264	Out of range value for column 'f' at row 1
+Warning	1264	Out of range value for column 'd10_10' at row 1
+SELECT * FROM t1;
+f	-3.40282e38
+d10_10	-0.9999999999
+d53_10	-10000000000000000000000000000000000000000000.0000000000
+INSERT INTO t1 (f,d10_10,d53_10) SELECT d53_10, d53_10, d53_10 FROM t1;
+Warnings:
+Level	Warning
+Code	1264
+Message	Out of range value for column 'f' at row 1
+Level	Warning
+Code	1264
+Message	Out of range value for column 'd10_10' at row 1
+SELECT * FROM t1;
+f	-3.40282e38
+d10_10	-0.9999999999
+d53_10	-10000000000000000000000000000000000000000000.0000000000
+f	-3.40282e38
+d10_10	-0.9999999999
+d53_10	-10000000000000000000000000000000000000000000.0000000000
+ALTER TABLE t1 ADD COLUMN i INT;
+SELECT * FROM t1;
+f	-3.40282e38
+d10_10	-0.9999999999
+d53_10	-10000000000000000000000000000000000000000000.0000000000
+i	NULL
+f	-3.40282e38
+d10_10	-0.9999999999
+d53_10	-10000000000000000000000000000000000000000000.0000000000
+i	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (d10_10 DOUBLE (10,10));
+CREATE TABLE t2 (d53_10 DOUBLE (53,10));
+INSERT INTO t2 VALUES (-9999999999999999999999999999999999999999999.9999999999);
+INSERT INTO t1 (d10_10) SELECT d53_10 FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'd10_10' at row 1
+SELECT * FROM t1;
+d10_10
+-0.9999999999
+DROP TABLE t1,t2;
+CREATE TABLE t1 (d2_2 FLOAT (2,2));
+CREATE TABLE t2 (d4_2 FLOAT (4,2));
+INSERT INTO t2 VALUES (99.99);
+INSERT INTO t1 (d2_2) SELECT d4_2 FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'd2_2' at row 1
+SELECT * FROM t1;
+d2_2
+0.99
+DROP TABLE t1,t2;
+#
+# Test of using wrong scale
+#
+create or replace table t1 (a double(40,30));
+create or replace table t1 (a double(40,31));
+ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30.
+create or replace table t1 as select 1.01e1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `1.01e1` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 30) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double(47,30) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 31) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 39) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 51) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 20)/2 as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double(41,24) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 as select truncate(10.000000000001e1, 28)/2 as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table if exists t1;
+#
+# End of 10.2 tests
+#

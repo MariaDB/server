@@ -11,6 +11,8 @@ grant insert (a) on mysqltest_db1.t_column_priv_only to mysqltest_u1@localhost;
 grant select on mysqltest_db1.t_select_priv to mysqltest_u1@localhost;
 ** Connect as restricted user mysqltest_u1.
 
+connect  con1,localhost,mysqltest_u1,,;
+connection con1;
 ** Test column level privileges only. No SELECT privileges on the table.
 ** INSERT INTO ... VALUES ...
 ** Attempting to insert values to a table with only column privileges
@@ -72,6 +74,7 @@ t_select_priv	CREATE TABLE `t_select_priv` (
 show create table mysqltest_db1.t_no_priv;
 ERROR 42000: SHOW command denied to user 'mysqltest_u1'@'localhost' for table 't_no_priv'
 
+connection default;
 use mysqltest_db1;
 CREATE TABLE t5 (s1 INT);
 CREATE INDEX i ON t5 (s1);
@@ -85,6 +88,7 @@ GRANT UPDATE (s2) ON t6 to mysqltest_u1@localhost;
 GRANT UPDATE (s2) ON v6 to mysqltest_u1@localhost;
 GRANT SHOW VIEW ON v2 to mysqltest_u1@localhost;
 GRANT SHOW VIEW, SELECT ON v3 to mysqltest_u1@localhost;
+connection con1;
 use mysqltest_db1;
 ** Connect as restricted user mysqltest_u1.
 ** SELECT FROM INFORMATION_SCHEMA.STATISTICS will succeed because any privileges will do (authentication is enough).
@@ -121,6 +125,8 @@ ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 
 SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t_select_priv`.`a` AS `a`,`t_select_priv`.`b` AS `b` from `t_select_priv`	latin1	latin1_swedish_ci
+connection default;
+disconnect con1;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
 #
@@ -147,11 +153,13 @@ insert into mysqltest_db1.t2 values (1);
 # Create user which will try to do this.
 create user mysqltest_u1@localhost;
 grant insert, select on mysqltest_db1.t1 to mysqltest_u1@localhost;
+connect  con1,localhost,mysqltest_u1,,;
+connection default;
 # Corrupt t1 by replacing t1.MYI with a corrupt + unclosed one created
 # by doing: 'create table t1 (a int key(a))'
 #           head -c1024 t1.MYI > corrupt_t1.MYI 
 flush table mysqltest_db1.t1;
-# Switching to connection 'con1'.
+connection con1;
 check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	1 client is using or hasn't closed the table properly
@@ -177,7 +185,8 @@ Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	repair	warning	Number of rows changed from 1 to 2
 mysqltest_db1.t1	repair	status	OK
 # Clean-up.
-# Switching to connection 'default'.
+disconnect con1;
+connection default;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
 create user foo1 identified by password '11111111111111111111111111111111111111111';

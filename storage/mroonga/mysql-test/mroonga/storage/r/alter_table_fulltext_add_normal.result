@@ -11,7 +11,7 @@ SHOW CREATE TABLE memos;
 Table	Create Table
 memos	CREATE TABLE `memos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `content` text,
+  `content` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `content_index` (`content`)
 ) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8

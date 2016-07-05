@@ -500,8 +500,7 @@ bool append_ident(String *string, const char *name, uint length,
     for (name_end= name+length; name < name_end; name+= clen)
     {
       uchar c= *(uchar *) name;
-      if (!(clen= my_mbcharlen(system_charset_info, c)))
-        clen= 1;
+      clen= my_charlen_fix(system_charset_info, name, name_end);
       if (clen == 1 && c == (uchar) quote_char &&
           (result= string->append(&quote_char, 1, system_charset_info)))
         goto err;

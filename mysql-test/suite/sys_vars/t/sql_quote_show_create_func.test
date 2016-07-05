@@ -65,40 +65,32 @@ SHOW CREATE TABLE t1;
 # Session data integrity check
 #
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_quote_show_create;
 --echo 1 / TRUE Expected
 
 SET SESSION sql_quote_show_create = FALSE;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_quote_show_create;
 --echo 1 / TRUE Expected
 
 SET SESSION sql_quote_show_create = TRUE;
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_quote_show_create;
 --echo 1 / TRUE Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_quote_show_create;
 --echo 0 / FALSE Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

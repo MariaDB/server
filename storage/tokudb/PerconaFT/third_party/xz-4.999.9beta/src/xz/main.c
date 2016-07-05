@@ -212,7 +212,7 @@ main(int argc, char **argv)
 	// do other message handling related initializations.
 	message_init(argv[0]);
 
-	// Set hardware-dependent default values. These can be overriden
+	// Set hardware-dependent default values. These can be overridden
 	// on the command line, thus this must be done before parse_args().
 	hardware_init();
 

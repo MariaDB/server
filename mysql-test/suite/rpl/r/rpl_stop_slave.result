@@ -8,6 +8,7 @@ include/master-slave.inc
 # STOP SLAVE should wait until the transaction has finished.
 CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
 CREATE TABLE t2(c1 INT) ENGINE=InnoDB;
+connection slave;
 SET DEBUG_SYNC= 'RESET';
 include/stop_slave.inc
 
@@ -19,36 +20,34 @@ include/start_slave.inc
 
 # CREATE TEMPORARY TABLE with InnoDB engine
 # -----------------------------------------
-
-[ On Master ]
+connection master;
 BEGIN;
 DELETE FROM t1;
 CREATE TEMPORARY TABLE tt1(c1 INT) ENGINE = InnoDB;
 INSERT INTO t1 VALUES (1);
 DROP TEMPORARY TABLE tt1;
 COMMIT;
-
-[ On Slave ]
+connection slave;
 STOP SLAVE SQL_THREAD;
-
-[ On Slave1 ]
+connection slave1;
 # To resume slave SQL thread
 SET DEBUG_SYNC= 'now SIGNAL signal.continue';
 SET DEBUG_SYNC= 'now WAIT_FOR signal.continued';
 SET DEBUG_SYNC= 'RESET';
-
-[ On Slave ]
+connection slave;
 include/wait_for_slave_sql_to_stop.inc
 # Slave should stop after the transaction has committed.
 # So t1 on master is same to t1 on slave.
 include/diff_tables.inc [master:t1, slave:t1]
+connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
+connection master;
+connection slave;
 
 # CREATE TEMPORARY TABLE ... SELECT with InnoDB engine
 # ----------------------------------------------------
-
-[ On Master ]
+connection master;
 BEGIN;
 DELETE FROM t1;
 CREATE TEMPORARY TABLE tt1(c1 INT) ENGINE = InnoDB
@@ -56,28 +55,29 @@ SELECT c1 FROM t2;
 INSERT INTO t1 VALUES (1);
 DROP TEMPORARY TABLE tt1;
 COMMIT;
-
-[ On Slave ]
+connection slave;
 STOP SLAVE SQL_THREAD;
-
-[ On Slave1 ]
+connection slave1;
 # To resume slave SQL thread
 SET DEBUG_SYNC= 'now SIGNAL signal.continue';
 SET DEBUG_SYNC= 'now WAIT_FOR signal.continued';
 SET DEBUG_SYNC= 'RESET';
-
-[ On Slave ]
+connection slave;
 include/wait_for_slave_sql_to_stop.inc
 # Slave should stop after the transaction has committed.
 # So t1 on master is same to t1 on slave.
 include/diff_tables.inc [master:t1, slave:t1]
+connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
+connection master;
+connection slave;
 
 # Test end
 include/restart_slave.inc
+connection slave;
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
-[connection master]
+connection master;
 DROP TABLE t1, t2;
 
 # Bug#58546 test rpl_packet timeout failure sporadically on PB
@@ -94,35 +94,36 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (c1 INT KEY, c2 INT) ENGINE=InnoDB;
 CREATE TABLE t2 (c1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES(1, 1);
+connection slave;
 include/stop_slave.inc
-[connection master]
+connection master;
 include/stop_dump_threads.inc
 SET GLOBAL debug_dbug= '+d,dump_thread_wait_before_send_xid,*';
-[connection slave]
+connection slave;
 include/start_slave.inc
 BEGIN;
 UPDATE t1 SET c2 = 2 WHERE c1 = 1;
-[connection master]
+connection master;
 BEGIN;
 INSERT INTO t1 VALUES(2, 2);
 INSERT INTO t2 VALUES(1);
 UPDATE t1 SET c2 = 3 WHERE c1 = 1;
 COMMIT;
-[connection slave1]
+connection slave1;
 STOP SLAVE;
-[connection slave]
+connection slave;
 ROLLBACK;
-[connection master]
+connection master;
 SET DEBUG_SYNC= 'now SIGNAL signal.continue';
 SET DEBUG_SYNC= 'now WAIT_FOR signal.continued';
-[connection slave]
+connection slave;
 include/wait_for_slave_to_stop.inc
-[connection slave1]
-[connection master]
+connection slave1;
+connection master;
 include/stop_dump_threads.inc
-[connection slave1]
+connection slave1;
 include/start_slave.inc
-[connection master]
+connection master;
 DROP TABLE t1, t2;
 include/rpl_end.inc
 SET DEBUG_SYNC= 'RESET';

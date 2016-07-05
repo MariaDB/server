@@ -656,3 +656,24 @@ SET collation_connection=ucs2_thai_520_w2;
 --echo #
 --echo # End of MariaDB-10.1 tests
 --echo #
+
+
+--echo #
+--echo # Start of MariaDB-10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9407 Illegal mix of collation when using GROUP_CONCAT in a VIEW
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (col1 VARCHAR(12) CHARACTER SET utf8 COLLATE utf8_unicode_ci);
+INSERT INTO t1 VALUES ('a'),('b');
+CREATE VIEW v1 AS SELECT group_concat('f') AS col1;
+SELECT col1 FROM v1 UNION SELECT col1 FROM t1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of MariaDB-10.2 tests
+--echo #

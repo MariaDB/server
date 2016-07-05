@@ -3451,49 +3451,6 @@ static uint16 gbksortorder(uint16 i)
 }
 
 
-static size_t
-my_strnxfrm_gbk(CHARSET_INFO *cs,
-                uchar *dst, size_t dstlen, uint nweights,
-                const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-  uchar *de= dst + dstlen;
-  const uchar *se= src + srclen;
-  const uchar *sort_order= cs->sort_order;
-
-  for (; dst < de && src < se && nweights; nweights--)
-  {
-    if (cs->cset->ismbchar(cs, (const char*) src, (const char*) se))
-    {
-      /*
-        Note, it is safe not to check (src < se)
-        in the code below, because ismbchar() would
-        not return TRUE if src was too short
-      */
-      uint16 e= gbksortorder((uint16) gbkcode(*src, *(src + 1)));
-      *dst++= gbkhead(e);
-      if (dst < de)
-        *dst++= gbktail(e);
-      src+= 2;
-    }
-    else
-      *dst++= sort_order ? sort_order[*src++] : *src++;
-  }
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
-}
-
-
-static uint ismbchar_gbk(CHARSET_INFO *cs __attribute__((unused)),
-		 const char* p, const char *e)
-{
-  return (isgbkhead(*(p)) && (e)-(p)>1 && isgbktail(*((p)+1))? 2: 0);
-}
-
-static uint mbcharlen_gbk(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (isgbkhead(c)? 2 : 1);
-}
-
 /* page 0 0x8140-0xFE4F */
 static const uint16 tab_gbk_uni0[]={
 0x4E02,0x4E04,0x4E05,0x4E06,0x4E0F,0x4E12,0x4E17,0x4E1F,
@@ -10658,6 +10615,7 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_chinese_ci
 #define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
+#define DEFINE_STRNXFRM
 #include "strcoll.ic"
 
 
@@ -10672,7 +10630,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=
   NULL,                 /* init */
   my_strnncoll_gbk_chinese_ci,
   my_strnncollsp_gbk_chinese_ci,
-  my_strnxfrm_gbk,
+  my_strnxfrm_gbk_chinese_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,
@@ -10703,8 +10661,6 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
 static MY_CHARSET_HANDLER my_charset_handler=
 {
   NULL,			/* init */
-  ismbchar_gbk,
-  mbcharlen_gbk,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_gbk,

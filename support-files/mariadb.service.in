@@ -48,6 +48,14 @@ CapabilityBoundingSet=CAP_IPC_LOCK
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
+# Perform automatic wsrep recovery. When server is started without wsrep,
+# galera_recovery simply returns an empty string. In any case, however,
+# the script is not expected to return with a non-zero status.
+# It is always safe to unset _WSREP_START_POSITION environment variable.
+ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+ExecStartPre=/bin/sh -c "VAR=`/usr/bin/galera_recovery`; [ $? -eq 0 ] && \
+ systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
+
 # Needed to create system tables etc.
 # ExecStartPre=/usr/bin/mysql_install_db -u mysql
 
@@ -57,8 +65,11 @@ PermissionsStartOnly=true
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 @SYSTEMD_EXECSTARTPRE@
-ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER
+ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 @SYSTEMD_EXECSTARTPOST@
+
+# Unset _WSREP_START_POSITION environment variable.
+ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
 
 KillMode=process
 KillSignal=SIGTERM

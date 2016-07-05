@@ -32,16 +32,6 @@
 #include <windows.h>
 
 
-/*
-  Threadpool API is not available on XP. We still want to compile a single 
-  version on Windows, but use the latest functionality if available.
-  We cannot use threadpool functionality directly, since executable won't 
-  start on XP and loader will complain about missing symbols.
-
-  We solve using the usual way it is done on Windows, i.e with dynamic loading.
-  We'll need to load a lot of function, and make this less painful with the
-  WEAK_SYMBOL macro below
-*/
 
 /*
  WEAK_SYMBOL(return_type, function_name, argument_type1,..,argument_typeN)
@@ -61,107 +51,10 @@
   static pFN_##function my_##function = (pFN_##function) \
     (GetProcAddress(GetModuleHandle("kernel32"),#function))
 
-WEAK_SYMBOL(VOID, CancelThreadpoolIo, PTP_IO);
-#define CancelThreadpoolIo my_CancelThreadpoolIo
 
-WEAK_SYMBOL(VOID, CloseThreadpool, PTP_POOL);
-#define CloseThreadpool my_CloseThreadpool
-
-WEAK_SYMBOL(VOID, CloseThreadpoolIo, PTP_IO);
-#define CloseThreadpoolIo my_CloseThreadpoolIo
-
-WEAK_SYMBOL(VOID, CloseThreadpoolTimer,PTP_TIMER);
-#define CloseThreadpoolTimer my_CloseThreadpoolTimer
-
-WEAK_SYMBOL(VOID, CloseThreadpoolWait,PTP_WAIT);
-#define CloseThreadpoolWait my_CloseThreadpoolWait
-
-WEAK_SYMBOL(PTP_POOL, CreateThreadpool,PVOID);
-#define CreateThreadpool my_CreateThreadpool
-
-WEAK_SYMBOL(PTP_IO, CreateThreadpoolIo, HANDLE, PTP_WIN32_IO_CALLBACK, PVOID ,
-  PTP_CALLBACK_ENVIRON);
-#define CreateThreadpoolIo my_CreateThreadpoolIo
-
-WEAK_SYMBOL(PTP_TIMER, CreateThreadpoolTimer, PTP_TIMER_CALLBACK ,
- PVOID pv, PTP_CALLBACK_ENVIRON pcbe);
-#define CreateThreadpoolTimer my_CreateThreadpoolTimer
-
-WEAK_SYMBOL(PTP_WAIT, CreateThreadpoolWait, PTP_WAIT_CALLBACK, PVOID, 
-  PTP_CALLBACK_ENVIRON);
-#define CreateThreadpoolWait my_CreateThreadpoolWait
-
-WEAK_SYMBOL(VOID, DisassociateCurrentThreadFromCallback, PTP_CALLBACK_INSTANCE);
-#define DisassociateCurrentThreadFromCallback my_DisassociateCurrentThreadFromCallback
-
-WEAK_SYMBOL(DWORD, FlsAlloc, PFLS_CALLBACK_FUNCTION);
-#define FlsAlloc my_FlsAlloc
-
-WEAK_SYMBOL(PVOID, FlsGetValue, DWORD);
-#define FlsGetValue my_FlsGetValue
-
-WEAK_SYMBOL(BOOL, FlsSetValue, DWORD, PVOID);
-#define FlsSetValue my_FlsSetValue
-
-WEAK_SYMBOL(VOID, SetThreadpoolThreadMaximum, PTP_POOL, DWORD);
-#define SetThreadpoolThreadMaximum my_SetThreadpoolThreadMaximum
-
-WEAK_SYMBOL(BOOL, SetThreadpoolThreadMinimum, PTP_POOL, DWORD);
-#define SetThreadpoolThreadMinimum my_SetThreadpoolThreadMinimum
-
-WEAK_SYMBOL(VOID, SetThreadpoolTimer, PTP_TIMER, PFILETIME,DWORD,DWORD);
-#define SetThreadpoolTimer my_SetThreadpoolTimer
-
-WEAK_SYMBOL(VOID, SetThreadpoolWait, PTP_WAIT,HANDLE,PFILETIME);
-#define SetThreadpoolWait my_SetThreadpoolWait
-
-WEAK_SYMBOL(VOID, StartThreadpoolIo, PTP_IO);
-#define StartThreadpoolIo my_StartThreadpoolIo
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolIoCallbacks,PTP_IO, BOOL);
-#define WaitForThreadpoolIoCallbacks my_WaitForThreadpoolIoCallbacks
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolTimerCallbacks, PTP_TIMER, BOOL);
-#define WaitForThreadpoolTimerCallbacks my_WaitForThreadpoolTimerCallbacks
-
-WEAK_SYMBOL(VOID, WaitForThreadpoolWaitCallbacks, PTP_WAIT, BOOL);
-#define WaitForThreadpoolWaitCallbacks my_WaitForThreadpoolWaitCallbacks
-
-WEAK_SYMBOL(BOOL, SetFileCompletionNotificationModes, HANDLE, UCHAR);
-#define SetFileCompletionNotificationModes my_SetFileCompletionNotificationModes
-
-WEAK_SYMBOL(BOOL, TrySubmitThreadpoolCallback, PTP_SIMPLE_CALLBACK pfns, 
-  PVOID pv,PTP_CALLBACK_ENVIRON pcbe);
-#define TrySubmitThreadpoolCallback my_TrySubmitThreadpoolCallback
-
-WEAK_SYMBOL(PTP_WORK, CreateThreadpoolWork, PTP_WORK_CALLBACK pfnwk, PVOID pv,
-  PTP_CALLBACK_ENVIRON pcbe);
-#define CreateThreadpoolWork my_CreateThreadpoolWork
-
-WEAK_SYMBOL(VOID, SubmitThreadpoolWork,PTP_WORK pwk);
-#define SubmitThreadpoolWork my_SubmitThreadpoolWork
-
-WEAK_SYMBOL(VOID, CloseThreadpoolWork, PTP_WORK pwk);
-#define CloseThreadpoolWork my_CloseThreadpoolWork 
-
-WEAK_SYMBOL(BOOL, CallbackMayRunLong, PTP_CALLBACK_INSTANCE pci);
-#define CallbackMayRunLong my_CallbackMayRunLong
-
-#if _MSC_VER >= 1600
-/* Stack size manipulation available only on Win7+ /declarations in VS10 */
 WEAK_SYMBOL(BOOL, SetThreadpoolStackInformation, PTP_POOL, 
   PTP_POOL_STACK_INFORMATION);
 #define SetThreadpoolStackInformation my_SetThreadpoolStackInformation
-#else /* _MSC_VER < 1600 */
-#define SetThreadpoolCallbackPriority(env,prio)
-typedef enum _TP_CALLBACK_PRIORITY {
-    TP_CALLBACK_PRIORITY_HIGH,
-    TP_CALLBACK_PRIORITY_NORMAL,
-    TP_CALLBACK_PRIORITY_LOW,
-    TP_CALLBACK_PRIORITY_INVALID
-} TP_CALLBACK_PRIORITY;
-#endif
-
 
 /* Log a warning */
 static void tp_log_warning(const char *msg, const char *fct)
@@ -226,11 +119,12 @@ struct connection_t
   PTP_WAIT shm_read;
   /* Callback instance, used to inform treadpool about long callbacks */
   PTP_CALLBACK_INSTANCE callback_instance;
+  CONNECT* connect;
   bool logged_in;
 };
 
 
-void init_connection(connection_t *connection)
+void init_connection(connection_t *connection, CONNECT *connect)
 {
   connection->logged_in = false;
   connection->handle= 0;
@@ -240,10 +134,11 @@ void init_connection(connection_t *connection)
   connection->logged_in = false;
   connection->timeout= ULONGLONG_MAX;
   connection->callback_instance= 0;
+  connection->thd= 0;
   memset(&connection->overlapped, 0, sizeof(OVERLAPPED));
   InitializeThreadpoolEnvironment(&connection->callback_environ);
   SetThreadpoolCallbackPool(&connection->callback_environ, pool);
-  connection->thd = 0;
+  connection->connect= connect;
 }
 
 
@@ -396,8 +291,8 @@ int start_io(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 
 int login(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
 {
-  if (threadpool_add_connection(connection->thd) == 0
-      && init_io(connection, connection->thd) == 0 
+  if ((connection->thd= threadpool_add_connection(connection->connect, connection))
+      && init_io(connection, connection->thd) == 0
       && start_io(connection, instance) == 0)
   {
     return 0;
@@ -465,7 +360,7 @@ static void check_thread_init()
   if (FlsGetValue(fls) == NULL)
   {
     FlsSetValue(fls, (void *)1);
-    thread_created++;
+    statistic_increment(thread_created, &LOCK_status);
     InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
   }
 }
@@ -543,7 +438,6 @@ void tp_end(void)
     CloseThreadpool(pool);
   }
 }
-
 
 /*
   Handle read completion/notification.
@@ -656,24 +550,21 @@ static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
 
 /*
   Notify the thread pool about a new connection.
-  NOTE: LOCK_thread_count is locked on entry. This function must unlock it.
 */
-void tp_add_connection(THD *thd)
-{
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
-  connection_t *con = (connection_t *)malloc(sizeof(connection_t));
-  if(!con)
+void tp_add_connection(CONNECT *connect)
+{
+  connection_t *con;  
+  con= (connection_t *)malloc(sizeof(connection_t));
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", free(con);con= 0; );
+  if (!con)
   {
     tp_log_warning("Allocation failed", "tp_add_connection");
-    threadpool_cleanup_connection(thd);
+    connect->close_and_delete();
     return;
   }
 
-  init_connection(con);
-  con->thd= thd;
-  thd->event_scheduler.data= con;
+  init_connection(con, connect);
 
   /* Try to login asynchronously, using threads in the pool */
   PTP_WORK wrk =  CreateThreadpoolWork(login_callback,con, &con->callback_environ);
@@ -685,7 +576,7 @@ void tp_add_connection(THD *thd)
   else
   {
     /* Likely memory pressure */
-    threadpool_cleanup_connection(thd);
+    connect->close_and_delete();
   }
 }
 

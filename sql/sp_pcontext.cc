@@ -450,7 +450,7 @@ bool sp_pcontext::find_cursor(LEX_STRING name,
 
 
 void sp_pcontext::retrieve_field_definitions(
-  List<Create_field> *field_def_lst) const
+  List<Column_definition> *field_def_lst) const
 {
   /* Put local/context fields in the result list. */
 

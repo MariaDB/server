@@ -199,6 +199,7 @@ static const uchar sort_order_eucjpms[]=
 #define IS_MB2_KATA(x,y)      (iseucjpms_ss2(x) && iskata(y))
 #define IS_MB2_CHAR(x,y)      (IS_MB2_KATA(x,y) || IS_MB2_JIS(x,y))
 #define IS_MB3_CHAR(x,y,z)    (iseucjpms_ss3(x) && IS_MB2_JIS(y,z))
+#define IS_MB_PREFIX2(x,y)    (iseucjpms_ss3(x) && iseucjpms(y))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
 
@@ -218,22 +219,6 @@ static const uchar sort_order_eucjpms[]=
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
 #include "strcoll.ic"
-
-
-static uint ismbchar_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
-		  const char* p, const char *e)
-{
-  return ((*(uchar*)(p)<0x80)? 0:\
-    iseucjpms(*(p)) && (e)-(p)>1 && iseucjpms(*((p)+1))? 2:\
-    iseucjpms_ss2(*(p)) && (e)-(p)>1 && iskata(*((p)+1))? 2:\
-    iseucjpms_ss3(*(p)) && (e)-(p)>2 && iseucjpms(*((p)+1)) && iseucjpms(*((p)+2))? 3:\
-    0);
-}
-
-static uint mbcharlen_eucjpms(CHARSET_INFO *cs __attribute__((unused)),uint c)
-{
-  return (iseucjpms(c)? 2: iseucjpms_ss2(c)? 2: iseucjpms_ss3(c)? 3: 1);
-}
 
 
 /* Case info pages for JIS-X-0208 range */
@@ -67520,8 +67505,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
-    ismbchar_eucjpms,
-    mbcharlen_eucjpms,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_eucjpms,

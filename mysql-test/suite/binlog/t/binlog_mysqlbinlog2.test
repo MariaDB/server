@@ -6,6 +6,7 @@
 -- source include/binlog_start_pos.inc
 
 set sql_mode="";
+set global binlog_checksum=NONE;
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -185,4 +186,5 @@ select "--- end of test --" as "";
 --enable_query_log
 drop table t1;
 
+set global binlog_checksum=default;
 # End of 4.1 tests

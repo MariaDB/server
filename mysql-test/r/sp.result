@@ -1140,9 +1140,12 @@ insert into t3 values (1), (2), (3);
 return (select count(*) from t3 as a, t3 as b);
 end|
 select f11()|
-ERROR HY000: Can't reopen table: 'a'
+f11()
+9
 select f11() from t1|
-ERROR HY000: Can't reopen table: 'a'
+f11()
+9
+9
 create function f12_1() returns int
 begin
 drop temporary table if exists t3;
@@ -1156,6 +1159,7 @@ drop temporary table t3|
 select f12_1()|
 f12_1()
 3
+drop temporary table t3|
 select f12_1() from t1 limit 1|
 f12_1()
 3
@@ -6417,6 +6421,8 @@ set x=-1;
 return x;
 end|
 create view v1 as select 1 as one, f1() as days;
+connect  bug29408, localhost, root,,*NO-ONE*;
+connection bug29408;
 show create view test.v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `test`.`v1` AS select 1 AS `one`,`f1`() AS `days`	latin1	latin1_swedish_ci
@@ -6425,6 +6431,8 @@ where table_name='v1' and table_schema='test';
 column_name
 one
 days
+connection default;
+disconnect bug29408;
 drop view v1;
 drop function f1;
 
@@ -6929,7 +6937,7 @@ CREATE TEMPORARY TABLE t3 LIKE t1;
 CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t3 AS A WHERE A.f1 IN ( SELECT f1 FROM t3 ) ;
 END|
 CALL p1;
-ERROR HY000: Can't reopen table: 'A'
+f1
 CREATE VIEW t3 AS SELECT f1 FROM t2 A WHERE A.f1 IN ( SELECT f1 FROM t2 );
 DROP TABLE t3;
 CALL p1;

@@ -184,7 +184,7 @@ static bool set_one_value(ha_create_table_option *opt,
       {
         for (end=start;
              *end && *end != ',';
-             end+= my_mbcharlen(system_charset_info, *end)) /* no-op */;
+             end++) /* no-op */;
         if (!my_strnncoll(system_charset_info,
                           (uchar*)start, end-start,
                           (uchar*)value->str, value->length))

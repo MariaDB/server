@@ -4,17 +4,20 @@ call mtr.add_suppression("Can't find record in 't.'");
 call mtr.add_suppression("Can't find record in 'user'");
 call mtr.add_suppression("Can't find record in 'tables_priv'");
 **** Test case for BUG#16487 ****
-**** Master ****
+connection master;
 CREATE TABLE test.t4 (a int);
 CREATE TABLE test.t1 (a int);
 UPDATE test.t4 NATURAL JOIN test.t1 SET t1.a=5;
-**** Slave ****
+connection slave;
 SELECT * FROM t4;
 a
+connection master;
 DROP TABLE t1;
 DROP TABLE t4;
+connection slave;
 **** Test case for BUG#25482 ****
 **** Adding GRANTS on master ****
+connection master;
 create table test.t1(a int);
 create table test.t4(a int);
 set sql_mode="";
@@ -67,6 +70,7 @@ show grants for mysqltest5@somehost;
 Grants for mysqltest5@somehost
 GRANT USAGE ON *.* TO 'mysqltest5'@'somehost'
 set sql_mode="";
+connection slave;
 **** Checking grants on slave ****
 show grants for mysqltest2@localhost;
 Grants for mysqltest2@localhost
@@ -91,6 +95,7 @@ GRANT INSERT ON `test`.* TO 'mysqltest6'@'localhost'
 show grants for mysqltest1@localhost;
 ERROR 42000: There is no such grant defined for user 'mysqltest1' on host 'localhost'
 **** Revoking grants on master ****
+connection master;
 REVOKE SELECT ON test.t1 FROM mysqltest1@localhost;
 REVOKE SELECT ON mysqltest2.t2 FROM mysqltest4@localhost;
 REVOKE select(a) on t4
@@ -106,6 +111,7 @@ GRANT INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO 'mysqltes
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
 GRANT USAGE ON *.* TO 'mysqltest4'@'localhost' IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
+connection slave;
 **** Checking grants on slave ****
 show grants for mysqltest1@localhost;
 ERROR 42000: There is no such grant defined for user 'mysqltest1' on host 'localhost'
@@ -119,14 +125,18 @@ Grants for mysqltest4@localhost
 GRANT USAGE ON *.* TO 'mysqltest4'@'localhost' IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
 set global slave_exec_mode='IDEMPOTENT';
 call mtr.add_suppression("Slave SQL.*Could not execute Delete_rows event on table mysql.* error.* 1032");
+connection master;
 drop table t1, mysqltest2.t2;
 drop table t4;
 drop database mysqltest2;
 delete from mysql.user where user like "mysqltest%";
 delete from mysql.db where user like "mysqltest%";
 delete from mysql.columns_priv where user like "mysqltest%";
+connection slave;
 delete from mysql.tables_priv where user like "mysqltest%";
+connection master;
 delete from mysql.tables_priv where user like "mysqltest%";
+connection master;
 DROP TABLE IF EXISTS t5;
 CREATE TABLE t5 (
 word varchar(50) collate utf8_unicode_ci NOT NULL default ''
@@ -137,11 +147,16 @@ INSERT INTO t5 (word)  VALUES ('TEST’');
 SELECT HEX(word) FROM t5;
 HEX(word)
 54455354E28099
+connection slave;
 set @@global.slave_exec_mode= default;
+connection slave;
 SELECT HEX(word) FROM t5;
 HEX(word)
 54455354E28099
 SELECT * FROM tmptbl504451f4258$1;
 ERROR 42S02: Table 'test.tmptbl504451f4258$1' doesn't exist
+connection master;
 DROP TABLE t5;
+flush privileges;
+connection slave;
 include/rpl_end.inc

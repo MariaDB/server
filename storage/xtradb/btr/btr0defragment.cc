@@ -151,7 +151,7 @@ void
 btr_defragment_init()
 {
 	srv_defragment_interval = ut_microseconds_to_timer(
-		1000000.0 / srv_defragment_frequency);
+		(ulonglong) (1000000.0 / srv_defragment_frequency));
 	mutex_create(btr_defragment_mutex_key, &btr_defragment_mutex,
 		     SYNC_ANY_LATCH);
 	os_thread_create(btr_defragment_thread, NULL, NULL);

@@ -371,13 +371,10 @@ create table t1 (a int);
 create table t2 like t1;
 
 connection con1;
---echo # con1
 lock tables t1 write;
 connection con2;
---echo # con2
 send flush tables with read lock;
 connection con5;
---echo # con5
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock" and
@@ -385,7 +382,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # global read lock is taken
 connection con3;
---echo # con3
 send select * from t2 for update;
 connection con5;
 let $wait_condition=
@@ -395,7 +391,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # waiting for release of read lock
 connection con4;
---echo # con4
 --echo # would hang and later cause a deadlock
 flush tables t2;
 connection con1;
@@ -431,13 +426,10 @@ create table t2 like t1;
 --echo #
 
 connection default;
---echo # default
 flush tables with read lock;
 connection con1;
---echo # con1
 send update t2 set a = 1;
 connection default;
---echo # default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock" and
@@ -445,13 +437,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # statement is waiting for release of read lock
 connection con2;
---echo # con2
 flush table t2;
 connection default;
---echo # default
 unlock tables;
 connection con1;
---echo # con1
 --reap
 
 --echo #
@@ -459,13 +448,10 @@ connection con1;
 --echo #
 
 connection default;
---echo # default
 flush tables with read lock;
 connection con1;
---echo # con1
 send lock tables t2 write;
 connection default;
---echo # default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock" and
@@ -473,13 +459,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # statement is waiting for release of read lock
 connection con2;
---echo # con2
 flush table t2;
 connection default;
---echo # default
 unlock tables;
 connection con1;
---echo # con1
 --reap
 unlock tables;
 
@@ -553,13 +536,10 @@ drop table if exists t1;
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
---echo connection: default
 lock tables t1 write;
 connection flush;
---echo connection: flush
 --send flush tables with read lock;
 connection default;
---echo connection: default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock" and
@@ -568,14 +548,12 @@ let $wait_condition=
 alter table t1 add column j int;
 connect (insert,localhost,root,,test,,);
 connection insert;
---echo connection: insert
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 --send insert into t1 values (1,2);
---echo connection: default
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -584,7 +562,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 unlock tables;
 connection flush;
---echo connection: flush
 --reap
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -615,13 +592,10 @@ drop table if exists t1;
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
---echo connection: default
 lock tables t1 write;
 connection flush;
---echo connection: flush
 --send flush tables with read lock;
 connection default;
---echo connection: default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock";
@@ -684,13 +658,10 @@ drop table if exists t1;
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
---echo connection: default
 lock tables t1 write;
 connection flush;
---echo connection: flush
 --send flush tables with read lock;
 connection default;
---echo connection: default
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for global read lock";
@@ -718,8 +689,6 @@ insert into t1 values (1,1,0),(2,2,0),(3,3,0),(4,4,0),(5,5,0);
 begin;
 update t1 set c3=c3+1 where c2=3;
 
---echo #
---echo # Switching to connection 'con46272'.
 connect (con46272,localhost,root,,test,,);
 connection con46272;
 --echo # The below ALTER TABLE statement should wait till transaction
@@ -728,8 +697,6 @@ connection con46272;
 --echo # Sending:
 --send alter table t1 add column c4 int;
 
---echo #
---echo # Switching to connection 'default'.
 connection default;
 --echo # Wait until the above ALTER TABLE gets blocked because this
 --echo # connection holds SW metadata lock on table to be altered.
@@ -746,14 +713,10 @@ update t1 set c3=c3+1 where c2=4;
 --echo # Unblock ALTER TABLE by committing transaction.
 commit;
 
---echo #
---echo # Switching to connection 'con46272'.
 connection con46272;
 --echo # Reaping ALTER TABLE.
 --reap
 
---echo #
---echo # Switching to connection 'default'.
 connection default;
 disconnect con46272;
 drop table t1;
@@ -794,14 +757,12 @@ DROP VIEW v1;
 CREATE TABLE t1 ( f1 integer );
 CREATE VIEW v1 AS SELECT f1 FROM t1 ;
 
---echo # Connection 2
 connect (con2,localhost,root);
 LOCK TABLES t1 WRITE, v1 READ;
 FLUSH TABLE t1;
 disconnect con2;
 --source include/wait_until_disconnected.inc
 
---echo # Connection 1
 connection default;
 LOCK TABLES t1 WRITE;
 FLUSH TABLE t1;                                    # Assertion happened here
@@ -826,12 +787,10 @@ create view v1 as select i from t1;
 begin;
 select * from t1;
 
---echo # Switching to connection 'con50913'.
 connection con50913;
 --echo # Sending:
 --send alter table t1 add column j int
 
---echo # Switching to connection 'default'.
 connection default;
 --echo # Wait until ALTER TABLE gets blocked.
 let $wait_condition=
@@ -847,22 +806,18 @@ delete a from t1 as a where i = 1;
 --echo # Unblock ALTER TABLE.
 commit;
 
---echo # Switching to connection 'con50913'.
 connection con50913;
 --echo # Reaping ALTER TABLE;
 --reap
 
---echo # Switching to connection 'default'.
 connection default;
 begin;
 select * from v1;
 
---echo # Switching to connection 'con50913'.
 connection con50913;
 --echo # Sending:
 --send alter table t1 drop column j
 
---echo # Switching to connection 'default'.
 connection default;
 --echo # Wait until ALTER TABLE gets blocked.
 let $wait_condition=
@@ -878,12 +833,10 @@ insert into v1 values (1);
 --echo # Unblock ALTER TABLE.
 commit;
 
---echo # Switching to connection 'con50913'.
 connection con50913;
 --echo # Reaping ALTER TABLE;
 --reap
 
---echo # Switching to connection 'default'.
 connection default;
 disconnect con50913;
 drop view v1;
@@ -910,17 +863,14 @@ SET SESSION lock_wait_timeout= 1;
 --echo # Test 1: acquire exclusive lock
 --echo #
 
---echo # Connection default
 connection default;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1);
 
---echo # Connection 2
 connection con2;
 --error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE t1;
 
---echo # Connection default
 connection default;
 COMMIT;
 
@@ -928,17 +878,14 @@ COMMIT;
 --echo # Test 2: upgrade shared lock
 --echo #
 
---echo # Connection default
 connection default;
 START TRANSACTION;
 SELECT * FROM t1;
 
---echo # Connection 2
 connection con2;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE t1 RENAME TO t2;
 
---echo # Connection default
 connection default;
 COMMIT;
 
@@ -946,16 +893,13 @@ COMMIT;
 --echo # Test 3: acquire shared lock
 --echo #
 
---echo # Connection default
 connection default;
 LOCK TABLE t1 WRITE;
 
---echo # Connection 2
 connection con2;
 --error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(id) VALUES (2);
 
---echo # Connection default
 connection default;
 UNLOCK TABLES;
 
@@ -963,16 +907,13 @@ UNLOCK TABLES;
 --echo # Test 4: table level locks
 --echo #
 
---echo # Connection default
 connection default;
 LOCK TABLE t1 READ;
 
---echo # Connection 2
 connection con2;
 --error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(id) VALUES(4);
 
---echo # Connection default
 connection default;
 UNLOCK TABLES;
 
@@ -982,16 +923,13 @@ UNLOCK TABLES;
 
 connect(con3, localhost, root);
 
---echo # Connection default
 connection default;
 LOCK TABLE t1 READ;
 
---echo # Connection con3
 connection con3;
 --echo # Sending:
 --send FLUSH TABLES
 
---echo # Connection con2
 connection con2;
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -1000,11 +938,9 @@ let $wait_condition=
 --error ER_LOCK_WAIT_TIMEOUT
 SELECT * FROM t1;
 
---echo # Connection default
 connection default;
 UNLOCK TABLES;
 
---echo # Connection con3
 connection con3;
 --echo # Reaping: FLUSH TABLES
 --reap
@@ -1013,17 +949,14 @@ connection con3;
 --echo # Test 6: Timeouts in I_S queries
 --echo #
 
---echo # Connection default
 connection default;
 CREATE TABLE t2 (id INT);
 LOCK TABLE t2 WRITE;
 
---echo # Connection con3
 connection con3;
 --echo # Sending:
 --send DROP TABLE t1, t2
 
---echo # Connection con2
 connection con2;
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -1036,16 +969,13 @@ let $wait_condition=
 SELECT table_name, table_comment FROM information_schema.tables
   WHERE table_schema= 'test' AND table_name= 't1';
 
---echo # Connection default
 connection default;
 UNLOCK TABLES;
 
---echo # Connection con3
 connection con3;
 --echo # Reaping: DROP TABLE t1, t2
 --reap
 
---echo # Connection default
 connection default;
 --echo # Cleanup
 disconnect con2;
@@ -1064,12 +994,10 @@ connect (con2, localhost, root, , );
 connection default;
 create table t3 (i int);
 
---echo # Switching to connection 'con1'
 connection con1;
 --echo # Lock 't3' so upcoming RENAME is blocked.
 lock table t3 read;
 
---echo # Switching to connection 'con2'
 connection con2;
 --echo # Remember ID for this connection.
 let $ID= `select connection_id()`;
@@ -1078,7 +1006,6 @@ let $ID= `select connection_id()`;
 --echo # Sending:
 --send rename tables t1 to t2, t2 to t3;
 
---echo # Switching to connection 'default'
 connection default;
 --echo # Wait until RENAME TABLE is blocked on table 't3'.
 let $wait_condition=
@@ -1090,17 +1017,14 @@ let $wait_condition=
 --replace_result $ID ID
 eval kill query $ID;
 
---echo # Switching to connection 'con2'
 connection con2;
 --echo # RENAME TABLE should be aborted but should not crash.
 --error ER_QUERY_INTERRUPTED
 --reap
 
---echo # Switching to connection 'con1'
 connection con1;
 unlock tables;
 
---echo # Switching to connection 'default'
 connection default;
 disconnect con1;
 disconnect con2;
@@ -1120,13 +1044,11 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id INT);
 LOCK TABLE t1 WRITE;
 
---echo # Connection con1
 connect (con1, localhost, root);
 CREATE TEMPORARY TABLE t1 (id INT);
 # This alter should not block and timeout.
 ALTER TABLE t1 ADD COLUMN j INT;
 
---echo # Connection default
 connection default;
 disconnect con1;
 UNLOCK TABLES;

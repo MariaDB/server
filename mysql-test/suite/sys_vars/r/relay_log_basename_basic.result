@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 select @@global.relay_log_basename;
 @@global.relay_log_basename
 REPLACED

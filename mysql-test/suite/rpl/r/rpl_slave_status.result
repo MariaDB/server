@@ -1,9 +1,9 @@
 include/master-slave.inc
 [connection master]
 ==== Create new replication user ====
-[on master]
+connection master;
 GRANT REPLICATION SLAVE ON *.* TO rpl@127.0.0.1 IDENTIFIED BY 'rpl';
-[on slave]
+connection slave;
 include/stop_slave.inc
 set @save_relay_log_purge=@@global.relay_log_purge;
 set @@global.relay_log_purge=0;
@@ -20,18 +20,18 @@ set @@global.relay_log_purge=@save_relay_log_purge;
 CHANGE MASTER TO master_user='rpl', master_password='rpl';
 include/start_slave.inc
 ==== Do replication as new user ====
-[on master]
+connection master;
 CREATE TABLE t1 (n INT);
 INSERT INTO t1 VALUES (1);
-[on slave]
+connection slave;
 SELECT * FROM t1;
 n
 1
 ==== Delete new replication user ====
-[on master]
+connection master;
 DROP USER rpl@127.0.0.1;
 FLUSH PRIVILEGES;
-[on slave]
+connection slave;
 ==== Restart slave without privileges =====
 include/stop_slave.inc
 START SLAVE;
@@ -43,6 +43,6 @@ include/wait_for_slave_io_error.inc [errno=1045]
 include/stop_slave_sql.inc
 CHANGE MASTER TO MASTER_USER = 'root', MASTER_PASSWORD = '';
 include/rpl_reset.inc
-[on master]
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc

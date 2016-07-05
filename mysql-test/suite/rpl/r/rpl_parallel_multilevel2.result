@@ -1,10 +1,12 @@
 include/rpl_init.inc [topology=1->2->3]
 *** MDEV-7668: Intermediate master groups CREATE with INSERT, causing parallel replication failure ***
+connection server_1;
 SET @old_updates= @@GLOBAL.binlog_direct_non_transactional_updates;
 SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
 include/stop_slave.inc
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=10;
@@ -16,10 +18,12 @@ SET @old_updates= @@GLOBAL.binlog_direct_non_transactional_updates;
 SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_3;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_1;
 BEGIN;
 CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=MEMORY;
 COMMIT;
@@ -27,25 +31,30 @@ INSERT INTO t2 VALUES (1);
 INSERT INTO t1 SELECT a, a*10 FROM t2;
 DROP TABLE t2;
 include/save_master_gtid.inc
+connection server_2;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	10
+connection server_3;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	10
+connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 SET GLOBAL binlog_commit_wait_count=@old_commit_count;
 SET GLOBAL binlog_commit_wait_usec=@old_commit_usec;
 SET GLOBAL binlog_direct_non_transactional_updates= @old_updates;
 include/start_slave.inc
+connection server_3;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
+connection server_1;
 SET GLOBAL binlog_direct_non_transactional_updates= @old_updates;
 CALL mtr.add_suppression("Statement accesses nontransactional table as well as transactional or temporary table");
 DROP TABLE t1;

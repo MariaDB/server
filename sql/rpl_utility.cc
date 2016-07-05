@@ -901,6 +901,51 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
   return true;
 }
 
+
+/**
+  A wrapper to Virtual_tmp_table, to get access to its constructor,
+  which is protected for safety purposes (against illegal use on stack).
+*/
+class Virtual_conversion_table: public Virtual_tmp_table
+{
+public:
+  Virtual_conversion_table(THD *thd) :Virtual_tmp_table(thd) { }
+  /**
+    Add a new field into the virtual table.
+    @param sql_type     - The real_type of the field.
+    @param metadata     - The RBR binary log metadata for this field.
+    @param target_field - The field from the target table, to get extra
+                          attributes from (e.g. typelib in case of ENUM).
+  */
+  bool add(enum_field_types sql_type,
+           uint16 metadata, const Field *target_field)
+  {
+    const Type_handler *handler= Type_handler::get_handler_by_real_type(sql_type);
+    if (!handler)
+    {
+      sql_print_error("In RBR mode, Slave received unknown field type field %d "
+                      " for column Name: %s.%s.%s.",
+                      (int) sql_type,
+                      target_field->table->s->db.str,
+                      target_field->table->s->table_name.str,
+                      target_field->field_name);
+      return true;
+    }
+    Field *tmp= handler->make_conversion_table_field(this, metadata,
+                                                     target_field);
+    if (!tmp)
+      return true;
+    Virtual_tmp_table::add(tmp);
+    DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
+                         " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
+                         sql_type, target_field->field_name,
+                         tmp->field_length, tmp->decimals(), TRUE,
+                         tmp->flags, tmp->pack_length()));
+    return false;
+  }
+};
+
+
 /**
   Create a conversion table.
 
@@ -916,8 +961,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
 {
   DBUG_ENTER("table_def::create_conversion_table");
 
-  List<Create_field> field_list;
-  TABLE *conv_table= NULL;
+  Virtual_conversion_table *conv_table;
   Relay_log_info *rli= rgi->rli;
   /*
     At slave, columns may differ. So we should create
@@ -925,113 +969,35 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
     conversion table.
   */
   uint const cols_to_create= MY_MIN(target_table->s->fields, size());
+  if (!(conv_table= new(thd) Virtual_conversion_table(thd)) ||
+      conv_table->init(cols_to_create))
+    goto err;
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
-    Create_field *field_def=
-      (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
-    Field *target_field= target_table->field[col];
-    bool unsigned_flag= 0;
-    if (field_list.push_back(field_def, thd->mem_root))
-      DBUG_RETURN(NULL);
-
-    uint decimals= 0;
-    TYPELIB* interval= NULL;
-    uint pack_length= 0;
-    uint32 max_length=
-      max_display_length_for_field(type(col), field_metadata(col));
-
-    switch(type(col)) {
-      int precision;
-    case MYSQL_TYPE_ENUM:
-    case MYSQL_TYPE_SET:
-      interval= static_cast<Field_enum*>(target_field)->typelib;
-      pack_length= field_metadata(col) & 0x00ff;
-      break;
-
-    case MYSQL_TYPE_NEWDECIMAL:
-      /*
-        The display length of a DECIMAL type is not the same as the
-        length that should be supplied to make_field, so we correct
-        the length here.
-       */
-      precision= field_metadata(col) >> 8;
-      decimals= field_metadata(col) & 0x00ff;
-      max_length=
-        my_decimal_precision_to_length(precision, decimals, FALSE);
-      break;
-
-    case MYSQL_TYPE_DECIMAL:
-      sql_print_error("In RBR mode, Slave received incompatible DECIMAL field "
-                      "(old-style decimal field) from Master while creating "
-                      "conversion table. Please consider changing datatype on "
-                      "Master to new style decimal by executing ALTER command for"
-                      " column Name: %s.%s.%s.",
-                      target_table->s->db.str,
-                      target_table->s->table_name.str,
-                      target_field->field_name);
+    if (conv_table->add(type(col), field_metadata(col),
+                        target_table->field[col]))
+    {
+      DBUG_PRINT("debug", ("binlog_type: %d, metadata: %04X, target_field: '%s'"
+                           " make_conversion_table_field() failed",
+                           binlog_type(col), field_metadata(col),
+                           target_table->field[col]->field_name));
       goto err;
-
-    case MYSQL_TYPE_TINY_BLOB:
-    case MYSQL_TYPE_MEDIUM_BLOB:
-    case MYSQL_TYPE_LONG_BLOB:
-    case MYSQL_TYPE_BLOB:
-    case MYSQL_TYPE_GEOMETRY:
-      pack_length= field_metadata(col) & 0x00ff;
-      break;
-
-    case MYSQL_TYPE_TINY:
-    case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_INT24:
-    case MYSQL_TYPE_LONG:
-    case MYSQL_TYPE_LONGLONG:
-      /*
-        As we don't know if the integer was signed or not on the master,
-        assume we have same sign on master and slave.  This is true when not
-        using conversions so it should be true also when using conversions.
-      */
-      unsigned_flag= static_cast<Field_num*>(target_field)->unsigned_flag;
-      break;
-    case MYSQL_TYPE_TIMESTAMP:
-    case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_DATETIME:
-      /*
-        As we don't know the precision of the temporal field on the master,
-        assume it's the same on master and slave.  This is true when not
-        using conversions so it should be true also when using conversions.
-      */
-      if (target_field->decimals())
-        max_length+= target_field->decimals() + 1;
-      break;
-    default:
-      break;
     }
-
-    DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
-                         " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
-                         binlog_type(col), target_field->field_name,
-                         max_length, decimals, TRUE, unsigned_flag,
-                         pack_length));
-    field_def->init_for_tmp_table(type(col),
-                                  max_length,
-                                  decimals,
-                                  TRUE,         // maybe_null
-                                  unsigned_flag,
-                                  pack_length);
-    field_def->charset= target_field->charset();
-    field_def->interval= interval;
   }
 
-  conv_table= create_virtual_tmp_table(thd, field_list);
+  if (conv_table->open())
+    goto err; // Could not allocate record buffer?
+
+  DBUG_RETURN(conv_table);
 
 err:
-  if (conv_table == NULL)
-  {
-    rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION, rgi->gtid_info(),
-                ER_THD(thd, ER_SLAVE_CANT_CREATE_CONVERSION),
-                target_table->s->db.str,
-                target_table->s->table_name.str);
-  }
-  DBUG_RETURN(conv_table);
+  if (conv_table)
+    delete conv_table;
+  rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION, rgi->gtid_info(),
+              ER_THD(thd, ER_SLAVE_CANT_CREATE_CONVERSION),
+              target_table->s->db.str,
+              target_table->s->table_name.str);
+  DBUG_RETURN(NULL);
 }
 #endif /* MYSQL_CLIENT */
 

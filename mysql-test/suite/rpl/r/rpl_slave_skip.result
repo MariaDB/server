@@ -1,9 +1,9 @@
 include/master-slave.inc
 [connection master]
-**** On Slave ****
+connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
-**** On Master ****
+connection master;
 SET SESSION BINLOG_FORMAT=ROW;
 CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
 CREATE TABLE t2 (c INT, d INT) ENGINE=MyISAM;
@@ -40,7 +40,7 @@ c	d
 1	2
 2	8
 3	18
-**** On Slave ****
+connection slave;
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=MASTER_LOG_POS;
 include/wait_for_slave_sql_to_stop.inc
 include/check_slave_param.inc [Exec_Master_Log_Pos]
@@ -61,6 +61,7 @@ c	d
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
+connection master;
 RESET MASTER;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 SET @foo = 12;
@@ -71,13 +72,16 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	User var	#	#	@`foo`=12
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES(@foo, 2*@foo)
 master-bin.000001	#	Query	#	#	COMMIT
+connection slave;
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=MASTER_LOG_POS;
 include/wait_for_slave_sql_to_stop.inc
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 START SLAVE;
 include/wait_for_slave_to_start.inc
-**** On Master ****
+connection master;
 DROP TABLE t1, t2;
+connection slave;
+connection master;
 SET SESSION BINLOG_FORMAT=ROW;
 SET AUTOCOMMIT=0;
 CREATE TABLE t1 (a INT, b VARCHAR(20)) ENGINE=myisam;
@@ -95,9 +99,9 @@ CREATE TRIGGER tr2 AFTER INSERT on t2 FOR EACH ROW
 BEGIN
 UPDATE t3 SET a =2, b = 'master only';
 END|
-**** On Slave ****
+connection slave;
 include/stop_slave.inc
-**** On Master ****
+connection master;
 UPDATE t1 SET a = 2, b = 'master only' WHERE a = 1;
 DROP TRIGGER tr1;
 DROP TRIGGER tr2;
@@ -117,7 +121,7 @@ SELECT * FROM t3 ORDER BY a;
 a	b
 2	master only
 3	master/slave
-*** On Slave ***
+connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
@@ -132,15 +136,17 @@ SELECT * FROM t3 ORDER BY a;
 a	b
 1	master/slave
 3	master/slave
+connection master;
 DROP TABLE t1, t2, t3;
+connection slave;
 **** Case 2: Row binlog format and transactional tables ****
-*** On Master ***
+connection master;
 CREATE TABLE t4 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t5 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t6 (a INT, b VARCHAR(20)) ENGINE=innodb;
-**** On Slave ****
+connection slave;
 include/stop_slave.inc
-*** On Master ***
+connection master;
 BEGIN;
 INSERT INTO t4 VALUES (2, 'master only');
 INSERT INTO t5 VALUES (2, 'master only');
@@ -163,7 +169,7 @@ SELECT * FROM t6 ORDER BY a;
 a	b
 2	master only
 3	master/slave
-*** On Slave ***
+connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
 SELECT * FROM t4 ORDER BY a;
@@ -175,9 +181,9 @@ a	b
 SELECT * FROM t6 ORDER BY a;
 a	b
 3	master/slave
-**** On Slave ****
+connection slave;
 include/stop_slave.inc
-*** On Master ***
+connection master;
 BEGIN;
 INSERT INTO t4 VALUES (6, 'master only');
 INSERT INTO t5 VALUES (6, 'master only');
@@ -206,7 +212,7 @@ a	b
 3	master/slave
 6	master only
 7	master only
-*** On Slave ***
+connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=10;
 include/start_slave.inc
 SELECT * FROM t4 ORDER BY a;
@@ -218,7 +224,9 @@ a	b
 SELECT * FROM t6 ORDER BY a;
 a	b
 3	master/slave
+connection slave;
 include/stop_slave.inc
+connection master;
 SET AUTOCOMMIT=0;
 INSERT INTO t4 VALUES (4, 'master only');
 INSERT INTO t5 VALUES (4, 'master only');
@@ -252,7 +260,7 @@ a	b
 5	master/slave
 6	master only
 7	master only
-*** On Slave ***
+connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
 SELECT * FROM t4 ORDER BY a;
@@ -267,13 +275,15 @@ SELECT * FROM t6 ORDER BY a;
 a	b
 3	master/slave
 5	master/slave
+connection master;
 DROP TABLE t4, t5, t6;
+connection slave;
 **** Case 3: Statement logging format and LOAD DATA with non-transactional table ****
-*** On Master ***
+connection master;
 CREATE TABLE t10 (a INT, b VARCHAR(20)) ENGINE=myisam;
-*** On Slave ***
+connection slave;
 include/stop_slave.inc
-*** On Master ***
+connection master;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/std_data/rpl_bug28618.dat' INTO TABLE t10 FIELDS TERMINATED BY '|';
 SELECT * FROM t10 ORDER BY a;
@@ -281,10 +291,12 @@ a	b
 1	master only
 2	master only
 3	master only
-*** On Slave ***
+connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
 SELECT * FROM t10 ORDER BY a;
 a	b
+connection master;
 DROP TABLE t10;
+connection slave;
 include/rpl_end.inc

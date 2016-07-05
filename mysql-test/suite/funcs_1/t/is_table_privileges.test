@@ -115,7 +115,6 @@ let $my_select = SELECT * FROM information_schema.table_privileges
 WHERE table_name LIKE 'tb%'
 ORDER BY grantee,table_schema,table_name,privilege_type;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 --replace_result $other_engine_type <other_engine_type>
@@ -126,21 +125,18 @@ GRANT SELECT ON db_datadict.tb3 TO 'testuser3'@'localhost';
 eval $my_select;
 SHOW GRANTS FOR 'testuser1'@'localhost';
 
---echo # Establish connection testuser2 (user=testuser3)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 # we see only table privileges for this user, and not any other privileges
 eval $my_select;
 SHOW GRANTS FOR 'testuser2'@'localhost';
 
---echo # Establish connection testuser3 (user=testuser3)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser3, localhost, testuser3, , db_datadict);
 # we see only table privileges for this user, and not any other privileges
 eval $my_select;
 SHOW GRANTS FOR 'testuser3'@'localhost';
 
---echo # Switch to connection default and close the other connections
 connection default;
 disconnect testuser1;
 disconnect testuser2;

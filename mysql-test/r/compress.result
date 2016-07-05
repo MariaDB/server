@@ -1,3 +1,4 @@
+connect  comp_con,localhost,root,,,,,COMPRESS;
 SHOW STATUS LIKE 'Compression';
 Variable_name	Value
 Compression	ON
@@ -2163,3 +2164,5 @@ drop table t1;
 SHOW STATUS LIKE 'Compression';
 Variable_name	Value
 Compression	ON
+connection default;
+disconnect comp_con;

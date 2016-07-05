@@ -4,11 +4,15 @@ create table toku1 (a int) engine=TokuDB;
 create table toku2 (a int) engine=TokuDB;
 insert into toku1 values (1),(2),(3);
 insert into toku2 values (1),(2),(3);
+connect  conn1,localhost,root,,;
+connection default;
 set session transaction isolation level READ UNCOMMITTED;
 begin;
 insert into toku2 select * from toku1;
+connection conn1;
 set session transaction isolation level READ UNCOMMITTED;
 insert into toku1 values (4);
+connection default;
 commit;
 select * from toku2;
 a
@@ -18,6 +22,7 @@ a
 1
 2
 3
+connection conn1;
 commit;
 select * from toku1;
 a
@@ -25,4 +30,6 @@ a
 2
 3
 4
+connection default;
+disconnect conn1;
 DROP TABLE toku1, toku2;

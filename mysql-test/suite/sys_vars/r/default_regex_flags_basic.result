@@ -45,11 +45,13 @@ SET @@global.default_regex_flags='MULTILINE';
 SELECT @@session.default_regex_flags;
 @@session.default_regex_flags
 
-# connection con1
+connect  con1,localhost,root,,;
+connection con1;
 SELECT @@session.default_regex_flags;
 @@session.default_regex_flags
 MULTILINE
-# connection default
+connection default;
+disconnect con1;
 SELECT @@session.default_regex_flags;
 @@session.default_regex_flags
 

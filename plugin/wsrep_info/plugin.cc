@@ -120,10 +120,10 @@ static int wsrep_memb_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
   if (check_global_access(thd, SUPER_ACL, true))
     return rc;
 
-  wsrep_config_state.lock();
+  wsrep_config_state->lock();
 
   Dynamic_array<wsrep_member_info_t> *memb_arr=
-    wsrep_config_state.get_member_info();
+    wsrep_config_state->get_member_info();
 
   TABLE *table= tables->table;
 
@@ -151,7 +151,7 @@ static int wsrep_memb_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
   }
 
 end:
-  wsrep_config_state.unlock();
+  wsrep_config_state->unlock();
   return rc;
 }
 
@@ -175,10 +175,10 @@ static int wsrep_status_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
   if (check_global_access(thd, SUPER_ACL, true))
     return rc;
 
-  wsrep_config_state.lock();
+  wsrep_config_state->lock();
 
-  wsrep_view_info_t view= wsrep_config_state.get_view_info();
-  wsrep_member_status_t status= wsrep_config_state.get_status();
+  wsrep_view_info_t view= wsrep_config_state->get_view_info();
+  wsrep_member_status_t status= wsrep_config_state->get_status();
 
   TABLE *table= tables->table;
 
@@ -210,7 +210,7 @@ static int wsrep_status_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
   if (schema_table_store_record(thd, table))
     rc= 1;
 
-  wsrep_config_state.unlock();
+  wsrep_config_state->unlock();
   return rc;
 }
 

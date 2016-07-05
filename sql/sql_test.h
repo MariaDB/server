@@ -22,7 +22,7 @@ class JOIN;
 struct TABLE_LIST;
 typedef class Item COND;
 typedef class st_select_lex SELECT_LEX;
-typedef struct st_sort_field SORT_FIELD;
+struct SORT_FIELD;
 
 #ifndef DBUG_OFF
 void print_where(COND *cond,const char *info, enum_query_type query_type);

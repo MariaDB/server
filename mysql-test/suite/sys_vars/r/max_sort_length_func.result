@@ -18,8 +18,8 @@ id INT AUTO_INCREMENT PRIMARY KEY,
 c TEXT(30)
 );
 '#--------------------FN_DYNVARS_098_01-------------------------#'
-** Connecting test_con1 using username 'root' **
-** Connection test_con1 **
+connect  test_con1,localhost,root,,;
+connection test_con1;
 SELECT @@global.max_sort_length = 10;
 @@global.max_sort_length = 10
 0
@@ -62,8 +62,8 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ** Results should be sorted **
 '#--------------------FN_DYNVARS_098_02-------------------------#'
-** Connecting test_con2 using username 'root' **
-** Connection test_con2 **
+connect  test_con2,localhost,root,,;
+connection test_con2;
 SET @@global.max_sort_length = 30;
 SELECT @@global.max_sort_length;
 @@global.max_sort_length
@@ -291,8 +291,9 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 ** Results should not be sorted **
-** Connection default **
-** Disconnecting test_con1, test_con2 **
+connection default;
+disconnect test_con1;
+disconnect test_con2;
 SET @@SESSION.max_sort_length = @session_max_sort_length;
 DROP TABLE IF EXISTS t;
 DROP TABLE IF EXISTS t1;

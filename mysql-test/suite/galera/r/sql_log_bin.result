@@ -1,5 +1,6 @@
 
 # On node_1
+connection node_1;
 USE test;
 CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1);
@@ -31,6 +32,7 @@ c1
 2
 
 # On node_2
+connection node_2;
 USE test;
 SELECT * FROM t1;
 c1
@@ -49,4 +51,6 @@ c1
 1
 2
 DROP TABLE t1, t2, t3, t4;
+disconnect node_2;
+disconnect node_1;
 # End of test

@@ -124,7 +124,6 @@ eval SET SESSION STORAGE_ENGINE = $engine_type;
 SET @@autocommit=1;
 
 connection default;
---echo connection default
 # This should be 'YES'.
 SHOW VARIABLES LIKE 'have_query_cache';
 
@@ -142,7 +141,6 @@ SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 show status like "Qcache_queries_in_cache";
 
 connection connection1;
---echo connection connection1
 START TRANSACTION;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 INSERT INTO t2 VALUES (5,'w');
@@ -153,7 +151,6 @@ SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 show status like "Qcache_queries_in_cache";
 
 connection default;
---echo connection default
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 COMMIT;
 
@@ -163,7 +160,6 @@ SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 show status like "Qcache_queries_in_cache";
 
 connection connection1;
---echo connection connection1
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 
 START TRANSACTION;
@@ -172,7 +168,6 @@ INSERT INTO t2 VALUES (6,'w');
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 
 connection default;
---echo connection default
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 START TRANSACTION;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
@@ -181,7 +176,6 @@ SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';
 COMMIT;
 
 connection connection1;
---echo connection connection1
 
 COMMIT;
 SELECT sql_cache count(*) FROM t2 WHERE s2 = 'w';

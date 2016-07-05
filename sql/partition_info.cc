@@ -483,11 +483,12 @@ bool partition_info::set_used_partition(List<Item> &fields,
 
   if (fields.elements || !values.elements)
   {
-    if (fill_record(thd, table, fields, values, false))
+    if (fill_record(thd, table, fields, values, false, !copy_default_values))
       goto err;
   }
   else
   {
+    /* All fields has a value */
     if (fill_record(thd, table, table->field, values, false, false))
       goto err;
   }
@@ -547,11 +548,11 @@ err:
 
 #define MAX_PART_NAME_SIZE 8
 
-char *partition_info::create_default_partition_names(uint part_no,
+char *partition_info::create_default_partition_names(THD *thd, uint part_no,
                                                      uint num_parts_arg,
                                                      uint start_no)
 {
-  char *ptr= (char*) sql_calloc(num_parts_arg*MAX_PART_NAME_SIZE);
+  char *ptr= (char*) thd->calloc(num_parts_arg * MAX_PART_NAME_SIZE);
   char *move_ptr= ptr;
   uint i= 0;
   DBUG_ENTER("create_default_partition_names");
@@ -590,9 +591,9 @@ void partition_info::set_show_version_string(String *packet)
   else
   {
     if (part_expr)
-      part_expr->walk(&Item::intro_version, 0, (uchar*)&version);
+      part_expr->walk(&Item::intro_version, 0, &version);
     if (subpart_expr)
-      subpart_expr->walk(&Item::intro_version, 0, (uchar*)&version);
+      subpart_expr->walk(&Item::intro_version, 0, &version);
     if (version == 0)
     {
       /* No new functions in partition function */
@@ -620,11 +621,11 @@ void partition_info::set_show_version_string(String *packet)
     0                           Memory allocation error
 */
 
-char *partition_info::create_default_subpartition_name(uint subpart_no,
+char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no,
                                                const char *part_name)
 {
   uint size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
-  char *ptr= (char*) sql_calloc(size_alloc);
+  char *ptr= (char*) thd->calloc(size_alloc);
   DBUG_ENTER("create_default_subpartition_name");
 
   if (likely(ptr != NULL))
@@ -663,7 +664,7 @@ char *partition_info::create_default_subpartition_name(uint subpart_no,
     The external routine needing this code is check_partition_info
 */
 
-bool partition_info::set_up_default_partitions(handler *file,
+bool partition_info::set_up_default_partitions(THD *thd, handler *file,
                                                HA_CREATE_INFO *info,
                                                uint start_no)
 {
@@ -695,7 +696,8 @@ bool partition_info::set_up_default_partitions(handler *file,
     my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
     goto end;
   }
-  if (unlikely((!(default_name= create_default_partition_names(0, num_parts,
+  if (unlikely((!(default_name= create_default_partition_names(thd, 0,
+                                                               num_parts,
                                                                start_no)))))
     goto end;
   i= 0;
@@ -744,7 +746,7 @@ end:
     The external routine needing this code is check_partition_info
 */
 
-bool partition_info::set_up_default_subpartitions(handler *file, 
+bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
                                                   HA_CREATE_INFO *info)
 {
   uint i, j;
@@ -771,7 +773,7 @@ bool partition_info::set_up_default_subpartitions(handler *file,
       if (likely(subpart_elem != 0 &&
           (!part_elem->subpartitions.push_back(subpart_elem))))
       {
-        char *ptr= create_default_subpartition_name(j,
+        char *ptr= create_default_subpartition_name(thd, j,
                                                     part_elem->partition_name);
         if (!ptr)
           goto end;
@@ -809,7 +811,7 @@ end:
     this will return an error.
 */
 
-bool partition_info::set_up_defaults_for_partitioning(handler *file,
+bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
                                                       HA_CREATE_INFO *info, 
                                                       uint start_no)
 {
@@ -819,10 +821,10 @@ bool partition_info::set_up_defaults_for_partitioning(handler *file,
   {
     default_partitions_setup= TRUE;
     if (use_default_partitions)
-      DBUG_RETURN(set_up_default_partitions(file, info, start_no));
+      DBUG_RETURN(set_up_default_partitions(thd, file, info, start_no));
     if (is_sub_partitioned() && 
         use_default_subpartitions)
-      DBUG_RETURN(set_up_default_subpartitions(file, info));
+      DBUG_RETURN(set_up_default_subpartitions(thd, file, info));
   }
   DBUG_RETURN(FALSE);
 }
@@ -1667,8 +1669,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     if (!list_of_part_fields)
     {
       DBUG_ASSERT(part_expr);
-      err= part_expr->walk(&Item::check_partition_func_processor, 0,
-                           NULL);
+      err= part_expr->walk(&Item::check_partition_func_processor, 0, NULL);
     }
 
     /* Check for sub partition expression. */
@@ -1702,7 +1703,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
     goto end;
   }
-  if (unlikely(set_up_defaults_for_partitioning(file, info, (uint)0)))
+  if (unlikely(set_up_defaults_for_partitioning(thd, file, info, (uint)0)))
     goto end;
   if (!(tot_partitions= get_tot_partitions()))
   {
@@ -1940,11 +1941,11 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
     FALSE                     Success
 */
 
-bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
+bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                                    char *end_token, bool is_subpart)
 {
   uint expr_len= end_token - start_token;
-  char *func_string= (char*) sql_memdup(start_token, expr_len);
+  char *func_string= (char*) thd->memdup(start_token, expr_len);
 
   if (!func_string)
   {
@@ -2423,8 +2424,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   else
     thd->where= "partition function";
 
-  if (item->walk(&Item::check_partition_func_processor, 0,
-                 NULL))
+  if (item->walk(&Item::check_partition_func_processor, 0, NULL))
   {
     my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
     DBUG_RETURN(TRUE);
@@ -3153,7 +3153,7 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
   return NULL;
 }
 
-bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
+bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                                    char *end_token, bool is_subpart)
 {
   (void)start_token;

@@ -67,29 +67,23 @@ SET GLOBAL  debug_dbug= '';
 SET SESSION debug_dbug= '';
 
 --echo # Test 2 - Bug test case, two connections
---echo # Connection default
 connection default;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 eval SET GLOBAL  debug_dbug= '+O,$MYSQL_TMP_DIR/bug46165.2.trace';
 SET SESSION debug_dbug= '-d:-t:-i';
 
---echo # Connection con1
 connect (con1, localhost, root);
 SET GLOBAL  debug_dbug= '';
 
---echo # Connection default
 connection default;
 SET SESSION debug_dbug= '';
---echo # Connection con1
 connection con1;
 disconnect con1;
 --source include/wait_until_disconnected.inc
---echo # Connection default
 connection default;
 SET GLOBAL  debug_dbug= '';
 
 --echo # Test 3 - Active session trace file on disconnect
---echo # Connection con1
 connect (con1, localhost, root);
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 eval SET GLOBAL  debug_dbug= '+O,$MYSQL_TMP_DIR/bug46165.3.trace';
@@ -105,26 +99,21 @@ disconnect con1;
 --source include/wait_until_disconnected.inc
 
 --echo # Test 4 - Active session trace file on two connections
---echo # Connection default
 connection default;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 eval SET GLOBAL  debug_dbug= '+O,$MYSQL_TMP_DIR/bug46165.4.trace';
 SET SESSION debug_dbug= '-d:-t:-i';
 
---echo # Connection con1
 connect (con1, localhost, root);
 SET SESSION debug_dbug= '-d:-t:-i';
 SET GLOBAL  debug_dbug= '';
 SET SESSION debug_dbug= '';
 
---echo # Connection default
 connection default;
 SET SESSION debug_dbug= '';
---echo # Connection con1
 connection con1;
 disconnect con1;
 --source include/wait_until_disconnected.inc
---echo # Connection default
 connection default;
 
 --echo # Test 5 - Different trace files

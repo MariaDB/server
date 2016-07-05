@@ -131,6 +131,7 @@ typedef struct my_uca_level_info_st
   uchar   *lengths;
   uint16  **weights;
   MY_CONTRACTIONS contractions;
+  uint    levelno;
 } MY_UCA_WEIGHT_LEVEL;
 
 
@@ -180,8 +181,13 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 /* A helper macros for "need at least n bytes" */
 #define MY_CS_TOOSMALLN(n)    (-100-(n))
 
+#define MY_CS_MBMAXLEN  6     /* Maximum supported mbmaxlen */
+#define MY_CS_IS_TOOSMALL(rc) ((rc) >= MY_CS_TOOSMALL6 && (rc) <= MY_CS_TOOSMALL)
+
+
 #define MY_SEQ_INTTAIL	1
 #define MY_SEQ_SPACES	2
+#define MY_SEQ_NONSPACES 3 /* Skip non-space characters, including bad bytes */
 
         /* My charsets_list flags */
 #define MY_CS_COMPILED  1      /* compiled-in sets               */
@@ -325,8 +331,7 @@ struct my_collation_handler_st
   int     (*strnncoll)(CHARSET_INFO *,
 		       const uchar *, size_t, const uchar *, size_t, my_bool);
   int     (*strnncollsp)(CHARSET_INFO *,
-                         const uchar *, size_t, const uchar *, size_t,
-                         my_bool diff_if_only_endspace_difference);
+                         const uchar *, size_t, const uchar *, size_t);
   size_t     (*strnxfrm)(CHARSET_INFO *,
                          uchar *dst, size_t dstlen, uint nweights,
                          const uchar *src, size_t srclen, uint flags);
@@ -400,8 +405,6 @@ struct my_charset_handler_st
 {
   my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *loader);
   /* Multibyte routines */
-  uint    (*ismbchar)(CHARSET_INFO *, const char *, const char *);
-  uint    (*mbcharlen)(CHARSET_INFO *, uint c);
   size_t  (*numchars)(CHARSET_INFO *, const char *b, const char *e);
   size_t  (*charpos)(CHARSET_INFO *, const char *b, const char *e,
                      size_t pos);
@@ -645,8 +648,7 @@ extern int  my_strnncoll_simple(CHARSET_INFO *, const uchar *, size_t,
 				const uchar *, size_t, my_bool);
 
 extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
-                                  const uchar *, size_t,
-                                  my_bool diff_if_only_endspace_difference);
+                                  const uchar *, size_t);
 
 extern void my_hash_sort_simple(CHARSET_INFO *cs,
 				const uchar *key, size_t len,
@@ -654,6 +656,17 @@ extern void my_hash_sort_simple(CHARSET_INFO *cs,
 extern void my_hash_sort_bin(CHARSET_INFO *cs,
                              const uchar *key, size_t len, ulong *nr1,
                              ulong *nr2);
+
+/**
+  Compare a string to an array of spaces, for PAD SPACE comparison.
+  The function iterates through the string and compares every byte to 0x20.
+  @param       - the string
+  @param       - its length
+  @return <0   - if a byte less than 0x20 was found in the string.
+  @return  0   - if all bytes in the string were 0x20, or if length was 0.
+  @return >0   - if a byte greater than 0x20 was found in the string.
+*/
+extern int my_strnncollsp_padspace_bin(const uchar *str, size_t length);
 
 extern size_t my_lengthsp_8bit(CHARSET_INFO *cs, const char *ptr, size_t length);
 
@@ -767,7 +780,6 @@ size_t my_well_formed_char_length_8bit(CHARSET_INFO *cs,
                                        size_t nchars,
                                        MY_STRCOPY_STATUS *status);
 int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
-uint my_mbcharlen_8bit(CHARSET_INFO *, uint c);
 
 
 /* Functions for multibyte charsets */
@@ -800,16 +812,6 @@ uint my_instr_mb(CHARSET_INFO *,
                  const char *b, size_t b_length,
                  const char *s, size_t s_length,
                  my_match_t *match, uint nmatch);
-
-int my_strnncoll_mb_bin(CHARSET_INFO * cs,
-                        const uchar *s, size_t slen,
-                        const uchar *t, size_t tlen,
-                        my_bool t_is_prefix);
-
-int my_strnncollsp_mb_bin(CHARSET_INFO *cs,
-                          const uchar *a, size_t a_length,
-                          const uchar *b, size_t b_length,
-                          my_bool diff_if_only_endspace_difference);
 
 int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       const char *str,const char *str_end,
@@ -972,13 +974,55 @@ size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
 #define my_strcasecmp(s, a, b)        ((s)->coll->strcasecmp((s), (a), (b)))
 #define my_charpos(cs, b, e, num)     (cs)->cset->charpos((cs), (const char*) (b), (const char *)(e), (num))
 
-#define use_mb(s)                     ((s)->cset->ismbchar != NULL)
-#define my_ismbchar(s, a, b)          ((s)->cset->ismbchar((s), (a), (b)))
-#ifdef USE_MB
-#define my_mbcharlen(s, a)            ((s)->cset->mbcharlen((s),(a)))
-#else
-#define my_mbcharlen(s, a)            1
-#endif
+#define use_mb(s)                     ((s)->mbmaxlen > 1)
+/**
+  Detect if the leftmost character in a string is a valid multi-byte character
+  and return its length, or return 0 otherwise.
+  @param cs  - character set
+  @param str - the beginning of the string
+  @param end - the string end (the next byte after the string)
+  @return    >0, for a multi-byte character
+  @rerurn    0,  for a single byte character, broken sequence, empty string.
+*/
+static inline
+uint my_ismbchar(CHARSET_INFO *cs, const char *str, const char *end)
+{
+  int char_length= (cs->cset->charlen)(cs, (const uchar *) str,
+                                           (const uchar *) end);
+  return char_length > 1 ? (uint) char_length : 0U;
+}
+
+
+/**
+  Return length of the leftmost character in a string.
+  @param cs  - character set
+  @param str - the beginning of the string
+  @param end - the string end (the next byte after the string)
+  @return  <=0 on errors (EOL, wrong byte sequence)
+  @return    1 on a single byte character
+  @return   >1 on a multi-byte character
+
+  Note, inlike my_ismbchar(), 1 is returned for a single byte character.
+*/
+static inline
+int my_charlen(CHARSET_INFO *cs, const char *str, const char *end)
+{
+  return (cs->cset->charlen)(cs, (const uchar *) str,
+                                 (const uchar *) end);
+}
+
+
+/**
+  Convert broken and incomplete byte sequences to 1 byte.
+*/
+static inline
+uint my_charlen_fix(CHARSET_INFO *cs, const char *str, const char *end)
+{
+  int char_length= my_charlen(cs, str, end);
+  DBUG_ASSERT(str < end);
+  return char_length > 0 ? (uint) char_length : (uint) 1U;
+}
+
 
 #define my_caseup_str(s, a)           ((s)->cset->caseup_str((s), (a)))
 #define my_casedn_str(s, a)           ((s)->cset->casedn_str((s), (a)))

@@ -1,7 +1,7 @@
 CREATE USER test_2@localhost;
 send
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
-connect (test_2,localhost,test_2,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  test_2,localhost,test_2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 SELECT * FROM t_10;
 a	b
 2	Two

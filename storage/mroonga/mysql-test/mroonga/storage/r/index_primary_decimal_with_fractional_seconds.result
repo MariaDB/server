@@ -7,7 +7,7 @@ SHOW CREATE TABLE releases;
 Table	Create Table
 releases	CREATE TABLE `releases` (
   `version` decimal(6,3) NOT NULL,
-  `message` text,
+  `message` text DEFAULT NULL,
   PRIMARY KEY (`version`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO releases (version, message) VALUES (10.000, "10th release!");

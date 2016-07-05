@@ -43,9 +43,6 @@ public:
   /// Name of the SP-variable.
   LEX_STRING name;
 
-  /// Field-type of the SP-variable.
-  enum enum_field_types type;
-
   /// Mode of the SP-variable.
   enum_mode mode;
 
@@ -60,13 +57,14 @@ public:
   Item *default_value;
 
   /// Full type information (field meta-data) of the SP-variable.
-  Create_field field_def;
+  Column_definition field_def;
 
+  /// Field-type of the SP-variable.
+  enum_field_types sql_type() const { return field_def.sql_type; }
 public:
   sp_variable(LEX_STRING _name, uint _offset)
    :Sql_alloc(),
     name(_name),
-    type(MYSQL_TYPE_NULL),
     mode(MODE_IN),
     offset(_offset),
     default_value(NULL)
@@ -347,7 +345,7 @@ public:
   /// context and its children.
   ///
   /// @param field_def_lst[out] Container to store type information.
-  void retrieve_field_definitions(List<Create_field> *field_def_lst) const;
+  void retrieve_field_definitions(List<Column_definition> *field_def_lst) const;
 
   /// Find SP-variable by name.
   ///

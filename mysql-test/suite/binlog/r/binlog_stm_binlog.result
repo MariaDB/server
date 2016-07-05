@@ -509,6 +509,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `mysql`; DELETE FROM user WHERE host='localhost' AND user='@#@'
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
 drop table t1,t2,t3,tt1;
 reset master;
 create table t1 (a int not null auto_increment, primary key (a)) engine=myisam;
@@ -573,6 +574,8 @@ INSERT INTO test.t1 VALUES (1), (2);
 CREATE TABLE test.t2 SELECT * FROM test.t1;
 USE test;
 DROP TABLES t1, t2;
+connect  fresh,localhost,root,,test;
+connection fresh;
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 BINLOG '
@@ -665,3 +668,4 @@ SHOW SESSION VARIABLES LIKE "unique_checks";
 Variable_name	Value
 unique_checks	OFF
 DROP TABLE t1;
+disconnect fresh;

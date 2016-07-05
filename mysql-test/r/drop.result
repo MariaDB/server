@@ -82,13 +82,22 @@ drop table if exists t1;
 create table t1 (i int);
 create database mysqltest;
 lock tables t1 read;
+connect  addconroot1, localhost, root,,;
 drop table t1;
+connect  addconroot2, localhost, root,,;
 show open tables;
 drop database mysqltest;
+connection default;
 select 1;
 1
 1
 unlock tables;
+connection addconroot1;
+connection addconroot2;
+disconnect addconroot2;
+connection addconroot1;
+disconnect addconroot1;
+connection default;
 drop table if exists t1,t2;
 create table t1 (a int);
 create table t2 (a int);
@@ -99,14 +108,20 @@ drop table t1;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 unlock tables;
 drop table t1,t2;
+connect  addconroot, localhost, root,,;
+connection default;
 create table t1 (i int);
 create table t2 (i int);
 lock tables t1 read;
+connection addconroot;
 lock tables t2 read;
 drop table t1;
 ERROR HY000: Table 't1' was not locked with LOCK TABLES
+connection default;
 drop table t1,t2;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+disconnect addconroot;
+connection default;
 unlock tables;
 drop table t1,t2;
 End of 5.0 tests

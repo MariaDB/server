@@ -166,8 +166,8 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
 		 name);
   /*
     TODO: switch from protocol to push_warning here. The main reason we didn't
-    it yet is parallel repair. Due to following trace:
-    mi_check_print_msg/push_warning/sql_alloc/my_pthread_getspecific_ptr.
+    it yet is parallel repair, which threads have no THD object accessible via
+    current_thd.
 
     Also we likely need to lock mutex here (in both cases with protocol and
     push_warning).
@@ -637,7 +637,7 @@ void _mi_report_crashed(MI_INFO *file, const char *message,
   char buf[1024];
   mysql_mutex_lock(&file->s->intern_lock);
   if ((cur_thd= (THD*) file->in_use.data))
-    sql_print_error("Got an error from thread_id=%lu, %s:%d", cur_thd->thread_id,
+    sql_print_error("Got an error from thread_id=%lld, %s:%d", cur_thd->thread_id,
                     sfile, sline);
   else
     sql_print_error("Got an error from unknown thread, %s:%d", sfile, sline);
@@ -758,7 +758,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For mi_killed()
 
-  if (!table->s->tmp_table) /* No need to perform a check for tmp table */
+  /* No need to perform a check for tmp table or if it's already checked */
+  if (!table->s->tmp_table && file->s->reopen == 1)
   {
     if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
     {

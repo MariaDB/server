@@ -55,6 +55,21 @@ CapabilityBoundingSet=CAP_IPC_LOCK
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
+# Perform automatic wsrep recovery. When server is started without wsrep,
+# galera_recovery simply returns an empty string. In any case, however,
+# the script is not expected to return with a non-zero status.
+# It is always safe to unset _WSREP_START_POSITION%I environment variable.
+ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
+ExecStartPre=/bin/sh -c "VAR=`/usr/bin/galera_recovery             \
+  --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf`; [ $? -eq 0 ] && \
+  systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+# Alternate: (remove ConditionPathExists above)
+# use [mysqld.INSTANCENAME] as sections in my.cnf
+#
+#ExecStartPre=/bin/sh -c "VAR=`/usr/bin/galera_recovery \
+# --defaults-group-suffix=%I`; [ $? -eq 0 ] &&          \
+# systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+
 # Needed to create system tables etc.
 # ExecStartPre=/usr/bin/mysql_install_db -u mysql
 
@@ -64,11 +79,18 @@ PermissionsStartOnly=true
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 
-ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf
+# Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
+
+ExecStart=/usr/sbin/mysqld --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf \
+  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
-# ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS --defaults-group-suffix=%I
+# ExecStart=/usr/sbin/mysqld --defaults-group-suffix=%I \
+# $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
+
+# Unset _WSREP_START_POSITION environment variable.
+ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
 KillMode=process
 KillSignal=SIGTERM

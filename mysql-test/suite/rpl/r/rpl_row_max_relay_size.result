@@ -1,11 +1,14 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 stop slave;
+connection master;
 #
 # Generate a big enough master's binlog to cause relay log rotations
 #
 create table t1 (a int);
 drop table t1;
+connection slave;
 reset slave;
 #
 # Test 1
@@ -54,18 +57,24 @@ flush logs;
 reset slave;
 start slave;
 flush logs;
+connection master;
 create table t1 (a int);
+connection slave;
 include/check_slave_is_running.inc
 #
 # Test 6: one more rotation, to be sure Relay_Log_Space is correctly updated
 #
 flush logs;
+connection master;
 drop table t1;
+connection slave;
 include/check_slave_is_running.inc
+connection master;
 flush logs;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000002	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+connection slave;
 set global max_binlog_size= @my_max_binlog_size;
 set global max_relay_log_size= @my_max_relay_log_size;
 #

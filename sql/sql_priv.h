@@ -126,7 +126,7 @@
 #define TMP_TABLE_ALL_COLUMNS   (1ULL << 12)    // SELECT, intern
 #define OPTION_WARNINGS         (1ULL << 13)    // THD, user
 #define OPTION_AUTO_IS_NULL     (1ULL << 14)    // THD, user, binlog
-#define OPTION_FOUND_COMMENT    (1ULL << 15)    // SELECT, intern, parser
+#define OPTION_NO_CHECK_CONSTRAINT_CHECKS  (1ULL << 14)
 #define OPTION_SAFE_UPDATES     (1ULL << 16)    // THD, user
 #define OPTION_BUFFER_RESULT    (1ULL << 17)    // SELECT, user
 #define OPTION_BIN_LOG          (1ULL << 18)    // THD, user
@@ -183,6 +183,7 @@
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
+#define OPTION_FOUND_COMMENT            (1ULL << 39) // SELECT, intern, parser
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
@@ -325,7 +326,6 @@
 /* BINLOG_DUMP options */
 
 #define BINLOG_DUMP_NON_BLOCK   1
-
 #define BINLOG_SEND_ANNOTATE_ROWS_EVENT   2
 
 #ifndef MYSQL_CLIENT
@@ -345,6 +345,7 @@ enum enum_parsing_place
   IN_WHERE,
   IN_ON,
   IN_GROUP_BY,
+  IN_ORDER_BY,
   PARSING_PLACE_SIZE /* always should be the last */
 };
 

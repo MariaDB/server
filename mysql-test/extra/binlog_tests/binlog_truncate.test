@@ -39,29 +39,24 @@ if ($before_truncate) {
   eval $before_truncate;
 }
 
---echo # Connection: default
 BEGIN;
 INSERT INTO t2 SELECT * FROM t1;
 
 connect (truncate,localhost,root,,);
---echo # Connection: truncate
 send TRUNCATE TABLE t1;
 
 connection default;
---echo # Connection: default
 INSERT INTO t2 SELECT * FROM t1;
 SELECT COUNT(*) FROM t2;
 COMMIT;
 
 connection truncate;
---echo # Connection: truncate
 --echo # Reaping TRUNCATE TABLE
 --reap
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(*) FROM t2;
 
 connection default;
---echo # Connection: default
 
 source include/show_binlog_events.inc;
 disconnect truncate;

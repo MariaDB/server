@@ -180,43 +180,57 @@ uint64_t le_outermost_uncommitted_xid (LEAFENTRY le);
 //      r|r!=0&&r!=TOKUDB_ACCEPT:  Quit early, return r, because something unexpected went wrong (error case)
 typedef int(*LE_ITERATE_CALLBACK)(TXNID id, TOKUTXN context, bool is_provisional);
 
-int le_iterate_val(LEAFENTRY le, LE_ITERATE_CALLBACK f, void** valpp, uint32_t *vallenp, TOKUTXN context);
+int le_iterate_val(
+    LEAFENTRY le,
+    LE_ITERATE_CALLBACK f,
+    void** valpp,
+    uint32_t* vallenp,
+    TOKUTXN context);
 
-void le_extract_val(LEAFENTRY le,
-                    // should we return the entire leafentry as the val?
-                    bool is_leaf_mode, enum cursor_read_type read_type,
-                    TOKUTXN ttxn, uint32_t *vallen, void **val);
+void le_extract_val(
+    LEAFENTRY le,
+    // should we return the entire leafentry as the val?
+    bool is_leaf_mode,
+    enum cursor_read_type read_type,
+    TOKUTXN ttxn,
+    uint32_t* vallen,
+    void** val);
 
-size_t
-leafentry_disksize_13(LEAFENTRY_13 le);
+size_t leafentry_disksize_13(LEAFENTRY_13 le);
 
-int
-toku_le_upgrade_13_14(LEAFENTRY_13 old_leafentry, // NULL if there was no stored data.
-                      void** keyp,
-                      uint32_t* keylen,
-                      size_t *new_leafentry_memorysize,
-                      LEAFENTRY *new_leafentry_p);
+int toku_le_upgrade_13_14(
+    // NULL if there was no stored data.
+    LEAFENTRY_13 old_leafentry,
+    void** keyp,
+    uint32_t* keylen,
+    size_t* new_leafentry_memorysize,
+    LEAFENTRY *new_leafentry_p);
 
 class bn_data;
 
-void
-toku_le_apply_msg(const ft_msg &msg,
-                  LEAFENTRY old_leafentry, // NULL if there was no stored data.
-                  bn_data* data_buffer, // bn_data storing leafentry, if NULL, means there is no bn_data
-                  uint32_t idx, // index in data_buffer where leafentry is stored (and should be replaced
-                  uint32_t old_keylen,
-                  txn_gc_info *gc_info,
-                  LEAFENTRY *new_leafentry_p,
-                  int64_t * numbytes_delta_p);
+int64_t toku_le_apply_msg(
+    const ft_msg &msg,
+    // NULL if there was no stored data.
+    LEAFENTRY old_leafentry,
+    // bn_data storing leafentry, if NULL, means there is no bn_data
+    bn_data* data_buffer,
+    // index in data_buffer where leafentry is stored (and should be replaced
+    uint32_t idx,
+    uint32_t old_keylen,
+    txn_gc_info* gc_info,
+    LEAFENTRY *new_leafentry_p,
+    int64_t* numbytes_delta_p);
 
-bool toku_le_worth_running_garbage_collection(LEAFENTRY le, txn_gc_info *gc_info);
+bool toku_le_worth_running_garbage_collection(
+    LEAFENTRY le,
+    txn_gc_info* gc_info);
 
-void
-toku_le_garbage_collect(LEAFENTRY old_leaf_entry,
-                        bn_data* data_buffer,
-                        uint32_t idx,
-                        void* keyp,
-                        uint32_t keylen,
-                        txn_gc_info *gc_info,
-                        LEAFENTRY *new_leaf_entry,
-                        int64_t * numbytes_delta_p);
+void toku_le_garbage_collect(
+    LEAFENTRY old_leaf_entry,
+    bn_data* data_buffer,
+    uint32_t idx,
+    void* keyp,
+    uint32_t keylen,
+    txn_gc_info* gc_info,
+    LEAFENTRY* new_leaf_entry,
+    int64_t* numbytes_delta_p);

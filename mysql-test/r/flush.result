@@ -1,27 +1,42 @@
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 drop table if exists t1,t2;
 drop database if exists mysqltest;
 create temporary table t1(n int not null primary key);
 create table t2(n int);
 insert into t2 values(3);
+connection con1;
 select * from t1;
 n
 3
+connection con2;
 flush tables with read lock and disable checkpoint;
 drop table t2;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
+connection con1;
 drop table t2;
+connection con2;
 unlock tables;
+connection con1;
+connection con1;
 create database mysqltest;
 create table mysqltest.t1(n int);
 insert into mysqltest.t1 values (23);
 flush tables with read lock;
+connection con2;
 drop database mysqltest;
+connection con1;
 select * from mysqltest.t1;
 n
 23
 unlock tables;
+connection con2;
+connection con1;
 create table t1 (n int);
 flush tables with read lock;
+disconnect con1;
+connection con2;
 insert into t1 values (345);
 select * from t1;
 n
@@ -54,10 +69,22 @@ unlock tables;
 drop table t1, t2, t3;
 create table t1 (c1 int);
 create table t2 (c1 int);
+connect  con1,localhost,root,,;
+connect  con3,localhost,root,,;
+connection con1;
 lock table t1 write;
+connection con2;
 flush tables with read lock;
+connection con3;
 insert into t2 values(1);
+connection con1;
 unlock tables;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection default;
 drop table t1, t2;
 drop table if exists t1, t2;
 set session low_priority_updates=1;
@@ -77,7 +104,10 @@ ERROR HY000: Can't execute the given command because you have active locked tabl
 unlock tables;
 drop table t1, t2;
 set session low_priority_updates=default;
+connect  con1,localhost,root,,;
 select benchmark(200, (select sin(1))) > 1000;
+disconnect con1;
+connection default;
 End of 5.0 tests
 set @old_general_log= @@general_log;
 set @old_read_only= @@read_only;
@@ -189,13 +219,14 @@ insert into t3 (a) values (2);
 # 
 # III. Concurrent tests.
 #
-# --> connection default
+connect  con1,localhost,root,,;
 #
 # Check that flush tables <list> with read lock
 # does not affect non-locked tables.
+connection default;
 #
 flush tables t1 with read lock;
-# --> connection con1;
+connection con1;
 select * from t1;
 a
 1
@@ -203,7 +234,7 @@ select * from t2;
 a
 1
 insert into t2 (a) values (3);
-# --> connection default;
+connection default;
 unlock tables;
 #
 # Check that "FLUSH TABLES <list> WITH READ LOCK" is
@@ -211,13 +242,13 @@ unlock tables;
 # Vice versa it is not true, since tables read-locked by
 # "FLUSH TABLES <list> WITH READ LOCK" can't be flushed.
 flush tables with read lock;
-# --> connection con1;
+connection con1;
 flush table t1 with read lock;
 select * from t1;
 a
 1
 unlock tables;
-# --> connection default;
+connection default;
 unlock tables;
 #
 # Check that FLUSH TABLES t1 WITH READ LOCK
@@ -225,32 +256,34 @@ unlock tables;
 # WITH READ LOCK.
 #
 flush table t1 with read lock;
-# --> connection con1
+connection con1;
 flush table t2 with read lock;
 unlock tables;
-# --> connection default
+connection default;
 unlock tables;
 #
 # Check that FLUSH TABLES t1 WITH READ LOCK
 # does not conflict with SET GLOBAL read_only=1.
 #
 set global read_only=1;
-# connection con1
+connection con1;
 flush table t1 with read lock;
 unlock tables;
-# connection default
+connection default;
 set global read_only=0;
 #
 # Check that it's possible to read-lock 
 # tables locked with FLUSH TABLE <list> WITH READ LOCK.
 #
 flush tables t1, t2 with read lock;
-# connection con1
+connection con1;
 lock table t1 read, t2 read;
 unlock tables;
-# connection default
+connection default;
 unlock tables;
-# --> connection con1
+connection con1;
+disconnect con1;
+connection default;
 drop table t1, t2, t3;
 #
 # Bug#51710 FLUSH TABLES <view> WITH READ LOCK kills the server
@@ -309,33 +342,35 @@ drop table t1;
 # transactions unnecessarily.
 #
 drop table if exists t1;
-# --> conection default
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
 create table t1 (a int);
 begin;
 select * from t1;
 a
-# --> connection con1
+connection con1;
 # 
 # Issue a LOCK TABLE t1 READ. We could use HANDLER t1 OPEN
 # or a long-running select -- anything that
 # prevents FLUSH TABLE t1 from immediate completion would do.
 #
 lock table t1 read;
-# --> connection con2
+connection con2;
 #
 # FLUSH TABLE expels the table definition from the cache.
 # Sending 'flush table t1'...
 flush table t1;
-# --> connection default
+connection default;
 # Let flush table sync in.
 select * from t1;
-# --> connection con1 
+connection con1;
 select * from t1;
 a
 unlock tables;
-# --> connection con2 
+connection con2;
 # Reaping 'flush table t1'...
-# --> connection default 
+connection default;
 # Reaping 'select * from t1'...
 a
 commit;
@@ -345,33 +380,35 @@ commit;
 begin;
 select * from t1;
 a
-# --> connection con1
+connection con1;
 # 
 # Issue a LOCK TABLE t1 READ.
 #
 lock table t1 read;
-# --> connection con2
+connection con2;
 #
 # FLUSH TABLES expels the table definition from the cache.
 # Sending 'flush tables'...
 flush tables;
-# --> connection default
+connection default;
 # Let flush table sync in.
 select * from t1;
-# --> connection con1 
+connection con1;
 select * from t1;
 a
 unlock tables;
-# --> connection con2 
+connection con2;
 # Reaping 'flush tables'...
-# --> connection default 
+connection default;
 # Reaping 'select * from t1'...
 a
 commit;
 # Cleanup
-# --> connection con1
-# --> connection con2
-# --> connection default
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
 drop table t1;
 #
 # Test for bug #55273 "FLUSH TABLE tm WITH READ LOCK for Merge table
@@ -428,28 +465,36 @@ drop tables tm, t1, t2;
 #                      FLUSH TABLES WITH READ LOCK".
 #
 drop table if exists t1, t2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
 create table t1 (i int);
 create table t2 (i int);
 handler t1 open;
-# Switching to connection 'con1'.
+connection con1;
 # Sending:
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL starts waiting for 't1' to be closed.
-# Switching to connection 'default'.
+connection default;
 # The below statement should not cause deadlock.
 # Sending:
 insert into t2 values (1);
-# Switching to connection 'con2'.
+connection con2;
 # Wait until INSERT starts to wait for FTWRL to go away.
-# Switching to connection 'con1'.
+connection con1;
 # FTWRL should be able to continue now.
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 handler t1 close;
 # Cleanup.
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
 drop tables t1, t2;
 #
 # Bug#57649 FLUSH TABLES under FLUSH TABLES <list> WITH READ LOCK leads
@@ -481,12 +526,13 @@ INSERT INTO t1 VALUES (1, 1);
 CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW SET @var = "a";
 BEGIN;
 UPDATE t1 SET value= value + 1 WHERE id = 1;
-# Switching to connection 'con1'.
+connect con1, localhost, root;
 # The below FLUSH TABLES WITH READ LOCK should succeed and
 # should not be blocked by the transaction in default connection.
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-# Switching to connection 'default'.
+disconnect con1;
+connection default;
 COMMIT;
 DROP TABLE t1;
 #

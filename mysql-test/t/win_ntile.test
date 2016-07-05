@@ -1,0 +1,171 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int
+);
+
+
+insert into t1 values
+(11 , 0, 10),
+(12 , 0, 10),
+(13 , 1, 10),
+(14 , 1, 10),
+(18 , 2, 10),
+(15 , 2, 20),
+(16 , 2, 20),
+(17 , 2, 20),
+(19 , 4, 20),
+(20 , 4, 20);
+
+# TODO Try invalid queries too.
+
+--error ER_INVALID_NTILE_ARGUMENT
+select pk, a, b, ntile(-1) over (order by a)
+from t1;
+
+--error ER_INVALID_NTILE_ARGUMENT
+select pk, a, b,
+    ntile(0) over (order by a)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(1) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(2) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(3) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(4) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(5) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(6) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(7) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(8) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(9) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(10) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(11) over (order by pk)
+from t1;
+
+--sorted_result
+select pk, a, b,
+    ntile(20) over (order by pk)
+from t1;
+
+
+select pk, a, b,
+    ntile(1) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(2) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(3) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(4) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(5) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(6) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(7) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(8) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(9) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(10) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(11) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(20) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile(1 + 3) over (partition by b order by pk)
+from t1;
+
+select pk, a, b,
+    ntile((select 4)) over (partition by b order by pk)
+from t1;
+
+select t1.a from t1 where pk = 11;
+--error ER_INVALID_NTILE_ARGUMENT
+select pk, a, b,
+    ntile((select a from t1 where pk=11)) over (partition by b order by pk)
+from t1;
+
+select t1.a from t1 where pk = 13;
+select pk, a, b,
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
+
+explain
+select pk, a, b,
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
+
+select a from t1;
+--error ER_SUBQUERY_NO_1_ROW
+select pk, a, b,
+    ntile((select a from t1)) over (partition by b order by pk)
+from t1;
+
+
+drop table t1;

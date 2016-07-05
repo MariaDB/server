@@ -4691,6 +4691,9 @@ FROM t1 LEFT JOIN
 (t2 LEFT OUTER JOIN t3 ON t2.b = t3.b) ON t2.a = t1.b
 WHERE t3.a BETWEEN 3 AND 11 OR t1.a <= t2.c;
 a
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'h'
+Warning	1292	Truncated incorrect INTEGER value: 'j'
 SET SESSION optimizer_switch = 'outer_join_with_cache=off';
 SET SESSION join_cache_level = DEFAULT;
 DROP TABLE t1,t2,t3;
@@ -5409,9 +5412,9 @@ WHERE t2.c IN (SELECT c FROM t3,t4 WHERE t4.a < 10) AND
 t2.a BETWEEN 4 and 5
 ORDER BY t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	range	a,c	a	5	NULL	1	Using index condition; Using where
+1	PRIMARY	t2	range	a,c	a	5	NULL	1	Using index condition; Using where; Using filesort
 1	PRIMARY	t4	ref	c	c	5	test.t2.c	2	Using where; Start temporary; End temporary
 SELECT * FROM t1,t2
 WHERE t2.c IN (SELECT c FROM t3,t4 WHERE t4.a < 10) AND

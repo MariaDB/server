@@ -11,8 +11,10 @@ CREATE DATABASE db_x;
 GRANT EVENT ON db_x.* TO pauline@localhost;
 USE db_x;
 CREATE TABLE x_table(a int);
+connect  priv_conn,localhost,pauline,,db_x;
 CREATE EVENT e_x1 ON SCHEDULE EVERY 1 SECOND DO DROP DATABASE db_x;
 CREATE EVENT e_x2 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE x_table;
+connection default;
 SHOW DATABASES LIKE 'db_x';
 Database (db_x)
 db_x
@@ -24,8 +26,11 @@ SHOW TABLES FROM db_x;
 Tables_in_db_x
 x_table
 SET GLOBAL event_scheduler=off;
+connection priv_conn;
 DROP EVENT e_x1;
 DROP EVENT e_x2;
+disconnect priv_conn;
+connection default;
 DROP DATABASE db_x;
 DROP USER pauline@localhost;
 USE events_test;
@@ -470,6 +475,26 @@ DROP EVENT ev1;
 
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+#
+# MDEV-9524 Cannot load from mysql.event when sql_mode is set to PAD_CHAR_TO_FULL_LENGTH
+#
+CREATE TABLE t1 (a INT);
+CREATE EVENT ev1 ON SCHEDULE EVERY 5 SECOND DO DELETE FROM t1;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT ev1;
+CREATE EVENT ev1 ON SCHEDULE EVERY 5 SECOND DO DELETE FROM t1;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	ev1	root@localhost	SYSTEM	RECURRING	NULL	5	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT ev1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
 
 # 
 # End of tests

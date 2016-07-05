@@ -1,8 +1,11 @@
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 DROP TABLE IF EXISTS t1;
 SET DEBUG_SYNC= 'RESET';
 CREATE TABLE t1 (kill_id INT) engine = InnoDB;
 INSERT INTO t1 VALUES(connection_id());
-# Switching to connection 'default'.
+connection default;
 # Start transaction.
 BEGIN;
 INSERT INTO t1 VALUES(connection_id());
@@ -11,13 +14,13 @@ INSERT INTO t1 VALUES(connection_id());
 SET DEBUG_SYNC='ha_commit_trans_after_acquire_commit_lock SIGNAL acquired WAIT_FOR go';
 # Sending:
 COMMIT;
-# Switching to 'con1'.
+connection con1;
 # Wait till COMMIT acquires protection against global read
 # lock and pauses.
 SET DEBUG_SYNC='now WAIT_FOR acquired';
 # Sending:
 FLUSH TABLES WITH READ LOCK;
-# Switching to 'con2'.
+connection con2;
 SELECT ((@id := kill_id) - kill_id) FROM t1 LIMIT 1;
 ((@id := kill_id) - kill_id)
 0
@@ -25,14 +28,15 @@ SELECT ((@id := kill_id) - kill_id) FROM t1 LIMIT 1;
 # to active COMMIT
 # Kill connection 'con1'.
 KILL CONNECTION @id;
-# Switching to 'con1'.
+connection con1;
 # Try to reap FLUSH TABLES WITH READ LOCK, 
 # it fail due to killed statement and connection.
 Got one of the listed errors
-# Switching to 'con2'.
+connection con2;
 # Resume COMMIT.
 SET DEBUG_SYNC='now SIGNAL go';
-# Switching to 'default'.
+connection default;
 # Reaping COMMIT.
+disconnect con2;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';

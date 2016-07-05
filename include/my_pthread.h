@@ -54,26 +54,7 @@ typedef struct st_pthread_link {
   We use native conditions on Vista and later, and fallback to own 
   implementation on earlier OS version.
 */
-typedef union
-{
-  /* Native condition (used on Vista and later) */
-  CONDITION_VARIABLE native_cond;
-
-  /* Own implementation (used on XP) */
-  struct
-  { 
-    uint32 waiting;
-    CRITICAL_SECTION lock_waiting;
-    enum 
-    {
-      SIGNAL= 0,
-      BROADCAST= 1,
-      MAX_EVENTS= 2
-    } EVENTS;
-    HANDLE events[MAX_EVENTS];
-    HANDLE broadcast_block_event;
-  };
-} pthread_cond_t;
+typedef  CONDITION_VARIABLE pthread_cond_t;
 
 
 typedef int pthread_mutexattr_t;
@@ -81,10 +62,8 @@ typedef int pthread_mutexattr_t;
 #define pthread_handler_t EXTERNC void * __cdecl
 typedef void * (__cdecl *pthread_handler)(void *);
 
-typedef volatile LONG my_pthread_once_t;
-#define MY_PTHREAD_ONCE_INIT  0
-#define MY_PTHREAD_ONCE_INPROGRESS 1
-#define MY_PTHREAD_ONCE_DONE 2
+typedef INIT_ONCE my_pthread_once_t;
+#define MY_PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT;
 
 #if !STRUCT_TIMESPEC_HAS_TV_SEC  || !STRUCT_TIMESPEC_HAS_TV_NSEC
 struct timespec {
@@ -445,29 +424,9 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
 
-#if defined(MY_PTHREAD_FASTMUTEX)
-#define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A), &(B)->mutex, (C))
-#define my_cond_wait(A,B) pthread_cond_wait((A), &(B)->mutex)
-#else
 #define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A),(B),(C))
 #define my_cond_wait(A,B) pthread_cond_wait((A), (B))
-#endif /* MY_PTHREAD_FASTMUTEX */
 #endif /* !SAFE_MUTEX */
-
-#if defined(MY_PTHREAD_FASTMUTEX) && !defined(SAFE_MUTEX)
-typedef struct st_my_pthread_fastmutex_t
-{
-  pthread_mutex_t mutex;
-  uint spins;
-  uint rng_state;
-} my_pthread_fastmutex_t;
-void fastmutex_global_init(void);
-
-int my_pthread_fastmutex_init(my_pthread_fastmutex_t *mp, 
-                              const pthread_mutexattr_t *attr);
-int my_pthread_fastmutex_lock(my_pthread_fastmutex_t *mp);
-
-#endif /* defined(MY_PTHREAD_FASTMUTEX) && !defined(SAFE_MUTEX) */
 
 	/* READ-WRITE thread locking */
 
@@ -692,7 +651,7 @@ extern pthread_mutexattr_t my_errorcheck_mutexattr;
 #define ESRCH 1
 #endif
 
-typedef ulong my_thread_id;
+typedef int64 my_thread_id;
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
@@ -714,7 +673,7 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(289*1024L)
+#define DEFAULT_THREAD_STACK	(291*1024L)
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0
@@ -732,7 +691,7 @@ struct st_my_thread_var
   mysql_mutex_t * volatile current_mutex;
   mysql_cond_t * volatile current_cond;
   pthread_t pthread_self;
-  my_thread_id id;
+  my_thread_id id, dbug_id;
   int volatile abort;
   my_bool init;
   struct st_my_thread_var *next,**prev;

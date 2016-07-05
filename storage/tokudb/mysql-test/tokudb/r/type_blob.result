@@ -24,8 +24,8 @@ create table t3 (a long, b long byte);
 show create TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` mediumtext,
-  `b` mediumblob
+  `a` mediumtext DEFAULT NULL,
+  `b` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 show create TABLE t4;
 Table	Create Table
@@ -38,9 +38,9 @@ ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT 
 CREATE TABLE t2 (a char(256));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE t1 (a varchar(70000) default "hello");
-ERROR 42000: Column length too big for column 'a' (max = 65535); use BLOB or TEXT instead
+Warnings:
+Note	1246	Converting column 'a' from VARCHAR to TEXT
 CREATE TABLE t2 (a blob default "hello");
-ERROR 42000: BLOB/TEXT column 'a' can't have a default value
 drop table if exists t1,t2;
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
 insert into t1 values (null,"a","A");
@@ -363,7 +363,7 @@ create table t1 (a text, key (a(2100)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` text,
+  `a` text DEFAULT NULL,
   KEY `a` (`a`(2100))
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
@@ -502,11 +502,7 @@ foobar	boggle
 fish	10
 drop table t1;
 create table t1 (id integer auto_increment unique,imagem LONGBLOB not null default '');
-Warnings:
-Warning	1101	BLOB/TEXT column 'imagem' can't have a default value
 insert into t1 (id) values (1);
-Warnings:
-Warning	1364	Field 'imagem' doesn't have a default value
 select
 charset(load_file('../../std_data/words.dat')),
 collation(load_file('../../std_data/words.dat')),
@@ -776,21 +772,19 @@ NULL
 620000000000
 drop table t1;
 create table t1 (a text default '');
-Warnings:
-Warning	1101	BLOB/TEXT column 'a' can't have a default value
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` text
+  `a` text DEFAULT ''
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 insert into t1 values (default);
 select * from t1;
 a
-NULL
+
 drop table t1;
 set @@sql_mode='TRADITIONAL';
 create table t1 (a text default '');
-ERROR 42000: BLOB/TEXT column 'a' can't have a default value
+drop table t1;
 set @@sql_mode='';
 CREATE TABLE t (c TEXT CHARSET ASCII);
 INSERT INTO t (c) VALUES (REPEAT('1',65537));
@@ -861,7 +855,7 @@ ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT 
 CREATE TABLE b15776 (a char(4294967295));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a char(4294967296));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(4294967295));
 Warnings:
 Note	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -870,8 +864,6 @@ SELECT * FROM b15776;
 a
 2042
 DROP TABLE b15776;
-CREATE TABLE b15776 (a year(4294967296));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
 CREATE TABLE b15776 (a year(0));
 Warnings:
 Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -879,11 +871,9 @@ DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
 CREATE TABLE b15776 (a int(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: Display width out of range for 'a' (max = 255)
 CREATE TABLE b15776 (a char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
-CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
 Field	Type	Null	Key	Default	Extra

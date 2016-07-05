@@ -75,7 +75,6 @@ connect (con2,localhost,root,,);
 SET SESSION AUTOCOMMIT = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 set binlog_format=mixed;
---echo # Switch to connection con1
 connection con1;
 
 eval
@@ -94,7 +93,6 @@ UPDATE t1 SET b = 12 WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --enable_info
@@ -104,7 +102,6 @@ UPDATE t1 SET b = 21 WHERE a = 1;
 --disable_info
 ROLLBACK;
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 ROLLBACK;
@@ -140,12 +137,10 @@ UPDATE t1 SET b = CONCAT(b, '+con1') WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --send CALL p1;
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 COMMIT;
@@ -158,13 +153,11 @@ while ($bug31310)
 
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 --reap
 SELECT * FROM t1;
 COMMIT;
 
---echo # Switch to connection con1
 connection con1;
 
 --echo # 3. test for updated key column:
@@ -180,12 +173,10 @@ UPDATE t1 SET a = 2, b = CONCAT(b, '+con1') WHERE a = 1;
 --disable_info
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 
 --send CALL p1;
 
---echo # Switch to connection con1
 connection con1;
 SELECT * FROM t1;
 COMMIT;
@@ -198,7 +189,6 @@ while ($bug31310)
 
 SELECT * FROM t1;
 
---echo # Switch to connection con2
 connection con2;
 reap;
 SELECT * FROM t1;

@@ -8,7 +8,11 @@
 # the remote connection error and push a warning instead. This allows the SELECT operation
 # to complete while still indicating a problem. This fix applies to any non-fatal system
 # error that occurs during a query against I_S.TABLES.de
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
 CREATE DATABASE federated;
+connection slave;
 CREATE DATABASE federated;
 DROP TABLE IF EXISTS federated.t0;
 #
@@ -33,7 +37,9 @@ Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directo
 #
 # Cleanup
 #
+connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

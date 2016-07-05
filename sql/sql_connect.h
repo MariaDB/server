@@ -19,7 +19,42 @@
 #include "my_sys.h"                          /* pthread_handler_t */
 #include "mysql_com.h"                         /* enum_server_command */
 #include "structs.h"
+#include <mysql/psi/mysql_socket.h>
 #include <hash.h>
+
+/*
+  Object to hold connect information to be given to the newly created thread
+*/
+
+struct scheduler_functions;
+
+class CONNECT : public ilink {
+public:
+  /* To be copied to THD */
+  Vio *vio;                           /* Copied to THD with my_net_init() */
+  const char *host;
+  scheduler_functions *scheduler;
+  my_thread_id thread_id;
+  pthread_t    real_id;
+  bool extra_port;
+
+  /* Own variables */
+  bool thread_count_incremented;
+  ulonglong    prior_thr_create_utime;
+
+  CONNECT()
+    :vio(0), host(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
+    extra_port(0),
+    thread_count_incremented(0), prior_thr_create_utime(0)
+  {
+  };
+  ~CONNECT();
+  void close_and_delete();
+  void close_with_error(uint sql_errno,
+                        const char *message, uint close_error);
+  THD *create_thd(THD *thd);
+};
+
 
 class THD;
 typedef struct st_lex_user LEX_USER;
@@ -37,7 +72,7 @@ void free_global_index_stats(void);
 void free_global_client_stats(void);
 
 pthread_handler_t handle_one_connection(void *arg);
-void do_handle_one_connection(THD *thd_arg);
+void do_handle_one_connection(CONNECT *connect);
 bool init_new_connection_handler_thread();
 void reset_mqh(LEX_USER *lu, bool get_them);
 bool check_mqh(THD *thd, uint check_command);

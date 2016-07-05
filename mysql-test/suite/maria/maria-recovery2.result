@@ -3,17 +3,25 @@ call mtr.add_suppression("Table '.\/mysqltest\/t_corrupted1' is crashed, skippin
 set global aria_log_file_size=4294959104;
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, 127.0.0.1, root,,mysqltest,,;
+connection default;
 use mysqltest;
 * TEST of removing logs manually
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 * TEST of UNDO_ROW_DELETE preserving rowid
 create table t1(a int) engine=aria;
 insert into t1 values(1),(2);
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values(3);
 delete from t1 where a in (1,2,3);
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -25,6 +33,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 drop table t1;
 * TEST of checkpoint
@@ -34,8 +43,10 @@ create table t1(a int, b varchar(10), index(a,b)) engine=aria;
 insert into t1 values(1,"a"),(2,"b"),(3,"c");
 delete from t1 where b="b";
 update t1 set b="d" where a=1;
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values(4,"e"),(5,"f"),(6,"g");
 update t1 set b="h" where a=5;
@@ -45,6 +56,7 @@ Variable_name	Value
 Aria_pagecache_blocks_not_flushed	3
 set global aria_checkpoint_interval=10000;
 update t1 set b="i" where a=5;
+connection admin;
 SET SESSION debug_dbug="+d,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -56,13 +68,16 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 drop table t1;
 Test of REPAIR's implicit commit
 create table t1 (a varchar(100), key(a)) engine=aria;
 insert into t1 values(3);
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write;
 insert into t1 values (1);
 repair table t1;
@@ -74,6 +89,7 @@ a
 1
 2
 3
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_flush_whole_page_cache,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -85,6 +101,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 failure
+connection default;
 use mysqltest;
 select * from t1;
 a
@@ -103,14 +120,17 @@ insert into t2 select (rand()) from t2;
 insert into t2 select (rand()) from t2;
 insert into t2 select (rand()) from t2;
 insert into t1 values(30);
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock tables t1 write, t2 read;
 delete from t1 limit 1;
 select count(*) from t1;
 count(*)
 0
 insert into t1 select * from t2;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_flush_whole_page_cache,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -122,6 +142,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -133,8 +154,11 @@ drop table t1;
 * TEST of recovery when OPTIMIZE has replaced the index file and crash
 create table t_corrupted1 (a varchar(100), key(a)) engine=aria;
 insert into t_corrupted1 select (rand()) from t2;
+connection admin;
 flush table t_corrupted1;
 * copied t_corrupted1 for comparison
+connection default;
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_flush_whole_page_cache,maria_crash_sort_index";
 * crashing mysqld intentionally
 optimize table t_corrupted1;
@@ -147,6 +171,7 @@ mysqltest.t_corrupted1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 drop table t_corrupted1, t2;
 drop database mysqltest_for_comparison;

@@ -31,8 +31,8 @@ where Variable_name = 'general_log' or Variable_name = 'slow_query_log';
 Variable_name	Value
 general_log	ON
 slow_query_log	OFF
-# Establish connection con1 (user=root)
-# Switch to connection con1
+connect  con1,localhost,root,,;
+connection con1;
 set @long_query_time = <long_query_time>;
 set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
@@ -40,10 +40,10 @@ sleep(@long_query_time + 1)
 0
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	rows_affected
-# Switch to connection default
+connection default;
 set global slow_query_log= ON;
 set local slow_query_log= ON;
-# Switch to connection con1
+connection con1;
 set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
 sleep(@long_query_time + 1)
@@ -57,7 +57,7 @@ sleep(@long_query_time + 2)
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	rows_affected
 TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	select sleep(@long_query_time + 2)	THREAD_ID	0
-# Switch to connection default
+connection default;
 show global variables
 where Variable_name = 'general_log' or Variable_name = 'slow_query_log';
 Variable_name	Value
@@ -226,6 +226,7 @@ TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (b INT, PRIMARY KEY (b));
 INSERT INTO t2 VALUES (3),(4);
+connect  con2,localhost,root,,;
 INSERT INTO t1 VALUES (1+sleep(.02)),(2);
 INSERT INTO t1 SELECT b+sleep(.02) from t2;
 UPDATE t1 SET a=a+sleep(.02) WHERE a>2;
@@ -242,6 +243,8 @@ rows_examined	sql_text
 1	UPDATE t2 set b=b+sleep(.02) limit 1
 4	UPDATE t1 SET a=a+sleep(.02) WHERE a in (SELECT b from t2)
 6	DELETE FROM t1 WHERE a=a+sleep(.02) ORDER BY a LIMIT 2
+disconnect con2;
+connection default;
 DROP TABLE t1,t2;
 TRUNCATE TABLE mysql.slow_log;
 # end of bug#49756
@@ -270,7 +273,8 @@ SELECT @@general_log_file = @my_glf;
 @@general_log_file = @my_glf
 1
 SET GLOBAL general_log_file = @old_general_log_file;
-# Close connection con1
+disconnect con1;
+connection default;
 SET GLOBAL long_query_time = DEFAULT;
 SET GLOBAL log_output = @old_log_output;
 SET global general_log = @old_general_log;

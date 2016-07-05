@@ -2880,6 +2880,8 @@ DROP TABLE t1, t2;
 # MDEV-389: Wrong result (missing row) with semijoin, join_cache_level>4, LEFT JOIN...
 #  (testcase only)
 #
+connect  con1,localhost,root,,;
+connection con1;
 SET join_cache_level = 5;
 SET optimizer_switch = 'semijoin=on';
 CREATE TABLE t1 (a INT NOT NULL, b CHAR(1), KEY(a)) ENGINE=MyISAM;
@@ -2894,6 +2896,8 @@ a	cnt
 1	1
 4	1
 drop table t1, t2;
+connection default;
+disconnect con1;
 #
 # MDEV-4071: Valgrind warnings 'Invalid read' in subselect_engine::calc_const_tables with ...
 #

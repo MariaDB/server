@@ -1,15 +1,21 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
 SET GLOBAL read_only=TRUE;
+connection node_1;
 INSERT INTO t1 VALUES (1);
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
 CREATE USER foo@localhost;
 # Open connection to node 2 using 'foo' user.
+connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
 
 # Connect with foo_node_2
+connection foo_node_2;
 INSERT INTO t1 VALUES (2);
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1

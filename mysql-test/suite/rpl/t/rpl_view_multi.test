@@ -24,12 +24,11 @@ enable_query_log;
 drop tables if exists t1, t2;
 drop view if exists v1;
 --enable_warnings
---echo # Syncing slave with master and switching to connection 'slave'
+--echo # Syncing slave with master
 --sync_slave_with_master
 
 connect (master2,127.0.0.1,root,,test,$MASTER_MYPORT,);
 
---echo # Switching to connection 'master'
 connection master;
 create table t1 (i int);
 create table t2 (i int);
@@ -40,11 +39,9 @@ create view v1 as select * from t1;
 --echo # suspend execution of first statement once it opens our view.
 select get_lock("lock_bg25144", 1);
 
---echo # Switching to connection 'master1'
 connection master1;
 --send insert into v1 values (get_lock("lock_bg25144", 100))
 
---echo # Switching to connection 'master2'
 connection master2;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -52,7 +49,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 --send drop view v1
 
---echo # Switching to connection 'master'
 connection master;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -61,28 +57,24 @@ let $wait_condition=
 
 select release_lock("lock_bg25144");
 
---echo # Switching to connection 'master1'
 connection master1;
 --disable_warnings
 --reap
 --enable_warnings
 select release_lock("lock_bg25144");
 
---echo # Switching to connection 'master2'
 connection master2;
 --reap
 
---echo # Switching to connection 'master'
 connection master;
 --echo # Check that insertion through view did happen.
 select * from t1;
---echo # Syncing slave with master and switching to connection 'slave'
+--echo # Syncing slave with master
 --sync_slave_with_master
 --echo # Check that slave was able to replicate this sequence
 --echo # which means that we got correct binlog order.
 select * from t1;
 
---echo # Switching to connection 'master'
 connection master;
 --echo # Now we will repeat the test by trying concurrently execute
 --echo # statement that uses a view and statement that alters it.
@@ -90,11 +82,9 @@ create view v1 as select * from t1;
 
 select get_lock("lock_bg25144", 1);
 
---echo # Switching to connection 'master1'
 connection master1;
 --send insert into v1 values (get_lock("lock_bg25144", 100))
 
---echo # Switching to connection 'master2'
 connection master2;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -102,7 +92,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 --send alter view v1 as select * from t2
 
---echo # Switching to connection 'master'
 connection master;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -112,35 +101,31 @@ let $wait_condition=
 
 select release_lock("lock_bg25144");
 
---echo # Switching to connection 'master1'
 connection master1;
 --disable_warnings
 --reap
 --enable_warnings
 select release_lock("lock_bg25144");
 
---echo # Switching to connection 'master2'
 connection master2;
 --reap
 
---echo # Switching to connection 'master'
 connection master;
 
 --echo # Second insertion should go to t1 as well.
 select * from t1;
 select * from t2;
 
---echo # Syncing slave with master and switching to connection 'slave'
+--echo # Syncing slave with master
 --sync_slave_with_master
 --echo # Now let us check that statements were logged in proper order
 --echo # So we have same result on slave.
 select * from t1;
 select * from t2;
 
---echo # Switching to connection 'master'
 connection master;
 drop table t1, t2;
 drop view v1;
---echo # Syncing slave with master and switching to connection 'slave'
+--echo # Syncing slave with master
 --sync_slave_with_master
 --source include/rpl_end.inc

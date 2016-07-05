@@ -1,0 +1,83 @@
+# This test is to check various cases of connections, some which require
+# DBUG
+
+# This test makes no sense with the embedded server
+--source include/not_embedded.inc
+--source include/have_debug.inc
+call mtr.add_suppression("Allocation failed");
+SET @old_debug= @@session.debug;
+set @old_thread_cache_size=@@global.thread_cache_size;
+set @@global.thread_cache_size=0;
+# Test connections to the
+
+connect(con1,localhost,root,,test,,);
+select 1;
+disconnect con1;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_1';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error 1041,2013
+connect(con1,localhost,root,,test,,);
+connection default;
+set global debug_dbug=@old_debug;
+set global debug_dbug='+d,simulate_failed_connection_2';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error 1041,2013
+connect(con1,localhost,root,,test,,);
+--enable_result_log
+connection default;
+set global debug_dbug=@old_debug;
+connect(con1,localhost,root,,test,,);
+select 1;
+disconnect con1;
+
+# Test connections to the extra port.
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+select 1;
+disconnect con1;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_1';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_EXTRA_PORT MASTER_PORT
+--error 1041,2013
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+connection default;
+set global debug_dbug=@old_debug;
+set global debug_dbug='+d,simulate_failed_connection_2';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_EXTRA_PORT MASTER_PORT
+--error 1041,2013
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+connection default;
+set global debug_dbug=@old_debug;
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+select 1;
+disconnect con1;
+connection default;
+
+#
+# Test thread cache
+#
+set @@global.thread_cache_size=2;
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+select 1;
+connect(con2,localhost,root,,test,$MASTER_EXTRA_PORT,);
+select 1;
+disconnect con1;
+disconnect con2;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_2';
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_EXTRA_PORT MASTER_PORT
+--error 1041,2013
+connect(con1,localhost,root,,test,$MASTER_EXTRA_PORT,);
+connection default;
+
+# Check that threads_connected didn't count aborted connections
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
+show status like "Threads_connected";
+
+#
+# Cleanup
+#
+
+set global debug_dbug=@old_debug;
+set global thread_cache_size=@old_thread_cache_size;

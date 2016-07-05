@@ -79,7 +79,6 @@ SELECT * from t1;
 #    Test behavior of variable on new connection # 01    #
 ##########################################################
 
---echo ## Creating new connection test_con1 ##
 CONNECT (test_con1,localhost,root,,);
 CONNECTION test_con1;
 
@@ -106,7 +105,6 @@ SELECT * from t1;
 #    Test behavior of variable on new connection # 02    #
 ##########################################################
 
---echo ## Creating another new connection test_con2 ##
 CONNECT (test_con2,localhost,root,,);
 connection test_con2;
 
@@ -131,7 +129,6 @@ SELECT @@global.auto_increment_increment;
 #    connection # 02 
 #####################################################################
 
---echo ## Switching to test_con1 ##
 connection test_con1;
 
 --echo ## Verifying values of global & session value of variable ##
@@ -178,16 +175,13 @@ SELECT * from t1;
 #    Disconnecting all connection & dropping table         #
 ############################################################
 
---echo ## Disconnecting test_con2 ##
 DISCONNECT test_con2;
 
 --echo ## Dropping table t1 ##
 DROP table if exists t1;
 
---echo ## Disconnecting test_con1 ##
 DISCONNECT test_con1;
 
---echo ## switching to default connection ##
 connection default;
 
 # restore vars

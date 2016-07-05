@@ -1,5 +1,5 @@
 --- suite/sys_vars/r/sysvars_innodb.result
-+++ suite/sys_vars/r/sysvars_innodb,32bit.reject
++++ suite/sys_vars/r/sysvars_innodb.result
 @@ -53,7 +53,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	150000
@@ -551,7 +551,7 @@
  VARIABLE_COMMENT	Time of innodb thread sleeping before joining InnoDB queue (usec). Value 0 disable a sleep
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	1000000
-@@ -2251,7 +2251,7 @@
+@@ -2265,7 +2265,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	128
  VARIABLE_SCOPE	GLOBAL
@@ -560,7 +560,7 @@
  VARIABLE_COMMENT	Number of undo logs to use.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
-@@ -2265,7 +2265,7 @@
+@@ -2279,7 +2279,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -569,7 +569,7 @@
  VARIABLE_COMMENT	Number of undo tablespaces to use. 
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	126
-@@ -2363,7 +2363,7 @@
+@@ -2377,7 +2377,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	4
  VARIABLE_SCOPE	GLOBAL

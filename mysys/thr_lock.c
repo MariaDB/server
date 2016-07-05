@@ -465,9 +465,10 @@ void thr_lock_delete(THR_LOCK *lock)
 }
 
 
-void thr_lock_info_init(THR_LOCK_INFO *info)
+void thr_lock_info_init(THR_LOCK_INFO *info, struct st_my_thread_var *tmp)
 {
-  struct st_my_thread_var *tmp= my_thread_var;
+  if (tmp)
+    tmp= my_thread_var;
   info->thread=    tmp->pthread_self;
   info->thread_id= tmp->id;
 }
@@ -772,7 +773,7 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 
   mysql_mutex_lock(&lock->mutex);
   DBUG_PRINT("lock",("data: 0x%lx  thread: 0x%lx  lock: 0x%lx  type: %d",
-                     (long) data, data->owner->thread_id,
+                     (long) data, (ulong) data->owner->thread_id,
                      (long) lock, (int) lock_type));
   check_locks(lock,(uint) lock_type <= (uint) TL_READ_NO_INSERT ?
 	      "enter read_lock" : "enter write_lock", lock_type, 0);
@@ -809,7 +810,7 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
       */
 
       DBUG_PRINT("lock",("write locked 1 by thread: 0x%lx",
-			 lock->write.data->owner->thread_id));
+			 (ulong) lock->write.data->owner->thread_id));
       if (thr_lock_owner_equal(data->owner, lock->write.data->owner) ||
 	  (lock->write.data->type <= TL_WRITE_DELAYED &&
 	   (((int) lock_type <= (int) TL_READ_HIGH_PRIORITY) ||
@@ -968,7 +969,7 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 	goto end;
       }
       DBUG_PRINT("lock",("write locked 2 by thread: 0x%lx",
-			 lock->write.data->owner->thread_id));
+			 (ulong) lock->write.data->owner->thread_id));
     }
     else
     {
@@ -1004,7 +1005,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 	}
       }
       DBUG_PRINT("lock",("write locked 3 by thread: 0x%lx  type: %d",
-			 lock->read.data->owner->thread_id, data->type));
+			 (ulong) lock->read.data->owner->thread_id,
+                         data->type));
     }
 #ifdef WITH_WSREP
     if (wsrep_break_lock(data, &lock->write, &lock->write_wait))
@@ -1069,7 +1071,7 @@ static inline void free_all_read_locks(THR_LOCK *lock,
     }      
     /* purecov: begin inspected */
     DBUG_PRINT("lock",("giving read lock to thread: 0x%lx",
-		       data->owner->thread_id));
+		       (ulong) data->owner->thread_id));
     /* purecov: end */
     data->cond=0;				/* Mark thread free */
     mysql_cond_signal(cond);
@@ -1087,8 +1089,9 @@ void thr_unlock(THR_LOCK_DATA *data, uint unlock_flags)
   THR_LOCK *lock=data->lock;
   enum thr_lock_type lock_type=data->type;
   DBUG_ENTER("thr_unlock");
-  DBUG_PRINT("lock",("data: 0x%lx  thread: 0x%lx  lock: 0x%lx",
-                     (long) data, data->owner->thread_id, (long) lock));
+  DBUG_PRINT("lock",("data: %p  thread: 0x%lx  lock: %p",
+                     data, (ulong) data->owner->thread_id,
+                     lock));
   mysql_mutex_lock(&lock->mutex);
   check_locks(lock,"start of release lock", lock_type, 0);
 
@@ -1181,7 +1184,7 @@ static void wake_up_waiters(THR_LOCK *lock)
 	    data->type=TL_WRITE;			/* Upgrade lock */
           /* purecov: begin inspected */
 	  DBUG_PRINT("lock",("giving write lock of type %d to thread: 0x%lx",
-			     data->type, data->owner->thread_id));
+			     data->type, (ulong) data->owner->thread_id));
           /* purecov: end */
 	  {
             mysql_cond_t *cond= data->cond;
@@ -1423,9 +1426,9 @@ void thr_multi_unlock(THR_LOCK_DATA **data,uint count, uint unlock_flags)
       thr_unlock(*pos, unlock_flags);
     else
     {
-      DBUG_PRINT("lock",("Free lock: data: 0x%lx  thread: 0x%lx  lock: 0x%lx",
-                         (long) *pos, (*pos)->owner->thread_id,
-                         (long) (*pos)->lock));
+      DBUG_PRINT("lock",("Free lock: data: %p  thread: 0x%lx  lock: %p",
+                         *pos, (ulong) (*pos)->owner->thread_id,
+                         (*pos)->lock));
     }
   }
   DBUG_VOID_RETURN;
@@ -1673,7 +1676,7 @@ static void thr_print_lock(const char* name,struct st_lock_list *list)
     prev= &list->data;
     for (data=list->data; data && count++ < MAX_LOCKS ; data=data->next)
     {
-      printf("0x%lx (%lu:%d); ", (ulong) data, data->owner->thread_id,
+      printf("%p (%lu:%d); ", data, (ulong) data->owner->thread_id,
              (int) data->type);
       if (data->prev != prev)
 	printf("\nWarning: prev didn't point at previous lock\n");
@@ -1814,7 +1817,7 @@ static void *test_thread(void *arg)
 
   printf("Thread %s (%d) started\n",my_thread_name(),param); fflush(stdout);
 
-  thr_lock_info_init(&lock_info);
+  thr_lock_info_init(&lock_info, 0);
   for (i=0; i < lock_counts[param] ; i++)
     thr_lock_data_init(locks+tests[param][i].lock_nr,data+i,NULL);
   for (j=1 ; j < 10 ; j++)		/* try locking 10 times */

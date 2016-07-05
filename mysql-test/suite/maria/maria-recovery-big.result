@@ -1,14 +1,23 @@
 set global aria_log_file_size=4294959104;
 drop database if exists mysqltest;
 create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
 use mysqltest;
 * TEST of recovery with blobs
+connection default;
+connection admin;
 * shut down mysqld, removed logs, restarted it
+connection default;
 create table t1 (a int, b longtext) engine=aria table_checksum=1;
+connection admin;
 * copied t1 for feeding_recovery
+connection default;
 insert into t1 values (1,"123456789012345678901234567890"),(2,"09876543210987654321");
+connection admin;
 flush table t1;
 * copied t1 for comparison
+connection default;
 lock table t1 write;
 update t1 set b=CONCAT(b,b);
 update t1 set b=CONCAT(b,b);
@@ -60,6 +69,7 @@ select a,length(b) from t1;
 a	length(b)
 1	8
 2	5
+connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
@@ -72,6 +82,7 @@ mysqltest.t1	check	status	OK
 * testing that checksum after recovery is as expected
 Checksum-check
 ok
+connection default;
 use mysqltest;
 drop table t1;
 drop database mysqltest_for_feeding_recovery;

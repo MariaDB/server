@@ -175,22 +175,18 @@ create table t1 (c1 int);
 create table t2 (c1 int);
 insert into t1 values (1);
 insert into t2 values (2);
---echo connection: default
 handler t1 open;
 handler t1 read first;
 connect (flush,localhost,root,,);
 connection flush;
---echo connection: flush
 send flush tables;
 connect (waiter,localhost,root,,);
 connection waiter;
---echo connection: waiter 
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for table flush";
 --source include/wait_condition.inc
 connection default;
---echo connection: default
 handler t2 open;
 handler t2 read first;
 handler t1 read next;
@@ -210,22 +206,18 @@ disconnect flush;
 drop table if exists t1, t0;
 --enable_warnings
 create table t1 (c1 int);
---echo connection: default
 handler t1 open;
 handler t1 read first;
 connect (flush,localhost,root,,);
 connection flush;
---echo connection: flush
 send rename table t1 to t0;
 connection waiter;
---echo connection: waiter 
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for table metadata lock" and
         info = "rename table t1 to t0";
 --source include/wait_condition.inc
 connection default;
---echo connection: default
 --echo #
 --echo # RENAME placed two pending locks and waits.
 --echo # When HANDLER t0 OPEN does open_tables(), it calls
@@ -242,7 +234,6 @@ connection default;
 handler t0 open;
 --error 0, ER_UNKNOWN_TABLE
 handler t0 close;
---echo connection: flush
 connection flush;
 reap;
 --error ER_UNKNOWN_TABLE
@@ -389,4 +380,3 @@ execute stmt;
 --error ER_UNKNOWN_TABLE
 handler v read next;
 drop view v;
-

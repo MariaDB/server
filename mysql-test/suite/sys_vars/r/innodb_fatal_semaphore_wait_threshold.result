@@ -1,7 +1,7 @@
-# Establish connection con1 (user=root)
-# Establish connection con2 (user=root)
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 drop table if exists t1;
-# Switch to connection con1
+connection con1;
 create table t1 (id integer, x integer) engine = InnoDB;
 insert into t1 values(0, 0);
 set DEBUG_DBUG='+d,fatal-semaphore-timeout';
@@ -9,13 +9,13 @@ set autocommit=0;
 # Sending query on con1,
 # the session will hold lock table mutex and sleep
 SELECT * from t1 where id = 0 FOR UPDATE;
-# Switch to connection con2
+connection con2;
 set autocommit=0;
 # Sending query on con2,
 # the session will be blocked on the lock table mutex and
 # thus be put into sync arry
 SELECT * from t1 where id = 0 FOR UPDATE;
-# Switched to the default connection
+connection default;
 # Waitting for mysqld to crash
 # Mysqld crash was detected
 # Waitting for reconnect after mysqld restarts

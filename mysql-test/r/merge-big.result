@@ -6,11 +6,11 @@ drop table if exists t1,t2,t3,t4,t5,t6;
 #
 CREATE TABLE t1 (c1 INT) ENGINE= MyISAM;
 LOCK TABLE t1 WRITE;
-# connection con1
+connect  con1,localhost,root,,;
 SET @orig_debug=@@debug;
 SET GLOBAL debug_dbug="+d,sleep_open_and_lock_after_open";
 INSERT INTO t1 VALUES (1);
-# connection default
+connection default;
 # Let INSERT go into thr_multi_lock().
 # Kick INSERT out of thr_multi_lock().
 FLUSH TABLES;
@@ -21,7 +21,8 @@ FLUSH TABLES;
 SELECT * FROM t1;
 c1
 UNLOCK TABLES;
-# connection con1
+connection con1;
 SET GLOBAL debug_dbug=@orig_debug;
-# connection default
+disconnect con1;
+connection default;
 DROP TABLE t1;

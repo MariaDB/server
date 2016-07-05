@@ -15,10 +15,13 @@ Verify that example engine is installed.
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 EXAMPLE	YES	Example storage engine	NO	NO	NO
-connection slave: Verify that example engine is not installed.
+connection slave;
+Verify that example engine is not installed.
+connection slave;
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-connection master: Uninstall example engine.
+Uninstall example engine.
+connection master;
 Get binlog position before uninstall plugin.
 UNINSTALL PLUGIN example;
 Get binlog position after uninstall plugin.
@@ -29,5 +32,6 @@ Delta
 Verify that example engine is not installed.
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+connection slave;
 include/rpl_end.inc
 End of test

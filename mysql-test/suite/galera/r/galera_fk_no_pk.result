@@ -12,11 +12,14 @@ ON DELETE CASCADE
 ) ENGINE=InnoDB;
 INSERT INTO parent VALUES (1), (1), (2), (2);
 INSERT INTO child VALUES (1,1), (2,2), (1,1), (2,2);
+connection node_2;
 DELETE FROM parent WHERE id = 1;
 SELECT COUNT(*) = 0 FROM child WHERE id = 1;
 COUNT(*) = 0
 1
+connection node_1;
 UPDATE parent SET id = 3 WHERE id = 2;
+connection node_2;
 SELECT COUNT(*) = 0 FROM child WHERE parent_id = 1;
 COUNT(*) = 0
 1

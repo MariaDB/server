@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP TABLE IF EXISTS test.t1;
 CREATE TABLE test.t1 (a VARCHAR(255), PRIMARY KEY(a));
 LOAD DATA INFILE '../../std_data/words2.dat' INTO TABLE test.t1;
@@ -58,6 +59,8 @@ abasements
 abasement
 abased
 abase
+connection slave;
+connection slave;
 SELECT * FROM test.t1 ORDER BY a DESC;
 a
 aberration
@@ -110,5 +113,7 @@ abasements
 abasement
 abased
 abase
+connection master;
 DROP TABLE test.t1;
+connection slave;
 include/rpl_end.inc

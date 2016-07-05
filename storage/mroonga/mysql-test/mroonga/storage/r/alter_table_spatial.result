@@ -124,7 +124,7 @@ SHOW CREATE TABLE shops;
 Table	Create Table
 shops	CREATE TABLE `shops` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
+  `name` text DEFAULT NULL,
   `location` geometry NOT NULL,
   PRIMARY KEY (`id`),
   SPATIAL KEY `location_index` (`location`)

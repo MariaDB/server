@@ -738,7 +738,7 @@ grn_com_send(grn_ctx *ctx, grn_com *cs,
     msg.msg_namelen = 0;
     msg.msg_iov = msg_iov;
     msg.msg_iovlen = 2;
-    msg_iov[0].iov_base = header;
+    msg_iov[0].iov_base = (char*) header;
     msg_iov[0].iov_len = sizeof(grn_com_header);
     msg_iov[1].iov_base = (char *)body;
     msg_iov[1].iov_len = size;

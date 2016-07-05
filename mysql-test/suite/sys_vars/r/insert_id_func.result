@@ -25,7 +25,8 @@ SELECT @@session.insert_id;
 0
 INSERT into t1(name) values('Record_3');
 '#--------------------FN_DYNVARS_051_02-------------------------#'
-## Creating & Connecting new connection test_con1 ##
+connect  test_con1, localhost, root,,;
+connection test_con1;
 ## Setting value of insert_id to 50 ## 
 SET @@session.insert_id = 50;
 SELECT @@session.insert_id;
@@ -46,7 +47,8 @@ id	name
 'Bug#35376	Value of insert_id automatically resets to 0 after inserting
 ' 1st row'
 '#--------------------FN_DYNVARS_051_03-------------------------#'
-## Creating and switching to new connection test_con2 ##
+connect  test_con2, localhost, root,,;
+connection test_con2;
 ## Setting session value of variable to 25 ##
 SET @@session.insert_id = 25;
 ## Inserting some rows in table ##
@@ -65,4 +67,5 @@ id	name
 105	Record_8
 ## Dropping table t1 ##
 drop table t1;
-## Disconnecting connections ##
+disconnect test_con1;
+disconnect test_con2;

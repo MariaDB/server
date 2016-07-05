@@ -5426,27 +5426,6 @@ my_weight_mb3_utf8_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #include "strcoll.ic"
 
 
-static uint my_ismbchar_utf8(CHARSET_INFO *cs,const char *b, const char *e)
-{
-  int  res= my_charlen_utf8(cs, (const uchar*) b, (const uchar*) e);
-  return (res>1) ? res : 0;
-}
-
-static uint my_mbcharlen_utf8(CHARSET_INFO *cs  __attribute__((unused)),
-                              uint c)
-{
-  if (c < 0x80)
-    return 1;
-  else if (c < 0xc2)
-    return 0; /* Illegal mb head */
-  else if (c < 0xe0)
-    return 2;
-  else if (c < 0xf0)
-    return 3;
-  return 0; /* Illegal mb head */;
-}
-
-
 /*
   TODO-10.2: join this with pad_max_char() in ctype-mb.c
 */
@@ -5529,8 +5508,6 @@ static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf8_handler=
 {
     NULL,               /* init */
-    my_ismbchar_utf8,
-    my_mbcharlen_utf8,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_utf8,
@@ -5717,8 +5694,7 @@ static int my_strnncoll_utf8_cs(CHARSET_INFO *cs,
 
 static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs, 
                                   const uchar *s, size_t slen,
-                                  const uchar *t, size_t tlen,
-                                  my_bool diff_if_only_endspace_difference)
+                                  const uchar *t, size_t tlen)
 {
   int s_res, t_res, res;
   my_wc_t s_wc, t_wc;
@@ -5727,10 +5703,6 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
   int save_diff= 0;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
 
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-    
   while ( s < se && t < te )
   {
     s_res=my_utf8_uni(cs,&s_wc, s, se);
@@ -5761,37 +5733,22 @@ static int my_strnncollsp_utf8_cs(CHARSET_INFO *cs,
   
   slen= se-s;
   tlen= te-t;
-  res= 0;
-  
-  if (slen != tlen)
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    if (slen < tlen)
-    {
-      slen= tlen;
-      s= t;
-      se= te;
-      swap= -1;
-      res= -res;
-    }
-    /*
-      This following loop uses the fact that in UTF-8
-      all multibyte characters are greater than space,
-      and all multibyte head characters are greater than
-      space. It means if we meet a character greater
-      than space, it always means that the longer string
-      is greater. So we can reuse the same loop from the
-      8bit version, without having to process full multibute
-      sequences.
-    */
-    for ( ; s < se; s++)
-    {
-      if (*s != (uchar) ' ')
-        return (*s < (uchar) ' ') ? -swap : swap;
-    }
-  }
+
+  /*
+    The following code uses the fact that in UTF-8
+    all multibyte characters are greater than space,
+    and all multibyte head characters are greater than
+    space. It means if we meet a character greater
+    than space, it always means that the longer string
+    is greater. So we can reuse the same loop from the
+    8bit version, without having to process full multibute
+    sequences.
+  */
+  if ((res= slen == tlen ? 0 :
+            slen < tlen  ?
+              -my_strnncollsp_padspace_bin(t, tlen) :
+              my_strnncollsp_padspace_bin(s, slen)))
+    return res;
   return save_diff;
 }
 
@@ -7076,15 +7033,6 @@ my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 }
 
 
-static uint
-my_ismbchar_filename(CHARSET_INFO *cs, const char *str, const char *end)
-{
-  my_wc_t wc;
-  int rc= my_mb_wc_filename(cs, &wc, (const uchar *) str, (const uchar *) end);
-  return rc > 1 ? rc : 0;
-}
-
-  
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
 #define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7113,8 +7061,6 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
 static MY_CHARSET_HANDLER my_charset_filename_handler=
 {
     NULL,               /* init */
-    my_ismbchar_filename,
-    my_mbcharlen_utf8,
     my_numchars_mb,
     my_charpos_mb,
     my_well_formed_len_mb,
@@ -7179,57 +7125,6 @@ struct charset_info_st my_charset_filename=
     &my_collation_filename_handler
 };
 
-
-#ifdef MY_TEST_UTF8
-#include <stdio.h>
-
-static void test_mb(CHARSET_INFO *cs, uchar *s)
-{
-  while(*s)
-  {
-    if (my_ismbhead_utf8(cs,*s))
-    {
-      uint len=my_mbcharlen_utf8(cs,*s);
-      while(len--)
-      {
-        printf("%c",*s);
-        s++;
-      }
-      printf("\n");
-    }
-    else
-    {
-      printf("%c\n",*s);
-      s++;
-    }
-  }
-}
-
-int main()
-{
-  char str[1024]=" utf8 test проба ПЕРА по-РУССКИ";
-  CHARSET_INFO *cs;
-
-  test_mb(cs,(uchar*)str);
-
-  printf("orig      :'%s'\n",str);
-
-  my_caseup_utf8(cs,str,15);
-  printf("caseup    :'%s'\n",str);
-
-  my_caseup_str_utf8(cs,str);
-  printf("caseup_str:'%s'\n",str);
-
-  my_casedn_utf8(cs,str,15);
-  printf("casedn    :'%s'\n",str);
-
-  my_casedn_str_utf8(cs,str);
-  printf("casedn_str:'%s'\n",str);
-
-  return 0;
-}
-
-#endif
 
 #endif /* HAVE_CHARSET_UTF8 */
 
@@ -7824,31 +7719,6 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 #include "strcoll.ic"
 
 
-static uint
-my_ismbchar_utf8mb4(CHARSET_INFO *cs, const char *b, const char *e)
-{
-  int res= my_charlen_utf8mb4(cs, (const uchar*) b, (const uchar*) e);
-  return (res > 1) ? res : 0;
-}
-
-
-static uint
-my_mbcharlen_utf8mb4(CHARSET_INFO *cs  __attribute__((unused)), uint c)
-{
-  if (c < 0x80)
-    return 1;
-  if (c < 0xc2)
-    return 0; /* Illegal mb head */
-  if (c < 0xe0)
-    return 2;
-  if (c < 0xf0)
-    return 3;
-  if (c < 0xf8)
-    return 4;
-  return 0; /* Illegal mb head */;
-}
-
-
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 {
   NULL,               /* init */
@@ -7884,8 +7754,6 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
 MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
 {
   NULL,               /* init */
-  my_ismbchar_utf8mb4,
-  my_mbcharlen_utf8mb4,
   my_numchars_mb,
   my_charpos_mb,
   my_well_formed_len_utf8mb4,

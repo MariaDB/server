@@ -29,17 +29,13 @@ SET @start_value= @@global.delay_key_write;
 SET @@global.delay_key_write = ON;
 SELECT @@global.delay_key_write;
 
---echo 'connect (user1,localhost,root,,,,)'
 connect (user1,localhost,root,,,,);
---echo 'connection user1'
 connection user1;
 SELECT @@global.delay_key_write AS res_is_ON;
 SET @@global.delay_key_write = ALL;
 disconnect user1;
 
---echo 'connect (user1,localhost,root,,,,)'
 connect (user1,localhost,root,,,,);
---echo 'connection user1'
 connection user1;
 SELECT @@global.delay_key_write AS res_is_ALL;
 

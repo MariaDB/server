@@ -124,11 +124,11 @@ ERROR 21000: The used SELECT statements have a different number of columns
 explain select a,b from t1 union select 1 limit 0;
 ERROR 21000: The used SELECT statements have a different number of columns
 select a,b from t1 into outfile 'skr' union select a,b from t2;
-ERROR HY000: Incorrect usage of UNION and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'union select a,b from t2' at line 1
 select a,b from t1 order by a union select a,b from t2;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'union select a,b from t2' at line 1
 insert into t3 select a from t1 order by a union select a from t2;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'union select a from t2' at line 1
 create table t3 select a,b from t1 union select a from t2;
 ERROR 21000: The used SELECT statements have a different number of columns
 select a,b from t1 union select a from t2;
@@ -380,7 +380,7 @@ select found_rows();
 found_rows()
 4
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION all SELECT * FROM t2 LIMIT 2;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION all SELECT * FROM t2 LIMIT 2' at line 1
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION all SELECT * FROM t2 LIMIT 2;
 a
 1
@@ -422,7 +422,7 @@ select found_rows();
 found_rows()
 5
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100 UNION SELECT * FROM t2;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT * FROM t2' at line 1
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 100) UNION SELECT * FROM t2) q;
 COUNT(*)
@@ -435,7 +435,7 @@ a
 4
 5
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT * FROM t2' at line 1
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 COUNT(*)
@@ -447,7 +447,7 @@ a
 4
 5
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2 LIMIT 2;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT * FROM t2 LIMIT 2' at line 1
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 COUNT(*)
@@ -468,7 +468,7 @@ SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 COUNT(*)
 5
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 limit 2,2 UNION SELECT * FROM t2;
-ERROR HY000: Incorrect usage of UNION and LIMIT
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT * FROM t2' at line 1
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 limit 2,2) UNION SELECT * FROM t2) q;
 COUNT(*)
@@ -796,7 +796,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `dt` blob
+  `dt` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT sv from t2 UNION select b from t2;
@@ -807,7 +807,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `sv` blob
+  `sv` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT i from t2 UNION select d from t2 UNION select b from t2;
@@ -819,7 +819,7 @@ tetetetetest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` blob
+  `i` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT sv from t2 UNION select tx from t2;
@@ -830,7 +830,7 @@ teeeeeeeeeeeest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `sv` text
+  `sv` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT b from t2 UNION select tx from t2;
@@ -841,7 +841,7 @@ teeeeeeeeeeeest
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `b` blob
+  `b` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2;
 create table t1 select 1 union select -1;
@@ -1354,7 +1354,7 @@ create table t3 SELECT left(a,100000000) FROM t1 UNION  SELECT b FROM t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `left(a,100000000)` mediumtext
+  `left(a,100000000)` mediumtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
 CREATE TABLE t1 (a longtext);
@@ -1368,7 +1368,7 @@ create table t3 SELECT left(a,100000000) FROM t1 UNION  SELECT b FROM t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `left(a,100000000)` longtext
+  `left(a,100000000)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
 SELECT @tmp_max:= @@global.max_allowed_packet;
@@ -1377,6 +1377,7 @@ SELECT @tmp_max:= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
 Warnings:
 Warning	1292	Truncated incorrect max_allowed_packet value: '25000000'
+connect  newconn, localhost, root,,;
 CREATE TABLE t1 (a mediumtext);
 CREATE TABLE t2 (b varchar(20));
 INSERT INTO t1 VALUES ('a');
@@ -1384,7 +1385,7 @@ CREATE TABLE t3 SELECT REPEAT(a,20000000) AS a FROM t1 UNION SELECT b FROM t2;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` longtext
+  `a` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinytext);
@@ -1402,7 +1403,7 @@ CREATE TABLE t3 SELECT REPEAT(a,2) AS a FROM t1 UNION SELECT b FROM t2;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` longtext
+  `a` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinyblob);
@@ -1414,7 +1415,9 @@ t3	CREATE TABLE `t3` (
   `a` varbinary(510) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLES t1,t2,t3;
+connection default;
 SET @@global.max_allowed_packet:= @tmp_max;
+disconnect newconn;
 create table t1 ( id int not null auto_increment, primary key (id), col1 int);
 insert into t1 (col1) values (2),(3),(4),(5),(6);
 select 99 union all select id from t1 order by 1;
@@ -1445,8 +1448,8 @@ t2	CREATE TABLE `t2` (
   `f4` binary(5) DEFAULT NULL,
   `f5` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `f6` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
-  `f7` text,
-  `f8` mediumtext CHARACTER SET utf8
+  `f7` text DEFAULT NULL,
+  `f8` mediumtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2;
 (select avg(1)) union (select avg(1)) union (select avg(1)) union
@@ -1566,7 +1569,8 @@ UNION ALL
 SELECT b, COUNT(*) FROM t2 GROUP BY b WITH ROLLUP ORDER BY a
 UNION
 SELECT 1,1;
-ERROR HY000: Incorrect usage of UNION and ORDER BY
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT 1,1' at line 4
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
@@ -1644,11 +1648,11 @@ SELECT a FROM t1 UNION SELECT a INTO @v FROM t1;
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file5' FROM t1;
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
-ERROR HY000: Incorrect usage of UNION and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT a FROM t1' at line 1
 SELECT a INTO OUTFILE 'union.out.file7' FROM t1 UNION SELECT a FROM t1;
-ERROR HY000: Incorrect usage of UNION and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT a FROM t1' at line 1
 SELECT a INTO DUMPFILE 'union.out.file8' FROM t1 UNION SELECT a FROM t1;
-ERROR HY000: Incorrect usage of UNION and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT a FROM t1' at line 1
 # Tests fix in parser rule query_expression_body.
 SELECT ( SELECT a UNION SELECT a ) INTO @v FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO OUTFILE  'union.out.file3' FROM t1;

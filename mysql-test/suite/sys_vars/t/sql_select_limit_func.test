@@ -161,32 +161,26 @@ INSERT INTO t3 SELECT * FROM t1;
 
 SET GLOBAL sql_select_limit = 2;
 
---echo ** Connecting con_int2 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_select_limit;
 --echo 2 Expected
 
 SET SESSION sql_select_limit = 10;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_select_limit;
 --echo 2 Expected
 
 SET SESSION sql_select_limit = 12;
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_select_limit;
 --echo 12 Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_select_limit;
 --echo 10 Expected
@@ -194,10 +188,8 @@ SELECT @@SESSION.sql_select_limit;
 SELECT @@GLOBAL.sql_select_limit;
 --echo 2 Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

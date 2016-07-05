@@ -97,7 +97,7 @@ row_merge_encrypt_buf(
 
 	key_version =  encryption_key_get_latest_version(crypt_data->key_id);
 
-	/* Store key_version at the begining of the input buffer */
+	/* Store key_version at the beginning of the input buffer */
 	mach_write_to_4((byte *)crypted_buf, key_version);
 
 	int rc = encryption_scheme_encrypt(input_buf+ROW_MERGE_RESERVE_SIZE,
@@ -109,9 +109,9 @@ row_merge_encrypt_buf(
 	if (! ((rc == MY_AES_OK) && ((ulint)dstlen == srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt data-block "
-			" src: %p srclen: %lu buf: %p buflen: %d."
+			" src: %p srclen: %lu buf: %p buflen: %u."
 			" return-code: %d. Can't continue!\n",
-			input_buf, (size_t)srv_sort_buf_size,
+			input_buf, (ulong) srv_sort_buf_size,
 			crypted_buf, dstlen, rc);
 		ut_error;
 	}
@@ -134,7 +134,7 @@ row_merge_decrypt_buf(
 	uint dstlen=0;
 	os_offset_t ofs = (os_offset_t)srv_sort_buf_size * (os_offset_t)offset;
 
-	/* Read key_version from begining of the buffer */
+	/* Read key_version from beginning of the buffer */
 	key_version = mach_read_from_4((byte *)input_buf);
 
 	if (key_version == 0) {
@@ -153,7 +153,7 @@ row_merge_decrypt_buf(
 			"Unable to encrypt data-block "
 			" src: %p srclen: %lu buf: %p buflen: %d."
 			" return-code: %d. Can't continue!\n",
-			input_buf, (size_t)srv_sort_buf_size,
+			input_buf, (ulong) srv_sort_buf_size,
 			crypted_buf, dstlen, rc);
 		ut_error;
 	}
@@ -164,7 +164,7 @@ row_merge_decrypt_buf(
 #ifdef UNIV_DEBUG
 /******************************************************//**
 Display a merge tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_tuple_print(
 /*==================*/
@@ -199,7 +199,7 @@ row_merge_tuple_print(
 
 /******************************************************//**
 Encode an index record. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_buf_encode(
 /*=================*/
@@ -236,7 +236,7 @@ row_merge_buf_encode(
 /******************************************************//**
 Allocate a sort buffer.
 @return	own: sort buffer */
-static __attribute__((malloc, nonnull))
+static MY_ATTRIBUTE((malloc, nonnull))
 row_merge_buf_t*
 row_merge_buf_create_low(
 /*=====================*/
@@ -736,7 +736,7 @@ row_merge_dup_report(
 /*************************************************************//**
 Compare two tuples.
 @return	1, 0, -1 if a is greater, equal, less, respectively, than b */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tuple_cmp(
 /*================*/
@@ -815,7 +815,7 @@ UT_SORT_FUNCTION_BODY().
 
 /**********************************************************************//**
 Merge sort the tuple buffer in main memory. */
-static __attribute__((nonnull(4,5)))
+static MY_ATTRIBUTE((nonnull(4,5)))
 void
 row_merge_tuple_sort(
 /*=================*/
@@ -1391,7 +1391,7 @@ row_merge_write_eof(
 @param[in,out]	tmpfd	temporary file handle
 @param[in]	path	path to create temporary file
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tmpfile_if_needed(
 	int*		tmpfd,
@@ -1410,7 +1410,7 @@ row_merge_tmpfile_if_needed(
 @param[in]	nrec	number of records in the file
 @param[in]	path	path to create temporary files
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_file_create_if_needed(
 	merge_file_t*	file,
@@ -1459,7 +1459,7 @@ containing the index entries for the indexes to be built.
 @param[in]	crypt_data	crypt data or NULL
 @param[in,out]	crypt_block	crypted file buffer
 return	DB_SUCCESS or error */
-static __attribute__((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
 dberr_t
 row_merge_read_clustered_index(
 	trx_t*			trx,
@@ -2067,7 +2067,7 @@ write_buffers:
 					pct_cost : 
 				((pct_cost * read_rows) / table_total_rows);
 			/* presenting 10.12% as 1012 integer */
-			onlineddl_pct_progress = curr_progress * 100;
+			onlineddl_pct_progress = (ulint) (curr_progress * 100);
 		}
 	}
 
@@ -2604,7 +2604,7 @@ row_merge_sort(
 
 	/* Find the number N which 2^N is greater or equal than num_runs */
 	/* N is merge sort running count */
-	total_merge_sort_count = ceil(my_log2f(num_runs));
+	total_merge_sort_count = (ulint) ceil(my_log2f(num_runs));
 	if(total_merge_sort_count <= 0) {
 		total_merge_sort_count=1;
 	}
@@ -2625,10 +2625,16 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
+	/* These thd_progress* calls will crash on sol10-64 when innodb_plugin
+	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
+	sol10-64 in buildbot.
+	*/
+#ifndef UNIV_SOLARIS
 	/* Progress report only for "normal" indexes. */
 	if (!(dup->index->type & DICT_FTS)) {
 		thd_progress_init(trx->mysql_thd, 1);
 	}
+#endif /* UNIV_SOLARIS */
 
 	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
 
@@ -2637,9 +2643,11 @@ row_merge_sort(
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
 		/* Progress report only for "normal" indexes. */
+#ifndef UNIV_SOLARIS
 		if (!(dup->index->type & DICT_FTS)) {
 			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
 		}
+#endif /* UNIV_SOLARIS */
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset,
@@ -2651,7 +2659,7 @@ row_merge_sort(
 				pct_cost :
 				((pct_cost * merge_count) / total_merge_sort_count);
 			/* presenting 10.12% as 1012 integer */;
-			onlineddl_pct_progress = (pct_progress + curr_progress) * 100;
+			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
 		}
 
 		if (error != DB_SUCCESS) {
@@ -2664,16 +2672,18 @@ row_merge_sort(
 	mem_free(run_offset);
 
 	/* Progress report only for "normal" indexes. */
+#ifndef UNIV_SOLARIS
 	if (!(dup->index->type & DICT_FTS)) {
 		thd_progress_end(trx->mysql_thd);
 	}
+#endif /* UNIV_SOLARIS */
 
 	DBUG_RETURN(error);
 }
 
 /*************************************************************//**
 Copy externally stored columns to the data tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_copy_blobs(
 /*=================*/
@@ -2934,7 +2944,7 @@ row_merge_insert_index_tuples(
 					((pct_cost * inserted_rows) / table_total_rows);
 
 				/* presenting 10.12% as 1012 integer */;
-				onlineddl_pct_progress = (pct_progress + curr_progress) * 100;
+				onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
 			}
 		}
 	}
@@ -3755,7 +3765,7 @@ row_merge_rename_tables_dict(
 /*********************************************************************//**
 Create and execute a query graph for creating an index.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_merge_create_index_graph(
 /*=========================*/
@@ -3907,7 +3917,7 @@ row_merge_drop_table(
 	/* There must be no open transactions on the table. */
 	ut_a(table->n_ref_count == 0);
 
-	return(row_drop_table_for_mysql(table->name, trx, false, false));
+	return(row_drop_table_for_mysql(table->name, trx, false, false, false));
 }
 
 /*********************************************************************//**

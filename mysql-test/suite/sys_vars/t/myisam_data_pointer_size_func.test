@@ -29,15 +29,11 @@ call mtr.add_suppression("The table 't1' is full");
 SET @start_value= @@global.myisam_data_pointer_size;
 SET @@global.myisam_data_pointer_size = 2;
 # con1 will be default connection from now on
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.myisam_data_pointer_size;
 SET @@global.myisam_data_pointer_size = 3;
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
---echo 'connection con2'
 connection con2;
 SELECT @@global.myisam_data_pointer_size;
 disconnect con2;
@@ -48,7 +44,6 @@ disconnect con2;
 # Begin the functionality Testing of myisam_data_pointer_size   #
 #################################################################
 
---echo 'connection con1'
 connection con1;
 
 #===========================================================

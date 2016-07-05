@@ -25,15 +25,11 @@
 
 SET @@global.ft_boolean_syntax = ' -+()<>~*:``&|';
 # con1 will be default connection from now on
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.ft_boolean_syntax;
 SET @@global.ft_boolean_syntax = '+ -><()~*:""&|';
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
---echo 'connection con2'
 connection con2;
 SELECT @@global.ft_boolean_syntax;
 disconnect con2;
@@ -44,7 +40,6 @@ disconnect con1;
 # Begin the functionality Testing of ft_boolean_syntax  #
 #########################################################
 
---echo 'connection default'
 connection default;
 
 --disable_warnings
@@ -117,4 +112,3 @@ SET @@global.ft_boolean_syntax=DEFAULT;
 # End of functionality Testing for ft_boolean_syntax    #
 #########################################################
 DROP TABLE articles;
-

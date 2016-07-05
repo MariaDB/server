@@ -81,7 +81,7 @@ static void run_recovery(const char *testdir) {
     bool upgrade_in_progress;
     r = toku_maybe_upgrade_log(testdir, testdir, &lsn_of_clean_shutdown, &upgrade_in_progress);
     if (strcmp(shutdown, "dirty") == 0 && log_version <= 24) {
-        CKERR2(r, TOKUDB_UPGRADE_FAILURE); // we dont support dirty upgrade from versions <= 24
+        CKERR2(r, TOKUDB_UPGRADE_FAILURE); // we don't support dirty upgrade from versions <= 24
         return;
     } else {
         CKERR(r);

@@ -1015,8 +1015,8 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
   if (err != 0)
     return 1;
 
-  out_gtid->domain_id= v1;
-  out_gtid->server_id= v2;
+  out_gtid->domain_id= (uint32) v1;
+  out_gtid->server_id= (uint32) v2;
   out_gtid->seq_no= v3;
   *ptr= q;
   return 0;
@@ -1127,7 +1127,7 @@ rpl_slave_state::is_empty()
 }
 
 
-rpl_binlog_state::rpl_binlog_state()
+void rpl_binlog_state::init()
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -1136,7 +1136,6 @@ rpl_binlog_state::rpl_binlog_state()
                    MY_MUTEX_INIT_SLOW);
   initialized= 1;
 }
-
 
 void
 rpl_binlog_state::reset_nolock()

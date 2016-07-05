@@ -280,10 +280,7 @@ void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len);
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
-int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
 extern bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
@@ -304,14 +301,12 @@ void wsrep_close_applier_threads(int count);
 void wsrep_wait_appliers_close(THD *thd);
 void wsrep_kill_mysql(THD *thd);
 void wsrep_close_threads(THD *thd);
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
 void wsrep_copy_query(THD *thd);
 bool wsrep_is_show_query(enum enum_sql_command command);
 void wsrep_replay_transaction(THD *thd);
 bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
 	                     HA_CREATE_INFO *create_info);
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
 #else /* WITH_WSREP */
 

@@ -81,7 +81,6 @@ select * from t1 where id=1;
 
 --echo ** Creating new user with out super privilege**
 CREATE user sameea;
---echo ** Connecting connn using username 'sameea' **
 CONNECT (connn,localhost,sameea,,);
 
 --Error ER_SPECIFIC_ACCESS_DENIED_ERROR
@@ -114,11 +113,9 @@ CREATE TEMPORARY TABLE t3(a int);
 ###########################
 # Turning read_only OFF   #
 ###########################
---echo ** Connection default **
 connection default;
 
 SET Global read_only=OFF;
---echo ** Connection connn **
 connection connn;
 
 CREATE TABLE t2
@@ -135,10 +132,8 @@ UPDATE t2 SET name="samia" where id=1;
 #
 # Cleanup
 #
---echo ** Connection default **
 connection default;
 
---echo ** Disconnecting connn **
 DISCONNECT connn;
 
 DROP USER sameea;

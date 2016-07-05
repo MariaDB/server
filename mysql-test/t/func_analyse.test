@@ -11,7 +11,7 @@ insert into t1 values (1,2,"","Y","2002-03-03"), (3,4,"","N","2002-03-04"), (5,6
 select count(*) from t1 procedure analyse();
 select * from t1 procedure analyse();
 select * from t1 procedure analyse(2);
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 create table t2 select * from t1 procedure analyse();
 drop table t1;
 
@@ -127,7 +127,7 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1),(2);
 
 --echo # should not crash
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 CREATE TABLE t2 SELECT 1 FROM t1, t1 t3 GROUP BY t3.a PROCEDURE ANALYSE();
 
 DROP TABLE t1;
@@ -157,3 +157,27 @@ SELECT * FROM t2 LIMIT 1 PROCEDURE ANALYSE();
 DROP TABLE t1, t2;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+(SELECT 1 FROM DUAL PROCEDURE ANALYSE());
+((SELECT 1 FROM DUAL PROCEDURE ANALYSE()));
+
+# TODO:
+--error ER_PARSE_ERROR
+SELECT * FROM t1 UNION SELECT * FROM t1 PROCEDURE analyse();
+
+--echo #
+--echo # MDEV-10030 sql_yacc.yy: Split table_expression and remove PROCEDURE from create_select, select_paren_derived, select_derived2, query_specification
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT * FROM (SELECT * FROM t1 PROCEDURE ANALYSE());
+--ERROR ER_PARSE_ERROR
+SELECT * FROM t1 NATURAL JOIN (SELECT * FROM t2 PROCEDURE ANALYSE());
+
+--error ER_PARSE_ERROR
+SELECT (SELECT 1 FROM t1 PROCEDURE ANALYSE()) FROM t2;
+--error ER_PARSE_ERROR
+SELECT ((SELECT 1 FROM t1 PROCEDURE ANALYSE())) FROM t2;

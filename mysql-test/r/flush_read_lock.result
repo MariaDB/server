@@ -85,6 +85,10 @@ insert into t1_temp values (1);
 return 0;
 end|
 create event e1 on schedule every 1 minute do begin end;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection default;
 #
 # Test compatibility of FLUSH TABLES WITH READ LOCK 
 # with various statements.
@@ -186,34 +190,34 @@ unlock tables;
 # COMMIT is blocked by active FTWRL in another
 # connection.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 begin;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Do some work so ROLLBACK is not a no-op.
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 rollback;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 begin;
 # Do some work so COMMIT is not a no-op.
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 # Send:
 commit;
-# Switching to connection 'con1'.
+connection con1;
 # Wait until COMMIT is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap COMMIT.
 delete from t3_trans;
 #
@@ -223,18 +227,18 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='ha_commit_trans_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 commit;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap COMMIT.
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
 # We don't run similar test for BEGIN and ROLLBACK as
@@ -447,30 +451,30 @@ unlock tables;
 # Check that active FTWRL in another connection
 # blocks EXECUTE which changes data.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 execute stmt1 ;
-# Switching to connection 'con1'.
+connection con1;
 # Check that EXECUTE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap EXECUTE.
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 execute stmt1; ;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap EXECUTE.
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 set debug_sync= "RESET";
 delete from t1_base;
 deallocate prepare stmt1;
@@ -631,20 +635,19 @@ drop trigger t1_bi;
 # Check that FTWRL statements can be run while FTWRL
 # is active in another connection.
 #
-# Switching to connection 'con1'.
 flush tables with read lock;
 # The second FTWRL in a row is allowed at the moment.
 # It does not make much sense as it does only flush.
 flush tables with read lock;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 flush tables with read lock;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 #
 # 14.2) FLUSH TABLES <list> WITH READ LOCK is not blocked by
 #       active FTWRL. But since the latter keeps tables open
@@ -654,25 +657,25 @@ flush tables with read lock;
 # It does not make much sense though.
 flush tables t1_base, t2_base with read lock;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 flush tables t1_base, t2_base with read lock;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 flush tables t1_base, t2_base with read lock;
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
-# Switching to connection 'default'.
+connection default;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 #
 # 14.3) FLUSH TABLES is compatible with FTWRL.
 Success: Was able to run 'flush tables' under FTWRL.
@@ -711,16 +714,16 @@ unlock tables;
 # Check that HANDLER statements can be run while FTWRL
 # is active in another connection.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 handler t1_base open;
 handler t1_base read first;
 i
 handler t1_base close;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 #
 # 17) HELP statement is compatible with FTWRL.
 #
@@ -767,24 +770,24 @@ unlock tables;
 # Check that KILL statements can be run while FTWRL
 # is active in another connection.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 kill query @id;
 ERROR 70100: Query execution was interrupted
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Finally check that KILL doesn't block FTWRL
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 kill query @id;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap KILL. 
 ERROR 70100: Query execution was interrupted
 set debug_sync='RESET';
@@ -814,14 +817,14 @@ flush tables with read lock;
 lock tables t1_base read;
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 lock tables t1_base read;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 #
 # 21.b) LOCK TABLES WRITE on a base table is disallowed
 #       under FTWRL and should be blocked by active FTWRL.
@@ -830,14 +833,14 @@ lock tables t1_base write;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 lock tables t1_base write ;
-# Switching to connection 'con1'.
+connection con1;
 # Check that LOCK TABLES WRITE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap LOCK TABLES WRITE
 unlock tables;
 #
@@ -848,14 +851,14 @@ flush tables with read lock;
 lock tables t1_temp write;
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 lock tables t1_temp write;
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 #
 # 22) OPTIMIZE TABLE statement.
 #
@@ -868,14 +871,14 @@ test.t1_base	optimize	Error	Can't execute the query because you have a conflicti
 test.t1_base	optimize	error	Corrupt
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 optimize table t1_base;
-# Switching to connection 'con1'.
+connection con1;
 # Check that OPTIMIZE TABLE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap OPTIMIZE TABLE
 Table	Op	Msg_type	Msg_text
 test.t1_base	optimize	status	OK
@@ -919,32 +922,32 @@ commit;
 # Check that these statements are not blocked by
 # active FTWRL in another connection.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 begin;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Do some changes to avoid SAVEPOINT and friends
 # being almost no-ops.
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 savepoint sv1;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 insert into t3_trans values (2);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 rollback to savepoint sv1;
 release savepoint sv1;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 rollback;
 # Check that these statements don't block FTWRL in
 # another connection.
@@ -955,31 +958,31 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 savepoint sv1;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap SAVEPOINT
 insert into t3_trans values (2);
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 rollback to savepoint sv1;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap ROLLBACK TO SAVEPOINT
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 release savepoint sv1;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
 unlock tables;
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap RELEASE SAVEPOINT
 rollback;
 set debug_sync= "RESET";
@@ -1009,14 +1012,14 @@ test.t1_base	repair	Error	Can't execute the query because you have a conflicting
 test.t1_base	repair	error	Corrupt
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 repair table t1_base;
-# Switching to connection 'con1'.
+connection con1;
 # Check that REPAIR TABLE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap REPAIR TABLE
 Table	Op	Msg_type	Msg_text
 test.t1_base	repair	status	OK
@@ -1155,25 +1158,25 @@ delete from t3_temp_trans;
 # SET AUTOCOMMIT=1 is blocked by active FTWRL in
 # another connection.
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 set autocommit= 0;
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Do some work so implicit commit in SET AUTOCOMMIT=1 
 # is not a no-op.
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 # Send:
 set autocommit= 1;
-# Switching to connection 'con1'.
+connection con1;
 # Wait until SET AUTOCOMMIT=1 is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap SET AUTOCOMMIT=1.
 delete from t3_trans;
 #
@@ -1183,18 +1186,18 @@ insert into t3_trans values (1);
 set debug_sync='RESET';
 set debug_sync='ha_commit_trans_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 set autocommit= 1;
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap SET AUTOCOMMIT=1.
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
 #
@@ -1308,36 +1311,37 @@ unlock tables;
 # Check that XA non-COMMIT statements are not and COMMIT is
 # blocked by active FTWRL in another connection
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 xa start 'test1';
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 xa end 'test1';
 xa prepare 'test1';
 xa rollback 'test1';
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 xa start 'test1';
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
+connection default;
 xa end 'test1';
 xa prepare 'test1';
 # Send:
 xa commit 'test1';;
-# Switching to connection 'con1'.
+connection con1;
 # Wait until XA COMMIT is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap XA COMMIT.
 delete from t3_trans;
 #
@@ -1349,18 +1353,18 @@ xa prepare 'test1';
 set debug_sync='RESET';
 set debug_sync='trans_xa_commit_after_acquire_commit_lock SIGNAL parked WAIT_FOR go';
 xa commit 'test1';
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap XA COMMIT.
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 delete from t3_trans;
 set debug_sync= "RESET";
 #
@@ -1413,14 +1417,14 @@ Table	Op	Msg_type	Msg_text
 test.t3_trans	analyze	status	OK
 unlock tables;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 analyze table t3_trans;
-# Switching to connection 'con1'.
+connection con1;
 # Check that ANALYZE TABLE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap ANALYZE TABLE
 Table	Op	Msg_type	Msg_text
 test.t3_trans	analyze	status	OK
@@ -1478,28 +1482,28 @@ Success: Was able to run FTWRL while 'alter table t3_temp_trans add column c1 in
 begin;
 insert into t3_trans values (1);
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 check table t1_base;
-# Switching to connection 'con1'.
+connection con1;
 # Check that CHECK TABLE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap CHECK TABLE
 Table	Op	Msg_type	Msg_text
 test.t1_base	check	status	OK
 begin;
 delete from t3_trans;
 #
-# Switching to connection 'con1'.
+connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 alter table t1_temp add column c1 int;
-# Switching to connection 'con1'.
+connection con1;
 # Check that ALTER TABLE is blocked.
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Reap ALTER TABLE
 alter table t1_temp drop column c1;
 #
@@ -1512,10 +1516,10 @@ alter table t1_temp drop column c1;
 begin;
 insert into t1_base values (1);
 insert into t3_trans values (1);
-# Switching to connection 'con1'.
+connection con1;
 # The below FTWRL should not be blocked by transaction in 'default'.
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 # Transaction still is able to read even with FTWRL active in another
 # connection.
 select * from t1_base;
@@ -1526,9 +1530,9 @@ j
 select * from t3_trans;
 i
 1
-# Switching to connection 'con1'.
+connection con1;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 commit;
 delete from t1_base;
 delete from t3_trans;
@@ -1541,25 +1545,25 @@ delete from t3_trans;
 set debug_sync='RESET';
 set debug_sync='execute_command_after_close_tables SIGNAL parked WAIT_FOR go';
 insert into t1_base values (1);
-# Switching to connection 'con1'.
+connection con1;
 set debug_sync='now WAIT_FOR parked';
 flush tables with read lock;
-# Switching to connection 'con2'.
+connection con2;
 # Wait until FTWRL is blocked.
 # Try to run another INSERT and see that it is blocked.
 insert into t2_base values (1);;
-# Switching to connection 'con3'.
+connection con3;
 # Wait until new INSERT is blocked.
 # Unblock INSERT in the first connection.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'default'.
+connection default;
 # Reap first INSERT.
-# Switching to connection 'con1'.
+connection con1;
 # Reap FTWRL.
 unlock tables;
-# Switching to connection 'con2'.
+connection con2;
 # Reap second INSERT.
-# Switching to connection 'default'.
+connection default;
 set debug_sync= "RESET";
 delete from t1_base;
 delete from t2_base;
@@ -1573,23 +1577,23 @@ delete from t2_base;
 # only taken when there were such modifications.
 
 flush tables with read lock;
-# Switching to connection 'con1'.
+connection con1;
 # The below FTWRL should not be blocked by transaction in 'default'.
 flush tables with read lock;
-# Switching to connection 'default'.
+connection default;
 select * from t1_base;
 i
 select * from t3_trans;
 i
 commit;
-# Switching to connection 'con1'.
+connection con1;
 select * from t1_base;
 i
 select * from t3_trans;
 i
 commit;
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 unlock tables;
 #
 # Check how FLUSH TABLE WITH READ LOCK is handled for MERGE tables.
@@ -1669,4 +1673,7 @@ drop database `#mysql50#mysqltest-2`;
 drop database mysqltest1;
 drop temporary tables t1_temp, t2_temp;
 drop tables t1_base, t2_base, t3_trans;
+disconnect con1;
+disconnect con2;
+disconnect con3;
 set global sql_mode=default;

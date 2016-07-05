@@ -72,7 +72,7 @@ event	CREATE TABLE `event` (
   `character_set_client` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `collation_connection` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `db_collation` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `body_utf8` longblob,
+  `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Events'
 SELECT * FROM event LIMIT 0;
@@ -112,7 +112,7 @@ proc	CREATE TABLE `proc` (
   `is_deterministic` enum('YES','NO') NOT NULL DEFAULT 'NO',
   `security_type` enum('INVOKER','DEFINER') NOT NULL DEFAULT 'DEFINER',
   `param_list` blob NOT NULL,
-  `returns` longblob NOT NULL,
+  `returns` longblob NOT NULL DEFAULT '',
   `body` longblob NOT NULL,
   `definer` char(77) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -122,7 +122,7 @@ proc	CREATE TABLE `proc` (
   `character_set_client` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `collation_connection` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `db_collation` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `body_utf8` longblob,
+  `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`,`type`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Stored Procedures'
 SELECT * FROM proc LIMIT 0;
@@ -293,7 +293,7 @@ user	CREATE TABLE `user` (
   `max_connections` int(11) unsigned NOT NULL DEFAULT '0',
   `max_user_connections` int(11) unsigned NOT NULL DEFAULT '0',
   `plugin` char(64) COLLATE utf8_bin DEFAULT '',
-  `authentication_string` text COLLATE utf8_bin,
+  `authentication_string` text COLLATE utf8_bin DEFAULT NULL,
   `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'

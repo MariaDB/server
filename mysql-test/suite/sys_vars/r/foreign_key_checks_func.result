@@ -1,18 +1,19 @@
 '#--------------------FN_DYNVARS_032_01-------------------------#'
 SET @@session.foreign_key_checks = 0;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@session.foreign_key_checks;
 @@session.foreign_key_checks
 1
 SET @@session.foreign_key_checks = 1;
-'connect (con2,localhost,root,,,,)'
-'connection con2'
+connect  con2,localhost,root,,,,;
+connection con2;
 SELECT @@session.foreign_key_checks;
 @@session.foreign_key_checks
 1
+disconnect con2;
 '#--------------------FN_DYNVARS_032_02-------------------------#'
-'connection con1'
+connection con1;
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1(a INT PRIMARY KEY)ENGINE = INNODB;
 CREATE TABLE t2(a INT PRIMARY KEY,b INT)ENGINE = INNODB;

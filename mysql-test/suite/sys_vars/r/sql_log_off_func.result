@@ -21,31 +21,32 @@ SELECT argument FROM mysql.general_log WHERE argument = 'UPDATE t1 SET a = \'aa1
 argument
 UPDATE t1 SET a = 'aa1' WHERE a = 'aa1-updated'
 '#--------------------FN_DYNVARS_158_03--------------------------#'
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_log_off;
 @@SESSION.sql_log_off
 0
 0 / FALSE Expected
 SET SESSION sql_log_off = FALSE;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_log_off;
 @@SESSION.sql_log_off
 0
 0 / FALSE Expected
 SET SESSION sql_log_off = TRUE;
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_log_off;
 @@SESSION.sql_log_off
 1
 1 / TRUE Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_log_off;
 @@SESSION.sql_log_off
 0
 0 / FALSE Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 SET SESSION sql_log_off = @default_sql_log_off;
 DROP TABLE t1;

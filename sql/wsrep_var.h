@@ -48,7 +48,7 @@ extern bool wsrep_on_update                  UPDATE_ARGS;
 extern bool wsrep_sync_wait_update           UPDATE_ARGS;
 extern bool wsrep_start_position_check       CHECK_ARGS;
 extern bool wsrep_start_position_update      UPDATE_ARGS;
-extern void wsrep_start_position_init        INIT_ARGS;
+extern bool wsrep_start_position_init        INIT_ARGS;
 
 extern bool wsrep_provider_check             CHECK_ARGS;
 extern bool wsrep_provider_update            UPDATE_ARGS;

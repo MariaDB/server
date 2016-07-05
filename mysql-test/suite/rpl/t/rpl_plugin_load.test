@@ -33,11 +33,11 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 # Wait for slave to catch up with master.
 sync_slave_with_master;
 #
-    --echo connection slave: Verify that example engine is not installed.
+    --echo Verify that example engine is not installed.
     connection slave;
     SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 #
---echo connection master: Uninstall example engine.
+--echo Uninstall example engine.
 connection master;
 --echo Get binlog position before uninstall plugin.
 let $before_pos = query_get_value("SHOW MASTER STATUS", Position, 1);

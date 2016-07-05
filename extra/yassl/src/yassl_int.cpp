@@ -1689,6 +1689,11 @@ Errors& GetErrors()
     return *errorsInstance;
 }
 
+bool HasErrors()
+{
+  return (errorsInstance != 0);
+}
+
 
 typedef Mutex::Lock Lock;
 

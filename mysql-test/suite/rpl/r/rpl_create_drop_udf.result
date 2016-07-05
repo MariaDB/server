@@ -1,14 +1,17 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 SELECT metaphon('master');
 metaphon('master')
 MSTR
 CREATE FUNCTION metaphon RETURNS INT SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Function 'metaphon' already exists
+connection slave;
 SELECT metaphon('slave');
 metaphon('slave')
 SLF
+connection master;
 CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 Warnings:
 Note	1125	Function 'metaphon' already exists
@@ -20,20 +23,25 @@ Warnings:
 Note	1125	Function 'metaphon' already exists
 CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+connection slave;
 SELECT metaphon('slave');
 metaphon('slave')
 SLF
+connection master;
 DROP FUNCTION metaphon;
 CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Function 'metaphon' already exists
+connection slave;
 SELECT metaphon('slave');
 metaphon('slave')
 SLF
+connection master;
 DROP FUNCTION metaphon;
 DROP FUNCTION IF EXISTS metaphon;
 Warnings:
 Note	1305	FUNCTION test.metaphon does not exist
+connection slave;
 DROP FUNCTION metaphon;
 ERROR 42000: FUNCTION test.metaphon does not exist
 DROP FUNCTION IF EXISTS metaphon;

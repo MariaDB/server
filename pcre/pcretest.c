@@ -2250,7 +2250,7 @@ data is not zero. */
 static int callout(pcre_callout_block *cb)
 {
 FILE *f = (first_callout | callout_extra)? outfile : NULL;
-int i, pre_start, post_start, subject_length;
+int i, current_position, pre_start, post_start, subject_length;
 
 if (callout_extra)
   {
@@ -2280,14 +2280,19 @@ printed lengths of the substrings. */
 
 if (f != NULL) fprintf(f, "--->");
 
+/* If a lookbehind is involved, the current position may be earlier than the
+match start. If so, use the match start instead. */
+
+current_position = (cb->current_position >= cb->start_match)?
+  cb->current_position : cb->start_match;
+
 PCHARS(pre_start, cb->subject, 0, cb->start_match, f);
 PCHARS(post_start, cb->subject, cb->start_match,
-  cb->current_position - cb->start_match, f);
+  current_position - cb->start_match, f);
 
 PCHARS(subject_length, cb->subject, 0, cb->subject_length, NULL);
 
-PCHARSV(cb->subject, cb->current_position,
-  cb->subject_length - cb->current_position, f);
+PCHARSV(cb->subject, current_position, cb->subject_length - current_position, f);
 
 if (f != NULL) fprintf(f, "\n");
 
@@ -5612,6 +5617,12 @@ while (!done)
         break;
         }
 
+      if (use_size_offsets < 2)
+        {
+        fprintf(outfile, "Cannot do global matching with an ovector size < 2\n");
+        break;
+        }
+
       /* If we have matched an empty string, first check to see if we are at
       the end of the subject. If so, the /g loop is over. Otherwise, mimic what
       Perl's /g options does. This turns out to be rather cunning. First we set
@@ -5740,3 +5751,4 @@ return yield;
 }
 
 /* End of pcretest.c */
+

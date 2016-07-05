@@ -661,6 +661,17 @@ lock_sys_close(void)
 	mutex_free(&lock_sys->mutex);
 	mutex_free(&lock_sys->wait_mutex);
 
+	os_event_free(lock_sys->timeout_event);
+
+	for (srv_slot_t* slot = lock_sys->waiting_threads;
+	     slot < lock_sys->waiting_threads + OS_THREAD_MAX_N; slot++) {
+
+		ut_ad(!slot->in_use);
+		ut_ad(!slot->thr);
+		if (slot->event != NULL)
+			os_event_free(slot->event);
+	}
+
 	mem_free(lock_stack);
 	mem_free(lock_sys);
 
@@ -2409,7 +2420,7 @@ lock_rec_add_to_queue(
 				if (wsrep_debug) {
 					fprintf(stderr,
 						"BF skipping wait: %lu\n",
-						trx->id);
+						(ulong) trx->id);
 					lock_rec_print(stderr, lock);
 				}
 		  } else
@@ -4998,7 +5009,7 @@ lock_table_other_has_incompatible(
 #ifdef WITH_WSREP
 			if(wsrep_thd_is_wsrep(trx->mysql_thd)) {
 				if (wsrep_debug) {
-					fprintf(stderr, "WSREP: trx %ld table lock abort\n",
+					fprintf(stderr, "WSREP: trx " TRX_ID_FMT " table lock abort\n",
 						trx->id);
 				}
 				trx_mutex_enter(lock->trx);
@@ -6890,7 +6901,7 @@ lock_clust_rec_modify_check_and_lock(
 	lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 
 	lock_mutex_enter();
-	trx_t*		trx = thr_get_trx(thr);
+	trx_t*		trx __attribute__((unused))= thr_get_trx(thr);
 
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
@@ -6954,7 +6965,7 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 	lock_mutex_enter();
 
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
@@ -7063,7 +7074,7 @@ lock_sec_rec_read_check_and_lock(
 		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 	}
 
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 	lock_mutex_enter();
 
 	ut_ad(mode != LOCK_X
@@ -7146,7 +7157,7 @@ lock_clust_rec_read_check_and_lock(
 	}
 
 	lock_mutex_enter();
-	trx_t* trx = thr_get_trx(thr);
+	trx_t* trx __attribute__((unused))= thr_get_trx(thr);
 
 	ut_ad(mode != LOCK_X
 	      || lock_table_has(trx, index->table, LOCK_IX));

@@ -40,7 +40,7 @@ public:
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   void fix_length_and_dec();
   enum_field_types field_type() const  { return MYSQL_TYPE_GEOMETRY; }
-  Field *tmp_table_field(TABLE *t_arg);
+  Field *create_field_for_create_select(TABLE *table);
 };
 
 class Item_func_geometry_from_text: public Item_geometry_func
@@ -299,6 +299,7 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
+  bool need_parentheses_in_default() { return false; }
 };
 
 
@@ -339,6 +340,7 @@ public:
   { }
   longlong val_int();
   const char *func_name() const { return "st_relate"; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 
@@ -429,6 +431,7 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
+  bool need_parentheses_in_default() { return false; }
 };
 
 class Item_func_issimple: public Item_int_func
@@ -613,6 +616,10 @@ class Item_func_gis_debug: public Item_int_func
     { null_value= false; }
     const char *func_name() const  { return "st_gis_debug"; }
     longlong val_int();
+    bool check_vcol_func_processor(void *arg)
+    {
+      return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    }
 };
 #endif
 

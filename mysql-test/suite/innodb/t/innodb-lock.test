@@ -71,7 +71,6 @@ insert into t1 values(0, 0),(1,1),(2,2);
 commit;
 SELECT * from t1 where id = 0 FOR UPDATE;
 
---echo # Connection 'con2'.
 connection con2;
 set autocommit=0;
 set @@innodb_table_locks=0;
@@ -82,7 +81,6 @@ set @@innodb_table_locks=0;
 --echo # Sending:
 --send lock table t1 write;
 
---echo # Connection 'con1'.
 connection con1;
 --echo # Wait until LOCK TABLE is blocked on SQL-level lock.
 let $wait_condition=
@@ -96,18 +94,15 @@ select * from t1;
 --echo # Unblock LOCK TABLE.
 commit;
 
---echo # Connection 'con2'.
 connection con2;
 --echo # Reap LOCK TABLE.
 --reap
 unlock tables;
 
---echo # Connection 'con1'.
 connection con1;
 
 select * from t1 where id = 0 for update;
 
---echo # Connection 'con2'.
 connection con2;
 --echo # The below statement should not be blocked as LOCK TABLES ... READ
 --echo # does not take strong SQL-level lock on t1. SELECTs which do not
@@ -120,7 +115,6 @@ unlock tables;
 select * from t1;
 commit;
 
---echo # Connection 'con1'.
 connection con1;
 commit;
 

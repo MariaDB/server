@@ -34,6 +34,8 @@ View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`role3`@`%` SQL SECURITY DEFINER VIEW `test`.`v3` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
+connect  c1, localhost, foo,,mysqltest1;
+connection c1;
 show grants;
 Grants for foo@localhost
 GRANT role4 TO 'foo'@'localhost'
@@ -71,6 +73,7 @@ select * from test.v5;
 a+b	c
 11	100
 22	200
+connection default;
 drop role role4;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection

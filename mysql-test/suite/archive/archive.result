@@ -12664,7 +12664,7 @@ SHOW CREATE TABLE t6;
 Table	Create Table
 t6	CREATE TABLE `t6` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
-  `b` tinyblob,
+  `b` tinyblob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
 ) ENGINE=ARCHIVE AUTO_INCREMENT=36 DEFAULT CHARSET=latin1
@@ -12792,10 +12792,10 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` text,
+  `b` text DEFAULT NULL,
   `c` varchar(255) DEFAULT NULL,
-  `d` blob,
-  `e` blob
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL
 ) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 a	b	c	d	e

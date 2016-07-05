@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates
-   Copyright (c) 1995, 2013, Monty Program Ab
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -119,7 +118,7 @@ void wait_for_free_space(const char *filename, int errors)
   (void) sleep(MY_WAIT_FOR_USER_TO_FIX_PANIC);
 }
 
-const char **get_global_errmsgs()
+const char **get_global_errmsgs(int nr __attribute__((unused)))
 {
   return globerrs;
 }

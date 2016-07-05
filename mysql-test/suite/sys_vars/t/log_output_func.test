@@ -36,12 +36,10 @@ LET $start_general_log_file= `SELECT @@global.general_log_file`;
 
 SET @@global.log_output = 'NONE';
 # con1 will be default connection from now on
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
 SET @@global.log_output = 'TABLE,FILE';
 
 # Test that the effect is global
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
 SELECT @@global.log_output;
 
@@ -50,7 +48,6 @@ SELECT @@global.log_output;
 # Begin the functionality Testing of log_output    #
 ####################################################
 
---echo 'connection con1'
 connection con1;
 
 #===============================================================
@@ -111,7 +108,6 @@ file_exists $MYSQLTEST_VARDIR/run/mytest.log ;
 # Clean up
 #==============================================================
 
---echo connection default;
 connection default;
 SET @@global.general_log= 'OFF';
 #SET @@global.general_log_file= @start_general_log_file;
@@ -125,4 +121,3 @@ SET @@global.general_log= 'ON';
 ####################################################
 # End of functionality Testing for log_output      #
 ####################################################
-

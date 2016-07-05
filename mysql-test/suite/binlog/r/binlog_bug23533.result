@@ -5,6 +5,8 @@ COUNT(*)
 1000
 SET GLOBAL binlog_cache_size=4096;
 SET GLOBAL max_binlog_cache_size=4096;
+disconnect default;
+connect default,localhost,root,,test;
 START TRANSACTION;
 CREATE TABLE t2 SELECT * FROM t1;
 ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
@@ -13,3 +15,5 @@ SHOW TABLES LIKE 't%';
 Tables_in_test (t%)
 t1
 DROP TABLE t1;
+disconnect default;
+connect default,localhost,root,,test;

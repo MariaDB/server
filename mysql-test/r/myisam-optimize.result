@@ -3,6 +3,7 @@
 #
 create table t1 (pk int primary key, i int) engine=MyISAM;
 insert into t1 values (1,1),(2,2);
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -13,6 +14,8 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
+disconnect con1;
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -23,6 +26,8 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
+disconnect con1;
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -33,9 +38,12 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
+disconnect con1;
+connection default;
 DROP TABLE t1;
 create table t1 (pk int primary key, i int) engine=aria;
 insert into t1 values (1,1),(2,2);
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -46,6 +54,8 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
+disconnect con1;
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -56,6 +66,8 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
+disconnect con1;
+connect  con1,localhost,root,,;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -66,4 +78,6 @@ t1	CREATE TABLE `t1` (
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
+disconnect con1;
+connection default;
 DROP TABLE t1;

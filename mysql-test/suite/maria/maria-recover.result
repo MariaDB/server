@@ -1,17 +1,17 @@
-select @@global.aria_recover;
-@@global.aria_recover
+select @@global.aria_recover_options;
+@@global.aria_recover_options
 BACKUP
-set global aria_recover=off;
-select @@global.aria_recover;
-@@global.aria_recover
+set global aria_recover_options=off;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
 OFF
-set global aria_recover=default;
-select @@global.aria_recover;
-@@global.aria_recover
+set global aria_recover_options=default;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
 NORMAL
-set global aria_recover=normal;
-select @@global.aria_recover;
-@@global.aria_recover
+set global aria_recover_options=normal;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
 NORMAL
 drop database if exists mysqltest;
 create database mysqltest;
@@ -35,5 +35,5 @@ a
 ThursdayMorningsMarket
 ThursdayMorningsMarketb
 drop database mysqltest;
-set global aria_recover=backup;
+set global aria_recover_options=backup;
 set global aria_checkpoint_interval=30;

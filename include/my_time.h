@@ -23,6 +23,7 @@
 #define _my_time_h_
 #include "my_global.h"
 #include "mysql_time.h"
+#include "my_decimal_limits.h"
 
 C_MODE_START
 
@@ -184,7 +185,7 @@ void set_zero_time(MYSQL_TIME *tm, enum enum_mysql_timestamp_type time_type);
   sent using binary protocol fit in this buffer.
 */
 #define MAX_DATE_STRING_REP_LENGTH 30
-#define AUTO_SEC_PART_DIGITS 31 /* same as NOT_FIXED_DEC */
+#define AUTO_SEC_PART_DIGITS DECIMAL_NOT_SPECIFIED
 
 int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_date_to_str(const MYSQL_TIME *l_time, char *to);

@@ -89,9 +89,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
     (every increment of global thread_id counts as a new connection
     in SHOW STATUS and we want to avoid skewing the statistics)
   */
-  thd->thread_id= thd->variables.pseudo_thread_id= thd_thread_id;
+  thd->variables.pseudo_thread_id= thd->thread_id;
   mysql_mutex_lock(&LOCK_thread_count);
-  thread_count++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->thread_stack= (char*) &tables;
@@ -205,10 +204,10 @@ static void send_report(const char *when)
     /*
       otherwise, prepare the THD and TABLE_LIST,
       create and fill the temporary table with data just like
-      SELECT * FROM IFROEMATION_SCHEMA.feedback is doing,
+      SELECT * FROM INFORMATION_SCHEMA.feedback is doing,
       read and concatenate table data into a String.
     */
-    if (!(thd= new THD()))
+    if (!(thd= new THD(thd_thread_id)))
       return;
 
     if (prepare_for_fill(&tables))
@@ -263,8 +262,8 @@ ret:
     */
     mysql_mutex_lock(&LOCK_thread_count);
     thd->set_status_var_init();
-    thread_count--;
     thd->killed= KILL_CONNECTION;
+    thd->unlink();
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
@@ -280,9 +279,7 @@ pthread_handler_t background_thread(void *arg __attribute__((unused)))
   if (my_thread_init())
     return 0;
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd_thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd_thread_id= next_thread_id();
 
   if (slept_ok(startup_interval))
   {

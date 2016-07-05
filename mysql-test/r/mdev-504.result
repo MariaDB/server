@@ -16,6 +16,7 @@ BEGIN
 RETURN ROUND(3 * RAND() + 0.5);
 END |
 SET GLOBAL use_stat_tables = PREFERABLY;
+connection default;
 DROP TABLE A;
 DROP PROCEDURE p_analyze;
 DROP FUNCTION rnd3;

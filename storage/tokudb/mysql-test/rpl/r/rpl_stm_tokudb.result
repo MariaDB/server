@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE TABLE t4 (
 id INT(5) unsigned NOT NULL auto_increment,
 name varchar(15) NOT NULL default '',
@@ -15,10 +16,12 @@ SELECT * FROM t4;
 id	name	number
 1	XXX	12345
 2	XXY	12345
+connection slave;
 SELECT * FROM t4;
 id	name	number
 1	XXX	12345
 2	XXY	12345
+connection master;
 LOAD DATA
 INFILE '../../std_data/loaddata_pair.dat'  
 REPLACE INTO TABLE t4
@@ -27,18 +30,26 @@ SELECT * FROM t4;
 id	name	number
 4	XXX	12345
 5	XXY	12345
+connection slave;
 SELECT * FROM t4;
 id	name	number
 4	XXX	12345
 5	XXY	12345
+connection master;
+connection slave;
+connection master;
 FLUSH LOGS;
+connection slave;
 FLUSH LOGS;
+connection master;
 DROP DATABASE IF EXISTS mysqltest1;
 CREATE DATABASE mysqltest1;
 CREATE TEMPORARY TABLE mysqltest1.tmp (f1 BIGINT) ENGINE=InnoDB;
 CREATE TABLE mysqltest1.t1 (f1 BIGINT) ENGINE="TokuDB";
 SET AUTOCOMMIT = 0;
+connection slave;
 -------- switch to slave --------
+connection slave;
 ALTER TABLE mysqltest1.t1 ENGINE = MyISAM;
 SHOW CREATE TABLE mysqltest1.t1;
 Table	Create Table
@@ -46,6 +57,7 @@ t1	CREATE TABLE `t1` (
   `f1` bigint(20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 -------- switch to master --------
+connection master;
 INSERT INTO mysqltest1.t1 SET f1= 1;
 DROP TEMPORARY TABLE mysqltest1.tmp;
 ROLLBACK;
@@ -67,7 +79,9 @@ tmp2	CREATE TEMPORARY TABLE `tmp2` (
 SELECT COUNT(*) FROM mysqltest1.t1;
 COUNT(*)
 0
+connection slave;
 -------- switch to slave --------
+connection slave;
 SHOW CREATE TABLE mysqltest1.tmp;
 ERROR 42S02: Table 'mysqltest1.tmp' doesn't exist
 SHOW CREATE TABLE mysqltest1.tmp2;
@@ -78,6 +92,7 @@ COUNT(*)
 2
 FLUSH LOGS;
 -------- switch to master --------
+connection master;
 FLUSH LOGS;
 DROP TEMPORARY TABLE IF EXISTS mysqltest1.tmp2;
 DROP DATABASE mysqltest1;
@@ -101,11 +116,15 @@ INSERT INTO t1 (b) VALUES (1),(2),(3);
 BEGIN;
 INSERT INTO t1(b) VALUES (4);
 -------- switch to master1 --------
+connection master1;
 RENAME TABLE t1 TO t3, t2 TO t1;;
 -------- switch to master --------
+connection master;
 COMMIT;
 -------- switch to master1 --------
+connection master1;
 -------- switch to master --------
+connection master;
 SELECT * FROM t1;
 id	b
 SELECT * FROM t3;
@@ -114,7 +133,9 @@ id	b
 2	2
 3	3
 4	4
+connection slave;
 -------- switch to slave --------
+connection slave;
 SELECT * FROM t1;
 id	b
 SELECT * FROM t3;
@@ -124,6 +145,7 @@ id	b
 3	3
 4	4
 -------- switch to master --------
+connection master;
 DROP TABLE t1;
 DROP TABLE t3;
 End of 6.0 tests

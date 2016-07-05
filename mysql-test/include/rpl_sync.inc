@@ -81,7 +81,9 @@ while ($_rpl_i) {
     }
     if ($rpl_only_running_threads)
     {
+      disable_connect_log;
       --connection server_$_rpl_server
+      enable_connect_log;
       --let $_rpl_slave_io_running= query_get_value(SHOW SLAVE STATUS, Slave_IO_Running, 1)
       --let $_rpl_slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
       if ($rpl_debug)
@@ -92,7 +94,9 @@ while ($_rpl_i) {
       --let $_rpl_slave_sql_running= `SELECT IF('$_rpl_slave_sql_running' = 'Yes', 1, '')`
       if ($_rpl_slave_io_running)
       {
+        disable_query_log;
         --connection server_$_rpl_prev_server
+        enable_query_log;
         if ($_rpl_slave_sql_running)
         {
           if ($rpl_debug)
@@ -101,7 +105,9 @@ while ($_rpl_i) {
             --let $_rpl_master_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
             --echo syncing master_file='$_rpl_master_file' master_pos='$_rpl_master_pos'
           }
+          disable_connect_log;
           --sync_slave_with_master server_$_rpl_server
+          enable_connect_log;
         }
         if (!$_rpl_slave_sql_running)
         {
@@ -119,6 +125,7 @@ while ($_rpl_i) {
     }
     if (!$rpl_only_running_threads)
     {
+      disable_connect_log;
       --connection server_$_rpl_prev_server
       if ($rpl_debug)
       {
@@ -127,6 +134,7 @@ while ($_rpl_i) {
         --echo syncing master_file='$_rpl_master_file' master_pos='$_rpl_master_pos'
       }
       --sync_slave_with_master server_$_rpl_server
+      enable_connect_log;
     }
   }
 

@@ -55,9 +55,6 @@ select a,b, truncate(rand_value,4) from t1;
 select * from t2;
 select a,name, old_a, old_b, truncate(rand_value,4) from t3;
 sync_slave_with_master;
---disable_query_log
-select "--- On slave --" as "";
---enable_query_log
 select a,b, truncate(rand_value,4) from t1;
 select * from t2;
 select a,name, old_a, old_b, truncate(rand_value,4) from t3;
@@ -119,9 +116,6 @@ FROM information_schema.triggers
 WHERE trigger_name = 't1_first';
 
 sync_slave_with_master;
---disable_query_log
-select "--- On slave --" as "";
---enable_query_log
 
 # XXX: Definers of stored procedures and functions are not replicated. WL#2897
 # (Complete definer support in the stored routines) addresses this issue. So,
@@ -395,7 +389,6 @@ START SLAVE;
 
 --echo
 --echo ---> Preparing environment...
---echo ---> connection: master
 --connection master
 
 --disable_warnings
@@ -409,7 +402,6 @@ DROP TABLE IF EXISTS t2;
 --sync_slave_with_master
 
 --echo
---echo ---> connection: master
 --connection master
 
 # Test.
@@ -440,8 +432,6 @@ SELECT * FROM t2;
 
 --sync_slave_with_master
 
---echo ---> connection: master
-
 --echo
 --echo ---> Checking on slave...
 
@@ -451,7 +441,6 @@ SELECT * FROM t2;
 # Cleanup.
 
 --echo
---echo ---> connection: master
 --connection master
 
 --echo

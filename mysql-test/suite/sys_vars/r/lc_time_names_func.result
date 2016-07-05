@@ -1,7 +1,7 @@
 '#--------------------FN_DYNVARS_060_01-------------------------#'
 SET @@global.lc_time_names = "en_CA";
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.lc_time_names;
 @@global.lc_time_names
 en_CA
@@ -9,16 +9,18 @@ SELECT @@session.lc_time_names;
 @@session.lc_time_names
 en_CA
 SET @@global.lc_time_names = "en_IN";
-'connect (con2,localhost,root,,,,)'
-'connection con2'
+connect  con2,localhost,root,,,,;
+connection con2;
 SELECT @@global.lc_time_names;
 @@global.lc_time_names
 en_IN
 SELECT @@session.lc_time_names;
 @@session.lc_time_names
 en_IN
+disconnect con2;
+disconnect con1;
 '#--------------------FN_DYNVARS_060_02-------------------------#'
-'connection default'
+connection default;
 SET NAMES 'utf8';
 SET @@session.lc_time_names = 'en_US';
 SELECT DATE_FORMAT('2010-01-01','%W %a %M %b'), DAYNAME('2010-05-05'),MONTHNAME('2010-12-12');

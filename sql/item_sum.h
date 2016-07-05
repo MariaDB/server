@@ -61,7 +61,7 @@ public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
   virtual ~Aggregator () {}                   /* Keep gcc happy */
 
-  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR }; 
+  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
 
   /**
@@ -109,6 +109,7 @@ public:
 
 
 class st_select_lex;
+class Window_spec;
 
 /**
   Class Item_sum is the base class used for special expressions that SQL calls
@@ -347,7 +348,9 @@ public:
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
-    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC
+    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
+    ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
+    CUME_DIST_FUNC, NTILE_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -408,8 +411,8 @@ public:
   */  
   inline bool reset_and_add() 
   { 
-    aggregator_clear(); 
-    return aggregator_add(); 
+    aggregator_clear();
+    return aggregator_add();
   };
 
   /*
@@ -455,7 +458,7 @@ public:
   */
   void make_const () 
   { 
-    used_tables_cache= 0; 
+    used_tables_cache= 0;
     const_item_cache= true;
   }
   virtual bool const_during_execution() const { return false; }
@@ -481,8 +484,11 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table);
-  virtual bool collect_outer_ref_processor(uchar *param);
+  Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
+  }
+  virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
   bool register_sum_func(THD *thd, Item **ref);
@@ -537,12 +543,12 @@ public:
   virtual void clear()= 0;
   virtual bool add()= 0;
   virtual bool setup(THD *thd) { return false; }
+  
+  virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor(func_name()); 
-  }
+  bool check_vcol_func_processor(void *arg);
+  virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
 };
 
 
@@ -707,6 +713,7 @@ public:
 class Item_sum_int :public Item_sum_num
 {
 public:
+  Item_sum_int(THD *thd): Item_sum_num(thd) {}
   Item_sum_int(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
   Item_sum_int(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
   Item_sum_int(THD *thd, Item_sum_int *item) :Item_sum_num(thd, item) {}
@@ -714,15 +721,16 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; }
 };
 
 
-class Item_sum_sum :public Item_sum_num
+class Item_sum_sum :public Item_sum_num,
+                   public Type_handler_hybrid_field_type 
 {
 protected:
-  Item_result hybrid_type;
   double sum;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
@@ -745,7 +753,12 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return hybrid_type; }
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -754,6 +767,11 @@ public:
     return has_with_distinct() ? "sum(distinct " : "sum("; 
   }
   Item *copy_or_same(THD* thd);
+  void remove();
+
+private:
+  void add_helper(bool perform_removal);
+  ulonglong count;
 };
 
 
@@ -766,6 +784,7 @@ class Item_sum_count :public Item_sum_int
   void clear();
   bool add();
   void cleanup();
+  void remove();
 
   public:
   Item_sum_count(THD *thd, Item *item_par):
@@ -812,6 +831,8 @@ class Item_sum_count :public Item_sum_int
 class Item_sum_avg :public Item_sum_sum
 {
 public:
+  // TODO-cvicentiu given that Item_sum_sum now uses a counter of its own, in
+  // order to implement remove(), it is possible to remove this member.
   ulonglong count;
   uint prec_increment;
   uint f_precision, f_scale, dec_bin_size;
@@ -830,6 +851,7 @@ public:
   }
   void clear();
   bool add();
+  void remove();
   double val_real();
   // In SPs we might force the "wrong" type with select into a declare variable
   longlong val_int() { return val_int_from_real(); }
@@ -1010,14 +1032,18 @@ public:
 
 class Item_sum_bit :public Item_sum_int
 {
-protected:
-  ulonglong reset_bits,bits;
-
 public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
-    Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg) {}
+    Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
+    as_window_function(FALSE), num_values_added(0) {}
   Item_sum_bit(THD *thd, Item_sum_bit *item):
-    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits) {}
+    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits),
+    as_window_function(item->as_window_function),
+    num_values_added(item->num_values_added)
+  {
+    if (as_window_function)
+      memcpy(bit_counters, item->bit_counters, sizeof(bit_counters));
+  }
   enum Sumfunctype sum_func () const {return SUM_BIT_FUNC;}
   void clear();
   longlong val_int();
@@ -1028,8 +1054,42 @@ public:
   void cleanup()
   {
     bits= reset_bits;
+    if (as_window_function)
+      clear_as_window();
     Item_sum_int::cleanup();
   }
+  void setup_window_func(THD *thd __attribute__((unused)),
+                         Window_spec *window_spec __attribute__((unused)))
+  {
+    as_window_function= TRUE;
+    clear_as_window();
+  }
+  void remove()
+  {
+    if (as_window_function)
+    {
+      remove_as_window(args[0]->val_int());
+      return;
+    }
+    // Unless we're counting bits, we can not remove anything.
+    DBUG_ASSERT(0);
+  }
+
+protected:
+  static const int NUM_BIT_COUNTERS= 64;
+  ulonglong reset_bits,bits;
+  /*
+    Marks whether the function is to be computed as a window function.
+  */
+  bool as_window_function;
+  // When used as an aggregate window function, we need to store
+  // this additional information.
+  ulonglong num_values_added;
+  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  bool add_as_window(ulonglong value);
+  bool remove_as_window(ulonglong value);
+  bool clear_as_window();
+  virtual void set_bits_from_counters()= 0;
 };
 
 
@@ -1041,28 +1101,37 @@ public:
   bool add();
   const char *func_name() const { return "bit_or("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 
 class Item_sum_and :public Item_sum_bit
 {
-  public:
+public:
   Item_sum_and(THD *thd, Item *item_par):
     Item_sum_bit(thd, item_par, ULONGLONG_MAX) {}
   Item_sum_and(THD *thd, Item_sum_and *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_and("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 class Item_sum_xor :public Item_sum_bit
 {
-  public:
+public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_xor(THD *thd, Item_sum_xor *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_xor("; }
   Item *copy_or_same(THD* thd);
+
+private:
+  void set_bits_from_counters();
 };
 
 
@@ -1084,9 +1153,12 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(name, arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -1100,10 +1172,6 @@ public:
   { }
   enum Type type() const { return FIELD_AVG_ITEM; }
   bool is_null() { update_null_value(); return null_value; }
-  bool check_vcol_func_processor(uchar *int_arg)
-  {
-    return trace_unsupported_by_check_vcol_func_processor("avg_field");
-  }
 };
 
 
@@ -1158,10 +1226,6 @@ public:
   bool is_null() { update_null_value(); return null_value; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   enum Item_result result_type () const { return REAL_RESULT; }
-  bool check_vcol_func_processor(uchar *int_arg)
-  {
-    return trace_unsupported_by_check_vcol_func_processor("var_field");
-  }
 };
 
 
@@ -1255,6 +1319,9 @@ class Item_sum_udf_float :public Item_udf_sum
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  enum Item_result result_type () const { return REAL_RESULT; }
+  enum Item_result cmp_type () const { return REAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1275,6 +1342,7 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() { decimals=0; max_length=21; }
   Item *copy_or_same(THD* thd);
 };
@@ -1314,6 +1382,7 @@ public:
   }
   my_decimal *val_decimal(my_decimal *dec);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void fix_length_and_dec();
   Item *copy_or_same(THD* thd);
 };
@@ -1333,6 +1402,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
+  enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
   Item *copy_or_same(THD* thd);
 };
@@ -1468,6 +1538,8 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+protected:
+  virtual Field *make_string_field(TABLE *table);
 
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
@@ -1479,9 +1551,9 @@ public:
   void cleanup();
 
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
-  const char *func_name() const { return "group_concat"; }
+  const char *func_name() const { return "group_concat("; }
   virtual Item_result result_type () const { return STRING_RESULT; }
-  virtual Field *make_string_field(TABLE *table);
+  virtual Item_result cmp_type () const { return STRING_RESULT; }
   enum_field_types field_type() const
   {
     if (too_big_for_varchar())
@@ -1524,7 +1596,7 @@ public:
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
   virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(uchar *cntx)
+  virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
 };
 

@@ -19,12 +19,10 @@ if ($LOAD_LOCAL)
 }
 
 save_master_pos;
-echo ----------content on master----------;
 SELECT hex(cl) FROM t;
 
 connection slave;
 sync_with_master;
-echo ----------content on slave----------;
 USE mysqltest;
 SELECT hex(cl) FROM t;
 

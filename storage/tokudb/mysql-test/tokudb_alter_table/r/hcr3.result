@@ -14,7 +14,7 @@ foo	CREATE TABLE `foo` (
   `b` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `d` varchar(10) DEFAULT NULL,
-  `e` text,
+  `e` text DEFAULT NULL,
   PRIMARY KEY (`aa`),
   KEY `b` (`b`),
   KEY `d` (`d`) `clustering`=yes
@@ -36,7 +36,7 @@ foo	CREATE TABLE `foo` (
   `bb` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `d` varchar(10) DEFAULT NULL,
-  `e` text,
+  `e` text DEFAULT NULL,
   PRIMARY KEY (`aa`),
   KEY `b` (`bb`),
   KEY `d` (`d`) `clustering`=yes
@@ -55,7 +55,7 @@ foo	CREATE TABLE `foo` (
   `bb` bigint(20) DEFAULT NULL,
   `c` char(10) DEFAULT NULL,
   `dd` varchar(10) DEFAULT NULL,
-  `e` text,
+  `e` text DEFAULT NULL,
   PRIMARY KEY (`aa`),
   KEY `b` (`bb`),
   KEY `d` (`dd`) `clustering`=yes

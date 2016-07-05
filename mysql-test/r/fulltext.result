@@ -249,7 +249,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ticket` int(11) DEFAULT NULL,
-  `inhalt` text,
+  `inhalt` text DEFAULT NULL,
   KEY `tig` (`ticket`),
   FULLTEXT KEY `tix` (`inhalt`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

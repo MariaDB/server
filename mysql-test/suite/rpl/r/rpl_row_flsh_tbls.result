@@ -15,11 +15,14 @@ master-bin.000001	#	Query	#	#	use `test`; rename table t1 to t5, t2 to t1
 select * from t3;
 a
 flush tables;
+connection slave;
 select * from t3;
 a
 stop slave;
 include/wait_for_slave_to_stop.inc
+connection master;
 drop table t1;
+connection slave;
 flush tables with read lock;
 start slave;
 include/wait_for_slave_param.inc [Slave_IO_Running]
@@ -27,5 +30,6 @@ include/wait_for_slave_sql_to_start.inc
 stop slave;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables;
+connection master;
 drop table t3, t4, t5;
 include/rpl_end.inc

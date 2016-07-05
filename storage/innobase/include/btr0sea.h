@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,7 +69,7 @@ btr_search_t*
 btr_search_get_info(
 /*================*/
 	dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*****************************************************************//**
 Creates and initializes a search info struct.
 @return	own: search info struct */
@@ -255,13 +255,6 @@ struct btr_search_sys_t{
 
 /** The adaptive hash index */
 extern btr_search_sys_t*	btr_search_sys;
-
-#ifdef UNIV_SEARCH_PERF_STAT
-/** Number of successful adaptive hash index lookups */
-extern ulint	btr_search_n_succ;
-/** Number of failed adaptive hash index lookups */
-extern ulint	btr_search_n_hash_fail;
-#endif /* UNIV_SEARCH_PERF_STAT */
 
 /** After change in n_fields or n_bytes in info, this many rounds are waited
 before starting the hash analysis again: this is to save CPU time when there

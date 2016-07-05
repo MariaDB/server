@@ -8,26 +8,31 @@ GRANT CREATE, DROP ON *.* TO user2@localhost;
 GRANT RELOAD, SELECT ON *.* TO user3@localhost;
 GRANT SELECT, LOCK TABLES ON *.* TO user4@localhost;
 GRANT RELOAD, LOCK TABLES ON *.* TO user5@localhost;
-# Connection con1 as user1
+connect con1, localhost, user1;
 FLUSH TABLE db1.t1 FOR EXPORT;
 UNLOCK TABLES;
-# Connection default
-# Connection con1 as user2
+disconnect con1;
+connection default;
+connect con1, localhost, user2;
 FLUSH TABLE db1.t1 FOR EXPORT;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
-# Connection default
-# Connection con1 as user3
+disconnect con1;
+connection default;
+connect con1, localhost, user3;
 FLUSH TABLE db1.t1 FOR EXPORT;
 ERROR 42000: Access denied for user 'user3'@'localhost' to database 'db1'
-# Connection default
-# Connection con1 as user4
+disconnect con1;
+connection default;
+connect con1, localhost, user4;
 FLUSH TABLE db1.t1 FOR EXPORT;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
-# Connection default
-# Connection con1 as user5
+disconnect con1;
+connection default;
+connect con1, localhost, user5;
 FLUSH TABLE db1.t1 FOR EXPORT;
 ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table 't1'
-# Connection default
+disconnect con1;
+connection default;
 DROP USER user1@localhost, user2@localhost, user3@localhost,
 user4@localhost, user5@localhost;
 DROP TABLE db1.t1;

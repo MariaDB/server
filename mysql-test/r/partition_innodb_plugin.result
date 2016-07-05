@@ -42,7 +42,7 @@ SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
 SET @@global.innodb_file_format = Barracuda,
 @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
-# Connection con1
+connect con1,localhost,root,,;
 CREATE TABLE t1 (id INT NOT NULL
 PRIMARY KEY,
 user_num CHAR(10)
@@ -62,7 +62,8 @@ t1	CREATE TABLE `t1` (
 /*!50100 PARTITION BY HASH (id)
 PARTITIONS 1 */
 SET GLOBAL innodb_file_per_table = OFF;
-# Connection con2
+disconnect con1;
+connect con2,localhost,root,,;
 LOCK TABLE t1 WRITE;
 # ALTER fails because COMPRESSED/KEY_BLOCK_SIZE
 # are incompatible with innodb_file_per_table = OFF;
@@ -99,7 +100,8 @@ t1	CREATE TABLE `t1` (
 /*!50100 PARTITION BY HASH (id)
 PARTITIONS 3 */
 DROP TABLE t1;
-# Connection default
+disconnect con2;
+connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_format = @old_innodb_file_format;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
@@ -116,15 +118,15 @@ PARTITION `p1``\""e` VALUES LESS THAN (MAXVALUE)
 SUBPARTITION `sp3``\""e`));
 INSERT INTO `t``\""e` VALUES (0), (2), (6), (10), (14), (18), (22);
 START TRANSACTION;
-# con1
+connect con1,localhost,root,,;
 SET NAMES utf8;
 START TRANSACTION;
-# default connection
+connection default;
 UPDATE `t``\""e` SET a = 16 WHERE a = 0;
-# con1
+connection con1;
 UPDATE `t``\""e` SET a = 8 WHERE a = 22;
 UPDATE `t``\""e` SET a = 12 WHERE a = 0;
-# default connection
+connection default;
 SELECT lock_table, COUNT(*) FROM INFORMATION_SCHEMA.INNODB_LOCKS
 GROUP BY lock_table;
 lock_table	COUNT(*)
@@ -148,8 +150,9 @@ SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
 InnoDB		index `PRIMARY` of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */ 
 set @@sql_mode = @old_sql_mode;
-# con1
+connection con1;
 ROLLBACK;
-# default connection
+disconnect con1;
+connection default;
 DROP TABLE `t``\""e`;
 SET NAMES DEFAULT;

@@ -4,3 +4,19 @@
 SET @tmp=ST_GIS_DEBUG(1);
 
 --source include/gis_debug.inc
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT ST_GIS_DEBUG(1));
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

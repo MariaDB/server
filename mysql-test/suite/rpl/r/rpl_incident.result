@@ -1,5 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=none;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=none;
+connection master;
 **** On Master ****
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -16,6 +21,7 @@ a
 2
 3
 4
+connection slave;
 call mtr.add_suppression("Slave SQL.*The incident LOST_EVENTS occurred on the master.* 1590");
 include/wait_for_slave_sql_error.inc [errno=1590]
 Last_SQL_Error = 'The incident LOST_EVENTS occurred on the master. Message: <none>'
@@ -34,5 +40,12 @@ a
 3
 4
 include/check_slave_is_running.inc
+connection master;
 DROP TABLE t1;
+connection slave;
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
 include/rpl_end.inc

@@ -84,19 +84,15 @@ COMMIT;
 connection default;
 UNLOCK TABLES;
 
---echo connection con1;
 connection con1;
 lock table t1 read;
 
---echo connection default;
 connection default;
 set global read_only=1;
 
---echo connection con1;
 connection con1;
 unlock tables;
 
---echo connection default;
 connection default;
 SET GLOBAL read_only=0;
 
@@ -127,7 +123,6 @@ GRANT CREATE TEMPORARY TABLES, DROP, INSERT, DELETE, UPDATE,
       SELECT, LOCK TABLES ON db1.* TO bug33669@localhost;
 SET GLOBAL READ_ONLY = ON;
 connect(con1,localhost,bug33669,,db1);
---echo # Connection con1 (user bug33669):
 
 --echo
 --echo # Create, insert and drop temporary table:

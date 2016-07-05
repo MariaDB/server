@@ -97,7 +97,7 @@ static void closelog() {}
 #define FLOGGER_NO_PSI
 
 /* How to access the pthread_mutex in mysql_mutex_t */
-#if defined(SAFE_MUTEX) || defined(MY_PTHREAD_FASTMUTEX)
+#ifdef SAFE_MUTEX
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
 #else
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex

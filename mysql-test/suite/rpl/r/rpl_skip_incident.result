@@ -1,5 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection master;
 **** On Master ****
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -9,6 +14,7 @@ a
 2
 3
 REPLACE INTO t1 VALUES (4);
+connection slave;
 SELECT * FROM t1;
 a
 1
@@ -16,10 +22,18 @@ a
 3
 4
 include/check_slave_is_running.inc
+connection master;
 Should have two binary logs here
 show binary logs;
 Log_name	File_size
 master-bin.000001	#
 master-bin.000002	#
+master-bin.000003	#
 DROP TABLE t1;
+connection slave;
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
 include/rpl_end.inc

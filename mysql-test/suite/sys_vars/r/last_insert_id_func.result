@@ -23,7 +23,8 @@ SELECT @@session.last_insert_id = 2;
 @@session.last_insert_id = 2
 1
 '#--------------------FN_DYNVARS_059_02-------------------------#'
-## Creating & connecting to new connection test_con1 ##
+connect  test_con1, localhost, root,,;
+connection test_con1;
 SET @@autocommit = 0;
 ## Verifying initial value of variable in new connection ## 
 SELECT @@session.last_insert_id;
@@ -39,7 +40,8 @@ SELECT @@session.last_insert_id;
 @@session.last_insert_id
 5
 '#--------------------FN_DYNVARS_059_03-------------------------#'
-## Creating & connecting to new connection test_con2 ##
+connect  test_con2, localhost, root,,;
+connection test_con2;
 ## Inserting values through new connection ##
 INSERT into t1(name) values('Record_6');
 INSERT into t1(name) values('Record_7');
@@ -54,7 +56,7 @@ SELECT @@last_insert_id;
 @@last_insert_id
 7
 '#--------------------FN_DYNVARS_059_04-------------------------#'
-## Switching to test_con1 ##
+connection test_con1;
 ## Verifying all records in table & value of variable ##
 SELECT * from t1;
 id	name
@@ -74,6 +76,7 @@ SELECT @@session.last_insert_id;
 @@session.last_insert_id
 5
 ## Switching to test_con2 & verifying value of variable in it ## 
+connection test_con2;
 SELECT @@session.last_insert_id;
 @@session.last_insert_id
 7
@@ -90,4 +93,5 @@ SELECT @@session.last_insert_id;
 8
 ## Dropping table t1 ##
 drop table t1;
-## Disconnecting both the connections ##
+disconnect test_con1;
+disconnect test_con2;

@@ -22,11 +22,16 @@ INSERT INTO t1 VALUES ('1999-07-10',100100,24), ('1999-07-11',100100,25),
 ('1999-08-24',100600,3), ('1999-08-24',100600,32), ('1999-08-27',100500,43),
 ('1999-08-31',100600,33), ('1999-09-17',100100,37), ('1999-09-18',100100,37),
 ('1999-09-19',100100,37), ('2000-12-18',100700,38);
+connect  killee, localhost, root;
 set debug_sync='inside_make_join_statistics signal killme wait_for done';
 select event_date,type,event_id from t1 WHERE event_date >= "1999-07-01" AND event_date < "1999-07-15" AND (type=100600 OR type=100100) ORDER BY event_date;
+connection default;
 set debug_sync='now wait_for killme';
 kill %connection%;
 set debug_sync='now signal done';
+connection killee;
 Got one of the listed errors
+connection default;
+disconnect killee;
 drop table t1;
 set debug_sync='reset';

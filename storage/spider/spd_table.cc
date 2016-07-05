@@ -41,7 +41,6 @@
 #include "spd_direct_sql.h"
 #include "spd_malloc.h"
 
-ulong *spd_db_att_thread_id;
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #ifdef XID_CACHE_IS_SPLITTED
@@ -6327,8 +6326,6 @@ int spider_db_init(
 
 #ifdef _WIN32
   HMODULE current_module = GetModuleHandle(NULL);
-  spd_db_att_thread_id = (ulong *)
-    GetProcAddress(current_module, "?thread_id@@3KA");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #ifdef XID_CACHE_IS_SPLITTED
@@ -6362,7 +6359,6 @@ int spider_db_init(
   spd_abort_loop = (bool volatile *)
     GetProcAddress(current_module, "?abort_loop@@3_NC");
 #else
-  spd_db_att_thread_id = &thread_id;
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #ifdef XID_CACHE_IS_SPLITTED
@@ -8577,7 +8573,7 @@ int spider_discover_table_structure(
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
-    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
+    if (!(part_syntax = generate_partition_syntax(thd, part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL, NULL)))
 #else
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,

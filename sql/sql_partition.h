@@ -262,7 +262,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            Alter_table_ctx *alter_ctx,
                            bool *partition_changed,
                            bool *fast_alter_table);
-char *generate_partition_syntax(partition_info *part_info,
+char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 uint *buf_length, bool use_sql_alloc,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,

@@ -423,7 +423,7 @@ struct mysql_event_general
   unsigned int general_command_length;
   const char *general_query;
   unsigned int general_query_length;
-  struct charset_info_st *general_charset;
+  const struct charset_info_st *general_charset;
   unsigned long long general_time;
   unsigned long long general_rows;
   unsigned long long query_id;

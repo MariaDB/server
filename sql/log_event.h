@@ -4238,7 +4238,10 @@ public:
       Indicates that rows in this event are complete, that is contain
       values for all columns of the table.
      */
-    COMPLETE_ROWS_F = (1U << 3)
+    COMPLETE_ROWS_F = (1U << 3),
+
+    /* Value of the OPTION_NO_CHECK_CONSTRAINT_CHECKS flag in thd->options */
+    NO_CHECK_CONSTRAINT_CHECKS_F = (1U << 7)
   };
 
   typedef uint16 flag_set;

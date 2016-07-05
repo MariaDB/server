@@ -56,10 +56,8 @@ SET GLOBAL secure_auth = OFF;
 #
 CREATE USER 'testUser'@'localhost' IDENTIFIED BY 'newpass';
 
---echo ** Connecting con_user1 using testUser **
 connect (con_user1,localhost,testUser,newpass,);
 
---echo ** Connection default**
 connection default;
 
 #
@@ -67,10 +65,8 @@ connection default;
 #
 SET PASSWORD FOR 'testUser'@'localhost' = OLD_PASSWORD('newpass');
 
---echo ** Connecting con_user2 using testUser **
 connect (con_user2,localhost,testUser,newpass,);
 
---echo ** Connection default**
 connection default;
 
 --echo '#--------------------FN_DYNVARS_144_03-------------------------#'
@@ -84,9 +80,7 @@ SET GLOBAL secure_auth = ON;
 #
 SET PASSWORD FOR 'testUser'@'localhost' = PASSWORD('newpass');
 
---echo ** Connecting con_user3 using testUser **
 connect (con_user3,localhost,testUser,newpass,);
---echo ** Connection default **
 connection default;
 
 #
@@ -94,14 +88,12 @@ connection default;
 #
 SET PASSWORD FOR 'testUser'@'localhost' = OLD_PASSWORD('newpass');
 
---echo ** Connecting con_user4 using testUser **
 --disable_query_log
 --error ER_SERVER_IS_IN_SECURE_AUTH_MODE
 connect (con_user4,localhost,testUser,newpass,);
 --enable_query_log
 --echo Expected error "Server is in secure auth mode"
 
---echo ** Connection default**
 connection default;
 
 #
@@ -109,10 +101,8 @@ connection default;
 #
 SET PASSWORD FOR 'testUser'@'localhost' = PASSWORD('newpass');
 
---echo ** Connecting con_user4 using testUser **
 connect (con_user4,localhost,testUser,newpass,);
 
---echo ** Connection default **
 connection default;
 
 #
@@ -121,7 +111,6 @@ connection default;
 
 SET GLOBAL secure_auth = @old_secure_auth;
 
---echo Disconnecting Connections con_user1, con_user2, con_user3, con_user4
 disconnect con_user1;
 disconnect con_user2;
 disconnect con_user3;

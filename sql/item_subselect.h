@@ -95,6 +95,9 @@ public:
   subselect_engine *engine;
   /* unit of subquery */
   st_select_lex_unit *unit;
+  /* Cached buffers used when calling filesort in sub queries */
+  Filesort_buffer filesort_buffer;
+  LEX_STRING sortbuffer;
   /* A reference from inside subquery predicate to somewhere outside of it */
   class Ref_to_outside : public Sql_alloc
   {
@@ -212,14 +215,14 @@ public:
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
-  bool mark_as_eliminated_processor(uchar *arg);
-  bool eliminate_subselect_processor(uchar *arg);
-  bool set_fake_select_as_master_processor(uchar *arg);
-  bool enumerate_field_refs_processor(uchar *arg);
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool mark_as_eliminated_processor(void *arg);
+  bool eliminate_subselect_processor(void *arg);
+  bool set_fake_select_as_master_processor(void *arg);
+  bool enumerate_field_refs_processor(void *arg);
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("subselect");
+    return mark_unsupported_function("select ...", arg, VCOL_IMPOSSIBLE);
   }
   /**
     Callback to test if an IN predicate is expensive.
@@ -230,7 +233,7 @@ public:
     @retval TRUE  if the predicate is expensive
     @retval FALSE otherwise
   */
-  bool is_expensive_processor(uchar *arg) { return is_expensive(); }
+  bool is_expensive_processor(void *arg) { return is_expensive(); }
 
   /**
     Get the SELECT_LEX structure associated with this Item.
@@ -239,9 +242,9 @@ public:
   st_select_lex* get_select_lex();
   virtual bool expr_cache_is_needed(THD *);
   virtual void get_cache_parameters(List<Item> &parameters);
-  virtual bool is_subquery_processor (uchar *opt_arg) { return 1; }
-  bool exists2in_processor(uchar *opt_arg) { return 0; }
-  bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
+  virtual bool is_subquery_processor (void *opt_arg) { return 1; }
+  bool exists2in_processor(void *opt_arg) { return 0; }
+  bool limit_index_condition_pushdown_processor(void *opt_arg) 
   {
     return TRUE;
   }
@@ -378,6 +381,7 @@ public:
   void no_rows_in_result();
 
   enum Item_result result_type() const { return INT_RESULT;}
+  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   longlong val_int();
   double val_real();
   String *val_str(String*);
@@ -389,7 +393,7 @@ public:
   bool select_transformer(JOIN *join);
   void top_level_item() { abort_on_null=1; }
   inline bool is_top_level_item() { return abort_on_null; }
-  bool exists2in_processor(uchar *opt_arg);
+  bool exists2in_processor(void *opt_arg);
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
@@ -695,7 +699,7 @@ public:
     in_strategy= (SUBS_STRATEGY_CHOSEN | strategy);
     DBUG_VOID_RETURN;
   }
-  bool exists2in_processor(uchar *opt_arg __attribute__((unused)))
+  bool exists2in_processor(void *opt_arg __attribute__((unused)))
   {
     return 0;
   };
@@ -750,7 +754,7 @@ public:
                          INDEXSUBQUERY_ENGINE, HASH_SJ_ENGINE,
                          ROWID_MERGE_ENGINE, TABLE_SCAN_ENGINE};
 
-  subselect_engine(THD *thd_arg, Item_subselect *si,
+  subselect_engine(Item_subselect *si,
                    select_result_interceptor *res)
   {
     result= res;
@@ -758,7 +762,6 @@ public:
     cmp_type= res_type= STRING_RESULT;
     res_field_type= MYSQL_TYPE_VAR_STRING;
     maybe_null= 0;
-    set_thd(thd_arg);
   }
   virtual ~subselect_engine() {}; // to satisfy compiler
   virtual void cleanup()= 0;
@@ -769,7 +772,7 @@ public:
   */
   void set_thd(THD *thd_arg);
   THD * get_thd() { return thd; }
-  virtual int prepare()= 0;
+  virtual int prepare(THD *)= 0;
   virtual void fix_length_and_dec(Item_cache** row)= 0;
   /*
     Execute the engine
@@ -824,11 +827,11 @@ class subselect_single_select_engine: public subselect_engine
   st_select_lex *select_lex; /* corresponding select_lex */
   JOIN * join; /* corresponding JOIN structure */
 public:
-  subselect_single_select_engine(THD *thd_arg, st_select_lex *select,
+  subselect_single_select_engine(st_select_lex *select,
 				 select_result_interceptor *result,
 				 Item_subselect *item);
   void cleanup();
-  int prepare();
+  int prepare(THD *thd);
   void fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols();
@@ -858,11 +861,11 @@ class subselect_union_engine: public subselect_engine
 {
   st_select_lex_unit *unit;  /* corresponding unit structure */
 public:
-  subselect_union_engine(THD *thd_arg, st_select_lex_unit *u,
+  subselect_union_engine(st_select_lex_unit *u,
 			 select_result_interceptor *result,
 			 Item_subselect *item);
   void cleanup();
-  int prepare();
+  int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols();
@@ -915,11 +918,11 @@ public:
   // constructor can assign THD because it will be called after JOIN::prepare
   subselect_uniquesubquery_engine(THD *thd_arg, st_join_table *tab_arg,
 				  Item_subselect *subs, Item *where)
-    :subselect_engine(thd_arg, subs, 0), tab(tab_arg), cond(where)
+    :subselect_engine(subs, 0), tab(tab_arg), cond(where)
   {}
   ~subselect_uniquesubquery_engine();
   void cleanup();
-  int prepare();
+  int prepare(THD *);
   void fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols() { return 1; }
@@ -1047,7 +1050,7 @@ public:
 
   subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
-    : subselect_engine(thd_arg, in_predicate, NULL), 
+    : subselect_engine(in_predicate, NULL),
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),
@@ -1057,7 +1060,7 @@ public:
 
   bool init(List<Item> *tmp_columns, uint subquery_id);
   void cleanup();
-  int prepare();
+  int prepare(THD *);
   int exec();
   virtual void print(String *str, enum_query_type query_type);
   uint cols()
@@ -1336,15 +1339,14 @@ protected:
 protected:
   virtual bool partial_match()= 0;
 public:
-  subselect_partial_match_engine(THD *thd_arg,
-                                 subselect_uniquesubquery_engine *engine_arg,
+  subselect_partial_match_engine(subselect_uniquesubquery_engine *engine_arg,
                                  TABLE *tmp_table_arg, Item_subselect *item_arg,
                                  select_result_interceptor *result_arg,
                                  List<Item> *equi_join_conds_arg,
                                  bool has_covering_null_row_arg,
                                  bool has_covering_null_columns_arg,
                                  uint count_columns_with_nulls_arg);
-  int prepare() { return 0; }
+  int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
   int exec();
   void fix_length_and_dec(Item_cache**) {}
   uint cols() { /* TODO: what is the correct value? */ return 1; }
@@ -1431,8 +1433,7 @@ protected:
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
   bool partial_match();
 public:
-  subselect_rowid_merge_engine(THD *thd_arg,
-                               subselect_uniquesubquery_engine *engine_arg,
+  subselect_rowid_merge_engine(subselect_uniquesubquery_engine *engine_arg,
                                TABLE *tmp_table_arg, uint merge_keys_count_arg,
                                bool has_covering_null_row_arg,
                                bool has_covering_null_columns_arg,
@@ -1440,7 +1441,7 @@ public:
                                Item_subselect *item_arg,
                                select_result_interceptor *result_arg,
                                List<Item> *equi_join_conds_arg)
-    :subselect_partial_match_engine(thd_arg, engine_arg, tmp_table_arg,
+    :subselect_partial_match_engine(engine_arg, tmp_table_arg,
                                     item_arg, result_arg, equi_join_conds_arg,
                                     has_covering_null_row_arg,
                                     has_covering_null_columns_arg,
@@ -1459,8 +1460,7 @@ class subselect_table_scan_engine: public subselect_partial_match_engine
 protected:
   bool partial_match();
 public:
-  subselect_table_scan_engine(THD *thd_arg,
-                              subselect_uniquesubquery_engine *engine_arg,
+  subselect_table_scan_engine(subselect_uniquesubquery_engine *engine_arg,
                               TABLE *tmp_table_arg, Item_subselect *item_arg,
                               select_result_interceptor *result_arg,
                               List<Item> *equi_join_conds_arg,

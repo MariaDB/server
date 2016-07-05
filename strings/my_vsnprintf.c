@@ -16,11 +16,10 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
-#include <stdarg.h>
 #include <my_sys.h>
 #include <my_base.h>
 #include <my_handler_errors.h>
-
+#include <mysql_com.h>                        /* For FLOATING_POINT_DECIMALS */
 
 #define MAX_ARGS 32                           /* max positional args count*/
 #define MAX_PRINT_INFO 32                     /* max print position count */
@@ -168,8 +167,7 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
   for ( ; par < par_end; par+= char_len)
   {
     uchar c= *(uchar *) par;
-    if (!(char_len= my_mbcharlen(cs, c)))
-      char_len= 1;
+    char_len= my_charlen_fix(cs, par, par_end);
     if (char_len == 1 && c == (uchar) quote_char )
     {
       if (start + 1 >= end)
@@ -241,8 +239,8 @@ static char *process_dbl_arg(char *to, char *end, size_t width,
 {
   if (width == MAX_WIDTH)
     width= FLT_DIG; /* width not set, use default */
-  else if (width >= NOT_FIXED_DEC)
-    width= NOT_FIXED_DEC - 1; /* max.precision for my_fcvt() */
+  else if (width >= FLOATING_POINT_DECIMALS)
+    width= FLOATING_POINT_DECIMALS - 1; /* max.precision for my_fcvt() */
   width= MY_MIN(width, (size_t)(end-to) - 1);
   
   if (arg_type == 'f')
@@ -497,7 +495,7 @@ start:
           char errmsg_buff[MYSYS_STRERROR_SIZE];
           *to++= ' ';
           *to++= '"';
-          my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+          my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
           to= process_str_arg(cs, to, real_end, width, errmsg_buff,
                               print_arr[i].flags);
           if (real_end > to) *to++= '"';
@@ -677,7 +675,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         char errmsg_buff[MYSYS_STRERROR_SIZE];
         *to++= ' ';
         *to++= '"';
-        my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+        my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
         to= process_str_arg(cs, to, real_end, width, errmsg_buff, print_type);
         if (real_end > to) *to++= '"';
       }

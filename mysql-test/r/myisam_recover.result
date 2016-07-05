@@ -9,9 +9,8 @@
 # have effect on merge children.
 # For that, we set the table cache to minimal size and populate it
 # in a concurrent connection.
-#
-# Switching to connection con1
-#
+connect con1,localhost,root,,test,,;
+connection con1;
 #
 # Minimal values.
 #
@@ -42,9 +41,7 @@ end while;
 end|
 call p_create();
 drop procedure p_create;
-#
-# Switching to connection 'default'
-#
+connection default;
 #
 # We have to disable the ps-protocol, to avoid
 # "Prepared statement needs to be re-prepared" errors
@@ -94,21 +91,22 @@ Error	1034	Number of rows changed from 3 to 6
 # Cleanup
 #
 drop table t1, t1_mrg;
-#
-# Switching to connection con1
-#
+connection con1;
 unlock tables;
 prepare stmt from @drop_table_stmt;
 execute stmt;
 deallocate prepare stmt;
 set @@global.table_definition_cache=default;
 set @@global.table_open_cache=default;
+disconnect con1;
+connection default;
 #
 # 18075170 - sql node restart required to avoid deadlock after
 #            restore
 #
 # Check that auto-repair for MyISAM tables can now happen in the
 # middle of transaction, without aborting it.
+connection default;
 create table t1 (a int, key(a)) engine=myisam;
 create table t2 (a int);
 insert into t2 values (1);
@@ -142,9 +140,14 @@ Warnings:
 Error	145	Table 't1' is marked as crashed and should be repaired
 Error	1194	Table 't1' is marked as crashed and should be repaired
 Error	1034	Number of rows changed from 1 to 2
+connect con2, localhost, root;
 ALTER TABLE t2 ADD val INT;
+connection default;
 # With fix we should have alter table waiting for t2 lock here.
 ROLLBACK;
 SET autocommit = 1;
+connection con2;
+connection default;
+disconnect con2;
 # Cleanup
 drop table t1, t2;

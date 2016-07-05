@@ -317,7 +317,7 @@ aria_pagecache_buffer_size	8388608
 aria_pagecache_division_limit	100
 aria_pagecache_file_hash_size	512
 aria_page_checksum	OFF
-aria_recover	NORMAL
+aria_recover_options	NORMAL
 aria_repair_threads	1
 aria_sort_buffer_size	268434432
 aria_stats_method	nulls_unequal
@@ -622,8 +622,11 @@ create table t2 (a int, unique(a)) engine=aria transactional=0 row_format=dynami
 insert into t2 values(1);
 insert into t2 values(2),(2);
 ERROR 23000: Duplicate entry '2' for key 'a'
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root;
 insert into t1 values(3);
 insert into t2 values(3);
+connection default;
 drop table t1, t2;
 CREATE TABLE t1 (
 a INT PRIMARY KEY,

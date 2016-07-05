@@ -1,20 +1,26 @@
 include/rpl_init.inc [topology=1->2,1->3]
+connection server_1;
 create table t1 (n int);
 insert into t1 values (1);
 insert into t1 values (2);
+connection server_3;
 include/stop_slave.inc
 include/wait_for_slave_to_stop.inc
+connection server_2;
 include/stop_slave.inc
 include/wait_for_slave_to_stop.inc
 reset slave all;
+connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
 master_user='root', MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 include/wait_for_slave_to_start.inc
+connection server_2;
 flush logs;
 insert into t1 values (3);
 insert into t1 values (4);
 flush logs;
+connection server_3;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
 MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
@@ -43,15 +49,19 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (4)
 master-bin.000001	#	Query	#	#	COMMIT
+connection server_1;
 include/stop_slave.inc
 include/wait_for_slave_to_stop.inc
 reset slave all;
+connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
 master_user = 'root', MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
+connection server_3;
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
 MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
+connection server_1;
 drop table t1;
 include/rpl_end.inc

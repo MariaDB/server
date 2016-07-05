@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 DROP TABLE IF EXISTS test.t1;
 CREATE TABLE test.t1 (
 dummyKey INTEGER NOT NULL,
@@ -91,6 +92,7 @@ hex(bit3)
 15
 24
 35
+connection slave;
 SELECT  oSupp, sSuppD, GSuppDf, VNotSupp, x034 FROM test.t1;
 oSupp	sSuppD	GSuppDf	VNotSupp	x034
 5	5	3	2	1
@@ -131,5 +133,7 @@ hex(bit3)
 15
 24
 35
+connection master;
 DROP TABLE IF EXISTS test.t1;
+connection slave;
 include/rpl_end.inc

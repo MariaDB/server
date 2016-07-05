@@ -15,12 +15,17 @@ Aaron
 Aaron
 Ababa
 Ababa
+connection slave;
 STOP SLAVE;
+connection master;
 SET PASSWORD FOR root@"localhost" = PASSWORD('foo');
+connection slave;
 START SLAVE;
+connection master;
 SET PASSWORD FOR root@"localhost" = PASSWORD('');
 CREATE TABLE t3(n INT);
 INSERT INTO t3 VALUES(1),(2);
+connection slave;
 SELECT * FROM t3 ORDER BY n;
 n
 1
@@ -28,25 +33,37 @@ n
 SELECT SUM(LENGTH(word)) FROM t1;
 SUM(LENGTH(word))
 1022
+connection master;
 DROP TABLE t1,t3;
+connection slave;
+connection master;
 CREATE TABLE t1 (n INT) ENGINE=MYISAM;
+connection slave;
+connection master;
 RESET MASTER;
+connection slave;
 STOP SLAVE;
 RESET SLAVE;
+connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+connection slave;
 LOCK TABLES t1 READ;
 START SLAVE;
 UNLOCK TABLES;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+connection master;
 DROP TABLE t1;
 CREATE TABLE t1 (n INT);
 INSERT INTO t1 VALUES(3456);
+connection slave;
 SELECT n FROM t1;
 n
 3456
+connection master;
 DROP TABLE t1;
+connection slave;
 include/rpl_end.inc

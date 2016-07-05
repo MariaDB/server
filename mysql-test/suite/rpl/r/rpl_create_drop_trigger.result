@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 # Part 1 - initial creation
+connection master;
 CREATE DATABASE db1;
 USE db1;
 CREATE TABLE t1 (val INT);
@@ -10,28 +11,34 @@ INSERT INTO t1 VALUES (10), (20), (30);
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Master
 SET @sum = @sum + NEW.val + 1
+connection slave;
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Slave
 SET @sum = @sum + NEW.val + 1
 # Part 2 - CREATE IF NOT EXISTS (on a existing trigger)
+connection master;
 CREATE TRIGGER IF NOT EXISTS val_sum AFTER INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 2;
 Warnings:
 Note	1359	Trigger already exists
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Master
 SET @sum = @sum + NEW.val + 1
+connection slave;
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Slave
 SET @sum = @sum + NEW.val + 1
 # Part 3 - CREATE OR REPLACE (on a existing trigger)
+connection master;
 CREATE OR REPLACE TRIGGER val_sum BEFORE INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 3;
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Master
 SET @sum = @sum + NEW.val + 3
+connection slave;
 SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
 ACTION_STATEMENT_Slave
 SET @sum = @sum + NEW.val + 3
 # Clearing up
+connection master;
 DROP TRIGGER val_sum;
 DROP TABLE t1;
 DROP TRIGGER IF EXISTS val_sum;
@@ -43,6 +50,7 @@ DROP DATABASE db1;
 DROP TRIGGER IF EXISTS val_sum;
 ERROR 3D000: No database selected
 # Syncing slave with master
+connection slave;
 DROP TRIGGER val_sum;
 ERROR HY000: Trigger does not exist
 include/rpl_end.inc

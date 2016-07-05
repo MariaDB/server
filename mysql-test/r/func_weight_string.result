@@ -1,5 +1,7 @@
 drop table if exists t1;
 set global max_allowed_packet=1048576;
+connect  conn1,localhost,root,,;
+connection conn1;
 set names latin1;
 select hex(weight_string(0x010203));
 hex(weight_string(0x010203))
@@ -55,7 +57,7 @@ create table t1 select weight_string(repeat('t',66000)) as w;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `w` longblob
+  `w` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select weight_string(NULL);
@@ -91,6 +93,8 @@ NULL
 Warnings:
 Warning	1301	Result of cast_as_binary() was larger than max_allowed_packet (1048576) - truncated
 Warning	1301	Result of weight_string() was larger than max_allowed_packet (1048576) - truncated
+disconnect conn1;
+connection default;
 set global max_allowed_packet=default;
 #
 # Start of 10.1 tests
@@ -139,4 +143,25 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a`
 DROP TABLE t1;
 #
 # End of 10.1 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARBINARY(10) DEFAULT WEIGHT_STRING(a AS CHAR(10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL,
+  `b` varbinary(10) DEFAULT WEIGHT_STRING(a AS CHAR(10))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (a) VALUES ('a');
+SELECT a, HEX(b) FROM t1;
+a	HEX(b)
+a	41202020202020202020
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #

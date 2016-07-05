@@ -28,15 +28,11 @@
 
 SET @@session.foreign_key_checks = 0;
 # con1 will be default connection from now on
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@session.foreign_key_checks;
 SET @@session.foreign_key_checks = 1;
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
---echo 'connection con2'
 connection con2;
 SELECT @@session.foreign_key_checks;
 disconnect con2;
@@ -46,7 +42,6 @@ disconnect con2;
 # Begin the functionality Testing of foreign_key_checks         #
 #################################################################
 
---echo 'connection con1'
 connection con1;
 
 --disable_warnings

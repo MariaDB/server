@@ -84,21 +84,31 @@ show status like "Qcache_free_blocks";
 Variable_name	Value
 Qcache_free_blocks	1
 drop table t1, t2, t3, t11, t21;
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root;
 CREATE TABLE t1 ( a INT NOT NULL PRIMARY KEY AUTO_INCREMENT ) ENGINE =
 MyISAM;
 LOCK TABLE t1 READ LOCAL;
+connect  root2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root2;
 INSERT INTO t1 VALUES (), (), ();
+connection root;
 SELECT * FROM t1;
 a
+connection root2;
 SELECT * FROM t1;
 a
 1
 2
 3
+connection root;
 SELECT * FROM t1;
 a
 UNLOCK TABLES;
 drop table t1;
+connection default;
+disconnect root;
+disconnect root2;
 flush query cache;
 reset query cache;
 flush status;
@@ -319,6 +329,7 @@ drop procedure f2;
 drop procedure f3;
 drop procedure f4;
 drop table t1;
+connection default;
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
 reset query cache;
@@ -333,15 +344,21 @@ insert into t1 values(3);
 set i_var = sleep(3);
 return 0;
 end;|
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 select f1();
+connection con2;
 select sleep(4);
 sleep(4)
 0
 select * from t1;
 id
 3
+connection con1;
 f1()
 0
+connection con2;
 select * from t1;
 id
 3
@@ -351,6 +368,9 @@ id
 3
 drop table t1;
 drop function f1;
+disconnect con1;
+disconnect con2;
+connection default;
 set GLOBAL query_cache_size=0;
 SET @@global.log_bin_trust_function_creators = @old_log_bin_trust_function_creators;
 DROP DATABASE IF EXISTS bug30269;
@@ -363,6 +383,8 @@ INSERT INTO test1 VALUES (5, 'testit');
 GRANT SELECT (id) ON TABLE bug30269.test1 TO 'bug30269'@'localhost';
 GRANT SELECT ON TABLE bug30269.view1 TO 'bug30269'@'localhost';
 set global query_cache_size= 81920;
+connect  bug30269, localhost, bug30269,,;
+connection bug30269;
 USE bug30269;
 show status like 'Qcache_queries_in_cache';
 Variable_name	Value
@@ -380,8 +402,10 @@ id
 show status like 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	1
+connection default;
 USE test;
 DROP DATABASE bug30269;
+disconnect bug30269;
 DROP USER 'bug30269'@'localhost';
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;

@@ -153,13 +153,11 @@
 */
 #if defined(__APPLE__) && defined(__MACH__)
 #  undef SIZEOF_CHARP 
-#  undef SIZEOF_SHORT 
 #  undef SIZEOF_INT 
 #  undef SIZEOF_LONG 
 #  undef SIZEOF_LONG_LONG 
 #  undef SIZEOF_OFF_T 
 #  undef WORDS_BIGENDIAN
-#  define SIZEOF_SHORT 2
 #  define SIZEOF_INT 4
 #  define SIZEOF_LONG_LONG 8
 #  define SIZEOF_OFF_T 8
@@ -1232,6 +1230,24 @@ static inline double rint(double x)
 #if defined(_AIX) && defined(_LARGE_FILE_API)
 #undef _LARGE_FILE_API
 #undef __GNUG__
+#endif
+
+/*
+  Provide defaults for the CPU cache line size, if it has not been detected by
+  CMake using getconf
+*/
+#if !defined(CPU_LEVEL1_DCACHE_LINESIZE) || CPU_LEVEL1_DCACHE_LINESIZE == 0
+  #if CPU_LEVEL1_DCACHE_LINESIZE == 0
+    #undef CPU_LEVEL1_DCACHE_LINESIZE
+  #endif
+
+  #if defined(__s390__)
+    #define CPU_LEVEL1_DCACHE_LINESIZE 256
+  #elif defined(__powerpc__) || defined(__aarch64__)
+    #define CPU_LEVEL1_DCACHE_LINESIZE 128
+  #else
+    #define CPU_LEVEL1_DCACHE_LINESIZE 64
+  #endif
 #endif
 
 #endif /* my_global_h */

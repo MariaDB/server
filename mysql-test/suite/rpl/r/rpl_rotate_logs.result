@@ -1,3 +1,6 @@
+connect  master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK;
+connection slave;
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 start slave;
 Got one of the listed errors
@@ -7,13 +10,17 @@ change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='r
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 reset slave;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
+connection master;
 reset master;
+connection slave;
 start slave;
 include/wait_for_slave_to_start.inc
+connection master;
 create temporary table temp_table (a char(80) not null);
 insert into temp_table values ("testing temporary tables");
 create table t1 (s text);
 insert into t1 values('Could not break slave'),('Tried hard');
+connection slave;
 Master_Log_File = 'master-bin.000001'
 Relay_Master_Log_File = 'master-bin.000001'
 include/check_slave_is_running.inc
@@ -21,6 +28,7 @@ select * from t1;
 s
 Could not break slave
 Tried hard
+connection master;
 flush logs;
 create table t2(m int not null auto_increment primary key);
 insert into t2 values (34),(67),(123);
@@ -31,15 +39,23 @@ master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
 create table t3 select * from temp_table;
+connection slave;
 select * from t3;
 a
 testing temporary tables
+connection master;
 drop table temp_table, t3;
+connection slave;
 insert into t2 values(1234);
+connection master;
 set insert_id=1234;
 insert into t2 values(NULL);
+connection slave;
 call mtr.add_suppression("Slave SQL.*Error .Duplicate entry .1234. for key .PRIMARY.. on query.* error.* 1062");
 include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
+connection master;
+connection slave;
+connection master;
 purge master logs to 'master-bin.000002';
 show master logs;
 Log_name	master-bin.000002
@@ -57,6 +73,7 @@ show binary logs;
 Log_name	File_size
 master-bin.000003	#
 insert into t2 values (65);
+connection slave;
 Master_Log_File = 'master-bin.000003'
 Relay_Master_Log_File = 'master-bin.000003'
 include/check_slave_is_running.inc
@@ -67,6 +84,7 @@ m
 67
 123
 1234
+connection master;
 create temporary table temp_table (a char(80) not null);
 insert into temp_table values ("testing temporary tables part 2");
 create table t3 (n int);
@@ -86,6 +104,7 @@ master-bin.000009	#
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000009	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+connection slave;
 select * from t4;
 a
 testing temporary tables part 2
@@ -97,8 +116,10 @@ select count(*) from t3 where n >= 4;
 count(*)
 103
 unlock tables;
+connection master;
 drop table if exists t1,t2,t3,t4;
 drop temporary table temp_table;
+connection slave;
 End of 4.1 tests
 show binlog events in 'non existing_binlog_file';
 ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Could not find target log

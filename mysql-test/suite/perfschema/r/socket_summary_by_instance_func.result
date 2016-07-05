@@ -46,51 +46,63 @@ DROP USER 'root0123456789'@'localhost';
 #     length of user name  = 4 character
 #     length of default db = 9 character
 #     connection runs through server_tcpip_socket !
+connect  con1,localhost,root,,mysqltest,,;
 DO 1;
+connection default;
 # 3 Variations on SELECT
 # 3.1 Check a SELECT ending with server sending an error message.
 #     Error message is short (unknown table).
 SELECT col2 FROM does_not_exist;
 ERROR 42S02: Table 'mysqltest.does_not_exist' doesn't exist
+connection default;
 # 3.2 SELECT ending with server sending an error message.
 #     Now the statement is a bit longer but the error message
 #     length does again not depend on statement.
 SELECT col2 FROM does_not_exist WHERE col1 = 0;
 ERROR 42S02: Table 'mysqltest.does_not_exist' doesn't exist
+connection default;
 # 3.3 SELECT ending with server sending an error message.
 #     The statement has the same length like in 3.2 but the error
 #     message is now different and much longer.
 SELECT col2 FROM does_not_exist WHERE col1 A 0;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'A 0' at line 1
+connection default;
 # 3.4 SELECT ending with server sending an error message.
 #     Statement and error message are a bit longer than in 3.1
 #     because the table name is longer.
 SELECT col2 FROM does_not_exist0123;
 ERROR 42S02: Table 'mysqltest.does_not_exist0123' doesn't exist
+connection default;
 # 3.5 SELECT earning an empty result set.
 SELECT col2 FROM mysqltest.my_aux WHERE col1 = -1;
 col2
+connection default;
 # 3.6 SELECT earning an empty result set.
 #     Short column name is replaced by longer alias.
 SELECT col2 AS my_super_col FROM mysqltest.my_aux WHERE col1 = -1;
 my_super_col
+connection default;
 # 3.7 SELECT earning one row with an empty string.
 SELECT col2 FROM mysqltest.my_aux WHERE col1 = 1;
 col2
 
+connection default;
 # 3.8 SELECT earning one row with one string one char long.
 SELECT col2 FROM mysqltest.my_aux WHERE col1 = 2;
 col2
 a
+connection default;
 # 3.9 SELECT earning one row with one string 1024 char long.
 SELECT col2 FROM mysqltest.my_aux WHERE col1 = 3;
 col2
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+connection default;
 # 3.10 SELECT earning two rows with an empty string
 SELECT col2 FROM mysqltest.my_aux WHERE col1 < 2;
 col2
 
 
+connection default;
 # 3.11 Check that the preceding Connects/SQL command runs have not
 #      caused some unexpected state.
 # 4. Check delta (value_after_action - value_before_action) details
@@ -205,3 +217,4 @@ col2
 #    It must reset all counters.
 TRUNCATE TABLE performance_schema.socket_summary_by_instance;
 # 6. Cleanup
+connection default;

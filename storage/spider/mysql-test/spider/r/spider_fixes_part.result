@@ -10,23 +10,29 @@ child3_3
 for slave1_1
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
+connection master_1;
 DROP TABLE IF EXISTS tb_l;
 CREATE TABLE tb_l (
 a INT,
@@ -43,6 +49,7 @@ INSERT INTO tb_l (a, b, c) VALUES
 
 2.17
 partition with sort
+connection master_1;
 CREATE TABLE ta_l2 (
 a INT,
 b CHAR(1),
@@ -60,7 +67,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 2.23
 partition update with moving partition
+connection master_1;
 DROP TABLE IF EXISTS ta_l2;
+connection master_1;
 CREATE TABLE ta_l2 (
 a INT,
 b CHAR(1),
@@ -73,7 +82,9 @@ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 4	B	2010-09-26 00:00:00
 index merge with partition
+connection master_1;
 DROP TABLE IF EXISTS ta_l_int;
+connection master_1;
 CREATE TABLE ta_l_int (
 a INT AUTO_INCREMENT,
 b INT DEFAULT 10,
@@ -87,6 +98,7 @@ INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 8, b + 8, c + 8 FROM ta_l_int;
+connection master_1;
 SELECT a, b, c FROM ta_l_int force index(primary, idx1, idx2)
 WHERE a = 5 OR b = 5 OR c = 5 ORDER BY a;
 a	b	c
@@ -96,6 +108,9 @@ a	b	c
 
 2.26
 auto_increment with partition
+connection master_1;
+connection slave1_1;
+connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL AUTO_INCREMENT,
@@ -183,6 +198,7 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t1;
 MAX(id)
 10000
+connection slave1_1;
 SELECT id FROM t1 ORDER BY id;
 id
 777
@@ -196,11 +212,16 @@ id
 5439
 6216
 10000
+connection master_1;
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for slave1_1
 for master_1

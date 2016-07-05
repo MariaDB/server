@@ -404,6 +404,7 @@ FATAL ERROR: Upgrade failed
 # MDEV-4332 Increase username length from 16 characters
 # MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
 #
+connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
 GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;

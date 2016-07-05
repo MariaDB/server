@@ -14,9 +14,14 @@ call mtr.add_suppression("Run function 'after_sync' in plugin 'rpl_semi_sync_mas
 #
 SET @@global.rpl_semi_sync_master_wait_point = AFTER_COMMIT;
 # Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
 SET GLOBAL rpl_semi_sync_master_enabled = 1;
 # Go ahead and send the INSERT; it should block.
+connection other;
 INSERT INTO t1 (i) VALUES (1);
+connection default;
 # The INSERT thread should now be waiting.
 SELECT state AS should_be_waiting
 FROM information_schema.processlist WHERE id = @other_connection_id;
@@ -29,7 +34,9 @@ i
 # Kill the waiting thread; it should die immediately.
 KILL @other_connection_id;
 # Collect the error from the INSERT thread; it should be disconnected.
+connection other;
 Got one of the listed errors
+connection default;
 # Wait for INSERT thread to actually disappear (KILL closes connection
 # before thread actually finishes its processing).
 # The INSERT thread should now be gone.
@@ -40,9 +47,16 @@ should_be_empty_set
 SELECT * FROM t1 ORDER BY 1;
 i
 1
+connection default;
+disconnect other;
 # Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
 # Go ahead and send the INSERT; it should block.
+connection other;
 INSERT INTO t1 (i) VALUES (2);
+connection default;
 # The INSERT thread should now be waiting.
 SELECT state AS should_be_waiting
 FROM information_schema.processlist WHERE id = @other_connection_id;
@@ -63,14 +77,20 @@ SELECT * FROM t1 ORDER BY 1;
 i
 1
 2
+disconnect other;
 #
 # Test wait point = AFTER_SYNC
 #
 SET @@global.rpl_semi_sync_master_wait_point = AFTER_SYNC;
 # Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
 SET GLOBAL rpl_semi_sync_master_enabled = 1;
 # Go ahead and send the INSERT; it should block.
+connection other;
 INSERT INTO t1 (i) VALUES (3);
+connection default;
 # The INSERT thread should now be waiting.
 SELECT state AS should_be_waiting
 FROM information_schema.processlist WHERE id = @other_connection_id;
@@ -84,7 +104,9 @@ i
 # Kill the waiting thread; it should die immediately.
 KILL @other_connection_id;
 # Collect the error from the INSERT thread; it should be disconnected.
+connection other;
 Got one of the listed errors
+connection default;
 # Wait for INSERT thread to actually disappear (KILL closes connection
 # before thread actually finishes its processing).
 # The INSERT thread should now be gone.
@@ -97,9 +119,16 @@ i
 1
 2
 3
+connection default;
+disconnect other;
 # Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
 # Go ahead and send the INSERT; it should block.
+connection other;
 INSERT INTO t1 (i) VALUES (4);
+connection default;
 # The INSERT thread should now be waiting.
 SELECT state AS should_be_waiting
 FROM information_schema.processlist WHERE id = @other_connection_id;
@@ -123,6 +152,7 @@ i
 2
 3
 4
+disconnect other;
 #
 # Cleanup
 #

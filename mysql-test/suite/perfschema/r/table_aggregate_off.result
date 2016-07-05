@@ -151,9 +151,11 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connect  con1, localhost, user1, , ;
 select concat(current_user(), " is connected") as status;
 status
 user1@localhost is connected
+connection default;
 "================== Step 2 =================="
 call dump_thread();
 username	event_name	count_star
@@ -212,6 +214,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection con1;
 insert into test.t1 set a=101, b=1, c=1;
 insert into test.t2 set a=102, b=2, c=2;
 insert into test.t2 set a=103, b=3, c=3;
@@ -243,7 +246,7 @@ a	b	c	d
 select * from test.t3 where b=5;
 a	b	c	d
 105	5	5	1
-"================== con1 marker =================="
+connection default;
 "================== Step 3 =================="
 call dump_thread();
 username	event_name	count_star
@@ -302,9 +305,11 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connect  con2, localhost, user2, , ;
 select concat(current_user(), " is connected") as status;
 status
 user2@localhost is connected
+connection default;
 "================== Step 4 =================="
 call dump_thread();
 username	event_name	count_star
@@ -368,6 +373,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection con2;
 insert into test.t1 set a=201, b=1, c=1;
 insert into test.t2 set a=202, b=2, c=2;
 insert into test.t2 set a=203, b=3, c=3;
@@ -406,7 +412,7 @@ select * from test.t3 where b=5;
 a	b	c	d
 105	5	5	2
 205	5	5	1
-"================== con2 marker =================="
+connection default;
 "================== Step 5 =================="
 call dump_thread();
 username	event_name	count_star
@@ -470,9 +476,11 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connect  con3, localhost, user3, , ;
 select concat(current_user(), " is connected") as status;
 status
 user3@localhost is connected
+connection default;
 "================== Step 6 =================="
 call dump_thread();
 username	event_name	count_star
@@ -541,6 +549,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection con3;
 insert into test.t1 set a=301, b=1, c=1;
 insert into test.t2 set a=302, b=2, c=2;
 insert into test.t2 set a=303, b=3, c=3;
@@ -586,7 +595,7 @@ a	b	c	d
 105	5	5	3
 205	5	5	2
 305	5	5	1
-"================== con3 marker =================="
+connection default;
 "================== Step 7 =================="
 call dump_thread();
 username	event_name	count_star
@@ -655,9 +664,11 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connect  con4, localhost, user4, , ;
 select concat(current_user(), " is connected") as status;
 status
 user4@localhost is connected
+connection default;
 "================== Step 8 =================="
 call dump_thread();
 username	event_name	count_star
@@ -731,6 +742,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection con4;
 insert into test.t1 set a=401, b=1, c=1;
 insert into test.t2 set a=402, b=2, c=2;
 insert into test.t2 set a=403, b=3, c=3;
@@ -783,7 +795,7 @@ a	b	c	d
 205	5	5	3
 305	5	5	2
 405	5	5	1
-"================== con4 marker =================="
+connection default;
 "================== Step 9 =================="
 call dump_thread();
 username	event_name	count_star
@@ -857,11 +869,12 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection con1;
 lock tables test.t1 read, test.t2 read, test.t3 read;
 unlock tables;
 lock tables test.t1 write, test.t2 write, test.t3 write;
 unlock tables;
-"================== con1 marker =================="
+connection default;
 "================== Step 10 =================="
 call dump_thread();
 username	event_name	count_star
@@ -935,6 +948,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection default;
 flush tables;
 "================== flush marker =================="
 "================== Step 11 =================="
@@ -1086,7 +1100,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
-"================== con1 disconnected =================="
+disconnect con1;
 "================== Step 13 =================="
 call dump_thread();
 username	status
@@ -1159,7 +1173,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
-"================== con2 disconnected =================="
+disconnect con2;
 "================== Step 14 =================="
 call dump_thread();
 username	status
@@ -1231,7 +1245,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
-"================== con3 disconnected =================="
+disconnect con3;
 "================== Step 15 =================="
 call dump_thread();
 username	status
@@ -1302,7 +1316,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
-"================== con4 disconnected =================="
+disconnect con4;
 "================== Step 16 =================="
 call dump_thread();
 username	status
@@ -1372,6 +1386,7 @@ object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
+connection default;
 truncate performance_schema.events_waits_summary_by_thread_by_event_name;
 "================== BY_THREAD truncated =================="
 "================== Step 17 =================="

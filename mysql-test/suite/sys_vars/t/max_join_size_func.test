@@ -80,7 +80,6 @@ SELECT * FROM t1 INNER JOIN t2 ON t1.id = t2.id;
 #   Verifying case where max_join_size is less than the join size  #
 ####################################################################
 
---echo ## Creating new connection test_con1 ##
 connect (test_con1, localhost, root,,);
 connection test_con1;
 
@@ -100,7 +99,6 @@ SELECT * FROM t1 INNER JOIN t2 ON t1.id = t2.id;
 --echo ## Setting global value of variable ##
 SET @@global.max_join_size=8;
 
---echo ## Creating and switching to new connection test_con2 ## 
 connect (test_con2, localhost, root,,);
 connection test_con2;
 
@@ -118,7 +116,5 @@ Drop table t1, t2;
 SET @@global.max_join_size = DEFAULT;
 SET @@session.max_join_size = DEFAULT;
 
---echo ## Dropping connections ##
 disconnect test_con1;
 disconnect test_con2;
-

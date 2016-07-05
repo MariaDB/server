@@ -1544,22 +1544,26 @@ int plugin_init(int *argc, char **argv, int flags)
   init_alloc_root(&plugin_vars_mem_root, 4096, 4096, MYF(0));
   init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
 
-  if (my_hash_init(&bookmark_hash, &my_charset_bin, 16, 0, 0,
+  if (my_hash_init(&bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
       goto err;
 
 
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 
+  /*
+    The 80 is from 2016-04-27 when we had 71 default plugins
+    Big enough to avoid many mallocs even in future
+  */
   if (my_init_dynamic_array(&plugin_dl_array,
                             sizeof(struct st_plugin_dl *), 16, 16, MYF(0)) ||
       my_init_dynamic_array(&plugin_array,
-                            sizeof(struct st_plugin_int *), 16, 16, MYF(0)))
+                            sizeof(struct st_plugin_int *), 80, 32, MYF(0)))
     goto err;
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
   {
-    if (my_hash_init(&plugin_hash[i], system_charset_info, 16, 0, 0,
+    if (my_hash_init(&plugin_hash[i], system_charset_info, 32, 0, 0,
                      get_plugin_hash_key, NULL, HASH_UNIQUE))
       goto err;
   }
@@ -1765,7 +1769,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   TABLE *table;
   READ_RECORD read_record_info;
   int error;
-  THD *new_thd= new THD;
+  THD *new_thd= new THD(0);
   bool result;
   DBUG_ENTER("plugin_load");
 
@@ -1796,7 +1800,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
-  if (init_read_record(&read_record_info, new_thd, table, NULL, 1, 0, FALSE))
+  if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
+                       FALSE))
   {
     sql_print_error("Could not initialize init_read_record; Plugins not "
                     "loaded");
@@ -2152,7 +2157,8 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
   error= plugin_add(thd->mem_root, name, &dl, REPORT_TO_USER);
@@ -2282,7 +2288,8 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   */
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
-  mysql_audit_acquire_plugins(thd, event_class_mask);
+  if (mysql_audit_general_enabled())
+    mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
 

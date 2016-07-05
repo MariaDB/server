@@ -37,8 +37,6 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
-extern ulong *spd_db_att_thread_id;
-
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 pthread_mutex_t spider_conn_id_mutex;
@@ -2261,7 +2259,7 @@ void *spider_bg_conn_action(
   my_thread_init();
   DBUG_ENTER("spider_bg_conn_action");
   /* init start */
-  if (!(thd = new THD()))
+  if (!(thd = new THD(next_thread_id())))
   {
     pthread_mutex_lock(&conn->bg_conn_sync_mutex);
     pthread_cond_signal(&conn->bg_conn_sync_cond);
@@ -2269,9 +2267,6 @@ void *spider_bg_conn_action(
     my_thread_end();
     DBUG_RETURN(NULL);
   }
-  pthread_mutex_lock(&LOCK_thread_count);
-  thd->thread_id = (*spd_db_att_thread_id)++;
-  pthread_mutex_unlock(&LOCK_thread_count);
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
@@ -2770,7 +2765,7 @@ void *spider_bg_sts_action(
   }
 #endif
   pthread_mutex_lock(&share->sts_mutex);
-  if (!(thd = new THD()))
+  if (!(thd = new THD(next_thread_id())))
   {
     share->bg_sts_thd_wait = FALSE;
     share->bg_sts_kill = FALSE;
@@ -2782,9 +2777,6 @@ void *spider_bg_sts_action(
 #endif
     DBUG_RETURN(NULL);
   }
-  pthread_mutex_lock(&LOCK_thread_count);
-  thd->thread_id = (*spd_db_att_thread_id)++;
-  pthread_mutex_unlock(&LOCK_thread_count);
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
@@ -3152,7 +3144,7 @@ void *spider_bg_crd_action(
   }
 #endif
   pthread_mutex_lock(&share->crd_mutex);
-  if (!(thd = new THD()))
+  if (!(thd = new THD(next_thread_id())))
   {
     share->bg_crd_thd_wait = FALSE;
     share->bg_crd_kill = FALSE;
@@ -3164,9 +3156,6 @@ void *spider_bg_crd_action(
 #endif
     DBUG_RETURN(NULL);
   }
-  pthread_mutex_lock(&LOCK_thread_count);
-  thd->thread_id = (*spd_db_att_thread_id)++;
-  pthread_mutex_unlock(&LOCK_thread_count);
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
@@ -3644,7 +3633,7 @@ void *spider_bg_mon_action(
   DBUG_ENTER("spider_bg_mon_action");
   /* init start */
   pthread_mutex_lock(&share->bg_mon_mutexes[link_idx]);
-  if (!(thd = new THD()))
+  if (!(thd = new THD(next_thread_id())))
   {
     share->bg_mon_kill = FALSE;
     share->bg_mon_init = FALSE;
@@ -3653,9 +3642,6 @@ void *spider_bg_mon_action(
     my_thread_end();
     DBUG_RETURN(NULL);
   }
-  pthread_mutex_lock(&LOCK_thread_count);
-  thd->thread_id = (*spd_db_att_thread_id)++;
-  pthread_mutex_unlock(&LOCK_thread_count);
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif

@@ -1,15 +1,24 @@
 include/rpl_init.inc [topology=1->3]
 *** MDEV-4485. Master did not allow slave to connect from the very start (empty GTID pos) if GTIDs from other multi_source master was present ***
+connection server_1;
 create table t1 (i int);
+connection server_2;
 create table t2 (i int);
+connection server_3;
 set default_master_connection = 'm2';
 change master to master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
 include/start_slave.inc
+connection server_2;
 insert into t2 values (1);
+connection server_3;
+connection server_1;
 drop table t1;
+connection server_2;
 drop table t2;
+connection server_3;
 set default_master_connection = 'm2';
 include/stop_slave.inc
 RESET SLAVE ALL;
 set default_master_connection = '';
+connection server_1;
 include/rpl_end.inc

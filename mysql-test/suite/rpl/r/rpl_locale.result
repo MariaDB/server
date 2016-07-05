@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 create table t1 (s1 char(10));
 set lc_time_names= 'de_DE';
 insert into t1 values (date_format('2001-01-01','%W'));
@@ -9,9 +10,13 @@ select * from t1;
 s1
 Montag
 Monday
+connection slave;
+connection slave;
 select * from t1;
 s1
 Montag
 Monday
+connection master;
 drop table t1;
+connection slave;
 include/rpl_end.inc

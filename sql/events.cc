@@ -102,7 +102,7 @@ ulong Events::inited;
 int sortcmp_lex_string(LEX_STRING s, LEX_STRING t, CHARSET_INFO *cs)
 {
  return cs->coll->strnncollsp(cs, (uchar *) s.str,s.length,
-                                  (uchar *) t.str,t.length, 0);
+                                  (uchar *) t.str,t.length);
 }
 
 
@@ -854,7 +854,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   if (!thd)
   {
 
-    if (!(thd= new THD()))
+    if (!(thd= new THD(0)))
     {
       res= TRUE;
       goto end;
@@ -1147,7 +1147,7 @@ Events::load_events_from_db(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  if (init_read_record(&read_record_info, thd, table, NULL, 0, 1, FALSE))
+  if (init_read_record(&read_record_info, thd, table, NULL, NULL, 0, 1, FALSE))
   {
     close_thread_tables(thd);
     DBUG_RETURN(TRUE);

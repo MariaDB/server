@@ -2,7 +2,7 @@
 --source include/have_log_bin.inc
 --source include/binlog_start_pos.inc
 
---let $pos=`select $binlog_start_pos + 65`
+--let $pos=`select $binlog_start_pos + 73`
 
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)

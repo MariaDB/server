@@ -31,14 +31,18 @@ grant select on test.* to 'user_ssl_x509'@'santa.claus.ipv6.example.com'
   REQUIRE SUBJECT '/C=??/ST=??/L=??/
     O=No such thing/
     CN=Santa Claus/emailAddress=santa.claus@example.com';
+connect  con1,"::1",root,,test,$MASTER_MYPORT,;
 select "Con1 is alive";
 Con1 is alive
 Con1 is alive
 select current_user();
 current_user()
 root@localhost
+disconnect con1;
+connection default;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 ERROR 28000: Access denied for user 'user_ssl'@'santa.claus.ipv6.example.com' (using password: NO)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
@@ -68,6 +72,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl'@'santa.claus.ipv6.example.com' (using password: NO)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
@@ -97,6 +102,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl_x509'@'santa.claus.ipv6.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
@@ -126,6 +132,7 @@ COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl_x509'@'santa.claus.ipv6.example.com' (using password: YES)
+connection default;
 "Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com

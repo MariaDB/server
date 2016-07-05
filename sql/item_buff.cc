@@ -43,7 +43,7 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
   {
     Item_field *real_item= (Item_field *) item->real_item();
     Field *cached_field= real_item->field;
-    return new Cached_item_field(cached_field);
+    return new (thd->mem_root) Cached_item_field(thd, cached_field);
   }
   switch (item->result_type()) {
   case STRING_RESULT:
@@ -71,7 +71,7 @@ Cached_item::~Cached_item() {}
 */
 
 Cached_item_str::Cached_item_str(THD *thd, Item *arg)
-  :item(arg),
+  :Cached_item_item(arg),
    value_max_length(MY_MIN(arg->max_length, thd->variables.max_sort_length)),
    value(value_max_length)
 {}
@@ -98,6 +98,25 @@ bool Cached_item_str::cmp(void)
   return tmp;
 }
 
+
+int Cached_item_str::cmp_read_only()
+{
+  String *res= item->val_str(&tmp_value);
+
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+
+  return sortcmp(&value, res, item->collation.collation);
+}
+
+
 Cached_item_str::~Cached_item_str()
 {
   item=0;					// Safety
@@ -115,6 +134,23 @@ bool Cached_item_real::cmp(void)
   return FALSE;
 }
 
+
+int Cached_item_real::cmp_read_only()
+{
+  double nr= item->val_real();
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return (nr == value)? 0 : ((nr < value)? 1: -1);
+}
+
+
 bool Cached_item_int::cmp(void)
 {
   longlong nr=item->val_int();
@@ -125,6 +161,22 @@ bool Cached_item_int::cmp(void)
     return TRUE;
   }
   return FALSE;
+}
+
+
+int Cached_item_int::cmp_read_only()
+{
+  longlong nr= item->val_int();
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return (nr == value)? 0 : ((nr < value)? 1: -1);
 }
 
 
@@ -148,8 +200,24 @@ bool Cached_item_field::cmp(void)
 }
 
 
+int Cached_item_field::cmp_read_only()
+{
+  if (null_value)
+  {
+    if (field->is_null())
+      return 0;
+    else
+      return -1;
+  }
+  if (field->is_null())
+    return 1;
+
+  return field->cmp(buff);
+}
+
+
 Cached_item_decimal::Cached_item_decimal(Item *it)
-  :item(it)
+  :Cached_item_item(it)
 {
   my_decimal_set_zero(&value);
 }
@@ -172,5 +240,22 @@ bool Cached_item_decimal::cmp()
     return FALSE;
   }
   return FALSE;
+}
+
+
+int Cached_item_decimal::cmp_read_only()
+{
+  my_decimal tmp;
+  my_decimal *ptmp= item->val_decimal(&tmp);
+  if (null_value)
+  {
+    if (item->null_value)
+      return 0;
+    else
+      return -1;
+  }
+  if (item->null_value)
+    return 1;
+  return my_decimal_cmp(&value, ptmp);
 }
 

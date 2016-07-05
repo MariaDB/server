@@ -280,6 +280,12 @@ make_atomic_store(32)
 make_atomic_store(64)
 make_atomic_store(ptr)
 
+#if SIZEOF_LONG == 4
+#define my_atomic_addlong(A,B) my_atomic_add32((int32*) (A), (B))
+#else
+#define my_atomic_addlong(A,B) my_atomic_add64((int64*) (A), (B))
+#endif
+
 #ifdef _atomic_h_cleanup_
 #include _atomic_h_cleanup_
 #undef _atomic_h_cleanup_

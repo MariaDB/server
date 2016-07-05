@@ -52,7 +52,11 @@
 COMMIT AND CHAIN RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RELEASE' at line 1
 COMMIT AND NO CHAIN RELEASE;
+disconnect default;
+connect default, localhost, root,,;
 COMMIT RELEASE;
+disconnect default;
+connect default, localhost, root,,;
 COMMIT CHAIN RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHAIN RELEASE' at line 1
 COMMIT NO CHAIN RELEASE;
@@ -72,11 +76,17 @@ COMMIT AND NO CHAIN NO RELEASE;
 ROLLBACK AND CHAIN RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RELEASE' at line 1
 ROLLBACK AND NO CHAIN RELEASE;
+disconnect default;
+connect default, localhost, root,,;
 ROLLBACK RELEASE;
+disconnect default;
+connect default, localhost, root,,;
 ROLLBACK CHAIN RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHAIN RELEASE' at line 1
 ROLLBACK NO CHAIN RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CHAIN RELEASE' at line 1
+disconnect default;
+connect default, localhost, root,,;
 ROLLBACK AND NO RELEASE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RELEASE' at line 1
 ROLLBACK AND RELEASE;

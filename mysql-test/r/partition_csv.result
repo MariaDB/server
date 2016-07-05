@@ -34,10 +34,13 @@ SET GLOBAL general_log =1;
 # do some things to be logged to partitioned log, should fail
 USE /* 1 */ test;
 CREATE TABLE t1 (i INT);
+connect  con1,localhost,root,,;
 INSERT INTO t1 VALUES (1);
 SELECT * FROM t1;
 i
 1
+disconnect con1;
+connection default;
 USE mysql;
 SET GLOBAL general_log =0;
 ALTER TABLE general_log RENAME TO gl_partitioned;

@@ -28,6 +28,7 @@
 #include "mem_root_array.h"
 #include "sql_cmd.h"
 #include "sql_alter.h"                // Alter_info
+#include "sql_window.h"
 
 /* YACC and LEX Definitions */
 
@@ -47,7 +48,10 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+class Item_window_func;
 struct sql_digest_state;
+class With_clause;
+
 
 #define ALLOC_ROOT_SET 1024
 
@@ -178,6 +182,7 @@ const LEX_STRING sp_data_access_name[]=
 
 #define DERIVED_SUBQUERY	1
 #define DERIVED_VIEW		2
+#define DERIVED_WITH            4
 
 enum enum_view_create_mode
 {
@@ -496,10 +501,6 @@ public:
   enum sub_select_type linkage;
   bool no_table_names_allowed; /* used for global order by */
 
-  static void *operator new(size_t size) throw ()
-  {
-    return sql_alloc(size);
-  }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
@@ -544,7 +545,9 @@ public:
                                         List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
-
+  void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
+                                          st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
@@ -642,6 +645,11 @@ public:
     derived tables/views handling.
   */
   TABLE_LIST *derived;
+  bool is_view;
+  /* With clause attached to this unit (if any) */
+  With_clause *with_clause;
+  /* With element where this unit is used as the specification (if any) */
+  With_element *with_element;
   /* thread handler */
   THD *thd;
   /*
@@ -650,7 +658,7 @@ public:
   */
   st_select_lex *fake_select_lex;
   /**
-    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when noq
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
@@ -666,12 +674,15 @@ public:
   */
   TABLE *insert_table_with_stored_vcol;
 
+  bool columns_are_renamed;
+
   void init_query();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
+  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -713,6 +724,7 @@ public:
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
 /*
   SELECT_LEX - store information of parsed SELECT statment
@@ -791,9 +803,9 @@ public:
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
   SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
-  // Arrays of pointers to top elements of all_fields list
-  Item **ref_pointer_array;
-  size_t ref_pointer_array_size; // Number of elements in array.
+
+  /// Array of pointers to top elements of all_fields list
+  Ref_ptr_array ref_pointer_array;
 
   /*
     number of items in select_list and HAVING clause used to get number
@@ -889,6 +901,12 @@ public:
     joins on the right.
   */
   List<String> *prev_join_using;
+
+  /**
+    The set of those tables whose fields are referenced in the select list of
+    this select level.
+  */
+  table_map select_list_tables;
 
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
@@ -1066,6 +1084,37 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
+  void set_with_clause(With_clause *with_clause)
+  {
+    master_unit()->with_clause= with_clause;
+  }
+  With_clause *get_with_clause()
+  {
+    return master_unit()->with_clause;
+  }
+  With_element *get_with_element()
+  {
+    return master_unit()->with_element;
+  }
+  With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
+
+  List<Window_spec> window_specs;
+  void prepare_add_window_spec(THD *thd);
+  bool add_window_def(THD *thd, LEX_STRING *win_name, LEX_STRING *win_ref,
+                      SQL_I_List<ORDER> win_partition_list,
+                      SQL_I_List<ORDER> win_order_list,
+                      Window_frame *win_frame);
+  bool add_window_spec(THD *thd, LEX_STRING *win_ref,
+                       SQL_I_List<ORDER> win_partition_list,
+                       SQL_I_List<ORDER> win_order_list,
+                       Window_frame *win_frame);
+  List<Item_window_func> window_funcs;
+  bool add_window_func(Item_window_func *win_func)
+  {
+    return window_funcs.push_back(win_func);
+  }
+
+  bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
 private:
   bool m_non_agg_field_used;
@@ -1768,9 +1817,6 @@ private:
 struct st_parsing_options
 {
   bool allows_variable;
-  bool allows_select_into;
-  bool allows_select_procedure;
-  bool allows_derived;
 
   st_parsing_options() { reset(); }
   void reset();
@@ -2031,22 +2077,15 @@ public:
     return m_tok_start;
   }
 
-  /** Get the token start position, in the pre-processed buffer. */
-  const char *get_cpp_tok_start()
+  void set_cpp_tok_start(const char *pos)
   {
-    return m_cpp_tok_start;
+    m_cpp_tok_start= pos;
   }
 
   /** Get the token end position, in the raw buffer. */
   const char *get_tok_end()
   {
     return m_tok_end;
-  }
-
-  /** Get the token end position, in the pre-processed buffer. */
-  const char *get_cpp_tok_end()
-  {
-    return m_cpp_tok_end;
   }
 
   /** Get the previous token start position, in the raw buffer. */
@@ -2061,12 +2100,6 @@ public:
     return m_ptr;
   }
 
-  /** Get the current stream pointer, in the pre-processed buffer. */
-  const char *get_cpp_ptr()
-  {
-    return m_cpp_ptr;
-  }
-
   /** Get the length of the current token, in the raw buffer. */
   uint yyLength()
   {
@@ -2076,6 +2109,30 @@ public:
     */
     DBUG_ASSERT(m_ptr > m_tok_start);
     return (uint) ((m_ptr - m_tok_start) - 1);
+  }
+
+  /** Get the previus token start position, in the pre-processed buffer. */
+  const char *get_cpp_start_prev()
+  {
+    return m_cpp_tok_start_prev;
+  }
+
+  /** Get the token start position, in the pre-processed buffer. */
+  const char *get_cpp_tok_start()
+  {
+    return m_cpp_tok_start;
+  }
+
+  /** Get the token end position, in the pre-processed buffer. */
+  const char *get_cpp_tok_end()
+  {
+    return m_cpp_tok_end;
+  }
+
+  /** Get the current stream pointer, in the pre-processed buffer. */
+  const char *get_cpp_ptr()
+  {
+    return m_cpp_ptr;
   }
 
   /** Get the utf8-body string. */
@@ -2413,12 +2470,20 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-  
+  /* current with clause in parsing if any, otherwise 0*/
+  With_clause *curr_with_clause;  
+  /* pointer to the first with clause in the current statemant */
+  With_clause *with_clauses_list;
+  /*
+    (*with_clauses_list_last_next) contains a pointer to the last
+     with clause in the current statement
+  */
+  With_clause **with_clauses_list_last_next;
+
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
   // type information
-  char *length,*dec;
   CHARSET_INFO *charset;
 
   LEX_STRING name;
@@ -2480,6 +2545,7 @@ public:
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_STRING>    with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*
@@ -2499,7 +2565,7 @@ public:
 
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
-  Create_field	      *last_field;
+  Column_definition *last_field;
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
@@ -2726,6 +2792,14 @@ public:
   }
 
 
+  SQL_I_List<ORDER> save_group_list;
+  SQL_I_List<ORDER> save_order_list;
+  LEX_STRING *win_ref;
+  Window_frame *win_frame;
+  Window_frame_bound *frame_top_bound;
+  Window_frame_bound *frame_bottom_bound;
+  Window_spec *win_spec;
+
   inline void free_set_stmt_mem_root()
   {
     DBUG_ASSERT(!is_arena_for_set_stmt());
@@ -2877,8 +2951,8 @@ public:
                     bool is_analyze, bool *printed_anything);
   void restore_set_statement_var();
 
-  void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
-  void set_last_field_type(enum enum_field_types type);
+  void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
+  void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
@@ -2908,6 +2982,13 @@ public:
        !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
+    return false;
+  }
+  // Add a constraint as a part of CREATE TABLE or ALTER TABLE
+  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr)
+  {
+    constr->name= *name;
+    alter_info.check_constraint_list.push_back(constr);
     return false;
   }
   void set_command(enum_sql_command command,

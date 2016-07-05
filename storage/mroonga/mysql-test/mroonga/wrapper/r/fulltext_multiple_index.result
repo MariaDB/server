@@ -10,8 +10,8 @@ show create table diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` text DEFAULT NULL,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `title_index` (`title`),
   FULLTEXT KEY `body_index` (`body`)

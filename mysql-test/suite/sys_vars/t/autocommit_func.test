@@ -51,7 +51,6 @@ SET @@autocommit = 0;
 #    after updating record in 1st connection
 ######################################################################
 
---echo ## Creating new connection ## 
 CONNECT (test_con1,localhost,root,,);
 CONNECTION test_con1;
 
@@ -68,7 +67,6 @@ SELECT * from t1;
 
 --echo ## Creating another connection and verifying records in table ## 
 
---echo ## New Connection test_con2 ##
 CONNECT (test_con2,localhost,root,,);
 CONNECTION test_con2;
 SELECT * from t1;
@@ -82,13 +80,11 @@ SELECT * from t1;
 ######################################################################
 
 --echo ## Verifying behavior of variable by commiting rows in test_con1 ##
---echo ## Connecting with connection # 01 ## 
 CONNECTION test_con1;
 SELECT * from t1;
 COMMIT;
 
 
---echo ## New Connection test_con2 ##
 --echo ## Now verifying records in table from connection # 02 ## 
 CONNECTION test_con2;
 SELECT * from t1;
@@ -100,7 +96,6 @@ SELECT * from t1;
 #    first connection
 ######################################################################
 
---echo ## Connecting to connection # 01 ##
 CONNECTION test_con1;
 SELECT * from t1;
 
@@ -127,12 +122,10 @@ SELECT * from t1;
 ######################################################################
 
 
---echo ## Connecting with connection # 01 ## 
 CONNECTION test_con1;
 INSERT into t1(name) values('Record_3');
 
 
---echo ## Connection test_con2 ##
 --echo ## Now verifying records in table from connection # 02 and changing value  ## 
 --echo ## of autocommit to true ## 
 CONNECTION test_con2;
@@ -159,7 +152,6 @@ COMMIT;
 --echo ## Dropping table t1 ##
 DROP table t1;
 
---echo ## Disconnecting both connections ##
 DISCONNECT test_con1;
 DISCONNECT test_con2;
 

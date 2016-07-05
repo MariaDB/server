@@ -1,5 +1,7 @@
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con1,localhost,root,,test;
 CREATE TABLE IF NOT EXISTS t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=InnoDB;
+connection default;
 UPDATE t1 SET i = 0;
 ERROR HY000: Table definition has changed, please retry transaction
 UPDATE t1 SET pk = 0;

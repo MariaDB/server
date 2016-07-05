@@ -28,7 +28,9 @@
 #include "key.h"
 #include "sql_statistics.h"
 #include "opt_range.h"
+#include "uniques.h"
 #include "my_atomic.h"
+#include "sql_show.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -1656,7 +1658,7 @@ public:
 
   bool is_single_comp_pk;
 
-  Index_prefix_calc(TABLE *table, KEY *key_info)
+  Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
   {
     uint i;
@@ -1677,7 +1679,7 @@ public:
     }
         
     if ((calc_state=
-         (Prefix_calc_state *) sql_alloc(sizeof(Prefix_calc_state)*key_parts)))
+         (Prefix_calc_state *) thd->alloc(sizeof(Prefix_calc_state)*key_parts)))
     {
       uint keyno= key_info-table->key_info;
       for (i= 0, state= calc_state; i < key_parts; i++, state++)
@@ -1691,7 +1693,8 @@ public:
           break;
 
         if (!(state->last_prefix=
-              new Cached_item_field(key_info->key_part[i].field)))
+              new (thd->mem_root) Cached_item_field(thd,
+                                    key_info->key_part[i].field)))
           break;
         state->entry_count= state->prefix_count= 0;
         prefixes++;
@@ -2475,7 +2478,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   if (key_info->flags & HA_FULLTEXT)
     DBUG_RETURN(rc);
 
-  Index_prefix_calc index_prefix_calc(table, key_info);
+  Index_prefix_calc index_prefix_calc(thd, table, key_info);
 
   DEBUG_SYNC(table->in_use, "statistics_collection_start1");
   DEBUG_SYNC(table->in_use, "statistics_collection_start2");
@@ -3193,6 +3196,10 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
       rc= 1;
   }
 
+  err= del_global_table_stat(thd, db, tab);
+  if (err & !rc)
+      rc= 1;
+
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   close_system_tables(thd, &open_tables_backup);
@@ -3338,6 +3345,10 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
       }
     }
   }
+
+  err= del_global_index_stat(thd, tab, key_info);
+  if (err && !rc)
+    rc= 1;
 
   thd->restore_stmt_binlog_format(save_binlog_format);
 

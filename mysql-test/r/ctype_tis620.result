@@ -121,7 +121,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `recid` int(11) NOT NULL AUTO_INCREMENT,
-  `dyninfo` text,
+  `dyninfo` text DEFAULT NULL,
   PRIMARY KEY (`recid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=tis620
 INSERT INTO t1 VALUES (1,'color=\"STB,NPG\"\r\nengine=\"J30A13\"\r\nframe=\"MRHCG1640YP4\"\r\ngrade=\"V6\"\r\nmodel=\"ACCORD\"\r\nmodelcode=\"CG164YEN\"\r\ntype=\"VT6\"\r\n');
@@ -3630,6 +3630,21 @@ hex(weight_string('abc' as char(5) LEVEL 1 DESC))
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
 hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFDF9C9D9E
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 select hex(weight_string(cast(0xE0A1 as char)));
 hex(weight_string(cast(0xE0A1 as char)))
 A1E0
@@ -3808,6 +3823,21 @@ hex(weight_string('abc' as char(5) LEVEL 1 DESC))
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
 hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFDF9C9D9E
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 select hex(weight_string(cast(0xE0A1 as char)));
 hex(weight_string(cast(0xE0A1 as char)))
 E0A1

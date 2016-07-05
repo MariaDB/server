@@ -169,6 +169,12 @@ static int file_key_management_plugin_init(void *p)
   return parser.parse(&keys);
 }
 
+static int file_key_management_plugin_deinit(void *p)
+{
+  keys.free_memory();
+  return 0;
+}
+
 /*
   Plugin library descriptor
 */
@@ -181,7 +187,7 @@ maria_declare_plugin(file_key_management)
   "File-based key management plugin",
   PLUGIN_LICENSE_GPL,
   file_key_management_plugin_init,
-  NULL,
+  file_key_management_plugin_deinit,
   0x0100 /* 1.0 */,
   NULL,	/* status variables */
   settings,

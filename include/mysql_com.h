@@ -21,6 +21,8 @@
 #ifndef _mysql_com_h
 #define _mysql_com_h
 
+#include "my_decimal_limits.h"
+
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
@@ -102,7 +104,9 @@ enum enum_server_command
   COM_STMT_PREPARE, COM_STMT_EXECUTE, COM_STMT_SEND_LONG_DATA, COM_STMT_CLOSE,
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
-
+  COM_MDB_GAP_BEG,
+  COM_MDB_GAP_END=253,
+  COM_MULTI,
   /* Must be last */
   COM_END
 };
@@ -139,7 +143,6 @@ enum enum_server_command
 #define NUM_FLAG	32768		/* Field is num (for clients) */
 #define PART_KEY_FLAG	16384		/* Intern; Part of some key */
 #define GROUP_FLAG	32768		/* Intern: Group field */
-#define UNIQUE_FLAG	65536		/* Intern: Used by sql_yacc */
 #define BINCMP_FLAG	131072		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1 << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1 << 19)/* Field part of partition func */
@@ -155,8 +158,6 @@ enum enum_server_command
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
 #define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
 #define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
-#define HAS_EXPLICIT_VALUE (1 << 27)    /* An INSERT/UPDATE operation supplied
-                                          an explicit default value */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -189,7 +190,8 @@ enum enum_server_command
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
-#define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
+#define CLIENT_LONG_PASSWORD	0	/* obsolete flag */
+#define CLIENT_MYSQL            1       /* mysql/old mariadb server/client */
 #define CLIENT_FOUND_ROWS	2	/* Found instead of affected rows */
 #define CLIENT_LONG_FLAG	4	/* Get all column flags */
 #define CLIENT_CONNECT_WITH_DB	8	/* One can specify db on connect */
@@ -216,7 +218,7 @@ enum enum_server_command
 /* Don't close the connection for a connection with expired password. */
 #define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
 
-#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
+#define CLIENT_PROGRESS_OBSOLETE  (1UL << 29)
 #define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
@@ -229,14 +231,25 @@ enum enum_server_command
 */
 #define CLIENT_REMEMBER_OPTIONS (1UL << 31)
 
+/* MariaDB extended capability flags */
+#define MARIADB_CLIENT_FLAGS_MASK 0xffffffff00000000ULL
+/* Client support progress indicator */
+#define MARIADB_CLIENT_PROGRESS (1ULL << 32)
+/* support COM_MULTI */
+#define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
 #define CAN_CLIENT_COMPRESS 0
 #endif
 
-/* Gather all possible capabilites (flags) supported by the server */
-#define CLIENT_ALL_FLAGS  (CLIENT_LONG_PASSWORD | \
+/*
+  Gather all possible capabilites (flags) supported by the server
+
+  MARIADB_* flags supported only by MariaDB connector(s).
+*/
+#define CLIENT_ALL_FLAGS  (\
                            CLIENT_FOUND_ROWS | \
                            CLIENT_LONG_FLAG | \
                            CLIENT_CONNECT_WITH_DB | \
@@ -257,10 +270,11 @@ enum enum_server_command
                            CLIENT_PS_MULTI_RESULTS | \
                            CLIENT_SSL_VERIFY_SERVER_CERT | \
                            CLIENT_REMEMBER_OPTIONS | \
-                           CLIENT_PROGRESS | \
+                           MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
                            CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
-                           CLIENT_CONNECT_ATTRS)
+                           CLIENT_CONNECT_ATTRS |\
+                           MARIADB_CLIENT_COM_MULTI)
 
 /*
   To be added later:
@@ -634,5 +648,18 @@ uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
 #define MYSQL_STMT_HEADER       4
 #define MYSQL_LONG_DATA_HEADER  6
 
-#define NOT_FIXED_DEC           31
+/*
+  If a float or double field have more than this number of decimals,
+  it's regarded as floating point field without any specific number of
+  decimals
+*/
+
+#define FLOATING_POINT_DECIMALS 31
+
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
+#endif
 #endif

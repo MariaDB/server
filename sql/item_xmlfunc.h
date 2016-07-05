@@ -91,10 +91,6 @@ public:
   {
     return const_item_cache && (!nodeset_func || nodeset_func->const_item());
   }
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
-  }
 };
 
 

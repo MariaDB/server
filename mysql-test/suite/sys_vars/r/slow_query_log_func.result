@@ -48,6 +48,8 @@ count(*) > 0
 DROP PROCEDURE p_test;
 Bug53191 Lock_time in slow log is negative when logging stored routines
 TRUNCATE mysql.slow_log;
+connect  con2,localhost,root,,;
+connection default;
 CREATE TABLE t1 (c0 INT PRIMARY KEY AUTO_INCREMENT, c1 TIMESTAMP, c2 TIMESTAMP);
 CREATE FUNCTION f_slow_now() RETURNS TIMESTAMP
 BEGIN
@@ -100,12 +102,14 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) FROM t1 WHERE c1= 1;
 UPDATE t1 SET c1=c1*2;
 END|
-Connection 2
+connection con2;
 LOCK TABLE t1 WRITE;
-Back to default connection
+connection default;
 CALL p1();
 Wait three seconds and unlock the table
+connection con2;
 UNLOCK TABLES;
+connection default;
 COUNT(*)
 1
 Slow log:
@@ -117,6 +121,7 @@ count(*) > 0
 SELECT count(*) FROM mysql.slow_log WHERE lock_time > 10;
 count(*)
 0
+disconnect con2;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 SET @@global.log_output = @global_log_output;

@@ -134,7 +134,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
   }
 
   if (!(pc->f_info=
-        (field_info**)sql_alloc(sizeof(field_info*)*field_list.elements)))
+        (field_info**) thd->alloc(sizeof(field_info*) * field_list.elements)))
     goto err;
   pc->f_end = pc->f_info + field_list.elements;
   pc->fields = field_list;
@@ -409,7 +409,7 @@ void field_real::add()
   if (num == 0.0)
     empty++;
 
-  if ((decs = decimals()) == NOT_FIXED_DEC)
+  if ((decs = decimals()) >= FLOATING_POINT_DECIMALS)
   {
     length= sprintf(buff, "%g", num);
     if (rint(num) != num)
@@ -892,7 +892,7 @@ void field_real::get_opt_type(String *answer,
 
   if (!max_notzero_dec_len)
   {
-    int len= (int) max_length - ((item->decimals == NOT_FIXED_DEC) ?
+    int len= (int) max_length - ((item->decimals >= FLOATING_POINT_DECIMALS) ?
 				 0 : (item->decimals + 1));
 
     if (min_arg >= -128 && max_arg <= (min_arg >= 0 ? 255 : 127))
@@ -912,7 +912,7 @@ void field_real::get_opt_type(String *answer,
     if (min_arg >= 0)
       answer->append(STRING_WITH_LEN(" UNSIGNED"));
   }
-  else if (item->decimals == NOT_FIXED_DEC)
+  else if (item->decimals >= FLOATING_POINT_DECIMALS)
   {
     if (min_arg >= -FLT_MAX && max_arg <= FLT_MAX)
       answer->append(STRING_WITH_LEN("FLOAT"));

@@ -62,7 +62,6 @@ INSERT into t1(name) values('Record_3');
 #    Verifying value of insert_id with new connection    #     
 ##########################################################
 
---echo ## Creating & Connecting new connection test_con1 ##
 connect (test_con1, localhost, root,,);
 connection test_con1;
 
@@ -85,7 +84,6 @@ SELECT * from t1;
 #   Now verifying some new value of insert_id with second new connection    #     
 #############################################################################
 
---echo ## Creating and switching to new connection test_con2 ##
 connect (test_con2, localhost, root,,);
 connection test_con2;
 
@@ -103,11 +101,5 @@ SELECT * from t1;
 --echo ## Dropping table t1 ##
 drop table t1;
 
---echo ## Disconnecting connections ##
 disconnect test_con1;
 disconnect test_con2;
-
-
-
-
-

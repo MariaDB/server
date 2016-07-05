@@ -387,7 +387,7 @@ password_expired	N
 is_role	N
 default_role	
 max_statement_time	0.000000
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -542,7 +542,7 @@ GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OP
 GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
 
 # Now add SELECT on *.* to testuser1;
-# Switch to connection default
+connection default;
 GRANT SELECT ON *.* TO 'testuser1'@'localhost';
 #
 # Here <SELECT NO> is shown correctly for testuser1;
@@ -867,7 +867,7 @@ password_expired	N
 is_role	N
 default_role	
 max_statement_time	0.000000
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1020,7 +1020,7 @@ Grants for testuser1@localhost
 GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION
 GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
 GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1038,7 +1038,7 @@ ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'us
 SHOW GRANTS;
 Grants for testuser2@localhost
 GRANT INSERT, UPDATE ON *.* TO 'testuser2'@'localhost'
-# Establish connection testuser3 (user=testuser3)
+connect  testuser3, localhost, testuser3, , test;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1054,7 +1054,7 @@ Grants for testuser3@localhost
 GRANT USAGE ON *.* TO 'testuser3'@'localhost'
 
 # Revoke privileges from testuser1;
-# Switch to connection default
+connection default;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1215,7 +1215,7 @@ password_expired	N
 is_role	N
 default_role	
 max_statement_time	0.000000
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1248,7 +1248,7 @@ CREATE TABLE db_datadict.tb_66 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_66'
 
 # Add ALL on db_datadict.* (and select on mysql.user) to testuser1;
-# Switch to connection default
+connection default;
 GRANT ALL ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 GRANT SELECT ON mysql.user TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
@@ -1410,7 +1410,7 @@ password_expired	N
 is_role	N
 default_role	
 max_statement_time	0.000000
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1722,7 +1722,7 @@ CREATE TABLE tb_57 ( c1 TEXT )
 ENGINE = <other_engine_type>;
 
 # Revoke privileges from testuser1;
-# Switch to connection default
+connection default;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1883,7 +1883,7 @@ password_expired	N
 is_role	N
 default_role	
 max_statement_time	0.000000
-# Switch to connection testuser1
+connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1903,7 +1903,10 @@ USE db_datadict;
 ERROR 42000: Access denied for user 'testuser1'@'localhost' to database 'db_datadict'
 CREATE TABLE db_datadict.tb_59 ( c1 TEXT )
 ENGINE = <other_engine_type>;
-# Switch to connection default and close connections testuser1,testuser2,testuser3
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect testuser3;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';

@@ -1620,7 +1620,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   /*
     To be able to run this from boot, we allocate a temporary THD
   */
-  if (!(thd= new THD))
+  if (!(thd= new THD(0)))
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
@@ -1800,8 +1800,6 @@ end:
   delete thd;
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
-  else
-    my_pthread_setspecific_ptr(THR_MALLOC,  0);
   
   default_tz= default_tz_name ? global_system_variables.time_zone
                               : my_tz_SYSTEM;

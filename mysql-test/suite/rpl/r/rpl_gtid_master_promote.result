@@ -1,4 +1,5 @@
 include/rpl_init.inc [topology=1->2, 1->3, 1->4, 1->5]
+connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t4 (a INT, b INT, PRIMARY KEY (a,b)) Engine=InnoDB;
 CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
@@ -9,14 +10,19 @@ SET s= SUBSTR(s FROM LOCATE(CONCAT(",", d, "-"), s) + 1);
 SET s= SUBSTR(s FROM 1 FOR LOCATE(",", s) - 1);
 RETURN s;
 END|
+connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_3;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_4;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_5;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_1;
 SET gtid_domain_id= 1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -41,10 +47,15 @@ INSERT INTO t4 VALUES (3, 1);
 INSERT INTO t3 VALUES (3);
 INSERT INTO t3 VALUES (4);
 INSERT INTO t4 VALUES (3, 3);
+connection server_2;
 START SLAVE UNTIL master_gtid_pos= "1-1-4,2-1-4,3-1-4";
+connection server_3;
 START SLAVE UNTIL master_gtid_pos= "1-1-1,2-1-4,3-1-7";
+connection server_4;
 START SLAVE UNTIL master_gtid_pos= "2-1-1,3-1-4,1-1-7";
+connection server_5;
 START SLAVE UNTIL master_gtid_pos= "3-1-1,1-1-4,2-1-7";
+connection server_2;
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -63,6 +74,7 @@ a	b
 1	1
 2	1
 3	1
+connection server_3;
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -81,6 +93,7 @@ a	b
 2	1
 3	1
 3	3
+connection server_4;
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -99,6 +112,7 @@ a	b
 1	1
 1	3
 3	1
+connection server_5;
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -118,6 +132,8 @@ a	b
 2	1
 2	3
 *** Now replicate all extra changes from 3,4,5 to 2, in preparation for making 2 the new master. ***
+connection server_3;
+connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
 START SLAVE UNTIL master_gtid_pos = "SERVER3_POS";
 include/wait_for_slave_to_stop.inc
@@ -141,6 +157,8 @@ a	b
 2	1
 3	1
 3	3
+connection server_4;
+connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4;
 START SLAVE UNTIL master_gtid_pos = "SERVER4_POS";
 include/wait_for_slave_to_stop.inc
@@ -167,6 +185,8 @@ a	b
 2	1
 3	1
 3	3
+connection server_5;
+connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_5;
 START SLAVE UNTIL master_gtid_pos = "SERVER5_POS";
 include/wait_for_slave_to_stop.inc
@@ -197,6 +217,7 @@ a	b
 3	1
 3	3
 *** Now make 2 master and point 3,4,5 to the new master 2
+connection server_2;
 SET gtid_domain_id= 1;
 INSERT INTO t1 values (5);
 INSERT INTO t4 values (1,5);
@@ -206,12 +227,17 @@ INSERT INTO t4 values (2,5);
 SET gtid_domain_id= 3;
 INSERT INTO t3 values (5);
 INSERT INTO t4 values (3,5);
+connection server_3;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2;
 include/start_slave.inc
+connection server_4;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2;
 include/start_slave.inc
+connection server_5;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2;
 include/start_slave.inc
+connection server_2;
+connection server_3;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -244,6 +270,7 @@ a	b
 3	1
 3	3
 3	5
+connection server_5;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -276,6 +303,7 @@ a	b
 3	1
 3	3
 3	5
+connection server_5;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -309,6 +337,7 @@ a	b
 3	3
 3	5
 *** Now let the old master join up as slave. ***
+connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
 master_user = "root", master_use_gtid = current_pos;
 include/start_slave.inc
@@ -345,19 +374,25 @@ a	b
 3	3
 3	5
 *** Finally move things back and clean up. ***
+connection server_1;
 include/stop_slave.inc
 RESET SLAVE ALL;
+connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1;
 include/start_slave.inc
+connection server_3;
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1;
 include/start_slave.inc
+connection server_4;
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1;
 include/start_slave.inc
+connection server_5;
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1;
 include/start_slave.inc
+connection server_1;
 SET gtid_domain_id = 0;
 DROP TABLE t1;
 DROP TABLE t2;

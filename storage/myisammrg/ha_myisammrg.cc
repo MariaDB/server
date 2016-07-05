@@ -101,7 +101,7 @@
 #include "../myisam/ha_myisam.h"
 #include "ha_myisammrg.h"
 #include "myrg_def.h"
-#include "thr_malloc.h"                         // int_sql_alloc
+#include "thr_malloc.h"                         // init_sql_alloc
 #include "sql_class.h"                          // THD
 #include "debug_sync.h"
 

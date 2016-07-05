@@ -524,7 +524,6 @@ ALTER TABLE articles DROP INDEX idx;
 ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
 
 
---echo "In connection 1"
 --connection con1
 select @@innodb_ft_enable_stopword;
 
@@ -557,7 +556,6 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"where will"@6' IN BOO
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"where will"@9' IN BOOLEAN MODE);
 
 
---echo "In connection default"
 --connection default
 select @@innodb_ft_enable_stopword;
 # no result expected as word not indexed from connection 1
@@ -580,7 +578,6 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+the +will" IN BOOLEAN M
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"the will"@11' IN BOOLEAN MODE);
 
 
---echo "In connection 1"
 --connection con1
 SET SESSION innodb_ft_enable_stopword = 1;
 # Define a correct formated user stopword table
@@ -597,7 +594,6 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN 
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 
 
---echo "In connection default"
 --connection default
 # no result expected as innodb_ft_user_stopword_table filter it from connection1 
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
@@ -619,7 +615,6 @@ ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+when" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('when');
 
---echo "In connection 1"
 --connection con1
 SET SESSION innodb_ft_enable_stopword = 1;
 SET SESSION innodb_ft_user_stopword_table=default;
@@ -641,7 +636,6 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('the');
 disconnect con1;
 --source include/wait_until_disconnected.inc
 
---echo "In connection default"
 --connection default
 SET SESSION innodb_ft_enable_stopword = 1;
 SET SESSION innodb_ft_user_stopword_table=default;

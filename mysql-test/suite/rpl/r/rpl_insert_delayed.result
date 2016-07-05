@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE SCHEMA IF NOT EXISTS mysqlslap;
 USE mysqlslap;
 CREATE TABLE t1 (id INT primary key auto_increment, name VARCHAR(64)) ENGINE=MyISAM;
@@ -7,10 +8,12 @@ FLUSH TABLE t1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+connection slave;
 use mysqlslap;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+connection master;
 truncate table t1;
 insert delayed into t1 values(10, "my name");
 flush table t1;
@@ -20,10 +23,12 @@ select * from t1;
 id	name
 10	my name
 20	James Bond
+connection slave;
 select * from t1;
 id	name
 10	my name
 20	James Bond
+connection master;
 delete from t1 where id!=10;
 insert delayed into t1 values(20, "is Bond"), (10, "James Bond");
 flush table t1;
@@ -31,13 +36,17 @@ select * from t1;
 id	name
 10	my name
 20	is Bond
+connection slave;
 select * from t1;
 id	name
 10	my name
 20	is Bond
+connection master;
 USE test;
 DROP SCHEMA mysqlslap;
+connection slave;
 use test;
+connection master;
 CREATE TABLE t1(a int, UNIQUE(a));
 INSERT DELAYED IGNORE INTO t1 VALUES(1);
 INSERT DELAYED IGNORE INTO t1 VALUES(1);
@@ -45,10 +54,14 @@ flush table t1;
 select * from t1;
 a
 1
+connection slave;
 On slave
 select * from t1;
 a
 1
+connection master;
 drop table t1;
+connection slave;
+connection master;
 End of 5.0 tests
 include/rpl_end.inc

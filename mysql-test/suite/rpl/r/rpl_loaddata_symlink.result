@@ -6,9 +6,13 @@ select * from t1;
 a	b
 1	10
 2	15
+connection slave;
+connection slave;
 select * from t1;
 a	b
 1	10
 2	15
+connection master;
 drop table t1;
+connection slave;
 include/rpl_end.inc

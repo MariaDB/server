@@ -83,39 +83,31 @@ SELECT @@warning_count;
 # Session data integrity check & GLOBAL Value check
 #
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_notes;
 --echo 1 / TRUE Expected
 
 SET SESSION sql_notes = FALSE;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_notes;
 --echo 1 / TRUE Expected
 
 SET SESSION sql_notes = TRUE;
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.sql_notes;
 --echo 1 / TRUE Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.sql_notes;
 --echo 0 / FALSE Expected
 
---echo ** Connection default **
 connection default;
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 
@@ -131,4 +123,3 @@ DROP TABLE IF EXISTS t1;
 --enable_warnings
 
 --enable_ps_protocol
-

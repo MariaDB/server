@@ -30,7 +30,6 @@ show status like 'Table_lock%';
 select * from information_schema.session_status where variable_name like 'Table_lock%';
 
 connection con1;
---echo # Switched to connection: con1
 set sql_log_bin=0;
 set @old_general_log = @@global.general_log;
 set global general_log = 'OFF';
@@ -45,18 +44,15 @@ insert into t1 values(1);
 select 1;
 
 connection con2;
---echo # Switched to connection: con2
 lock tables t1 read;
 unlock tables;
 lock tables t1 read;
 
 connection con1;
---echo # Switched to connection: con1
 let $ID= `select connection_id()`;
 --send update t1 set n = 3
 
 connection con2;
---echo # Switched to connection: con2
 # wait for the other query to start executing
 let $wait_condition= select 1 from INFORMATION_SCHEMA.PROCESSLIST
                      where ID = $ID and STATE = "Waiting for table level lock";
@@ -64,7 +60,6 @@ let $wait_condition= select 1 from INFORMATION_SCHEMA.PROCESSLIST
 unlock tables;
 
 connection con1;
---echo # Switched to connection: con1
 reap;
 show status like 'Table_locks_waited';
 drop table t1;
@@ -73,7 +68,6 @@ set global general_log = @old_general_log;
 disconnect con2;
 disconnect con1;
 connection default;
---echo # Switched to connection: default
 
 # End of 4.1 tests
 

@@ -7,6 +7,7 @@ CREATE DEFINER=root@localhost TRIGGER definer_root BEFORE INSERT ON definer_root
 CREATE DEFINER=user1 TRIGGER definer_user BEFORE INSERT ON definer_user FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();
 CREATE DEFINER=current_user TRIGGER definer_current_user BEFORE INSERT ON definer_current_user FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();
 CREATE TRIGGER definer_default BEFORE INSERT ON definer_default FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();
+connection node_2;
 INSERT INTO definer_root (f1) VALUES (1);
 SELECT DEFINER = 'root@localhost' FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'definer_root';
 DEFINER = 'root@localhost'
@@ -35,6 +36,7 @@ DEFINER = 'root@localhost'
 SELECT trigger_user = 'root@localhost' FROM definer_default;
 trigger_user = 'root@localhost'
 1
+connection node_1;
 DROP TABLE definer_current_user;
 DROP TABLE definer_user;
 DROP TABLE definer_root;

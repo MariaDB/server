@@ -282,7 +282,6 @@ sync_slave_with_master;
 --echo #                      bitmap_is_set(table->vcol_set, field_index))'
 --echo #           failed in Field_timestamp::store_TIME_with_warning
 --echo #
---enable_connect_log
 --echo #
 --echo # Create table on master, replicate it on slave.
 --echo #
@@ -324,6 +323,5 @@ set binlog_row_image = @binlog_row_image.saved;
 drop table t1;
 
 --sync_slave_with_master
---disable_connect_log
 
 --source include/rpl_end.inc

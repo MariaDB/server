@@ -17,9 +17,11 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
+connection master;
 drop temporary table if exists tmp;
 drop table t1;
 include/rpl_end.inc

@@ -1346,12 +1346,43 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR JOIN (PRIMARY,i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	144	
+#
+#  For this explain, the query plan is weird: if we are using 
+#  the primary key for reasons other than doing grouping, can't
+#  GROUP BY code take advantage of this?  Well, currently it doesnt:
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index; Using filesort
+#  Here's a proof it is really doing sorting:
+flush status;
+SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (PRIMARY,i2) GROUP BY a;
+show status like 'Sort_%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	144
+Sort_scan	1
+# Proof ends.
+# 
+#  For this explain, the query plan is weird: if we are using 
+#  the primary key for reasons other than doing sorting, can't
+#  ORDER BY code take advantage of this?  Well, currently it doesnt:
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	144	Using index; Using filesort
+#  Here's a proof it is really doing sorting:
+flush status;
+SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
+show status like 'Sort_%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	144
+Sort_scan	1
+# Proof ends.
+# 
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY,i2) ORDER BY a;
 a
 1

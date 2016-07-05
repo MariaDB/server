@@ -18,4 +18,4 @@ SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1
 --echo ####################################
 --echo # QUERYING PS STATEMENT DIGEST
 --echo ####################################
-SELECT event_name, digest, digest_text, sql_text FROM events_statements_history_long;
+SELECT event_name, digest_text, sql_text FROM events_statements_history_long;

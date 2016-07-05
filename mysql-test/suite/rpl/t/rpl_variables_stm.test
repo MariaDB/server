@@ -62,7 +62,6 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 # Backup the values of global variables so that they can be restored
 # later.
 
---echo [on master]
 connection master;
 SET @m_auto_increment_increment= @@global.auto_increment_increment;
 SET @m_auto_increment_offset=    @@global.auto_increment_offset;
@@ -73,7 +72,6 @@ SET @m_time_zone=                @@global.time_zone;
 SET @m_lc_time_names=            @@global.lc_time_names;
 SET @m_collation_database=       @@global.collation_database;
 
---echo [on slave]
 connection slave;
 SET @s_auto_increment_increment= @@global.auto_increment_increment;
 SET @s_auto_increment_offset=    @@global.auto_increment_offset;
@@ -93,7 +91,6 @@ SET @@global.time_zone='Japan';
 SET @@global.lc_time_names='sv_SE';
 SET @@global.collation_database='geostd8_bin';
 
---echo [on master]
 connection master;
 
 # Tables where everything happens.
@@ -589,7 +586,6 @@ source include/diff_tables.inc;
 
 --echo ==== Clean up ====
 
---echo [on master]
 connection master;
 DROP PROCEDURE proc;
 DROP FUNCTION func;
@@ -605,7 +601,6 @@ SET @@global.time_zone=                @m_time_zone;
 SET @@global.lc_time_names=            @m_lc_time_names;
 SET @@global.collation_database=       @m_collation_database;
 
---echo [on slave]
 connection slave;
 SET @@global.auto_increment_increment= @s_auto_increment_increment;
 SET @@global.auto_increment_offset=    @s_auto_increment_offset;

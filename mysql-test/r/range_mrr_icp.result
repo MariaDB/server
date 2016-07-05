@@ -2290,6 +2290,17 @@ Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 1
 DROP TABLE t1;
 #
+# MDEV-10185: Assertion `tree1->keys[key_no] && tree2->keys[key_no]' failed in 
+#             sel_trees_can_be_ored(RANGE_OPT_PARAM*, SEL_TREE*, SEL_TREE*, key_map*)
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE pk != 1000 OR pk IN ( 1000, 0, 1, 100, 2 ) OR pk >= 5;
+pk
+1
+2
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 set optimizer_switch=@mrr_icp_extra_tmp;

@@ -1,6 +1,9 @@
 CREATE TABLE t1 (i INT) ENGINE=TokuDB;
 EXPLAIN INSERT INTO t1 SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using temporary
+connect con1,localhost,root,,test;
 INSERT INTO t1 SELECT * FROM t1;
+connection default;
+disconnect con1;
 DROP TABLE t1;

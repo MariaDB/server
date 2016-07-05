@@ -34,7 +34,8 @@ name VARCHAR(30),
 salary INT,
 income_tax FLOAT
 );
-## Creating new connection test_con1 ##
+connect  test_con1, localhost, root,,;
+connection test_con1;
 ## Setting global & session scope value of variable ##
 SET @@global.div_precision_increment = 2;
 SET @@session.div_precision_increment = 1;
@@ -53,7 +54,8 @@ id	name	salary	income_tax
 1	Record_1	100011	250.027
 2	Record_2	501	1.2525
 3	Record_3	210	0.525
-## Creating new connection ## 
+connect  test_con2, localhost, root,,;
+connection test_con2;
 ## Verifying session & global value of variable ##
 SELECT @@global.div_precision_increment = 2;
 @@global.div_precision_increment = 2
@@ -75,5 +77,7 @@ id	name	salary	income_tax
 6	Record_6	210	0.525
 ## Dropping table t1 ##
 drop table t1;
-## Disconnection both the connections ##
+disconnect test_con1;
+disconnect test_con2;
+connection default;
 SET @@global.div_precision_increment = 4;

@@ -90,3 +90,14 @@ NULL
 FLUSH STATUS;
 Value of com_select did not change
 set global secure_auth=default;
+set timestamp=unix_timestamp('2010-10-10 10:10:10');
+select now();
+now()
+2010-10-10 10:10:10
+select year(now()) > 2011;
+year(now()) > 2011
+0
+change_user
+select year(now()) > 2011;
+year(now()) > 2011
+1

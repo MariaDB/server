@@ -1,4 +1,4 @@
-# Test of the --aria-recover option.
+# Test of the --aria-recover-options option.
 
 --source include/have_maria.inc
 
@@ -18,13 +18,13 @@ let $def_checkinterval=`select @@global.aria_checkpoint_interval`;
 # so that the perl code below can access it.
 let MYSQLD_DATADIR= `select @@datadir`;
 
-select @@global.aria_recover;
-set global aria_recover=off;
-select @@global.aria_recover;
-set global aria_recover=default;
-select @@global.aria_recover;
-set global aria_recover=normal;
-select @@global.aria_recover;
+select @@global.aria_recover_options;
+set global aria_recover_options=off;
+select @@global.aria_recover_options;
+set global aria_recover_options=default;
+select @@global.aria_recover_options;
+set global aria_recover_options=normal;
+select @@global.aria_recover_options;
 
 --disable_warnings
 drop database if exists mysqltest;
@@ -72,5 +72,5 @@ select * from t_corrupted2; # should show corruption and repair messages
 select * from t_corrupted2; # should show just rows
 
 drop database mysqltest;
-set global aria_recover=backup;
+set global aria_recover_options=backup;
 eval set global aria_checkpoint_interval=$def_checkinterval;

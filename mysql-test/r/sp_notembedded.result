@@ -154,6 +154,7 @@ create user 'mysqltest_1'@'localhost';
 grant all privileges on test.* to 'mysqltest_1'@'localhost';
 create procedure 15298_1 () sql security definer show grants for current_user;
 create procedure 15298_2 () sql security definer show grants;
+connect  con1,localhost,mysqltest_1,,test;
 call 15298_1();
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
@@ -162,6 +163,8 @@ call 15298_2();
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+connection default;
+disconnect con1;
 drop user mysqltest_1@localhost;
 drop procedure 15298_1;
 drop procedure 15298_2;
@@ -171,22 +174,39 @@ create table t1 (value varchar(15));
 create procedure p1() update t1 set value='updated' where value='old';
 call p1();
 insert into t1 (value) values ("old"),("irrelevant");
+connect  rl_holder, localhost, root,,;
+connect  rl_acquirer, localhost, root,,;
+connect  rl_contender, localhost, root,,;
+connect  rl_wait, localhost, root,,;
+connection rl_holder;
 select get_lock('b26162',120);
 get_lock('b26162',120)
 1
+connection rl_acquirer;
 select 'rl_acquirer', value from t1 where get_lock('b26162',120);;
+connection rl_wait;
+connection default;
 set session low_priority_updates=on;
 call p1();;
+connection rl_wait;
+connection rl_contender;
 select 'rl_contender', value from t1;
 rl_contender	value
 rl_contender	old
 rl_contender	irrelevant
+connection rl_holder;
 select release_lock('b26162');
 release_lock('b26162')
 1
+connection rl_acquirer;
 rl_acquirer	value
 rl_acquirer	old
 rl_acquirer	irrelevant
+connection default;
+disconnect rl_holder;
+disconnect rl_acquirer;
+disconnect rl_wait;
+disconnect rl_contender;
 drop procedure p1;
 drop table t1;
 set session low_priority_updates=default;
@@ -203,9 +223,13 @@ VALUES('%', 'mysqltest_1', password(''), 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'N', 'N',
 Warnings:
 Warning	1364	Field 'authentication_string' doesn't have a default value
 FLUSH PRIVILEGES;
+connect  con1, localhost, mysqltest_1,,;
+connection con1;
 CREATE PROCEDURE p1(i INT) BEGIN END;
 Warnings:
 Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
+disconnect con1;
+connection default;
 DROP PROCEDURE p1;
 DELETE FROM mysql.user WHERE User='mysqltest_1';
 FLUSH PRIVILEGES;
@@ -215,7 +239,7 @@ FLUSH PRIVILEGES;
 SELECT GET_LOCK('Bug44521', 0);
 GET_LOCK('Bug44521', 0)
 1
-** Connection con1
+connect  con1,localhost,root,,;
 CREATE PROCEDURE p()
 BEGIN
 SELECT 1;
@@ -223,7 +247,8 @@ SELECT GET_LOCK('Bug44521', 100);
 SELECT 2;
 END$
 CALL p();;
-** Default connection
+connection default;
+disconnect con1;
 SELECT RELEASE_LOCK('Bug44521');
 RELEASE_LOCK('Bug44521')
 1
@@ -232,13 +257,21 @@ CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1);
 CREATE FUNCTION f1 (inp TEXT) RETURNS INT NO SQL RETURN sleep(60);
 CREATE VIEW v1 AS SELECT f1('a') FROM t1;
+connect  con1, localhost, root,,;
 SELECT * FROM v1;;
+connect  con2, localhost, root,,;
 SELECT * FROM v1;
+connection default;
+connection con1;
 ERROR 70100: Query execution was interrupted
+connection con2;
 ERROR 70100: Query execution was interrupted
+connection default;
 DROP VIEW v1;
 DROP TABLE t1;
 DROP FUNCTION f1;
+disconnect con1;
+disconnect con2;
 # ------------------------------------------------------------------
 # -- End of 5.1 tests
 # ------------------------------------------------------------------
@@ -249,11 +282,13 @@ DROP FUNCTION f1;
 # The real problem was that server was unable handle properly stored
 # functions in databases which names contained dot.
 #
+connection default;
 DROP DATABASE IF EXISTS `my.db`;
 create database `my.db`;
 use `my.db`;
 CREATE FUNCTION f1(a int) RETURNS INT RETURN a;
-# Create new connection.
+connect  addcon, localhost, root,,;
+connection addcon;
 USE `my.db`;
 SELECT f1(1);
 f1(1)
@@ -261,7 +296,8 @@ f1(1)
 SELECT `my.db`.f1(2);
 `my.db`.f1(2)
 2
-# Switching to default connection.
+connection default;
+disconnect addcon;
 DROP DATABASE `my.db`;
 USE test;
 #
@@ -289,11 +325,14 @@ DROP EVENT teste_bug11763507;
 # ------------------------------------------------------------------
 grant create routine on test.* to foo1@localhost identified by 'foo';
 update mysql.user set password = replace(password, '*', '-') where user='foo1';
+connect  foo,localhost,foo1,foo;
 show grants;
 Grants for foo1@localhost
 GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+connection default;
 flush privileges;
+connection foo;
 show grants;
 Grants for foo1@localhost
 GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
@@ -304,6 +343,8 @@ Grants for foo1@localhost
 GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
 GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO 'foo1'@'localhost'
+connection default;
+disconnect foo;
 drop procedure spfoo;
 drop user foo1@localhost;
 set @@global.concurrent_insert= @old_concurrent_insert;

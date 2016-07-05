@@ -2276,7 +2276,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `clipid` int(11) NOT NULL,
   `mos` tinyint(4) DEFAULT '0',
-  `Tape` tinytext,
+  `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
@@ -3109,7 +3109,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET utf8
+  `c1` text CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -3365,7 +3365,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(83) CHARACTER SET utf8 DEFAULT NULL,
-  `c2` decimal(65,30) DEFAULT NULL
+  `c2` decimal(65,38) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(@@ft_max_word_len));
@@ -3715,7 +3715,7 @@ create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8
+  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(period_add(200902, 2)));
@@ -5072,7 +5072,7 @@ GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END)
 1234567
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,'')	253	27	7	Y	0	31	33
+def					COALESCE(a,'')	253	27	7	Y	0	39	33
 COALESCE(a,'')
 1234567
 # All columns must be VARCHAR(9) with the same length:
@@ -6208,6 +6208,45 @@ SELECT OCTET_LENGTH(a),a FROM t1;
 OCTET_LENGTH(a)	a
 255	ＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡ
 DROP TABLE t1;
+#
+# MDEV-8402 Bug#77473 Bug#21317406 TRUNCATED DATA WITH SUBQUERY & UTF8
+#
+#
+SET NAMES utf8;
+SELECT length(rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2)) AS data;
+data
+131072
+SELECT length(data) AS len FROM (
+SELECT rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2) AS data
+) AS sub;
+len
+131072
+SELECT length(rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2)) AS data;
+data
+131070
+SELECT length(data) AS len FROM (
+SELECT rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2) AS data
+) AS sub;
+len
+131070
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36766) AS data) AS sub;
+len
+73532
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36767) AS data) AS sub;
+len
+73534
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36778) AS data) AS sub;
+len
+73556
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65535) AS data) AS sub;
+len
+131070
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65536) AS data) AS sub;
+len
+131072
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65537) AS data) AS sub;
+len
+131074
 #
 # End of 5.5 tests
 #
@@ -10409,4 +10448,140 @@ DROP PROCEDURE p1;
 SET @@SQL_MODE=default;
 #
 # End of 10.1 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9824 LOAD DATA does not work with multi-byte strings in LINES TERMINATED BY when IGNORE is specified
+#
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё';
+Warnings:
+Warning	1638	Non-ASCII separator arguments are not fully supported
+SELECT c1 FROM t1;
+c1
+a
+b
+c
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
+Warnings:
+Warning	1638	Non-ASCII separator arguments are not fully supported
+SELECT c1 FROM t1;
+c1
+b
+c
+DROP TABLE t1;
+#
+# MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 7
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+SELECT HEX(a) FROM t1;
+HEX(a)
+3F
+78787831
+3F3F
+78787832
+3F3F3F
+78787833
+3F3F3F3F
+3F3F3F
+DROP TABLE t1;
+#
+# MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+Warnings:
+Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+SELECT HEX(a) FROM t1;
+HEX(a)
+613F
+DROP TABLE t1;
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) DEFAULT CONCAT('ÃŸ')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a),a  FROM t1;
+HEX(a)	a
+C39F	ÃŸ
+SET NAMES latin1;
+ALTER TABLE t1 ADD b VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß');
+SET NAMES utf8;
+ALTER TABLE t1 ADD c VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ÃŸ');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) DEFAULT CONCAT('ÃŸ'),
+  `b` varchar(30) DEFAULT CONCAT('ÃŸ'),
+  `c` varchar(30) DEFAULT CONCAT('ÃŸ')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SELECT * FROM t1;
+a	b	c
+ÃŸ	ÃŸ	ÃŸ
+SET NAMES latin1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SET NAMES utf8;
+SELECT * FROM t1;
+a	b	c
+ÃŸ	ÃŸ	ÃŸ
+DROP TABLE t1;
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) CHARACTER SET utf8 DEFAULT CONCAT('ÃŸ')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a), a FROM t1;
+HEX(a)	a
+C383C5B8	ÃŸ
+DROP TABLE t1;
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) DEFAULT CONCAT('ß')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a) FROM t1;
+HEX(a)
+DF
+DROP TABLE t1;
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) CHARACTER SET utf8 DEFAULT CONCAT('ß')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a) FROM t1;
+HEX(a)
+C39F
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #

@@ -37,8 +37,11 @@ if apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
 then
   # Anything in MARIADB_OPTIONAL_DEBS is omitted from the resulting
   # packages by snipped in rules file
-  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.1"
+  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.2"
   sed -i -e "/\\\${MAYBE_LIBCRACK}/d" debian/control
+  # Remove package entry from control file completely so that
+  # resulting Debian source package will actually be buildable
+  sed -i -e "/Package: mariadb-cracklib-password-check/,+6d" debian/control
 else
   MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0),'
   sed -i -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g" debian/control

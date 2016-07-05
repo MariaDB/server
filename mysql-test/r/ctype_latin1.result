@@ -525,6 +525,21 @@ SELECT HEX(subject),HEX(pattern),STR_TO_DATE(subject, pattern) FROM t1;
 HEX(subject)	HEX(pattern)	STR_TO_DATE(subject, pattern)
 32303031F73031F73031	2559F7256DF72564	2001-01-01 00:00:00.000000
 DROP TABLE t1;
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 SET collation_connection='latin1_bin';
 create table t1 select repeat('a',4000) a;
 delete from t1;
@@ -621,6 +636,21 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
 CREATE TABLE „a (a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '„a (a int)' at line 1
 SELECT '„a' as str;
@@ -1334,7 +1364,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -1590,7 +1620,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(83) DEFAULT NULL,
-  `c2` decimal(65,30) DEFAULT NULL
+  `c2` decimal(65,38) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(@@ft_max_word_len));
@@ -1940,7 +1970,7 @@ create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(period_add(200902, 2)));
@@ -3297,7 +3327,7 @@ GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END)
 1234567
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,'')	253	9	7	Y	0	31	8
+def					COALESCE(a,'')	253	9	7	Y	0	39	8
 COALESCE(a,'')
 1234567
 # All columns must be VARCHAR(9) with the same length:

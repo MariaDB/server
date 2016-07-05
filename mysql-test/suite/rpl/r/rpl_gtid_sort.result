@@ -1,5 +1,6 @@
 include/rpl_init.inc [topology=1->2]
 *** Test connecting with empty GTID state to start from very beginning of binlog ***
+connection server_2;
 include/stop_slave.inc
 RESET MASTER;
 RESET SLAVE;
@@ -15,6 +16,7 @@ gtid_slave_pos
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 Variable_name	Value
 gtid_binlog_state	
+connection server_1;
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -42,6 +44,7 @@ gtid_slave_pos
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 Variable_name	Value
 gtid_binlog_state	0-1-1,1-1-1,10-1-1,100-1-1,99999-1-1,2147483648-1-1,4294967295-1-1
+connection server_2;
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
 gtid_binlog_pos	
@@ -95,5 +98,6 @@ gtid_slave_pos	0-1-1,1-1-1,10-1-1,100-1-1,99999-1-1,2147483648-1-1,4294967295-1-
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 Variable_name	Value
 gtid_binlog_state	0-1-1,1-1-1,10-1-1,89-2-1,100-1-1,1000-2-1,99999-1-1,10100000-2-1,2147483648-1-1,4294967295-1-1
+connection server_1;
 DROP TABLE t1;
 include/rpl_end.inc

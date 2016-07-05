@@ -33,23 +33,18 @@ SET @global_tx_isolation = @@GLOBAL.tx_isolation;
 # Creating connections
 #
 
---echo ** Connecting con0 using root **
 connect (con0,localhost,root,,);
 
---echo ** Connection con0 **
 connection con0;
 
 SET SESSION AUTOCOMMIT = OFF;
 
---echo ** Connecting con1 using root **
 connect (con1, localhost, root,,);
 
---echo ** Connection con1 **
 connection con1;
 
 SET SESSION AUTOCOMMIT = OFF;
 
---echo ** Connection default **
 connection default;
 
 #
@@ -72,12 +67,10 @@ INSERT INTO t1 VALUES(24, 24);
 #
 # Testing for value READ-UNCOMMITTED
 #
---echo ** Connection con0 **
 connection con0;
 SET SESSION tx_isolation = 'READ-UNCOMMITTED';
 set binlog_format=mixed;
 
---echo ** Connection con1 **
 connection con1;
 SET SESSION tx_isolation = 'READ-UNCOMMITTED';
 set binlog_format=mixed;
@@ -85,7 +78,6 @@ set binlog_format=mixed;
 #
 # Testing WHERE on keys using IN clause
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -93,7 +85,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a IN (2,4,6,8) FOR UPDATE;
 UPDATE t1 SET b = 10 WHERE a IN (2,4,6,8);
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -107,7 +98,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 DELETE FROM t1 WHERE a = 1 OR a = 3;
@@ -119,7 +109,6 @@ COMMIT;
 # Testing WHERE on keys using # on even rows
 #
 
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -127,7 +116,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a % 2 = 0 FOR UPDATE;
 UPDATE t1 SET b = 10 WHERE a % 2 = 0;
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -142,7 +130,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -151,18 +138,15 @@ COMMIT;
 #
 # Testing for value READ-COMMITTED
 #
---echo ** Connection con0 **
 connection con0;
 SET SESSION tx_isolation = 'READ-COMMITTED';
 
---echo ** Connection con1 **
 connection con1;
 SET SESSION tx_isolation = 'READ-COMMITTED';
 
 #
 # Testing WHERE on keys using % on even rows
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -170,7 +154,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a % 2 = 0 FOR UPDATE;
 UPDATE t1 SET b = 11 WHERE a % 2 = 0;
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -184,7 +167,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -194,18 +176,15 @@ COMMIT;
 #
 # Testing for value REPEATABLE-READ
 #
---echo ** Connection con0 **
 connection con0;
 SET SESSION tx_isolation = 'REPEATABLE-READ';
 
---echo ** Connection con1 **
 connection con1;
 SET SESSION tx_isolation = 'REPEATABLE-READ';
 
 #
 # Testing WHERE on keys using % on even rows
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -213,7 +192,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a % 2 = 0 FOR UPDATE;
 UPDATE t1 SET b = 12 WHERE a % 2 = 0;
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -230,7 +208,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -239,7 +216,6 @@ COMMIT;
 #
 # Testing WHERE on keys using IN clause
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -247,7 +223,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a IN (2,4,6,8,10,12,14,16,18,20,22,24,26) = 0 FOR UPDATE;
 UPDATE t1 SET b = 13 WHERE a IN (2,4,6,8,10,12,14,16,18,20,22,24,26) = 0;
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -264,7 +239,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -273,7 +247,6 @@ COMMIT;
 #
 # Testing WHERE on keys using IN clause
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -281,7 +254,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a IN (2,4,6,8) = 0 FOR UPDATE;
 UPDATE t1 SET b = 14 WHERE a IN (2,4,6,8) = 0;
 
---echo ** Connection con1 **
 connection con1;
 
 START TRANSACTION;
@@ -298,7 +270,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -307,18 +278,15 @@ COMMIT;
 #
 # Testing for value SERIALIZABLE
 #
---echo ** Connection con0 **
 connection con0;
 SET SESSION tx_isolation = 'SERIALIZABLE';
 
---echo ** Connection con0 **
 connection con1;
 SET SESSION tx_isolation = 'SERIALIZABLE';
 
 #
 # Testing WHERE on keys using # on even rows
 #
---echo ** Connection con0 **
 connection con0;
 
 START TRANSACTION;
@@ -326,7 +294,6 @@ START TRANSACTION;
 SELECT * FROM t1 WHERE a % 2 = 0 FOR UPDATE;
 UPDATE t1 SET b = 15 WHERE a % 2 = 0;
 
---echo ** Connection con0 **
 connection con1;
 
 START TRANSACTION;
@@ -344,7 +311,6 @@ SELECT * FROM t1;
 
 COMMIT;
 
---echo ** Connection con0 **
 connection con0;
 
 COMMIT;
@@ -356,32 +322,26 @@ COMMIT;
 #
 
 SET GLOBAL tx_isolation = 'READ-UNCOMMITTED';
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.tx_isolation;
 --echo READ-UNCOMMITTED Expected
 
 SET SESSION tx_isolation = 'SERIALIZABLE';
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.tx_isolation;
 --echo READ-UNCOMMITTED Expected
 
 SET SESSION tx_isolation = 'REPEATABLE-READ';
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.tx_isolation;
 --echo REPEATABLE-READ Expected
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.tx_isolation;
 --echo SERIALIZABLE Expected
@@ -390,10 +350,8 @@ SELECT @@SESSION.tx_isolation;
 SELECT @@GLOBAL.tx_isolation;
 --echo READ-UNCOMMITTED Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 
@@ -404,9 +362,7 @@ disconnect con_int2;
 SET @@SESSION.tx_isolation = @session_tx_isolation;
 SET @@GLOBAL.tx_isolation = @global_tx_isolation;
 
---echo ** Connection default **
 connection default;
---echo Disconnecting Connections con0, con1
 disconnect con0;
 disconnect con1;
 

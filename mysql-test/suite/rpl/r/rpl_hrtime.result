@@ -16,6 +16,8 @@ a	b	c
 2022-02-02 02:02:02.6543	2022-02-02 02:02:02	2022-02-02 02:02:02.00
 2022-02-02 02:02:02.6543	0	0000-00-00 00:00:00.00
 0000-00-00 00:00:00.0000	0	2022-02-02 02:02:02.65
+connection slave;
+connection slave;
 set time_zone='+03:00';
 select * from t1;
 a	b	c
@@ -24,6 +26,7 @@ a	b	c
 2022-02-02 02:02:02.6543	2022-02-02 02:02:02	2022-02-02 02:02:02.00
 2022-02-02 02:02:02.6543	0	0000-00-00 00:00:00.00
 0000-00-00 00:00:00.0000	0	2022-02-02 02:02:02.65
+connection master;
 drop table t1;
 include/rpl_end.inc
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -34,7 +37,7 @@ ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1293832861/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=1342177280/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;

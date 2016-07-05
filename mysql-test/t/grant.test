@@ -1037,8 +1037,6 @@ GRANT ALL PRIVILEGES ON test.* TO mysqltest_1@localhost;
 # Test.
 
 --connect (bug9504_con1,localhost,mysqltest_1,,)
---echo
---echo ---> connection: bug9504_con1
 
 # - Check that we can switch to the db;
 
@@ -1065,9 +1063,6 @@ SELECT mysqltest4.f_inv();
 # Cleanup.
 
 --connection default
---echo
---echo ---> connection: default
-
 --disconnect bug9504_con1
 
 DROP DATABASE mysqltest1;
@@ -1106,8 +1101,6 @@ CREATE PROCEDURE mysqltest1.p1() SQL SECURITY INVOKER
 # Test.
 
 --connect (bug27337_con1,localhost,mysqltest_1,,mysqltest2)
---echo
---echo ---> connection: bug27337_con1
 
 --error ER_TABLEACCESS_DENIED_ERROR
 CREATE TABLE t1(c INT);
@@ -1120,8 +1113,6 @@ CREATE TABLE t1(c INT);
 --disconnect bug27337_con1
 
 --connect (bug27337_con2,localhost,mysqltest_1,,mysqltest2)
---echo
---echo ---> connection: bug27337_con2
 
 --error ER_TABLEACCESS_DENIED_ERROR
 CREATE TABLE t1(c INT);
@@ -1131,9 +1122,6 @@ SHOW TABLES;
 # Cleanup.
 
 --connection default
---echo
---echo ---> connection: default
-
 --disconnect bug27337_con2
 
 DROP DATABASE mysqltest1;
@@ -1162,8 +1150,6 @@ GRANT SELECT ON mysqltest2.t2 TO mysqltest_2@localhost;
 # Test.
 
 --connect (bug27337_con1,localhost,mysqltest_1,,mysqltest1)
---echo
---echo ---> connection: bug27337_con1
 
 SHOW TABLES FROM mysqltest1;
 
@@ -1172,8 +1158,6 @@ PREPARE stmt1 FROM 'SHOW TABLES FROM mysqltest1';
 EXECUTE stmt1;
 
 --connect (bug27337_con2,localhost,mysqltest_2,,mysqltest2)
---echo
---echo ---> connection: bug27337_con2
 
 SHOW COLUMNS FROM mysqltest2.t2;
 
@@ -1182,15 +1166,11 @@ PREPARE stmt2 FROM 'SHOW COLUMNS FROM mysqltest2.t2';
 EXECUTE stmt2;
 
 --connection default
---echo
---echo ---> connection: default
 
 REVOKE SELECT ON mysqltest1.t1 FROM mysqltest_1@localhost;
 REVOKE SELECT ON mysqltest2.t2 FROM mysqltest_2@localhost;
 
 --connection bug27337_con1
---echo
---echo ---> connection: bug27337_con1
 
 --error ER_DBACCESS_DENIED_ERROR
 SHOW TABLES FROM mysqltest1;
@@ -1199,8 +1179,6 @@ SHOW TABLES FROM mysqltest1;
 EXECUTE stmt1;
 
 --connection bug27337_con2
---echo
---echo ---> connection: bug27337_con2
 
 --error ER_TABLEACCESS_DENIED_ERROR
 SHOW COLUMNS FROM mysqltest2.t2;
@@ -1211,8 +1189,6 @@ EXECUTE stmt2;
 # Cleanup.
 
 --connection default
---echo
---echo ---> connection: default
 
 --disconnect bug27337_con1
 --disconnect bug27337_con2
@@ -1321,8 +1297,6 @@ GRANT SELECT(b) ON t1 TO testuser@localhost;
 GRANT SELECT    ON t2 TO testuser@localhost;
 GRANT SELECT    ON mysqltest2.* TO testuser@localhost;
 
---echo
---echo # Connection: bug57952_con1 (testuser@localhost, db: mysqltest1)
 --connect (bug57952_con1,localhost,testuser,,mysqltest1)
 PREPARE s1 FROM 'SELECT b FROM t1';
 PREPARE s2 FROM 'SELECT a FROM t2';
@@ -1336,16 +1310,12 @@ CALL p1;
 CALL p2;
 CALL p3;
 
---echo
---echo # Connection: default
 --connection default
 REVOKE SELECT ON t1 FROM testuser@localhost;
 GRANT SELECT(a) ON t1 TO testuser@localhost;
 REVOKE SELECT ON t2 FROM testuser@localhost;
 REVOKE SELECT ON mysqltest2.* FROM testuser@localhost;
 
---echo
---echo # Connection: bug57952_con1 (testuser@localhost, db: mysqltest1)
 --connection bug57952_con1
 --echo #   - Check column-level privileges...
 --error ER_COLUMNACCESS_DENIED_ERROR
@@ -1380,8 +1350,6 @@ EXECUTE s3;
 --error ER_DBACCESS_DENIED_ERROR
 CALL p3;
 
---echo
---echo # Connection: default
 --connection default
 --disconnect bug57952_con1
 DROP DATABASE mysqltest1;
@@ -1410,14 +1378,10 @@ grant execute on procedure mysqltest1.p1 to mysqluser1@localhost;
 --echo # in privilege tables and in in-memory structures.
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
---echo #
---echo # Create connection 'bug_36544_con1' as 'mysqluser1@localhost'.
 --connect (bug36544_con1,localhost,mysqluser1,,)
 call mysqltest1.p1();
 select mysqltest1.f1();
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 drop user mysqluser1@localhost;
 
@@ -1425,7 +1389,6 @@ drop user mysqluser1@localhost;
 --echo # Test that dropping of user is properly reflected in
 --echo # both privilege tables and in in-memory structures.
 --echo #
---echo # Switch to connection 'bug36544_con1'.
 --connection bug36544_con1
 --echo # The connection cold be alive but should not be able to
 --echo # access to any of the stored routines.
@@ -1435,8 +1398,6 @@ call mysqltest1.p1();
 select mysqltest1.f1();
 --disconnect bug36544_con1
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 --echo #
 --echo # Now create user with the same name and check that he
@@ -1444,16 +1405,12 @@ select mysqltest1.f1();
 create user mysqluser1@localhost;
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
---echo #
---echo # Create connection 'bug_36544_con2' as 'mysqluser1@localhost'.
 --connect (bug36544_con2,localhost,mysqluser1,,)
 --echo # Newly created user should not be able to access any of the routines.
 --error ER_PROCACCESS_DENIED_ERROR
 call mysqltest1.p1();
 --error ER_PROCACCESS_DENIED_ERROR
 select mysqltest1.f1();
---echo #
---echo # Switch to connection 'default'.
 --connection default
 
 --echo #
@@ -1482,23 +1439,18 @@ grant select on mysqltest1.t11 to mysqluser1@localhost;
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser1' and host='localhost';
---echo #
---echo # Switch to connection 'bug36544_con2'.
 --connection bug36544_con2
 call mysqltest1.p1();
 select mysqltest1.f1();
 select * from mysqltest1.t11;
 select * from mysqltest1.t22;
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 rename user mysqluser1@localhost to mysqluser10@localhost;
 
 --echo #
 --echo # Test that there are no privileges left for mysqluser1.
 --echo #
---echo # Switch to connection 'bug36544_con2'.
 --connection bug36544_con2
 --echo # The connection cold be alive but should not be able to
 --echo # access to any of the stored routines or tables.
@@ -1512,8 +1464,6 @@ select * from mysqltest1.t11;
 select * from mysqltest1.t22;
 --disconnect bug36544_con2
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 --echo #
 --echo # Now create user with the old name and check that he
@@ -1522,8 +1472,6 @@ create user mysqluser1@localhost;
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser1' and host='localhost';
---echo #
---echo # Create connection 'bug_36544_con3' as 'mysqluser1@localhost'.
 --connect (bug36544_con3,localhost,mysqluser1,,)
 --echo # Newly created user should not be able to access to any of the
 --echo # stored routines or tables.
@@ -1537,8 +1485,6 @@ select * from mysqltest1.t11;
 select * from mysqltest1.t22;
 --disconnect bug36544_con3
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 --echo #
 --echo # Now check that privileges became associated with a new user
@@ -1547,8 +1493,6 @@ select * from mysqltest1.t22;
 show grants for mysqluser10@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser10' and host='localhost';
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser10' and host='localhost';
---echo #
---echo # Create connection 'bug_36544_con4' as 'mysqluser10@localhost'.
 --connect (bug36544_con4,localhost,mysqluser10,,)
 call mysqltest1.p1();
 select mysqltest1.f1();
@@ -1556,8 +1500,6 @@ select * from mysqltest1.t11;
 select * from mysqltest1.t22;
 --disconnect bug36544_con4
 
---echo #
---echo # Switch to connection 'default'.
 --connection default
 --echo #
 --echo # Clean-up.
@@ -1905,8 +1847,6 @@ GRANT USAGE                   ON *.* TO mysqltest_u1@localhost;
 --echo
 SHOW GRANTS FOR mysqltest_u1@localhost;
 
---echo
---echo # connection: con1 (mysqltest_u1@mysqltest_db1)
 --connect (con1,localhost,mysqltest_u1,,mysqltest_db1)
 --connection con1
 
@@ -1914,8 +1854,6 @@ SHOW GRANTS FOR mysqltest_u1@localhost;
 --error ER_TABLEACCESS_DENIED_ERROR
 SHOW CREATE TABLE t1;
 
---echo
---echo # connection: default
 --connection default
 
 --disconnect con1
@@ -2191,7 +2129,6 @@ DROP DATABASE IF EXISTS no_such_db;
 CREATE DATABASE secret;
 GRANT USAGE ON *.* TO untrusted@localhost;
 
---echo # Connection con1
 connect (con1, localhost, untrusted);
 SHOW GRANTS;
 SHOW DATABASES;
@@ -2204,7 +2141,6 @@ CREATE PROCEDURE no_such_db.foo() BEGIN END;
 --error ER_DBACCESS_DENIED_ERROR
 CREATE PROCEDURE secret.peek_at_secret() BEGIN END;
 
---echo # Connection default
 --connection default
 disconnect con1;
 DROP USER untrusted@localhost;
@@ -2236,3 +2172,30 @@ drop user mysqltest_u1;
 set GLOBAL sql_mode=default;
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
+connect (conn1,localhost,dummy,pwd,test);
+connection conn1;
+INSERT INTO t1 VALUES ();
+connection default;
+disconnect conn1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP USER dummy@localhost;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

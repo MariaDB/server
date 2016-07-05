@@ -113,13 +113,18 @@ for each row
 begin
 insert into t3 (c) values (1);
 end|
+connect  connection_aux,localhost,root,,test,,;
+connect  connection_update,localhost,root,,test,,;
+connection connection_aux;
 select get_lock("lock_bug26141_wait", 0);
 get_lock("lock_bug26141_wait", 0)
 1
+connection default;
 select get_lock("lock_bug26141_sync", /* must not be priorly locked */ 0);
 get_lock("lock_bug26141_sync", /* must not be priorly locked */ 0)
 1
 insert into t1 (c) values (2);
+connection connection_update;
 select get_lock("lock_bug26141_sync", 1000);
 get_lock("lock_bug26141_sync", 1000)
 1
@@ -127,9 +132,11 @@ update t1 set c=3 where c=1;
 select release_lock("lock_bug26141_sync");
 release_lock("lock_bug26141_sync")
 1
+connection connection_aux;
 select release_lock("lock_bug26141_wait");
 release_lock("lock_bug26141_wait")
 1
+connection default;
 select * from t1;
 c
 2
@@ -141,6 +148,8 @@ select * from t3;
 c
 1
 drop table t1, t2, t3;
+disconnect connection_update;
+disconnect connection_aux;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=innodb;

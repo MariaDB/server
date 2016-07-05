@@ -10,7 +10,6 @@
 
 connection server_1;
 
---echo # On server_1
 CREATE DATABASE test_8428;
 USE test_8428;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
@@ -22,14 +21,12 @@ save_master_pos;
 connection server_2;
 sync_with_master;
 
---echo # On server_2
 SHOW TABLES IN test_8428;
 
 save_master_pos;
 connection server_3;
 sync_with_master;
 
---echo # On server_3
 SHOW TABLES IN test_8428;
 SELECT * from test_8428.t1;
 
@@ -38,4 +35,3 @@ connection server_1;
 DROP DATABASE test_8428;
 --source include/rpl_end.inc
 --echo # End of test
-

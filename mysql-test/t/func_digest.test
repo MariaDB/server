@@ -494,3 +494,24 @@ SET NAMES latin1;
 SELECT sha2('1',224);
 --disable_metadata
 
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+CREATE TABLE t1 (
+  a VARCHAR(30),
+  b TEXT DEFAULT SHA(a),
+  c TEXT DEFAULT SHA2(a,224)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('abc');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

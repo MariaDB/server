@@ -1435,6 +1435,9 @@ public:
 };
 
 #if defined(ENABLED_DEBUG_SYNC)
+
+#include "debug_sync.h"
+
 /**
   The class for @@debug_sync session-only variable
 */
@@ -1463,14 +1466,19 @@ public:
     String str(buff, sizeof(buff), system_charset_info), *res;
 
     if (!(res=var->value->val_str(&str)))
-      var->save_result.string_value.str= const_cast<char*>("");
+      var->save_result.string_value= empty_lex_str;
     else
-      var->save_result.string_value.str= thd->strmake(res->ptr(), res->length());
+    {
+      if (!thd->make_lex_string(&var->save_result.string_value,
+                                res->ptr(), res->length()))
+        return true;
+    }
     return false;
   }
   bool session_update(THD *thd, set_var *var)
   {
-    return debug_sync_update(thd, var->save_result.string_value.str);
+    return debug_sync_update(thd, var->save_result.string_value.str,
+                                  var->save_result.string_value.length);
   }
   bool global_update(THD *thd, set_var *var)
   {
@@ -1488,7 +1496,6 @@ public:
   }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
   {
-    extern uchar *debug_sync_value_ptr(THD *thd);
     return debug_sync_value_ptr(thd);
   }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)

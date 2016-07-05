@@ -122,25 +122,35 @@ INDEX DIRECTORY='TEST_DIR/tmp';
 RENAME TABLE t2 TO t1;
 ERROR HY000: Can't create/write to file 'TEST_DIR/tmp/t1.MYI' (Errcode: 17 "File exists")
 DROP TABLE t2;
+connect  session1,localhost,root,,;
+connect  session2,localhost,root,,;
+connection session1;
 create temporary table t1 (a int) engine=myisam data directory="MYSQLTEST_VARDIR/log" select 9 a;
 show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
+connection session2;
 create temporary table t1 (a int) engine=myisam data directory="MYSQLTEST_VARDIR/log" select 99 a;
 show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
+connection default;
 create table t1 (a int) engine=myisam select 42 a;
+connection session1;
 select * from t1;
 a
 9
+disconnect session1;
+connection session2;
 select * from t1;
 a
 99
+disconnect session2;
+connection default;
 select * from t1;
 a
 42

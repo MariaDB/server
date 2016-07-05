@@ -1,7 +1,8 @@
 ** Setup **
 
-Creating connection con0
-Creating connection con1
+connect  con0,localhost,root,,;
+connect  con1,localhost,root,,;
+connection default;
 SET @global_delayed_insert_limit = @@GLOBAL.delayed_insert_limit;
 CREATE TABLE t1 (a VARCHAR(100),b VARCHAR(100),c VARCHAR(100));
 CREATE VIEW v1 as select * from t1;
@@ -14,7 +15,7 @@ INSERT INTO t1 VALUES('4','1','1');
 INSERT INTO t1 VALUES('5','1','1');
 INSERT INTO t1 VALUES('6','1','1');
 LOCK TABLE v1 WRITE;
-** Connection con1 **
+connection con1;
 INSERT DELAYED INTO t1 VALUES('7','1','1');
 INSERT DELAYED INTO t1 VALUES('8','1','1');
 INSERT DELAYED INTO t1 VALUES('9','1','1');
@@ -52,20 +53,20 @@ INSERT DELAYED INTO t1 VALUES('40','1','1');
 INSERT DELAYED INTO t1 VALUES('41','1','1');
 INSERT DELAYED INTO t1 VALUES('42','1','1');
 INSERT DELAYED INTO t1 VALUES('43','1','1');|
-** Connection con0 **
+connection con0;
 SELECT COUNT(*) FROM t1;
-** Connection default **
+connection default;
 ** Wait till con0 is blocked **
 UNLOCK TABLES;
-** Connection con1 **
+connection con1;
 Asynchronous "reap" result
-** Connection con0 **
+connection con0;
 Asynchronous "reap" result
 The next result suffers from
 '# Bug#35386 insert delayed inserts 1 + limit rows instead of just limit rows'
 COUNT(*)
 21
-** Connection default **
+connection default;
 Checking if the delayed insert continued afterwards
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -83,7 +84,7 @@ INSERT INTO t1 VALUES('4');
 INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
 LOCK TABLE v1 WRITE;
-** Connection con1 **
+connection con1;
 Asynchronous execute
 INSERT DELAYED INTO t1 VALUES('7');
 INSERT DELAYED INTO t1 VALUES('8');
@@ -101,24 +102,25 @@ INSERT DELAYED INTO t1 VALUES('19');
 INSERT DELAYED INTO t1 VALUES('20');
 INSERT DELAYED INTO t1 VALUES('21');
 INSERT DELAYED INTO t1 VALUES('22');|
-** Connection con0 **
+connection con0;
 Asynchronous execute
 SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
-** Connection default **
+connection default;
 ** Wait till con0 is blocked **
 UNLOCK TABLES;
-** Connection con1 **
-** Connection con0 **
+connection con1;
+connection con0;
 Asynchronous "reap" result
 COUNT(*) BETWEEN 6 AND 22
 1
-** Connection default**
+connection default;
 Checking if the delayed insert gives the same result afterwards
 SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
 COUNT(*) BETWEEN 6 AND 22
 1
-** Connection default**
+connection default;
 DROP TABLE t1;
 DROP VIEW v1;
 SET @@GLOBAL.delayed_insert_limit = @global_delayed_insert_limit;
-Disconnecting from con1, con0
+disconnect con0;
+disconnect con1;

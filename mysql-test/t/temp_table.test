@@ -1,5 +1,6 @@
 # mysqltest should be fixed
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/have_innodb.inc
 
 #
 # Test of temporary tables
@@ -338,3 +339,202 @@ drop table t2;
 drop temporary table t3;
 show status like 'com_create%table';
 show status like 'com_drop%table';
+
+--echo #
+--echo # Some more generic temporary table tests
+--echo # added during MDEV-5535.
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS temp_db;
+--enable_warnings
+
+CREATE DATABASE temp_db;
+USE temp_db;
+
+--echo #
+--echo # SHOW TABLES do not list temporary tables.
+--echo #
+
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+SELECT * FROM temp_t1;
+SHOW TABLES;
+DROP TABLE temp_t1;
+
+--echo #
+--echo # Create and drop a temporary table.
+--echo #
+
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+SELECT * FROM temp_t1;
+DROP TABLE temp_t1;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM temp_t1;
+
+--echo #
+--echo # Create a temporary table and base table with same name and DROP TABLE.
+--echo #
+
+CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("BASE TABLE");
+# Temporary table shadows the base table with the same name.
+CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("TEMPORARY TABLE");
+SELECT * FROM t1;
+# Only temporary table should get dropped.
+DROP TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t1;
+
+--echo #
+--echo # Create a temporary table and base table with same name and DROP TEMPORARY
+--echo # TABLE.
+--echo #
+
+CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("BASE TABLE");
+# Temporary table shadows the base table with the same name.
+CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("TEMPORARY TABLE");
+SELECT * FROM t1;
+# Only temporary table should get dropped.
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+--error ER_BAD_TABLE_ERROR
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Create a temporary table and drop its parent database.
+--echo #
+
+USE temp_db;
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES (1);
+# Drop database
+DROP DATABASE temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+# Temporary tables are not physically tied to schemas
+DROP TEMPORARY TABLE temp_t1;
+
+--echo #
+--echo # Similar to above, but this time with a base table with same name.
+--echo #
+
+USE temp_db;
+CREATE TABLE t1(i INT)ENGINE=INNODB;
+CREATE TEMPORARY TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+# Drop database
+DROP DATABASE temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+# Temporary tables are not physically tied to schemas
+DROP TEMPORARY TABLE t1;
+--error ER_BAD_TABLE_ERROR
+DROP TABLE t1;
+
+--echo #
+--echo # Create a temporary table within a function.
+--echo #
+
+USE temp_db;
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DROP TEMPORARY TABLE IF EXISTS temp_t1;
+  CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+  INSERT INTO `temp_t1` VALUES(1);
+  RETURN (SELECT COUNT(*) FROM temp_t1);
+END|
+delimiter ;|
+
+SELECT f1();
+SELECT * FROM temp_t1;
+
+DROP TABLE temp_t1;
+CREATE TEMPORARY TABLE `temp_t1`(i INT) ENGINE=INNODB;
+SELECT f1();
+SELECT * FROM temp_t1;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Create and drop a temporary table within a function.
+--echo #
+
+delimiter |;
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DROP TEMPORARY TABLE IF EXISTS temp_t1;
+  CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+  INSERT INTO temp_t1 VALUES(1);
+  DROP TABLE temp_t1;
+  RETURN 0;
+END|
+
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DROP TEMPORARY TABLE IF EXISTS temp_t1;
+  CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+  INSERT INTO temp_t1 VALUES(1);
+  DROP TEMPORARY TABLE temp_t1;
+  RETURN 0;
+END|
+delimiter ;|
+SELECT f2();
+DROP FUNCTION f2;
+
+--echo #
+--echo # Create a temporary table within a function and select it from another
+--echo # function.
+--echo #
+
+delimiter |;
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DROP TEMPORARY TABLE IF EXISTS temp_t1;
+  CREATE TEMPORARY TABLE temp_t1 (i INT) ENGINE=INNODB;
+  INSERT INTO temp_t1 VALUES (1);
+  RETURN f2_1();
+END|
+
+CREATE FUNCTION f2_1() RETURNS INT
+  RETURN (SELECT COUNT(*) FROM temp_t1)|
+delimiter ;|
+
+SELECT f2();
+DROP TEMPORARY TABLE temp_t1;
+DROP FUNCTION f2;
+
+--echo #
+--echo # Create temporary table like base table.
+--echo #
+
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE temp_t1 LIKE t1;
+SELECT * FROM temp_t1;
+--error ER_NONUNIQ_TABLE
+CREATE TEMPORARY TABLE t1 LIKE t1;
+DROP TABLE temp_t1, t1;
+
+--echo #
+--echo # Create temporary table as base table.
+--echo #
+
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE temp_t1 AS SELECT * FROM t1;
+SELECT * FROM temp_t1;
+DROP TABLE temp_t1, t1;
+
+--echo # Cleanup
+DROP DATABASE temp_db;
+

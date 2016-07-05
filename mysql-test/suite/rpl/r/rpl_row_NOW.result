@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 create database if not exists mysqltest1;
 DROP TABLE IF EXISTS mysqltest1.t1;
 CREATE TABLE mysqltest1.t1 (n MEDIUMINT NOT NULL AUTO_INCREMENT,
@@ -20,7 +21,10 @@ FOR EACH ROW BEGIN
 SET new.b = mysqltest1.f1();
 END|
 INSERT INTO mysqltest1.t1 SET n = NULL, a = now();
+connection slave;
+connection master;
 DROP TABLE IF EXISTS mysqltest1.t1;
 DROP FUNCTION mysqltest1.f1;
 DROP DATABASE mysqltest1;
+connection slave;
 include/rpl_end.inc

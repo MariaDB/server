@@ -45,7 +45,6 @@ set global rpl_semi_sync_slave_enabled= 0;
 --echo #
 
 connection master;
-echo [ on master ];
 
 set global rpl_semi_sync_master_timeout= 60000; # 60s
 
@@ -96,7 +95,6 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 reset master;
 
 connection slave;
-echo [ on slave ];
 
 echo [ default state of semi-sync on slave should be OFF ];
 show variables like 'rpl_semi_sync_slave_enabled';
@@ -107,7 +105,6 @@ show variables like 'rpl_semi_sync_slave_enabled';
 source include/start_slave.inc;
 
 connection master;
-echo [ on master ];
 
 # NOTE: Rpl_semi_sync_master_client will only be updated when
 # semi-sync slave has started binlog dump request
@@ -153,7 +150,6 @@ show status like 'Rpl_semi_sync_master_no_tx';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 sync_slave_with_master;
-echo [ on slave ];
 
 echo [ slave status after replicated inserts ];
 show status like 'Rpl_semi_sync_slave_status';
@@ -168,7 +164,6 @@ select max(a) from t1;
 --echo # include 'CREATE TEMPORARY TABLE `MyISAM_t` SELECT * FROM `Innodb_t` ;
 
 connection master;
-echo [ on master ];
 SET SESSION AUTOCOMMIT= 0;
 CREATE TABLE t2(c1 INT) ENGINE=innodb;
 sync_slave_with_master;
@@ -200,7 +195,6 @@ connection slave;
 source include/stop_slave.inc;
 
 connection master;
-echo [ on master ];
 set global rpl_semi_sync_master_timeout= 5000;
 
 # The first semi-sync check should be on because after slave stop,
@@ -257,7 +251,6 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 save_master_pos;
 
 connection slave;
-echo [ on slave ];
 
 echo [ slave status should be OFF ];
 show status like 'Rpl_semi_sync_slave_status';
@@ -272,7 +265,6 @@ select min(a) from t1;
 select max(a) from t1;
 
 connection master;
-echo [ on master ];
 
 # The master semi-sync status should be on again after slave catches up.
 echo [ master status should be ON again after slave catches up ];
@@ -288,7 +280,6 @@ show status like 'Rpl_semi_sync_master_clients';
 
 drop table t1;
 sync_slave_with_master;
-echo [ on slave ];
 
 source include/stop_slave.inc;
 
@@ -307,7 +298,6 @@ SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 
 connection master;
-echo [ on master ];
 
 source include/show_master_logs.inc;
 show variables like 'rpl_semi_sync_master_enabled';
@@ -327,12 +317,10 @@ show status like 'Rpl_semi_sync_master_status';
 --echo #
 
 connection slave;
-echo [ on slave ];
 
 source include/start_slave.inc;
 
 connection master;
-echo [ on master ];
 
 replace_result $engine_type ENGINE_TYPE;
 eval create table t1 (a int) engine = $engine_type;
@@ -346,7 +334,6 @@ show status like 'Rpl_relay%';
 
 echo [ test reset master ];
 connection master;
-echo [ on master];
 
 reset master;
 
@@ -355,7 +342,6 @@ show status like 'Rpl_semi_sync_master_no_tx';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 connection slave;
-echo [ on slave ];
 
 source include/stop_slave.inc;
 reset slave;
@@ -379,7 +365,6 @@ connection slave;
 source include/start_slave.inc;
 
 connection master;
-echo [ on master ];
 
 # Wait for dump thread to start, Rpl_semi_sync_master_clients will be
 # 1 after dump thread started.
@@ -393,12 +378,10 @@ insert into t1 values (1);
 insert into t1 values (2), (3);
 
 sync_slave_with_master;
-echo [ on slave ];
 
 select * from t1;
 
 connection master;
-echo [ on master ];
 
 echo [ master semi-sync status should be ON ];
 show status like 'Rpl_semi_sync_master_status';
@@ -412,7 +395,6 @@ connection slave;
 source include/stop_slave.inc;
 reset slave;
 connection master;
-echo [ on master ];
 reset master;
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
@@ -435,14 +417,12 @@ grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
 set sql_log_bin=1;
 connection slave;
-echo [ on slave ];
 grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
 change master to master_user='rpl',master_password='rpl_password';
 source include/start_slave.inc;
 show status like 'Rpl_semi_sync_slave_status';
 connection master;
-echo [ on master ];
 
 # Wait for the semi-sync binlog dump thread to start
 let $status_var= Rpl_semi_sync_master_clients;
@@ -467,12 +447,10 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 
 # Disable semi-sync on master
 connection slave;
-echo [ on slave ];
 source include/stop_slave.inc;
 SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 
 connection master;
-echo [ on master ];
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
 let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
@@ -493,11 +471,9 @@ show status like 'Rpl_semi_sync_master_status';
 set global rpl_semi_sync_master_enabled= 0;
 
 connection slave;
-echo [ on slave ];
 SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
 source include/start_slave.inc;
 connection master;
-echo [ on master ];
 insert into t1 values (8);
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
@@ -506,23 +482,19 @@ echo [ master semi-sync clients should be 1, status should be OFF ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
 sync_slave_with_master;
-echo [ on slave ];
 show status like 'Rpl_semi_sync_slave_status';
 
 # Uninstall semi-sync plugin on master
 connection slave;
 source include/stop_slave.inc;
 connection master;
-echo [ on master ];
 set global rpl_semi_sync_master_enabled= 0;
 
 connection slave;
-echo [ on slave ];
 SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
 source include/start_slave.inc;
 
 connection master;
-echo [ on master ];
 insert into t1 values (10);
 sync_slave_with_master;
 
@@ -535,7 +507,6 @@ set global rpl_semi_sync_master_timeout= 5000; # 5s
 set global rpl_semi_sync_master_enabled= 1;
 
 connection slave;
-echo [ on slave ];
 source include/stop_slave.inc;
 SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 

@@ -4,7 +4,6 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
---echo # On slave
 --connection server_2
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 --source include/stop_slave.inc
@@ -12,12 +11,10 @@ SET GLOBAL slave_parallel_threads=10;
 
 ##### Case 0 : When both DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS are empty.
 
---echo # On slave
 --connection server_2
 CHANGE MASTER TO master_use_gtid=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
 --source include/start_slave.inc
 
---echo # On master
 --connection server_1
 SELECT @@session.gtid_domain_id;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
@@ -27,16 +24,13 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 --save_master_pos
 
---echo # On slave
 --connection server_2
 --sync_with_master
 
---echo # New connection 'con_temp1'
 # Block the table t1 to simulate a replicated query taking a long time.
 --connect (con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
 LOCK TABLE t1 WRITE;
 
---echo # On master
 --connection server_1
 SET @@session.gtid_domain_id=1;
 # This query will be blocked on the slave until UNLOCK TABLES.
@@ -52,19 +46,16 @@ INSERT INTO t2 VALUES (5);
 COMMIT;
 INSERT INTO t2 VALUES (6);
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 6 FROM t2
 --source include/wait_condition.inc
 
 SELECT * FROM t2 ORDER by a;
 
---echo # On con_temp1
 --connection con_temp1
 SELECT * FROM t1;
 UNLOCK TABLES;
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 2 FROM t1
 --source include/wait_condition.inc
@@ -73,7 +64,6 @@ SELECT * FROM t1 ORDER BY a;
 
 ##### Case 1 : When DO_DOMAIN_IDS=(1)
 
---echo # On slave
 --connection server_2
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
@@ -91,16 +81,13 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On slave
 --connection server_2
 --sync_with_master
 
---echo # On con_temp1
 # Block the table t1 to simulate a replicated query taking a long time.
 --connection con_temp1
 LOCK TABLE t1 WRITE;
 
---echo # On master
 --connection server_1
 SET @@session.gtid_domain_id=0;
 # This query will be blocked on the slave until UNLOCK TABLES.
@@ -118,19 +105,16 @@ INSERT INTO t2 VALUES (10);
 COMMIT;
 INSERT INTO t2 VALUES (11);
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 11 FROM t2
 --source include/wait_condition.inc
 
 SELECT * FROM t2 ORDER by a;
 
---echo # On con_temp1
 --connection con_temp1
 SELECT * FROM t1;
 UNLOCK TABLES;
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 2 FROM t1
 --source include/wait_condition.inc
@@ -139,7 +123,6 @@ SELECT * FROM t1 ORDER BY a;
 
 ##### Case 2 : When IGNORE_DOMAIN_IDS=(1)
 
---echo # On slave
 --connection server_2
 --source include/stop_slave.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
@@ -157,16 +140,13 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
---echo # On slave
 --connection server_2
 --sync_with_master
 
---echo # On con_temp1
 # Block the table t1 to simulate a replicated query taking a long time.
 --connection con_temp1
 LOCK TABLE t1 WRITE;
 
---echo # On master
 --connection server_1
 SET @@session.gtid_domain_id=1;
 # This query will be blocked on the slave until UNLOCK TABLES. However, since
@@ -183,19 +163,16 @@ INSERT INTO t2 VALUES (15);
 COMMIT;
 INSERT INTO t2 VALUES (16);
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 16 FROM t2
 --source include/wait_condition.inc
 
 SELECT * FROM t2 ORDER by a;
 
---echo # On con_temp1
 --connection con_temp1
 SELECT * FROM t1;
 UNLOCK TABLES;
 
---echo # On slave
 --connection server_2
 --let $wait_condition= SELECT COUNT(*) = 2 FROM t1
 --source include/wait_condition.inc
@@ -204,13 +181,11 @@ SELECT * FROM t1 ORDER BY a;
 SELECT * FROM t2;
 
 --echo # Restore original settings.
---echo # On master
 --connection server_1
 SET @@session.gtid_domain_id=0;
 DROP TABLE t1, t2;
 --save_master_pos
 
---echo # On slave
 --connection server_2
 --sync_with_master
 --source include/stop_slave.inc

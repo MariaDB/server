@@ -129,7 +129,6 @@ let $my_select = SELECT * FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 let $my_show = SHOW TABLES FROM db_datadict;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 # tb2 is not granted to anyone
@@ -182,7 +181,6 @@ eval $my_select;
 --sorted_result
 eval $my_show;
 
---echo # Establish connection testuser2 (user=testuser2)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser2, localhost, testuser2, , db_datadict);
 if ($have_bug_32285)
@@ -195,7 +193,6 @@ eval $my_select;
 --sorted_result
 eval $my_show;
 
---echo # Establish connection testuser3 (user=testuser3)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser3, localhost, testuser3, , db_datadict);
 if ($have_bug_32285)
@@ -208,7 +205,6 @@ eval $my_select;
 --sorted_result
 eval $my_show;
 
---echo # Switch to connection default (user=root)
 connection default;
 # we see only 'public' tables
 if ($have_bug_32285)
@@ -222,7 +218,6 @@ eval $my_select;
 eval $my_show;
 
 # Cleanup
---echo # Close connection testuser1, testuser2, testuser3
 disconnect testuser1;
 disconnect testuser2;
 disconnect testuser3;

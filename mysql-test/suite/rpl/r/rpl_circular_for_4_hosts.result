@@ -1,49 +1,59 @@
 *** Set up circular replication on four servers *** 
 include/rpl_init.inc [topology=1->2->3->4->1]
 
-[connection server_4]
+connection server_4;
 SET auto_increment_increment= 4;
 SET auto_increment_offset= 4;
-[connection server_3]
+connection server_3;
 SET auto_increment_increment= 4;
 SET auto_increment_offset= 3;
-[connection server_2]
+connection server_2;
 SET auto_increment_increment= 4;
 SET auto_increment_offset= 2;
-[connection server_1]
+connection server_1;
 SET auto_increment_increment= 4;
 SET auto_increment_offset= 1;
 *** Preparing data ***
+connection server_1;
 CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=InnoDB;
 include/rpl_sync.inc
+connection server_4;
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 
 *** Testing schema A->B->C->D->A ***
 
+connection server_1;
 INSERT INTO t1(b,c) VALUES('A',1);
+connection server_2;
 INSERT INTO t1(b,c) VALUES('B',1);
+connection server_3;
 INSERT INTO t1(b,c) VALUES('C',1);
+connection server_4;
 INSERT INTO t1(b,c) VALUES('D',1);
 include/rpl_sync.inc
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c = 1 ORDER BY a,b;
 Master A	a	b
 Master A	1	A
 Master A	2	B
 Master A	3	C
 Master A	4	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c = 1 ORDER BY a,b;
 Master B	a	b
 Master B	1	A
 Master B	2	B
 Master B	3	C
 Master B	4	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c = 1 ORDER BY a,b;
 Master C	a	b
 Master C	1	A
 Master C	2	B
 Master C	3	C
 Master C	4	D
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c = 1 ORDER BY a,b;
 Master D	a	b
 Master D	1	A
@@ -54,53 +64,74 @@ Master D	4	D
 *** Testing schema A->B->D->A if C has failure ***
 
 * Do failure for C and then make new connection B->D *
+connection server_4;
 STOP SLAVE;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
 include/start_slave.inc
+connection server_3;
 INSERT INTO t1 VALUES(6,'C',2);
+connection server_4;
+connection server_2;
 INSERT INTO t1(b,c) VALUES('B',2);
+connection server_3;
 call mtr.add_suppression("Slave SQL.*Duplicate entry .6. for key .PRIMARY.* error.* 1062");
 include/wait_for_slave_sql_error.inc [errno=1062]
+connection server_1;
 INSERT INTO t1(b,c) VALUES('A',2);
+connection server_4;
 INSERT INTO t1(b,c) VALUES('D',2);
+connection server_2;
 
 * Data on servers (C failed) *
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master A	a	b
 Master A	5	A
 Master A	8	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master B	a	b
 Master B	5	A
 Master B	6	B
 Master B	8	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master C	a	b
 Master C	6	C
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master D	a	b
 Master D	8	D
 
 * Reconfigure replication to schema A->B->D->A *
+connection server_3;
 include/stop_slave_io.inc
+connection server_4;
 include/stop_slave.inc
 include/rpl_change_topology.inc [new topology=1->2->4->1,2->3]
 include/start_slave.inc
+connection server_2;
+connection server_4;
+connection server_1;
 
 * Check data inserted before failure *
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master A	a	b
 Master A	5	A
 Master A	6	B
 Master A	8	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master B	a	b
 Master B	5	A
 Master B	6	B
 Master B	8	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master C	a	b
 Master C	6	C
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c = 2 ORDER BY a,b;
 Master D	a	b
 Master D	5	A
@@ -108,41 +139,58 @@ Master D	6	B
 Master D	8	D
 
 * Check data inserted after failure *
+connection server_1;
 INSERT INTO t1(b,c) VALUES('A',3);
+connection server_2;
 INSERT INTO t1(b,c) VALUES('B',3);
+connection server_4;
 INSERT INTO t1(b,c) VALUES('D',3);
+connection server_1;
 include/rpl_sync.inc
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c = 3 ORDER BY a,b;
 Master A	a	b
 Master A	9	A
 Master A	10	B
 Master A	12	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c = 3 ORDER BY a,b;
 Master B	a	b
 Master B	9	A
 Master B	10	B
 Master B	12	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c = 3 ORDER BY a,b;
 Master C	a	b
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c = 3 ORDER BY a,b;
 Master D	a	b
 Master D	9	A
 Master D	10	B
 Master D	12	D
+connection server_1;
 
 *** Testing restoring scheme A->B->C->D->A after failure ***
 
 * Remove wrong event from C and restore B->C->D *
+connection server_4;
 include/stop_slave.inc
+connection server_3;
 DELETE FROM t1 WHERE a = 6;
 include/start_slave.inc
+connection server_2;
+connection server_3;
 RESET MASTER;
+connection server_4;
 RESET SLAVE;
 include/rpl_change_topology.inc [new topology=1->2->3->4->1]
 include/start_slave.inc
+connection server_3;
+connection server_4;
 include/rpl_sync.inc
 
 * Check data inserted before restoring schema A->B->C->D->A *
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master A	a	b
 Master A	5	A
@@ -151,6 +199,7 @@ Master A	8	D
 Master A	9	A
 Master A	10	B
 Master A	12	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master B	a	b
 Master B	5	A
@@ -159,6 +208,7 @@ Master B	8	D
 Master B	9	A
 Master B	10	B
 Master B	12	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master C	a	b
 Master C	5	A
@@ -167,6 +217,7 @@ Master C	8	D
 Master C	9	A
 Master C	10	B
 Master C	12	D
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master D	a	b
 Master D	5	A
@@ -175,88 +226,116 @@ Master D	8	D
 Master D	9	A
 Master D	10	B
 Master D	12	D
+connection server_1;
 
 * Check data inserted after restoring schema A->B->C->D->A *
+connection server_1;
 INSERT INTO t1(b,c) VALUES('A',4);
+connection server_2;
 INSERT INTO t1(b,c) VALUES('B',4);
+connection server_3;
 INSERT INTO t1(b,c) VALUES('C',4);
+connection server_4;
 INSERT INTO t1(b,c) VALUES('D',4);
+connection server_1;
 include/rpl_sync.inc
+connection server_1;
 SELECT 'Master A',a,b FROM t1 WHERE c = 4 ORDER BY a,b;
 Master A	a	b
 Master A	13	A
 Master A	14	B
 Master A	15	C
 Master A	16	D
+connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c = 4 ORDER BY a,b;
 Master B	a	b
 Master B	13	A
 Master B	14	B
 Master B	15	C
 Master B	16	D
+connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c = 4 ORDER BY a,b;
 Master C	a	b
 Master C	13	A
 Master C	14	B
 Master C	15	C
 Master C	16	D
+connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c = 4 ORDER BY a,b;
 Master D	a	b
 Master D	13	A
 Master D	14	B
 Master D	15	C
 Master D	16	D
+connection server_1;
 
 * Transactions with commits *
+connection server_1;
 BEGIN;
+connection server_3;
 BEGIN;
+connection server_1;
 include/rpl_sync.inc
+connection server_1;
 SELECT 'Master A',b,COUNT(*) FROM t2 WHERE c = 1 GROUP BY b ORDER BY b;
 Master A	b	COUNT(*)
 Master A	A	100
 Master A	B	100
 Master A	C	100
 Master A	D	100
+connection server_2;
 SELECT 'Master B',b,COUNT(*) FROM t2 WHERE c = 1 GROUP BY b ORDER BY b;
 Master B	b	COUNT(*)
 Master B	A	100
 Master B	B	100
 Master B	C	100
 Master B	D	100
+connection server_3;
 SELECT 'Master C',b,COUNT(*) FROM t2 WHERE c = 1 GROUP BY b ORDER BY b;
 Master C	b	COUNT(*)
 Master C	A	100
 Master C	B	100
 Master C	C	100
 Master C	D	100
+connection server_4;
 SELECT 'Master D',b,COUNT(*) FROM t2 WHERE c = 1 GROUP BY b ORDER BY b;
 Master D	b	COUNT(*)
 Master D	A	100
 Master D	B	100
 Master D	C	100
 Master D	D	100
+connection server_1;
 
 * Transactions with rollbacks *
+connection server_1;
 BEGIN;
+connection server_3;
 BEGIN;
+connection server_1;
 include/rpl_sync.inc
+connection server_1;
 SELECT 'Master A',b,COUNT(*) FROM t2 WHERE c = 2 GROUP BY b ORDER BY b;
 Master A	b	COUNT(*)
 Master A	B	100
 Master A	D	100
+connection server_2;
 SELECT 'Master B',b,COUNT(*) FROM t2 WHERE c = 2 GROUP BY b ORDER BY b;
 Master B	b	COUNT(*)
 Master B	B	100
 Master B	D	100
+connection server_3;
 SELECT 'Master C',b,COUNT(*) FROM t2 WHERE c = 2 GROUP BY b ORDER BY b;
 Master C	b	COUNT(*)
 Master C	B	100
 Master C	D	100
+connection server_4;
 SELECT 'Master D',b,COUNT(*) FROM t2 WHERE c = 2 GROUP BY b ORDER BY b;
 Master D	b	COUNT(*)
 Master D	B	100
 Master D	D	100
+connection server_1;
 
 *** Clean up ***
+connection server_1;
 DROP TABLE t1,t2;
 include/rpl_end.inc

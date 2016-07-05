@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection master;
 CREATE TABLE t1(id INT);
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
 INSERT INTO t1 VALUES (5), (8), (10), (20), (30);
@@ -15,6 +16,7 @@ id
 20
 30
 # Syncing slave with master
+connection slave;
 SELECT * FROM t1;
 id
 5
@@ -26,6 +28,7 @@ SELECT * FROM v1;
 id
 20
 30
+connection master;
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
 ERROR 42S01: Table 'v1' already exists
 CREATE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
@@ -34,6 +37,7 @@ Note	1050	Table 'v1' already exists
 CREATE OR REPLACE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 # Syncing slave with master
+connection slave;
 SELECT * FROM t1;
 id
 5
@@ -45,6 +49,7 @@ SELECT * FROM v1;
 id
 20
 30
+connection master;
 CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
 INSERT INTO t1 VALUES (50), (80), (3), (2), (40);
 SELECT * FROM t1;
@@ -67,6 +72,7 @@ id
 80
 40
 # Syncing slave with master
+connection slave;
 SELECT * FROM t1;
 id
 5
@@ -86,6 +92,7 @@ id
 50
 80
 40
+connection master;
 DROP VIEW v1;
 DROP TABLE t1;
 DROP VIEW v1;
@@ -94,6 +101,7 @@ DROP VIEW IF EXISTS v2;
 Warnings:
 Note	1051	Unknown table 'test.v2'
 # Syncing slave with master
+connection slave;
 SELECT * FROM v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
 include/rpl_end.inc

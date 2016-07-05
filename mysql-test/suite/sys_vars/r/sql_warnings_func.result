@@ -19,31 +19,32 @@ INSERT INTO t1 VALUES('abcdef', 'val1');
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 1
 '#----------------------------FN_DYNVARS_167_04---------------#'
-** Connecting con_int1 using root **
-** Connection con_int1 **
+connect  con_int1,localhost,root,,;
+connection con_int1;
 SELECT @@SESSION.sql_warnings;
 @@SESSION.sql_warnings
 0
 0 / FALSE Expected
 SET SESSION sql_warnings = FALSE;
-** Connecting con_int2 using root **
-** Connection con_int2 **
+connect  con_int2,localhost,root,,;
+connection con_int2;
 SELECT @@SESSION.sql_warnings;
 @@SESSION.sql_warnings
 0
 0 / FALSE Expected
 SET SESSION sql_warnings = TRUE;
-** Connection con_int2 **
+connection con_int2;
 SELECT @@SESSION.sql_warnings;
 @@SESSION.sql_warnings
 1
 1 / TRUE Expected
-** Connection con_int1 **
+connection con_int1;
 SELECT @@SESSION.sql_warnings;
 @@SESSION.sql_warnings
 0
 0 / FALSE Expected
-** Connection default **
-Disconnecting Connections con_int1, con_int2
+connection default;
+disconnect con_int1;
+disconnect con_int2;
 DROP TABLE t1;
 SET @@sql_warnings = @default_sql_warnings;

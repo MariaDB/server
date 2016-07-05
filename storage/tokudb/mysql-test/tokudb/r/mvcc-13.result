@@ -1,6 +1,8 @@
 SET DEFAULT_STORAGE_ENGINE = 'tokudb';
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
 DROP TABLE IF EXISTS foo,foo1;
+connection default;
 set session transaction isolation level repeatable read;
 create table foo (a int) engine=TokuDB;
 show create table foo;
@@ -11,10 +13,15 @@ foo	CREATE TABLE `foo` (
 begin;
 select * from foo;
 a
+connection conn1;
 set session transaction isolation level repeatable read;
 create table foo1(a int) engine=TokuDB;
 insert into foo1 values(1);
+connection default;
 select * from foo1;
 ERROR HY000: Table definition has changed, please retry transaction
+connection default;
+disconnect conn1;
+connection default;
 set session transaction isolation level serializable;
 DROP TABLE foo,foo1;

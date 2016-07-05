@@ -30,9 +30,7 @@ SET @session_character_set_results = @@session.character_set_results;
 
 
 SET @@global.character_set_results = utf8;
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.character_set_results;
 SELECT @@session.character_set_results;
@@ -44,7 +42,6 @@ disconnect con1;
 # Begin the functionality Testing of character_set_results  #
 #############################################################
 
---echo 'connection default'
 connection default;
 
 --disable_warnings
@@ -91,7 +88,6 @@ SELECT b, CHAR_LENGTH(b) FROM t1;
 
 DROP TABLE t1;
 # restore
---echo 'connection default;'
 connection default;
 SET @@global.character_set_results = @global_character_set_results;
 SET @@session.character_set_results = @session_character_set_results;
@@ -99,4 +95,3 @@ SET @@session.character_set_results = @session_character_set_results;
 ##########################################################
 # End of functionality Testing for character_set_results #
 ##########################################################
-

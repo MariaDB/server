@@ -51,7 +51,9 @@ if ($rpl_debug)
 {
   --echo connect ($rpl_connection_name,127.0.0.1,root,,test,$_rpl_port,)
 }
+disable_connect_log;
 --connect ($rpl_connection_name,127.0.0.1,root,,test,$_rpl_port,)
+enable_connect_log;
 
 
 --let $include_filename= rpl_connect.inc

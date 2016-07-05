@@ -2419,7 +2419,7 @@ ulint
 af_get_pct_for_dirty()
 /*==================*/
 {
-	ulint dirty_pct = buf_get_modified_ratio_pct();
+	ulint dirty_pct = (ulint) buf_get_modified_ratio_pct();
 
 	if (dirty_pct > 0 && srv_max_buf_pool_modified_pct == 0) {
 		return(100);
@@ -2439,7 +2439,7 @@ af_get_pct_for_dirty()
 		}
 	} else if (dirty_pct > srv_max_dirty_pages_pct_lwm) {
 		/* We should start flushing pages gradually. */
-		return((dirty_pct * 100)
+		return (ulint) ((dirty_pct * 100)
 		       / (srv_max_buf_pool_modified_pct + 1));
 	}
 
@@ -2457,8 +2457,8 @@ af_get_pct_for_lsn(
 {
 	lsn_t	max_async_age;
 	lsn_t	lsn_age_factor;
-	lsn_t	af_lwm = (srv_adaptive_flushing_lwm
-			  * log_get_capacity()) / 100;
+	lsn_t	af_lwm = (lsn_t) ((srv_adaptive_flushing_lwm
+			* log_get_capacity()) / 100);
 
 	if (age < af_lwm) {
 		/* No adaptive flushing. */

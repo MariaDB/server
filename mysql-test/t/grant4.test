@@ -183,7 +183,6 @@ flush table mysqltest_db1.t1;
 --remove_file $MYSQLD_DATADIR/mysqltest_db1/t1.MYI
 --copy_file std_data/corrupt_t1.MYI $MYSQLD_DATADIR/mysqltest_db1/t1.MYI
 
---echo # Switching to connection 'con1'.
 connection con1;
 check table mysqltest_db1.t1;
 --echo # The below statement should fail before repairing t1.
@@ -199,7 +198,6 @@ repair table mysqltest_db1.t1;
 --echo # Clean-up.
 disconnect con1;
 --source include/wait_until_disconnected.inc
---echo # Switching to connection 'default'.
 connection default;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;

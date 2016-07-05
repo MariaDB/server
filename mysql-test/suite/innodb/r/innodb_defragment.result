@@ -31,7 +31,13 @@ count(stat_value)
 select count(*) from t1;
 count(*)
 10004
+connect  con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection con1;
 call defragment();
+connection default;
+connection con1;
+connection default;
+disconnect con1;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK

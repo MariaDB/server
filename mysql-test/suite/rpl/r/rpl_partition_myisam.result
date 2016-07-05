@@ -93,6 +93,8 @@ SELECT * FROM test.regular_tbl ORDER BY fkid DESC LIMIT 2;
 id	dt	user	uuidf	fkid	filler
 1	date-time	USER	UUID	300	Partitioned table! Going to test replication for MySQL
 2	date-time	USER	UUID	299	Partitioned table! Going to test replication for MySQL
+connection slave;
+connection slave;
 show create table test.byrange_tbl;
 Table	Create Table
 byrange_tbl	CREATE TABLE `byrange_tbl` (
@@ -140,6 +142,7 @@ SELECT * FROM test.regular_tbl ORDER BY fkid DESC LIMIT 2;
 id	dt	user	uuidf	fkid	filler
 1	date-time	USER	UUID	300	Partitioned table! Going to test replication for MySQL
 2	date-time	USER	UUID	299	Partitioned table! Going to test replication for MySQL
+connection master;
 DROP PROCEDURE test.proc_norm;
 DROP PROCEDURE test.proc_byrange;
 DROP TABLE test.regular_tbl;

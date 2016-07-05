@@ -60,7 +60,6 @@ LOCK TABLE t1 READ LOCAL;
 
 --echo ## Creating new connection to insert some rows in table ##
 connect (test_con1,localhost,root,,);
---echo connection test_con1;
 connection test_con1;
 
 --echo ## New records should come at the end of all rows ##
@@ -68,7 +67,6 @@ INSERT INTO t1(name) VALUES('Record_4');
 SELECT * FROM t1;
 
 --echo ## unlocking tables ##
---echo connection default;
 connection default;
 UNLOCK TABLES;
 
@@ -84,7 +82,6 @@ DELETE FROM t1 WHERE name ='Record_2';
 ####################################################################
 # lock table and connect with connection1
 LOCK TABLE t1 READ LOCAL;
---echo connection test_con1;
 connection test_con1;
 
 # setting value of concurrent_insert to 1
@@ -94,7 +91,6 @@ SET @@global.concurrent_insert=1;
 send
 INSERT INTO t1(name) VALUES('Record_7');
 
---echo connection default;
 connection default;
 # wait until INSERT will be locked (low performance)
 let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
@@ -114,12 +110,10 @@ INSERT INTO t1(name) VALUES('Record_6');
 let $wait_condition= SELECT COUNT(*) = 5 FROM t1;
 --source include/wait_condition.inc
 
---echo connection test_con1;
 connection test_con1;
 # to complete the send above^
 reap;
 SELECT * FROM t1;
---echo connection default;
 connection default;
 
 --echo '#--------------------FN_DYNVARS_018_03-------------------------#'
@@ -132,7 +126,6 @@ connection default;
 
 --echo ## lock table and connect with connection1 ##
 LOCK TABLE t1 READ LOCAL;
---echo connection test_con1;
 connection test_con1;
 --echo ## setting value of concurrent_insert to 2 ##
 SET @@global.concurrent_insert=2;
@@ -142,7 +135,6 @@ INSERT INTO t1(name) VALUES('Record_5');
 SELECT * FROM t1;
 SELECT @@concurrent_insert;
 
---echo connection default;
 connection default;
 
 --echo ## Unlocking table ##
@@ -162,8 +154,6 @@ SELECT * FROM t1;
 --echo ## Dropping table ##
 DROP TABLE t1;
 
---echo ## Disconnecting connection ##
 disconnect test_con1;
 
 SET @@global.concurrent_insert= @start_value;
-

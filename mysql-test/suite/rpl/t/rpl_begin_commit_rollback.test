@@ -26,7 +26,6 @@ CREATE TABLE db1.t2 (s CHAR(255)) ENGINE=MyISAM;
 sync_slave_with_master;
 source include/stop_slave.inc;
 connection master;
-echo [on master];
 
 DELIMITER //;
 CREATE PROCEDURE db1.p1 ()
@@ -74,7 +73,6 @@ SELECT * FROM db1.t1;
 SELECT * FROM db1.t2;
 
 connection slave;
-echo [on slave];
 
 replace_result $master_pos MASTER_POS;
 eval start slave until master_log_file='master-bin.000001', master_log_pos=$master_pos;
@@ -90,7 +88,6 @@ SELECT * from db1.t1;
 SELECT * from db1.t2;
 
 connection master;
-echo [on master];
 
 INSERT INTO db1.t2 VALUES ('before call db1.p2()');
 
@@ -110,7 +107,6 @@ SELECT * FROM db1.t1;
 SELECT * FROM db1.t2;
 
 connection slave;
-echo [on slave];
 
 replace_result $master_pos MASTER_POS;
 eval start slave until master_log_file='master-bin.000001', master_log_pos=$master_pos;
@@ -133,8 +129,6 @@ source include/wait_for_slave_sql_to_start.inc;
 --echo # SAVEPOINT and ROLLBACK TO have the same problem in BUG#43263
 --echo # This was reported by BUG#50407
 connection master;
-echo [on master]
-SET SESSION AUTOCOMMIT=0;
 let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1);
 
 BEGIN;
@@ -162,7 +156,6 @@ COMMIT;
 source include/show_binlog_events.inc;
 sync_slave_with_master;
 
---echo [on slave]
 --echo #
 --echo # Verify INSERT statements in savepoints are executed, for MyISAM table
 --echo # is not effected by ROLLBACK TO

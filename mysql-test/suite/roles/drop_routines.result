@@ -69,11 +69,13 @@ GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT r3 TO 'r2'
+connect  u1,localhost,u1,,;
 select mysql.test_func("none");
 ERROR 42000: execute command denied to user 'u1'@'%' for routine 'mysql.test_func'
 set role r1;
 select mysql.test_func("r1");
 ERROR 42000: execute command denied to user 'u1'@'%' for routine 'mysql.test_func'
+connection default;
 drop function mysql.test_func;
 drop role r1, r2, r3;
 drop user u1;

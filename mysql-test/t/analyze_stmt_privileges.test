@@ -5,7 +5,6 @@
 --echo # MDEV-7025 and MDEV-7027 ANALYZE SELECT/INSERT/UPDATE/DELETE from a
 --echo # view does not check access permissions on the underlying table
 --echo #
---enable_connect_log
 create database db;
 use db;
 create table t1 (i int, c varchar(8));

@@ -1093,7 +1093,7 @@ delimiter ;|
 #
 --error ER_SP_BADSTATEMENT
 CREATE PROCEDURE BUG_12490() HELP CONTENTS;
---error ER_SP_BADSTATEMENT
+--error ER_PARSE_ERROR
 CREATE FUNCTION BUG_12490() RETURNS INT HELP CONTENTS;
 CREATE TABLE t_bug_12490(a int);
 --error ER_SP_BADSTATEMENT
@@ -1785,17 +1785,17 @@ CREATE TABLE t1 (i INT);
 
 # We do not have to drop this procedure and view because they won't be
 # created.
---error ER_VIEW_SELECT_CLAUSE
+--error ER_PARSE_ERROR
 CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 INTO @a;
---error ER_VIEW_SELECT_CLAUSE
+--error ER_PARSE_ERROR
 CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 INTO DUMPFILE "file";
---error ER_VIEW_SELECT_CLAUSE
+--error ER_PARSE_ERROR
 CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 INTO OUTFILE "file";
---error ER_VIEW_SELECT_CLAUSE
+--error ER_PARSE_ERROR
 CREATE PROCEDURE bug20953()
   CREATE VIEW v AS SELECT i FROM t1 PROCEDURE ANALYSE();
---error ER_VIEW_SELECT_DERIVED
-CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 FROM (SELECT 1) AS d1;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 FROM (SELECT 1) AS d1 into @w;
 --error ER_VIEW_SELECT_VARIABLE
 CREATE PROCEDURE bug20953(i INT) CREATE VIEW v AS SELECT i;
 delimiter |;
@@ -2231,7 +2231,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f1();
 
 delimiter |;
@@ -2241,7 +2241,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f2();
 
 drop function f1;
@@ -2259,7 +2259,7 @@ begin
  return 1;
 end|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
+--error ER_BAD_TABLE_ERROR
 create temporary table t1 as select f2();
 
 drop function f1;

@@ -1,5 +1,4 @@
 --source include/not_embedded.inc
---enable_connect_log
 create user foo;
 create role role1;
 create role role2;

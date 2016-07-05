@@ -19,7 +19,8 @@ name VARCHAR(30)
 SELECT @@identity = 0;
 @@identity = 0
 1
-## Creating and connecting with new connection test_con1 ##
+connect  test_con1, localhost, root,,;
+connection test_con1;
 SET @@autocommit = 0;
 ## Inserting rows in table t1 ## 
 INSERT into t1(name) values('Record_1');
@@ -38,7 +39,8 @@ SELECT @@identity from t2;
 @@identity
 1
 '#--------------------FN_DYNVARS_035_02-------------------------#'
-## Creating and connecting with new connection test_con2 ##
+connect  test_con2, localhost, root,,;
+connection test_con2;
 SELECT * from t1;
 id	name
 ## Verifying total values in t1 ## 
@@ -62,7 +64,7 @@ SELECT @@identity from t2;
 @@identity
 2
 '#--------------------FN_DYNVARS_035_03-------------------------#'
-## Switching to connection test_con1 ##
+connection test_con1;
 ## Commiting rows added in test_con1 ##
 COMMIT;
 ## Verifying records in both tables ##
@@ -102,4 +104,5 @@ SELECT @@identity from t1;
 6
 ## Dropping tables t1 & t2 ##
 drop table t1, t2;
-## Disconnecting both the connections ##
+disconnect test_con1;
+disconnect test_con2;

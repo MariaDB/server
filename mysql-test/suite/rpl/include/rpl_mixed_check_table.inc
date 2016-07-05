@@ -5,11 +5,9 @@
 # Requirements: 
 #########################################
 
---echo ==========MASTER==========
 SHOW CREATE TABLE t1;
 SHOW CREATE TABLE t2;
 sync_slave_with_master;
---echo ==========SLAVE===========
 USE test_rpl;
 SHOW CREATE TABLE t1;
 SHOW CREATE TABLE t2;

@@ -45,9 +45,6 @@
 //#define TYPE_ENUM_FUNCTION  1 #define TYPE_ENUM_PROCEDURE 2 #define
 //TYPE_ENUM_TRIGGER   3 #define TYPE_ENUM_PROXY     4
 
-Item_result
-sp_map_result_type(enum enum_field_types type);
-
 Item::Type
 sp_map_item_type(enum enum_field_types type);
 
@@ -181,7 +178,7 @@ public:
   stored_procedure_type m_type;
   uint m_flags;                 // Boolean attributes of a stored routine
 
-  Create_field m_return_field_def; /**< This is used for FUNCTIONs only. */
+  Column_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
 
   const char *m_tmp_query;	///< Temporary pointer to sub query string
   st_sp_chistics *m_chistics;
@@ -389,7 +386,7 @@ public:
 
   /// Put the instruction on the backpatch list, associated with the label.
   int
-  push_backpatch(sp_instr *, sp_label *);
+  push_backpatch(THD *thd, sp_instr *, sp_label *);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.
@@ -421,8 +418,7 @@ public:
                              TABLE *table);
 
   bool fill_field_definition(THD *thd, LEX *lex,
-                             enum enum_field_types field_type,
-                             Create_field *field_def);
+                             Column_definition *field_def);
 
   void set_info(longlong created, longlong modified,
 		st_sp_chistics *chistics, ulonglong sql_mode);

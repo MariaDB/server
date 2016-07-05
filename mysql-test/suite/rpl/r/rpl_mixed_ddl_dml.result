@@ -3,17 +3,21 @@ include/master-slave.inc
 create table t1 (n int auto_increment primary key);
 set insert_id = 2000;
 insert into t1 values (NULL),(NULL),(NULL);
+connection slave;
 select * from t1;
 n
 2000
 2001
 2002
+connection master;
 show slave hosts;
 Server_id	Host	Port	Master_id
 2	127.0.0.1	9999	1
 drop table t1;
+connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
+connection master;
 create table t2(id int auto_increment primary key, created datetime);
 SET TIME_ZONE= '+03:00';
 set timestamp=12345;
@@ -24,6 +28,7 @@ id	created
 create table t3 like t2;
 create temporary table t4 like t2;
 create table t5 select * from t4;
+connection slave;
 start slave;
 include/wait_for_slave_to_start.inc
 select * from t2;
@@ -42,6 +47,8 @@ t5	CREATE TABLE `t5` (
   `id` int(11) NOT NULL DEFAULT '0',
   `created` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
 drop table t2,t3,t5;
 drop temporary table t4;
+connection slave;
 include/rpl_end.inc

@@ -1,5 +1,7 @@
 SET @start_global_value = @@global.net_buffer_length;
 SET @@global.net_buffer_length = DEFAULT;
+connect con1,localhost,root,,;
+connection con1;
 '#--------------------FN_DYNVARS_109_01-------------------------#'
 SET @@global.net_buffer_length = 10000;
 Warnings:
@@ -135,4 +137,5 @@ SELECT session.net_buffer_length;
 ERROR 42S02: Unknown table 'session' in field list
 SELECT net_buffer_length = @@session.net_buffer_length;
 ERROR 42S22: Unknown column 'net_buffer_length' in 'field list'
+connection default;
 SET @@global.net_buffer_length = @start_global_value;

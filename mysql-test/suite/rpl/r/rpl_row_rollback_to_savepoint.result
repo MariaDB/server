@@ -52,7 +52,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-[connection master]
+connection slave;
+connection master;
 DROP TRIGGER tr1;
 DELETE FROM t1;
 DELETE FROM t2;
@@ -150,14 +151,15 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-[connection master]
+connection slave;
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP PROCEDURE p1;
 # Test case 3:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t (f1 int(10) unsigned NOT NULL, PRIMARY KEY (f1)) ENGINE=InnoDB;
 CREATE TRIGGER t_insert_trig AFTER INSERT ON t FOR EACH ROW
 BEGIN
@@ -195,11 +197,11 @@ SELECT * FROM t;
 f1
 2
 3
-[connection master]
+connection master;
 DROP TABLE t;
 # Test case 4:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TRIGGER t_insert_trig BEFORE INSERT ON t FOR EACH ROW
@@ -255,12 +257,12 @@ f1
 5
 5
 30
-[connection master]
+connection master;
 DROP TABLE t;
 DROP TABLE t1;
 # Test case 5:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TABLE t1 (f1 int(10) unsigned NOT NULL) ENGINE=InnoDB;
 CREATE TRIGGER t_insert_trig BEFORE INSERT ON t
@@ -308,12 +310,12 @@ f1
 SELECT * FROM t1;
 f1
 30
-[connection master]
+connection master;
 DROP TABLE t;
 DROP TABLE t1;
 # Test case 6:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB;
 CREATE FUNCTION f1() RETURNS INT
@@ -354,7 +356,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-[connection master]
+connection master;
 SELECT * FROM t2;
 f1
 1
@@ -374,13 +376,13 @@ f1
 10
 SELECT * FROM t1;
 f1
-[connection master]
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP FUNCTION f1;
 # Test case 7:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 CREATE TABLE t2 (f1 INTEGER ) ENGINE=INNODB;
 CREATE FUNCTION f1() RETURNS INT
@@ -420,7 +422,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-[connection master]
+connection master;
 SELECT * FROM t2;
 f1
 1
@@ -442,13 +444,13 @@ f1
 SELECT * FROM t1;
 f1
 1
-[connection master]
+connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP FUNCTION f1;
 # Test case 8:
 include/rpl_reset.inc
-[connection master]
+connection master;
 CREATE TABLE t1 (f1 INTEGER ) ENGINE=INNODB;
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
@@ -480,7 +482,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-[connection master]
+connection master;
 SELECT * FROM t1;
 f1
 1
@@ -496,7 +498,7 @@ f1
 2
 4
 10
-[connection master]
+connection master;
 DROP TABLE t1;
 DROP FUNCTION f1;
 include/rpl_end.inc

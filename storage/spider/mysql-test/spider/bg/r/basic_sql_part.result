@@ -9,20 +9,25 @@ child3_2
 child3_3
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
+connection master_1;
 DROP TABLE IF EXISTS tb_l;
 CREATE TABLE tb_l (
 a INT,
@@ -38,10 +43,12 @@ INSERT INTO tb_l (a, b, c) VALUES
 (5, 'h', '2001-10-31 23:59:59');
 
 create table with partition and select test
+connection master_1;
 CREATE TABLE ta_l2 (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_COMMENT_P_2_1
 SELECT a, b, c FROM tb_l
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -51,19 +58,23 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 select partition using pushdown
+connection master_1;
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 a WHERE
 a.b = 'g' ORDER BY a.a;
 a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 2	g	2000-02-01 00:00:00
 
 select partition using index pushdown
+connection master_1;
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 a WHERE
 a.a > 0 AND a.b = 'g' ORDER BY a.a;
 a	b	date_format(a.c, '%Y-%m-%d %H:%i:%s')
 2	g	2000-02-01 00:00:00
 
 update partition pushdown
+connection master_1;
 UPDATE ta_l2 SET b = 'e', c = '2009-03-03 03:03:03' WHERE b = 'j';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -73,7 +84,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 update partition index pushdown
+connection master_1;
 UPDATE ta_l2 SET b = 'j', c = '2009-03-03 03:03:03' WHERE a > 0 AND b = 'e';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -85,7 +98,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 delete partition pushdown
 TRUNCATE TABLE ta_l2;
 INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+connection master_1;
 DELETE FROM ta_l2 WHERE b = 'g';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -96,7 +111,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 delete partition index pushdown
 TRUNCATE TABLE ta_l2;
 INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+connection master_1;
 DELETE FROM ta_l2 WHERE a > 0 AND b = 'g';
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	f	2008-07-01 10:21:39
@@ -105,8 +122,11 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	h	2001-10-31 23:59:59
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for master_1
 for child2

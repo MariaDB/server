@@ -30,12 +30,9 @@
 #
 # Setup
 #
---echo ** Connecting con0 using root **
 connect (con0,localhost,root,,);
---echo ** Connecting con1 using root **
 connect (con1,localhost,root,,);
 
---echo ** Connection default **
 connection default;
 
 SET @global_low_priority_updates = @@GLOBAL.low_priority_updates;
@@ -53,13 +50,10 @@ create view v1 as select * from t1;
 # Value ON
 #
 
---echo ** Connection con0 **
 connection con0;
 SET SESSION low_priority_updates = ON;
---echo ** Connection con1 **
 connection con1;
 SET SESSION low_priority_updates = ON;
---echo ** Connection default **
 connection default;
 SET SESSION low_priority_updates = ON;
 
@@ -72,7 +66,6 @@ INSERT INTO t1 VALUES('6');
 
 LOCK TABLE v1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 
 --echo ** Asynchronous Execution **
@@ -83,7 +76,6 @@ UPDATE t1 SET a = CONCAT(a,"-updated");|
 
 delimiter ;|
 
---echo ** Connection con0 **
 connection con0;
 
 let $wait_condition = SELECT COUNT(*) > 0 FROM information_schema.processlist
@@ -101,7 +93,6 @@ UNLOCK TABLES;|
 
 delimiter ;|
 
---echo ** Connection default **
 connection default;
 
 let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
@@ -109,14 +100,12 @@ let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con0 **
 connection con0;
 --echo ** Asynchronous Result **
 reap;
 
 --echo Expected values of a without -updated;
 
---echo ** Connection default **
 connection default;
 
 DELETE FROM t1;
@@ -126,14 +115,11 @@ DELETE FROM t1;
 # Value ON
 #
 
---echo ** Connection con0 **
 connection con0;
 SET SESSION low_priority_updates = OFF;
---echo ** Connection con1 **
 connection con1;
 reap;
 SET SESSION low_priority_updates = OFF;
---echo ** Connection default**
 connection default;
 SET SESSION low_priority_updates = OFF;
 
@@ -146,7 +132,6 @@ INSERT INTO t1 VALUES('6');
 
 LOCK TABLE v1 WRITE;
 
---echo ** Connection con1 **
 connection con1;
 
 --echo ** Asynchronous Execution **
@@ -157,7 +142,6 @@ UPDATE t1 SET a = CONCAT(a,"-updated");|
 
 delimiter ;|
 
---echo ** Connection con0 **
 connection con0;
 
 let $wait_condition = SELECT COUNT(*) > 0 FROM information_schema.processlist
@@ -175,7 +159,6 @@ UNLOCK TABLES;|
 
 delimiter ;|
 
---echo ** Connection default **
 connection default;
 
 let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
@@ -183,13 +166,11 @@ let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con0 **
 connection con0;
 --echo ** Asynchronous Result **
 reap;
 --echo Expected values of a with -updated;
 
---echo ** Connection default**
 connection default;
 
 DELETE FROM t1;
@@ -199,40 +180,32 @@ DELETE FROM t1;
 # Session data integrity check & GLOBAL Value check
 #
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.low_priority_updates;
 --echo 1 / TRUE Expected
 
 SET SESSION low_priority_updates = FALSE;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.low_priority_updates;
 --echo 1 / TRUE Expected
 
 SET SESSION low_priority_updates = TRUE;
 
---echo ** Connection con_int1 **
 connection con_int1;
 SELECT @@SESSION.low_priority_updates;
 --echo 0 / FALSE Expected
 
---echo ** Connection con_int2 **
 connection con_int2;
 SELECT @@SESSION.low_priority_updates;
 --echo 1 / TRUE Expected
 
---echo ** Connection default  **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 
@@ -240,9 +213,7 @@ disconnect con_int2;
 # Cleanup
 #
 
---echo ** Connection default **
 connection default;
---echo Disconnecting Connections con0, con1
 disconnect con0;
 disconnect con1;
 

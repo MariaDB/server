@@ -967,12 +967,9 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
   my_thread_init();
-  thd = new THD;
+  thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  add_to_active_threads(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
   thd->init_for_queries();
@@ -989,7 +986,6 @@ handle_rpl_parallel_thread(void *arg)
   thd->client_capabilities = CLIENT_LOCAL_FILES;
   thd->net.reading_or_writing= 0;
   thd_proc_info(thd, "Waiting for work from main SQL threads");
-  thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
   thd->system_thread_info.rpl_sql_info= &sql_info;
   /*
@@ -1373,9 +1369,8 @@ handle_rpl_parallel_thread(void *arg)
   thd_proc_info(thd, "Slave worker thread exiting");
   thd->temporary_tables= 0;
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
+  THD_CHECK_SENTRY(thd);
+  unlink_not_visible_thd(thd);
   delete thd;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);

@@ -165,7 +165,8 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     arg_length= header_length;
   }
 
-  result= dispatch_command(command, thd, (char *) arg, arg_length);
+  result= dispatch_command(command, thd, (char *) arg, arg_length, FALSE,
+                           FALSE);
   thd->cur_data= 0;
   thd->mysys_var= NULL;
 
@@ -425,11 +426,10 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   THD *thd= (THD*)mysql->thd;
   mysql_mutex_lock(&LOCK_thread_count);
   thd->clear_data_list();
-  thread_count--;
   thd->store_globals();
   thd->unlink();
-  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+  delete thd;
   my_pthread_setspecific_ptr(THR_THD,  0);
   mysql->thd=0;
 }
@@ -666,8 +666,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
 */
 void *create_embedded_thd(int client_flag)
 {
-  THD * thd= new THD;
-  thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
+  THD * thd= new THD(next_thread_id());
 
   thd->thread_stack= (char*) &thd;
   if (thd->store_globals())
@@ -700,7 +699,6 @@ void *create_embedded_thd(int client_flag)
   bzero((char*) &thd->net, sizeof(thd->net));
 
   mysql_mutex_lock(&LOCK_thread_count);
-  thread_count++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->mysys_var= 0;
@@ -1032,7 +1030,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   while ((item= it++))
   {
     Send_field server_field;
-    item->make_field(&server_field);
+    item->make_field(thd, &server_field);
 
     /* Keep things compatible for old clients */
     if (server_field.type == MYSQL_TYPE_VARCHAR)
@@ -1069,6 +1067,10 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     client_field->type=   server_field.type;
     client_field->flags= (uint16) server_field.flags;
     client_field->decimals= server_field.decimals;
+    if (server_field.type == MYSQL_TYPE_FLOAT ||
+        server_field.type == MYSQL_TYPE_DOUBLE)
+      set_if_smaller(client_field->decimals, FLOATING_POINT_DECIMALS);
+
     client_field->db_length=		strlen(client_field->db);
     client_field->table_length=		strlen(client_field->table);
     client_field->name_length=		strlen(client_field->name);
@@ -1169,7 +1171,8 @@ bool Protocol_binary::write()
 bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
-            ulonglong affected_rows, ulonglong id, const char *message)
+            ulonglong affected_rows, ulonglong id, const char *message,
+            bool unused __attribute__((unused)))
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;

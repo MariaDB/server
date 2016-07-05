@@ -83,7 +83,7 @@ uint _ma_ft_segiterator(register FT_SEG_ITERATOR *ftsi)
   if (ftsi->seg->flag & HA_BLOB_PART)
   {
     ftsi->len= _ma_calc_blob_length(ftsi->seg->bit_start,ftsi->pos);
-    memcpy(&ftsi->pos, ftsi->pos+ftsi->seg->bit_start, sizeof(char*));
+    memcpy((char**) &ftsi->pos, ftsi->pos+ftsi->seg->bit_start, sizeof(char*));
     DBUG_RETURN(1);
   }
   ftsi->len=ftsi->seg->length;
@@ -184,7 +184,7 @@ int _ma_ft_cmp(MARIA_HA *info, uint keynr, const uchar *rec1, const uchar *rec2)
     if ((ftsi1.pos != ftsi2.pos) &&
         (!ftsi1.pos || !ftsi2.pos ||
          ha_compare_text(cs, ftsi1.pos,ftsi1.len,
-                         ftsi2.pos,ftsi2.len,0,0)))
+                         ftsi2.pos,ftsi2.len,0)))
       DBUG_RETURN(THOSE_TWO_DAMN_KEYS_ARE_REALLY_DIFFERENT);
   }
   DBUG_RETURN(GEE_THEY_ARE_ABSOLUTELY_IDENTICAL);
@@ -212,7 +212,7 @@ int _ma_ft_update(MARIA_HA *info, uint keynr, uchar *keybuf,
   while(old_word->pos && new_word->pos)
   {
     cmp= ha_compare_text(cs, (uchar*) old_word->pos,old_word->len,
-                             (uchar*) new_word->pos,new_word->len,0,0);
+                             (uchar*) new_word->pos,new_word->len,0);
     cmp2= cmp ? 0 : (fabs(old_word->weight - new_word->weight) > 1.e-5);
 
     if (cmp < 0 || cmp2)

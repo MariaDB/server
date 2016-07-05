@@ -102,13 +102,15 @@ Master bykey	500
 CALL test.proc_byrange();
 SELECT count(*) as "Master byrange" FROM test.byrange_tbl;
 Master byrange	500
+connection slave;
+connection slave;
 show create table test.byrange_tbl;
 Table	byrange_tbl
 Create Table	CREATE TABLE `byrange_tbl` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
   `dt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `user` char(255) DEFAULT NULL,
-  `uuidf` longblob,
+  `uuidf` longblob DEFAULT NULL,
   `fkid` mediumint(9) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
@@ -133,6 +135,7 @@ SELECT count(*) "Slave bykey" FROM test.bykey_tbl;
 Slave bykey	500
 SELECT count(*) "Slave byrange" FROM test.byrange_tbl;
 Slave byrange	500
+connection master;
 DROP PROCEDURE test.proc_norm;
 DROP PROCEDURE test.proc_bykey;
 DROP PROCEDURE test.proc_byrange;

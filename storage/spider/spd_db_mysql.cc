@@ -1717,7 +1717,7 @@ int spider_db_mysql::exec_query(
           l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
           security_ctx->user ? security_ctx->user : "system user",
           security_ctx->host_or_ip,
-          thd->thread_id,
+          (ulong) thd->thread_id,
           tmp_query_str.c_ptr_safe());
       }
       if (log_result_error_with_sql & 1)
@@ -1731,7 +1731,7 @@ int spider_db_mysql::exec_query(
           "sql: %s\n",
           l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
           l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-          thd->thread_id, conn->tgt_host, db_conn->thread_id,
+          (ulong) thd->thread_id, conn->tgt_host, (ulong) db_conn->thread_id,
           tmp_query_str.c_ptr_safe());
       }
     }
@@ -1745,7 +1745,7 @@ int spider_db_mysql::exec_query(
         "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
         l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
         l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-        conn->tgt_host, db_conn->thread_id, thd->thread_id,
+        conn->tgt_host, (ulong) db_conn->thread_id, (ulong) thd->thread_id,
         db_conn->affected_rows, db_conn->insert_id,
         db_conn->server_status, db_conn->warning_count);
       if (spider_param_log_result_errors() >= 3)
@@ -1760,7 +1760,7 @@ int spider_db_mysql::exec_query(
         "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
         l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
         l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-        conn->tgt_host, db_conn->thread_id, thd->thread_id,
+        conn->tgt_host, (ulong) db_conn->thread_id, (ulong) thd->thread_id,
         db_conn->affected_rows, db_conn->insert_id,
         db_conn->server_status, db_conn->warning_count);
     }
@@ -1889,8 +1889,8 @@ void spider_db_mysql::print_warnings(
             "from [%s] %ld to %ld: %s %s %s\n",
             l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
             l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-            conn->tgt_host, db_conn->thread_id,
-            current_thd->thread_id, row[0], row[1], row[2]);
+            conn->tgt_host, (ulong) db_conn->thread_id,
+            (ulong) current_thd->thread_id, row[0], row[1], row[2]);
           row = mysql_fetch_row(res);
         }
         if (res)
@@ -8134,7 +8134,7 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
         DBUG_PRINT("info",("spider error=%d", error_num));
         DBUG_RETURN(error_num);
       }
-      if (order->asc)
+      if (order->direction == ORDER::ORDER_ASC)
       {
         if (str->reserve(SPIDER_SQL_COMMA_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);

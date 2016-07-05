@@ -1,4 +1,6 @@
 set global max_allowed_packet=400000000;
+connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection root;
 set storage_engine=aria;
 affected rows: 0
 drop table if exists t1, t2;

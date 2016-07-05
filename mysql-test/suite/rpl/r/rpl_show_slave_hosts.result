@@ -1,14 +1,19 @@
 include/master-slave.inc
 [connection master]
+connect  slave2,127.0.0.1,root,,test,$SLAVE_MYPORT2,;
+connection slave2;
 RESET SLAVE;
 CHANGE MASTER TO master_host='127.0.0.1',master_port=MASTER_PORT,master_user='root';
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
+connection master;
 SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
 3	slave2	SLAVE_PORT	1
 2		SLAVE_PORT	1
+connection slave2;
 include/stop_slave_io.inc
+connection master;
 SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
 2		SLAVE_PORT	1

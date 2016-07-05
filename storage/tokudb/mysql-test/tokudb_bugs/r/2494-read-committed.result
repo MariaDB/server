@@ -1,6 +1,8 @@
 # Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
 SET DEFAULT_STORAGE_ENGINE = 'tokudb';
 DROP TABLE IF EXISTS foo;
+connection conn1;
 set session transaction isolation level read committed;
 create table foo ( a int, b int, primary key (a));
 insert into foo values (1,1),(2,2),(3,1),(4,3);
@@ -18,6 +20,7 @@ a	b
 2	2
 3	10
 4	3
+connection default;
 set session transaction isolation level read committed;
 select * from foo;
 a	b
@@ -32,6 +35,7 @@ a	b
 2	2
 3	10
 4	3
+connection conn1;
 rollback;
 begin;
 insert into foo values (5,1),(6,2),(7,1),(8,3);
@@ -45,6 +49,7 @@ a	b
 6	2
 7	1
 8	3
+connection default;
 set session transaction isolation level read committed;
 select * from foo;
 a	b
@@ -63,6 +68,7 @@ a	b
 6	2
 7	1
 8	3
+connection conn1;
 commit;
 begin;
 delete from foo where b=1;
@@ -72,6 +78,7 @@ a	b
 4	3
 6	2
 8	3
+connection default;
 set session transaction isolation level read committed;
 select * from foo;
 a	b
@@ -90,6 +97,10 @@ a	b
 4	3
 6	2
 8	3
+connection conn1;
 commit;
+connection default;
+disconnect conn1;
+connection default;
 set session transaction isolation level serializable;
 DROP TABLE foo;

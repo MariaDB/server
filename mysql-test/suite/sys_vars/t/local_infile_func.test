@@ -29,16 +29,12 @@
 SET @@global.local_infile = 0;
 
 # con1 will be default connection from now on
---echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
---echo 'connection con1'
 connection con1;
 SELECT @@global.local_infile;
 SET @@global.local_infile = 1;
 
---echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
---echo 'connection con2'
 connection con2;
 SELECT @@global.local_infile;
 disconnect con2;
@@ -49,7 +45,6 @@ disconnect con2;
 # Begin the functionality Testing of local_infile    #
 ######################################################
 
---echo 'connection con1'
 connection con1;
 
 #=============================================================
@@ -91,4 +86,3 @@ SET @@global.local_infile = 1;
 ######################################################
 # Endo of functionality Testing for local_infile     #
 ######################################################
-

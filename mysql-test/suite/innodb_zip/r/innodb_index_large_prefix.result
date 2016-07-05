@@ -16,12 +16,14 @@ update worklog5743 set a = (repeat("x", 17000));
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
+connect  con1,localhost,root,,;
 select a = repeat("x", 17000) from worklog5743;
 a = repeat("x", 17000)
 0
 select a = repeat("b", 16000) from worklog5743;
 a = repeat("b", 16000)
 1
+connect  con2,localhost,root,,;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -29,6 +31,7 @@ READ-UNCOMMITTED
 select a = repeat("x", 17000) from worklog5743;
 a = repeat("x", 17000)
 1
+connection default;
 rollback;
 drop table worklog5743;
 ### Test 2 ###
@@ -41,6 +44,7 @@ Level	Code	Message
 insert into worklog5743 values(9, repeat("a", 10000));
 begin;
 update worklog5743 set a1 = 1000;
+connection con1;
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
@@ -50,12 +54,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select a1, a2 = repeat("a", 10000) from worklog5743 where a1 = 9;
 a1	a2 = repeat("a", 10000)
 9	1
+connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
 READ-UNCOMMITTED
 select a1, a2 = repeat("a", 10000) from worklog5743 where a1 = 9;
 a1	a2 = repeat("a", 10000)
+connection default;
 rollback;
 drop table worklog5743;
 ### Test 3 ###
@@ -64,6 +70,7 @@ create index idx on worklog5743(a1, a2(50));
 insert into worklog5743 values(9, repeat("a", 10000));
 begin;
 update worklog5743 set a1 = 1000;
+connection con1;
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
@@ -73,12 +80,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select a1, a2 = repeat("a", 10000) from worklog5743 where a1 = 9;
 a1	a2 = repeat("a", 10000)
 9	1
+connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
 READ-UNCOMMITTED
 select a1, a2 = repeat("a", 10000) from worklog5743 where a1 = 9;
 a1	a2 = repeat("a", 10000)
+connection default;
 rollback;
 drop table worklog5743;
 ### Test 4 ###
@@ -307,6 +316,7 @@ select a1, left(a2, 20) from worklog5743_16;
 a1	left(a2, 20)
 1000	aaaaaaaaaaaaaaaaaaaa
 1000	bbbbbbbbbbbbbbbbbbbb
+connection con1;
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
@@ -340,6 +350,7 @@ a1	left(a2, 20)
 select a1, left(a2, 20) from worklog5743_16 where a1 = 9;
 a1	left(a2, 20)
 9	aaaaaaaaaaaaaaaaaaaa
+connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -354,6 +365,7 @@ select a1, left(a2, 20) from worklog5743_8 where a1 = 9;
 a1	left(a2, 20)
 select a1, left(a2, 20) from worklog5743_16 where a1 = 9;
 a1	left(a2, 20)
+connection default;
 rollback;
 drop table worklog5743_1;
 drop table worklog5743_2;
@@ -411,6 +423,7 @@ repeat("a", 3072), repeat("a", 3069),
 repeat("a", 3068));
 begin;
 update worklog5743 set a1 = 1000;
+connection con1;
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
@@ -420,12 +433,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select a1 from worklog5743 where a1 = 9;
 a1
 9
+connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
 READ-UNCOMMITTED
 select a1 from worklog5743 where a1 = 9;
 a1
+connection default;
 rollback;
 drop table worklog5743;
 ### Test 6 ###
@@ -442,9 +457,11 @@ update worklog5743 set a = (repeat("x", 25000));
 select @@session.tx_isolation;
 @@session.tx_isolation
 REPEATABLE-READ
+connection con1;
 select a = repeat("a", 20000) from worklog5743;
 a = repeat("a", 20000)
 1
+connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
 @@session.tx_isolation
@@ -453,6 +470,7 @@ select a = repeat("x", 25000) from worklog5743;
 a = repeat("x", 25000)
 1
 1
+connection default;
 rollback;
 drop table worklog5743;
 ### Test 7 ###
@@ -484,3 +502,8 @@ drop table worklog5743;
 SET GLOBAL innodb_file_format=Antelope;
 SET GLOBAL innodb_file_per_table=1;
 SET GLOBAL innodb_large_prefix=0;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;

@@ -74,19 +74,15 @@ let $status_var_comparsion= >;
 --source include/wait_for_status_var.inc
 --echo slave_1 has received heartbeat event
 --connection master
---echo [on master]
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10), c LONGTEXT);
 INSERT INTO t1 VALUES (1, 'on master', '');
 SHOW TABLES;
---echo [on slave_2]
 --sync_slave_with_master slave_2
 SHOW TABLES;
 let $slave_2_pos_before= query_get_value(SHOW SLAVE STATUS, Read_Master_Log_Pos, 1);
---echo [on slave_1]
 --sync_slave_with_master slave_1
 SHOW TABLES;
 --connection master
---echo [on master]
 --echo creating updates on master and send to slave_2 during 5 second
 # Generate events on master and send to slave_2 during 5 second
 let $i= 1;
@@ -113,7 +109,6 @@ while ($i) {
 }
 --enable_query_log
 --connection slave_1
---echo [on slave_1]
 --let $assert_cond= [SHOW STATUS LIKE "slave_received_heartbeats", Value, 1] > $slave_1_rcvd_heartbeats_before
 --let $assert_text= slave_1 should have received heartbeats
 --source include/assert.inc

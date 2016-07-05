@@ -417,9 +417,9 @@ DROP FUNCTION IF EXISTS fn1;
 --enable_warnings
 
 delimiter //;
-# 1425: Too big scale 63 specified for column ''. Maximum is 30.
+# 1425: Too big scale 63 specified for column ''. Maximum is 39.
 --error ER_TOO_BIG_SCALE
-CREATE FUNCTION fn1( f1 DECIMAL(63, 31) ) RETURNS DECIMAL(63, 31)
+CREATE FUNCTION fn1( f1 DECIMAL(63, 61) ) RETURNS DECIMAL(63, 61)
    LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
 BEGIN
    SET f1 = 1000000 + f1;

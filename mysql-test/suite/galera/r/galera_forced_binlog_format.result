@@ -1,3 +1,4 @@
+connection node_1;
 RESET MASTER;
 SET SESSION binlog_format = 'STATEMENT';
 Warnings:
@@ -40,4 +41,6 @@ GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO 'dummy'@'localhost'
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
 DROP USER dummy@localhost;
 DROP DATABASE testdb_9401;
+disconnect node_2;
+disconnect node_1;
 # End of tests

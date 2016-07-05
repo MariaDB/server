@@ -80,20 +80,16 @@ SELECT * FROM t1 INNER JOIN t2 ON t1.a = t2.a;
 # Session data integrity check
 #
 
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 
 SELECT @@SESSION.sql_big_selects;
 --echo 1 Expected
 SET SESSION sql_big_selects = 0;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 
 SELECT @@SESSION.sql_big_selects;
@@ -101,22 +97,18 @@ SELECT @@SESSION.sql_big_selects;
 
 SET SESSION sql_big_selects = 1;
 
---echo ** Connection con_int1 **
 connection con_int1;
 
 SELECT @@SESSION.sql_big_selects;
 --echo 0 Expected
 
---echo ** Connection con_int2 **
 connection con_int2;
 
 SELECT @@SESSION.sql_big_selects;
 --echo 1 Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

@@ -1,5 +1,10 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
 CREATE DATABASE federated;
+connection slave;
 CREATE DATABASE federated;
+connection master;
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='non_existing';
 ERROR HY000: server name: 'non_existing' doesn't exist!
 SHOW WARNINGS;
@@ -13,7 +18,9 @@ drop table t1;
 select * from fed;
 Got one of the listed errors
 drop table fed;
+connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

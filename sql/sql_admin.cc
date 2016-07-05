@@ -54,7 +54,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (open_temporary_tables(thd, table_list) ||
+  result_code= (thd->open_temporary_tables(table_list) ||
                 mysql_recreate_table(thd, table_list, false));
   reenable_binlog(thd);
   /*
@@ -131,7 +131,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    share= tdc_acquire_share_shortlived(thd, table_list, GTS_TABLE);
+    share= tdc_acquire_share(thd, table_list, GTS_TABLE);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 
@@ -163,7 +163,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     - Run a normal repair using the new index file and the old data file
   */
 
-  if (table->s->frm_version != FRM_VER_TRUE_VARCHAR &&
+  if (table->s->frm_version < FRM_VER_TRUE_VARCHAR &&
       table->s->varchar_fields)
   {
     error= send_check_errmsg(thd, table_list, "repair",
@@ -261,7 +261,10 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 end:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   if (table == &tmp_table)
-    closefrm(table, 1);				// Free allocated memory
+  {
+    closefrm(table);
+    tdc_release_share(table->s);
+  }
   /* In case of a temporary table there will be no metadata lock. */
   if (error && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();
@@ -446,7 +449,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
         da->push_warning_info(&tmp_wi);
 
-        open_error= (open_temporary_tables(thd, table) ||
+        open_error= (thd->open_temporary_tables(table) ||
                      open_and_lock_tables(thd, table, TRUE, 0));
 
         da->pop_warning_info();
@@ -461,7 +464,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           mode. It does make sense for the user to see such errors.
         */
 
-        open_error= (open_temporary_tables(thd, table) ||
+        open_error= (thd->open_temporary_tables(table) ||
                      open_and_lock_tables(thd, table, TRUE, 0));
       }
       thd->prepare_derived_at_open= FALSE;
@@ -966,7 +969,7 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
-        if (!open_temporary_tables(thd, table) &&
+        if (!thd->open_temporary_tables(table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
           uint save_flags;

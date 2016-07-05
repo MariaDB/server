@@ -37,7 +37,9 @@
 #include "sql_sort.h"
 #include "queues.h"                             // QUEUE
 #include "my_tree.h"                            // element_count
-#include "sql_class.h"                          // Unique
+#include "uniques.h"	                        // Unique
+#include "sql_sort.h"
+#include "myisamchk.h"                          // BUFFPEK
 
 int unique_write_to_file(uchar* key, element_count count, Unique *unique)
 {
@@ -58,8 +60,8 @@ int unique_write_to_file_with_count(uchar* key, element_count count, Unique *uni
 
 int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
 {
-  memcpy(unique->record_pointers, key, unique->size);
-  unique->record_pointers+=unique->size;
+  memcpy(unique->sort.record_pointers, key, unique->size);
+  unique->sort.record_pointers+=unique->size;
   return 0;
 }
 
@@ -67,8 +69,8 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *uniq
 {
   if (count >= unique->min_dupl_count)
   {
-    memcpy(unique->record_pointers, key, unique->size);
-    unique->record_pointers+=unique->size;
+    memcpy(unique->sort.record_pointers, key, unique->size);
+    unique->sort.record_pointers+=unique->size;
   }
   else
     unique->filtered_out_elems++;
@@ -80,16 +82,15 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
 	       uint size_arg, ulonglong max_in_memory_size_arg,
                uint min_dupl_count_arg)
   :max_in_memory_size(max_in_memory_size_arg),
-   record_pointers(NULL),
    size(size_arg),
    elements(0)
 {
+  my_b_clear(&file);
   min_dupl_count= min_dupl_count_arg;
   full_size= size;
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
   with_counters= MY_TEST(min_dupl_count_arg);
-  my_b_clear(&file);
   init_tree(&tree, (ulong) (max_in_memory_size / 16), 0, size, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
@@ -408,8 +409,10 @@ Unique::reset()
     reset_dynamic(&file_ptrs);
     reinit_io_cache(&file, WRITE_CACHE, 0L, 0, 1);
   }
+  my_free(sort.record_pointers);
   elements= 0;
   tree.flag= 0;
+  sort.record_pointers= 0;
 }
 
 /*
@@ -636,7 +639,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
   if (elements == 0)                       /* the whole tree is in memory */
     return tree_walk(&tree, action, walk_action_arg, left_root_right);
 
-  table->sort.found_records=elements+tree.elements_in_tree;
+  sort.return_rows= elements+tree.elements_in_tree;
   /* flush current tree to the file to have some memory for merge buffer */
   if (flush())
     return 1;
@@ -663,9 +666,11 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
 
 /*
   DESCRIPTION
-    Perform multi-pass sort merge of the elements accessed through table->sort,
-    using the buffer buff as the merge buffer. The last pass is not performed
-    if without_last_merge is TRUE.
+
+  Perform multi-pass sort merge of the elements using the buffer buff as
+  the merge buffer. The last pass is not performed if without_last_merge is
+  TRUE.
+
   SYNOPSIS
     Unique:merge()
   All params are 'IN':
@@ -679,23 +684,19 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
 
 bool Unique::merge(TABLE *table, uchar *buff, bool without_last_merge)
 {
-  IO_CACHE *outfile= table->sort.io_cache;
+  IO_CACHE *outfile= &sort.io_cache;
   BUFFPEK *file_ptr= (BUFFPEK*) file_ptrs.buffer;
   uint maxbuffer= file_ptrs.elements - 1;
   my_off_t save_pos;
   bool error= 1;
+  Sort_param sort_param; 
 
-  /* Open cached file if it isn't open */
-  if (!outfile)
-    outfile= table->sort.io_cache= (IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                          MYF(MY_THREAD_SPECIFIC|MY_ZEROFILL));
-  if (!outfile ||
-      (! my_b_inited(outfile) &&
-       open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
-                        MYF(MY_WME))))
+  /* Open cached file for table records if it isn't open */
+  if (! my_b_inited(outfile) &&
+      open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
+                       MYF(MY_WME)))
     return 1;
 
-  Sort_param sort_param; 
   bzero((char*) &sort_param,sizeof(sort_param));
   sort_param.max_rows= elements;
   sort_param.sort_form= table;
@@ -744,44 +745,49 @@ err:
 
 
 /*
-  Modify the TABLE element so that when one calls init_records()
-  the rows will be read in priority order.
+  Allocate memory that can be used with init_records() so that
+  rows will be read in priority order.
 */
 
 bool Unique::get(TABLE *table)
 {
   bool rc= 1;
   uchar *sort_buffer= NULL;
-  table->sort.found_records= elements+tree.elements_in_tree;
+  sort.return_rows= elements+tree.elements_in_tree;
+  DBUG_ENTER("Unique::get");
 
   if (my_b_tell(&file) == 0)
   {
     /* Whole tree is in memory;  Don't use disk if you don't need to */
-    if ((record_pointers=table->sort.record_pointers= (uchar*)
+    if ((sort.record_pointers= (uchar*)
 	 my_malloc(size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
     {
+      uchar *save_record_pointers= sort.record_pointers;
       tree_walk_action action= min_dupl_count ?
 		         (tree_walk_action) unique_intersect_write_to_ptrs :
 		         (tree_walk_action) unique_write_to_ptrs;
       filtered_out_elems= 0;
       (void) tree_walk(&tree, action,
 		       this, left_root_right);
-      table->sort.found_records-= filtered_out_elems;
-      return 0;
+      /* Restore record_pointers that was changed in by 'action' above */
+      sort.record_pointers= save_record_pointers;
+      sort.return_rows-= filtered_out_elems;
+      DBUG_RETURN(0);
     }
   }
   /* Not enough memory; Save the result to file && free memory used by tree */
   if (flush())
-    return 1;
+    DBUG_RETURN(1);
   size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
-  if (!(sort_buffer= (uchar*) my_malloc(buff_sz, MYF(MY_THREAD_SPECIFIC|MY_WME))))
-    return 1;
+  if (!(sort_buffer= (uchar*) my_malloc(buff_sz,
+                                        MYF(MY_THREAD_SPECIFIC|MY_WME))))
+    DBUG_RETURN(1);
 
   if (merge(table, sort_buffer, FALSE))
-    goto err;  
+    goto err;
   rc= 0;  
 
 err:  
   my_free(sort_buffer);  
-  return rc;
+  DBUG_RETURN(rc);
 }

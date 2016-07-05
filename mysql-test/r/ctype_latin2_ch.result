@@ -30,21 +30,21 @@ select * from t1 where tt like '%AA%';
 id	tt
 drop table t1;
 set names latin2 collate latin2_czech_cs;
-SELECT strcmp('a','a ');
-strcmp('a','a ')
-0
-SELECT strcmp('a\0','a' );
-strcmp('a\0','a' )
-1
-SELECT strcmp('a\0','a ');
-strcmp('a\0','a ')
-1
-SELECT strcmp('a\t','a' );
-strcmp('a\t','a' )
-0
-SELECT strcmp('a\t','a ');
-strcmp('a\t','a ')
-0
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+1	-1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+1	-1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+0	0
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+0	0
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
 #
@@ -484,21 +484,21 @@ DROP TABLE t1;
 # WL#3664 WEIGHT_STRING
 #
 set names latin2 collate latin2_czech_cs;
-SELECT strcmp('a','a ');
-strcmp('a','a ')
-0
-SELECT strcmp('a\0','a' );
-strcmp('a\0','a' )
-1
-SELECT strcmp('a\0','a ');
-strcmp('a\0','a ')
-1
-SELECT strcmp('a\t','a' );
-strcmp('a\t','a' )
-0
-SELECT strcmp('a\t','a ');
-strcmp('a\t','a ')
-0
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+1	-1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+1	-1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+0	0
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+0	0
 #
 # Note:
 # latin2_czech_cs does not support WEIGHT_STRING in full extent

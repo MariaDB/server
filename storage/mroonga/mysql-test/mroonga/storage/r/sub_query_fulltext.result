@@ -14,7 +14,7 @@ Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `title` (`title`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

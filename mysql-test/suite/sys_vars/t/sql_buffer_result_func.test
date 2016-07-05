@@ -78,10 +78,8 @@ SHOW STATUS LIKE 'Created_tmp_tables';
 #
 # Session data integrity check
 #
---echo ** Connecting con_int1 using root **
 connect (con_int1,localhost,root,,);
 
---echo ** Connection con_int1 **
 connection con_int1;
 
 SELECT @@SESSION.sql_buffer_result;
@@ -89,10 +87,8 @@ SELECT @@SESSION.sql_buffer_result;
 
 SET SESSION sql_buffer_result = FALSE;
 
---echo ** Connecting con_int2 using root **
 connect (con_int2,localhost,root,,);
 
---echo ** Connection con_int2 **
 connection con_int2;
 
 SELECT @@SESSION.sql_buffer_result;
@@ -100,22 +96,18 @@ SELECT @@SESSION.sql_buffer_result;
 
 SET SESSION sql_buffer_result = TRUE;
 
---echo ** Connection con_int1 **
 connection con_int1;
 
 SELECT @@SESSION.sql_buffer_result;
 --echo 0 / FALSE Expected
 
---echo ** Connection con_int2 **
 connection con_int2;
 
 SELECT @@SESSION.sql_buffer_result;
 --echo 1 / TRUE Expected
 
---echo ** Connection default **
 connection default;
 
---echo Disconnecting Connections con_int1, con_int2
 disconnect con_int1;
 disconnect con_int2;
 

@@ -1,13 +1,17 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 SET @@global.debug_dbug= '+d,remove_slave_load_file_before_write';
+connection master;
 create table t1(a int not null auto_increment, b int, primary key(a)) engine=innodb;
 start transaction;
 insert into t1(b) values (1);
 insert into t1(b) values (2);
 load data infile '../../std_data/rpl_loaddata.dat' into table t1;
 commit;
+connection slave;
 include/wait_for_slave_sql_error.inc [errno=29, 13]
+connection master;
 drop table t1;
 include/sync_slave_io_with_master.inc
 include/stop_slave_io.inc

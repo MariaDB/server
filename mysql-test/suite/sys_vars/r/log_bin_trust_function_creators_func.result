@@ -7,7 +7,8 @@ CREATE USER tt@localhost;
 SET @@global.log_bin_trust_function_creators = 0;
 ## Creating new table t2 ##
 CREATE TABLE t2 (a INT);
-## Creating & connecting with new connection test_con1 ##
+connect  test_con1,localhost,tt,,;
+connection test_con1;
 SELECT @@log_bin_trust_function_creators;
 @@log_bin_trust_function_creators
 0
@@ -29,6 +30,7 @@ END IF;
 RETURN 1;
 END|
 ERROR HY000: You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)
+connection default;
 ## Creating new function f1 succeeds ##
 CREATE FUNCTION f1(a INT) RETURNS INT DETERMINISTIC
 BEGIN
@@ -50,10 +52,11 @@ f1(a)
 DROP FUNCTION f1;
 DROP TABLE t1;
 '#--------------------FN_DYNVARS_063_02-------------------------#'
-## Switching to default connection ##
+connection default;
 ## Setting value of variable to 1 ##
 SET @@global.log_bin_trust_function_creators = 1;
-## Creating and connecting to new connection test_con2 ##
+connect  test_con2,localhost,tt,,;
+connection test_con2;
 ## Verifying value of variable ##
 SELECT @@log_bin_trust_function_creators;
 @@log_bin_trust_function_creators
@@ -82,6 +85,7 @@ f1(a)
 DROP FUNCTION f1;
 ## Dropping table t1 & t2 ##
 DROP TABLE t1,t2;
-## Disconnecting test_con2##
+disconnect test_con2;
+connection default;
 DROP USER tt@localhost;
 SET @@global.log_bin_trust_function_creators= @start_value;

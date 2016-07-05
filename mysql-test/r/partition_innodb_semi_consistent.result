@@ -1,4 +1,7 @@
 drop table if exists t1;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
 set binlog_format=mixed;
 set session transaction isolation level repeatable read;
 create table t1(a int not null)
@@ -12,28 +15,36 @@ set autocommit=0;
 select * from t1 where a=3 lock in share mode;
 a
 3
+connection b;
 set binlog_format=mixed;
 set session transaction isolation level repeatable read;
 set autocommit=0;
 update t1 set a=10 where a=5;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 commit;
+connection a;
 commit;
+connection b;
 set session transaction isolation level read committed;
 update t1 set a=10 where a=5;
+connection a;
 select * from t1 where a=2 for update;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1 where a=2 limit 1 for update;
 a
 2
+connection b;
 update t1 set a=11 where a=6;
 update t1 set a=12 where a=2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 update t1 set a=13 where a=1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection a;
 commit;
+connection b;
 update t1 set a=14 where a=1;
 commit;
+connection a;
 select * from t1;
 a
 10
@@ -44,10 +55,15 @@ a
 4
 7
 drop table t1;
+connection default;
+disconnect a;
+disconnect b;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 SET SESSION AUTOCOMMIT = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 set binlog_format=mixed;
-# Switch to connection con1
+connection con1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(256))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
@@ -62,11 +78,11 @@ info: Rows matched: 1  Changed: 1  Warnings: 0
 SELECT * FROM t1;
 a	b
 1	12
-# Switch to connection con2
+connection con2;
 UPDATE t1 SET b = 21 WHERE a = 1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ROLLBACK;
-# Switch to connection con1
+connection con1;
 SELECT * FROM t1;
 a	b
 1	12
@@ -97,9 +113,9 @@ info: Rows matched: 1  Changed: 1  Warnings: 0
 SELECT * FROM t1;
 a	b
 1	init+con1
-# Switch to connection con2
+connection con2;
 CALL p1;;
-# Switch to connection con1
+connection con1;
 SELECT * FROM t1;
 a	b
 1	init+con1
@@ -107,12 +123,12 @@ COMMIT;
 SELECT * FROM t1;
 a	b
 1	init+con1
-# Switch to connection con2
+connection con2;
 SELECT * FROM t1;
 a	b
 1	init+con1+con2
 COMMIT;
-# Switch to connection con1
+connection con1;
 # 3. test for updated key column:
 TRUNCATE t1;
 DELETE FROM t2;
@@ -124,9 +140,9 @@ info: Rows matched: 1  Changed: 1  Warnings: 0
 SELECT * FROM t1;
 a	b
 2	init+con1
-# Switch to connection con2
+connection con2;
 CALL p1;;
-# Switch to connection con1
+connection con1;
 SELECT * FROM t1;
 a	b
 2	init+con1
@@ -134,9 +150,12 @@ COMMIT;
 SELECT * FROM t1;
 a	b
 2	init+con1
-# Switch to connection con2
+connection con2;
 SELECT * FROM t1;
 a	b
 2	init+con1
+connection default;
+disconnect con1;
+disconnect con2;
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;

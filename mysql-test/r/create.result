@@ -567,9 +567,13 @@ select database();
 database()
 NULL
 create user mysqltest_1;
+connect  user1,localhost,mysqltest_1,,*NO-ONE*;
+connection user1;
 select database(), user();
 database()	user()
 NULL	mysqltest_1@localhost
+connection default;
+disconnect user1;
 drop user mysqltest_1;
 use test;
 create table t1 (a int, index `primary` (a));
@@ -1136,15 +1140,15 @@ t1	CREATE TABLE `t1` (
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
   `TIME` int(7) NOT NULL DEFAULT '0',
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
+  `INFO` longtext DEFAULT NULL,
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
+  `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
@@ -1159,15 +1163,15 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
   `TIME` int(7) NOT NULL DEFAULT '0',
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
+  `INFO` longtext DEFAULT NULL,
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
+  `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
@@ -1732,7 +1736,8 @@ drop view t1;
 create table t1 (a int) select 1 as a;
 create temporary table if not exists t1 (a int) select * from t1;
 create temporary table if not exists t1 (a int) select * from t1;
-ERROR HY000: Can't reopen table: 't1'
+Warnings:
+Note	1050	Table 't1' already exists
 select * from t1;
 a
 1
@@ -1813,6 +1818,7 @@ create table t1 (a int, b int) engine=myisam;
 create table t2 (a int, b int) engine=myisam;
 insert into t1 values (1,1);
 lock tables t1 read;
+connect  user1,localhost,root,,test;
 set @@lock_wait_timeout=5;
 create table if not exists t1 (a int, b int);
 Warnings:
@@ -1831,6 +1837,8 @@ create table t1 like t2;
 ERROR 42S01: Table 't1' already exists
 create or replace table t1 (a int, b int) select 2,2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect user1;
+connection default;
 select * from t1;
 a	b
 1	1
@@ -1862,7 +1870,7 @@ t1	CREATE TABLE `t1` (
   `cl` char(32) AS (COLUMN_GET(COLUMN_ADD(COLUMN_CREATE(1 , 'blue' as char), 2, 'ttt'), i as char)) PERSISTENT,
   `item_name` varchar(32) NOT NULL,
   `i` int(11) DEFAULT NULL,
-  `dynamic_cols` blob,
+  `dynamic_cols` blob DEFAULT NULL,
   PRIMARY KEY (`item_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

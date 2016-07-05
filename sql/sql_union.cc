@@ -173,7 +173,8 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
 
 
 /**
-  Reset and empty the temporary table that stores the materialized query result.
+  Reset and empty the temporary table that stores the materialized query
+  result.
 
   @note The cleanup performed here is exactly the same as for the two temp
   tables of JOIN - exec_tmp_table_[1 | 2].
@@ -183,8 +184,6 @@ void select_union::cleanup()
 {
   table->file->extra(HA_EXTRA_RESET_STATE);
   table->file->ha_delete_all_rows();
-  free_io_cache(table);
-  filesort_free_buffers(table,0);
 }
 
 
@@ -326,9 +325,9 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
        order=order->next)
   {
     (*order->item)->walk(&Item::change_context_processor, 0,
-                         (uchar*) &fake_select_lex->context);
+                         &fake_select_lex->context);
     (*order->item)->walk(&Item::set_fake_select_as_master_processor, 0,
-                         (uchar*) fake_select_lex);
+                         fake_select_lex);
   }
 }
 
@@ -437,8 +436,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
     can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
 
-    saved_error= join->prepare(&sl->ref_pointer_array,
-                               sl->table_list.first,
+    saved_error= join->prepare(sl->table_list.first,
                                sl->with_wild,
                                sl->where,
                                (can_skip_order_by ? 0 :
@@ -534,7 +532,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
 
     while ((type= tp++))
     {
-      if (type->result_type() == STRING_RESULT &&
+      if (type->cmp_type() == STRING_RESULT &&
           type->collation.derivation == DERIVATION_NONE)
       {
         my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
@@ -562,8 +560,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       ORDER *ord;
       Item_func::Functype ft=  Item_func::FT_FUNC;
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
-        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, 
-                                (uchar *) &ft))
+        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, &ft))
         {
           my_error (ER_CANT_USE_OPTION_HERE, MYF(0), "MATCH()");
           goto err;
@@ -647,8 +644,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
 
 	saved_error= fake_select_lex->join->
-	  prepare(&fake_select_lex->ref_pointer_array,
-		  fake_select_lex->table_list.first,
+	  prepare(fake_select_lex->table_list.first,
 		  0, 0,
                   global_parameters()->order_list.elements, // og_num
                   global_parameters()->order_list.first,    // order
@@ -703,7 +699,7 @@ bool st_select_lex_unit::optimize()
       {
         item->assigned(0); // We will reinit & rexecute unit
         item->reset();
-        if (table->created)
+        if (table->is_created())
         {
           table->file->ha_delete_all_rows();
           table->file->info(HA_STATUS_VARIABLE);
@@ -947,13 +943,13 @@ bool st_select_lex_unit::exec()
           Don't add more sum_items if we have already done JOIN::prepare
           for this (with a different join object)
         */
-        if (!fake_select_lex->ref_pointer_array)
+        if (fake_select_lex->ref_pointer_array.is_null())
           fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
         
         if (!was_executed)
           save_union_explain_part2(thd->lex->explain);
 
-        saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
+        saved_error= mysql_select(thd,
                               &result_table_list,
                               0, item_list, NULL,
 				  global_parameters()->order_list.elements,
@@ -976,7 +972,7 @@ bool st_select_lex_unit::exec()
             to reset them back, we re-do all of the actions (yes it is ugly):
           */ // psergey-todo: is the above really necessary anymore?? 
 	  join->init(thd, item_list, fake_select_lex->options, result);
-          saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
+          saved_error= mysql_select(thd,
                                 &result_table_list,
                                 0, item_list, NULL,
 				    global_parameters()->order_list.elements,
@@ -1023,27 +1019,11 @@ bool st_select_lex_unit::cleanup()
   }
   cleaned= 1;
 
-  if (union_result)
-  {
-    delete union_result;
-    union_result=0; // Safety
-    if (table)
-      free_tmp_table(thd, table);
-    table= 0; // Safety
-  }
-
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
     error|= sl->cleanup();
 
   if (fake_select_lex)
   {
-    JOIN *join;
-    if ((join= fake_select_lex->join))
-    {
-      join->tables_list= 0;
-      join->table_count= 0;
-      join->top_join_tab_count= 0;
-    }
     error|= fake_select_lex->cleanup();
     /*
       There are two cases when we should clean order items:
@@ -1063,6 +1043,15 @@ bool st_select_lex_unit::cleanup()
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
         (*ord->item)->walk (&Item::cleanup_processor, 0, 0);
     }
+  }
+
+  if (union_result)
+  {
+    delete union_result;
+    union_result=0; // Safety
+    if (table)
+      free_tmp_table(thd, table);
+    table= 0; // Safety
   }
 
   DBUG_RETURN(error);

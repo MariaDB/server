@@ -14,10 +14,9 @@ connect(con3,localhost,root,,);
 connect(con4,localhost,root,,);
 
 connection default;
---echo # Connection default
 
 CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb;
-let pos=`select $binlog_start_pos + 238`;
+let pos=`select $binlog_start_pos + 254`;
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 --replace_result $pos <pos>
@@ -26,12 +25,10 @@ BEGIN;
 INSERT INTO t1 VALUES (0, "");
 
 connection con1;
---echo # Connection con1
 BEGIN;
 INSERT INTO t1 VALUES (1, "");
 
 connection con2;
---echo # Connection con2
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=myisam;
 BEGIN;
 INSERT INTO t1 VALUES (2, "first");
@@ -39,56 +36,48 @@ INSERT INTO t2 VALUES (2);
 INSERT INTO t1 VALUES (2, "second");
 
 connection default;
---echo # Connection default
 COMMIT;
 
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 connection con3;
---echo # Connection con3
 BEGIN;
 INSERT INTO t1 VALUES (3, "");
 INSERT INTO t2 VALUES (3);
 
 connection con4;
---echo # Connection con4
 BEGIN;
 INSERT INTO t1 VALUES (4, "");
 COMMIT;
 
 connection default;
---echo # Connection default
 SELECT * FROM t1 ORDER BY a,b;
-let pos=`select $binlog_start_pos + 740`;
+let pos=`select $binlog_start_pos + 788`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
-let pos=`select $binlog_start_pos + 1092`;
+let pos=`select $binlog_start_pos + 1164`;
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 SELECT * FROM t2 ORDER BY a;
 
 connection con1;
---echo # Connection con1
 COMMIT;
 
 connection con2;
---echo # Connection con2
 COMMIT;
 
 connection con3;
---echo # Connection con3
 COMMIT;
 FLUSH LOGS;
 --source include/wait_for_binlog_checkpoint.inc
 
 connection default;
---echo # Connection default
 SELECT * FROM t1 ORDER BY a,b;
-let pos=`select $binlog_start_pos + 740`;
+let pos=`select $binlog_start_pos + 788`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
-let pos=`select $binlog_start_pos + 119`;
+let pos=`select $binlog_start_pos + 131`;
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 COMMIT;

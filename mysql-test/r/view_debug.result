@@ -5,14 +5,19 @@ CREATE PROCEDURE proc() SELECT * FROM v2;
 CREATE ALGORITHM = UNDEFINED VIEW v1 AS SELECT 1;
 CREATE ALGORITHM = TEMPTABLE VIEW v2 AS SELECT 3 FROM v1;
 DROP VIEW v1;
+connect  con1,localhost,root,,test;
+connect  con2,localhost,root,,test;
+connection con1;
 CALL proc();
 ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 SET DEBUG_SYNC= 'after_cached_view_opened SIGNAL oppp WAIT_FOR created';
 CALL proc();
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR oppp';
 SET DEBUG_SYNC= 'RESET';
 CREATE ALGORITHM = TEMPTABLE VIEW v1 AS SELECT 2;
 SET DEBUG_SYNC= 'now SIGNAL created';
+connection con1;
 3
 3
 SET DEBUG_SYNC= 'RESET';

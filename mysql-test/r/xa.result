@@ -28,6 +28,8 @@ begin;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
 create table t2 (a int);
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+connect  con1,localhost,root,,;
+connection con1;
 xa start 'testa','testb';
 ERROR XAE08: XAER_DUPID: The XID already exists
 xa start 'testa','testb', 123;
@@ -41,6 +43,7 @@ ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction
 xa recover;
 formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
+connection default;
 xa prepare 'testa','testb';
 xa recover;
 formatID	gtrid_length	bqual_length	data
@@ -54,16 +57,24 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 select * from t1;
 a
 20
+disconnect con1;
+connection default;
 drop table t1;
 drop table if exists t1;
 create table t1(a int, b int, c varchar(20), primary key(a)) engine = innodb;
 insert into t1 values(1, 1, 'a');
 insert into t1 values(2, 2, 'b');
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 xa start 'a','b';
 update t1 set c = 'aa' where a = 1;
+connection con2;
 xa start 'a','c';
 update t1 set c = 'bb' where a = 2;
+connection con1;
 update t1 set c = 'bb' where a = 2;
+connection con2;
 update t1 set c = 'aa' where a = 1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select count(*) from t1;
@@ -72,7 +83,13 @@ count(*)
 xa end 'a','c';
 ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
 xa rollback 'a','c';
+disconnect con2;
+connect  con3,localhost,root,,;
+connection con3;
 xa start 'a','c';
+disconnect con1;
+disconnect con3;
+connection default;
 drop table t1;
 #
 # BUG#51342 - more xid crashing
@@ -108,20 +125,28 @@ xa prepare 'a';
 xa commit 'a';
 CREATE TABLE t1(a INT, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1),(2);
+connect con1,localhost,root,,;
 BEGIN;
 UPDATE t1 SET a=3 WHERE a=1;
+connection default;
 BEGIN;
 UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
 UPDATE t1 SET a=5 WHERE a=2;
+connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 ROLLBACK;
+connection con1;
 ROLLBACK;
 BEGIN;
 UPDATE t1 SET a=3 WHERE a=1;
+connection default;
 XA START 'xid1';
 UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
 UPDATE t1 SET a=5 WHERE a=2;
+connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA END 'xid1';
@@ -130,6 +155,7 @@ XA ROLLBACK 'xid1';
 XA START 'xid1';
 XA END 'xid1';
 XA ROLLBACK 'xid1';
+disconnect con1;
 DROP TABLE t1;
 #
 # Bug#56448 Assertion failed: ! is_set() with second xa end
@@ -148,24 +174,25 @@ XA ROLLBACK 'x';
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT, b INT, PRIMARY KEY(a)) engine=InnoDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2);
-# Connection con1
+connect  con1, localhost, root;
 XA START 'a';
 UPDATE t1 SET b= 3 WHERE a=1;
-# Connection default
+connection default;
 XA START 'b';
 UPDATE t1 SET b=4 WHERE a=2;
 # Sending:
 UPDATE t1 SET b=5 WHERE a=1;
-# Connection con1
+connection con1;
 UPDATE t1 SET b=6 WHERE a=2;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA COMMIT 'a';
 ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-# Connection default
+connection default;
 # Reaping: UPDATE t1 SET b=5 WHERE a=1
 XA END 'b';
 XA ROLLBACK 'b';
 DROP TABLE t1;
+disconnect con1;
 #
 # Bug#11766752 59936: multiple xa assertions - transactional
 #              statement fuzzer
@@ -209,24 +236,25 @@ CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1);
-# Connection con2
+connect  con2,localhost,root;
 XA START 'xid1';
 # Sending:
 INSERT INTO t2 SELECT a FROM t1;
-# Connection default
+connection default;
 # Waiting until INSERT ... is blocked
 DELETE FROM t1;
-# Connection con2
+connection con2;
 # Reaping: INSERT INTO t2 SELECT a FROM t1
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA COMMIT 'xid1';
 ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-# Connection default
+connection default;
 COMMIT;
-# Connection con2
+connection con2;
 XA START 'xid1';
 XA END 'xid1';
 XA PREPARE 'xid1';
 XA ROLLBACK 'xid1';
-# Connection default
+connection default;
 DROP TABLE t1, t2;
+disconnect con2;

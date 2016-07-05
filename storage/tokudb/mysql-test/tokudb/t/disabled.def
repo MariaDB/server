@@ -1,0 +1,28 @@
+mvcc-19: tokutek
+mvcc-20: tokutek
+mvcc-27: tokutek
+storage_engine_default: tokudb is not the default storage engine
+fast_update_binlog_mixed : https://tokutek.atlassian.net/browse/DB-871
+fast_update_binlog_row : https://tokutek.atlassian.net/browse/DB-871
+fast_update_binlog_statement : https://tokutek.atlassian.net/browse/DB-871
+fast_update_blobs_fixed_varchar : https://tokutek.atlassian.net/browse/DB-871
+fast_update_blobs : https://tokutek.atlassian.net/browse/DB-871
+fast_update_blobs_with_varchar : https://tokutek.atlassian.net/browse/DB-871
+fast_update_char : https://tokutek.atlassian.net/browse/DB-871
+fast_update_deadlock : https://tokutek.atlassian.net/browse/DB-871
+fast_update_decr_floor : https://tokutek.atlassian.net/browse/DB-871
+fast_update_disable_slow_update : https://tokutek.atlassian.net/browse/DB-871
+fast_update_error : https://tokutek.atlassian.net/browse/DB-871
+fast_update_int_bounds : https://tokutek.atlassian.net/browse/DB-871
+fast_update_int : https://tokutek.atlassian.net/browse/DB-871
+fast_update_key : https://tokutek.atlassian.net/browse/DB-871
+fast_update_sqlmode : https://tokutek.atlassian.net/browse/DB-871
+fast_update_uint_bounds : https://tokutek.atlassian.net/browse/DB-871
+fast_update_varchar : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_bin_pad : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_char : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_deadlock : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_int : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_key : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_sqlmode : https://tokutek.atlassian.net/browse/DB-871
+fast_upsert_values : https://tokutek.atlassian.net/browse/DB-871

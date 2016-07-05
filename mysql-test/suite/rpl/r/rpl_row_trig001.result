@@ -14,10 +14,15 @@ CREATE PROCEDURE test.p2()
 BEGIN
 INSERT INTO test.t2 (f,d) VALUES (RAND(),NOW());
 END//
+connection slave;
+connection master;
+connection master;
 INSERT INTO test.t1 VALUES (1+1, NOW());
+connection slave;
 
 <End test section 2 (Tiggers & SP)>
 -----------------------------------
+connection master;
 DROP PROCEDURE test.p2;
 DROP PROCEDURE test.p3;
 DROP TRIGGER test.t2_ai;
@@ -25,4 +30,5 @@ DROP TRIGGER test.t3_bi_t2;
 DROP TABLE test.t1;
 DROP TABLE test.t2;
 DROP TABLE test.t3;
+connection slave;
 include/rpl_end.inc

@@ -2636,8 +2636,6 @@ end:
   return retval;
 }
 
-/* Used in sql_alloc(). Inited and freed in main() */
-MEM_ROOT s_mem_root;
 
 int main(int argc, char** argv)
 {
@@ -2651,7 +2649,6 @@ int main(int argc, char** argv)
   my_init_time(); // for time functions
   tzset(); // set tzname
 
-  init_alloc_root(&s_mem_root, 16384, 0, MYF(0));
   if (load_defaults("my", load_groups, &argc, &argv))
     exit(1);
 
@@ -2811,7 +2808,6 @@ int main(int argc, char** argv)
     my_fclose(result_file, MYF(0));
   cleanup();
   free_annotate_event();
-  free_root(&s_mem_root, MYF(0));
   free_defaults(defaults_argv);
   my_free_open_file_info();
   load_processor.destroy();
@@ -2831,11 +2827,6 @@ err:
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 
-
-void *sql_alloc(size_t size)
-{
-  return alloc_root(&s_mem_root, size);
-}
 
 struct encryption_service_st encryption_handler=
 {

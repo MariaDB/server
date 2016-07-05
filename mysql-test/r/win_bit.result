@@ -1,0 +1,117 @@
+create table t1 (
+pk int primary key,
+a int,
+b int
+);
+create table t2 (
+pk int primary key,
+a int,
+b int
+);
+insert into t1 values
+( 1 , 0, 1),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 8),
+( 5 , 2, 32),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+insert into t2 values
+( 1 , 0, 2),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 4),
+( 5 , 2, 16),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+# Test bit functions on only one partition.
+select pk, a, b,
+bit_or(b) over (order by pk) as bit_or,
+bit_and(b) over (order by pk) as bit_and,
+bit_xor(b) over (order by pk) as bit_xor
+from t1;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	1	1	1	1
+2	0	2	3	0	3
+3	1	4	7	0	7
+4	1	8	15	0	15
+5	2	32	47	0	47
+6	2	64	111	0	111
+7	2	128	239	0	239
+8	2	16	255	0	255
+select pk, a, b,
+bit_or(b) over (order by pk) as bit_or,
+bit_and(b) over (order by pk) as bit_and,
+bit_xor(b) over (order by pk) as bit_xor
+from t2;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	2	2	2	2
+2	0	2	2	2	0
+3	1	4	6	0	4
+4	1	4	6	0	0
+5	2	16	22	0	16
+6	2	64	86	0	80
+7	2	128	214	0	208
+8	2	16	214	0	192
+# Test multiple partitions with bit functions.
+select pk, a, b,
+bit_or(b) over (partition by a order by pk) as bit_or,
+bit_and(b) over (partition by a order by pk) as bit_and,
+bit_xor(b) over (partition by a order by pk) as bit_xor
+from t1;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	1	1	1	1
+2	0	2	3	0	3
+3	1	4	4	4	4
+4	1	8	12	0	12
+5	2	32	32	32	32
+6	2	64	96	0	96
+7	2	128	224	0	224
+8	2	16	240	0	240
+select pk, a, b,
+bit_or(b) over (partition by a order by pk) as bit_or,
+bit_and(b) over (partition by a order by pk) as bit_and,
+bit_xor(b) over (partition by a order by pk) as bit_xor
+from t2;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	2	2	2	2
+2	0	2	2	2	0
+3	1	4	4	4	4
+4	1	4	4	4	0
+5	2	16	16	16	16
+6	2	64	80	0	80
+7	2	128	208	0	208
+8	2	16	208	0	192
+# Test remove function for bit functions using a sliding window.
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as bit_or,
+bit_and(b) over (partition by a order by pk) as bit_and,
+bit_xor(b) over (partition by a order by pk) as bit_xor
+from t1;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	1	3	1	1
+2	0	2	3	0	3
+3	1	4	12	4	4
+4	1	8	12	0	12
+5	2	32	96	32	32
+6	2	64	224	0	96
+7	2	128	208	0	224
+8	2	16	144	0	240
+select pk, a, b,
+bit_or(b) over (partition by a order by pk) as bit_or,
+bit_and(b) over (partition by a order by pk) as bit_and,
+bit_xor(b) over (partition by a order by pk) as bit_xor
+from t2;
+pk	a	b	bit_or	bit_and	bit_xor
+1	0	2	2	2	2
+2	0	2	2	2	0
+3	1	4	4	4	4
+4	1	4	4	4	0
+5	2	16	16	16	16
+6	2	64	80	0	80
+7	2	128	208	0	208
+8	2	16	208	0	192
+drop table t1;
+drop table t2;

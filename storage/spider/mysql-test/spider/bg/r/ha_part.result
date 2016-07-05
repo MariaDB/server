@@ -18,34 +18,43 @@ child3_2
 child3_3
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
+connection child2_3;
 DROP DATABASE IF EXISTS auto_test_remote3;
 CREATE DATABASE auto_test_remote3;
 USE auto_test_remote3;
+connection child3_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child3_2;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child3_3;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
 
 create table with partition test
+connection master_1;
 DROP TABLE IF EXISTS ta_l2;
 CREATE TABLE ta_l2 (
 a INT,
@@ -61,6 +70,7 @@ INSERT INTO ta_l2 (a, b, c) VALUES
 (5, 'c', '2001-12-31 23:59:59');
 
 select test
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -70,6 +80,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	c	2001-12-31 23:59:59
 
 fail-over test
+connection master_1;
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
 Spider_mon_table_cache_version	0
@@ -103,6 +114,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 6	e	2011-05-05 20:04:05
 
 recovery test
+connection master_1;
 ALTER TABLE ta_l2
 PARTITION BY KEY(a) (
 PARTITION pt1 COMMENT='srv "s_2_1 s_2_2", tbl "ta_r ta_r3",
@@ -120,6 +132,7 @@ auto_test_local	ta_l2#P#pt2	1	2
 SELECT spider_copy_tables('ta_l2#P#pt2', '0', '1');
 spider_copy_tables('ta_l2#P#pt2', '0', '1')
 1
+connection master_1;
 ALTER TABLE ta_l2
 PARTITION BY KEY(a) (
 PARTITION pt1 COMMENT='srv "s_2_1 s_2_2", tbl "ta_r ta_r3",
@@ -150,6 +163,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 DROP TABLE ta_l2;
 
 create table with partition test
+connection master_1;
 DROP TABLE IF EXISTS ta_l2;
 CREATE TABLE ta_l2 (
 a INT,
@@ -165,6 +179,7 @@ INSERT INTO ta_l2 (a, b, c) VALUES
 (5, 'c', '2001-12-31 23:59:59');
 
 select test
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -174,6 +189,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 5	c	2001-12-31 23:59:59
 
 fail-over test
+connection master_1;
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
 Spider_mon_table_cache_version	1
@@ -206,6 +222,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 6	e	2011-05-05 20:04:05
 
 recovery test
+connection master_1;
 ALTER TABLE ta_l2
 PARTITION BY KEY(a) (
 PARTITION pt1 COMMENT='srv "s_2_1 s_2_2", tbl "ta_r ta_r3",
@@ -233,12 +250,19 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 DROP TABLE ta_l2;
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
+connection child2_3;
 DROP DATABASE IF EXISTS auto_test_remote3;
+connection child3_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child3_2;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child3_3;
 DROP DATABASE IF EXISTS auto_test_local;
 for master_1
 for child2

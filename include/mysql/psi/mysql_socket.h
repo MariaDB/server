@@ -19,8 +19,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 #ifndef MYSQL_SOCKET_H
 #define MYSQL_SOCKET_H
 
-/* For strlen() */
-#include <string.h>
 /* For MY_STAT */
 #include <my_dir.h>
 /* For my_chsize */
@@ -1014,7 +1012,7 @@ inline_mysql_socket_accept
   MYSQL_SOCKET socket_listen, struct sockaddr *addr, socklen_t *addr_len)
 {
 #ifdef FD_CLOEXEC
-  int flags;
+  int flags __attribute__ ((unused));
 #endif
 
   MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;

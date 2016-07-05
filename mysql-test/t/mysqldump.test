@@ -174,7 +174,7 @@ drop database mysqldump_test_db;
 --echo # Check that we don't dump in UTF8 in compatible mode by default,
 --echo # but use the default compiled values, or the values given in
 --echo # --default-character-set=xxx. However, we should dump in UTF8
---echo # if it is explicitely set.
+--echo # if it is explicitly set.
 
 CREATE TABLE t1 (a  CHAR(10));
 INSERT INTO t1  VALUES (_latin1 'ÄÖÜß');

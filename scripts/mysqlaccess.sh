@@ -262,7 +262,7 @@ Release Notes:
     * default values are read from a configuration file $script.conf
       first this file is looked for in the current directory; if not
       found it is looked for in @sysconfdir@
-      Note that when default-values are given, these can't get overriden
+      Note that when default-values are given, these can't get overridden
       by empty (blanc) values!
     * CGI-BIN version with HTML and forms interface.  Simply place the
       script in an ScriptAliased directory, make the configuration file

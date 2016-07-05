@@ -2,6 +2,8 @@ include/master-slave.inc
 [connection master]
 
 *** Heartbeat over SSL ***
+connection master;
+connection slave;
 include/stop_slave.inc
 RESET SLAVE;
 CHANGE MASTER TO 

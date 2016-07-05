@@ -106,7 +106,6 @@ INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
 BEGIN;
 SELECT COUNT(*) FROM t1;
 
---echo # con1
 --connect (con1,localhost,root,,)
 --echo # SEND a ALTER PARTITION which waits on the ongoing transaction.
 --send
@@ -126,11 +125,11 @@ AND STATE = 'Waiting for table metadata lock';
 SELECT COUNT(*) FROM t1;
 COMMIT;
 
---echo # con1, reaping ALTER.
+--echo # reaping ALTER.
 --connection con1
 --reap
 
---echo # Disconnecting con1 and switching to default. Cleaning up.
+--echo # Cleaning up.
 --disconnect con1
 
 --connection default
@@ -170,7 +169,6 @@ SELECT * FROM t1 FOR UPDATE;
 UPDATE t1 SET name = 'Mattias' WHERE id = 7;
 SELECT * FROM t1 WHERE id = 7;
 --connect (con1, localhost, root,,)
---echo # Connection con1
 SET lock_wait_timeout = 1;
 --echo # After the patch it will wait and fail on timeout.
 --error ER_LOCK_WAIT_TIMEOUT
@@ -178,7 +176,6 @@ ALTER TABLE t1 DROP PARTITION p3;
 SHOW WARNINGS;
 --disconnect con1
 --connection default
---echo # Connection default
 SELECT * FROM t1;
 --echo # No changes.
 COMMIT;
@@ -609,7 +606,6 @@ START TRANSACTION;
 SELECT * FROM t1 FOR UPDATE;
 
 connect (con1, localhost, root,,);
---echo # Connection con1
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE t1 REORGANIZE PARTITION pMAX INTO
 (PARTITION p3 VALUES LESS THAN (3),
@@ -626,7 +622,6 @@ SHOW WARNINGS;
 
 disconnect con1;
 connection default;
---echo # Connection default
 SELECT * FROM t1;
 COMMIT;
 DROP TABLE t1;
@@ -871,10 +866,8 @@ CREATE TABLE t1
  PARTITION BY HASH (a) PARTITIONS 3;
  START TRANSACTION WITH CONSISTENT SNAPSHOT;
  --connect (con1, localhost, root,,)
- --echo # con1
  ALTER TABLE t1 ADD INDEX idx1 (b);
  --connection default
- --echo # con default
  --error ER_TABLE_DEF_CHANGED
  SELECT b FROM t1 WHERE b = 0;
  --error ER_TABLE_DEF_CHANGED
@@ -889,11 +882,9 @@ CREATE TABLE t1
  PRIMARY KEY (a))
  ENGINE = InnoDB;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
---echo # con1
 --connect (con1, localhost, root,,)
 ALTER TABLE t1 ADD INDEX idx1 (b);
 --connection default
---echo # con default
 --error ER_TABLE_DEF_CHANGED
 SELECT b FROM t1 WHERE b = 0;
 --error ER_TABLE_DEF_CHANGED

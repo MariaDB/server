@@ -53,7 +53,6 @@ connection slave;
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 connection master;
 
---source include/rpl_connection_master.inc
 DROP TABLE t1, t2;
 
 --echo
@@ -76,20 +75,20 @@ INSERT INTO t1 VALUES(1, 1);
 sync_slave_with_master;
 --source include/stop_slave.inc
 
---source include/rpl_connection_master.inc
+connection master;
 # make sure that there are no zombie threads
 --source include/stop_dump_threads.inc
 
 let $debug_save= `SELECT @@GLOBAL.debug`;
 SET GLOBAL debug_dbug= '+d,dump_thread_wait_before_send_xid,*';
 
---source include/rpl_connection_slave.inc
+connection slave;
 --source include/start_slave.inc
 
 BEGIN;
 UPDATE t1 SET c2 = 2 WHERE c1 = 1;
 
---source include/rpl_connection_master.inc
+connection master;
 BEGIN;
 INSERT INTO t1 VALUES(2, 2);
 INSERT INTO t2 VALUES(1);
@@ -100,7 +99,7 @@ COMMIT;
 --let $wait_condition= select count(*)=1 from information_schema.processlist where state LIKE '%debug sync point%' and command='Binlog Dump'
 --source include/wait_condition.inc
 
---source include/rpl_connection_slave1.inc
+connection slave1;
 let $show_statement= SHOW PROCESSLIST;
 let $field= Info;
 let $condition= = 'UPDATE t1 SET c2 = 3 WHERE c1 = 1';
@@ -108,38 +107,38 @@ source include/wait_show_condition.inc;
 
 send STOP SLAVE;
 
---source include/rpl_connection_slave.inc
+connection slave;
 ROLLBACK;
 
---source include/rpl_connection_master.inc
+connection master;
 
 SET DEBUG_SYNC= 'now SIGNAL signal.continue';
 SET DEBUG_SYNC= 'now WAIT_FOR signal.continued';
 
---source include/rpl_connection_slave.inc
+connection slave;
 source include/wait_for_slave_to_stop.inc;
 
---source include/rpl_connection_slave1.inc
+connection slave1;
 reap;
 
 # Slave has stopped, thence lets make sure that
 # we kill the zombie dump threads. Also, make
 # sure that we disable the DBUG_EXECUTE_IF
 # that would set the dump thread to wait
---source include/rpl_connection_master.inc
+connection master;
 --disable_query_log
 eval SET GLOBAL debug_dbug= '$debug_save';
 --enable_query_log
 # make sure that there are no zombie threads
 --source include/stop_dump_threads.inc
 
---source include/rpl_connection_slave1.inc
+connection slave1;
 # now the dump thread on the master will start
 # from a clean slate, i.e. without the
 # DBUG_EXECUTE_IF set
 source include/start_slave.inc;
 
---source include/rpl_connection_master.inc
+connection master;
 DROP TABLE t1, t2;
 --source include/rpl_end.inc
 SET DEBUG_SYNC= 'RESET';

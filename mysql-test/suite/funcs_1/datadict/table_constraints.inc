@@ -32,12 +32,10 @@ WHERE table_schema = '$table_schema'
 ORDER BY table_schema,table_name,constraint_name;
 eval $my_select;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1,localhost,testuser1,,db_datadict);
 eval $my_select;
 
---echo # Switch to connection default and close connection testuser1
 connection default;
 disconnect testuser1;
 DROP USER testuser1@localhost;

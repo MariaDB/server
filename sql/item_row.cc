@@ -72,7 +72,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_row::eval_not_null_tables(uchar *opt_arg)
+Item_row::eval_not_null_tables(void *opt_arg)
 {
   Item **arg,**arg_end;
   not_null_tables_cache= 0;
@@ -100,7 +100,7 @@ void Item_row::cleanup()
 }
 
 
-void Item_row::split_sum_func(THD *thd, Item **ref_pointer_array,
+void Item_row::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;

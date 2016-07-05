@@ -1,10 +1,15 @@
 include/master-slave.inc
 [connection master]
+connection master;
 SET TIME_ZONE='+00:00';
+connection slave;
 SET TIME_ZONE='+00:00';
+connection master;
 INSERT INTO mysql56time VALUES ('01:01:01','01:01:01.1','01:01:01.11','01:01:01.111','01:01:01.1111','01:01:01.11111','01:01:01.111111');
 INSERT INTO mysql56datetime VALUES ('2001-01-01 01:01:01','2001-01-01 01:01:01.1','2001-01-01 01:01:01.11','2001-01-01 01:01:01.111','2001-01-01 01:01:01.1111','2001-01-01 01:01:01.11111','2001-01-01 01:01:01.111111');
 INSERT INTO mysql56timestamp VALUES ('2001-01-01 01:01:01','2001-01-01 01:01:01.1','2001-01-01 01:01:01.11','2001-01-01 01:01:01.111','2001-01-01 01:01:01.1111','2001-01-01 01:01:01.11111','2001-01-01 01:01:01.111111');
+connection slave;
+connection slave;
 SELECT * FROM mysql56time;
 t0	838:59:59
 t1	838:59:59.0
@@ -78,6 +83,7 @@ ts3	2001-01-01 01:01:01.111
 ts4	2001-01-01 01:01:01.1111
 ts5	2001-01-01 01:01:01.11111
 ts6	2001-01-01 01:01:01.111111
+connection master;
 DROP TABLE mysql56time;
 DROP TABLE mysql56datetime;
 DROP TABLE mysql56timestamp;

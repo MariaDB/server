@@ -565,7 +565,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
   for (; *groups ; groups++)
     group.count++;
 
-  if (my_init_dynamic_array(&args, sizeof(char*),*argc, 32, MYF(0)))
+  if (my_init_dynamic_array(&args, sizeof(char*), 128, 64, MYF(0)))
     goto err;
 
   ctx.alloc= &alloc;
@@ -1124,43 +1124,7 @@ static int add_directory(MEM_ROOT *alloc, const char *dir, const char **dirs)
   return 0;
 }
 
-
 #ifdef __WIN__
-/*
-  This wrapper for GetSystemWindowsDirectory() will dynamically bind to the
-  function if it is available, emulate it on NT4 Terminal Server by stripping
-  the \SYSTEM32 from the end of the results of GetSystemDirectory(), or just
-  return GetSystemDirectory().
- */
-
-typedef UINT (WINAPI *GET_SYSTEM_WINDOWS_DIRECTORY)(LPSTR, UINT);
-
-static size_t my_get_system_windows_directory(char *buffer, size_t size)
-{
-  size_t count;
-  GET_SYSTEM_WINDOWS_DIRECTORY
-    func_ptr= (GET_SYSTEM_WINDOWS_DIRECTORY)
-              GetProcAddress(GetModuleHandle("kernel32.dll"),
-                                             "GetSystemWindowsDirectoryA");
-
-  if (func_ptr)
-    return func_ptr(buffer, (uint) size);
-
-  /*
-    Windows NT 4.0 Terminal Server Edition:  
-    To retrieve the shared Windows directory, call GetSystemDirectory and
-    trim the "System32" element from the end of the returned path.
-  */
-  count= GetSystemDirectory(buffer, (uint) size);
-  if (count > 8 && stricmp(buffer+(count-8), "\\System32") == 0)
-  {
-    count-= 8;
-    buffer[count] = '\0';
-  }
-  return count;
-}
-
-
 static const char *my_get_module_parent(char *buf, size_t size)
 {
   char *last= NULL;
@@ -1209,7 +1173,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
 
   {
     char fname_buffer[FN_REFLEN];
-    if (my_get_system_windows_directory(fname_buffer, sizeof(fname_buffer)))
+    if (GetSystemWindowsDirectory(fname_buffer, sizeof(fname_buffer)))
       errors += add_directory(alloc, fname_buffer, dirs);
 
     if (GetWindowsDirectory(fname_buffer, sizeof(fname_buffer)))

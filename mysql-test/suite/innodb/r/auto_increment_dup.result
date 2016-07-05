@@ -4,15 +4,13 @@ id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 k INT,
 c CHAR(1),
 UNIQUE KEY(k)) ENGINE=InnoDB;
-#
-# Connection 1
-#
+connect con1, localhost, root;
+connect con2, localhost, root;
+connection con1;
 SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
 affected rows: 0
 INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
-#
-# Connection 2
-#
+connection con2;
 SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
 affected rows: 0
 SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
@@ -20,6 +18,7 @@ affected rows: 0
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
+connection con1;
 affected rows: 4
 info: Records: 3  Duplicates: 1  Warnings: 0
 SET DEBUG_SYNC='RESET';
@@ -30,4 +29,7 @@ id	k	c
 2	3	NULL
 5	4	NULL
 6	5	NULL
+disconnect con1;
+disconnect con2;
+connection default;
 DROP TABLE t1;

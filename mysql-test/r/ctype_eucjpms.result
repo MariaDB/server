@@ -33913,3 +33913,24 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# End of 10.2 tests
+#
+#
+# MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET eucjpms);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.ujis.txt' INTO TABLE t1 CHARACTER SET eucjpms IGNORE 4 LINES;
+SELECT HEX(a) FROM t1;
+HEX(a)
+3F
+78787831
+3F3F
+78787832
+8FA1A1
+78787833
+3F3F
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

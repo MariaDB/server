@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 DROP TABLE IF EXISTS t300;
+connection master;
 create table t300 (
 f1 int,
 f2 int,
@@ -304,6 +305,7 @@ f299 int,
 f300 int,
 primary key (f1));
 insert into t300 set f1= 1;
+connection slave;
 select f300 from t300;
 f300
 NULL
@@ -311,5 +313,7 @@ select count(*) as one from t300;
 one
 1
 *** Cleanup  ***
+connection master;
 DROP TABLE t300;
+connection slave;
 include/rpl_end.inc

@@ -246,7 +246,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob COMMENT 'This is a TINYBLOB column'
+  `c1` tinyblob DEFAULT NULL COMMENT 'This is a TINYBLOB column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -258,7 +258,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob COMMENT 'This is a BLOB column'
+  `c1` blob DEFAULT NULL COMMENT 'This is a BLOB column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -270,7 +270,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob COMMENT 'This is a MEDIUMBLOB column'
+  `c1` mediumblob DEFAULT NULL COMMENT 'This is a MEDIUMBLOB column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -282,7 +282,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob COMMENT 'This is a LONGBLOB column'
+  `c1` longblob DEFAULT NULL COMMENT 'This is a LONGBLOB column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -294,7 +294,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext COMMENT 'This is a TINYTEXT column'
+  `c1` tinytext DEFAULT NULL COMMENT 'This is a TINYTEXT column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -306,7 +306,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text COMMENT 'This is a TEXT column'
+  `c1` text DEFAULT NULL COMMENT 'This is a TEXT column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -318,7 +318,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext COMMENT 'This is a MEDIUMTEXT column'
+  `c1` mediumtext DEFAULT NULL COMMENT 'This is a MEDIUMTEXT column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -330,7 +330,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext COMMENT 'This is a LONGTEXT column'
+  `c1` longtext DEFAULT NULL COMMENT 'This is a LONGTEXT column'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;

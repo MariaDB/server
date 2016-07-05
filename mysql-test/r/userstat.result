@@ -80,9 +80,11 @@ delete from t1 where a=3;
 select * from t1 where a=999;
 a	b
 drop table t1;
+connect  ssl_con,localhost,root,,,,,SSL;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
+connection default;
 create table t1 (a int, primary key (a), b int default 0) engine=innodb;
 begin;
 insert into t1 values(1,1);
@@ -132,19 +134,16 @@ Handler_write	7
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
 9
+disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	t1	PRIMARY	2
 select * from information_schema.table_statistics;
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	t1	6	13	13
 show table_statistics;
 Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
-test	t1	6	13	13
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read
-test	t1	PRIMARY	2
 select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, OTHER_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1

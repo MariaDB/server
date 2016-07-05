@@ -210,7 +210,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a TINYBLOB column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -222,7 +222,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a BLOB column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -234,7 +234,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a MEDIUMBLOB column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -246,7 +246,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a LONGBLOB column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -258,7 +258,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a TINYTEXT column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -270,7 +270,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a TEXT column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -282,7 +282,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a MEDIUMTEXT column'
 DROP TABLE t1;
 SHOW TABLES;
@@ -294,7 +294,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COMMENT='This table has a LONGTEXT column'
 DROP TABLE t1;
 SHOW TABLES;

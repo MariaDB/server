@@ -27,6 +27,8 @@ SET del_count = del_count - 2;
 END WHILE;
 END|
 CALL test.proc_norm();
+connection slave;
+connection master;
 DROP PROCEDURE test.proc_norm;
 DROP TABLE test.regular_tbl;
 include/rpl_end.inc

@@ -1,6 +1,7 @@
 #==============================================================================
 # Establish the level of IPV6 support
 #==============================================================================
+connection default;
 #==============================================================================
 # Get hostname, port number
 #==============================================================================
@@ -12,6 +13,7 @@ SELECT @@port INTO @MY_MASTER_PORT;
 
 # 1.1 Disable instrumentation of the default (this) connection
 
+connection default;
 UPDATE performance_schema.threads
 SET INSTRUMENTED='NO' WHERE PROCESSLIST_ID = CONNECTION_ID();
 
@@ -74,23 +76,27 @@ TRUNCATE performance_schema.socket_summary_by_event_name;
 for later comparison to the 'after' byte count as a simple confirmation
 that the table was updated.
 
+connection default;
 SELECT sum(SUM_NUMBER_OF_BYTES_WRITE) INTO @my_write_count
 FROM performance_schema.socket_summary_by_instance;
 
 # 3.3 From connection 1, insert one a 1K row of data into t1
 
+connection con1;
 USE mysqltest;
 INSERT INTO t1 (s1) VALUES (REPEAT('a', 1024));
 INSERT INTO t1 (s1) SELECT s1 FROM t1;
 
 # 3.4 From connection 2, insert one a 1K row of data into t2
 
+connection con2;
 USE mysqltest;
 INSERT INTO t2 (s1) VALUES (REPEAT('a', 1024));
 INSERT INTO t2 (s1) SELECT s1 FROM t2;
 
 # 3.5 Get the 'after' sum of bytes written from socket_summary_by_instance
 
+connection default;
 SELECT sum(SUM_NUMBER_OF_BYTES_WRITE) INTO @my_write_count
 FROM performance_schema.socket_summary_by_instance;
 
@@ -112,10 +118,15 @@ consistent with totals in socket_summary_by_instance
 
 # 5.1 Disconnect con1
 
+connection con1;
+disconnect con1;
 
 # 5.2 Disconnect con2
 
+connection con2;
+disconnect con2;
 
 # 5.3 Drop mysqltest
 
+connection default;
 DROP DATABASE mysqltest;

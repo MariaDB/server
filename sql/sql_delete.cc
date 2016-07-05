@@ -40,6 +40,8 @@
 #include "sql_statistics.h"
 #include "transaction.h"
 #include "records.h"                            // init_read_record,
+#include "filesort.h"
+#include "uniques.h"
 #include "sql_derived.h"                        // mysql_handle_list_of_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
@@ -227,10 +229,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   int		error, loc_error;
   TABLE		*table;
   SQL_SELECT	*select=0;
+  SORT_INFO	*file_sort= 0;
   READ_RECORD	info;
   bool          using_limit=limit != HA_POS_ERROR;
   bool		transactional_table, safe_update, const_cond;
   bool          const_cond_result;
+  bool		return_error= 0;
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
@@ -259,7 +263,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
      my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
      DBUG_RETURN(TRUE);
   }
-  if (!(table= table_list->table) || !table->created)
+  if (!(table= table_list->table) || !table->is_created())
   {
       my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
 	       table_list->view_db.str, table_list->view_name.str);
@@ -405,7 +409,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->covering_keys.clear_all();
   table->quick_keys.clear_all();		// Can't use 'only index'
 
-  select=make_select(table, 0, 0, conds, 0, &error);
+  select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (error)
     DBUG_RETURN(TRUE);
   if ((select && select->check_quick(thd, safe_update, limit)) || !limit)
@@ -486,62 +490,47 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   if (query_plan.using_filesort)
   {
-    ha_rows examined_rows;
-    ha_rows found_rows;
-    uint         length= 0;
-    SORT_FIELD  *sortorder;
 
     {
+      Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
-      table->sort.io_cache= (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
-                                                   MYF(MY_FAE | MY_ZEROFILL |
-                                                       MY_THREAD_SPECIFIC));
+
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder= make_unireg_sortorder(thd, NULL, 0, order, &length, NULL)) ||
-	  (table->sort.found_records= filesort(thd, table, sortorder, length,
-                                               select, HA_POS_ERROR,
-                                               true,
-                                               &examined_rows, &found_rows,
-                                               fs_tracker))
-	    == HA_POS_ERROR)
-      {
-        delete select;
-        free_underlaid_joins(thd, &thd->lex->select_lex);
-        DBUG_RETURN(TRUE);
-      }
-      thd->inc_examined_row_count(examined_rows);
+      if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
+        goto got_error;
+
+      thd->inc_examined_row_count(file_sort->examined_rows);
       /*
         Filesort has already found and selected the rows we want to delete,
         so we don't need the where clause
       */
       delete select;
-      free_underlaid_joins(thd, select_lex);
+
+      /*
+        If we are not in DELETE ... RETURNING, we can free subqueries. (in
+        DELETE ... RETURNING we can't, because the RETURNING part may have
+        a subquery in it)
+      */
+      if (!with_select)
+        free_underlaid_joins(thd, select_lex);
       select= 0;
     }
   }
 
   /* If quick select is used, initialize it before retrieving rows. */
   if (select && select->quick && select->quick->reset())
-  {
-    delete select;
-    free_underlaid_joins(thd, select_lex);
-    DBUG_RETURN(TRUE);
-  }
+    goto got_error;
 
   if (query_plan.index == MAX_KEY || (select && select->quick))
-    error= init_read_record(&info, thd, table, select, 1, 1, FALSE);
+    error= init_read_record(&info, thd, table, select, file_sort, 1, 1, FALSE);
   else
     error= init_read_record_idx(&info, thd, table, 1, query_plan.index,
                                 reverse);
   if (error)
-  {
-    delete select;
-    free_underlaid_joins(thd, select_lex);
-    DBUG_RETURN(TRUE);
-  }
-
+    goto got_error;
+  
   init_ftfuncs(thd, select_lex, 1);
   THD_STAGE_INFO(thd, stage_updating);
 
@@ -697,8 +686,6 @@ cleanup:
   }
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction.stmt.modified_non_trans_table);
   
-
-  free_underlaid_joins(thd, select_lex);
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
@@ -711,6 +698,8 @@ cleanup:
       my_ok(thd, deleted);
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
+  delete file_sort;
+  free_underlaid_joins(thd, select_lex);
   DBUG_RETURN(error >= 0 || thd->is_error());
   
   /* Special exits */
@@ -729,9 +718,16 @@ send_nothing_and_leave:
   */
 
   delete select;
+  delete file_sort;
   free_underlaid_joins(thd, select_lex);
   //table->set_keyread(false);
-  DBUG_RETURN((thd->is_error() || thd->killed) ? 1 : 0);
+
+  DBUG_ASSERT(!return_error || thd->is_error() || thd->killed);
+  DBUG_RETURN((return_error || thd->is_error() || thd->killed) ? 1 : 0);
+
+got_error:
+  return_error= 1;
+  goto send_nothing_and_leave;
 }
 
 
@@ -745,7 +741,7 @@ send_nothing_and_leave:
     wild_num            - number of wildcards used in optional SELECT clause 
     field_list          - list of items in optional SELECT clause
     conds		- conditions
-
+l
   RETURN VALUE
     FALSE OK
     TRUE  error
@@ -766,7 +762,8 @@ send_nothing_and_leave:
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
-      setup_fields(thd, NULL, field_list, MARK_COLUMNS_READ, NULL, 0) ||
+      setup_fields(thd, Ref_ptr_array(),
+                   field_list, MARK_COLUMNS_READ, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
@@ -1183,7 +1180,8 @@ int multi_delete::do_deletes()
     if (tempfiles[counter]->get(table))
       DBUG_RETURN(1);
 
-    local_error= do_table_deletes(table, thd->lex->ignore);
+    local_error= do_table_deletes(table, &tempfiles[counter]->sort,
+                                  thd->lex->ignore);
 
     if (thd->killed && !local_error)
       DBUG_RETURN(1);
@@ -1213,14 +1211,15 @@ int multi_delete::do_deletes()
    @retval  1 Triggers or handler reported error.
    @retval -1 End of file from handler.
 */
-int multi_delete::do_table_deletes(TABLE *table, bool ignore)
+int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
+                                   bool ignore)
 {
   int local_error= 0;
   READ_RECORD info;
   ha_rows last_deleted= deleted;
   DBUG_ENTER("do_deletes_for_table");
 
-  if (init_read_record(&info, thd, table, NULL, 0, 1, FALSE))
+  if (init_read_record(&info, thd, table, NULL, sort_info, 0, 1, FALSE))
     DBUG_RETURN(1);
 
   /*

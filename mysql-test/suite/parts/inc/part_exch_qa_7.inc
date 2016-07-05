@@ -14,7 +14,6 @@ CREATE USER test_2@localhost;
 --send
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
 
---echo connect (test_2,localhost,test_2,,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect (test_2,localhost,test_2,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 # Wait until exchange has been done.
 let $wait_condition= SELECT count(a)>0 FROM tp WHERE a=1;
@@ -31,7 +30,6 @@ INSERT INTO tp VALUES (7,"Seven");
 SELECT * FROM tp WHERE a BETWEEN 0 AND 10;
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
 
---echo connection default;
 connection default;
 --echo reap;
 reap;
@@ -40,7 +38,6 @@ SELECT * FROM t_10;
 --sorted_result
 SELECT * FROM tp WHERE a BETWEEN 0 AND 10;
 
---echo connection test_2;
 connection test_2;
 let $wait_condition= SELECT count(a)>0 FROM tp WHERE a=2;
 --source include/wait_condition.inc
@@ -48,10 +45,8 @@ let $wait_condition= SELECT count(a)>0 FROM tp WHERE a=2;
 SELECT * FROM t_10;
 --sorted_result
 SELECT * FROM tp WHERE a BETWEEN 0 AND 10;
---echo disconnect test_2;
 disconnect test_2;
 
---echo connection default;
 connection default;
 --sorted_result
 SELECT * FROM t_10;
@@ -60,4 +55,3 @@ SELECT * FROM tp WHERE a BETWEEN 0 AND 10;
 --source suite/parts/inc/part_exch_drop_tabs.inc
 
 DROP USER test_2@localhost;
-

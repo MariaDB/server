@@ -7,11 +7,9 @@ CREATE INDEX i1 ON t1 (a);
 CREATE OR REPLACE INDEX i1 ON t1 (a, b);
 sync_slave_with_master;
 
---echo # On slave:
 SHOW CREATE TABLE t1;
 
 connection master;
---echo # On master:
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 sync_slave_with_master;

@@ -1679,6 +1679,29 @@ SELECT OCTET_LENGTH(a),a FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8402 Bug#77473 Bug#21317406 TRUNCATED DATA WITH SUBQUERY & UTF8
+--echo #
+--echo #
+
+SET NAMES utf8;
+SELECT length(rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2)) AS data;
+SELECT length(data) AS len FROM (
+  SELECT rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2) AS data
+) AS sub;
+
+SELECT length(rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2)) AS data;
+SELECT length(data) AS len FROM (
+  SELECT rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2) AS data
+) AS sub;
+
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36766) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36767) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36778) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65535) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65536) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65537) AS data) AS sub;
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1949,4 +1972,93 @@ SET @@SQL_MODE=default;
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9824 LOAD DATA does not work with multi-byte strings in LINES TERMINATED BY when IGNORE is specified
+--echo #
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё';
+SELECT c1 FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
+SELECT c1 FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+--echo #
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
+--echo #
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+# This test uses some magic codes:
+# _latin1 0xC39F is "A WITH TILDE + Y WITH DIAERESIS"
+# _utf8   0xC39F is "SHARP S"
+
+# "A WITH TILDE + Y WITH DIAERESIS" in DEFAULT.
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a),a  FROM t1;
+SET NAMES latin1;
+ALTER TABLE t1 ADD b VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß');
+SET NAMES utf8;
+ALTER TABLE t1 ADD c VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ÃŸ');
+SHOW CREATE TABLE t1;
+# Testing that DEFAULT is independent on the current "SET NAMES".
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SELECT * FROM t1;
+SET NAMES latin1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SET NAMES utf8;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a), a FROM t1;
+DROP TABLE t1;
+
+# "SHARP S" in DEFAULT
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #

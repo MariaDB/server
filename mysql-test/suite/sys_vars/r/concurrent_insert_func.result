@@ -14,6 +14,7 @@ INSERT INTO t1(name) VALUES('Record_3');
 ## locking table ##
 LOCK TABLE t1 READ LOCAL;
 ## Creating new connection to insert some rows in table ##
+connect  test_con1,localhost,root,,;
 connection test_con1;
 ## New records should come at the end of all rows ##
 INSERT INTO t1(name) VALUES('Record_4');
@@ -117,5 +118,5 @@ Record_5
 Record_6
 ## Dropping table ##
 DROP TABLE t1;
-## Disconnecting connection ##
+disconnect test_con1;
 SET @@global.concurrent_insert= @start_value;

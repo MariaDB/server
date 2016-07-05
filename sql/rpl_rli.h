@@ -148,7 +148,7 @@ public:
 
     Protected by data_lock.
   */
-  TABLE *save_temporary_tables;
+  All_tmp_tables_list *save_temporary_tables;
 
   /*
     standard lock acquisition order to avoid deadlocks:
@@ -347,10 +347,11 @@ public:
 
   rpl_parallel parallel;
   /*
-    The relay_log_state keeps track of the current binlog state of the execution
-    of the relay log. This is used to know where to resume current GTID position
-    if the slave thread is stopped and restarted.
-    It is only accessed from the SQL thread, so it does not need any locking.
+    The relay_log_state keeps track of the current binlog state of the
+    execution of the relay log. This is used to know where to resume
+    current GTID position if the slave thread is stopped and
+    restarted.  It is only accessed from the SQL thread, so it does
+    not need any locking.
   */
   rpl_binlog_state relay_log_state;
   /*

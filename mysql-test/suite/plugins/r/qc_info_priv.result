@@ -30,6 +30,8 @@ STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BL
 test	select * from t1	1	512	#	-1	1011	513	binary	utf32	utf32_bin	Europe/Moscow	4	7	STRICT_ALL_TABLES	ar_SD	1	1	#	0	0	0	#
 test	select * from t1	1	512	#	-1	1024	1024	latin1	latin1	latin1_swedish_ci	SYSTEM	0	4	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	#	0	0	1	#
 create user mysqltest;
+connect  conn1,localhost,mysqltest,,;
+connection conn1;
 select a from t1;
 a
 1
@@ -38,6 +40,7 @@ a
 select count(*) from information_schema.query_cache_info;
 count(*)
 0
+connection default;
 drop user mysqltest;
 drop table t1;
 set global query_cache_size= default;

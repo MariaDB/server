@@ -297,16 +297,21 @@ drop table if exists t1;
 create table t1 (a int, b int);
 insert into t1 values (1,1);
 lock table t1 read;
-connection: update
+connect  update,localhost,root,,;
+connection update;
 insert delayed into t1 values (2,2);;
-connection: select
+connection default;
+connect  select,localhost,root,,;
 select * from t1;
 a	b
 1	1
-connection: default
+connection default;
 select * from t1;
 a	b
 1	1
+connection default;
+disconnect update;
+disconnect select;
 unlock tables;
 select * from t1;
 a	b
@@ -359,70 +364,70 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 CREATE TABLE t3 (a INT);
 # Test 1: Using LOCK TABLE
-# Connection con1
+connect  con1, localhost, root;
 LOCK TABLE t1 WRITE;
-# Connection default
+connection default;
 LOCK TABLE t2 WRITE;
 # Sending:
 INSERT DELAYED INTO t1 VALUES (1);
-# Connection con1
+connection con1;
 # Wait until INSERT DELAYED is blocked on table 't1'.
 INSERT DELAYED INTO t2 VALUES (1);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 UNLOCK TABLES;
-# Connection default
+connection default;
 # Reaping: INSERT DELAYED INTO t1 VALUES (1)
 UNLOCK TABLES;
 # Test 2: Using ALTER TABLE
 START TRANSACTION;
 SELECT * FROM t1 WHERE a=0;
 a
-# Connection con1
+connection con1;
 # Sending:
 ALTER TABLE t1 MODIFY a INT UNSIGNED;;
-# Connection default
+connection default;
 # Wait until ALTER TABLE is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (3);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 COMMIT;
-# Connection con1
+connection con1;
 # Reaping: ALTER TABLE t1 COMMENT 'test'
 # Test 3: Using RENAME TABLE
-# Connection default
+connection default;
 START TRANSACTION;
 INSERT INTO t2 VALUES (1);
-# Connection con1
+connection con1;
 # Sending:
 RENAME TABLE t1 to t5, t2 to t4;
-# Connection default
+connection default;
 # Wait until RENAME TABLE is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (4);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 COMMIT;
-# Connection con1
+connection con1;
 # Reaping: RENAME TABLE t1 to t5, t2 to t4
-# Connection default
+connection default;
 # Reverting the renames
 RENAME TABLE t5 to t1, t4 to t2;
 # Test 4: Two INSERT DELAYED on the same table
 START TRANSACTION;
 INSERT INTO t2 VALUES (1);
-# Connection con2
+connect  con2, localhost, root;
 LOCK TABLE t1 WRITE, t2 WRITE;
-# Connection con1
+connection con1;
 # Wait until LOCK TABLE is blocked on table 't2'.
 INSERT DELAYED INTO t1 VALUES (5);
-# Connection default
+connection default;
 # Wait until INSERT DELAYED is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (6);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 COMMIT;
-# Connection con2
+connection con2;
 # Reaping: LOCK TABLE t1 WRITE, t2 WRITE
 UNLOCK TABLES;
-# Connection con1
+connection con1;
 # Reaping: INSERT DELAYED INTO t1 VALUES (5)
-# Connection default
+connection default;
 # Test 5: LOCK TABLES + INSERT DELAYED in one connection.
 # This test has triggered some asserts in metadata locking
 # subsystem at some point in time..
@@ -434,13 +439,17 @@ LOCK TABLE t1 WRITE;
 INSERT DELAYED INTO t2 VALUES (8);
 UNLOCK TABLES;
 SET AUTOCOMMIT= 1;
-# Connection con2
-# Connection con1
-# Connection default
+connection con2;
+disconnect con2;
+connection con1;
+disconnect con1;
+connection default;
 DROP TABLE t1, t2, t3;
 #
 # Test for bug #56251 "Deadlock with INSERT DELAYED and MERGE tables".
 #
+connect  con1,localhost,root,,;
+connection default;
 drop table if exists t1, t2, tm;
 create table t1(a int);
 create table t2(a int);
@@ -448,10 +457,10 @@ create table tm(a int) engine=merge union=(t1, t2);
 begin;
 select * from t1;
 a
-# Connection 'con1'.
+connection con1;
 # Sending:
 alter table t1 comment 'test';
-# Connection 'default'.
+connection default;
 # Wait until ALTER TABLE blocks and starts waiting
 # for connection 'default'. It should wait with a
 # pending SNW lock on 't1'.
@@ -462,9 +471,10 @@ insert delayed into tm values (1);
 ERROR HY000: DELAYED option not supported for table 'tm'
 # Unblock ALTER TABLE.
 commit;
-# Connection 'con1'.
+connection con1;
 # Reaping ALTER TABLE:
-# Connection 'default'.
+disconnect con1;
+connection default;
 drop tables tm, t1, t2;
 #
 # MDEV-9621 INSERT DELAYED fails on insert for tables with many columns

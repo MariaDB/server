@@ -220,7 +220,7 @@ void STDCALL mysql_server_end()
   }
 #ifdef NOT_NEEDED
   /*
-    The following is not needed as if the program explicitely called
+    The following is not needed as if the program explicitly called
     my_init() then we can assume it will also call my_end().
     The reason to not also do it here is in that case we can't get
     statistics from my_end() to debug log.
@@ -3474,7 +3474,7 @@ static void fetch_float_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     */
     char buff[FLOATING_POINT_BUFFER];
     size_t len;
-    if (field->decimals >= NOT_FIXED_DEC)
+    if (field->decimals >= FLOATING_POINT_DECIMALS)
       len= my_gcvt(value, type,
                    (int) MY_MIN(sizeof(buff)-1, param->buffer_length),
                    buff, NULL);

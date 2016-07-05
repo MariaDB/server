@@ -354,7 +354,7 @@ const uchar *query_state_map;
 #include "emb_qcache.h"
 #endif
 
-#if !defined(EXTRA_DBUG) && !defined(DBUG_OFF)
+#if defined(EXTRA_DEBUG) && !defined(DBUG_OFF)
 #define RW_WLOCK(M) {DBUG_PRINT("lock", ("rwlock wlock 0x%lx",(ulong)(M))); \
   if (!mysql_rwlock_wrlock(M)) DBUG_PRINT("lock", ("rwlock wlock ok")); \
   else DBUG_PRINT("lock", ("rwlock wlock FAILED %d", errno)); }
@@ -1999,36 +1999,32 @@ lookup:
   for (; block_table != block_table_end; block_table++)
   {
     TABLE_LIST table_list;
-    TABLE *tmptable;
+    TMP_TABLE_SHARE *tmptable;
     Query_cache_table *table = block_table->parent;
 
     /*
-      Check that we have not temporary tables with same names of tables
-      of this query. If we have such tables, we will not send data from
-      query cache, because temporary tables hide real tables by which
+      Check that we do not have temporary tables with same names as that of
+      base tables from this query. If we have such tables, we will not send
+      data from query cache, because temporary tables hide real tables by which
       query in query cache was made.
     */
-    for (tmptable= thd->temporary_tables; tmptable ; tmptable= tmptable->next)
+    if ((tmptable=
+         thd->find_tmp_table_share_w_base_key((char *) table->data(),
+                                              table->key_length())))
     {
-      if (tmptable->s->table_cache_key.length - TMP_TABLE_KEY_EXTRA == 
-          table->key_length() &&
-          !memcmp(tmptable->s->table_cache_key.str, table->data(),
-                  table->key_length()))
-      {
-        DBUG_PRINT("qcache",
-                   ("Temporary table detected: '%s.%s'",
-                    tmptable->s->db.str, tmptable->alias.c_ptr()));
-        unlock();
-        /*
-          We should not store result of this query because it contain
-          temporary tables => assign following variable to make check
-          faster.
-        */
-        thd->query_cache_is_applicable= 0;      // Query can't be cached
-        thd->lex->safe_to_cache_query= 0;       // For prepared statements
-        BLOCK_UNLOCK_RD(query_block);
-        DBUG_RETURN(-1);
-      }
+      DBUG_PRINT("qcache",
+                 ("Temporary table detected: '%s.%s'",
+                  tmptable->db.str, tmptable->table_name.str));
+      unlock();
+      /*
+        We should not store result of this query because it contain
+        temporary tables => assign following variable to make check
+        faster.
+      */
+      thd->query_cache_is_applicable= 0;        // Query can't be cached
+      thd->lex->safe_to_cache_query= 0;         // For prepared statements
+      BLOCK_UNLOCK_RD(query_block);
+      DBUG_RETURN(-1);
     }
 
     bzero((char*) &table_list,sizeof(table_list));
@@ -2360,7 +2356,7 @@ void Query_cache::invalidate(THD *thd, char *db)
           }
           /* 
             The used tables are linked in a circular list;
-            loop until we return to the begining.
+            loop until we return to the beginning.
           */
         } while (table_block != tables_blocks);
         /*
@@ -3301,7 +3297,7 @@ Query_cache::invalidate_query_block_list(THD *thd,
 }
 
 /*
-  Register given table list begining with given position in tables table of
+  Register given table list beginning with given position in tables table of
   block
 
   SYNOPSIS
@@ -4344,7 +4340,7 @@ my_bool Query_cache::move_by_type(uchar **border,
     {
       Query_cache_block_table *block_table = new_block->table(j);
 
-      // use aligment from begining of table if 'next' is in same block
+      // use aligment from beginning of table if 'next' is in same block
       if ((beg_of_table_table <= block_table->next) &&
 	  (block_table->next < end_of_table_table))
 	((Query_cache_block_table *)(beg_of_new_table_table + 
@@ -4354,7 +4350,7 @@ my_bool Query_cache::move_by_type(uchar **border,
       else
 	block_table->next->prev= block_table;
 
-      // use aligment from begining of table if 'prev' is in same block
+      // use aligment from beginning of table if 'prev' is in same block
       if ((beg_of_table_table <= block_table->prev) &&
 	  (block_table->prev < end_of_table_table))
 	((Query_cache_block_table *)(beg_of_new_table_table + 
@@ -4851,7 +4847,7 @@ my_bool Query_cache::check_integrity(bool locked)
       if (((uchar*)block) + block->length != ((uchar*)block->pnext))
       {
 	DBUG_PRINT("error", 
-		   ("block 0x%lx, type %u, ended at 0x%lx, but next block begining at 0x%lx",
+		   ("block 0x%lx, type %u, ended at 0x%lx, but next block beginning at 0x%lx",
 		    (ulong) block, (uint) block->type, 
 		    (ulong) (((uchar*)block) + block->length),
 		    (ulong) ((uchar*)block->pnext)));

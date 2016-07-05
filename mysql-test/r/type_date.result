@@ -440,6 +440,7 @@ select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 drop table t1;
 #
 # MDEV-9521 Least function returns 0000-00-00 for null date columns instead of null
+# MDEV-9972 Least function retuns date in date time format
 #
 CREATE TABLE t1 (
 id BIGINT NOT NULL,

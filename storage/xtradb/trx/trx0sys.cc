@@ -353,10 +353,17 @@ trx_sys_update_wsrep_checkpoint(
             unsigned char xid_uuid[16];
             long long xid_seqno = read_wsrep_xid_seqno(xid);
             read_wsrep_xid_uuid(xid, xid_uuid);
-            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8))
+            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 16))
             {
+              /*
+                This check is a protection against the initial seqno (-1)
+                assigned in read_wsrep_xid_uuid(), which, if not checked,
+                would cause the following assertion to fail.
+              */
+              if (xid_seqno > -1 )
+              {
                 ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
-                trx_sys_cur_xid_seqno = xid_seqno;
+              }
             }
             else
             {
@@ -415,6 +422,8 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
                                       + TRX_SYS_WSREP_XID_MAGIC_N_FLD))
             != TRX_SYS_WSREP_XID_MAGIC_N) {
                 memset(xid, 0, sizeof(*xid));
+                long long seqno= -1;
+                memcpy(xid->data + 24, &seqno, sizeof(long long));
                 xid->formatID = -1;
                 trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);

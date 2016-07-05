@@ -2348,7 +2348,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `clipid` int(11) NOT NULL,
   `mos` tinyint(4) DEFAULT '0',
-  `Tape` tinytext,
+  `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

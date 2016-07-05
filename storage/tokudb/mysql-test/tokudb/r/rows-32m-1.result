@@ -5,6 +5,7 @@ drop table if exists t;
 create table t (id int not null primary key, v0 longblob not null,v1 longblob not null);
 select @@max_allowed_packet into @my_max_allowed_packet;
 set global max_allowed_packet=100000000;
+connect conn1,localhost,root,,;
 insert into t values (1,repeat('a',16*1024*1024),repeat('b',16*1024*1024));
 ERROR HY000: Got error 22 "Invalid argument" from storage engine TokuDB
 insert into t values (1,repeat('a',16*1024*1024),repeat('b',16*1024*1024-1));
@@ -40,5 +41,7 @@ id	length(v0)	length(v1)
 2	1	1
 3	1	1
 4	1	1
+connection default;
+disconnect conn1;
 set global max_allowed_packet=@my_max_allowed_packet;
 drop table t;

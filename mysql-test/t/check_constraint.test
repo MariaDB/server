@@ -1,0 +1,71 @@
+#
+# Check of check constraints
+
+set @save_check_constraint=@@check_constraint_checks;
+
+create table t1 (a int check(a>10), b int check (b > 20), constraint `min` check (a+b > 100), constraint `max` check (a+b <500)) engine=myisam;
+show create table t1;
+insert into t1 values (100,100);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (1,1);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (20,1);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (20,30);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (500,500);
+
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (101,101),(102,102),(600,600),(103,103);
+select * from t1;
+truncate table t1;
+insert ignore into t1 values (101,101),(102,102),(600,600),(103,103);
+select * from t1;
+set check_constraint_checks=0;
+truncate table t1;
+insert into t1 values (101,101),(102,102),(600,600),(103,103);
+select * from t1;
+set check_constraint_checks=@save_check_constraint;
+
+--replace_regex /failed for.*/failed for table/
+--error ER_CONSTRAINT_FAILED
+alter table t1 add c int default 0 check (c < 10);
+
+set check_constraint_checks=0;
+alter table t1 add c int default 0 check (c < 10);
+alter table t1 add check (a+b+c < 500);
+set check_constraint_checks=@save_check_constraint;
+
+show create table t1;
+--error ER_CONSTRAINT_FAILED
+insert into t1 values(105,105,105);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values(249,249,9);
+insert into t1 values(105,105,9);
+select * from t1;
+
+create table t2 like t1;
+show create table t2;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t2 drop constraint c;
+alter table t2 drop constraint if exists c;
+alter table t2 drop constraint min;
+show create table t2;
+
+drop table t1,t2;
+
+#
+# check constraint name auto-generation:
+#
+create or replace table t1 (a int, b int, constraint check (a>b));
+show create table t1;
+create or replace table t1 (a int, b int,
+  constraint CONSTRAINT_1 check (a>1),
+  constraint check (b>1));
+show create table t1;
+create or replace table t1 (a int, b int,
+  constraint CONSTRAINT_1 check (a>1),
+  constraint check (b>1),
+  constraint CONSTRAINT_2 check (a>b));
+show create table t1;
+drop table t1;

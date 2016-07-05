@@ -29,6 +29,7 @@ args=""
 defaults=""
 mysqld_opt=""
 user=""
+silent_startup="--silent-startup"
 
 force=0
 in_rpm=0
@@ -124,7 +125,7 @@ parse_arguments()
         # where a chown of datadir won't help)
         user=`parse_arg "$arg"` ;;
       --skip-name-resolve) ip_only=1 ;;
-      --verbose) verbose=1 ;; # Obsolete
+      --verbose) verbose=1 ; silent_startup="" ;;
       --rpm) in_rpm=1 ;;
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
@@ -216,7 +217,7 @@ cannot_find_file()
 # Ok, let's go.  We first need to parse arguments which are required by
 # my_print_defaults so that we can execute it first, then later re-parse
 # the command line to add any extra bits that we need.
-parse_arguments PICK-ARGS-FROM-ARGV "$@"
+parse_arguments "$@"
 
 #
 # We can now find my_print_defaults.  This script supports:
@@ -418,7 +419,7 @@ fi
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
-  "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap \
+  "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
@@ -427,7 +428,7 @@ mysqld_install_cmd_line()
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
@@ -460,26 +461,6 @@ else
   echo "at http://mariadb.org/jira"
   echo
   exit 1
-fi
-
-s_echo "Filling help tables..."
-if { echo "use mysql;"; cat "$fill_help_tables"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: HELP FILES ARE NOT COMPLETELY INSTALLED!"
-  echo "The \"HELP\" command might not work properly."
-fi
-
-s_echo "Creating OpenGIS required SP-s..."
-if { echo "use test;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: OPENGIS REQUIRED SP-S WERE NOT COMPLETELY INSTALLED!"
-  echo "GIS extentions might not work properly."
 fi
 
 

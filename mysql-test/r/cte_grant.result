@@ -1,0 +1,65 @@
+connect  root,localhost,root,,test;
+connection root;
+create database mysqltest;
+create user mysqltest_1@localhost;
+connect  user1,localhost,mysqltest_1,,test;
+connection user1;
+connection root;
+create table mysqltest.t1 (a int, b int);
+insert into mysqltest.t1 values (2,10), (1,30);
+create table mysqltest.t2 (c int, d char(32));
+insert into mysqltest.t2 values (1,'xxx'), (1,'zzz');
+grant select on mysqltest.t1 to mysqltest_1@localhost;
+grant select (c) on mysqltest.t2 to mysqltest_1@localhost;
+connection user1;
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a;
+c	b
+1	30
+1	30
+select t.c,t.d,t1.b
+from (select c,d from mysqltest.t2 where c < 2) as t, mysqltest.t1
+where t.c=t1.a;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 't2'
+with t as (select c,d from mysqltest.t2 where c < 2)
+select t.c,t.d,t1.b from t,mysqltest.t1 where t.c=t1.a;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 't2'
+connection root;
+create view mysqltest.v1(f1,f2) as
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a;
+create view mysqltest.v2(c,d) as
+with t as (select a from mysqltest.t1 where a>=3)
+select t.a,b from t,mysqltest.t1 where mysqltest.t1.a = t.a;
+grant select on mysqltest.v1 to mysqltest_1@localhost;
+grant select (c) on mysqltest.v2 to mysqltest_1@localhost;
+grant create view on mysqltest.* to mysqltest_1@localhost;
+connection user1;
+create view mysqltest.v3(c,d) as
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a;
+create view mysqltest.v4(f1,f2,f3) as
+with t as (select c,d from mysqltest.t2 where c < 2)
+select t.c,t.d,t1.b from t,mysqltest.t1 where t.c=t1.a;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 't2'
+select * from mysqltest.v1;
+f1	f2
+1	30
+1	30
+select c from mysqltest.v2;
+c
+select d from mysqltest.v2;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 'v2'
+select * from mysqltest.v3;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'v3'
+connection root;
+grant select on mysqltest.v3 to mysqltest_1@localhost;
+connection user1;
+select * from mysqltest.v3;
+c	d
+1	30
+1	30
+connection root;
+revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
+drop user mysqltest_1@localhost;
+drop database mysqltest;

@@ -1,3 +1,4 @@
+connect  ssl_compress_con,localhost,root,,,,,SSL COMPRESS;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
@@ -2166,3 +2167,5 @@ Ssl_cipher	DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Compression';
 Variable_name	Value
 Compression	ON
+connection default;
+disconnect ssl_compress_con;

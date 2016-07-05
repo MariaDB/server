@@ -4,6 +4,7 @@ create user test;
 create user foo;
 create role foo;
 grant foo to test;
+connect  conn_1, localhost, test,,;
 set role foo;
 show grants for test;
 Grants for test@%
@@ -14,5 +15,6 @@ Grants for foo
 GRANT USAGE ON *.* TO 'foo'
 show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
+connection default;
 drop user test, foo;
 drop role foo;

@@ -237,3 +237,9 @@ EXECUTE stmt;
 DROP PREPARE stmt;
 
 set storage_engine=@orig_storage_engine;
+
+--
+-- Drop some tables not used anymore in MariaDB
+---
+
+drop table if exists mysql.ndb_binlog_index;

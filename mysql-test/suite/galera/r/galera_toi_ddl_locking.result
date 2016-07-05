@@ -1,7 +1,9 @@
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+connection node_1;
 SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
@@ -15,6 +17,7 @@ SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t2 VALUES (1);
 COMMIT;;
+connection node_1b;
 SET SESSION wsrep_sync_wait = 0;
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'Commit';
 COUNT(*) = 1
@@ -23,19 +26,24 @@ SELECT COUNT(*) = 0 FROM t2;
 COUNT(*) = 0
 1
 SET DEBUG_SYNC= 'now SIGNAL continue';
+connection node_1a;
+connection node_1;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 1 FROM t2;
 COUNT(*) = 1
 1
+connection node_2;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 1 FROM t2;
 COUNT(*) = 1
 1
+connection node_1;
 SET DEBUG_SYNC= 'RESET';
+connection node_1b;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 DROP TABLE t2;

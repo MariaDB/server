@@ -1961,7 +1961,7 @@ static int get_options(int argc, char **argv)
     connect_flag|= CLIENT_IGNORE_SPACE;
 
   if (opt_progress_reports)
-    connect_flag|= CLIENT_PROGRESS;
+    connect_flag|= CLIENT_PROGRESS_OBSOLETE;
 
   return(0);
 }
@@ -3492,7 +3492,6 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(NUM);
   ff2s_check_flag(PART_KEY);
   ff2s_check_flag(GROUP);
-  ff2s_check_flag(UNIQUE);
   ff2s_check_flag(BINCMP);
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
@@ -4650,10 +4649,10 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   mysql.reconnect= debug_info_flag; // We want to know if this happens
 
   /*
-    CLIENT_PROGRESS is set only if we requsted it in mysql_real_connect()
-    and the server also supports it
+    CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
+    mysql_real_connect() and the server also supports it
   */
-  if (mysql.client_flag & CLIENT_PROGRESS)
+  if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
   mysql.reconnect= 1;
@@ -5120,17 +5119,31 @@ static const char *construct_prompt()
           processed_prompt.append("unknown");
         break;
       case 'h':
+      case 'H':
       {
-	const char *prompt;
-	prompt= connected ? mysql_get_host_info(&mysql) : "not_connected";
-	if (strstr(prompt, "Localhost"))
-	  processed_prompt.append("localhost");
-	else
-	{
-	  const char *end=strcend(prompt,' ');
-	  processed_prompt.append(prompt, (uint) (end-prompt));
-	}
-	break;
+        const char *prompt;
+        prompt= connected ? mysql_get_host_info(&mysql) : "not_connected";
+        if (strstr(prompt, "Localhost"))
+        {
+          if (*c == 'h')
+            processed_prompt.append("localhost");
+          else
+          {
+            static char hostname[FN_REFLEN];
+            if (hostname[0])
+              processed_prompt.append(hostname);
+            else if (gethostname(hostname, sizeof(hostname)) == 0)
+              processed_prompt.append(hostname);
+            else
+              processed_prompt.append("gethostname(2) failed");
+          }
+        }
+        else
+        {
+          const char *end=strcend(prompt,' ');
+          processed_prompt.append(prompt, (uint) (end-prompt));
+        }
+        break;
       }
       case 'p':
       {

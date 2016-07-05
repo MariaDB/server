@@ -273,11 +273,21 @@ a
 2011-01-01 01:01:01.12345
 drop table t1;
 create table t1 (a timestamp(5) default current_timestamp);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a timestamp(5) default current_timestamp());
 drop table t1;
 create table t1 (a timestamp(5) default current_timestamp(2));
-ERROR 42000: Invalid default value for 'a'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 create table t1 (a timestamp(5) default current_timestamp(5));
 drop table t1;
 create table t1 (a timestamp(5) default current_timestamp(6));

@@ -1,9 +1,15 @@
 include/master-slave.inc
 [connection master]
+connection master;
+connection slave;
 call mtr.add_suppression('Slave: Error dropping database');
 include/stop_slave.inc
 start slave;
+connection master;
+connection slave;
 stop slave sql_thread;
+connection master;
+connection slave;
 insert into test0.benchmark set state='slave is processing load';
 start slave sql_thread;
 use test0;
@@ -17,6 +23,7 @@ select ts from test0.benchmark where state like 'slave is supposed to finish wit
 select ts from test0.benchmark where state like 'slave ends load' into @s_1;
 select ts from test0.benchmark where state like 'slave is processing load' into @s_0;
 select time_to_sec(@m_1) - time_to_sec(@m_0) as 'delta.out';
+connection master;
 include/diff_tables.inc [master:test15.ti_nk, slave:test15.ti_nk]
 include/diff_tables.inc [master:test15.ti_wk, slave:test15.ti_wk]
 include/diff_tables.inc [master:test14.ti_nk, slave:test14.ti_nk]
@@ -49,4 +56,6 @@ include/diff_tables.inc [master:test1.ti_nk, slave:test1.ti_nk]
 include/diff_tables.inc [master:test1.ti_wk, slave:test1.ti_wk]
 include/diff_tables.inc [master:test0.ti_nk, slave:test0.ti_nk]
 include/diff_tables.inc [master:test0.ti_wk, slave:test0.ti_wk]
+connection master;
+connection slave;
 include/rpl_end.inc

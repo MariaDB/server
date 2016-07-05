@@ -65,6 +65,7 @@ public:
   double val_real();
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return STRING_RESULT; }
+  enum_field_types field_type() const { return string_field_type(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
   void update_null_value()
@@ -517,9 +518,9 @@ public:
   String *val_str(String *);
   void fix_length_and_dec() { maybe_null=1; max_length = 13; }
   const char *func_name() const { return "encrypt"; }
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return FALSE;
   }
 };
 
@@ -562,20 +563,17 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst(THD *thd): Item_str_func(thd)
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
-  {
-    return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
-  }
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
     call
   */
   virtual const char *fully_qualified_func_name() const = 0;
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(
-                                           fully_qualified_func_name());
+    return mark_unsupported_function(fully_qualified_func_name(), arg,
+                                     VCOL_NON_DETERMINISTIC);
   }
 };
 
@@ -598,19 +596,15 @@ public:
 class Item_func_user :public Item_func_sysconst
 {
 protected:
-  bool init (const char *user, const char *host);
+  query_id_t last_query_id;
+  String cached_value;
+  bool init(THD *thd, const char *user, const char *host);
 
 public:
-  Item_func_user(THD *thd): Item_func_sysconst(thd)
-  {
-    str_value.set("", 0, system_charset_info);
-  }
-  String *val_str(String *)
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (null_value ? 0 : &str_value);
-  }
-  bool fix_fields(THD *thd, Item **ref);
+  Item_func_user(THD *thd): Item_func_sysconst(thd), last_query_id(0)
+  {}
+
+  String *val_str(String *);
   void fix_length_and_dec()
   {
     max_length= (username_char_length +
@@ -618,10 +612,6 @@ public:
   }
   const char *func_name() const { return "user"; }
   const char *fully_qualified_func_name() const { return "user()"; }
-  int save_in_field(Field *field, bool no_conversions)
-  {
-    return save_str_value_in_field(field, &str_value);
-  }
 };
 
 
@@ -632,9 +622,15 @@ class Item_func_current_user :public Item_func_user
 public:
   Item_func_current_user(THD *thd, Name_resolution_context *context_arg):
     Item_func_user(thd), context(context_arg) {}
-  bool fix_fields(THD *thd, Item **ref);
+  String *val_str(String *);
   const char *func_name() const { return "current_user"; }
   const char *fully_qualified_func_name() const { return "current_user()"; }
+  /* This is because of the stored Name_resolution_context */
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(fully_qualified_func_name(), arg,
+                                     VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -647,15 +643,20 @@ public:
     Item_func_sysconst(thd), context(context_arg) {}
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
-  { max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
-  int save_in_field(Field *field, bool no_conversions)
-  { return save_str_value_in_field(field, &str_value); }
+  {
+    max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN;
+    maybe_null=1;
+  }
+  bool init(THD *thd);
+  int save_in_field(Field *field, bool no_conversions);
   const char *func_name() const { return "current_role"; }
   const char *fully_qualified_func_name() const { return "current_role()"; }
-  String *val_str(String *)
+  String *val_str(String *);
+  /* This is because of the stored Name_resolution_context */
+  bool check_vcol_func_processor(void *arg)
   {
-    DBUG_ASSERT(fixed == 1);
-    return (null_value ? 0 : &str_value);
+    return mark_unsupported_function(fully_qualified_func_name(), arg,
+                                     VCOL_IMPOSSIBLE);
   }
 };
 
@@ -722,7 +723,7 @@ public:
     Item_str_func(thd, list)
   { collation.set(cs); }
   String *val_str(String *);
-  void fix_length_and_dec() 
+  void fix_length_and_dec()
   {
     max_length= arg_count * 4;
   }
@@ -761,6 +762,10 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "binlog_gtid_pos"; }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -900,6 +905,7 @@ public:
   }
   virtual void print(String *str, enum_query_type query_type);
   const char *func_name() const { return "cast_as_binary"; }
+  bool need_parentheses_in_default() { return true; }
 };
 
 
@@ -916,9 +922,9 @@ public:
     maybe_null=1;
     max_length=MAX_BLOB_WIDTH;
   }
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -1052,6 +1058,7 @@ public:
     /* this function is transparent for view updating */
     return args[0]->field_for_view_update();
   }
+  bool need_parentheses_in_default() { return true; }
 };
 
 
@@ -1183,9 +1190,9 @@ public:
   }
   const char *func_name() const{ return "uuid"; }
   String *val_str(String *);
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
 };
 
@@ -1198,7 +1205,7 @@ protected:
   uint *keys_num;
   LEX_STRING *keys_str;
   bool names, force_names;
-  bool prepare_arguments(bool force_names);
+  bool prepare_arguments(THD *thd, bool force_names);
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(THD *thd, List<Item> &args, DYNCALL_CREATE_DEF *dfs);
@@ -1254,9 +1261,25 @@ public:
   const char *func_name() const { return "column_get"; }
   String *val_str(String *);
   longlong val_int();
+  longlong val_int_signed_typecast()
+  {
+    unsigned_flag= false;   // Mark that we want to have a signed value
+    longlong value= val_int(); // val_int() can change unsigned_flag
+    if (!null_value && unsigned_flag && value < 0)
+      push_note_converted_to_negative_complement(current_thd);
+    return value;
+  }
+  longlong val_int_unsigned_typecast()
+  {
+    unsigned_flag= true; // Mark that we want to have an unsigned value
+    longlong value= val_int(); // val_int() can change unsigned_flag
+    if (!null_value && unsigned_flag == 0 && value < 0)
+      push_note_converted_to_positive_complement(current_thd);
+    return value;
+  }
   double val_real();
   my_decimal *val_decimal(my_decimal *);
-  bool get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp);
+  bool get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val, String *tmp);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void print(String *str, enum_query_type query_type);
 };

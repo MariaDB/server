@@ -4,6 +4,7 @@ set session storage_engine=innodb;
 #########################################################################
 #                            CONFIGURATION
 #########################################################################
+connection master;
 CREATE TABLE tt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb;
 CREATE TABLE tt_2 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = Innodb;
 CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam;

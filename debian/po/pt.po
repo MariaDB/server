@@ -6,7 +6,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: mysql-dfsg-5.1\n"
-"Report-Msgid-Bugs-To: mariadb-10.1@packages.debian.org\n"
+"Report-Msgid-Bugs-To: mariadb-10.2@packages.debian.org\n"
 "POT-Creation-Date: 2012-01-12 13:08+0100\n"
 "PO-Revision-Date: 2007-05-05 21:01+0100\n"
 "Last-Translator: Miguel Figueiredo <elmig@debianpt.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:2001
+#: ../mariadb-server-10.2.templates:2001
 msgid "Really proceed with downgrade?"
 msgstr "Deseja mesmo fazer downgrade?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:2001
+#: ../mariadb-server-10.2.templates:2001
 msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
 msgstr "Existe um ficheiro chamado /var/lib/mysql/debian-*.flag neste sistema."
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:2001
+#: ../mariadb-server-10.2.templates:2001
 #, fuzzy
 #| msgid ""
 #| "Such file is an indication that a mariadb-server package with a higher "
@@ -44,7 +44,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:2001
+#: ../mariadb-server-10.2.templates:2001
 msgid ""
 "There is no guarantee that the version you're currently installing will be "
 "able to use the current databases."
@@ -54,13 +54,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.1.templates:3001
+#: ../mariadb-server-10.2.templates:3001
 msgid "Important note for NIS/YP users"
 msgstr "Nota importante para utilizadores de NIS/YP"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.1.templates:3001
+#: ../mariadb-server-10.2.templates:3001
 msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
@@ -68,7 +68,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.1.templates:3001
+#: ../mariadb-server-10.2.templates:3001
 #, fuzzy
 #| msgid ""
 #| "You should also check the permissions and the owner of the /var/lib/mysql "
@@ -81,13 +81,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:4001
+#: ../mariadb-server-10.2.templates:4001
 msgid "Remove all MariaDB databases?"
 msgstr "Remover todas as bases de dados MariaDB?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:4001
+#: ../mariadb-server-10.2.templates:4001
 msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
@@ -97,7 +97,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:4001
+#: ../mariadb-server-10.2.templates:4001
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "
@@ -109,13 +109,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:5001
+#: ../mariadb-server-10.2.templates:5001
 msgid "Start the MariaDB server on boot?"
 msgstr "Iniciar o servidor MariaDB no arranque?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.1.templates:5001
+#: ../mariadb-server-10.2.templates:5001
 msgid ""
 "The MariaDB server can be launched automatically at boot time or manually "
 "with the '/etc/init.d/mysql start' command."
@@ -125,13 +125,13 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.1.templates:6001
+#: ../mariadb-server-10.2.templates:6001
 msgid "New password for the MariaDB \"root\" user:"
 msgstr "Nova palavra-passe para o utilizador \"root\" do MariaDB:"
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.1.templates:6001
+#: ../mariadb-server-10.2.templates:6001
 msgid ""
 "While not mandatory, it is highly recommended that you set a password for "
 "the MariaDB administrative \"root\" user."
@@ -141,7 +141,7 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.1.templates:6001
+#: ../mariadb-server-10.2.templates:6001
 #, fuzzy
 #| msgid "If that field is left blank, the password will not be changed."
 msgid "If this field is left blank, the password will not be changed."
@@ -150,7 +150,7 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.1.templates:7001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid "New password for the MySQL \"root\" user:"
 msgid "Repeat password for the MariaDB \"root\" user:"
@@ -158,7 +158,7 @@ msgstr "Nova palavra-passe para o utilizador \"root\" do MariaDB:"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:8001
+#: ../mariadb-server-10.2.templates:8001
 msgid "Unable to set password for the MariaDB \"root\" user"
 msgstr ""
 "Não foi possível definir a palavra-passe para o utilizador \"root\" do "
@@ -166,7 +166,7 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:8001
+#: ../mariadb-server-10.2.templates:8001
 msgid ""
 "An error occurred while setting the password for the MariaDB administrative "
 "user. This may have happened because the account already has a password, or "
@@ -179,7 +179,7 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:8001
+#: ../mariadb-server-10.2.templates:8001
 #, fuzzy
 #| msgid ""
 #| "You should check the account's password after tha package installation."
@@ -189,27 +189,27 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:8001
+#: ../mariadb-server-10.2.templates:8001
 #, fuzzy
 #| msgid ""
 #| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
 #| "more information."
 msgid ""
-"Please read the /usr/share/doc/mariadb-server-10.1/README.Debian file for "
+"Please read the /usr/share/doc/mariadb-server-10.2/README.Debian file for "
 "more information."
 msgstr ""
 "Para mais informação por favor leia o ficheiro /usr/share/doc/mariadb-"
-"server-10.1/README.Debian."
+"server-10.2/README.Debian."
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:9001
+#: ../mariadb-server-10.2.templates:9001
 msgid "Password input error"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.1.templates:9001
+#: ../mariadb-server-10.2.templates:9001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
 

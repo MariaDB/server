@@ -12,25 +12,35 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 unlock tables;
 lock table t1 write;
+connect  locker,localhost,root,,test;
+connection locker;
 lock table t1 read;
+connection default;
 flush table t1;
 select * from t1;
 a
 1
 unlock tables;
+connection locker;
 unlock tables;
+connection default;
 lock table t1 write;
+connection locker;
 lock table t1 write;
+connection default;
 flush table t1;
 select * from t1;
 a
 1
 unlock tables;
+connection locker;
 unlock tables;
 select * from t1;
 a
 1
+connection default;
 drop table t1;
+disconnect locker;
 create table t1(table_id char(20) primary key);
 create table t2(table_id char(20) primary key);
 insert into t1 values ('test.t1');

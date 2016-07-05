@@ -65,9 +65,7 @@ c TEXT(30)
 ##########################################################
 
 
---echo ** Connecting test_con1 using username 'root' **
 connect (test_con1,localhost,root,,);
---echo ** Connection test_con1 **
 connection test_con1;
 
 # Value of session & global vairable here should be 10
@@ -100,9 +98,7 @@ SELECT c from t ORDER BY c, id;
 #    Test behavior of variable on new connection # 02    #
 ##########################################################
 
---echo ** Connecting test_con2 using username 'root' **
 connect (test_con2,localhost,root,,);
---echo ** Connection test_con2 **
 connection test_con2;
 
 
@@ -238,10 +234,8 @@ SELECT c from t2 ORDER BY c, id;
 # Cleanup
 #
 
---echo ** Connection default **
 connection default;
 
---echo ** Disconnecting test_con1, test_con2 **
 disconnect test_con1;
 disconnect test_con2;
 
@@ -254,4 +248,3 @@ DROP TABLE IF EXISTS t2;
 --enable_warnings
 
 SET @@global.max_sort_length= @start_value;
-

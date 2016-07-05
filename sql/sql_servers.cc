@@ -162,7 +162,7 @@ bool servers_init(bool dont_read_servers_table)
   /*
     To be able to run this from boot, we allocate a temporary THD
   */
-  if (!(thd=new THD))
+  if (!(thd=new THD(0)))
     DBUG_RETURN(TRUE);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
@@ -205,8 +205,8 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   free_root(&mem, MYF(0));
   init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  if (init_read_record(&read_record_info,thd,table=tables[0].table,NULL,1,0, 
-                       FALSE))
+  if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
+                       1,0, FALSE))
     DBUG_RETURN(1);
   while (!(read_record_info.read_record(&read_record_info)))
   {

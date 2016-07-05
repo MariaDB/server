@@ -39,7 +39,6 @@ scripts/mysql_fix_extensions$
 scripts/mysql_install_db$
 scripts/mysql_secure_installation$
 scripts/mysql_setpermission$
-scripts/mysql_zap$
 scripts/mysqlaccess$
 scripts/mysqld_multi$
 scripts/mysqld_safe$

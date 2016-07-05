@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <my_global.h>
 #include "ft/ft.h"
 #include "ft/ft-cachetable-wrappers.h"
 #include "ft/ft-internal.h"
@@ -496,7 +497,7 @@ handle_split_of_child(
 
     // We never set the rightmost blocknum to be the root.
     // Instead, we wait for the root to split and let promotion initialize the rightmost
-    // blocknum to be the first non-root leaf node on the right extreme to recieve an insert.
+    // blocknum to be the first non-root leaf node on the right extreme to receive an insert.
     BLOCKNUM rightmost_blocknum = toku_unsafe_fetch(&ft->rightmost_blocknum);
     invariant(ft->h->root_blocknum.b != rightmost_blocknum.b);
     if (childa->blocknum.b == rightmost_blocknum.b) {
@@ -1572,6 +1573,7 @@ void toku_bnc_flush_to_child(FT ft, NONLEAF_CHILDINFO bnc, FTNODE child, TXNID p
         txn_gc_info *gc_info;
 
         STAT64INFO_S stats_delta;
+        int64_t logical_rows_delta = 0;
         size_t remaining_memsize = bnc->msg_buffer.buffer_size_in_use();
 
         flush_msg_fn(FT t, FTNODE n, NONLEAF_CHILDINFO nl, txn_gc_info *g) :
@@ -1599,8 +1601,8 @@ void toku_bnc_flush_to_child(FT ft, NONLEAF_CHILDINFO bnc, FTNODE child, TXNID p
                 is_fresh,
                 gc_info,
                 flow_deltas,
-                &stats_delta
-                );
+                &stats_delta,
+                &logical_rows_delta);
             remaining_memsize -= memsize_in_buffer;
             return 0;
         }
@@ -1613,6 +1615,7 @@ void toku_bnc_flush_to_child(FT ft, NONLEAF_CHILDINFO bnc, FTNODE child, TXNID p
     if (flush_fn.stats_delta.numbytes || flush_fn.stats_delta.numrows) {
         toku_ft_update_stats(&ft->in_memory_stats, flush_fn.stats_delta);
     }
+    toku_ft_adjust_logical_row_count(ft, flush_fn.logical_rows_delta);
     if (do_garbage_collection) {
         size_t buffsize = bnc->msg_buffer.buffer_size_in_use();
         // may be misleading if there's a broadcast message in there

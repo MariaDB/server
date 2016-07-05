@@ -1,6 +1,9 @@
+SET SESSION tokudb_pk_insert_mode = 2;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
 include/master-slave.inc
 [connection master]
-==========MASTER==========
+connection master;
 show global variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
@@ -10,7 +13,7 @@ binlog_format	MIXED
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
-==========SLAVE===========
+connection slave;
 show global variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
@@ -20,6 +23,7 @@ binlog_format	MIXED
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
+connection master;
 CREATE DATABASE test_rpl;
 
 ******************** PREPARE TESTING ********************
@@ -33,7 +37,6 @@ INSERT INTO t2 VALUES(1, 't2, text 1');
 ******************** DELETE ********************
 DELETE FROM t1 WHERE a = 1;
 DELETE FROM t2 WHERE b <> UUID();
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -45,7 +48,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -58,6 +61,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -68,7 +72,6 @@ INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 VALUES (1, 't1, text 1') ON DUPLICATE KEY UPDATE b = 't2, text 1';
 DELETE FROM t1 WHERE a = 2;
 DELETE FROM t2 WHERE a = 2;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -81,7 +84,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -95,6 +98,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -105,7 +109,6 @@ a	b
 10	line A
 20	line B
 30	line C
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 3
@@ -119,7 +122,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -134,6 +137,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -145,7 +149,6 @@ REPLACE INTO t1 VALUES(1, 't1, text 11');
 REPLACE INTO t1 VALUES(2, UUID());
 REPLACE INTO t1 SET a=3, b='t1, text 33';
 DELETE FROM t1 WHERE a = 2;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 2
@@ -158,7 +161,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -172,6 +175,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -211,7 +215,6 @@ DELETE FROM t2;
 
 ******************** TRUNCATE ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -223,7 +226,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -236,8 +239,8 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 TRUNCATE t1;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
@@ -248,7 +251,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -260,6 +263,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -267,7 +271,6 @@ DELETE FROM t2;
 INSERT INTO t1 VALUES(1, 't1, text 1');
 INSERT INTO t2 VALUES(1, 't2, text 1');
 UPDATE t1 SET b = 't1, text 1 updated' WHERE a = 1;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -280,7 +283,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -294,8 +297,8 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
+connection master;
 UPDATE t1, t2 SET t1.b = 'test', t2.b = 'test';
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -308,7 +311,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -322,6 +325,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -341,7 +345,6 @@ USE test_rpl;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1, 'start');
 COMMIT;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -353,7 +356,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -366,10 +369,10 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES (2, 'rollback');
 ROLLBACK;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -381,7 +384,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -394,12 +397,12 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES (3, 'before savepoint s1');
 SAVEPOINT s1;
 INSERT INTO t1 VALUES (4, 'after savepoint s1');
 ROLLBACK TO SAVEPOINT s1;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 2
@@ -412,7 +415,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -425,6 +428,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 START TRANSACTION;
 INSERT INTO t1 VALUES (5, 'before savepoint s2');
 SAVEPOINT s2;
@@ -433,7 +437,6 @@ INSERT INTO t1 VALUES (7, CONCAT('with UUID() ',UUID()));
 RELEASE SAVEPOINT s2;
 COMMIT;
 DELETE FROM t1 WHERE a = 7;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
@@ -448,7 +451,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -464,6 +467,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -479,73 +483,73 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
 ******************** CREATE USER ********************
 CREATE USER 'user_test_rpl'@'localhost' IDENTIFIED BY PASSWORD '*1111111111111111111111111111111111111111';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+connection master;
 
 ******************** GRANT ********************
 GRANT SELECT ON *.* TO 'user_test_rpl'@'localhost';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	Y
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	Y
+connection master;
 
 ******************** REVOKE ********************
 REVOKE SELECT ON *.* FROM 'user_test_rpl'@'localhost';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+connection master;
 
 ******************** SET PASSWORD ********************
 SET PASSWORD FOR 'user_test_rpl'@'localhost' = '*0000000000000000000000000000000000000000';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*0000000000000000000000000000000000000000	N
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl	*0000000000000000000000000000000000000000	N
+connection master;
 
 ******************** RENAME USER ********************
 RENAME USER 'user_test_rpl'@'localhost' TO 'user_test_rpl_2'@'localhost';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	N
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
 localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	N
+connection master;
 
 ******************** DROP USER ********************
 DROP USER 'user_test_rpl_2'@'localhost';
-==========MASTER==========
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	select_priv
+connection master;
 INSERT INTO t1 VALUES(100, 'test');
 
 ******************** ANALYZE ********************
@@ -580,14 +584,14 @@ SHOW VARIABLES LIKE 'test_rpl_var';
 Variable_name	Value
 
 ******************** SHOW ********************
-==========MASTER==========
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
-==========SLAVE===========
+connection slave;
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
+connection master;
 
 ******************** PROCEDURE ********************
 CREATE PROCEDURE p1 ()
@@ -603,7 +607,6 @@ CALL p1();
 INSERT  INTO t1 VALUES(202, 'test 202');
 CALL p2();
 DELETE FROM t1 WHERE a = 202;
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 2
@@ -616,7 +619,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -630,6 +633,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 ALTER PROCEDURE p1 COMMENT 'p1';
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -642,7 +646,6 @@ FOR EACH ROW BEGIN
 INSERT INTO t2 SET a = NEW.a, b = NEW.b;
 END|
 INSERT INTO t1 VALUES (1, 'test');
-==========MASTER==========
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -655,7 +658,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -669,6 +672,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 DROP TRIGGER tr1;
@@ -678,16 +682,15 @@ DROP TRIGGER tr1;
 GRANT EVENT ON *.* TO 'root'@'localhost';
 INSERT INTO t1 VALUES(1, 'test1');
 CREATE EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1;
-==========MASTER==========
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
-==========MASTER==========
+connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -699,7 +702,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -712,7 +715,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========MASTER==========
+connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -724,7 +727,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -737,17 +740,17 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 ALTER EVENT e1 RENAME TO e2;
-==========MASTER==========
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
-==========MASTER==========
+connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -759,7 +762,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -772,14 +775,15 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+connection master;
 DROP EVENT e2;
-==========MASTER==========
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 
@@ -788,14 +792,13 @@ INSERT INTO t1 VALUES(1, 'test1');
 INSERT INTO t1 VALUES(2, 'test2');
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = 1;
 CREATE VIEW v2 AS SELECT * FROM t1 WHERE b <> UUID();
-==========MASTER==========
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where (`t1`.`a` = 1)	latin1	latin1_swedish_ci
 SELECT * FROM v1 ORDER BY a;
 a	b
 1	test1
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -803,15 +806,15 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 SELECT * FROM v1 ORDER BY a;
 a	b
 1	test1
+connection master;
 ALTER VIEW v1 AS SELECT * FROM t1 WHERE a = 2;
-==========MASTER==========
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where (`t1`.`a` = 2)	latin1	latin1_swedish_ci
 SELECT * FROM v1 ORDER BY a;
 a	b
 2	test2
-==========SLAVE===========
+connection slave;
 USE test_rpl;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -819,6 +822,7 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 SELECT * FROM v1 ORDER BY a;
 a	b
 2	test2
+connection master;
 DROP VIEW v1;
 DROP VIEW v2;
 DELETE FROM t1;
@@ -1128,5 +1132,8 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+connection slave;
+connection master;
 drop database test_rpl;
+connection slave;
 include/rpl_end.inc

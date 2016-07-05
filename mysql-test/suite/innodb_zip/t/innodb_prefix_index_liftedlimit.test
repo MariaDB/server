@@ -729,14 +729,12 @@ INSERT INTO worklog5743 VALUES(REPEAT("a", 200) , REPEAT("o", 200));
 SELECT col_1_text = REPEAT("a", 200) , col_2_text  = REPEAT("o", 200) FROM
 worklog5743;
 
---echo "In connection 1"
 --connect (con1,localhost,root,,)
 SELECT col_1_text = REPEAT("a", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SELECT COUNT(*) FROM worklog5743;
 
 
---echo "In connection 2"
 --connect (con2,localhost,root,,)
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("b", 200) , REPEAT("o", 200));
@@ -748,7 +746,6 @@ SELECT col_1_text = REPEAT("a", 200) , col_2_text  = REPEAT("o", 200) FROM
 worklog5743;
 
 
---echo "In connection 1"
 --connection con1
 select @@session.tx_isolation;
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
@@ -765,7 +762,6 @@ SELECT col_1_text = REPEAT("a", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SELECT COUNT(*) FROM worklog5743;
 
---echo "In connection 2"
 --connection con2
 COMMIT;
 # Wait for commit
@@ -773,7 +769,6 @@ let $wait_condition=SELECT COUNT(*)=0 FROM information_schema.processlist
 WHERE info='COMMIT';
 --source include/wait_condition.inc
 
---echo "In connection 1"
 --connection con1
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
@@ -799,7 +794,6 @@ INSERT INTO worklog5743 VALUES(REPEAT("a", 200) , REPEAT("o", 200));
 SELECT col_1_text = REPEAT("a", 200) , col_2_text  = REPEAT("o", 200) FROM
 worklog5743;
 
---echo "In connection 1"
 --connection con1
 SELECT col_1_text = REPEAT("a", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
@@ -807,7 +801,6 @@ SELECT COUNT(*) FROM worklog5743;
 START TRANSACTION;
 
 
---echo "In connection 2"
 --connection con2
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("b", 200) , REPEAT("o", 200));
@@ -821,7 +814,6 @@ WHERE info='COMMIT';
 --source include/wait_condition.inc 
 
 
---echo "In connection 1"
 --connection con1
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select @@session.tx_isolation;
@@ -851,7 +843,6 @@ INSERT INTO worklog5743 VALUES(REPEAT("a", 200) , REPEAT("o", 200));
 SELECT col_1_text = REPEAT("a", 200) , col_2_text  = REPEAT("o", 200) FROM
 worklog5743;
 
---echo "In connection 1"
 --connection con1
 SELECT col_1_text = REPEAT("a", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
@@ -859,7 +850,6 @@ SELECT COUNT(*) FROM worklog5743;
 START TRANSACTION;
 
 
---echo "In connection 2"
 --connection con2
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("b", 200) , REPEAT("o", 200));
@@ -873,14 +863,12 @@ WHERE info='COMMIT';
 --source include/wait_condition.inc 
 
 
---echo "In connection 1"
 --connection con1
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SELECT COUNT(*) FROM worklog5743;
 COMMIT;
 
---echo "Disconnect the connections 1 and 2"
 --disconnect con1
 --source include/wait_until_disconnected.inc
 --connection con2
@@ -1080,16 +1068,13 @@ PRIMARY KEY (col_1_varchar (3072))
 INSERT INTO worklog5743 VALUES(REPEAT("c", 3500) , REPEAT("o", 3500));
 CREATE INDEX prefix_idx ON worklog5743(col_1_varchar (3072));
 
-# Start new session
 --connect (con1,localhost,root,,)
 
 
---echo " Switching to con1 connection For select "
 --connection con1
 SELECT col_1_varchar = REPEAT("c", 3500) , col_2_varchar = REPEAT("o", 3500)
 FROM worklog5743;
 
---echo " Switching to default connection For DMLs "
 --connection default
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("a", 3500) , REPEAT("o", 3500));
@@ -1097,7 +1082,6 @@ SELECT col_1_varchar = REPEAT("b", 3500) FROM worklog5743
 WHERE col_2_varchar = REPEAT("o", 3500);
 COMMIT;
 
---echo " Switching to con1 connection For Dropping index and some DMLs "
 --connection con1
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(REPEAT("k", 3500),REPEAT("p", 3500));
@@ -1109,17 +1093,14 @@ AND col_2_varchar = REPEAT("o", 3500);
 SELECT col_1_varchar = REPEAT("b", 3500) FROM worklog5743
 WHERE col_2_varchar = REPEAT("o", 3500);
 
---echo " Switching to default connection For DELETE "
 --connection default
 DELETE FROM worklog5743 WHERE col_1_varchar  = REPEAT("b", 3500);
 SELECT col_1_varchar = REPEAT("a", 3500) FROM worklog5743
 WHERE col_2_varchar = REPEAT("p", 3500);
 
---echo " Switching to con1 connection to commit changes "
 --connection con1
 COMMIT;
 
---echo " Switching to default connection to drop and end sub-test "
 --connection default
 DROP TABLE worklog5743;
 
@@ -1383,10 +1364,8 @@ DROP TABLE worklog5743;
 eval set global innodb_file_format = $innodb_file_format_orig;
 eval set global innodb_file_per_table = $innodb_file_per_table_orig;
 eval set global innodb_large_prefix = $innodb_large_prefix_orig;
---echo "Disconnect the connection 1"
 --connection con1
 --disconnect con1
 --source include/wait_until_disconnected.inc
 --enable_query_log
 --connection default
-

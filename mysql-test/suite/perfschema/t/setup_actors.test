@@ -46,7 +46,6 @@ grant select on test.* to user5@localhost;
 
 flush privileges;
 
---echo # Switch to (con1, localhost, user1, , )
 connect (con1, localhost, user1, , );
 
 # INSTRUMENTED must be NO because there is no match in performance_schema.setup_actors
@@ -56,12 +55,10 @@ where PROCESSLIST_ID = connection_id();
 let $con1_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Switch to connection default
 --connection default
 insert into performance_schema.setup_actors
 values ('%', 'user1', '%');
 
---echo # Switch to connection con1
 --connection con1
 # INSTRUMENTED must be NO because there was no match in performance_schema.setup_actors
 # when our current session made its connect. Later changes in setup_actors have no
@@ -70,10 +67,8 @@ select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
 
---echo # Disconnect con1
 --disconnect con1
 
---echo # Switch to (con2, localhost, user2, , )
 connect (con2, localhost, user2, , );
 
 # INSTRUMENTED must be YES because there is a match via
@@ -84,10 +79,8 @@ where PROCESSLIST_ID=connection_id();
 let $con2_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Disconnect con2
 --disconnect con2
 
---echo # Switch to connection default
 --connection default
 # If a thread dies, we don't expect its THREAD_ID value will be re-used.
 if ($con2_thread_id <= $con1_thread_id)
@@ -102,7 +95,6 @@ drop table if exists test.t1;
 create table test.t1 (col1 bigint);
 lock table test.t1 write;
 
---echo # Switch to (con3, localhost, user3, , )
 connect (con3, localhost, user3, , );
 
 # INSTRUMENTED must be YES because there is a match via
@@ -138,7 +130,6 @@ where PROCESSLIST_ID = connection_id();
 --echo # comes back. We will pull this later.
 send
 insert into test.t1 set col1 = 1;
---echo # Switch to (con4, localhost, user4, , )
 connect (con4, localhost, user4, , );
 --echo # Poll till INFO is no more NULL and State = 'Waiting for table metadata lock'.
 let $wait_condition= select count(*) from information_schema.processlist
@@ -154,29 +145,23 @@ from performance_schema.threads T inner join information_schema.PROCESSLIST P
 where T.PROCESSLIST_USER = 'user3' and T.NAME = 'thread/sql/one_connection';
 
 # Resolve the situation + some cleanup
---echo # Switch to connection default
 --connection default
 unlock tables;
---echo # Switch to connection con3 and reap the result of the no more blocked insert
 --connection con3
+--echo # Reap the result of the no more blocked insert
 --reap
---echo # Switch to connection default
 --connection default
 drop table test.t1;
---echo # Disconnect con3
 --disconnect con3
 
---echo # Switch to connection con4
 --connection con4
 # INSTRUMENTED must be NO because there is no match in performance_schema.setup_actors
 select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
 
---echo # Disconnect con4
 --disconnect con4
 
---echo # Switch to connection default
 --connection default
 
 insert into performance_schema.setup_actors
@@ -185,7 +170,6 @@ values ('localhost', '%', '%');
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
 
---echo # Switch to (con4b, localhost, user4, , )
 connect (con4b, localhost, user4, , );
 
 # INSTRUMENTED must be YES because there is a match via
@@ -194,10 +178,8 @@ select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
 
---echo # Disconnect con4b
 --disconnect con4b
 
---echo # Switch to connection default
 --connection default
 insert into performance_schema.setup_actors
 values ('%', 'user5', '%');
@@ -206,7 +188,6 @@ create sql security definer view test.v1 as select NAME, TYPE, INSTRUMENTED, PRO
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
 
---echo # Switch to (con5, localhost, user5, , )
 connect (con5, localhost, user5, , );
 
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -221,12 +202,10 @@ select * from performance_schema.threads;
 #    Therefore PROCESSLIST_USER must be 'user5' though we run with right's of definer 'root'
 select * from test.v1;
 
---echo # Disconnect con5
 --disconnect con5
 --source include/wait_until_disconnected.inc
 
 
---echo # Switch to connection default and cleanup
 --connection default
 
 drop view test.v1;

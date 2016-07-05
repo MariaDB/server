@@ -1,0 +1,268 @@
+SET @@session.storage_engine = 'MyISAM';
+# RAND()
+create or replace table t1 (b double as (rand()));
+create or replace table t1 (b double as (rand()) PERSISTENT);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# LOAD_FILE()
+create or replace table t1 (a varchar(64), b varchar(1024) as (load_file(a)));
+ERROR HY000: Function or expression 'load_file()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# CURDATE()
+create or replace table t1 (a datetime as (curdate()) PERSISTENT);
+ERROR HY000: Function or expression 'curdate()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# CURRENT_DATE(), CURRENT_DATE
+create or replace table t1 (a datetime as (current_date) PERSISTENT);
+ERROR HY000: Function or expression 'curdate()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a datetime as (current_date()) PERSISTENT);
+ERROR HY000: Function or expression 'curdate()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# CURRENT_TIME(), CURRENT_TIME
+create or replace table t1 (a datetime as (current_time) PERSISTENT);
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a datetime as (current_time()) PERSISTENT);
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP
+create or replace table t1 (a datetime as (current_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a datetime as (current_timestamp) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# CURTIME()
+create or replace table t1 (a datetime as (curtime()) PERSISTENT);
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# LOCALTIME(), LOCALTIME
+create or replace table t1 (a datetime, b varchar(10) as (localtime()) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a datetime, b varchar(10) as (localtime) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# LOCALTIMESTAMP, LOCALTIMESTAMP()(v4.0.6)
+create or replace table t1 (a datetime, b varchar(10) as (localtimestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a datetime, b varchar(10) as (localtimestamp) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# NOW()
+create or replace table t1 (a datetime, b varchar(10) as (now()) PERSISTENT);
+ERROR HY000: Function or expression 'now()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# SYSDATE()
+create or replace table t1 (a int, b varchar(10) as (sysdate()) PERSISTENT);
+ERROR HY000: Function or expression 'sysdate()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# UNIX_TIMESTAMP()
+create or replace table t1 (a datetime, b datetime as (unix_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'unix_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# UTC_DATE()
+create or replace table t1 (a datetime, b datetime as (utc_date()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_date()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# UTC_TIME()
+create or replace table t1 (a datetime, b datetime as (utc_time()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_time()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# UTC_TIMESTAMP()
+create or replace table t1 (a datetime, b datetime as (utc_timestamp()) PERSISTENT);
+ERROR HY000: Function or expression 'utc_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# WEEK() - one argument version
+create or replace table t1 (a datetime, b datetime as (week(a)) PERSISTENT);
+ERROR HY000: Function or expression '@@default_week_format' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MATCH()
+create or replace table t1 (a varchar(32), b bool as (match a against ('sample text')) PERSISTENT);
+ERROR HY000: Function or expression 'match ... against()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BENCHMARK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (benchmark(a,3)));
+ERROR HY000: Function or expression 'benchmark()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# CHARSET()
+create or replace table t1 (a varchar(64), b varchar(64) as (charset(a)) PERSISTENT);
+# COERCIBILITY()
+create or replace table t1 (a varchar(64), b int as (coercibility(a)) PERSISTENT);
+# COLLATION()
+create or replace table t1 (a varchar(64), b varchar(64) as (collation(a)) PERSISTENT);
+# CONNECTION_ID()
+create or replace table t1 (a int as (connection_id()));
+create or replace table t1 (a int as (connection_id()) PERSISTENT);
+ERROR HY000: Function or expression 'connection_id()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# CURRENT_USER(), CURRENT_USER
+create or replace table t1 (a varchar(32) as (current_user()));
+ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a varchar(32) as (current_user()) PERSISTENT);
+ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a varchar(32) as (current_user) PERSISTENT);
+ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# DATABASE()
+create or replace table t1 (a varchar(32) as (database()));
+create or replace table t1 (a varchar(1024), b varchar(1024) as (database()) PERSISTENT);
+ERROR HY000: Function or expression 'database()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# FOUND_ROWS()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (found_rows()));
+ERROR HY000: Function or expression 'found_rows()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# GET_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (get_lock(a,10)));
+ERROR HY000: Function or expression 'get_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# IS_FREE_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (is_free_lock(a)));
+ERROR HY000: Function or expression 'is_free_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# IS_USED_LOCK()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (is_used_lock(a)));
+ERROR HY000: Function or expression 'is_used_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# LAST_INSERT_ID()
+create or replace table t1 (a int as (last_insert_id()));
+ERROR HY000: Function or expression 'last_insert_id()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# MASTER_POS_WAIT()
+create or replace table t1 (a varchar(32), b int as (master_pos_wait(a,0,2)));
+ERROR HY000: Function or expression 'master_pos_wait()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# NAME_CONST()
+create or replace table t1 (a varchar(32) as (name_const('test',1)));
+ERROR HY000: Function or expression 'name_const()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# RELEASE_LOCK()
+create or replace table t1 (a varchar(32), b int as (release_lock(a)));
+ERROR HY000: Function or expression 'release_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# ROW_COUNT()
+create or replace table t1 (a int as (row_count()));
+ERROR HY000: Function or expression 'row_count()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# SCHEMA()
+create or replace table t1 (a varchar(32) as (schema()) PERSISTENT);
+ERROR HY000: Function or expression 'database()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# SESSION_USER()
+create or replace table t1 (a varchar(32) as (session_user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# SLEEP()
+create or replace table t1 (a int, b int as (sleep(a)));
+ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# SYSTEM_USER()
+create or replace table t1 (a varchar(32) as (system_user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# USER()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (user()) PERSISTENT);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# UUID_SHORT()
+create or replace table t1 (a varchar(1024) as (uuid_short()) PERSISTENT);
+ERROR HY000: Function or expression 'uuid_short()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# UUID()
+create or replace table t1 (a varchar(1024) as (uuid()) PERSISTENT);
+ERROR HY000: Function or expression 'uuid()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# VALUES()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (values(a)));
+ERROR HY000: Function or expression 'values()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VERSION()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (version()) PERSISTENT);
+ERROR HY000: Function or expression 'version()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# ENCRYPT()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (encrypt(a)) PERSISTENT);
+# DATE_FORMAT()
+create or replace table t1 (a datetime, b varchar(64) as (date_format(a,'%W %M %D'));
+ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# Stored procedures
+create procedure p1()
+begin
+select current_user();
+end //
+create function f1()
+returns int
+begin
+return 1;
+end //
+create or replace table t1 (a int as (p1()) PERSISTENT);
+ERROR HY000: Function or expression '`p1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create or replace table t1 (a int as (f1()) PERSISTENT);
+ERROR HY000: Function or expression '`f1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+drop procedure p1;
+drop function f1;
+# Unknown functions
+create or replace table t1 (a int as (f1()) PERSISTENT);
+ERROR HY000: Function or expression '`f1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+#
+# GROUP BY FUNCTIONS
+#
+# AVG()
+create or replace table t1 (a int, b int as (avg(a)));
+ERROR HY000: Function or expression 'avg()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_AND()
+create or replace table t1 (a int, b int as (bit_and(a)));
+ERROR HY000: Function or expression 'bit_and()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_OR()
+create or replace table t1 (a int, b int as (bit_or(a)));
+ERROR HY000: Function or expression 'bit_or()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_XOR()
+create or replace table t1 (a int, b int as (bit_xor(a)));
+ERROR HY000: Function or expression 'bit_xor()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# COUNT(DISTINCT)
+create or replace table t1 (a int, b int as (count(distinct a)));
+ERROR HY000: Function or expression 'count(distinct )' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# COUNT()
+create or replace table t1 (a int, b int as (count(a)));
+ERROR HY000: Function or expression 'count()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# GROUP_CONCAT()
+create or replace table t1 (a varchar(32), b int as (group_concat(a,'')));
+ERROR HY000: Function or expression 'group_concat()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MAX()
+create or replace table t1 (a int, b int as (max(a)));
+ERROR HY000: Function or expression 'max()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MIN()
+create or replace table t1 (a int, b int as (min(a)));
+ERROR HY000: Function or expression 'min()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STD()
+create or replace table t1 (a int, b int as (std(a)));
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV_POP()
+create or replace table t1 (a int, b int as (stddev_pop(a)));
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV_SAMP()
+create or replace table t1 (a int, b int as (stddev_samp(a)));
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV()
+create or replace table t1 (a int, b int as (stddev(a)));
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# SUM()
+create or replace table t1 (a int, b int as (sum(a)));
+ERROR HY000: Function or expression 'sum()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VAR_POP()
+create or replace table t1 (a int, b int as (var_pop(a)));
+ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VAR_SAMP()
+create or replace table t1 (a int, b int as (var_samp(a)));
+ERROR HY000: Function or expression 'var_samp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VARIANCE()
+create or replace table t1 (a int, b int as (variance(a)));
+ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# DAYNAME()
+create or replace table t1 (a int, b varchar(10) as (dayname(a)));
+ERROR HY000: Function or expression 'dayname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a int, b varchar(10) as (monthname(a)));
+ERROR HY000: Function or expression 'monthname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a int, b varchar(10) as (date_format("1963-01-01","%d.%m.%Y")));
+ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a int, b varchar(10) as (time_format(now(),"%d.%m.%Y")));
+ERROR HY000: Function or expression 'time_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+#
+# XML FUNCTIONS
+#
+# ExtractValue()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (ExtractValue(a,'//b[$@j]')) PERSISTENT);
+# UpdateXML()
+create or replace table t1 (a varchar(1024), b varchar(1024) as (UpdateXML(a,'/a','<e>fff</e>')) PERSISTENT);
+#
+# Sub-selects
+#
+create or replace table t1 (a int);
+create or replace table t2 (a int, b int as (select count(*) from t1));
+ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create or replace table t1 (a int, b int as ((select 1)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a int, b int as (a+(select 1)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `b`
+#
+# SP functions
+#
+drop function if exists sub1;
+create function sub1(i int) returns int deterministic
+return i+1;
+select sub1(1);
+sub1(1)
+2
+create or replace table t1 (a int, b int as (a+sub3(1)));
+ERROR HY000: Function or expression '`sub3`()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop function sub1;
+#
+# Long expression
+create or replace table t1 (a int, b varchar(300) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
+drop table t1;
+create or replace table t1 (a int, b varchar(16384) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
+ERROR HY000: Too many columns
+#
+# Constant expression
+create or replace table t1 (a int as (PI()) PERSISTENT);
+drop table if exists t1;

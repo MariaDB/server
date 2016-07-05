@@ -124,7 +124,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
-      field->set_name(field_info->old_name,
+      field->set_name(thd, field_info->old_name,
                       (uint) strlen(field_info->old_name),
                       system_charset_info);
       if (add_item_to_list(thd, field))
@@ -329,12 +329,26 @@ PROFILING::PROFILING()
 
 PROFILING::~PROFILING()
 {
+  restart();
+}
+
+/*
+  Restart profiling from scratch
+*/
+
+void PROFILING::restart()
+{
   while (! history.is_empty())
     delete history.pop();
 
   if (current != NULL)
     delete current;
+  /* Ensure that profiling object can be reused */
+  profile_id_counter= 1;
+  current= NULL;
+  last= NULL;
 }
+
 
 /**
   Throw away the current profile, because it's useless or unwanted
@@ -675,6 +689,6 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
 
 void PROFILING::reset()
 {
-  enabled= thd->variables.option_bits & OPTION_PROFILING;
+  enabled= (thd->variables.option_bits & OPTION_PROFILING) != 0;
 }
 #endif /* ENABLED_PROFILING */

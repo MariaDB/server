@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 ==== Initialize ====
-[on master]
+connection master;
 create table t1 (id int);
 ==== create a procedure that has a column aliase in a subquery ====
 drop procedure if exists test_procedure;
@@ -14,12 +14,12 @@ from
 end;$$
 ==== enable the binary log, then call the procedure ====
 call test_procedure(1234);
-[on slave]
+connection slave;
 select * from t1 order by id;
 id
 1234
 ==== Clean up ====
-[on master]
+connection master;
 drop table t1;
 drop procedure test_procedure;
 include/rpl_end.inc

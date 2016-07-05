@@ -10,25 +10,31 @@ child3_3
 for slave1_1
 
 drop and create databases
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 CREATE DATABASE auto_test_remote2;
 USE auto_test_remote2;
 
 test select 1
+connection master_1;
 SELECT 1;
 1
 1
 
 create table and insert
+connection master_1;
 DROP TABLE IF EXISTS tb_l;
 CREATE TABLE tb_l (
 a INT,
@@ -50,6 +56,7 @@ INSERT INTO ta_l SELECT a, b, c FROM tb_l;
 
 2.13
 select table with "order by desc" and "<"
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 WHERE a < 5 ORDER BY a DESC LIMIT 3;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -58,6 +65,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	b	2000-01-01 00:00:00
 
 select table with "order by desc" and "<="
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
 WHERE a <= 5 ORDER BY a DESC LIMIT 3;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -67,7 +75,9 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 2.14
 update table with range scan and split_read
+connection master_1;
 UPDATE ta_l SET c = '2000-02-02 00:00:00' WHERE a > 1;
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -80,6 +90,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 select table with range scan
 TRUNCATE TABLE ta_l;
 DROP TABLE IF EXISTS ta_l;
+connection master_1;
 CREATE TABLE ta_l (
 a int(11) NOT NULL DEFAULT '0',
 b char(1) DEFAULT NULL,
@@ -87,50 +98,62 @@ c datetime DEFAULT NULL,
 PRIMARY KEY (a, b, c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b >= 'b'
 AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b > 'b'
 AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a >= 4 AND b = 'd'
 AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a > 4 AND b = 'c'
 AND c = '2001-12-31 23:59:59';
 a	b	c
 5	c	2001-12-31 23:59:59
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b <= 'd'
 AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b < 'e'
 AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a <= 4 AND b = 'b'
 AND c = '2000-01-01 00:00:00';
 a	b	c
 2	b	2000-01-01 00:00:00
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a < 4 AND b = 'b'
 AND c = '2000-01-01 00:00:00';
 a	b	c
 2	b	2000-01-01 00:00:00
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b >= 'b'
 AND b <= 'd' AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b > 'b'
 AND b < 'e' AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a <= 4 AND a >= 1
 AND b >= 'b' AND c = '2003-11-30 05:01:03';
 a	b	c
 4	d	2003-11-30 05:01:03
+connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a < 4 AND a > 1
 AND b >= 'b' AND c = '2000-01-01 00:00:00';
 a	b	c
@@ -138,6 +161,7 @@ a	b	c
 
 2.16
 auto_increment insert with trigger
+connection master_1;
 CREATE TABLE ta_l_auto_inc (
 a INT AUTO_INCREMENT,
 b CHAR(1) DEFAULT 'c',
@@ -151,14 +175,17 @@ c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE2 MASTER_1_CHARSET2
 CREATE TRIGGER ins_ta_l_auto_inc AFTER INSERT ON ta_l_auto_inc FOR EACH ROW BEGIN INSERT INTO tc_l (a, b, c) VALUES (NEW.a, NEW.b, NEW.c); END;;
+connection master_1;
 INSERT INTO ta_l_auto_inc (a, b, c) VALUES
 (NULL, 's', '2008-12-31 20:59:59');
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM tc_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	s	2008-12-31 20:59:59
 
 2.17
 engine-condition-pushdown with "or" and joining
+connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l WHERE a = 1 OR a IN (SELECT a FROM tb_l);
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -169,6 +196,7 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 2.23
 index merge
+connection master_1;
 CREATE TABLE ta_l_int (
 a INT AUTO_INCREMENT,
 b INT DEFAULT 10,
@@ -182,6 +210,7 @@ INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 8, b + 8, c + 8 FROM ta_l_int;
+connection master_1;
 SELECT a, b, c FROM ta_l_int force index(primary, idx1, idx2)
 WHERE a = 5 OR b = 5 OR c = 5 ORDER BY a;
 a	b	c
@@ -191,6 +220,7 @@ a	b	c
 
 2.24
 index scan update without PK
+connection master_1;
 DROP TABLE IF EXISTS ta_l_int;
 CREATE TABLE ta_l_int (
 a INT NOT NULL,
@@ -219,7 +249,9 @@ a	b	c
 16	17	18
 INSERT INTO ta_l_int (a, b, c) VALUES (0, 2, 3);
 INSERT INTO ta_l_int (a, b, c) VALUES (18, 2, 3);
+connection master_1;
 UPDATE ta_l_int SET c = 4 WHERE b = 2;
+connection master_1;
 SELECT a, b, c FROM ta_l_int ORDER BY a;
 a	b	c
 1	2	4
@@ -243,6 +275,7 @@ a	b	c
 
 2.25
 direct order limit
+connection master_1;
 SHOW STATUS LIKE 'Spider_direct_order_limit';
 Variable_name	Value
 Spider_direct_order_limit	2
@@ -257,6 +290,7 @@ Spider_direct_order_limit	3
 
 2.26
 lock tables
+connection master_1;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 CREATE TABLE t1 (
@@ -271,6 +305,9 @@ LOCK TABLES t1 READ, t2 READ;
 UNLOCK TABLES;
 
 auto_increment
+connection master_1;
+connection slave1_1;
+connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL AUTO_INCREMENT,
@@ -358,6 +395,7 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t1;
 MAX(id)
 10000
+connection slave1_1;
 SELECT id FROM t1 ORDER BY id;
 id
 777
@@ -371,8 +409,10 @@ id
 5439
 6216
 10000
+connection master_1;
 
 read only
+connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -404,6 +444,7 @@ ERROR HY000: Table 'auto_test_local.t1' is read only
 
 2.27
 error mode
+connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 id int(11) NOT NULL,
@@ -427,6 +468,7 @@ Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 
 3.0
 is null
+connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 a VARCHAR(255),
@@ -449,6 +491,7 @@ insert into t1 select a + 128, b + 128, c + 128 from t1;
 insert into t1 select a + 256, b + 256, c + 256 from t1;
 insert into t1 select a + 512, b + 512, c + 512 from t1;
 flush tables;
+connection master_1;
 select a from t1 where a is null order by a limit 30;
 a
 NULL
@@ -515,6 +558,7 @@ NULL
 NULL
 
 direct_order_limit
+connection master_1;
 TRUNCATE TABLE t1;
 insert into t1 values ('1', '1', '1');
 insert into t1 select a + 1,   b + 1,   c + 1   from t1;
@@ -526,6 +570,7 @@ insert into t1 select a,       b + 32,  c + 32  from t1;
 insert into t1 select a,       b + 64,  c + 64  from t1;
 insert into t1 select a,       b + 128, c + 128 from t1;
 flush tables;
+connection master_1;
 select a, b, c from t1 where a = '10' and b <> '100' order by c desc limit 5;
 a	b	c
 10	74	74
@@ -542,9 +587,13 @@ a	c
 10	170
 
 deinit
+connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection slave1_1;
 DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
 for slave1_1
 for master_1

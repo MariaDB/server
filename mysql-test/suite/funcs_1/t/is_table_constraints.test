@@ -132,7 +132,6 @@ eval $my_show1;
 --replace_column 6 ### 7 ### 8 ### 9 ### 10 ### 11 ### 12 ###
 eval $my_show2;
 
---echo # Establish connection testuser1 (user=testuser1)
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , db_datadict);
 SHOW GRANTS FOR 'testuser1'@'localhost';
@@ -143,7 +142,6 @@ eval $my_show1;
 eval $my_show2;
 
 # Cleanup
---echo # Switch to connection default and close connection testuser1
 connection default;
 disconnect testuser1;
 DROP USER 'testuser1'@'localhost';

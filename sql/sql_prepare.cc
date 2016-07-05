@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -102,6 +102,7 @@ When one supplies long data for a placeholder:
 #include "sql_acl.h"    // *_ACL
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
+#include "sql_cte.h"
 #include "sql_cursor.h"
 #include "sql_show.h"
 #include "sql_repl.h"
@@ -276,7 +277,7 @@ protected:
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message);
+                       const char *message, bool skip_flush);
 
   virtual bool send_eof(uint server_status, uint statement_warn_count);
   virtual bool send_error(uint sql_errno, const char *err_msg, const char* sqlstate);
@@ -326,8 +327,14 @@ find_prepared_statement(THD *thd, ulong id)
     To strictly separate namespaces of SQL prepared statements and C API
     prepared statements find() will return 0 if there is a named prepared
     statement with such id.
+
+    LAST_STMT_ID is special value which mean last prepared statement ID
+    (it was made for COM_MULTI to allow prepare and execute a statement
+    in the same command but usage is not limited by COM_MULTI only).
   */
-  Statement *stmt= thd->stmt_map.find(id);
+  Statement *stmt= ((id == LAST_STMT_ID) ?
+                    thd->last_stmt :
+                    thd->stmt_map.find(id));
 
   if (stmt == 0 || stmt->type() != Query_arena::PREPARED_STATEMENT)
     return NULL;
@@ -721,54 +728,44 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
   case MYSQL_TYPE_TINY:
     param->set_param_func= set_param_tiny;
     param->item_type= Item::INT_ITEM;
-    param->item_result_type= INT_RESULT;
     break;
   case MYSQL_TYPE_SHORT:
     param->set_param_func= set_param_short;
     param->item_type= Item::INT_ITEM;
-    param->item_result_type= INT_RESULT;
     break;
   case MYSQL_TYPE_LONG:
     param->set_param_func= set_param_int32;
     param->item_type= Item::INT_ITEM;
-    param->item_result_type= INT_RESULT;
     break;
   case MYSQL_TYPE_LONGLONG:
     param->set_param_func= set_param_int64;
     param->item_type= Item::INT_ITEM;
-    param->item_result_type= INT_RESULT;
     break;
   case MYSQL_TYPE_FLOAT:
     param->set_param_func= set_param_float;
     param->item_type= Item::REAL_ITEM;
-    param->item_result_type= REAL_RESULT;
     break;
   case MYSQL_TYPE_DOUBLE:
     param->set_param_func= set_param_double;
     param->item_type= Item::REAL_ITEM;
-    param->item_result_type= REAL_RESULT;
     break;
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL:
     param->set_param_func= set_param_decimal;
     param->item_type= Item::DECIMAL_ITEM;
-    param->item_result_type= DECIMAL_RESULT;
     break;
   case MYSQL_TYPE_TIME:
     param->set_param_func= set_param_time;
     param->item_type= Item::STRING_ITEM;
-    param->item_result_type= STRING_RESULT;
     break;
   case MYSQL_TYPE_DATE:
     param->set_param_func= set_param_date;
     param->item_type= Item::STRING_ITEM;
-    param->item_result_type= STRING_RESULT;
     break;
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_TIMESTAMP:
     param->set_param_func= set_param_datetime;
     param->item_type= Item::STRING_ITEM;
-    param->item_result_type= STRING_RESULT;
     break;
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
@@ -781,7 +778,6 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
     DBUG_ASSERT(thd->variables.character_set_client);
     param->value.cs_info.final_character_set_of_str_value= &my_charset_bin;
     param->item_type= Item::STRING_ITEM;
-    param->item_result_type= STRING_RESULT;
     break;
   default:
     /*
@@ -811,10 +807,9 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
         charset of connection, so we have to set it later.
       */
       param->item_type= Item::STRING_ITEM;
-      param->item_result_type= STRING_RESULT;
     }
   }
-  param->param_type= (enum enum_field_types) param_type;
+  param->set_handler_by_field_type((enum enum_field_types) param_type);
 }
 
 #ifndef EMBEDDED_LIBRARY
@@ -826,8 +821,8 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
 */
 inline bool is_param_long_data_type(Item_param *param)
 {
-  return ((param->param_type >= MYSQL_TYPE_TINY_BLOB) &&
-          (param->param_type <= MYSQL_TYPE_STRING));
+  return ((param->field_type() >= MYSQL_TYPE_TINY_BLOB) &&
+          (param->field_type() <= MYSQL_TYPE_STRING));
 }
 
 
@@ -1216,7 +1211,7 @@ static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
       the parameter's members that might be needed further
       (e.g. value.cs_info.character_set_client is used in the query_val_str()).
     */
-    setup_one_conversion_function(thd, param, param->param_type);
+    setup_one_conversion_function(thd, param, param->field_type());
     if (param->set_from_user_var(thd, entry))
       DBUG_RETURN(1);
 
@@ -1264,7 +1259,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   */
   if (table_list->lock_type != TL_WRITE_DELAYED)
   {
-    if (open_temporary_tables(thd, table_list))
+    if (thd->open_temporary_tables(table_list))
       goto error;
   }
 
@@ -1321,7 +1316,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
         my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
         goto error;
       }
-      if (setup_fields(thd, 0, *values, MARK_COLUMNS_NONE, 0, 0))
+      if (setup_fields(thd, Ref_ptr_array(), *values, MARK_COLUMNS_NONE, 0, 0))
         goto error;
     }
   }
@@ -1411,7 +1406,8 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(want_privilege);
 #endif
   thd->lex->select_lex.no_wrap_view_item= TRUE;
-  res= setup_fields(thd, 0, select->item_list, MARK_COLUMNS_READ, 0, 0);
+  res= setup_fields(thd, Ref_ptr_array(),
+                    select->item_list, MARK_COLUMNS_READ, 0, 0);
   thd->lex->select_lex.no_wrap_view_item= FALSE;
   if (res)
     goto error;
@@ -1422,7 +1418,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, 0, stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0) ||
+  if (setup_fields(thd, Ref_ptr_array(),
+                   stmt->lex->value_list, MARK_COLUMNS_NONE, 0, 0) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1468,7 +1465,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
     goto error;
   }
-  if (!table_list->table || !table_list->table->created)
+  if (!table_list->table || !table_list->table->is_created())
   {
     my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
              table_list->view_db.str, table_list->view_name.str);
@@ -1512,6 +1509,8 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
@@ -1592,7 +1591,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, 0, *values, MARK_COLUMNS_NONE, 0, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
+                           *values, MARK_COLUMNS_NONE, 0, 0));
 }
 
 
@@ -2028,7 +2028,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
     Since we can't pre-open temporary tables for SQLCOM_CREATE_VIEW,
     (see mysql_create_view) we have to do it here instead.
   */
-  if (open_temporary_tables(thd, tables))
+  if (thd->open_temporary_tables(tables))
     goto err;
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
@@ -2280,7 +2280,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   */
   if (sql_command_flags[sql_command] & CF_PREOPEN_TMP_TABLES)
   {
-    if (open_temporary_tables(thd, tables))
+    if (thd->open_temporary_tables(tables))
       goto error;
   }
 
@@ -2585,7 +2585,10 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   {
     /* Statement map deletes statement on erase */
     thd->stmt_map.erase(stmt);
+    thd->clear_last_stmt();
   }
+  else
+    thd->set_last_stmt(stmt);
 
   thd->protocol= save_protocol;
 
@@ -3171,6 +3174,9 @@ void mysqld_stmt_close(THD *thd, char *packet)
   stmt->deallocate();
   general_log_print(thd, thd->get_command(), NullS);
 
+  if (thd->last_stmt == stmt)
+    thd->clear_last_stmt();
+
   DBUG_VOID_RETURN;
 }
 
@@ -3433,7 +3439,8 @@ end:
 
 Prepared_statement::Prepared_statement(THD *thd_arg)
   :Statement(NULL, &main_mem_root,
-             STMT_INITIALIZED, ++thd_arg->statement_id_counter),
+             STMT_INITIALIZED,
+             ((++thd_arg->statement_id_counter) & STMT_ID_MASK)),
   thd(thd_arg),
   result(thd_arg),
   param_array(0),
@@ -3909,8 +3916,9 @@ reexecute:
     switch (thd->wsrep_conflict_state)
     {
       case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %ld err: %d",
-	            thd->thread_id, thd->get_stmt_da()->sql_errno() );
+        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
+	            (longlong) thd->thread_id,
+                    thd->get_stmt_da()->sql_errno() );
         thd->wsrep_conflict_state = NO_CONFLICT;
         break;
 
@@ -4869,7 +4877,7 @@ bool Protocol_local::send_out_parameters(List<Item_param> *sp_params)
 bool
 Protocol_local::send_ok(uint server_status, uint statement_warn_count,
                         ulonglong affected_rows, ulonglong last_insert_id,
-                        const char *message)
+                        const char *message, bool skip_flush)
 {
   /*
     Just make sure nothing is sent to the client, we have grabbed

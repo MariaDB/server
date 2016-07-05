@@ -2,22 +2,30 @@ include/master-slave.inc
 [connection master]
 FLUSH LOGS;
 CREATE TABLE t1(c1 INT);
+connection slave;
+connection master;
 FLUSH LOGS;
 call mtr.add_suppression('Got fatal error 1236 from master when reading data from binary log: .*could not find next log');
+connection slave;
 include/wait_for_slave_io_error.inc [errno=1236]
 Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'could not find next log; the first event 'master-bin.000001' at XXX, the last event read from 'master-bin.000002' at XXX, the last byte read from 'master-bin.000002' at XXX.''
+connection master;
 CREATE TABLE t2(c1 INT);
 FLUSH LOGS;
 CREATE TABLE t3(c1 INT);
 FLUSH LOGS;
 CREATE TABLE t4(c1 INT);
+connection slave;
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
+connection master;
+connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
 t2
 t3
 t4
+connection master;
 DROP TABLE t1, t2, t3, t4;
 include/rpl_end.inc

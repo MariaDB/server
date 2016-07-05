@@ -7,12 +7,16 @@ create user tt identified via auth_0x0100;
 create user zzzzzzzzzzzzzzzz;
 grant select on test.* to zzzzzzzzzzzzzzzz;
 connect(localhost,tt,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  c0,localhost,tt;
 ERROR 28000: Access denied for user 'tt'@'localhost' (using password: YES)
 grant proxy on zzzzzzzzzzzzzzzz to tt;
+connect  c1,localhost,tt;
+connection c1;
 select user(), current_user(), @@external_user;
 user()	tt@localhost
 current_user()	zzzzzzzzzzzzzzzz@%
 @@external_user	oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo.
+connection default;
 drop user tt;
 drop user zzzzzzzzzzzzzzzz;
 uninstall plugin auth_0x0100;

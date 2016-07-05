@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <my_global.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
@@ -135,7 +136,7 @@ static ssize_t dbf_read_some_compressed(struct dbufio_file *dbf, char *buf, size
         ret = 0;
         goto exit;
     }
-    if (readcode < header_size) {
+    if (readcode < (ssize_t) header_size) {
         errno = TOKUDB_NO_DATA;
         ret = -1;
         goto exit;
@@ -163,7 +164,7 @@ static ssize_t dbf_read_some_compressed(struct dbufio_file *dbf, char *buf, size
         ret = -1;
         goto exit;
     }
-    if (readcode < total_size) {
+    if (readcode < (ssize_t) total_size) {
         errno = TOKUDB_NO_DATA;
         ret = -1;
         goto exit;

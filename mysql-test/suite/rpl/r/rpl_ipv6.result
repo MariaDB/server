@@ -1,6 +1,6 @@
 #################### IP: ::1 ###########################
-connect (master,::1,root,,test,MASTER_MYPORT);
-connect (slave,::1,root,,test,SLAVE_MYPORT);
+connect  master,$IPv6,root,,test,$MASTER_MYPORT;
+connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
 connection master;
 reset master;
 show master status;
@@ -14,8 +14,8 @@ disconnect slave;
 disconnect master;
 connection default;
 #################### IP: 0000:0000:0000:0000:0000:0000:0000:0001 ###########################
-connect (master,0000:0000:0000:0000:0000:0000:0000:0001,root,,test,MASTER_MYPORT);
-connect (slave,0000:0000:0000:0000:0000:0000:0000:0001,root,,test,SLAVE_MYPORT);
+connect  master,$IPv6,root,,test,$MASTER_MYPORT;
+connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
 connection master;
 reset master;
 show master status;
@@ -29,8 +29,8 @@ disconnect slave;
 disconnect master;
 connection default;
 #################### IP: 0:0:0:0:0:0:0:1 ###########################
-connect (master,0:0:0:0:0:0:0:1,root,,test,MASTER_MYPORT);
-connect (slave,0:0:0:0:0:0:0:1,root,,test,SLAVE_MYPORT);
+connect  master,$IPv6,root,,test,$MASTER_MYPORT;
+connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
 connection master;
 reset master;
 show master status;
@@ -44,8 +44,8 @@ disconnect slave;
 disconnect master;
 connection default;
 #################### IP: ::1 mix #######################
-connect (master,127.0.0.1,root,,test,MASTER_MYPORT);
-connect (slave,127.0.0.1,root,,test,SLAVE_MYPORT);
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 connection master;
 reset master;
 show master status;

@@ -14,7 +14,6 @@ call mtr.add_suppression("Can't find record in 't.'");
 
 CREATE DATABASE test_ignore;      # --binlog_ignore_db=mysqltest_ignore
 
---echo **** On Master ****
 SHOW DATABASES;
 USE test;
 CREATE TABLE t1 (a INT, b INT);
@@ -26,7 +25,6 @@ SHOW TABLES;
 INSERT INTO t2 VALUES (3,3), (4,4);
 source include/show_binlog_events.inc;
 sync_slave_with_master;
---echo **** On Slave ****
 SHOW DATABASES;
 USE test;
 SHOW TABLES;
@@ -61,33 +59,26 @@ DROP TABLE t1;
 --echo ================ Test for BUG#17620 ================
 --source include/rpl_reset.inc
 
---echo **** On Slave **** 
 connection slave;
 SET GLOBAL QUERY_CACHE_SIZE=0;
 call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.t1.* error.* 1032");
 
---echo **** On Master **** 
 connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 
---echo **** On Slave **** 
 sync_slave_with_master;
 SET GLOBAL QUERY_CACHE_SIZE=16*1024*1024;
 
---echo **** On Master **** 
 connection master;
 INSERT INTO t1 VALUES (4),(5),(6);
 
---echo **** On Slave **** 
 sync_slave_with_master;
 SELECT * FROM t1;
 
---echo **** On Master **** 
 connection master;
 INSERT INTO t1 VALUES (7),(8),(9);
 
---echo **** On Slave **** 
 sync_slave_with_master;
 SELECT * FROM t1;
 
@@ -128,13 +119,11 @@ sync_slave_with_master;
 
 # disabling warnings temporarily for ENGINE=INNODB to work without InnoDB
 --disable_warnings
---echo **** On Master **** 
 connection master;
 CREATE TABLE t1_myisam (k INT, a BIT(1), b BIT(9)) ENGINE=MYISAM;
 CREATE TABLE t1_innodb (k INT, a BIT(1), b BIT(9)) ENGINE=INNODB;
 CREATE TABLE t2_myisam (k INT, a BIT(1) NOT NULL, b BIT(4) NOT NULL) ENGINE=MYISAM;
 CREATE TABLE t2_innodb (k INT, a BIT(1) NOT NULL, b BIT(4) NOT NULL) ENGINE=INNODB;
---echo **** On Slave **** 
 sync_slave_with_master;
 ALTER TABLE t1_myisam ENGINE=INNODB;
 ALTER TABLE t1_innodb ENGINE=MYISAM;
@@ -142,7 +131,6 @@ ALTER TABLE t2_myisam ENGINE=INNODB;
 ALTER TABLE t2_innodb ENGINE=MYISAM;
 --enable_warnings
 
---echo **** On Master **** 
 connection master;
 INSERT INTO t1_myisam VALUES(1, b'0', 257);
 INSERT INTO t1_myisam VALUES(2, b'1', 256);
@@ -156,14 +144,12 @@ INSERT INTO t2_innodb VALUES(1, b'0', 9);
 INSERT INTO t2_innodb VALUES(2, b'1', 8);
 SELECT k, HEX(a),HEX(b) FROM t2_myisam;
 SELECT k, HEX(a),HEX(b) FROM t2_innodb;
---echo **** On Slave **** 
 sync_slave_with_master;
 SELECT k, HEX(a),HEX(b) FROM t1_myisam;
 SELECT k, HEX(a),HEX(b) FROM t1_innodb;
 SELECT k, HEX(a),HEX(b) FROM t2_myisam;
 SELECT k, HEX(a),HEX(b) FROM t2_innodb;
 
---echo **** On Master **** 
 connection master;
 UPDATE t1_myisam SET a=0 WHERE k=2;
 SELECT k, HEX(a),HEX(b) FROM t1_myisam;
@@ -173,14 +159,12 @@ UPDATE t2_myisam SET a=0 WHERE k=2;
 SELECT k, HEX(a),HEX(b) FROM t2_myisam;
 UPDATE t2_innodb SET a=0 WHERE k=2;
 SELECT k, HEX(a),HEX(b) FROM t2_innodb;
---echo **** On Slave **** 
 sync_slave_with_master;
 SELECT k, HEX(a),HEX(b) FROM t1_myisam;
 SELECT k, HEX(a),HEX(b) FROM t1_innodb;
 SELECT k, HEX(a),HEX(b) FROM t2_myisam;
 SELECT k, HEX(a),HEX(b) FROM t2_innodb;
 
---echo **** On Master **** 
 connection master;
 DROP TABLE IF EXISTS t1_myisam, t1_innodb, t2_myisam, t2_innodb;
 sync_slave_with_master;
@@ -231,11 +215,9 @@ sync_slave_with_master;
 
 --source include/rpl_reset.inc
 
---echo **** On Master ****
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b SET('master','slave'));
 INSERT INTO t1 VALUES (1,'master,slave'), (2,'master,slave');
---echo **** On Slave ****
 sync_slave_with_master;
 UPDATE t1 SET a = 5, b = 'slave' WHERE a = 1;
 SELECT * FROM t1 ORDER BY a;
@@ -243,11 +225,9 @@ SELECT * FROM t1 ORDER BY a;
 # order for the preceding test UPDATE t1 to pass, the mode is switched
 # temprorarily
 set @@global.slave_exec_mode= 'IDEMPOTENT';
---echo **** On Master ****
 connection master;
 UPDATE t1 SET a = 5, b = 'master' WHERE a = 1;
 SELECT * FROM t1 ORDER BY a;
---echo **** On Slave ****
 sync_slave_with_master;
 set @@global.slave_exec_mode= default;
 let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
@@ -257,7 +237,6 @@ enable_query_log;
 
 SELECT * FROM t1 ORDER BY a;
 
---echo **** On Master ****
 connection master;
 DROP TABLE t1;
 --source include/rpl_end.inc

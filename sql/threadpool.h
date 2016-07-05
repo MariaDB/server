@@ -27,10 +27,9 @@ extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 
 
 /* Common thread pool routines, suitable for different implementations */
-extern void threadpool_cleanup_connection(THD *thd);
 extern void threadpool_remove_connection(THD *thd);
 extern int  threadpool_process_request(THD *thd);
-extern int  threadpool_add_connection(THD *thd);
+extern THD*  threadpool_add_connection(CONNECT *connect, void *scheduled_data);
 
 /*
   Functions used by scheduler. 
@@ -38,7 +37,7 @@ extern int  threadpool_add_connection(THD *thd);
   threadpool_unix.cc or threadpool_win.cc
 */
 extern bool tp_init();
-extern void tp_add_connection(THD*);
+extern void tp_add_connection(CONNECT *);
 extern void tp_wait_begin(THD *, int);
 extern void tp_wait_end(THD*);
 extern void tp_post_kill_notification(THD *thd);

@@ -3,7 +3,9 @@ include/master-slave.inc
 #######################################################################
 ####################### PART 1: MASTER TESTS ##########################
 #######################################################################
+connection slave;
 include/stop_slave.inc
+connection master;
 call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
 call mtr.add_suppression("Error writing file .*");
@@ -217,11 +219,14 @@ DROP TABLE t5;
 include/rpl_restart_server.inc [server_number=1]
 DROP TABLE t1, t2, t4;
 RESET MASTER;
+connection slave;
 include/start_slave.inc
+connection master;
 #######################################################################
 ####################### PART 2: SLAVE TESTS ###########################
 #######################################################################
 include/rpl_reset.inc
+connection slave;
 call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");
 call mtr.add_suppression("Error writing file .*");
 call mtr.add_suppression("Could not open .*");

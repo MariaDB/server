@@ -6,7 +6,6 @@
 --echo #           DML flow and SAVEPOINT
 --echo #
 
---echo # Connection master
 connection master;
 
 --disable_warnings
@@ -21,12 +20,10 @@ INSERT INTO nt VALUES (1);
 SAVEPOINT insert_statement;
 INSERT INTO tt VALUES (1);
 
---echo # Connection master1
 connection master1;
 --echo # Sending:
 --send DROP TABLE tt
 
---echo # Connection master
 connection master;
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -35,13 +32,11 @@ let $wait_condition=
 ROLLBACK TO SAVEPOINT insert_statement;
 COMMIT;
 
---echo # Connection master1
 connection master1;
 --echo # Reaping: DROP TABLE tt
 --reap
 FLUSH LOGS;
 
---echo # Connection master
 connection master;
 DROP TABLE nt;
 

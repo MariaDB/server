@@ -24,7 +24,7 @@
 #include "m_string.h"
 #include "my_context.h"
 
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
 #include <valgrind/valgrind.h>
 #endif
 
@@ -134,7 +134,7 @@ my_context_init(struct my_context *c, size_t stack_size)
   if (!(c->stack= malloc(stack_size)))
     return -1;                                  /* Out of memory */
   c->stack_size= stack_size;
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
   c->valgrind_stack_id=
     VALGRIND_STACK_REGISTER(c->stack, ((unsigned char *)(c->stack))+stack_size);
 #endif
@@ -146,7 +146,7 @@ my_context_destroy(struct my_context *c)
 {
   if (c->stack)
   {
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
     VALGRIND_STACK_DEREGISTER(c->valgrind_stack_id);
 #endif
     free(c->stack);
@@ -384,7 +384,7 @@ my_context_init(struct my_context *c, size_t stack_size)
     (( ((intptr)c->stack_bot + stack_size) & ~(intptr)0xf) - 16);
   bzero(c->stack_top, 16);
 
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
   c->valgrind_stack_id=
     VALGRIND_STACK_REGISTER(c->stack_bot, c->stack_top);
 #endif
@@ -397,7 +397,7 @@ my_context_destroy(struct my_context *c)
   if (c->stack_bot)
   {
     free(c->stack_bot);
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
     VALGRIND_STACK_DEREGISTER(c->valgrind_stack_id);
 #endif
   }
@@ -620,7 +620,7 @@ my_context_init(struct my_context *c, size_t stack_size)
     (( ((intptr)c->stack_bot + stack_size) & ~(intptr)0xf) - 16);
   bzero(c->stack_top, 16);
 
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
   c->valgrind_stack_id=
     VALGRIND_STACK_REGISTER(c->stack_bot, c->stack_top);
 #endif
@@ -633,7 +633,7 @@ my_context_destroy(struct my_context *c)
   if (c->stack_bot)
   {
     free(c->stack_bot);
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_VALGRIND_MEMCHECK_H
     VALGRIND_STACK_DEREGISTER(c->valgrind_stack_id);
 #endif
   }

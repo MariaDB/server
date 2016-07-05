@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection slave;
 select * from Information_schema.GLOBAL_VARIABLES where variable_name like 'report_host';
 VARIABLE_NAME	VARIABLE_VALUE
 REPORT_HOST	127.0.0.1

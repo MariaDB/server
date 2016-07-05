@@ -31,7 +31,7 @@ Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO			
 TABLE_SCHEMA	varchar(64)	NO			
 TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO		NULL	
+VIEW_DEFINITION	longtext	NO			
 CHECK_OPTION	varchar(8)	NO			
 IS_UPDATABLE	varchar(3)	NO			
 DEFINER	varchar(189)	NO			
@@ -45,7 +45,7 @@ VIEWS	CREATE TEMPORARY TABLE `VIEWS` (
   `TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
   `TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
   `TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
-  `VIEW_DEFINITION` longtext NOT NULL,
+  `VIEW_DEFINITION` longtext NOT NULL DEFAULT '',
   `CHECK_OPTION` varchar(8) NOT NULL DEFAULT '',
   `IS_UPDATABLE` varchar(3) NOT NULL DEFAULT '',
   `DEFINER` varchar(189) NOT NULL DEFAULT '',
@@ -59,7 +59,7 @@ Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO			
 TABLE_SCHEMA	varchar(64)	NO			
 TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO		NULL	
+VIEW_DEFINITION	longtext	NO			
 CHECK_OPTION	varchar(8)	NO			
 IS_UPDATABLE	varchar(3)	NO			
 DEFINER	varchar(189)	NO			
@@ -93,22 +93,25 @@ WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	db_datadict	v_granted_glob	select `db_datadict`.`t1`.`f2` AS `f2`,`db_datadict`.`t1`.`f3` AS `f3` from `db_datadict`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	db_datadict	v_granted_to_1	select `db_datadict`.`t1`.`f1` AS `f1`,`db_datadict`.`t1`.`f2` AS `f2`,`db_datadict`.`t1`.`f3` AS `f3` from `db_datadict`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-# Establish connection testuser1 (user=testuser1)
+connect  testuser1, localhost, testuser1, , test;
 SELECT * FROM information_schema.views
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	db_datadict	v_granted_to_1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-# Establish connection testuser2 (user=testuser2)
+connect  testuser2, localhost, testuser2, , test;
 SELECT * FROM information_schema.views
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	db_datadict	v_granted_glob		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	db_datadict	v_granted_to_1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-# Establish connection test_no_views (user=test_no_views)
+connect  test_no_views, localhost, test_no_views, , test;
 SELECT * FROM information_schema.views
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
-# Switch to connection default and close all other connections
+connection default;
+disconnect testuser1;
+disconnect testuser2;
+disconnect test_no_views;
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'test_no_views'@'localhost';

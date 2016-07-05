@@ -1,5 +1,10 @@
+connection node_1;
+connection node_2;
+connection node_1;
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+connection node_2;
 Killing server ...
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;
@@ -10,3 +15,4 @@ SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABL
 VARIABLE_VALUE = 'ON'
 1
 SET GLOBAL wsrep_cluster_address = '';
+connection node_2;

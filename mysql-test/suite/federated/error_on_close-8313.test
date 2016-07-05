@@ -3,8 +3,6 @@
 #
 source include/federated.inc;
 
-enable_connect_log;
-
 connection slave;
 create table t1 (foo int, bar int);
 

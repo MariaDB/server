@@ -31,6 +31,8 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	6
 2	6
+connection slave;
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	0
@@ -39,9 +41,11 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	6
 2	6
+connection master;
 drop table t1,t2;
 
 -------- Test 1 for BUG#9361 --------
+connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 CREATE TABLE t1 (
@@ -66,15 +70,19 @@ WHERE   b2 = 'baz')
 AND a.a3 IS NULL 
 AND a.a4 = 'foo' 
 AND a.a5 = 'bar';
+connection slave;
+connection slave;
 SELECT * FROM t1;
 a1	a2	a3	a4	a5
 No	1	NULL	foo	bar
 SELECT * FROM t2;
 b1	b2
 1	baz
+connection master;
 DROP TABLE t1, t2;
 
 -------- Test 2 for BUG#9361 --------
+connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t3;
@@ -115,9 +123,12 @@ FROM    t3
 WHERE   y = 34 
 ) 
 WHERE       b.x = 23;
+connection slave;
+connection slave;
 SELECT * FROM t1;
 i	j	x	y	z
 1	2	23	24	71
+connection master;
 DROP TABLE t1, t2, t3;
 DROP TABLE IF EXISTS t1;
 Warnings:
@@ -175,6 +186,7 @@ idpro	price	nbprice
 1	1.0000	3
 2	1.0000	2
 3	2.0000	1
+connection slave;
 select "-- SLAVE AFTER JOIN --" as "";
 
 -- SLAVE AFTER JOIN --
@@ -191,5 +203,6 @@ idpro	price	nbprice
 1	1.0000	3
 2	1.0000	2
 3	2.0000	1
+connection master;
 DROP TABLE t1, t2;
 include/rpl_end.inc

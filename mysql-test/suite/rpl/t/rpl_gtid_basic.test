@@ -560,3 +560,18 @@ DROP TABLE t1;
 
 
 --source include/rpl_end.inc
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a VARCHAR(100) DEFAULT BINLOG_GTID_POS("master-bin.000001", 600));
+
+--echo #
+--echo # End  of 10.2 tests
+--echo #

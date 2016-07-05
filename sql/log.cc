@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -138,6 +138,12 @@ static MYSQL_BIN_LOG::xid_count_per_binlog *
 static bool start_binlog_background_thread();
 
 static rpl_binlog_state rpl_global_gtid_binlog_state;
+
+void setup_log_handling()
+{
+  rpl_global_gtid_binlog_state.init();
+}
+
 
 /**
    purge logs, master and slave sides both, related error code
@@ -1674,14 +1680,14 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     uchar *buf;
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lu",
-               len, thd->thread_id);
+    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lld",
+               (ulong) len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
 
     cache = cache_mngr->get_binlog_cache_log(false);
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lu",
-               len, thd->thread_id);
+    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lld",
+               (ulong) len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */
@@ -3165,6 +3171,21 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   bzero((char*) &purge_index_file, sizeof(purge_index_file));
 }
 
+void MYSQL_BIN_LOG::stop_background_thread()
+{
+  if (binlog_background_thread_started)
+  {
+    mysql_mutex_lock(&LOCK_binlog_background_thread);
+    binlog_background_thread_stop= true;
+    mysql_cond_signal(&COND_binlog_background_thread);
+    while (binlog_background_thread_stop)
+      mysql_cond_wait(&COND_binlog_background_thread_end,
+                      &LOCK_binlog_background_thread);
+    mysql_mutex_unlock(&LOCK_binlog_background_thread);
+    binlog_background_thread_started= false;
+  }
+}
+
 /* this is called only once */
 
 void MYSQL_BIN_LOG::cleanup()
@@ -3175,17 +3196,8 @@ void MYSQL_BIN_LOG::cleanup()
     xid_count_per_binlog *b;
 
     /* Wait for the binlog background thread to stop. */
-    if (!is_relay_log && binlog_background_thread_started)
-    {
-      mysql_mutex_lock(&LOCK_binlog_background_thread);
-      binlog_background_thread_stop= true;
-      mysql_cond_signal(&COND_binlog_background_thread);
-      while (binlog_background_thread_stop)
-        mysql_cond_wait(&COND_binlog_background_thread_end,
-                        &LOCK_binlog_background_thread);
-      mysql_mutex_unlock(&LOCK_binlog_background_thread);
-      binlog_background_thread_started= false;
-    }
+    if (!is_relay_log)
+      stop_background_thread();
 
     inited= 0;
     close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
@@ -4360,7 +4372,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 
   /*
    * Need to update the log pos because purge logs has been called 
-   * after fetching initially the log pos at the begining of the method.
+   * after fetching initially the log pos at the beginning of the method.
    */
   if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
   {
@@ -6582,7 +6594,6 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate)
   DBUG_ENTER("MYSQL_BIN_LOG::rotate_and_purge");
   bool check_purge= false;
 
-  //todo: fix the macro def and restore safe_mutex_assert_not_owner(&LOCK_log);
   mysql_mutex_lock(&LOCK_log);
   prev_binlog_id= current_binlog_id;
   if ((error= rotate(force_rotate, &check_purge)))
@@ -9505,12 +9516,9 @@ binlog_background_thread(void *arg __attribute__((unused)))
   my_thread_init();
   DBUG_ENTER("binlog_background_thread");
 
-  thd= new THD;
+  thd= new THD(next_thread_id());
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->thread_id= thread_id++;
-  mysql_mutex_unlock(&LOCK_thread_count);
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -9597,6 +9605,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
+  /* No need to use mutex as thd is not linked into other threads */
   delete thd;
 
   my_thread_end();
@@ -10089,7 +10098,7 @@ static MYSQL_SYSVAR_ENUM(
   "log events in the binary log",
   NULL,
   binlog_checksum_update,
-  BINLOG_CHECKSUM_ALG_OFF,
+  BINLOG_CHECKSUM_ALG_CRC32,
   &binlog_checksum_typelib);
 
 static struct st_mysql_sys_var *binlog_sys_vars[]=
@@ -10181,7 +10190,8 @@ IO_CACHE * get_trans_log(THD * thd)
   if (cache_mngr)
     return cache_mngr->get_binlog_cache_log(true);
 
-  WSREP_DEBUG("binlog cache not initialized, conn :%ld", thd->thread_id);
+  WSREP_DEBUG("binlog cache not initialized, conn: %lld",
+              (longlong) thd->thread_id);
   return NULL;
 }
 
@@ -10219,7 +10229,8 @@ void thd_binlog_trx_reset(THD * thd)
 
 void thd_binlog_rollback_stmt(THD * thd)
 {
-  WSREP_DEBUG("thd_binlog_rollback_stmt :%ld", thd->thread_id);
+  WSREP_DEBUG("thd_binlog_rollback_stmt connection: %lld",
+              (longlong) thd->thread_id);
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)

@@ -4,16 +4,17 @@ SET @session_character_set_database = @@session.character_set_database;
 SET @session_character_set_server = @@session.character_set_server;
 SET @global_character_set_server = @@global.character_set_server;
 SET @@global.character_set_database = utf8;
-'connect (con1,localhost,root,,,,)'
-'connection con1'
+connect  con1,localhost,root,,,,;
+connection con1;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 utf8
 SELECT @@session.character_set_database;
 @@session.character_set_database
 latin1
+disconnect con1;
 '#--------------------FN_DYNVARS_008_02-------------------------#'
-'connection default'
+connection default;
 DROP TABLE IF EXISTS t1;
 '--check if setting session character_set_database effects new databases'
 SET @@session.character_set_server = utf8;
@@ -71,12 +72,16 @@ count(*)
 1
 DROP TABLE IF EXISTS t1;
 SET GLOBAL character_set_server=latin5;
+connect  con2, localhost, root,,;
+connection con2;
 CREATE DATABASE csdb CHARACTER SET = utf8;
 USE csdb;
 DROP DATABASE csdb;
 SELECT @@character_set_database;
 @@character_set_database
 latin5
+connection default;
+disconnect con2;
 SET @@global.character_set_database = @global_character_set_database;
 SET @@session.character_set_database = @session_character_set_database;
 SET @@session.character_set_server = @session_character_set_server;

@@ -23,8 +23,6 @@ change master to master_use_gtid=slave_pos;
 --echo # 
 --echo # Create some 0-1-* and 0-2-* events in binlog of server 2
 
---enable_connect_log
-
 --connection server_1
 create table t1 (i int) engine=InnoDB;
 insert into t1 values (1);
@@ -43,8 +41,6 @@ insert into t1 values (2);
 --sync_with_master
 insert into t2 values (1);
 --save_master_pos
-
---disable_connect_log
 
 --echo # 
 --echo # All events are present in the binlog of server 2

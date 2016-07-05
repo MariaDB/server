@@ -1,28 +1,46 @@
 SET DEBUG_SYNC= 'RESET';
+connect  con1,localhost,root,,test,,;
+connect  con2,localhost,root,,test,,;
+connect  con3,localhost,root,,test,,;
+connection default;
 drop table if exists t1,t2,t3;
 create table t1 (i int);
 create table t2 (i int);
 connection: default
 lock tables t2 read;
+connection con1;
 connection: con1
 set debug_sync='mdl_upgrade_lock SIGNAL parked WAIT_FOR go';
 alter table t1 rename t3;
+connection default;
 connection: default
 set debug_sync= 'now WAIT_FOR parked';
+connection con2;
 connection: con2
 set debug_sync='mdl_acquire_lock_wait SIGNAL go';
 drop table t1,t2;
+connection con1;
 connection: con1
+connection default;
 connection: default
 unlock tables;
+connection con2;
 connection: con2
 ERROR 42S02: Unknown table 'test.t1'
+connection default;
 drop table t3;
+disconnect con1;
+disconnect con2;
+disconnect con3;
 SET DEBUG_SYNC= 'RESET';
 #
 # Basic test coverage for type-of-operation aware metadata locks.
 #
 drop table if exists t1, t2, t3;
+connect mdl_con1,localhost,root,,;
+connect mdl_con2,localhost,root,,;
+connect mdl_con3,localhost,root,,;
+connection default;
 set debug_sync= 'RESET';
 create table t1 (c1 int);
 # 
@@ -36,7 +54,7 @@ create table t1 (c1 int);
 #
 handler t1 open;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that S, SH, SR and SW locks are compatible with it.
 handler t1 open t;
 handler t close;
@@ -66,62 +84,62 @@ unlock tables;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of S lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock RENAME TABLE.
 handler t1 close;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE.
 # Restore the original state of the things.
 rename table t2 to t1;
 # 
-# Switching to connection 'default'.
+connection default;
 handler t1 open;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that upgrade from SNW to X is blocked by presence of S lock.
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER TABLE is blocked because of S lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock ALTER TABLE.
 handler t1 close;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 # Restore the original state of the things.
 alter table t1 drop column c2;
 # 
-# Switching to connection 'default'.
+connection default;
 handler t1 open;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that upgrade from SNRW to X is blocked by presence of S lock.
 lock table t1 write;
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above upgrade of SNRW to X in ALTER TABLE is blocked
 # because of S lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock ALTER TABLE.
 handler t1 close;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 # Restore the original state of the things.
 alter table t1 drop column c2;
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # 2) Acquire SH (shared high-priority) lock on the table.
 #    We have to involve DEBUG_SYNC facility for this as usually
@@ -131,7 +149,7 @@ set debug_sync= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 # Sending:
 select table_name, table_type, auto_increment, table_comment from information_schema.tables where table_schema='test' and table_name='t1';;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that S, SH, SR and SW locks are compatible with it.
 handler t1 open;
@@ -162,76 +180,76 @@ unlock tables;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of SH lock.
 # Unblock RENAME TABLE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT ... FROM I_S.
 table_name	table_type	auto_increment	table_comment
 t1	BASE TABLE	NULL	
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE.
 # Restore the original state of the things.
 rename table t2 to t1;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 # Sending:
 select table_name, table_type, auto_increment, table_comment from information_schema.tables where table_schema='test' and table_name='t1';;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that upgrade from SNW to X is blocked by presence of SH lock.
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER TABLE is blocked because of SH lock.
 # Unblock RENAME TABLE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT ... FROM I_S.
 table_name	table_type	auto_increment	table_comment
 t1	BASE TABLE	NULL	
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 # Restore the original state of the things.
 alter table t1 drop column c2;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 select table_name, table_type, auto_increment, table_comment from information_schema.tables where table_schema='test' and table_name='t1';;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that upgrade from SNRW to X is blocked by presence of S lock.
 lock table t1 write;
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above upgrade of SNRW to X in ALTER TABLE is blocked
 # because of S lock.
 # Unblock RENAME TABLE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT ... FROM I_S.
 table_name	table_type	auto_increment	table_comment
 t1	BASE TABLE	NULL	
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 # Restore the original state of the things.
 alter table t1 drop column c2;
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 3) Acquire SR lock on the table.
@@ -242,7 +260,7 @@ select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that S, SH, SR and SW locks are compatible with it.
 handler t1 open;
 handler t1 close;
@@ -268,58 +286,58 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above LOCK TABLES is blocked because of SR lock.
 # Unblock LOCK TABLES.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES.
 delete from t1 limit 1;
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 begin;
 select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that X lock is incompatible with SR lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of SR lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE.
 # Restore the original state of the things.
 rename table t2 to t1;
 # 
-# Switching to connection 'default'.
+connection default;
 begin;
 select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that upgrade from SNW to X is blocked by presence of SR lock.
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER TABLE is blocked because of SR lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 # Restore the original state of the things.
 alter table t1 drop column c2;
@@ -328,7 +346,7 @@ alter table t1 drop column c2;
 # by presence of SR lock because SNRW is incompatible with SR anyway.
 # 
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 4) Acquire SW lock on the table.
@@ -337,7 +355,7 @@ alter table t1 drop column c2;
 begin;
 insert into t1 values (1);
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that S, SH, SR and SW locks are compatible with it.
 handler t1 open;
 handler t1 close;
@@ -360,51 +378,51 @@ ERROR 42000: Key column 'not_exist' doesn't exist in table
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above ALTER TABLE is blocked because of SW lock.
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'default'.
+connection default;
 begin;
 insert into t1 values (1);
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that SNRW lock is not compatible with SW lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above LOCK TABLES is blocked because of SW lock.
 # Unblock LOCK TABLES.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES.
 delete from t1 limit 2;
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 begin;
 insert into t1 values (1);
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that X lock is incompatible with SW lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of SW lock.
 # 
-# Switching to connection 'default'.
+connection default;
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE.
 # Restore the original state of the things.
 rename table t2 to t1;
@@ -414,7 +432,7 @@ rename table t2 to t1;
 # with SW anyway.
 # 
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 5) Acquire SU lock on the table. We have to use DEBUG_SYNC for
@@ -424,7 +442,7 @@ set debug_sync= 'alter_opened_table SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that S, SH, SR and SW locks are compatible with it.
 handler t1 open;
@@ -441,67 +459,67 @@ delete from t1 limit 1;
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER is blocked because of SU lock.
 # Unblock ALTERs.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping first ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping another ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'alter_opened_table SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that SNRW lock is incompatible with SU lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above LOCK TABLES is blocked because of SU lock.
 # Unblock ALTER and thus LOCK TABLES.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES
 insert into t1 values (1);
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'alter_opened_table SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that X lock is incompatible with SU lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of SU lock.
 # Unblock ALTER and thus RENAME TABLE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Now we have ALTER TABLE with SU->SNW and RENAME TABLE with pending
 # X-lock. In this case ALTER TABLE should be chosen as victim.
 # Reaping ALTER TABLE.
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE
 # Revert back to original state of things.
 rename table t2 to t1;
@@ -510,7 +528,7 @@ rename table t2 to t1;
 # blocked by presence of another SU lock because SNW/SNRW is
 # incompatible with SU anyway.
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 6) Acquire SNW lock on the table. We have to use DEBUG_SYNC for
@@ -520,7 +538,7 @@ set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR fini
 # Sending:
 alter table t1 add primary key (c1), lock=shared, algorithm=copy;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that S, SH and SR locks are compatible with it.
 handler t1 open;
@@ -536,39 +554,39 @@ count(*)
 # Sending:
 delete from t1 limit 2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above DELETE is blocked because of SNW lock.
 # Unblock ALTER and thus DELETE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping DELETE.
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1), lock=shared, algorithm=copy;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that SU lock is incompatible with SNW lock.
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER is blocked because of SNW lock.
 # Unblock ALTERs.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping first ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping another ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
@@ -576,52 +594,52 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # SNW is only used by ALTER TABLE after upgrading from SU
 # and SU is also incompatible with SNW.
 #
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1), lock=shared, algorithm=copy;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that SNRW lock is incompatible with SNW lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above LOCK TABLES is blocked because of SNW lock.
 # Unblock ALTER and thus LOCK TABLES.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES
 insert into t1 values (1);
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1), algorithm=copy, lock=shared;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 set debug_sync= 'now WAIT_FOR locked';
 # Check that X lock is incompatible with SNW lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME is blocked because of SNW lock.
 # Unblock ALTER and thus RENAME TABLE.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE
 # Revert back to original state of things.
 rename table t2 to t1;
@@ -630,7 +648,7 @@ rename table t2 to t1;
 # blocked by presence of another SNW lock because SNW/SNRW is
 # incompatible with SNW anyway.
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 7) Acquire SNRW lock on the table. 
@@ -638,7 +656,7 @@ rename table t2 to t1;
 #
 lock table t1 write;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that S and SH locks are compatible with it.
 handler t1 open;
 handler t1 close;
@@ -650,46 +668,46 @@ c1
 # Sending:
 select count(*) from t1;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above SELECT is blocked because of SNRW lock.
 # Unblock SELECT.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping SELECT.
 count(*)
 4
 # 
-# Switching to connection 'default'.
+connection default;
 lock table t1 write;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that SW lock is incompatible with SNRW lock.
 # Sending:
 delete from t1 limit 1;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above DELETE is blocked because of SNRW lock.
 # Unblock DELETE.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping DELETE.
 # 
-# Switching to connection 'default'.
+connection default;
 lock table t1 write;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that SU lock is incompatible with SNRW lock.
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above ALTER is blocked because of SNRW lock.
 # Unblock ALTER.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
@@ -697,38 +715,38 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # SNW is only used by ALTER TABLE after upgrading from SU
 # and SU is also incompatible with SNRW.
 #
-# Switching to connection 'default'.
+connection default;
 lock table t1 write;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that SNRW lock is incompatible with SNRW lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above LOCK TABLES is blocked because of SNRW lock.
 # Unblock waiting LOCK TABLES.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES
 insert into t1 values (1);
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 lock table t1 write;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that X lock is incompatible with SNRW lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Check that the above RENAME is blocked because of SNRW lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME TABLE
 # Revert back to original state of things.
 rename table t2 to t1;
@@ -737,7 +755,7 @@ rename table t2 to t1;
 # blocked by presence of another SNRW lock because SNW/SNRW is
 # incompatible with SNRW anyway.
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # 8) Now do the same round of tests for X lock. We use additional
@@ -745,144 +763,144 @@ rename table t2 to t1;
 #
 create table t2 (c1 int);
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Take a lock on t2, so RENAME TABLE t1 TO t2 will get blocked
 # after acquiring X lock on t1.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that S lock in incompatible with X lock.
 # Sending:
 handler t1 open;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above HANDLER statement is blocked because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping HANDLER.
 handler t1 close;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that SH lock in incompatible with X lock.
 # Sending:
 select column_name from information_schema.columns where table_schema='test' and table_name='t1';;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT ... FROM I_S ... statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping SELECT ... FROM I_S.
 column_name
 c1
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that SR lock in incompatible with X lock.
 # Sending:
 select count(*) from t1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping SELECT.
 count(*)
 4
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that SW lock in incompatible with X lock.
 # Sending:
 delete from t1 limit 1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above DELETE statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping DELETE.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that SU lock is incompatible with X lock.
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 #
@@ -890,59 +908,59 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # SNW is only used by ALTER TABLE after upgrading from SU
 # and SU is also incompatible with X.
 #
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that SNRW lock is incompatible with X lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above LOCK TABLE statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLE.
 unlock tables;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
 lock tables t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME has acquired X lock on t1 and is waiting for t2.
 # Check that X lock is incompatible with X lock.
 # Sending:
 rename table t1 to t3;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above RENAME statement is blocked
 # because of X lock.
 # Unblock RENAME TABLE
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping RENAME.
 rename table t3 to t1;
 #
@@ -954,7 +972,7 @@ rename table t3 to t1;
 #          even stronger active or pending lock.
 #
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 #
 # 1) Check compatibility for pending SNW lock.
 #
@@ -962,12 +980,12 @@ rename table t3 to t1;
 begin;
 insert into t1 values (1);
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending SNW lock.
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that ALTER TABLE is waiting with pending SNW lock.
 # Check that S, SH and SR locks are compatible with pending SNW
 handler t1 open t;
@@ -983,23 +1001,23 @@ count(*)
 # Sending:
 delete from t1 limit 1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above DELETE is blocked because of pending SNW lock.
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping DELETE.
 #
 # We can't do similar check for SNW, SNRW and X locks because
 # they will also be blocked by active SW lock.
 #
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 #
 # 2) Check compatibility for pending SNRW lock.
 #
@@ -1009,12 +1027,12 @@ select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending SNRW lock.
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that LOCK TABLE is waiting with pending SNRW lock.
 # Check that S and SH locks are compatible with pending SNRW
 handler t1 open t;
@@ -1027,72 +1045,72 @@ c1
 # Sending:
 select count(*) from t1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT is blocked because of pending SNRW lock.
 # Unblock LOCK TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping LOCK TABLE.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping SELECT.
 count(*)
 3
 # Restore pending SNRW lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that LOCK TABLE is waiting with pending SNRW lock.
 # Check that SW is incompatible with pending SNRW
 # Sending:
 insert into t1 values (1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above INSERT is blocked because of pending SNRW lock.
 # Unblock LOCK TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping LOCK TABLE.
 unlock tables;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping INSERT.
 # Restore pending SNRW lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'default'.
+connection default;
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that LOCK TABLE is waiting with pending SNRW lock.
 # Check that SNW is compatible with pending SNRW
 # So ALTER TABLE statements are not starved by LOCK TABLEs.
 alter table t1 add primary key (c1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Unblock LOCK TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping LOCK TABLE.
 unlock tables;
 #
@@ -1100,7 +1118,7 @@ unlock tables;
 # they will also be blocked by active SR lock.
 #
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 #
 # 3) Check compatibility for pending X lock.
 #
@@ -1110,12 +1128,12 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending X lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME TABLE is waiting with pending X lock.
 # Check that SH locks are compatible with pending X
 select column_name from information_schema.columns where
@@ -1126,143 +1144,143 @@ c1
 # Sending:
 handler t1 open;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above HANDLER OPEN is blocked because of pending X lock.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping HANDLER t1 OPEN.
 handler t1 close;
 # Restore pending X lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending X lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME TABLE is waiting with pending X lock.
 # Check that SR is incompatible with pending X
 # Sending:
 select count(*) from t1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT is blocked because of pending X lock.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping SELECT.
 count(*)
 4
 # Restore pending X lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending X lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME TABLE is waiting with pending X lock.
 # Check that SW is incompatible with pending X
 # Sending:
 delete from t1 limit 1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above DELETE is blocked because of pending X lock.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping DELETE.
 # Restore pending X lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending X lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME TABLE is waiting with pending X lock.
 # Check that SNW is incompatible with pending X
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above ALTER TABLE is blocked because of pending X lock.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # Restore pending X lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 handler t1 open;
 # 
-# Switching to connection 'default'.
+connection default;
 # Add pending X lock.
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that RENAME TABLE is waiting with pending X lock.
 # Check that SNRW is incompatible with pending X
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'mdl_con3'.
+connection mdl_con3;
 # Check that the above LOCK TABLES is blocked because of pending X lock.
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Unblock RENAME TABLE.
 handler t1 close;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reaping RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reaping LOCK TABLES.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 #
 # C) Now let us test how type-of-operation locks are handled in
@@ -1283,7 +1301,7 @@ select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create an active SNW lock on t2.
 # We have to use DEBUG_SYNC facility as otherwise SNW lock
 # will be immediately released (or upgraded to X lock).
@@ -1292,7 +1310,7 @@ set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR fini
 # Sending:
 alter table t2 add primary key (c1), algorithm=copy, lock=shared;;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'now WAIT_FOR locked';
 # SR lock should be acquired without any waiting.
 select count(*) from t2;
@@ -1307,16 +1325,16 @@ count(*)
 # Sending:
 insert into t2 values (1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above INSERT is blocked.
 # Unblock ALTER TABLE and thus INSERT.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 commit;
 #
@@ -1331,13 +1349,13 @@ select count(*) from t1;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create an active SNW lock on t1.
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL locked WAIT_FOR finish';
 # Sending:
 alter table t1 add primary key (c1), algorithm=copy, lock=shared;;
 # 
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'now WAIT_FOR locked';
 # We should still be able to get SR lock without waiting.
 select count(*) from t1;
@@ -1349,16 +1367,16 @@ count(*)
 # Sending:
 insert into t1 values (1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above INSERT is blocked.
 # Unblock ALTER TABLE and thus INSERT.
 set debug_sync= 'now SIGNAL finish';
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 commit;
 #
@@ -1369,12 +1387,12 @@ commit;
 begin;
 insert into t1 values (1);
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create pending SNW lock on t1.
 # Sending:
 alter table t1 add primary key (c1);;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER TABLE starts waiting for SNW lock.
 # We should still be able to get both SW and SR locks without waiting.
 select count(*) from t1;
@@ -1384,11 +1402,11 @@ delete from t1 limit 1;
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # 2) Now similar tests for active SNW lock which is being upgraded
 #    to X lock.
@@ -1400,7 +1418,7 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Start transaction which will prevent SNW -> X upgrade from
 # completing immediately.
 begin;
@@ -1408,26 +1426,26 @@ select count(*) from t2;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create SNW lock pending upgrade to X on t2.
 # Sending:
 alter table t2 add column c2 int;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER TABLE starts waiting X lock.
 # Check that attempt to acquire SR lock on t2 causes waiting.
 # Sending:
 select count(*) from t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT is blocked.
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap SELECT.
 count(*)
 3
@@ -1438,7 +1456,7 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Start transaction which will prevent SNW -> X upgrade from
 # completing immediately.
 begin;
@@ -1446,26 +1464,26 @@ select count(*) from t2;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create SNW lock pending upgrade to X on t2.
 # Sending:
 alter table t2 drop column c2;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER TABLE starts waiting X lock.
 # Check that attempt to acquire SW lock on t2 causes waiting.
 # Sending:
 insert into t2 values (1);;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above INSERT is blocked.
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 commit;
 #
@@ -1477,12 +1495,12 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create SNW lock pending upgrade to X.
 # Sending:
 alter table t1 add column c2 int;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER TABLE starts waiting X lock.
 # Check that transaction is still able to acquire SR lock.
 select count(*) from t1;
@@ -1495,10 +1513,10 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Unblock ALTER TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap ALTER TABLE.
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # 3) Check how various locks used within transactional context
 #    interact with active/pending SNRW lock.
@@ -1510,21 +1528,21 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 lock table t2 write;
 # 
-# Switching to connection 'default'.
+connection default;
 # Attempt to acquire SR should be blocked. It should
 # not cause errors as it does not creates deadlock.
 # Sending:
 select count(*) from t2;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that the above SELECT is blocked 
 # Unblock SELECT.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap SELECT.
 count(*)
 4
@@ -1535,21 +1553,21 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 lock table t2 write;
 # 
-# Switching to connection 'default'.
+connection default;
 # Again attempt to acquire SW should be blocked and should
 # not cause any errors.
 # Sending:
 delete from t2 limit 1;;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Check that the above DELETE is blocked 
 # Unblock DELETE.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap DELETE.
 commit;
 #
@@ -1564,11 +1582,11 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until LOCK TABLE is blocked creating pending request for X lock.
 # Check that another instance of SR lock is granted without waiting.
 select count(*) from t1;
@@ -1581,22 +1599,22 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Unblock LOCK TABLES.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap LOCK TABLES.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # **) Now case when transaction has a SW lock.
 #
 begin;
 delete from t1 limit 1;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Sending:
 lock table t1 write;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until LOCK TABLE is blocked creating pending request for X lock.
 # Check that both SR and SW locks are granted without waiting
 # and errors.
@@ -1607,11 +1625,11 @@ insert into t1 values (1, 1);
 # Unblock LOCK TABLES.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap LOCK TABLES.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # 4) Check how various locks used within transactional context
 #    interact with active/pending X lock.
@@ -1623,7 +1641,7 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Start transaction which will prevent X lock from going away
 # immediately.
 begin;
@@ -1631,26 +1649,26 @@ select count(*) from t2;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create pending X lock on t2.
 # Sending:
 rename table t2 to t3;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until RENAME TABLE starts waiting with pending X lock.
 # Check that attempt to acquire SR lock on t2 causes waiting.
 # Sending:
 select count(*) from t2;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above SELECT is blocked.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap RENAME TABLE.
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap SELECT.
 ERROR 42S02: Table 'test.t2' doesn't exist
 commit;
@@ -1661,7 +1679,7 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Start transaction which will prevent X lock from going away
 # immediately.
 begin;
@@ -1669,26 +1687,26 @@ select count(*) from t2;
 count(*)
 3
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Create pending X lock on t2.
 # Sending:
 rename table t2 to t3;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until RENAME TABLE starts waiting with pending X lock.
 # Check that attempt to acquire SW lock on t2 causes waiting.
 # Sending:
 delete from t2 limit 1;;
 # 
-# Switching to connection 'mdl_con2'.
+connection mdl_con2;
 # Check that the above DELETE is blocked.
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap RENAME TABLE.
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap DELETE.
 ERROR 42S02: Table 'test.t2' doesn't exist
 commit;
@@ -1705,11 +1723,11 @@ select count(*) from t1;
 count(*)
 4
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until RENAME TABLE is blocked creating pending request for X lock.
 # Check that another instance of SR lock is granted without waiting.
 select count(*) from t1;
@@ -1722,22 +1740,22 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # **) The second case is when transaction has a SW lock.
 #
 begin;
 delete from t1 limit 1;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Sending:
 rename table t1 to t2;;
 # 
-# Switching to connection 'default'.
+connection default;
 # Wait until RENAME TABLE is blocked creating pending request for X lock.
 # Check that both SR and SW locks are granted without waiting
 # and errors.
@@ -1748,12 +1766,15 @@ insert into t1 values (1, 1);
 # Unblock RENAME TABLE.
 commit;
 # 
-# Switching to connection 'mdl_con1'.
+connection mdl_con1;
 # Reap RENAME TABLE.
 ERROR 42S01: Table 't2' already exists
 # 
-# Switching to connection 'default'.
+connection default;
 # Clean-up.
+disconnect mdl_con1;
+disconnect mdl_con2;
+disconnect mdl_con3;
 set debug_sync= 'RESET';
 drop table t1, t2;
 #
@@ -1762,6 +1783,9 @@ drop table t1, t2;
 # have caused deadlocks.
 #
 drop table if exists t1, t2;
+connect handler_con1,localhost,root,,;
+connect handler_con2,localhost,root,,;
+connection default;
 create table t1 (i int);
 create table t2 (j int);
 insert into t1 values (1);
@@ -1772,24 +1796,24 @@ insert into t1 values (1);
 #
 handler t1 open;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 lock table t1 write;
 # Upgrade SNRW to X lock.
 # Sending:
 alter table t1 add column j int;;
 # 
-# Switching to connection 'handler_con2'.
+connection handler_con2;
 # Wait until ALTER is blocked during upgrade.
 # 
-# Switching to connection 'default'.
+connection default;
 # The below statement should not cause deadlock.
 handler t1 read first;;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Reap ALTER TABLE.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap HANDLER READ.
 i	j
 1	NULL
@@ -1801,64 +1825,64 @@ handler t1 close;
 #
 handler t1 open;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 lock table t1 write, t2 read;
 # 
-# Switching to connection 'default'.
+connection default;
 # Execute statement which will be blocked on table-level lock
 # owned by connection 'handler_con1'.
 # Sending:
 insert into t2 values (1);;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Wait until INSERT is blocked on table-level lock.
 # Sending 'alter table t1 drop column j'. It should not cause
 # deadlock.
 alter table t1 drop column j;
-# Switching to connection 'handler_con2'.
+connection handler_con2;
 # Wait until ALTER is blocked during upgrade.
 # 
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 ERROR HY000: Wait on a lock was aborted due to a pending exclusive lock
 handler t1 close;
 #
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Reaping 'alter table t1 drop column j'
 unlock tables;
-# Switching to connection 'default'.
+connection default;
 # Then, check the scenario in which upgrade of SNRW lock to X
 # lock is blocked by HANDLER which is open in connection currently
 # waiting to get SW lock on the same table.
 #
 handler t1 open;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 lock table t1 write;
 # 
-# Switching to connection 'default'.
+connection default;
 # The below insert should be blocked because active SNRW lock on 't1'.
 # Sending:
 insert into t1 values (1);;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Wait until INSERT is blocked because of SNRW lock.
 # The below ALTER TABLE will be blocked because of presence of HANDLER.
 # Sending:
 alter table t1 add column j int;;
 # 
-# Switching to connection 'default'.
+connection default;
 # INSERT should be chosen as victim for resolving deadlock.
 # Reaping INSERT.
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Close HANDLER to unblock ALTER TABLE.
 handler t1 close;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Reaping ALTER TABLE.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 #
 # Finally, test in which upgrade of SNRW lock to X lock is blocked
 # by HANDLER which is open in connection currently waiting to get
@@ -1866,33 +1890,35 @@ unlock tables;
 #
 handler t1 open;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 lock table t1 write, t2 write;
 # 
-# Switching to connection 'default'.
+connection default;
 # The below insert should be blocked because active SNRW lock on 't1'.
 # Sending:
 insert into t2 values (1);;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Wait until INSERT is blocked because of SNRW lock.
 # The below ALTER TABLE will be blocked because of presence of HANDLER.
 # Sending:
 alter table t1 drop column j;;
 # 
-# Switching to connection 'default'.
+connection default;
 # INSERT should be chosen as victim for resolving deadlock.
 # Reaping INSERT.
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # Close HANDLER to unblock ALTER TABLE.
 handler t1 close;
 # 
-# Switching to connection 'handler_con1'.
+connection handler_con1;
 # Reaping ALTER TABLE.
 unlock tables;
 # 
-# Switching to connection 'default'.
+connection default;
 # Clean-up.
+disconnect handler_con1;
+disconnect handler_con2;
 drop tables t1, t2;
 #
 # Test coverage for basic deadlock detection in metadata
@@ -1900,6 +1926,10 @@ drop tables t1, t2;
 #
 drop tables if exists t0, t1, t2, t3, t4, t5;
 set debug_sync= 'RESET';
+connect deadlock_con1,localhost,root,,;
+connect deadlock_con2,localhost,root,,;
+connect deadlock_con3,localhost,root,,;
+connection default;
 create table t1 (i int);
 create table t2 (j int);
 create table t3 (k int);
@@ -1908,19 +1938,19 @@ create table t4 (k int);
 # Test for the case in which no deadlock occurs.
 #
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 begin;
 insert into t1 values (1);
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 begin;
 insert into t2 values (1);
 #
-# Switching to connection 'default'.
+connection default;
 # Send:
 rename table t2 to t0, t3 to t2, t0 to t3;;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait until the above RENAME TABLE is blocked because it has to wait
 # for 'deadlock_con2' which holds shared metadata lock on 't2'.
 # The below statement should wait for exclusive metadata lock
@@ -1929,21 +1959,21 @@ rename table t2 to t0, t3 to t2, t0 to t3;;
 # Send:
 select * from t2;;
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait until the above SELECT * FROM t2 is starts waiting
 # for an exclusive metadata lock to go away.
 #
 # Unblock RENAME TABLE by releasing shared metadata lock on t2.
 commit;
 #
-# Switching to connection 'default'.
+connection default;
 # Reap RENAME TABLE.
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reap SELECT.
 k
 #
-# Switching to connection 'default'.
+connection default;
 #
 # Let us check that in the process of waiting for conflicting lock
 # on table 't2' to go away transaction in connection 'deadlock_con1'
@@ -1951,28 +1981,28 @@ k
 # Send:
 rename table t1 to t0, t3 to t1, t0 to t3;;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait until the above RENAME TABLE is blocked because it has to wait
 # for 'deadlock_con1' which should still hold shared metadata lock on
 # table 't1'.
 # Commit transaction to unblock RENAME TABLE.
 commit;
 #
-# Switching to connection 'default'.
+connection default;
 # Reap RENAME TABLE.
 #
 # Test for case when deadlock occurs and should be detected immediately.
 #
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 begin;
 insert into t2 values (2);
 #
-# Switching to connection 'default'.
+connection default;
 # Send:
 rename table t2 to t0, t1 to t2, t0 to t1;;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait until the above RENAME TABLE is blocked because it has to wait
 # for 'deadlock_con1' which holds shared metadata lock on 't2'.
 # 
@@ -1982,50 +2012,50 @@ rename table t2 to t0, t1 to t2, t0 to t1;;
 select * from t1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 #
-# Switching to connection 'default'.
+connection default;
 # Reap RENAME TABLE.
 #
 # Test for the case in which deadlock also occurs but not immediately.
 #
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 begin;
 insert into t2 values (1);
 #
-# Switching to connection 'default'.
+connection default;
 lock table t1 write;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # The below SELECT statement should wait for metadata lock
 # on table 't1' and should not produce ER_LOCK_DEADLOCK
 # immediately as no deadlock is possible at the moment.
 select * from t1;;
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait until the above SELECT * FROM t1 is starts waiting
 # for an UNRW metadata lock to go away.
 # Send RENAME TABLE statement that will deadlock with the
 # SELECT statement and thus should abort the latter.
 rename table t1 to t0, t2 to t1, t0 to t2;;
 #
-# Switching to connection 'default'.
+connection default;
 # Wait till above RENAME TABLE is blocked while holding
 # pending X lock on t1.
 # Allow the above RENAME TABLE to acquire lock on t1 and
 # create pending lock on t2 thus creating deadlock.
 unlock tables;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Since the latest RENAME TABLE entered in deadlock with SELECT
 # statement the latter should be aborted and emit ER_LOCK_DEADLOCK
 # error and transaction should be rolled back.
 # Reap SELECT * FROM t1.
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Reap RENAME TABLE ... .
 #
-# Switching to connection 'default'.
+connection default;
 drop tables t1, t2, t3, t4;
 #
 # Now, test case which shows that deadlock detection empiric
@@ -2040,17 +2070,17 @@ select * from t1;
 i
 1
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 begin;
 select * from t1;
 i
 1
 #
-# Switching to connection 'default'.
+connection default;
 # Send:
 alter table t1 add column j int, rename to t2;;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait until the above ALTER TABLE ... RENAME acquires exclusive
 # metadata lock on 't2' and starts waiting for connection
 # 'deadlock_con1' which holds shared lock on 't1'.
@@ -2060,7 +2090,7 @@ alter table t1 add column j int, rename to t2;;
 select * from t2;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 #
-# Switching to connection 'default'.
+connection default;
 # Reap ALTER TABLE ... RENAME.
 drop table t2;
 #
@@ -2079,23 +2109,23 @@ set debug_sync= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 # Sending:
 select * from t2, t1;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait till SELECT acquires MDL on 't2' and starts waiting for signal.
 set debug_sync= 'now WAIT_FOR locked';
 # Sending:
 lock tables t1 write, t2 write;
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait until LOCK TABLES acquires SNRW lock on 't1' and is blocked
 # while trying to acquire SNRW lock on 't1'.
 # Resume SELECT execution, this should eventually unblock LOCK TABLES.
 set debug_sync= 'now SIGNAL finish';
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reaping LOCK TABLES.
 unlock tables;
 #
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT. It succeed and not report ER_LOCK_DEADLOCK error.
 j	i
 drop tables t1, t2;
@@ -2110,7 +2140,7 @@ set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL parked1 WAIT_FOR go1'
 # Sending:
 alter table t1 add column j int;
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait till ALTER acquires SNW lock and stops.
 set debug_sync='now WAIT_FOR parked1';
 # Ensure that INSERT is paused once it detects that there is
@@ -2120,7 +2150,7 @@ set debug_sync='mdl_acquire_lock_wait SIGNAL parked2 WAIT_FOR go2';
 # Sending:
 insert into t1 values ();
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait till INSERT is paused.
 set debug_sync='now WAIT_FOR parked2';
 # Resume ALTER execution. Eventually it will release its
@@ -2128,13 +2158,13 @@ set debug_sync='now WAIT_FOR parked2';
 # satisified.
 set debug_sync='now SIGNAL go1';
 #
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER TABLE.
 # Add a new request for SNW lock to waiting graph.
 # Sending:
 alter table t1 drop column j;
 #
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait until ALTER is blocked.
 # Resume INSERT so it can start deadlock detection.
 #
@@ -2148,10 +2178,10 @@ alter table t1 drop column j;
 # and ended with ER_LOCK_DEADLOCK error.
 set debug_sync='now SIGNAL go2';
 #
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reaping INSERT.
 #
-# Switching to connection 'default'.
+connection default;
 # Reaping ALTER. It should succeed and not produce ER_LOCK_DEADLOCK.
 drop table t1;
 #
@@ -2167,30 +2197,30 @@ create table t2(j int);
 # waits in MDL and TDC.
 #
 set debug_sync= 'RESET';
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Start a statement, which will acquire SR metadata lock on t1, open it
 # and then stop, before trying to acquire SW lock on t2 and opening it.
 set debug_sync='open_tables_after_open_and_process_table SIGNAL parked WAIT_FOR go';
 # Sending:
 select * from t1 where i in (select j from t2 for update);
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait till the above SELECT stops.
 set debug_sync='now WAIT_FOR parked';
 # The below FLUSH TABLES WITH READ LOCK should acquire
 # SNW locks on t1 and t2 and wait till SELECT closes t1.
 # Sending:
 flush tables t1, t2 with read lock;
-# Switching to connection 'deadlock_con3'.
+connection deadlock_con3;
 # Wait until FLUSH TABLES WITH t1, t2 READ LOCK starts waiting
 # for SELECT to close t1.
 # Resume SELECT, so it tries to acquire SW lock on t1 and blocks,
 # creating a deadlock. This deadlock should be detected and resolved
 # by backing-off SELECT. As a result FTWRL should be able to finish.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Reap FLUSH TABLES WITH READ LOCK.
 unlock tables;
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reap SELECT.
 i
 #
@@ -2199,29 +2229,29 @@ i
 # for flush waits is important.
 #
 set debug_sync= 'RESET';
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 set debug_sync='flush_tables_with_read_lock_after_acquire_locks SIGNAL parked WAIT_FOR go';
 # The below FLUSH TABLES WITH READ LOCK should acquire
 # SNW locks on t1 and t2 and wait on debug sync point.
 # Sending:
 flush tables t1, t2 with read lock;
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Wait till FLUSH TABLE WITH READ LOCK stops.
 set debug_sync='now WAIT_FOR parked';
 # Start statement which will acquire SR metadata lock on t1, open
 # it and then will block while trying to acquire SW lock on t2.
 # Sending:
 select * from t1 where i in (select j from t2 for update);
-# Switching to connection 'deadlock_con3'.
+connection deadlock_con3;
 # Wait till the above SELECT blocks.
 # Resume FLUSH TABLES, so it tries to flush t1, thus creating
 # a deadlock. This deadlock should be detected and resolved by
 # backing-off SELECT. As a result FTWRL should be able to finish.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Reap FLUSH TABLES WITH READ LOCK.
 unlock tables;
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reap SELECT.
 i
 #
@@ -2229,81 +2259,89 @@ i
 # waiting for MDL and one for TDC.
 #
 set debug_sync= 'RESET';
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Start a statement which will acquire SR metadata lock on t2, open it
 # and then stop, before trying to acquire SR on t1 and opening it.
 set debug_sync='open_tables_after_open_and_process_table SIGNAL parked WAIT_FOR go';
 # Sending:
 select * from t2, t1;
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Wait till the above SELECT stops.
 set debug_sync='now WAIT_FOR parked';
 # The below FLUSH TABLES WITH READ LOCK should acquire
 # SNW locks on t2 and wait till SELECT closes t2.
 # Sending:
 flush tables t2 with read lock;
-# Switching to connection 'deadlock_con3'.
+connection deadlock_con3;
 # Wait until FLUSH TABLES WITH READ LOCK starts waiting
 # for SELECT to close t2.
 # The below DROP TABLES should acquire X lock on t1 and start
 # waiting for X lock on t2.
 # Sending:
 drop tables t1, t2;
-# Switching to connection 'default'.
+connection default;
 # Wait until DROP TABLES starts waiting for X lock on t2.
 # Resume SELECT, so it tries to acquire SR lock on t1 and blocks,
 # creating a deadlock. This deadlock should be detected and resolved
 # by backing-off SELECT. As a result, FTWRL should be able to finish.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'deadlock_con2'.
+connection deadlock_con2;
 # Reap FLUSH TABLES WITH READ LOCK.
 # Unblock DROP TABLES.
 unlock tables;
-# Switching to connection 'deadlock_con3'.
+connection deadlock_con3;
 # Reap DROP TABLES.
-# Switching to connection 'deadlock_con1'.
+connection deadlock_con1;
 # Reap SELECT. It should emit error about missing table.
 ERROR 42S02: Table 'test.t2' doesn't exist
-# Switching to connection 'default'.
+connection default;
 set debug_sync= 'RESET';
+disconnect deadlock_con1;
+disconnect deadlock_con2;
+disconnect deadlock_con3;
 #
 # Test for a scenario in which FLUSH TABLES <list> WITH READ LOCK
 # used to erroneously release metadata locks.
 # 
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connection default;
 drop tables if exists t1, t2;
 set debug_sync= 'RESET';
 create table t1(i int);
 create table t2(j int);
-# Switching to connection 'con2'.
+connection con2;
 set debug_sync='open_tables_after_open_and_process_table SIGNAL parked WAIT_FOR go';
 # The below FLUSH TABLES <list> WITH READ LOCK should acquire
 # SNW locks on t1 and t2, open table t1 and block on the debug
 # sync point.
 # Sending:
 flush tables t1, t2 with read lock;
-# Switching to connection 'con1'.
+connection con1;
 # Wait till FLUSH TABLES <list> WITH READ LOCK stops.
 set debug_sync='now WAIT_FOR parked';
 # Start a statement which will flush all tables and thus
 # invalidate table t1 open by FLUSH TABLES <list> WITH READ LOCK.
 # Sending:
 flush tables;
-# Switching to connection 'default'.
+connection default;
 # Wait till the above FLUSH TABLES blocks.
 # Resume FLUSH TABLES <list> WITH READ LOCK, so it tries to open t2
 # discovers that its t1 is obsolete and tries to reopen all tables.
 # Such reopen should not cause releasing of SNW metadata locks
 # which would result in assertion failures.
 set debug_sync='now SIGNAL go';
-# Switching to connection 'con2'.
+connection con2;
 # Reap FLUSH TABLES <list> WITH READ LOCK.
 unlock tables;
-# Switching to connection 'con1'.
+connection con1;
 # Reap FLUSH TABLES.
 # Clean-up.
-# Switching to connection 'default'.
+connection default;
 drop tables t1, t2;
 set debug_sync= 'RESET';
+disconnect con1;
+disconnect con2;
 #
 # Test for bug #46748 "Assertion in MDL_context::wait_for_locks()
 # on INSERT + CREATE TRIGGER".
@@ -2312,6 +2350,9 @@ drop tables if exists t1, t2, t3, t4, t5;
 # Let us simulate scenario in which we open some tables from extended
 # part of prelocking set but then encounter conflicting metadata lock,
 # so have to back-off and wait for it to go away.
+connect  con1root,localhost,root,,test,,;
+connect  con2root,localhost,root,,test,,;
+connection default;
 create table t1 (i int);
 create table t2 (j int);
 create table t3 (k int);
@@ -2321,31 +2362,33 @@ insert into t2 values (new.i);
 create trigger t2_bi before insert on t2 for each row
 insert into t3 values (new.j);
 #
-# Switching to connection 'con1root'.
+connection con1root;
 lock tables t4 read;
 #
-# Switching to connection 'con2root'.
+connection con2root;
 # Send :
 rename table t3 to t5, t4 to t3;;
 #
-# Switching to connection 'default'.
+connection default;
 # Wait until the above RENAME TABLE adds pending requests for exclusive
 # metadata lock on its tables and blocks due to 't4' being used by LOCK
 # TABLES.
 # Send :
 insert into t1 values (1);;
 #
-# Switching to connection 'con1root'.
+connection con1root;
 # Wait until INSERT statement waits due to encountering pending
 # exclusive metadata lock on 't3'.
 unlock tables;
 #
-# Switching to connection 'con2root'.
+connection con2root;
 # Reap RENAME TABLE.
 #
-# Switching to connection 'default'.
+connection default;
 # Reap INSERT.
 # Clean-up.
+disconnect con1root;
+disconnect con2root;
 drop tables t1, t2, t3, t5;
 #
 # Bug#42546 - Backup: RESTORE fails, thinking it finds an existing table
@@ -2353,15 +2396,16 @@ drop tables t1, t2, t3, t5;
 DROP TABLE IF EXISTS t1;
 set @save_log_output=@@global.log_output;
 set global log_output=file;
+connect con2, localhost, root,,;
 #
 # Test 1: CREATE TABLE
 #
-# Connection 2 
+connection con2;
 # Start insert on the not-yet existing table
 # Wait after taking the MDL lock
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 INSERT INTO t1 VALUES(1,"def");
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Now INSERT has a MDL on the non-existent table t1.
 #
@@ -2369,10 +2413,10 @@ SET DEBUG_SYNC= 'now WAIT_FOR locked';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL finish';
 # Try to create that table.
 CREATE TABLE t1 (c1 INT, c2 VARCHAR(100), KEY(c1));
-# Connection 2
 # Insert fails
+connection con2;
 ERROR 42S02: Table 'test.t1' doesn't exist
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'RESET';
 SHOW TABLES;
 Tables_in_test
@@ -2382,12 +2426,12 @@ DROP TABLE IF EXISTS t1;
 # Test 2: CREATE TABLE LIKE
 #
 CREATE TABLE t2 (c1 INT, c2 VARCHAR(100), KEY(c1));
-# Connection 2 
+connection con2;
 # Start insert on the not-yet existing table
 # Wait after taking the MDL
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL locked WAIT_FOR finish';
 INSERT INTO t1 VALUES(1,"def");
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Now INSERT has a MDL on the non-existent table t1.
 #
@@ -2395,16 +2439,17 @@ SET DEBUG_SYNC= 'now WAIT_FOR locked';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL finish';
 # Try to create that table.
 CREATE TABLE t1 LIKE t2;
-# Connection 2
 # Insert fails
+connection con2;
 ERROR 42S02: Table 'test.t1' doesn't exist
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'RESET';
 SHOW TABLES;
 Tables_in_test
 t1
 t2
 DROP TABLE t2;
+disconnect con2;
 DROP TABLE IF EXISTS t1;
 set global log_output=@save_log_output;
 #
@@ -2412,20 +2457,24 @@ set global log_output=@save_log_output;
 #             FOR UPDATE"
 #
 drop tables if exists t1, t2;
+connect  con46044, localhost, root,,;
+connect  con46044_2, localhost, root,,;
+connect  con46044_3, localhost, root,,;
+connection default;
 create table t1 (i int);
 insert into t1 values(1);
 # Let us check that we won't deadlock if during filling
 # of I_S table we encounter conflicting metadata lock
 # which owner is in its turn waiting for our connection.
 lock tables t1 read;
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 # Sending:
 update t1 set i = 2;
-# Switching to connection 'con46044'.
+connection con46044;
 # Waiting until UPDATE t1 SET ... is blocked.
 # Sending:
 create table t2 select * from t1;;
-# Switching to connection 'default'.
+connection default;
 # Waiting until CREATE TABLE ... SELECT ... is blocked.
 # First let us check that SHOW FIELDS/DESCRIBE doesn't
 # gets blocked and emits and error.
@@ -2449,11 +2498,12 @@ table_name	table_type	auto_increment	table_comment
 t2	BASE TABLE	NULL	Table 'test'.'t2' was skipped since its definition is being modified by concurrent DDL statement
 Warnings:
 Warning	1684	Table 'test'.'t2' was skipped since its definition is being modified by concurrent DDL statement
-# Switching to connection 'default'.
+connection default;
 unlock tables;
-# Switching to connection 'con46044'.
+connection con46044;
 # Reaping CREATE TABLE ... SELECT ... .
 drop table t2;
+connection con46044_2;
 # Reaping UPDATE t1 statement
 #
 # Let us also check that queries to I_S wait for conflicting metadata
@@ -2462,84 +2512,90 @@ drop table t2;
 # and ease of use points of view.
 #
 # We check same three queries to I_S in this new situation.
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 lock tables t1 read;
-# Switching to connection 'con46044_3'.
+connection con46044_3;
 # Sending:
 update t1 set i = 3;
-# Switching to connection 'con46044'.
+connection con46044;
 # Waiting until UPDATE t1 SET ... is blocked.
 # Sending:
 create table t2 select * from t1;;
-# Switching to connection 'default'.
+connection default;
 # Waiting until CREATE TABLE ... SELECT ... is blocked.
 # Let us check that SHOW FIELDS/DESCRIBE gets blocked.
 # Sending:
 show fields from t2;;
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 # Wait until SHOW FIELDS gets blocked.
 unlock tables;
-# Switching to connection 'con46044'.
+connection con46044;
 # Reaping CREATE TABLE ... SELECT ... .
-# Switching to connection 'default'.
+connection default;
 # Reaping SHOW FIELDS ...
 Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 drop table t2;
+connection con46044_3;
 # Reaping UPDATE t1 statement
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 lock tables t1 read;
-# Switching to connection 'con46044_3'.
+connection con46044_3;
 # Sending:
 update t1 set i = 4;
-# Switching to connection 'con46044'.
+connection con46044;
 # Waiting until UPDATE t1 SET ... is blocked.
 # Sending:
 create table t2 select * from t1;;
-# Switching to connection 'default'.
+connection default;
 # Waiting until CREATE TABLE ... SELECT ... is blocked.
 # Check that I_S query which reads only .FRMs gets blocked.
 # Sending:
 select column_name from information_schema.columns where table_schema='test' and table_name='t2';;
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 # Wait until SELECT COLUMN_NAME FROM I_S.COLUMNS  gets blocked.
 unlock tables;
-# Switching to connection 'con46044'.
+connection con46044;
 # Reaping CREATE TABLE ... SELECT ... .
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT COLUMN_NAME FROM I_S.COLUMNS
 column_name
 i
 drop table t2;
+connection con46044_3;
 # Reaping UPDATE t1 statement
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 lock tables t1 read;
-# Switching to connection 'con46044_3'.
+connection con46044_3;
 # Sending:
 update t1 set i = 5;
-# Switching to connection 'con46044'.
+connection con46044;
 # Waiting until UPDATE t1 SET ... is blocked.
 # Sending:
 create table t2 select * from t1;;
-# Switching to connection 'default'.
+connection default;
 # Waiting until CREATE TABLE ... SELECT ... is blocked.
 # Finally, check that I_S query which does full-blown table open
 # also gets blocked.
 # Sending:
 select table_name, table_type, auto_increment, table_comment from information_schema.tables where table_schema='test' and table_name='t2';;
-# Switching to connection 'con46044_2'.
+connection con46044_2;
 # Wait until SELECT ... FROM I_S.TABLES gets blocked.
 unlock tables;
-# Switching to connection 'con46044'.
+connection con46044;
 # Reaping CREATE TABLE ... SELECT ... .
-# Switching to connection 'default'.
+connection default;
 # Reaping SELECT ... FROM I_S.TABLES
 table_name	table_type	auto_increment	table_comment
 t2	BASE TABLE	NULL	
 drop table t2;
+connection con46044_3;
 # Reaping UPDATE t1 statement
-# Switching to connection 'default'.
+connection default;
 # Clean-up.
+disconnect con46044;
+disconnect con46044_2;
+disconnect con46044_3;
 drop table t1;
 #
 # Test for bug #46273 "MySQL 5.4.4 new MDL: Bug#989 is not fully fixed
@@ -2547,6 +2603,8 @@ drop table t1;
 #
 drop table if exists t1;
 set debug_sync= 'RESET';
+connect  con46273,localhost,root,,test,,;
+connection default;
 create table t1 (c1 int primary key, c2 int, c3 int);
 insert into t1 values (1,1,0),(2,2,0),(3,3,0),(4,4,0),(5,5,0);
 begin;
@@ -2554,11 +2612,11 @@ select * from t1 where c2 = 3;
 c1	c2	c3
 3	3	0
 #
-# Switching to connection 'con46273'.
+connection con46273;
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL alter_table_locked WAIT_FOR alter_go';
 alter table t1 add column e int, rename to t2;;
 #
-# Switching to connection 'default'.
+connection default;
 set debug_sync='now WAIT_FOR alter_table_locked';
 set debug_sync='mdl_acquire_lock_wait SIGNAL alter_go';
 # The below statement should get ER_LOCK_DEADLOCK error
@@ -2567,10 +2625,11 @@ set debug_sync='mdl_acquire_lock_wait SIGNAL alter_go';
 update t1 set c3=c3+1 where c2 = 3;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 #
-# Switching to connection 'con46273'.
+connection con46273;
 # Reap ALTER TABLE.
 #
-# Switching to connection 'default'.
+connection default;
+disconnect con46273;
 # Clean-up.
 set debug_sync= 'RESET';
 drop table t2;
@@ -2579,64 +2638,70 @@ drop table t2;
 #                      and DML".
 #
 drop tables if exists t1;
+connect  con46673, localhost, root,,;
+connection default;
 create table t1 (i int);
-# Switching to connection 'con46673'.
+connection con46673;
 begin;
 insert into t1 values (1);
-# Switching to connection 'default'.
+connection default;
 # Statement below should not get blocked. And if after some
 # changes to code it is there should not be a deadlock between
 # it and transaction from connection 'con46673'.
 flush tables with read lock;
 unlock tables;
-# Switching to connection 'con46673'.
+connection con46673;
 delete from t1 where i = 1;
 commit;
-# Switching to connection 'default'.
+connection default;
 # Clean-up
+disconnect con46673;
 drop table t1;
 #
 # Bug#48210 FLUSH TABLES WITH READ LOCK deadlocks 
 #           against concurrent CREATE PROCEDURE
 #
+connect  con2, localhost, root;
 # Test 1: CREATE PROCEDURE
-# Connection 1
+connection default;
 # Start CREATE PROCEDURE and open mysql.proc
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait';
 CREATE PROCEDURE p1() SELECT 1;
-# Connection 2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 # Check that FLUSH must wait to get the GRL
 # and let CREATE PROCEDURE continue
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
-# Connection 1
-# Connection 2
+connection default;
+connection con2;
 UNLOCK TABLES;
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'RESET';
 # Test 2: DROP PROCEDURE
+connection default;
 # Start DROP PROCEDURE and open tables
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait';
 DROP PROCEDURE p1;
-# Connection 2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 # Check that FLUSH must wait to get the GRL
 # and let DROP PROCEDURE continue
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
-# Connection 1
+connection default;
 # Once FLUSH TABLES WITH READ LOCK starts waiting
 # DROP PROCEDURE will be waked up and will drop
 # procedure. Global read lock will be granted after
 # this statement ends.
 #
 # Reaping DROP PROCEDURE.
-# Connection 2
+connection con2;
 # Reaping FTWRL.
 UNLOCK TABLES;
-# Connection 1
+connection default;
 SET DEBUG_SYNC= 'RESET';
+disconnect con2;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()
@@ -2644,6 +2709,10 @@ SET DEBUG_SYNC= 'RESET';
 # Supress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 DROP TABLE IF EXISTS t1, t2;
+connect  con1,localhost,root;
+connect  con2,localhost,root;
+connect  con3,localhost,root;
+connection default;
 CREATE TABLE t1 (i INT);
 CREATE TABLE t2 (i INT);
 SET @old_general_log= @@global.general_log;
@@ -2653,34 +2722,47 @@ SET @@global.log_output= 'TABLE';
 SET @old_sql_log_off= @@session.sql_log_off;
 SET @@session.sql_log_off= 1;
 # connection: con1
+connection con1;
 HANDLER t1 OPEN;
 # connection: con3
+connection con3;
 SET @@session.sql_log_off= 1;
 # connection: con2
+connection con2;
 SET DEBUG_SYNC= 'thr_multi_lock_after_thr_lock SIGNAL parked WAIT_FOR go';
 # Sending:
 SELECT 1;
 # connection: con3
+connection con3;
 SET DEBUG_SYNC= 'now WAIT_FOR parked';
 # connection: con1
+connection con1;
 # Sending:
 SELECT 1;
 # connection: con3
+connection con3;
 ALTER TABLE t1 ADD COLUMN j INT;
 # connection: default
+connection default;
 SET DEBUG_SYNC= 'now SIGNAL go';
 # connection: con1
+connection con1;
 # Reaping SELECT 1
 1
 1
 HANDLER t1 CLOSE;
 # connection: con2
+connection con2;
 # Reaping SELECT 1
 1
 1
 # connection: default
+connection default;
 DROP TABLE t1, t2;
 SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+disconnect con2;
+disconnect con3;
 SET @@global.general_log= @old_general_log;
 SET @@global.log_output= @old_log_output;
 SET @@session.sql_log_off= @old_sql_log_off;
@@ -2691,12 +2773,15 @@ SET @@session.sql_log_off= @old_sql_log_off;
 #
 drop table if exists t1;
 set debug_sync= 'RESET';
+connect  con50913_1,localhost,root;
+connect  con50913_2,localhost,root;
+connection default;
 create table t1 (i int) engine=InnoDB;
-# Switching to connection 'con50913_1'.
+connection con50913_1;
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL parked WAIT_FOR go';
 # Sending:
 alter table t1 add column j int, ALGORITHM=COPY;
-# Switching to connection 'default'.
+connection default;
 # Wait until ALTER TABLE gets blocked on a sync point after
 # acquiring thr_lock.c lock.
 set debug_sync= 'now WAIT_FOR parked';
@@ -2704,14 +2789,16 @@ set debug_sync= 'now WAIT_FOR parked';
 # thr_lock.c lock.
 # Sending:
 truncate table t1;
-# Switching to connection 'con50913_2'.
+connection con50913_2;
 # Wait until TRUNCATE TABLE is blocked on MDL lock.
 # Unblock ALTER TABLE.
 set debug_sync= 'now SIGNAL go';
-# Switching to connection 'con50913_1'.
+connection con50913_1;
 # Reaping ALTER TABLE.
-# Switching to connection 'default'.
+connection default;
 # Reaping TRUNCATE TABLE.
+disconnect con50913_1;
+disconnect con50913_2;
 set debug_sync= 'RESET';
 drop table t1;
 #
@@ -2723,30 +2810,34 @@ drop table t1;
 # should be performed.
 drop table if exists t1;
 set debug_sync= 'RESET';
+connect  con1,localhost,root;
+connect  con2,localhost,root;
+connect  con3,localhost,root;
+connection default;
 create table t1 (i int);
-# Switching to connection 'con1'.
+connection con1;
 begin;
 select * from t1;
 i
-# Switching to connection 'con2'.
+connection con2;
 begin;
 select * from t1;
 i
-# Switching to connection 'default'.
+connection default;
 # Start ALTER TABLE which will acquire SNW lock and
 # table lock and get blocked on sync point.
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL parked WAIT_FOR go';
 # Sending:
 alter table t1 add column j int;
-# Switching to connection 'con1'.
+connection con1;
 # Wait until ALTER TABLE gets blocked on a sync point.
 set debug_sync= 'now WAIT_FOR parked';
 # Sending:
 insert into t1 values (1);
-# Switching to connection 'con2'.
+connection con2;
 # Sending:
 insert into t1 values (1);
-# Switching to connection 'con3'.
+connection con3;
 # Wait until both 'con1' and 'con2' are blocked trying to acquire
 # SW lock on the table.
 # Unblock ALTER TABLE. Since it will try to upgrade SNW to X lock
@@ -2754,17 +2845,21 @@ insert into t1 values (1);
 # should be found and DML statements in both 'con1' and 'con2'
 # should be aborted with ER_LOCK_DEADLOCK errors.
 set debug_sync= 'now SIGNAL go';
-# Switching to connection 'con1'.
+connection con1;
 # Reaping INSERT. It should end with ER_LOCK_DEADLOCK error and
 # not wait indefinitely (as it happened before the bugfix).
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 commit;
-# Switching to connection 'con2'.
+connection con2;
 # Reaping INSERT.
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 commit;
-# Switching to connection 'default'.
+connection default;
 # Reap ALTER TABLE.
+disconnect con1;
+disconnect con2;
+disconnect con3;
+connection default;
 set debug_sync= 'RESET';
 drop table t1;
 #
@@ -2772,137 +2867,151 @@ drop table t1;
 #
 # Ensure that a acquired lock is not given up due to a conflict.
 #
+connect  con1,localhost,root,,test,,;
+connect  con2,localhost,root,,test,,;
+connect  con3,localhost,root,,test,,;
+connection default;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2),(3);
-# Connection: con1
+connection con1;
 LOCK TABLES t1 WRITE;
 SET debug_sync='upgrade_lock_for_truncate SIGNAL parked_truncate WAIT_FOR go_truncate';
 TRUNCATE TABLE t1;
-# Connection: default
+connection default;
 SET debug_sync='now WAIT_FOR parked_truncate';
-# Connection: con2
+connection con2;
 SET debug_sync='after_open_table_ignore_flush SIGNAL parked_show WAIT_FOR go_show';
 SHOW FIELDS FROM t1;
-# Connection: default
+connection default;
 SET debug_sync='now WAIT_FOR parked_show';
-# Connection: con3
+connection con3;
 SET debug_sync='after_flush_unlock SIGNAL parked_flush WAIT_FOR go_flush';
 FLUSH TABLES t1;
-# Connection: default
+connection default;
 SET debug_sync='now WAIT_FOR parked_flush';
 SET debug_sync='now SIGNAL go_truncate';
 # Ensure that truncate waits for a exclusive lock
 SET debug_sync= 'now SIGNAL go_show';
-# Connection: con1 (TRUNCATE)
+connection con1;
 # Reaping...
 UNLOCK TABLES;
-# Connection: con2 (SHOW FIELDS FROM t1)
+connection con2;
 # Reaping...
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-# Connection: default
+connection default;
 SET debug_sync= 'now SIGNAL go_flush';
-# Connection: con3 (FLUSH TABLES t1)
+connection con3;
 # Reaping...
-# Connection: default
+disconnect con1;
+disconnect con2;
+disconnect con3;
+connection default;
 SET debug_sync= 'RESET';
 DROP TABLE t1;
 #
 # Bug#52856 concurrent show columns or show full columns causes a crash!!!
 #
 CREATE TABLE t1(a CHAR(255));
+connect con1, localhost, root;
 SET DEBUG_SYNC= "get_schema_column SIGNAL waiting WAIT_FOR completed";
 SHOW FULL COLUMNS FROM t1;
+connection default;
 SET DEBUG_SYNC= "now WAIT_FOR waiting";
 SHOW FULL COLUMNS FROM t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	char(255)	latin1_swedish_ci	YES		NULL		#	
 SET DEBUG_SYNC= "now SIGNAL completed";
+connection con1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	char(255)	latin1_swedish_ci	YES		NULL		#	
+connection default;
 DROP TABLE t1;
+disconnect con1;
 #
 # Tests for schema-scope locks
 #
 DROP DATABASE IF EXISTS db1;
 DROP DATABASE IF EXISTS db2;
+connect  con2, localhost, root;
+connect  con3, localhost, root;
 # Test 1: 
 # CREATE DATABASE blocks database DDL on the same database, but
 # not database DDL on different databases. Tests X vs X lock.
 #
-# Connection default
+connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 CREATE DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 CREATE DATABASE db1;
-# Connection con3
+connection con3;
 CREATE DATABASE db2;
 ALTER DATABASE db2 DEFAULT CHARACTER SET utf8;
 DROP DATABASE db2;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: CREATE DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: CREATE DATABASE db1
 ERROR HY000: Can't create database 'db1'; database exists
 # Test 2:
 # ALTER DATABASE blocks database DDL on the same database, but
 # not database DDL on different databases. Tests X vs X lock.
 #
-# Connection default
+connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 ALTER DATABASE db1 DEFAULT CHARACTER SET utf8;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 ALTER DATABASE db1 DEFAULT CHARACTER SET utf8;
-# Connection con3
+connection con3;
 CREATE DATABASE db2;
 ALTER DATABASE db2 DEFAULT CHARACTER SET utf8;
 DROP DATABASE db2;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: ALTER DATABASE db1 DEFAULT CHARACTER SET utf8
-# Connection con2
+connection con2;
 # Reaping: ALTER DATABASE db1 DEFAULT CHARACTER SET utf8
-# Connection default
+connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 ALTER DATABASE db1 DEFAULT CHARACTER SET utf8;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 DROP DATABASE db1;
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: ALTER DATABASE db1 DEFAULT CHARACTER SET utf8
-# Connection con2
+connection con2;
 # Reaping: DROP DATABASE db1
 CREATE DATABASE db1;
 # Test 3:
 # Two ALTER..UPGRADE of the same database are mutually exclusive, but
 # two ALTER..UPGRADE of different databases are not. Tests X vs X lock.
 #
-# Connection default
+connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 ALTER DATABASE `#mysql50#a-b-c` UPGRADE DATA DIRECTORY NAME;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 ALTER DATABASE `#mysql50#a-b-c` UPGRADE DATA DIRECTORY NAME;
-# Connection con3
+connection con3;
 ALTER DATABASE `#mysql50#a-b-c-d` UPGRADE DATA DIRECTORY NAME;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: ALTER DATABASE '#mysql50#a-b-c' UPGRADE DATA DIRECTORY NAME
-# Connection con2
+connection con2;
 # Reaping: ALTER DATABASE '#mysql50#a-b-c' UPGRADE DATA DIRECTORY NAME
 ERROR 42000: Unknown database '#mysql50#a-b-c'
 DROP DATABASE `a-b-c`;
@@ -2911,96 +3020,96 @@ DROP DATABASE `a-b-c-d`;
 # DROP DATABASE blocks database DDL on the same database, but
 # not database DDL on different databases. Tests X vs X lock.
 #
-# Connection default
+connection default;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 DROP DATABASE db1;
-# Connection con3
+connection con3;
 CREATE DATABASE db2;
 ALTER DATABASE db2 DEFAULT CHARACTER SET utf8;
 DROP DATABASE db2;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: DROP DATABASE db1
 ERROR HY000: Can't drop database 'db1'; database doesn't exist
-# Connection default
+connection default;
 CREATE DATABASE db1;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 ALTER DATABASE db1 DEFAULT CHARACTER SET utf8;
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: ALTER DATABASE db1 DEFAULT CHARACTER SET utf8
 Got one of the listed errors
 # Test 5:
 # Locked database name prevents CREATE of tables in that database.
 # Tests X vs IX lock.
 #
-# Connection default
+connection default;
 CREATE DATABASE db1;
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 CREATE TABLE db1.t1 (a INT);
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: CREATE TABLE db1.t1 (a INT)
 ERROR 42000: Unknown database 'db1'
 # Test 6:
 # Locked database name prevents RENAME of tables to/from that database.
 # Tests X vs IX lock.
 #
-# Connection default
+connection default;
 CREATE DATABASE db1;
 CREATE TABLE db1.t1 (a INT);
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 RENAME TABLE db1.t1 TO test.t1;
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: RENAME TABLE db1.t1 TO test.t1
 ERROR 42S02: Table 'db1.t1' doesn't exist
-# Connection default
+connection default;
 CREATE DATABASE db1;
 CREATE TABLE test.t2 (a INT);
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 RENAME TABLE test.t2 TO db1.t2;
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: RENAME TABLE test.t2 TO db1.t2
 Got one of the listed errors
 DROP TABLE test.t2;
@@ -3008,24 +3117,26 @@ DROP TABLE test.t2;
 # Locked database name prevents DROP of tables in that database.
 # Tests X vs IX lock.
 #
-# Connection default
+connection default;
 CREATE DATABASE db1;
 CREATE TABLE db1.t1 (a INT);
 SET DEBUG_SYNC= 'after_wait_locked_schema_name SIGNAL locked WAIT_FOR blocked';
 # Sending:
 DROP DATABASE db1;
-# Connection con2
+connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR locked';
 # Sending:
 DROP TABLE db1.t1;
-# Connection con3
+connection con3;
 SET DEBUG_SYNC= 'now SIGNAL blocked';
-# Connection default
+connection default;
 # Reaping: DROP DATABASE db1
-# Connection con2
+connection con2;
 # Reaping: DROP TABLE db1.t1
 ERROR 42S02: Unknown table 'db1.t1'
-# Connection default
+connection default;
+disconnect con2;
+disconnect con3;
 SET DEBUG_SYNC= 'RESET';
 #
 # End of tests for schema-scope locks
@@ -3035,30 +3146,34 @@ SET DEBUG_SYNC= 'RESET';
 #
 CREATE DATABASE db1;
 CREATE TABLE db1.t1(a INT);
-# Connection default
+connect con2, localhost, root;
+connect con3, localhost, root;
+connection default;
 FLUSH TABLE WITH READ LOCK;
-# Connection con2
+connection con2;
 CREATE TABLE db1.t2(a INT);
-# Connection default
+connection default;
 UNLOCK TABLES;
-# Connection con2
+connection con2;
 # Reaping CREATE TABLE db1.t2(a INT)
-# Connection default
+connection default;
 FLUSH TABLE WITH READ LOCK;
-# Connection con2
+connection con2;
 ALTER DATABASE db1 DEFAULT CHARACTER SET utf8;
-# Connection default
+connection default;
 UNLOCK TABLES;
-# Connection con2
+connection con2;
 # Reaping ALTER DATABASE db1 DEFAULT CHARACTER SET utf8
-# Connection default
+connection default;
 FLUSH TABLE WITH READ LOCK;
-# Connection con2
+connection con2;
 FLUSH TABLE WITH READ LOCK;
 UNLOCK TABLES;
-# Connection default
+connection default;
 UNLOCK TABLES;
 DROP DATABASE db1;
+disconnect con2;
+disconnect con3;
 #
 # Bug#56292 Deadlock with ALTER TABLE and MERGE tables
 #
@@ -3068,35 +3183,43 @@ CREATE TABLE t2(a INT) engine=MyISAM;
 CREATE TABLE m1(a INT) engine=MERGE UNION=(t1, t2);
 INSERT INTO t1 VALUES (1), (2);
 INSERT INTO t2 VALUES (3), (4);
-# Connection con1
+connect con1, localhost, root;
+connect con2, localhost, root;
+connect con3, localhost, root;
+connection con1;
 # We need EXECUTE 2 since ALTER TABLE does SU => SNW => X and we want
 # to stop at the second upgrade.
 SET DEBUG_SYNC= 'mdl_upgrade_lock SIGNAL upgrade WAIT_FOR continue EXECUTE 2';
 # Sending:
 ALTER TABLE m1 engine=MERGE UNION=(t2, t1);
-# Connection con2
+connection con2;
 # Waiting for ALTER TABLE to try lock upgrade
 SET DEBUG_SYNC= 'now WAIT_FOR upgrade';
 SET DEBUG_SYNC= 'now SIGNAL continue';
 SET DEBUG_SYNC= 'now WAIT_FOR upgrade';
 # Sending:
 DELETE FROM t2 WHERE a = 3;
-# Connection default
+connection con3;
 # Check that DELETE is waiting on a metadata lock and not a table lock.
 # Now that DELETE blocks on a metadata lock, we should be able to do
 # SELECT * FROM m1 here. SELECT used to be blocked by a DELETE table
 # lock request.
 SELECT * FROM m1 WHERE a < 3;
+connection default;
 # Resuming ALTER TABLE
 SET DEBUG_SYNC= 'now SIGNAL continue';
-# Connection con1
+connection con1;
 # Reaping: ALTER TABLE m1 engine=MERGE UNION=(t2, t1)
-# Connection con2
+connection con2;
 # Reaping: DELETE FROM t2 WHERE a = 3
+connection con3;
 # Reaping: SELECT * FROM m1 WHERE a < 3
 a
 1
 2
-# Connection default
+connection default;
 DROP TABLE m1, t1, t2;
 SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+disconnect con2;
+disconnect con3;

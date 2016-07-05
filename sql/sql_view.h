@@ -51,12 +51,17 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt);
 
 extern TYPELIB updatable_views_with_limit_typelib;
 
-bool check_duplicate_names(List<Item>& item_list, bool gen_unique_view_names);
+bool check_duplicate_names(THD *thd, List<Item>& item_list,
+                           bool gen_unique_view_names);
 bool mysql_rename_view(THD *thd, const char *new_db, const char *new_name,
                        TABLE_LIST *view);
+
+void make_valid_column_names(THD *thd, List<Item> &item_list);
 
 #define VIEW_ANY_ACL (SELECT_ACL | UPDATE_ACL | INSERT_ACL | DELETE_ACL)
 
 extern const LEX_STRING view_type;
+
+void make_valid_column_names(List<Item> &item_list);
 
 #endif /* SQL_VIEW_INCLUDED */

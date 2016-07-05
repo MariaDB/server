@@ -12,15 +12,17 @@ PARTITION p2 VALUES LESS THAN (2008)
 insert into t1 values ('2006-01-01',default);
 insert into t1 values ('2007-01-01',default);
 insert into t1 values ('2005-01-01',default);
+insert into t1 (a) values ('2007-01-02');
 select * from t1;
 a	b
 2005-01-01	2005
 2006-01-01	2006
 2007-01-01	2007
+2007-01-02	2007
 select partition_name,table_rows,data_length from information_schema.partitions where table_name = 't1';
 partition_name	table_rows	data_length
 p0	1	7
-p2	2	14
+p2	3	21
 # Modify the expression of virtual column b
 ALTER TABLE t1 modify b int as (year(a)-1);
 select * from t1;
@@ -28,10 +30,11 @@ a	b
 2005-01-01	2004
 2006-01-01	2005
 2007-01-01	2006
+2007-01-02	2006
 select partition_name,table_rows,data_length from information_schema.partitions where table_name = 't1';
 partition_name	table_rows	data_length
 p0	2	14
-p2	1	7
+p2	2	14
 drop table t1;
 # Case 2. Partitioning by LIST based on a stored virtual column.
 CREATE TABLE t1 (a int, b int as (a % 3 ) persistent)

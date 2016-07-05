@@ -4,14 +4,15 @@ SET @@global.delay_key_write = ON;
 SELECT @@global.delay_key_write;
 @@global.delay_key_write
 ON
-'connect (user1,localhost,root,,,,)'
-'connection user1'
+connect  user1,localhost,root,,,,;
+connection user1;
 SELECT @@global.delay_key_write AS res_is_ON;
 res_is_ON
 ON
 SET @@global.delay_key_write = ALL;
-'connect (user1,localhost,root,,,,)'
-'connection user1'
+disconnect user1;
+connect  user1,localhost,root,,,,;
+connection user1;
 SELECT @@global.delay_key_write AS res_is_ALL;
 res_is_ALL
 ALL
@@ -66,4 +67,6 @@ COUNT(*)
 9
 DROP PROCEDURE sp_addRecords;
 DROP TABLE t1;
+disconnect user1;
+connection default;
 SET @@global.delay_key_write= @start_value;

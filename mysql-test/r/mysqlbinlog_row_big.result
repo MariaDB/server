@@ -17,9 +17,8 @@ In order for the preceding change in max_allowed_packets' value
 to be seen and used, we must start a new connection.
 The change does not take effect with the current one.
 For simplicity, we just disconnect / reconnect connection default here.
-Disconnecting default connection...
-Reconnecting default connection...
-default connection established, continuing with the test
+disconnect default;
+connect  default, localhost,root,,;
 #
 # Delete all existing binary logs.
 #

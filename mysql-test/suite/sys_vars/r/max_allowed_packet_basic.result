@@ -3,6 +3,7 @@ SELECT @start_global_value;
 @start_global_value
 4194304
 SET @@global.max_allowed_packet = DEFAULT;
+connect  conn1, localhost, root,,;
 '#--------------------FN_DYNVARS_070_01-------------------------#'
 SET @@global.max_allowed_packet = 1000;
 Warnings:
@@ -194,6 +195,7 @@ SELECT session.max_allowed_packet;
 ERROR 42S02: Unknown table 'session' in field list
 SELECT max_allowed_packet = @@session.max_allowed_packet;
 ERROR 42S22: Unknown column 'max_allowed_packet' in 'field list'
+connection default;
 SET @@global.max_allowed_packet = @start_global_value;
 SELECT @@global.max_allowed_packet;
 @@global.max_allowed_packet

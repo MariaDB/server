@@ -2683,7 +2683,8 @@ int spider_initinal_xa_recover(
         FALSE, open_tables_backup, TRUE, &error_num))
     )
       goto error_open_table;
-    init_read_record(read_record, thd, table_xa, NULL, TRUE, FALSE, FALSE);
+    init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE, FALSE,
+                     FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   while ((!(read_record->read_record(read_record))) && cnt < (int) len)
@@ -4054,7 +4055,7 @@ THD *spider_create_tmp_thd()
 {
   THD *thd;
   DBUG_ENTER("spider_create_tmp_thd");
-  if (!(thd = new THD))
+  if (!(thd = new THD(0)))
     DBUG_RETURN(NULL);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->killed = NOT_KILLED;
@@ -4065,7 +4066,6 @@ THD *spider_create_tmp_thd()
   thd->locked_tables = FALSE;
 #endif
   thd->proc_info = "";
-  thd->thread_id = thd->variables.pseudo_thread_id = 0;
   thd->thread_stack = (char*) &thd;
   if (thd->store_globals())
     DBUG_RETURN(NULL);

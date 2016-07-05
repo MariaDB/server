@@ -238,7 +238,7 @@ my_bool _ma_unique_comp(MARIA_UNIQUEDEF *def, const uchar *a, const uchar *b,
         type == HA_KEYTYPE_VARTEXT2)
     {
       if (ha_compare_text(keyseg->charset, pos_a, a_length,
-                          pos_b, b_length, 0, 1))
+                          pos_b, b_length, 0))
         return 1;
     }
     else

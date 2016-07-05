@@ -98,17 +98,17 @@ SELECT @@session.div_precision_increment;
 # Change the value of div_precision_increment to an invalid value #
 ###################################################################
 
-SET @@global.div_precision_increment = 31;
+SET @@global.div_precision_increment = 39;
 SELECT @@global.div_precision_increment;
-SET @@global.div_precision_increment = 40;
+SET @@global.div_precision_increment = 50;
 SELECT @@global.div_precision_increment;
 SET @@global.div_precision_increment = -1024;
 SELECT @@global.div_precision_increment;
 SET @@global.div_precision_increment = 65536;
 SELECT @@global.div_precision_increment;
-SET @@session.div_precision_increment = 40;
+SET @@session.div_precision_increment = 50;
 SELECT @@session.div_precision_increment;
-SET @@session.div_precision_increment = 31;
+SET @@session.div_precision_increment = 37;
 SELECT @@session.div_precision_increment;
 SET @@session.div_precision_increment = -2;
 SELECT @@session.div_precision_increment;

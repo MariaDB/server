@@ -1,23 +1,31 @@
 set default_storage_engine='tokudb';
 set tokudb_prelock_empty=false;
 drop table if exists t;
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 trx_id	trx_mysql_thread_id
 set autocommit=0;
 create table t (id int primary key);
 insert into t values (1);
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
-trx_id	trx_mysql_thread_id
-TXN_ID_DEFAULT	CLIENT_ID_DEFAULT
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
+count(trx_mysql_thread_id)
+1
 commit;
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 trx_id	trx_mysql_thread_id
+connect conn_a,localhost,root,,;
 set autocommit=0;
 insert into t values (2);
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
-trx_id	trx_mysql_thread_id
-TXN_ID_A	CLIENT_ID_A
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
+count(trx_mysql_thread_id)
+1
+connection default;
+select count(trx_mysql_thread_id) from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
+count(trx_mysql_thread_id)
+0
+connection conn_a;
 commit;
-select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+connection default;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx where trx_mysql_thread_id in(connection_id());
 trx_id	trx_mysql_thread_id
+disconnect conn_a;
 drop table t;

@@ -124,11 +124,9 @@ BEGIN
 END|
 delimiter ;|
 
---echo Connection 2
 connection con2;
 LOCK TABLE t1 WRITE;
 
---echo Back to default connection
 connection default;
 send CALL p1();
 
@@ -155,4 +153,3 @@ SET @global.slow_query_log = @global_slow_query_log;
 ###############################################################################
 # End of the functionality test for slow_query_log                            #
 ###############################################################################
-

@@ -231,3 +231,21 @@ SET NAMES sjis;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
+--echo #
+CREATE TABLE t1 (a TEXT CHARACTER SET sjis);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9842.txt' INTO TABLE t1 CHARACTER SET sjis;
+SELECT HEX(a) FROM t1;
+SELECT a=CONCAT('x', REPEAT(_sjis 0x835C, 200)) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

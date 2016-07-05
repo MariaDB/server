@@ -1133,7 +1133,6 @@ connect(c2,127.0.0.1,root,,test,$MASTER_MYPORT,);
 connect(c3,127.0.0.1,root,,test,$MASTER_MYPORT,);
 
 connection default;
---echo # Connection default
 SET binlog_format= mixed;
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -1143,23 +1142,19 @@ INSERT INTO t2 VALUES (1,0), (2,0);
 SELECT GET_LOCK("block_queries_1", 120);
 
 connection c3;
---echo # Connection c3
 SELECT GET_LOCK("block_queries_2", 120);
 
 # Start two queries that will be running on the tables during mysqldump
 connection c1;
---echo # Connection c1
 SET @c= 0;
 send SELECT IF(@c<1, @c:=@c+1, GET_LOCK("block_queries_1", 120)) FROM t1 ORDER BY a;
 
 connection c2;
---echo # Connection c2
 SET binlog_format="row";
 SET @d= 10;
 send UPDATE t2 SET b=IF(@d<=10, @d:=@d+1, GET_LOCK("block_queries_2", 120)) ORDER BY a;
 
 connection default;
---echo # Connection default
 --echo # Make sure other queries are running (and waiting).
 let $wait_condition=
   SELECT COUNT(*) FROM information_schema.processlist
@@ -1175,19 +1170,15 @@ let $wait_condition=
 SELECT RELEASE_LOCK("block_queries_1");
 
 connection c3;
---echo # Connection c3
 SELECT RELEASE_LOCK("block_queries_2");
 
 connection c1;
---echo # Connection c1
 reap;
 
 connection c2;
---echo # Connection c2
 reap;
 
 connection default;
---echo # Connection default
 SELECT * FROM t2 ORDER BY a;
 DROP TABLE t1;
 DROP TABLE t2;
@@ -1199,7 +1190,7 @@ source include/binlog_start_pos.inc;
 let _BINLOG_START_POS= $binlog_start_pos;
 --perl
 my $f= "$ENV{MYSQLTEST_VARDIR}/tmp/mwl136.sql";
-my $pos=$ENV{_BINLOG_START_POS} + 691;
+my $pos=$ENV{_BINLOG_START_POS} + 739;
 open F, '<', $f or die "Failed to open $f: $!\n";
 while (<F>) {
    s/$pos/<pos>/;

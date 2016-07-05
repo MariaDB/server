@@ -29,17 +29,17 @@
 #include "records.h"
 #include "sql_priv.h"
 #include "records.h"
-#include "filesort.h"            // filesort_free_buffers
 #include "opt_range.h"                          // SQL_SELECT
 #include "sql_class.h"                          // THD
 #include "sql_base.h"
+#include "sql_sort.h"                           // SORT_ADDON_FIELD
 
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_buffer(READ_RECORD *info);
-static int rr_from_pointers(READ_RECORD *info);
+int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
 static int rr_cmp(uchar *a,uchar *b);
@@ -182,26 +182,30 @@ bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
 
 bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 		      SQL_SELECT *select,
+                      SORT_INFO *filesort,
 		      int use_record_cache, bool print_error, 
                       bool disable_rr_cache)
 {
   IO_CACHE *tempfile;
+  SORT_ADDON_FIELD *addon_field= filesort ? filesort->addon_field : 0;
   DBUG_ENTER("init_read_record");
 
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
   info->table=table;
   info->forms= &info->table;		/* Only one table */
+  info->addon_field= addon_field;
   
   if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
        table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE) &&
-      !table->sort.addon_field)
+      !addon_field)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
-  if (table->sort.addon_field)
+  if (addon_field)
   {
-    info->rec_buf= table->sort.addon_buf;
-    info->ref_length= table->sort.addon_length;
+    info->rec_buf=    (uchar*) filesort->addon_buf.str;
+    info->ref_length= filesort->addon_buf.length;
+    info->unpack=     filesort->unpack;
   }
   else
   {
@@ -213,19 +217,20 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->print_error=print_error;
   info->unlock_row= rr_unlock_row;
   info->ignore_not_found_rows= 0;
-  table->status=0;			/* And it's always found */
+  table->status= 0;			/* Rows are always found */
 
+  tempfile= 0;
   if (select && my_b_inited(&select->file))
     tempfile= &select->file;
-  else
-    tempfile= table->sort.io_cache;
-  if (tempfile && my_b_inited(tempfile) &&
-      !(select && select->quick)) 
+  else if (filesort && my_b_inited(&filesort->io_cache))
+    tempfile= &filesort->io_cache;
+
+  if (tempfile && !(select && select->quick))
   {
     DBUG_PRINT("info",("using rr_from_tempfile"));
-    info->read_record= (table->sort.addon_field ?
+    info->read_record= (addon_field ?
                         rr_unpack_from_tempfile : rr_from_tempfile);
-    info->io_cache=tempfile;
+    info->io_cache= tempfile;
     reinit_io_cache(info->io_cache,READ_CACHE,0L,0,0);
     info->ref_pos=table->file->ref;
     if (!table->file->inited)
@@ -233,12 +238,12 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
         DBUG_RETURN(1);
 
     /*
-      table->sort.addon_field is checked because if we use addon fields,
+      addon_field is checked because if we use addon fields,
       it doesn't make sense to use cache - we don't read from the table
-      and table->sort.io_cache is read sequentially
+      and filesort->io_cache is read sequentially
     */
     if (!disable_rr_cache &&
-        !table->sort.addon_field &&
+        !addon_field &&
 	thd->variables.read_rnd_buff_size &&
 	!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
 	(table->db_stat & HA_READ_ONLY ||
@@ -263,15 +268,15 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     DBUG_PRINT("info",("using rr_quick"));
     info->read_record=rr_quick;
   }
-  else if (table->sort.record_pointers)
+  else if (filesort && filesort->record_pointers)
   {
     DBUG_PRINT("info",("using record_pointers"));
     if (table->file->ha_rnd_init_with_error(0))
       DBUG_RETURN(1);
-    info->cache_pos=table->sort.record_pointers;
-    info->cache_end=info->cache_pos+ 
-                    table->sort.found_records*info->ref_length;
-    info->read_record= (table->sort.addon_field ?
+    info->cache_pos= filesort->record_pointers;
+    info->cache_end= (info->cache_pos+ 
+                      filesort->return_rows * info->ref_length);
+    info->read_record= (addon_field ?
                         rr_unpack_from_buffer : rr_from_pointers);
   }
   else
@@ -288,7 +293,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 	 (use_record_cache < 0 &&
 	  !(table->file->ha_table_flags() & HA_NOT_DELETE_WITH_CACHE))))
       (void) table->file->extra_opt(HA_EXTRA_CACHE,
-				  thd->variables.read_buff_size);
+                                    thd->variables.read_buff_size);
   }
   /* Condition pushdown to storage engine */
   if ((table->file->ha_table_flags() & HA_CAN_TABLE_CONDITION_PUSHDOWN) &&
@@ -311,8 +316,7 @@ void end_read_record(READ_RECORD *info)
   }
   if (info->table)
   {
-    filesort_free_buffers(info->table,0);
-    if (info->table->created)
+    if (info->table->is_created())
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
     if (info->read_record != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();
@@ -525,14 +529,13 @@ static int rr_unpack_from_tempfile(READ_RECORD *info)
 {
   if (my_b_read(info->io_cache, info->rec_buf, info->ref_length))
     return -1;
-  TABLE *table= info->table;
-  (*table->sort.unpack)(table->sort.addon_field, info->rec_buf,
-                        info->rec_buf + info->ref_length);
+  (*info->unpack)(info->addon_field, info->rec_buf,
+                  info->rec_buf + info->ref_length);
 
   return 0;
 }
 
-static int rr_from_pointers(READ_RECORD *info)
+int rr_from_pointers(READ_RECORD *info)
 {
   int tmp;
   uchar *cache_pos;
@@ -577,11 +580,9 @@ static int rr_unpack_from_buffer(READ_RECORD *info)
 {
   if (info->cache_pos == info->cache_end)
     return -1;                      /* End of buffer */
-  TABLE *table= info->table;
-  (*table->sort.unpack)(table->sort.addon_field, info->cache_pos,
-                        info->cache_end);
+  (*info->unpack)(info->addon_field, info->cache_pos,
+                  info->cache_end);
   info->cache_pos+= info->ref_length;
-
   return 0;
 }
 	/* cacheing of records from a database */

@@ -786,16 +786,6 @@ innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
 
-/******************************************************************//**
-Maps a MySQL trx isolation level code to the InnoDB isolation level code
-@return	InnoDB isolation level */
-static inline
-ulint
-innobase_map_isolation_level(
-/*=========================*/
-	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code
-					*/
-
 /*************************************************************//**
 Check for a valid value of innobase_compression_algorithm.
 @return	0 for valid innodb_compression_algorithm. */
@@ -1762,7 +1752,7 @@ thd_set_lock_wait_time(
 /********************************************************************//**
 Obtain the InnoDB transaction of a MySQL thread.
 @return	reference to transaction pointer */
-__attribute__((warn_unused_result, nonnull))
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static inline
 trx_t*&
 thd_to_trx(
@@ -3993,7 +3983,7 @@ int
 innobase_end(
 /*=========*/
 	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type __attribute__((unused)))
+	ha_panic_function	type MY_ATTRIBUTE((unused)))
 					/*!< in: ha_panic() parameter */
 {
 	int	err= 0;
@@ -6338,7 +6328,7 @@ innobase_mysql_cmp(
 		having indexes on such data need to rebuild their tables! */
 
 		ret = charset->coll->strnncollsp(
-			charset, a, a_length, b, b_length, 0);
+			charset, a, a_length, b, b_length);
 
 		if (ret < 0) {
 			return(-1);
@@ -6432,7 +6422,7 @@ innobase_mysql_cmp_prefix(
 	charset = innobase_get_fts_charset(mysql_type, charset_number);
 
 	result = ha_compare_text(charset, (uchar*) a, a_length,
-				 (uchar*) b, b_length, 1, 0);
+				 (uchar*) b, b_length, 1);
 
 	return(result);
 }
@@ -6452,7 +6442,7 @@ innobase_fts_text_cmp(
 
 	return(ha_compare_text(
 		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(s2->f_len), 0, 0));
+		s2->f_str, static_cast<uint>(s2->f_len), 0));
 }
 /******************************************************************//**
 compare two character string case insensitively according to their charset. */
@@ -6475,7 +6465,7 @@ innobase_fts_text_case_cmp(
 
 	return(ha_compare_text(
 		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen), 0, 0));
+		s2->f_str, static_cast<uint>(newlen), 0));
 }
 /******************************************************************//**
 Get the first character's code position for FTS index partition. */
@@ -6523,7 +6513,7 @@ innobase_fts_text_cmp_prefix(
 
 	result = ha_compare_text(
 		charset, s2->f_str, static_cast<uint>(s2->f_len),
-		s1->f_str, static_cast<uint>(s1->f_len), 1, 0);
+		s1->f_str, static_cast<uint>(s1->f_len), 1);
 
 	/* We switched s1, s2 position in ha_compare_text. So we need
 	to negate the result */
@@ -7623,7 +7613,7 @@ ha_innobase::build_template(
 		/* Push down an index condition or an end_range check. */
 		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 
-                        while (!table->field[sql_idx]->stored_in_db) {
+                        while (!table->field[sql_idx]->stored_in_db()) {
 			        sql_idx++;
                         }
 
@@ -7742,7 +7732,7 @@ ha_innobase::build_template(
 		pushdown. */
 		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 
-                        while (!table->field[sql_idx]->stored_in_db) {
+                        while (!table->field[sql_idx]->stored_in_db()) {
 			        sql_idx++;
                         }
 
@@ -7782,7 +7772,7 @@ ha_innobase::build_template(
 		for (i = 0, sql_idx = 0; i < n_stored_fields; i++, sql_idx++) {
 			const Field*	field;
 
-                        while (!table->field[sql_idx]->stored_in_db) {
+                        while (!table->field[sql_idx]->stored_in_db()) {
 			        sql_idx++;
                         }
 
@@ -8364,7 +8354,7 @@ calc_row_difference(
 
 	for (sql_idx = 0; sql_idx < n_fields; sql_idx++) {
 		field = table->field[sql_idx];
-                if (!field->stored_in_db)
+                if (!field->stored_in_db())
 		  continue;
 
 		o_ptr = (const byte*) old_row + get_field_offset(table, field);
@@ -8503,7 +8493,7 @@ calc_row_difference(
 				}
 			}
 		}
-                if (field->stored_in_db)
+                if (field->stored_in_db())
                   innodb_idx++;
 	}
 
@@ -10603,7 +10593,7 @@ create_table_check_doc_id_col(
 
 /*****************************************************************//**
 Creates a table definition to an InnoDB database. */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 int
 create_table_def(
 /*=============*/
@@ -10720,7 +10710,7 @@ create_table_def(
 
 	for (i = 0; i < n_cols; i++) {
 		Field*	field = form->field[i];
-                if (!field->stored_in_db)
+                if (!field->stored_in_db())
 		  continue;
 
 		col_type = get_innobase_type_from_mysql_type(&unsigned_type,
@@ -12277,6 +12267,25 @@ ha_innobase::discard_or_import_tablespace(
 	/* Commit the transaction in order to release the table lock. */
 	trx_commit_for_mysql(prebuilt->trx);
 
+	if (err == DB_SUCCESS && !discard
+	    && dict_stats_is_persistent_enabled(dict_table)) {
+		dberr_t		ret;
+
+		/* Adjust the persistent statistics. */
+		ret = dict_stats_update(dict_table,
+					DICT_STATS_RECALC_PERSISTENT);
+
+		if (ret != DB_SUCCESS) {
+			push_warning_printf(
+				ha_thd(),
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ALTER_INFO,
+				"Error updating stats for table '%s'"
+				" after table rebuild: %s",
+				dict_table->name, ut_strerr(ret));
+		}
+	}
+
 	DBUG_RETURN(convert_error_code_to_mysql(err, dict_table->flags, NULL));
 }
 
@@ -12398,7 +12407,8 @@ ha_innobase::delete_table(
 
 	/* Drop the table in InnoDB */
 	err = row_drop_table_for_mysql(
-		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB);
+		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
+		FALSE);
 
 
 	if (err == DB_TABLE_NOT_FOUND
@@ -12429,7 +12439,8 @@ ha_innobase::delete_table(
 #endif
 			err = row_drop_table_for_mysql(
 				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB);
+				thd_sql_command(thd) == SQLCOM_DROP_DB,
+				FALSE);
 		}
 	}
 
@@ -12621,7 +12632,7 @@ innobase_drop_database(
 /*********************************************************************//**
 Renames an InnoDB table.
 @return DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 innobase_rename_table(
 /*==================*/
@@ -13783,6 +13794,35 @@ ha_innobase::check(
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
+	if (prebuilt->table->corrupted) {
+		char	index_name[MAX_FULL_NAME_LEN + 1];
+		/* If some previous operation has marked the table as
+		corrupted in memory, and has not propagated such to
+		clustered index, we will do so here */
+		index = dict_table_get_first_index(prebuilt->table);
+
+		if (!dict_index_is_corrupted(index)) {
+			row_mysql_lock_data_dictionary(prebuilt->trx);
+			dict_set_corrupted(index, prebuilt->trx, "CHECK TABLE");
+			row_mysql_unlock_data_dictionary(prebuilt->trx);
+		}
+
+		innobase_format_name(index_name, sizeof index_name,
+			index->name, TRUE);
+
+		push_warning_printf(thd,
+				    Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_INDEX_CORRUPT,
+				    "InnoDB: Index %s is marked as"
+				    " corrupted", index_name);
+
+		/* Now that the table is already marked as corrupted,
+		there is no need to check any index of this table */
+		prebuilt->trx->op_info = "";
+
+		DBUG_RETURN(HA_ADMIN_CORRUPT);
+	}
+
 	prebuilt->trx->op_info = "checking table";
 
 	old_isolation_level = prebuilt->trx->isolation_level;
@@ -13865,6 +13905,15 @@ ha_innobase::check(
 
 		prebuilt->index_usable = row_merge_is_index_usable(
 			prebuilt->trx, prebuilt->index);
+
+		DBUG_EXECUTE_IF(
+			"dict_set_index_corrupted",
+			if (!dict_index_is_clust(index)) {
+				prebuilt->index_usable = FALSE;
+				row_mysql_lock_data_dictionary(prebuilt->trx);
+                                dict_set_corrupted(index, prebuilt->trx, "dict_set_index_corrupted");;
+				row_mysql_unlock_data_dictionary(prebuilt->trx);
+			});
 
 		if (UNIV_UNLIKELY(!prebuilt->index_usable)) {
 			innobase_format_name(
@@ -17585,7 +17634,7 @@ static char* srv_buffer_pool_evict;
 Evict all uncompressed pages of compressed tables from the buffer pool.
 Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 bool
 innodb_buffer_pool_evict_uncompressed(void)
 /*=======================================*/
@@ -17742,7 +17791,7 @@ innodb_defragment_frequency_update(
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
 	srv_defragment_interval = ut_microseconds_to_timer(
-		1000000.0 / srv_defragment_frequency);
+		(ulonglong) (1000000.0 / srv_defragment_frequency));
 }
 
 /****************************************************************//**
@@ -17930,13 +17979,13 @@ void
 purge_run_now_set(
 /*==============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -17953,13 +18002,13 @@ void
 purge_stop_now_set(
 /*===============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -17975,13 +18024,13 @@ void
 checkpoint_now_set(
 /*===============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -18002,13 +18051,13 @@ void
 buf_flush_list_now_set(
 /*===================*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -18105,13 +18154,13 @@ void
 buffer_pool_dump_now(
 /*=================*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -18297,22 +18346,22 @@ wsrep_innobase_kill_one_trx(
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
+		WSREP_WARN("no THD for trx: %lu", (ulong) victim_trx->id);
 		DBUG_RETURN(1);
 	}
 
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
+		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? (ulong) bf_trx->id : (ulong) 0);
 		DBUG_RETURN(1);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu",
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu",
  		    signal, (long long)bf_seqno,
 		    thd_get_thread_id(thd),
-		    victim_trx->id);
+		    (ulonglong) victim_trx->id);
 
 	WSREP_DEBUG("Aborting query: %s",
 		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
@@ -18329,14 +18378,15 @@ wsrep_innobase_kill_one_trx(
 
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
-		WSREP_DEBUG("kill trx EXITING for %lu", victim_trx->id);
+                WSREP_DEBUG("kill trx EXITING for %llu",
+                            (ulonglong) victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
 
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
-			    victim_trx->id,
+		WSREP_DEBUG("withdraw for BF trx: %llu, state: %d",
+			    (longlong) victim_trx->id,
 		wsrep_thd_get_conflict_state(thd));
 	}
 
@@ -18345,8 +18395,8 @@ wsrep_innobase_kill_one_trx(
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
-		WSREP_DEBUG("victim %lu in MUST ABORT state",
-			    victim_trx->id);
+		WSREP_DEBUG("victim %llu in MUST ABORT state",
+			    (longlong) victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
 		DBUG_RETURN(0);
@@ -18354,8 +18404,9 @@ wsrep_innobase_kill_one_trx(
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
-		WSREP_DEBUG("victim %lu in state %d",
-			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
+		WSREP_DEBUG("victim %llu in state %d",
+			    (longlong) victim_trx->id,
+                            wsrep_thd_get_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 		break;
@@ -18367,8 +18418,8 @@ wsrep_innobase_kill_one_trx(
 
 		WSREP_DEBUG("kill query for: %ld",
 			    thd_get_thread_id(thd));
-		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu",
-			    victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu",
+			    (longlong) victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			wsrep_abort_slave_trx(bf_seqno,
@@ -18382,8 +18433,8 @@ wsrep_innobase_kill_one_trx(
 
 			switch (rcode) {
 			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: %lu",
-					    victim_trx->id);
+				WSREP_DEBUG("cancel commit warning: %llu",
+					    (ulonglong) victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
 				DBUG_RETURN(1);
@@ -18392,9 +18443,9 @@ wsrep_innobase_kill_one_trx(
 				break;
 			default:
 				WSREP_ERROR(
-					"cancel commit bad exit: %d %lu",
+					"cancel commit bad exit: %d %llu",
 					rcode,
-					victim_trx->id);
+					(ulonglong) victim_trx->id);
 				/* unable to interrupt, must abort */
 				/* note: kill_mysql() will block, if we cannot.
 				 * kill the lock holder first.
@@ -18410,7 +18461,8 @@ wsrep_innobase_kill_one_trx(
 		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
 		 */
-		WSREP_DEBUG("kill trx QUERY_EXEC for %lu", victim_trx->id);
+                WSREP_DEBUG("kill trx QUERY_EXEC for %llu",
+                            (ulonglong) victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 		if (victim_trx->lock.wait_lock) {
@@ -18445,7 +18497,7 @@ wsrep_innobase_kill_one_trx(
 		break;
 	case QUERY_IDLE:
 	{
-		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
+                WSREP_DEBUG("kill IDLE for %llu", (ulonglong) victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
@@ -18462,7 +18514,7 @@ wsrep_innobase_kill_one_trx(
 
 		if (wsrep_aborting_thd_contains(thd)) {
 			WSREP_WARN("duplicate thd aborter %lu",
-			           thd_get_thread_id(thd));
+			           (ulong) thd_get_thread_id(thd));
 		} else {
 			wsrep_aborting_thd_enqueue(thd);
 			DBUG_PRINT("wsrep",("enqueuing trx abort for %lu",

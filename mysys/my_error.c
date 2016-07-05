@@ -49,7 +49,7 @@
 static struct my_err_head
 {
   struct my_err_head *meh_next;         /* chain link */
-  const char**       (*get_errmsgs)(); /* returns error message format */
+  const char**       (*get_errmsgs)(int nr); /* returns error message format */
   uint               meh_first;       /* error number matching array slot 0 */
   uint               meh_last;          /* error number matching last slot */
 } my_errmsgs_globerrs=
@@ -86,7 +86,7 @@ const char *my_get_err_msg(uint nr)
     we return NULL.
   */
   if (!(format= (meh_p && (nr >= meh_p->meh_first)) ?
-                meh_p->get_errmsgs()[nr - meh_p->meh_first] : NULL) ||
+                meh_p->get_errmsgs(nr)[nr - meh_p->meh_first] : NULL) ||
       !*format)
     return NULL;
 
@@ -217,7 +217,8 @@ void my_message(uint error, const char *str, register myf MyFlags)
   @retval  != 0     Error
 */
 
-int my_error_register(const char** (*get_errmsgs) (), uint first, uint last)
+int my_error_register(const char** (*get_errmsgs)(int error), uint first,
+                      uint last)
 {
   struct my_err_head *meh_p;
   struct my_err_head **search_meh_pp;
@@ -273,11 +274,10 @@ int my_error_register(const char** (*get_errmsgs) (), uint first, uint last)
   @retval  non-NULL  OK, returns address of error messages pointers array.
 */
 
-const char **my_error_unregister(uint first, uint last)
+my_bool my_error_unregister(uint first, uint last)
 {
   struct my_err_head    *meh_p;
   struct my_err_head    **search_meh_pp;
-  const char            **errmsgs;
 
   /* Search for the registration in the list. */
   for (search_meh_pp= &my_errmsgs_list;
@@ -289,17 +289,15 @@ const char **my_error_unregister(uint first, uint last)
       break;
   }
   if (! *search_meh_pp)
-    return NULL;
-
+    return TRUE;
+  
   /* Remove header from the chain. */
   meh_p= *search_meh_pp;
   *search_meh_pp= meh_p->meh_next;
 
-  /* Save the return value and free the header. */
-  errmsgs= meh_p->get_errmsgs();
   my_free(meh_p);
   
-  return errmsgs;
+  return FALSE;
 }
 
 

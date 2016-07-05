@@ -14,11 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
-# Avoid warnings in higher versions
-if("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" GREATER 2.6)
- CMAKE_POLICY(VERSION 2.8)
-endif()
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
 
 # explicitly set the policy to OLD
 # (cannot use NEW, not everyone is on cmake-2.8.12 yet)
@@ -39,12 +35,6 @@ ENDIF()
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
-
-# Distinguish between community and non-community builds, with the
-# default being a community build. This does not impact the feature
-# set that will be compiled in; it's merely provided as a hint to
-# custom packaging steps.
-OPTION(COMMUNITY_BUILD "Set to true if this is a community build" ON) 
 
 # Use a default manufacturer if no manufacturer was identified.
 IF(NOT DEFINED MANUFACTURER) 
@@ -140,6 +130,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
@@ -170,13 +161,11 @@ IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
-OPTION(CYBOZU "" OFF)
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
 ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
-MARK_AS_ADVANCED(CYBOZU)
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
@@ -235,9 +224,6 @@ MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 OPTION(ENABLED_LOCAL_INFILE
  "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
 
-OPTION(WITH_FAST_MUTEXES "Compile with fast mutexes" OFF)
-MARK_AS_ADVANCED(WITH_FAST_MUTEXES)
-
 OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
 IF (WITH_INNODB_DISALLOW_WRITES)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
@@ -251,10 +237,6 @@ FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
         NOT CMAKE_${LANG}_FLAGS MATCHES "DDBUG_")
       SET(CMAKE_${LANG}_FLAGS_${BUILD_TYPE} 
        "${CMAKE_${LANG}_FLAGS_${BUILD_TYPE}} -DDBUG_OFF")
-    ENDIF()
-    IF(WITH_FAST_MUTEXES)
-      SET(CMAKE_${LANG}_FLAGS_${BUILD_TYPE} 
-        "${CMAKE_${LANG}_FLAGS_${BUILD_TYPE}} -DMY_PTHREAD_FASTMUTEX=1")
     ENDIF()
   ENDFOREACH()
 ENDFOREACH()
@@ -440,8 +422,8 @@ CONFIGURE_FILE(
 
 IF(DEB)
   CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.1.files.in
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.1.files)
+    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.files.in
+    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.files)
 ENDIF(DEB)
 
 # Handle the "INFO_*" files.

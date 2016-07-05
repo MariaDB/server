@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <my_global.h>
 #include <ft/log_header.h>
 
 #include "log-internal.h"
@@ -265,8 +266,9 @@ toku_maybe_upgrade_log(const char *env_dir, const char *log_dir, LSN * lsn_of_cl
         TXNID last_xid = TXNID_NONE;
         r = verify_clean_shutdown_of_log_version(log_dir, version_of_logs_on_disk, &last_lsn, &last_xid);
         if (r != 0) {
-            if (TOKU_LOG_VERSION_25 <= version_of_logs_on_disk && version_of_logs_on_disk <= TOKU_LOG_VERSION_27
-                && TOKU_LOG_VERSION_28 == TOKU_LOG_VERSION) {
+            if (version_of_logs_on_disk >= TOKU_LOG_VERSION_25 &&
+                version_of_logs_on_disk <= TOKU_LOG_VERSION_29 &&
+                TOKU_LOG_VERSION_29 == TOKU_LOG_VERSION) {
                 r = 0; // can do recovery on dirty shutdown
             } else {
                 fprintf(stderr, "Cannot upgrade PerconaFT version %d database.", version_of_logs_on_disk);

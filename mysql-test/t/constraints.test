@@ -1,24 +1,30 @@
 #
 # Testing of constraints
-# Currently MySQL only ignores the syntax.
 #
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
 create table t1 (a int check (a>0));
+show create table t1;
 insert into t1 values (1);
+--error ER_CONSTRAINT_FAILED
 insert into t1 values (0);
 drop table t1;
 create table t1 (a int, b int, check (a>b));
+show create table t1;
 insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
 insert into t1 values (0,1);
 drop table t1;
 create table t1 (a int ,b int, constraint abc check (a>b));
+show create table t1;
 insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
 insert into t1 values (0,1);
 drop table t1;
 create table t1 (a int null);
+show create table t1;
 insert into t1 values (1),(NULL);
 drop table t1;
 create table t1 (a int null);

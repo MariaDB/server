@@ -16,7 +16,7 @@
 # Common warning flags for GCC, G++, Clang and Clang++
 SET(MY_WARNING_FLAGS "-Wall -Wextra -Wformat-security -Wno-init-self")
 MY_CHECK_C_COMPILER_FLAG("-Wvla") # Requires GCC 4.3+ or Clang
-IF(HAVE_C__Wvla)
+IF(have_C__Wvla)
   SET(MY_WARNING_FLAGS "${MY_WARNING_FLAGS} -Wvla")
 ENDIF()
 

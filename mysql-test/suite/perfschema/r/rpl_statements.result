@@ -4,10 +4,7 @@ include/master-slave.inc
 #
 # STEP 1 - CREATE AND REPLICATE TEST TABLES
 #
-
-**************
-*** MASTER ***
-**************
+connection master;
 
 *** Create test tables
 
@@ -19,24 +16,18 @@ select thread_id into @my_thread_id
 from performance_schema.threads
 where processlist_id = connection_id();
 create table test.marker(s1 int) engine=innodb;
-**************
-*** SLAVE  ***
-**************
+connection slave;
 
 *** Clear statement events
 
 #
 # STEP 2 - REPLICATE ONE ROW ON MASTER TO GET REPLICATION THREAD ID ON SLAVE
 #
-**************
-*** MASTER ***
-**************
+connection master;
 
 insert into test.marker values (0);
 
-**************
-*** SLAVE  ***
-**************
+connection slave;
 
 *** Verify row, get replication thread id, clear statement events
 
@@ -51,9 +42,7 @@ Expect 1
 #
 # STEP 3 - PERFORM DML STATEMENTS ON MASTER
 #
-**************
-*** MASTER ***
-**************
+connection master;
 
 show variables like 'binlog_format%';
 Variable_name	Value
@@ -130,9 +119,7 @@ where (thread_id=@my_thread_id and digest_text like '%marker%'));
 #
 # STEP 5 - VERIFY DML AND DDL STATEMENT EVENTS ON SLAVE
 #
-**************
-*** SLAVE  ***
-**************
+connection slave;
 
 *** List statement events from master
 
@@ -203,9 +190,7 @@ statement/abstract/relay_log	NO	NO
 #
 # STEP 7 - UPDATE TABLES ON MASTER, REPLICATE
 #
-**************
-*** MASTER ***
-**************
+connection master;
 
 *** Clear statement events
 *** Update some tables, then replicate
@@ -215,9 +200,7 @@ insert into marker1_db.table1 values (999, '999'), (998, '998'), (997, '997');
 #
 # STEP 8 - VERIFY TABLE UPDATES FROM MASTER, EXPECT NO STATEMENT EVENTS ON SLAVE
 #
-**************
-*** SLAVE  ***
-**************
+connection slave;
 
 *** Confirm rows were replicated
 
