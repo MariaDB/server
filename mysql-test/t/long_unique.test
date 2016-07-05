@@ -1,5 +1,7 @@
 create table z_1(abc blob unique);
 insert into z_1 values(112);
+insert into z_1 values(NULL);
+insert into z_1 values(NULL);
 insert into z_1 values('5666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666');
 insert into z_1 values('sachin');
 --error 1022
@@ -112,3 +114,88 @@ show create table di_2;
 insert into di_2 values(1);
 alter table di_2 drop index abc;
 show create table di_2;
+
+#some more insert tests with muliple unique
+
+create table s_1(abc blob , xyz text ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+insert into s_1 values('sachin',NULL);
+insert into s_1 values('sachin',NULL);
+# alter
+alter table s_1 add column a1 blob;
+--error 1022
+insert into s_1 values(12,'sachin','maria');
+alter table s_1 add  unique key(a1);
+--error 1022
+insert into s_1 values(1,'sachin','maria');
+alter table s_1 drop key a1;
+insert into s_1 values(2,'sachin','maria');
+--error 
+alter table s_1 add index(a1);
+insert into s_1 values(55,'sachin','maria');
+show create table s_1;
+alter table s_1 drop index(a1);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc blob , xyz blob ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc text , xyz text ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc text , xyz blob ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+
+
+create table s_1(abc tinyblob , xyz tinytext ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc longblob , xyz mediumblob ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc mediumtext , xyz longtext ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;
+create table s_1(abc longtext , xyz tinyblob ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+--error 1022
+insert into s_1 values(12,'sachin');
+insert into s_1 values('sachin',12);
+select * from s_1;
+show create table s_1;
+drop s_1;

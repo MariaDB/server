@@ -3914,7 +3914,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           KEY *keyinfo= table->key_info + key;
           uint  key_parts= table->actual_n_key_parts(keyinfo);
           if (eq_part.is_prefix(key_parts) &&
-              !table->fulltext_searched && 
+              !table->fulltext_searched &&
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
             key_map base_part, base_const_ref, base_eq_part;

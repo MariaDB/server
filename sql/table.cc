@@ -669,7 +669,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              uint keys, KEY *keyinfo,
                              uint new_frm_ver, uint &ext_key_parts,
                              TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo, char* &keynames)
+                             KEY *first_keyinfo, char* &keynames,const uchar *key_ex_flags)
 {
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
@@ -722,7 +722,6 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
-
     if (i == 0)
     {
       ext_key_parts+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
@@ -746,7 +745,11 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (new_frm_ver >= 3)
         keyinfo->block_size= first_keyinfo->block_size;
     }
-
+    if(key_ex_flags!=NULL)
+    {
+      keyinfo->ex_flags=uint8korr(key_ex_flags);
+      key_ex_flags+=8;
+    }
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
     for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
@@ -928,6 +931,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos;
   const uchar *disk_buff, *strpos;
+  const uchar * field_properties=NULL,*key_ex_flags=NULL;
   ulong pos, record_offset; 
   ulong rec_buff_length;
   handler *handler_file= 0;
@@ -951,11 +955,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->ext_key_parts= 0;
   MEM_ROOT **root_ptr, *old_root;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
-  struct visible_property{
-    field_visible_type visibility;
-    bool is_hash;
-  };
-  const uchar * field_properties;
   root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
   old_root= *root_ptr;
   *root_ptr= &share->mem_root;
@@ -1037,6 +1036,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       case EXTRA2_FIELD_FLAGS:
          field_properties = extra2;
+        break;
+      case EXTRA2_KEY_EX_FLAG:
+         key_ex_flags = extra2;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1242,7 +1244,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         share, len, &first_keyinfo, keynames,key_ex_flags))
       goto err;
 
     if (next_chunk + 5 < buff_end)
@@ -1335,7 +1337,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         share, len, &first_keyinfo, keynames,key_ex_flags))
       goto err;
   }
 
@@ -1677,9 +1679,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
-
-    reg_field->field_visibility=(field_visible_type)*field_properties++;
-    reg_field->is_hash=(bool)*field_properties++;
+    if(field_properties!=NULL)
+    {
+      reg_field->field_visibility=(field_visible_type)*field_properties++;
+      reg_field->is_hash=(bool)*field_properties++;
+    }
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
@@ -1993,7 +1997,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((keyinfo->flags & HA_NOSAME) ||
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
-      if(keyinfo->flags&HA_UNIQUE_HASH||keyinfo->flags&HA_INDEX_HASH)
+      if(keyinfo->ex_flags&HA_EX_UNIQUE_HASH||keyinfo->ex_flags&HA_EX_INDEX_HASH)
       {
         keyinfo->ext_key_parts=1;
       }
@@ -7426,4 +7430,72 @@ double KEY::actual_rec_per_key(uint i)
     return 0;
   return (is_statistics_from_stat_tables ?
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+}
+/*
+  Remove field name from db_row_hash_* column vcol info str
+  For example
+
+  hash(`abc`,`xyz`)
+  remove "abc" will return
+  0 and hash_str will be set hash(`xyz`) and length will be set
+
+  hash(`xyz`)
+  remove "xyz" will return
+  0 and hash_str will be set NULL and length will be 0
+  hash(`xyz`)
+  remove "xyzff" will return
+  1 no change to hash_str and length
+  TODO a better and less complex logic
+*/
+int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
+{
+   /* first of all find field_name in hash_str*/
+  char * temp= hash_str->str;
+  char * t_field= field_name;
+  int j=0,i=0;
+  for( i=0; i<hash_str->length; i++)
+  {
+    while(*(temp+i)==*(field_name+j))
+    {
+      i++;
+      j++;
+      if(*(field_name+j)=='\0' &&*(temp+i)=='`')
+        goto done;
+    }
+    j=0;
+  }
+  done:
+  if(i<hash_str->length)
+  {
+   /*
+      We found the field location
+      First of all we need to find the
+      , position and there can be three
+      situations
+      1. two , not a problem remove any one
+      2. one , remove this
+      3  no , return
+   */
+   // see if there is , before field name
+    // j is equal to field length
+    if(*(temp+i-j-2)==',')
+    {
+      hash_str->length=hash_str->length-j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-2,temp+i+1,hash_str->length);
+      return 0;
+    }
+    if(*(temp+i+1)==',')
+    {
+      hash_str->length=hash_str->length-j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-1,temp+i+2,hash_str->length);
+      return 0;
+    }
+    if(*(temp+i+1)==')')
+    {
+      hash_str->length=0;
+      hash_str->str=NULL;
+      return 0;
+    }
+  }
+  return 1;
 }

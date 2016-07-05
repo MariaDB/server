@@ -90,6 +90,7 @@ struct ha_index_option_struct;
 typedef struct st_key {
   uint	key_length;			/* Tot length of key */
   ulong flags;                          /* dupp key and pack flags */
+  ulong ex_flags;       /* Extra flags for hash type etc and can be used for future expansion*/
   uint	user_defined_key_parts;	   /* How many key_parts */
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
   uint ext_key_parts;              /* Number of key parts in extended key */

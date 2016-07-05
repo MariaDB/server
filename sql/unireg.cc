@@ -102,6 +102,23 @@ static uchar *extra2_write_field_visibility_hash_info(uchar *pos,
   return pos;
 }
 
+static uchar *extra2_write_key_ex_flags(uchar *pos,int keys,KEY * key_info)
+{
+  *pos++=EXTRA2_KEY_EX_FLAG;
+  /*
+   always 2  first for field visibility
+   second for is this column represent long unique hash
+   */
+  int len = 8*keys;
+  pos= extra2_write_len(pos,len);
+  for(int i=0;i<keys;i++)
+  {
+    int8store(pos,key_info[i].ex_flags);
+    pos+=8;
+  }
+  return pos;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -225,7 +242,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
   extra2_size+=1 + ( 2*create_fields.elements > 255 ? 3 : 1) +
-       2*create_fields.elements;// first one for type(extra2_field_flags) next 2  for length
+       2*create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
+  if(keys)
+    extra2_size+=1 + ( 8*keys > 255 ? 3 : 1) + 8*keys;
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -281,7 +300,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   pos=extra2_write_field_visibility_hash_info(pos,create_fields.elements,&it);
   it.rewind();
-
+  if(keys)
+    pos=extra2_write_key_ex_flags(pos,keys,key_info);
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
 

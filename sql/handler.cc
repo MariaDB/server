@@ -5898,7 +5898,7 @@ int handler::ha_write_row(uchar *buf)
   /* One More Thing  if i implement hidden field then detection can be easy */
   for(uint i=0;i<table->s->keys;i++)
   {
-    if(table->key_info[i].flags&HA_UNIQUE_HASH)
+    if(table->key_info[i].ex_flags&HA_EX_UNIQUE_HASH)
     {
       field_iter=table->key_info[i].key_part->field;
       int len =table->key_info[i].key_length;
@@ -5956,7 +5956,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   /* One More Thing  if i implement hidden field then detection can be easy */
   for(uint i=0;i<table->s->keys;i++)
   {
-    if(table->key_info[i].flags&HA_UNIQUE_HASH)
+    if(table->key_info[i].ex_flags&HA_EX_UNIQUE_HASH)
     {
       /*
         We need to add the null bit

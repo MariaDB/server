@@ -3229,14 +3229,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   */
     
   List_iterator<Key> key_iter(alter_info->key_list);
+  List_iterator<Key> key_iter_2(alter_info->key_list);
   Key *key_iter_key;
   Key_part_spec *temp_colms;
   int num= 1;
   bool is_long_unique=false;
   int key_initial_elements=alter_info->key_list.elements;
+  int key_index=-1;
   while((key_iter_key=key_iter++)&&key_initial_elements)
   {
     key_initial_elements--;
+    key_index++;
+    if(key_iter_key->type!=Key::UNIQUE && key_iter_key->type!=Key::MULTIPLE)
+      continue;
     List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
     while((temp_colms=key_part_iter++))
     {
@@ -3245,6 +3250,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                                                           sql_field->field_name)){}
       if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
                        sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
+                       sql_field->sql_type==MYSQL_TYPE_TINY_BLOB ||
                        sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
          &&temp_colms->length==0)
       {
@@ -3255,7 +3261,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         it.rewind();
         break;
       }
-      // if(sql_field->sql_type==MYSQL_TYPE_VARCHAR)
+      if(sql_field && sql_field->sql_type==MYSQL_TYPE_VARCHAR&&(temp_colms->length>
+                              file->max_key_part_length()||(temp_colms->length==0&&
+                              sql_field->length>file->max_key_part_length())))
+      {
+        is_long_unique=true;
+        /*
+          One long key  unique in enough
+         */
+        it.rewind();
+        break;
+      }
       it.rewind();
     }
     if(is_long_unique)
@@ -3287,6 +3303,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
       }
       it.rewind();
+      /*
+        There should be only one key for db_row_hash_* column
+        we need to give user a error when the accidently query
+        like
+
+        create table t1(abc blob unique, index(db_row_hash_1));
+        alter table t2 add column abc blob unique,add index(db_row_hash_1);
+
+        for this we will iterate through the key_list and
+        find if and key_part has the same name as of temp_name
+       */
+      Key * temp_key;
+      while((temp_key=key_iter_2++))
+      {
+        Key_part_spec *flds;
+        List_iterator<Key_part_spec> key_part_iter_2(temp_key->columns);
+        while((flds=key_part_iter_2++))
+        {
+          if(!my_strcasecmp(system_charset_info,flds->field_name.str,temp_name))
+          {
+            my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
+            DBUG_RETURN(TRUE);
+          }
+        }
+      }
       char * name = (char *)thd->alloc(30);
       strcpy(name,temp_name);
       cf->field_name=name;
@@ -3859,9 +3900,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     if(key->hash_type==UNIQUE_HASH)
-      key_info->flags|=HA_UNIQUE_HASH;
+      key_info->ex_flags|=HA_EX_UNIQUE_HASH;
     if(key->hash_type==INDEX_HASH)
-      key_info->flags|=HA_INDEX_HASH;
+      key_info->ex_flags|=HA_EX_INDEX_HASH;
     key_info->option_list= key->option_list;
     if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
                           &key_info->option_list,
@@ -4013,7 +4054,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
     if (!column->length)
 	  {
-				DBUG_ASSERT(0);
+			my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
+			DBUG_RETURN(TRUE);
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -7576,6 +7618,48 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
+      /*
+        Need to see whether the field which we are dropping is in
+        db_row_hash_* vcol expr str if yes then remove it
+        if expr str becomes empty then remove db_row_hash column
+      */
+      KEY *t_key=table->key_info;
+      for(int i =0;i<table->s->keys;i++,t_key++) {
+        if(t_key->ex_flags&HA_EX_INDEX_HASH||
+           t_key->ex_flags&HA_EX_UNIQUE_HASH)
+        {
+          LEX_STRING * ls =&(t_key->key_part->field->vcol_info->expr_str);
+          int res=rem_field_from_hash_col_str(ls,(char *)drop->name);
+          if(res)
+            continue;
+          if(!ls->length)
+          {
+            /* Remove the db_row_hash column*/
+            //there can be two case
+            //this column has already iterated
+            Create_field *t_c_f;
+            bool removed=false;
+            find_it.rewind();
+            while((t_c_f=find_it++))
+            {
+              if(!my_strcasecmp(system_charset_info,t_c_f->field_name,
+                                t_key->key_part->field->field_name))
+              {
+                find_it.remove();
+                removed=true;
+                break;
+              }
+            }
+            //this column has not been iterated
+            if(!removed)
+            {
+              Alter_drop *dr= new(thd->mem_root)Alter_drop(Alter_drop::COLUMN,
+                                                           drop->name,false);
+              alter_info->drop_list.push_back(dr,thd->mem_root);
+            }
+          }
+        }
+      }
       drop_it.remove();
       continue;
     }
@@ -7686,7 +7770,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
             break;
           }
         }
-        /* Give field new name which does not clash with def->feild_name */
+        /* Give field new name which does not clash with def->field_name */
         new_hash_field = old_hash_field->clone(thd->mem_root);
         char *name = (char *)thd->alloc(30);
         strcpy(name,"DB_ROW_HASH_");
@@ -7800,7 +7884,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (drop)
     {
       /* If we drop index of blob unique then we need to drop the db_row_hash col */
-      if(key_info->flags&HA_UNIQUE_HASH||key_info->flags&HA_INDEX_HASH)
+      if(key_info->ex_flags&HA_EX_UNIQUE_HASH||key_info->ex_flags&HA_EX_INDEX_HASH)
       {
         char * name = (char *)key_info->key_part->field->field_name;
         /*iterate over field_it and remove db_row_hash col  */
@@ -7958,9 +8042,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
-      if(key_info->flags&HA_INDEX_HASH)
+      if(key_info->ex_flags&HA_EX_INDEX_HASH)
         key->hash_type=INDEX_HASH;
-      if(key_info->flags&HA_UNIQUE_HASH)
+      if(key_info->ex_flags&HA_EX_UNIQUE_HASH)
         key->hash_type=UNIQUE_HASH;
       new_key_list.push_back(key, thd->mem_root);
     }
@@ -7991,7 +8075,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                            temp_colms->field_name.str,
                            sql_field->field_name))
           {
-            if(sql_field->field_visibility==MEDIUM_HIDDEN||sql_field->field_visibility==FULL_HIDDEN)
+            if(sql_field->field_visibility==MEDIUM_HIDDEN||
+                 sql_field->field_visibility==FULL_HIDDEN)
             {
               /* If we added one column (which clash with db_row_has )then this key
               is different then added by user to make it sure we check for */
@@ -8009,12 +8094,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                 goto err;
               }
             }
-            /* Check whether we adding index for blob or other long length column then add column flag*/
-            if((sql_field->sql_type==MYSQL_TYPE_BLOB ||
+            /* Check whether we adding index for blob or
+               other long length column then add column flag*/
+            if(((sql_field->sql_type==MYSQL_TYPE_BLOB ||
                 sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
                 sql_field->sql_type==MYSQL_TYPE_LONG_BLOB||
-                sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
-               &&(temp_colms->length==0))
+                sql_field->sql_type==MYSQL_TYPE_TINY_BLOB)
+               &&(temp_colms->length==0))||(sql_field->sql_type==MYSQL_TYPE_VARCHAR)&&
+               (temp_colms->length>table->file->max_key_part_length()||
+             (temp_colms->length==0&&sql_field->length>table->file->max_key_part_length())))
               alter_info->flags|=Alter_info::ALTER_ADD_COLUMN;
           }
         }

@@ -158,3 +158,8 @@ Table	Create Table
 di_2	CREATE TABLE `di_2` (
   `abc` blob
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create table s_1(abc blob , xyz text ,unique(abc,xyz));
+insert into s_1 values(12,'sachin');
+insert into s_1 values(12,'sachin');
+ERROR 23000: Can't write; duplicate key in table 's_1'
+insert into s_1 values('sachin',12);

@@ -339,6 +339,9 @@ enum key_hash_type{
 		 update */
 	UNIQUE_HASH
 };
+
+int  rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name);
+
 class Filesort_info
 {
   /// Buffer for sorting keys.
