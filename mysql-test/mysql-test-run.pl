@@ -317,7 +317,8 @@ our $opt_user = "root";
 our $opt_valgrind= 0;
 my $opt_valgrind_mysqld= 0;
 my $opt_valgrind_mysqltest= 0;
-my @default_valgrind_args= ("--show-reachable=yes");
+my @default_memcheck_valgrind_args= ("--show-reachable=yes",
+  "--leak-check=yes", "--num-callers=16");
 my @valgrind_args;
 my $opt_strace= 0;
 my $opt_strace_client;
@@ -1719,17 +1720,28 @@ sub command_line_setup {
     $opt_valgrind= 1;
     $opt_valgrind_mysqld= 1;
 
+    my @valgrind_args_orig= @valgrind_args;
+
+    unshift(@valgrind_args, "--tool=callgrind");
     # Set special valgrind options unless options passed on command line
     push(@valgrind_args, "--trace-children=yes")
+      unless @valgrind_args_orig;
+  }
+
+  # default to --tool=memcheck
+  if ($opt_valgrind && ! grep(/^--tool=/i, @valgrind_args))
+  {
+    # Set valgrind_options to default unless already defined
+    push(@valgrind_args, @default_memcheck_valgrind_args)
       unless @valgrind_args;
+    push(@valgrind_args, "--suppressions=${glob_mysql_test_dir}/valgrind.supp")
+      if -f "$glob_mysql_test_dir/valgrind.supp";
+
+    unshift(@valgrind_args, "--tool=memcheck");
   }
 
   if ( $opt_valgrind )
   {
-    # Set valgrind_options to default unless already defined
-    push(@valgrind_args, @default_valgrind_args)
-      unless @valgrind_args;
-
     # Make valgrind run in quiet mode so it only print errors
     push(@valgrind_args, "--quiet" );
 
@@ -5820,29 +5832,15 @@ sub valgrind_arguments {
   my $args= shift;
   my $exe=  shift;
 
-  if ( $opt_callgrind)
+  # Ensure the jemalloc works with mysqld
+  if ($$exe =~ /mysqld/)
   {
-    mtr_add_arg($args, "--tool=callgrind");
-    mtr_add_arg($args, "--base=$opt_vardir/log");
-  }
-  else
-  {
-    mtr_add_arg($args, "--tool=memcheck"); # From >= 2.1.2 needs this option
-    mtr_add_arg($args, "--leak-check=yes");
-    mtr_add_arg($args, "--num-callers=16");
-    mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
-      if -f "$glob_mysql_test_dir/valgrind.supp";
-
-    # Ensure the jemalloc works with mysqld
-    if ($$exe =~ /mysqld/)
-    {
-      my %somalloc=(
-        'system jemalloc' => 'libjemalloc*',
-        'bundled jemalloc' => 'NONE'
-      );
-      my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
-      mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
-    }
+    my %somalloc=(
+      'system jemalloc' => 'libjemalloc*',
+      'bundled jemalloc' => 'NONE'
+    );
+    my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
+    mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
   }
 
   # Add valgrind options, can be overriden by user
