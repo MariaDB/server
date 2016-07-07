@@ -3,13 +3,11 @@ delimiter |;
 create aggregate function increm(y INT) returns INT
 begin
   declare  z int default 0;
+  declare continue handler for not found return z;
+  loop
   fetch group next row;
   set z= z+y;
-  fetch group next row;
-  set z= z+y;
-  fetch group next row;
-  set z= z+y;
-  return z;
+  end loop;
 end|
 
 delimiter ;|

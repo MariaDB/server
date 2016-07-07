@@ -187,6 +187,7 @@ public:
   /// of the client/server protocol.
   bool end_partial_result_set;
   bool pause_state;
+  bool quit_func;
   
 #ifndef DBUG_OFF
   /// The stored program for which this runtime context is created. Used for

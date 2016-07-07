@@ -1450,7 +1450,28 @@ Item_sum_sp::sp_check_access(THD *thd)
 bool
 Item_sum_sp::execute()
 {
-  return FALSE;
+  THD *thd= current_thd;
+  
+  /* Execute function and store the return value in the field. */
+  bool res;
+  uint old_server_status= thd->server_status;
+  thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
+  res= execute_impl(thd);
+  thd->server_status= old_server_status;
+  if (res)
+  {
+    null_value= 1;
+    context->process_error(thd);
+    if (thd->killed)
+      thd->send_kill_message();
+    return TRUE;
+  }
+
+  /* Check that the field (the value) is not NULL. */
+
+  null_value= sp_result_field->is_null();
+
+  return null_value;
 }
 
 bool
@@ -1510,7 +1531,7 @@ bool
 Item_sum_sp::add()
 {
   THD *thd= current_thd;
-  
+
   if (execute_impl(thd))
   {
     return TRUE;

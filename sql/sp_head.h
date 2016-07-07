@@ -303,7 +303,7 @@ public:
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
   uint instr_ptr;
   bool pause_state;
-  bool quit_func;
+  
 
   static void *
   operator new(size_t size) throw ();

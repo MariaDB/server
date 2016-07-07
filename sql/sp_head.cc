@@ -602,7 +602,7 @@ sp_head::sp_head()
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
-  instr_ptr(0),pause_state(FALSE),quit_func(FALSE), m_cont_level(0)
+  instr_ptr(0),pause_state(FALSE), m_cont_level(0)
 {
   m_first_instance= this;
   m_first_free_instance= this;
@@ -2452,7 +2452,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
   err_status= execute_agg(thd, TRUE);
   if(!err_status)
   {
-    if(func_ctx->pause_state)
+    if(thd->spcont->pause_state)
     {
       for (arg_no= 0; arg_no < argcount; arg_no++)
       {
@@ -2493,16 +2493,16 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     }
   }
 
-  /*if (!err_status && quit_func)
+  if (!err_status && thd->spcont->quit_func)
   {
     // We need result only in function but not in trigger 
 
-    if (!func_ctx->is_return_value_set())
+    if (!thd->spcont->is_return_value_set())
     {
       my_error(ER_SP_NORETURNEND, MYF(0), m_name.str);
       err_status= TRUE;
     }
-  }*/
+  }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -4501,7 +4501,18 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   else
   {
     if(!thd->spcont->pause_state)
-      thd->spcont->pause_state= TRUE;
+    {
+      if(thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+      {
+        my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
+        res=-1;
+        thd->spcont->quit_func= TRUE;
+      }
+      else
+      {
+        thd->spcont->pause_state= TRUE;
+      }
+    }
     else
     {
       thd->spcont->pause_state= FALSE;
