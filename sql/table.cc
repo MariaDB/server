@@ -1805,6 +1805,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
+    if(field_properties!=NULL)
+    {
+      reg_field->field_visibility=(field_visible_type)*field_properties++;
+      reg_field->is_hash=(bool)*field_properties++;
+    }
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -7887,6 +7892,52 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
       hash_str->str=NULL;
       return 0;
     }
+  }
+  return 1;
+}
+/*   returns 1 if old_name not found in hash_str 0 other wise*/
+int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char * new_name)
+{
+  /* first of all find field_name in hash_str*/
+  char * temp= hash_str->str;
+  char * t_field= old_name;
+  int j=0,i=0;
+  for( i=0; i<hash_str->length; i++)
+  {
+    while(*(temp+i)==*(old_name+j))
+    {
+      i++;
+      j++;
+      if(*(old_name+j)=='\0' &&*(temp+i)=='`')
+        goto done;
+    }
+    j=0;
+  }
+done:
+  if(i<hash_str->length)
+  {
+    int len= hash_str->length-strlen(old_name)+strlen(new_name);
+    int num=0;
+    char  temp_arr[len];
+    int s_c_position = i-strlen(old_name);//here it represent the posotion of '`' before old f_name
+    for(int index=0;index<len;index++)
+    {
+      if(index>=s_c_position&&index<s_c_position+strlen(new_name))
+      {
+        temp_arr[index]= new_name[index-s_c_position];
+        continue;
+      }
+      if(index>=s_c_position+strlen(new_name))
+      {
+        temp_arr[index]= temp[i+num];
+        num++;
+        continue;
+      }
+      temp_arr[index]=temp[index];
+    }
+    strcpy(hash_str->str,temp_arr);
+    hash_str->length=len;
+    return 0;
   }
   return 1;
 }

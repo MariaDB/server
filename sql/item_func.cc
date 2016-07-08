@@ -1858,6 +1858,7 @@ longlong  Item_func_hash::val_int()
     cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
     cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
   }
+  null_value= 0;
   return   (longlong)nr1;
 }
 

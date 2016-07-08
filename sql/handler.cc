@@ -5883,7 +5883,8 @@ int handler::ha_reset()
   */
 bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
 {
-  Item_args * t_item=(Item_args *)hash_field->vcol_info->expr_item;
+  Item_func_or_sum * temp=(Item_func_or_sum *)hash_field->vcol_info->expr_item;
+  Item_args * t_item=static_cast<Item_args *>(temp);
   int arg_count = t_item->argument_count();
   Item ** arguments=t_item->arguments();
   int diff = sec_rec-first_rec;
@@ -5924,7 +5925,9 @@ int handler::ha_write_row(uchar *buf)
       if(!result)
       {
         if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
+        {
           DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
+        }
       }
     }
   }

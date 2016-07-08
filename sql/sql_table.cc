@@ -3342,7 +3342,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       char * name = (char *)thd->alloc(30);
       strcpy(name,temp_name);
       cf->field_name=name;
-      cf->stored_in_db=true;
       cf->sql_type=MYSQL_TYPE_LONGLONG;
       /* hash column should be atmost hidden */
       cf->field_visibility=FULL_HIDDEN;
@@ -7718,37 +7717,88 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if(t_key->ex_flags&HA_EX_INDEX_HASH||
            t_key->ex_flags&HA_EX_UNIQUE_HASH)
         {
-          LEX_STRING * ls =&(t_key->key_part->field->vcol_info->expr_str);
-          int res=rem_field_from_hash_col_str(ls,(char *)drop->name);
+          /*
+            Consider the query
+            create table t1(a blob,b blob, c blob,unique(a,b,c));
+            alter table t1 drop column a,drop column b;
+            in case like this we always need the latest
+            expr_str for example in drop of a expr_str should be
+            hash(`a`,`b`,`c`);
+            but in drop of b it should be
+            hash(`b`,`c`);
+            */
+          const char * name = t_key->key_part->field->field_name;
+          Create_field *t_c_f;
+          LEX_STRING * ls;
+          bool found=false;
+          find_it.rewind();
+          while((t_c_f=find_it++))
+          {
+            if(!my_strcasecmp(system_charset_info,t_c_f->field_name,
+                              name))
+            {
+              found=true;
+              break;
+            }
+          }
+          if(!found)
+            ls =&(t_key->key_part->field->vcol_info->expr_str);
+          else
+            ls=&t_c_f->vcol_info->expr_str;
+          LEX_STRING *new_ls = (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
+          new_ls->length=ls->length;
+          new_ls->str=(char *)thd->alloc(ls->length);
+          strncpy(new_ls->str,ls->str,new_ls->length);
+          int res=rem_field_from_hash_col_str(new_ls,(char *)drop->name);
+
+          /*If rs ==1 that means we do not have this field name in expr_str*/
+
           if(res)
             continue;
-          if(!ls->length)
+          /*
+               Now we a new db_row_hash field with updated expr_str
+               but consider the case
+               create table t1(a blob unique,b int);
+               in this when we remove a we do not need to add
+               again db_row_hash column.
+               make a new field  identical to old hash but
+               with a new hash str only if new_ls->length is not zero
+            */
+
+          if(new_ls->length)
           {
-            /* Remove the db_row_hash column*/
-            //there can be two case
-            //this column has already iterated
-            Create_field *t_c_f;
-            bool removed=false;
-            find_it.rewind();
-            while((t_c_f=find_it++))
+            alter_info->flags|=Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+            if(found)
             {
-              if(!my_strcasecmp(system_charset_info,t_c_f->field_name,
-                                t_key->key_part->field->field_name))
-              {
                 find_it.remove();
-                removed=true;
-                break;
-              }
+                Create_field * cf =  t_c_f->clone(thd->mem_root);
+                cf->vcol_info->expr_str.str=new_ls->str;
+                cf->vcol_info->expr_str.length=new_ls->length;
+                new_create_list.push_front(cf,thd->mem_root);
             }
-            //this column has not been iterated
-            if(!removed)
+            else
             {
+              /*
+                 Remove db_row_hash field with old expr_str
+                 If this field is not in create list
+                 then add it into drop_list.
+               */
               Alter_drop *dr= new(thd->mem_root)Alter_drop(Alter_drop::COLUMN,
                                                            drop->name,false);
               alter_info->drop_list.push_back(dr,thd->mem_root);
+              Create_field * cf =  new(thd->mem_root) Create_field(thd,
+                                    t_key->key_part->field,t_key->key_part->field);
+              cf->vcol_info->expr_str.str=new_ls->str;
+              cf->vcol_info->expr_str.length=new_ls->length;
+              new_create_list.push_front(cf,thd->mem_root);
             }
           }
+          else
+          {
+            find_it.remove();
+          }
         }
+
       }
       drop_it.remove();
       continue;
@@ -7773,6 +7823,72 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         of the list for now. Their positions will be corrected later.
       */
       new_create_list.push_back(def, thd->mem_root);
+
+      if(def->sql_type==MYSQL_TYPE_BLOB || def->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
+         def->sql_type==MYSQL_TYPE_TINY_BLOB ||def->sql_type==MYSQL_TYPE_LONG_BLOB||
+         def->sql_type==MYSQL_TYPE_VARCHAR&&
+         def->length>table->file->max_key_part_length())
+      {
+        KEY *t_key=table->key_info;
+        for(int i =0;i<table->s->keys;i++,t_key++)
+        {
+          if(t_key->ex_flags&HA_EX_INDEX_HASH||
+             t_key->ex_flags&HA_EX_UNIQUE_HASH)
+          {
+            Create_field *t_c_f;
+            LEX_STRING * ls=&t_key->key_part->field->vcol_info->expr_str;
+            bool found=false;
+            find_it.rewind();
+            LEX_STRING *new_ls = (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
+            new_ls->length=ls->length;
+            new_ls->str=(char *)thd->alloc(ls->length);
+            strncpy(new_ls->str,ls->str,new_ls->length);
+            int res=change_field_from_hash_col_str(new_ls,(char *)def->change,
+                                                   (char *)def->field_name);
+            if(!res)
+            {
+              /*
+              Find the old db_row_hash_ and
+               */
+              const char * name = t_key->key_part->field->field_name;
+              while((t_c_f=find_it++))
+              {
+                if(!my_strcasecmp(system_charset_info,t_c_f->field_name,name))
+                {
+                  found=true;
+                  break;
+                }
+              }
+              alter_info->flags|=Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+              if(found)
+              {
+                find_it.remove();
+                Create_field * cf =  t_c_f->clone(thd->mem_root);
+                cf->vcol_info->expr_str.str=new_ls->str;
+                cf->vcol_info->expr_str.length=new_ls->length;
+                new_create_list.push_front(cf,thd->mem_root);
+              }
+              else
+              {
+                /*
+                 Remove db_row_hash field with old expr_str
+                 If this field is not in create list
+                 then add it into drop_list.
+               */
+                Alter_drop *dr= new(thd->mem_root)Alter_drop(Alter_drop::COLUMN,
+                                                             drop->name,false);
+                alter_info->drop_list.push_back(dr,thd->mem_root);
+                Create_field * cf =  new(thd->mem_root) Create_field(thd,
+                                       t_key->key_part->field,t_key->key_part->field);
+                cf->vcol_info->expr_str.str=new_ls->str;
+                cf->vcol_info->expr_str.length=new_ls->length;
+                new_create_list.push_front(cf,thd->mem_root);
+              }
+
+            }
+          }
+        }
+      }
       if (field->stored_in_db() != def->stored_in_db())
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
@@ -7825,7 +7941,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       goto err;
     }
     /* Need to see whether new added column clashes with already existed
-       DB_ROW_HASH_*(is must have is_hash==tru)
+       DB_ROW_HASH_*(is must have is_hash==true)
      */
     for (f_ptr=table->vfield ;f_ptr&&(field= *f_ptr) ; f_ptr++)
     {

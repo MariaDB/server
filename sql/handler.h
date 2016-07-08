@@ -2960,12 +2960,16 @@ public:
     HA_ERR_FOUND_DUP_UNIQUE is a special case in MyISAM that means the
     same thing as HA_ERR_FOUND_DUP_KEY but can in some cases lead to
     a slightly different error message.
+    HA_ERR_FOUND_DUPP_KEY_BLOB is a special case on server side it is
+    equivalent of HA_ERR_FOUND_DUPP_KEY but error message is already
+    printed.
   */
   virtual bool is_fatal_error(int error, uint flags)
   {
     if (!error ||
         ((flags & HA_CHECK_DUP_KEY) &&
          (error == HA_ERR_FOUND_DUPP_KEY ||
+          error == HA_ERR_FOUND_DUPP_KEY_BLOB ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
         error == HA_ERR_AUTOINC_ERANGE ||
         ((flags & HA_CHECK_FK_ERROR) &&

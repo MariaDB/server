@@ -5449,6 +5449,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if(field->field_visibility == FULL_HIDDEN ||
            field->field_visibility == MEDIUM_HIDDEN)
       continue;
+    /* For now we will only show UNI or MUL for TODO  */
     uchar *pos;
     char tmp[MAX_FIELD_WIDTH];
     String type(tmp,sizeof(tmp), system_charset_info);
@@ -5527,7 +5528,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         table->field[17]->store(type.ptr(), type.length(), cs);
       if (field->vcol_info)
       {
-        if (field->stored_in_db)
+        if (field->stored_in_db())
           table->field[17]->store(STRING_WITH_LEN("PERSISTENT, HIDDEN"), cs);
         else
           table->field[17]->store(STRING_WITH_LEN("VIRTUAL, HIDDEN"), cs);
@@ -6084,6 +6085,73 @@ err:
   DBUG_RETURN(res);
 }
 
+static int print_get_schema_stat_record(THD *thd, TABLE_LIST *tables,
+																				 TABLE *table,TABLE *show_table,
+																				 LEX_STRING *db_name,
+																				 LEX_STRING *table_name,
+																				 KEY * key_info,KEY_PART_INFO
+																				 *key_part,Field * field ,int i,int j)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  const char *str;
+  restore_record(table, s->default_values);
+  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  table->field[1]->store(db_name->str, db_name->length, cs);
+  table->field[2]->store(table_name->str, table_name->length, cs);
+  table->field[3]->store((longlong) ((key_info->flags &
+                                      HA_NOSAME) ? 0 : 1), TRUE);
+  table->field[4]->store(db_name->str, db_name->length, cs);
+  table->field[5]->store(key_info->name, strlen(key_info->name), cs);
+  table->field[6]->store((longlong) (j+1), TRUE);
+  str=field ? field->field_name :"?unknown field?";
+  table->field[7]->store(str, strlen(str), cs);
+  if (show_table->file)
+  {
+    if (show_table->file->index_flags(i, j, 0) & HA_READ_ORDER)
+    {
+      table->field[8]->store(((key_part->key_part_flag &
+                               HA_REVERSE_SORT) ?
+                              "D" : "A"), 1, cs);
+      table->field[8]->set_notnull();
+    }
+    KEY *key=show_table->key_info+i;
+    if (key->rec_per_key[j])
+    {
+      ha_rows records= (ha_rows) ((double) show_table->stat_records() /
+                                  key->actual_rec_per_key(j));
+      table->field[9]->store((longlong) records, TRUE);
+      table->field[9]->set_notnull();
+    }
+    str= show_table->file->index_type(i);
+    table->field[13]->store(str, strlen(str), cs);
+  }
+  if (!(key_info->flags & HA_FULLTEXT) &&
+      (key_part->field &&
+       key_part->length !=
+       show_table->s->field[key_part->fieldnr-1]->key_length()))
+  {
+    table->field[10]->store((longlong) key_part->length /
+                            key_part->field->charset()->mbmaxlen, TRUE);
+    table->field[10]->set_notnull();
+  }
+  uint flags= key_part->field ? key_part->field->flags : 0;
+  const char *pos=(char*) ((flags & NOT_NULL_FLAG) ? "" : "YES");
+  table->field[12]->store(pos, strlen(pos), cs);
+  if (!show_table->s->keys_in_use.is_set(i))
+    table->field[14]->store(STRING_WITH_LEN("disabled"), cs);
+  else
+    table->field[14]->store("", 0, cs);
+  table->field[14]->set_notnull();
+  DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
+             (key_info->comment.length > 0));
+  if (key_info->flags & HA_USES_COMMENT)
+    table->field[15]->store(key_info->comment.str,
+                            key_info->comment.length, cs);
+  if (schema_table_store_record(thd, table))
+    return 1;
+  return 0;
+}
+
 
 static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
 				  TABLE *table, bool res,
@@ -6123,71 +6191,51 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
-      const char *str;
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
-        restore_record(table, s->default_values);
-        table->field[0]->store(STRING_WITH_LEN("def"), cs);
-        table->field[1]->store(db_name->str, db_name->length, cs);
-        table->field[2]->store(table_name->str, table_name->length, cs);
-        table->field[3]->store((longlong) ((key_info->flags &
-                                            HA_NOSAME) ? 0 : 1), TRUE);
-        table->field[4]->store(db_name->str, db_name->length, cs);
-        table->field[5]->store(key_info->name, strlen(key_info->name), cs);
-        table->field[6]->store((longlong) (j+1), TRUE);
-        str=(key_part->field ? key_part->field->field_name :
-             "?unknown field?");
-        table->field[7]->store(str, strlen(str), cs);
-        if (show_table->file)
+
+        if(key_info->ex_flags&HA_EX_UNIQUE_HASH && key_info->key_part->field)
         {
-          if (show_table->file->index_flags(i, j, 0) & HA_READ_ORDER)
+          char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
+          /*increase the pointer to hash(`fd..
+                                         ^     */
+          hash_str+=4;
+          int length=0;
+          while(*hash_str!=')'&& hash_str++)
           {
-            table->field[8]->store(((key_part->key_part_flag &
-                                     HA_REVERSE_SORT) ?
-                                    "D" : "A"), 1, cs);
-            table->field[8]->set_notnull();
+            if(*hash_str=='`')
+            {
+              hash_str++;
+              while(*hash_str!='`'){ hash_str++; length++; }
+              /*Currently we do no have my_strncasecmp so we will make a new var*/
+              char temp[length+1];
+              strncpy(temp,hash_str-length,length);
+              temp[length]='\0';
+              Field **fp,*f;
+
+              for (fp=show_table->field;*fp&&(f=*fp);fp++)
+              {
+                if(!my_strcasecmp(system_charset_info,temp,f->field_name))
+                {
+                  if(print_get_schema_stat_record( thd, tables,table,show_table,db_name,
+                                                       table_name,key_info,key_part,f,i,j))
+                    DBUG_RETURN(1);
+                }
+              }
+              hash_str++;
+              length=0;
+            }
           }
-          KEY *key=show_table->key_info+i;
-          if (key->rec_per_key[j])
-          {
-            ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                        key->actual_rec_per_key(j));
-            table->field[9]->store((longlong) records, TRUE);
-            table->field[9]->set_notnull();
-          }
-          str= show_table->file->index_type(i);
-          table->field[13]->store(str, strlen(str), cs);
+          continue;
         }
-        if (!(key_info->flags & HA_FULLTEXT) &&
-            (key_part->field &&
-             key_part->length !=
-             show_table->s->field[key_part->fieldnr-1]->key_length()))
-        {
-          table->field[10]->store((longlong) key_part->length /
-                                  key_part->field->charset()->mbmaxlen, TRUE);
-          table->field[10]->set_notnull();
-        }
-        uint flags= key_part->field ? key_part->field->flags : 0;
-        const char *pos=(char*) ((flags & NOT_NULL_FLAG) ? "" : "YES");
-        table->field[12]->store(pos, strlen(pos), cs);
-        if (!show_table->s->keys_in_use.is_set(i))
-          table->field[14]->store(STRING_WITH_LEN("disabled"), cs);
-        else
-          table->field[14]->store("", 0, cs);
-        table->field[14]->set_notnull();
-        DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
-                   (key_info->comment.length > 0));
-        if (key_info->flags & HA_USES_COMMENT)
-          table->field[15]->store(key_info->comment.str, 
-                                  key_info->comment.length, cs);
-        if (schema_table_store_record(thd, table))
+        if(print_get_schema_stat_record( thd, tables,table,show_table,db_name,
+                                             table_name,key_info,key_part,key_part->field,i,j))
           DBUG_RETURN(1);
       }
     }
   }
   DBUG_RETURN(res);
 }
-
 
 static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 				   TABLE *table, bool res,
@@ -6566,6 +6614,49 @@ static int get_schema_key_column_usage_record(THD *thd,
                            HA_STATUS_TIME);
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
+      if(key_info->ex_flags&HA_EX_UNIQUE_HASH && key_info->key_part->field)
+      {
+        char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
+        /*increase the pointer to hash(`fd..
+                                       ^     */
+        hash_str+=4;
+        int length=0;
+        char * fld_name;
+        uint f_idx= 0;
+        while(*hash_str!=')'&& hash_str++)
+        {
+          if(*hash_str=='`')
+          {
+            hash_str++;
+            while(*hash_str!='`'){ hash_str++; length++; }
+            /*Currently we do no have my_strncasecmp so we will make a new var*/
+            char temp[length+1];
+            strncpy(temp,hash_str-length,length);
+            temp[length]='\0';
+            Field **fp,*f;
+
+            for (fp=show_table->field;*fp&&(f=*fp);fp++)
+            {
+              if(!my_strcasecmp(system_charset_info,temp,f->field_name))
+              {
+                f_idx++;
+                restore_record(table, s->default_values);
+                store_key_column_usage(table, db_name, table_name,
+                                       key_info->name,
+                                       strlen(key_info->name),
+                                       f->field_name,
+                                       strlen(f->field_name),
+                                       (longlong)f_idx );
+                if (schema_table_store_record(thd, table))
+                  DBUG_RETURN(1);
+              }
+            }
+            hash_str++;
+            length=0;
+          }
+        }
+        continue;
+      }
       if (i != primary_key && !(key_info->flags & HA_NOSAME))
         continue;
       uint f_idx= 0;
